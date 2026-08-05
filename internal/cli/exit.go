@@ -1,5 +1,11 @@
 package cli
 
+import (
+	"errors"
+
+	"github.com/deligoez/cr/internal/axis"
+)
+
 // Exit codes, fixed by spec/0.1.0.md §11.2. Never renumber these.
 const (
 	// ExitOK signals success.
@@ -13,3 +19,17 @@ const (
 	// ExitState signals a state conflict, including lock timeout and partial post.
 	ExitState = 4
 )
+
+// exitCodeFor maps an error onto the code §11.2 gives its cause. The mapping
+// lives here rather than in the package that raises the error, so a validator
+// below cli never has to name an exit code itself. An unmapped cause is a
+// malformed invocation.
+func exitCodeFor(err error) int {
+	var invalidAxis *axis.InvalidError
+	if errors.As(err, &invalidAxis) {
+		// §1.5: an axis field outside the closed set is a bad
+		// configuration file, which §11.2 codes as ExitFile.
+		return ExitFile
+	}
+	return ExitUsage
+}
