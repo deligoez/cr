@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -239,4 +240,22 @@ func TestParseRequiresTheIDToEqualTheFileStem(t *testing.T) {
 	assert.Equal(t, "id", malformed.Field)
 	assert.Contains(t, err.Error(), `"generic"`)
 	assert.Contains(t, err.Error(), `"laravel-pest"`)
+}
+
+// §1.5 closes the axis id set, so an axes key outside it is a bad configuration
+// file. The judgement belongs to axis.Validate, which the cli layer already maps
+// onto exit code 3; the profile only has to route every key through it.
+func TestParseRejectsAnAxisIDOutsideTheClosedSet(t *testing.T) {
+	path := write(t, "generic", `{
+		"id": "generic",
+		"match": {"files": [], "globs": ["**/*"]},
+		"axes": {"correctness": true, "security": true}
+	}`)
+
+	_, err := Load(path)
+
+	var invalid *axis.InvalidError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, "axes.security", invalid.Field)
+	assert.Equal(t, path, invalid.File)
 }
