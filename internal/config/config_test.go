@@ -71,3 +71,31 @@ func TestProtectedNamesAreRejected(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 20, cfg.Int("post.max_comments"))
 }
+
+// Every layer speaks a different dialect: a file supplies JSON types, the
+// environment supplies strings only, and a flag supplies whatever its parser
+// produced. All three must land on the setting's own type.
+func TestLayerValuesAreCoercedToTheSettingType(t *testing.T) {
+	dir := t.TempDir()
+	global := filepath.Join(dir, "config.json")
+	require.NoError(t, os.WriteFile(global, []byte(
+		`{"render": {"lang": "en"}, "ignore": {"globs": ["vendor/**"]}, "rules": {"dead_after": 12}}`,
+	), 0o600))
+
+	cfg, err := Resolve(Sources{
+		GlobalConfig: global,
+		Environ:      []string{`CR_INTENT_CMD=["gh","issue","view","{key}"]`},
+		Flags:        map[string]any{"rules.harvest_min": 5},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "en", cfg.String("render.lang"))
+	assert.Equal(t, []string{"vendor/**"}, cfg.Strings("ignore.globs"))
+	assert.Equal(t, 12, cfg.Int("rules.dead_after"))
+	assert.Equal(t, []string{"gh", "issue", "view", "{key}"}, cfg.Strings("intent.cmd"))
+	assert.Equal(t, 5, cfg.Int("rules.harvest_min"))
+
+	_, err = Resolve(Sources{Environ: []string{"CR_POST_MAX_COMMENTS=many"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "post.max_comments")
+}
