@@ -1,10 +1,13 @@
 package profile
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // specFields is the §2.4 field table, in its own order, in the dotted spelling
@@ -55,4 +58,53 @@ func fieldPaths(t reflect.Type, prefix string) []string {
 		paths = append(paths, name)
 	}
 	return paths
+}
+
+// wellFormed is the smallest profile satisfying every required field of §2.4,
+// written for the stem "laravel-pest".
+const wellFormed = `{
+	"id": "laravel-pest",
+	"match": {"files": ["artisan"], "globs": ["app/**/*.php"]},
+	"axes": {"intent": true, "correctness": true, "convention": true, "test": false}
+}`
+
+// write puts content at a profile path with the given stem and returns it.
+func write(t *testing.T, stem, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), stem+".json")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	return path
+}
+
+// §2.4 gives tests.timeout_seconds and tests.output_tail_bytes defaults, and
+// gives every other optional field no value at all. A profile that omits them
+// must come back carrying the two defaults and empty lists rather than nil, so
+// no consumer has to know which fields the file happened to set.
+func TestParseAppliesTheDocumentedDefaults(t *testing.T) {
+	path := write(t, "laravel-pest", wellFormed)
+
+	p, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, "laravel-pest", p.ID)
+	assert.Equal(t, []string{"artisan"}, p.Match.Files)
+	assert.Equal(t, []string{"app/**/*.php"}, p.Match.Globs)
+	assert.Equal(t, map[string]bool{
+		"intent": true, "correctness": true, "convention": true, "test": false,
+	}, p.Axes)
+	assert.Equal(t, DefaultTimeoutSeconds, p.Tests.TimeoutSeconds)
+	assert.Equal(t, DefaultOutputTailBytes, p.Tests.OutputTailBytes)
+	// Every list is empty rather than nil, so a profile never serialises a
+	// slice as null.
+	assert.Equal(t, []string{}, p.Sandbox.Copy)
+	assert.Equal(t, []string{}, p.Sandbox.Setup)
+	assert.Equal(t, []string{}, p.Tests.Cmd)
+	assert.Equal(t, []string{}, p.Tests.Globs)
+	assert.NotNil(t, p.Rules)
+	assert.Empty(t, p.Rules)
+	// The remaining optional fields stay unset: §2.4 gives them no default.
+	assert.Empty(t, p.Tests.FilterFlag)
+	assert.Empty(t, p.Tests.CountPattern)
+	assert.Empty(t, p.Tests.ProbePathTemplate)
+	assert.Empty(t, p.Symbols.Lang)
 }
