@@ -32,6 +32,7 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().String("repo", "", "override repository detection (owner/repo)")
 
 	root.AddCommand(newInitCmd())
+	root.AddCommand(newConfigCmd())
 
 	return root
 }
