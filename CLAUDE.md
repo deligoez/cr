@@ -186,6 +186,24 @@ cr is built with tp, the same way tp builds itself.
   recorded justification. Implementation audit always runs to the full
   clean-round count and is never cut short by a cap — a hit cap means fix and
   continue, with a user-approved raise.
+- **A spec repair is the minimum normative change.** No rationale sentence, no
+  restated motivation, no new concept unless a finding strictly requires one.
+  Every explanatory clause in a normative document is itself normative surface —
+  a fresh claim that can contradict another section and a fresh cross-reference
+  that can go stale. This is measured, not preferred: across v0.1's nine review
+  rounds the blocking count sat flat at 34–46 while repairs averaged ~8 lines,
+  and fell to 14 the round the rule became ~2 lines. The spec did not change;
+  the repair style did. Explanation belongs in the round record and the commit
+  message.
+- **Run `scripts/speccheck.py <spec>` after every spec edit**, before the next
+  review round. It resolves every `§X.Y` against real headings and numbered
+  items and finds numbered-list breaks — the two failure modes that fixing one
+  clause while stranding another produces. It caught defects in most rounds and
+  costs nothing.
+- **Tell the reviewer roles where the review stands.** Emit the prior rounds'
+  severity distribution and say plainly that an empty result is a valid outcome.
+  Without it, roles promote ever-narrower items to `high` as the real defects run
+  out, and the count stops measuring the spec.
 - Commit the `.tp-review/` state directory, the spec, and its `.tasks.json`.
 - **Never commit the per-role review or audit working files.** `review-*.ndjson`
   and `merged-*.ndjson` at the repository root are scratch output of one round's
