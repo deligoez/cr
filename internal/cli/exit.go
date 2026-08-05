@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/profile"
 )
 
 // Exit codes, fixed by spec/0.1.0.md §11.2. Never renumber these.
@@ -29,6 +30,12 @@ func exitCodeFor(err error) int {
 	if errors.As(err, &invalidAxis) {
 		// §1.5: an axis field outside the closed set is a bad
 		// configuration file, which §11.2 codes as ExitFile.
+		return ExitFile
+	}
+	var malformedProfile *profile.MalformedError
+	if errors.As(err, &malformedProfile) {
+		// §2.5 item 3: a malformed profile file aborts with exit
+		// code 3, naming the file and the offending field.
 		return ExitFile
 	}
 	return ExitUsage
