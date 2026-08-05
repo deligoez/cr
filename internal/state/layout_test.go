@@ -79,3 +79,16 @@ func TestInitCreatesTheGlobalTree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, emptyConfig, string(body))
 }
+
+// A second init must never discard what the first one left behind.
+func TestInitIsIdempotent(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	require.NoError(t, l.Init())
+	require.NoError(t, os.WriteFile(l.Config(), []byte(`{"profile":"generic"}`), filePerm))
+
+	require.NoError(t, l.Init())
+
+	body, err := os.ReadFile(l.Config())
+	require.NoError(t, err)
+	assert.Equal(t, `{"profile":"generic"}`, string(body))
+}
