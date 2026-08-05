@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-05T18:59:57.789381Z",
+  "updated_at": "2026-08-05T19:07:44.803373Z",
   "workflow": {
     "quality_gate": "go test ./... \u0026\u0026 golangci-lint run",
     "review_clean_rounds": 1,
@@ -597,7 +597,7 @@
     {
       "id": "profile-schema",
       "title": "Define the profile field schema",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "axis-id-validator",
@@ -608,11 +608,31 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-05T19:00:27.146069Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-05T19:07:44.734642Z",
+      "closed_reason": "- internal/profile/profile.go carries every row of the §2.4 field table with its required flag: ID, Match.Files, Match.Globs and Axes are required and named individually when absent, Sandbox.Copy/Setup, Tests.Cmd/Globs/FilterFlag/TimeoutSeconds/OutputTailBytes/CountPattern/ProbePathTemplate, Rules and Symbols.Lang are optional, and TestParseAppliesTheDocumentedDefaults proves an omitting profile comes back with TimeoutSeconds 900, OutputTailBytes 4096 and empty lists rather than nil, while TestParseKeepsExplicitOptionalValues proves a set value survives.\n- TestTestsGlobsIsRequiredWhenTestsCmdIsPresent proves the conditional row of the table: a tests.cmd with no tests.globs, and one with an empty tests.globs, both abort naming tests.globs, an absent tests.cmd asks for nothing because it disables the test axis, and a present-but-empty tests.cmd aborts naming itself so absent and empty stay distinguishable.\n- The struct is mechanical, language-specific data only: every field is a marker list, a glob, an axis default, a shell step, a runner setting, a rule object carried verbatim for §2.6, or a language hint, and nothing is addressed to an agent.\n- TestProfileCarriesExactlyTheSpecFields walks the struct reflectively and asserts its dotted json field set equals the fifteen §2.4 rows exactly, so no free-form instruction field can be added without the guard failing; proven to bite by temporarily adding an instructions string and observing the failure, then reverting.\n- A malformed profile aborts with exit code 3 naming the file and the offending field: *profile.MalformedError carries File, Field and Problem, exitCodeFor maps it onto ExitFile via errors.As beside the existing axis mapping, and TestParseNamesTheMissingRequiredField, TestParseRequiresTheIDToEqualTheFileStem, TestParseRejectsAnAxisIDOutsideTheClosedSet, TestParseRejectsUnusableFiles and TestMalformedProfileExitsWithTheFileCode cover each fault; §2.4's file-stem rule is enforced, axes keys are judged by axis.Validate as axes.\u003ckey\u003e so its own exit-3 mapping applies, and a wrong-typed field is named from the decoder's own path.\nOut of scope: profile selection by match.files with its most-markers-wins rule and tie abort, the tests.count_pattern group-arity check, the tests.probe_path_template default, and the laravel-pest and generic profiles are each their own later task and are untouched here. Two validations were added that §2.4 implies rather than states: a non-positive tests.timeout_seconds or tests.output_tail_bytes is malformed, since a run with no timeout budget or no retained output cannot produce the evidence §5 asks of it.",
+      "gate_passed_at": "2026-08-05T19:07:44.734642Z",
+      "commit_sha": "dea3b6b",
+      "commit_shas": [
+        "dea3b6b",
+        "028405b",
+        "b543bf4",
+        "2c9d5e2",
+        "1400f80",
+        "921b7cf",
+        "0ddfa3d",
+        "08fcc83",
+        "c2d2c4d",
+        "c90a46e",
+        "5c353c1"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/profile/profile.go",
+        "internal/profile/profile_test.go"
+      ]
     },
     {
       "id": "profile-auto-selection",
