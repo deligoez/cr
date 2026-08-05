@@ -180,7 +180,12 @@ cr is built with tp, the same way tp builds itself.
   recorded justification. Implementation audit always runs to the full
   clean-round count and is never cut short by a cap — a hit cap means fix and
   continue, with a user-approved raise.
-- Commit the `.tp-review/` state directory.
+- Commit the `.tp-review/` state directory, the spec, and its `.tasks.json`.
+- **Never commit the per-role review or audit working files.** `review-*.ndjson`
+  and `merged-*.ndjson` at the repository root are scratch output of one round's
+  fan-out; `.gitignore` drops them and they are deleted once the round is
+  recorded. The durable record is `.tp-review/`, which keeps its own
+  `review-round-<n>.ndjson` and snapshots.
 - One task = one commit = one `tp done --commit <sha>`.
 - **Every commit goes through the `hc` skill** (hunk-based atomic commits). Never
   raw `git commit`, for task closures, spec progression, docs, or tooling alike.
