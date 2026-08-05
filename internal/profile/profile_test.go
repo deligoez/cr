@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -187,4 +188,36 @@ func TestParseNamesTheMissingRequiredField(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.field)
 		})
 	}
+}
+
+// §2.4 makes tests.globs required exactly when tests.cmd is present, because a
+// runner with no way to recognise a test file cannot seed the gap probe's path.
+// An absent tests.cmd disables the test axis and asks nothing.
+func TestTestsGlobsIsRequiredWhenTestsCmdIsPresent(t *testing.T) {
+	base := `{
+		"id": "generic",
+		"match": {"files": [], "globs": ["**/*"]},
+		"axes": {"convention": true},
+		"tests": %s
+	}`
+
+	_, err := Load(write(t, "generic", fmt.Sprintf(base, `{"cmd": ["make", "test"]}`)))
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "tests.globs", malformed.Field)
+
+	// An empty list is no better than an absent one.
+	_, err = Load(write(t, "generic", fmt.Sprintf(base, `{"cmd": ["make", "test"], "globs": []}`)))
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "tests.globs", malformed.Field)
+
+	// Without a command the test axis is off, so globs are not asked for.
+	p, err := Load(write(t, "generic", fmt.Sprintf(base, `{"filter_flag": "-run"}`)))
+	require.NoError(t, err)
+	assert.Empty(t, p.Tests.Cmd)
+
+	// A present but empty command is neither absent nor runnable.
+	_, err = Load(write(t, "generic", fmt.Sprintf(base, `{"cmd": [], "globs": ["*_test.go"]}`)))
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "tests.cmd", malformed.Field)
 }
