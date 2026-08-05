@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-05T17:45:37.269237Z",
+  "updated_at": "2026-08-05T18:37:31.222487Z",
   "workflow": {
     "quality_gate": "go test ./... \u0026\u0026 golangci-lint run",
     "review_clean_rounds": 1,
@@ -32,7 +32,7 @@
     {
       "id": "exit-code-constants",
       "title": "Pin exit codes with guard test",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 10,
@@ -42,15 +42,21 @@
       ],
       "started_at": "2026-08-05T17:45:37.269237Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-05T18:30:27.850122Z",
+      "closed_reason": "- internal/cli/exit.go declares all five §11.2 codes: ExitOK 0, ExitValidation 1, ExitUsage 2, ExitFile 3, ExitState 4, each carrying the meaning the table gives it, under a comment pinning them to the spec.\n- TestExitCodesArePinned in internal/cli/root_test.go asserts each of the five numeric values literally, so a renumbering fails the suite rather than shipping silently; verified by go test ./... .\n- All five are exported package-level constants in package cli, reachable by every command.\n- No command uses a bare integer exit literal: Execute() maps its error path onto ExitUsage, and a grep over cmd/ and internal/ finds no numeric argument to os.Exit. Gate: go test ./... ok, golangci-lint 0 issues.",
+      "gate_passed_at": "2026-08-05T18:30:27.850122Z",
+      "commit_sha": "734f669",
+      "commit_shas": [
+        "734f669"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go"
+      ]
     },
     {
       "id": "cobra-root-command",
       "title": "Build the cobra root command",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "exit-code-constants"
@@ -60,11 +66,26 @@
       "source_sections": [
         "## 11. Command surface"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-05T18:30:35.664789Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-05T18:37:07.822222Z",
+      "closed_reason": "- The spf13/cobra root command named cr was already in place from commit 243a344 and is verified intact rather than rewritten: cmd/cr/main.go is a three-line entry point calling cli.Execute(), and internal/cli/root.go holds the tree, the five §11.1 global flags, and the error-to-exit-code mapping onto ExitUsage.\n- Record ids are PR-scoped, so internal/cli/pr.go adds the fence every such command will build on: parsePR rejects anything that is not a positive pull request number, prArgs(n) validates the arity and the leading pull request argument, and TestRecordIDCommandsTakeThePullRequest walks the whole command tree and fails any command whose Use names \u003crecord-id\u003e without \u003cpr\u003e ahead of it, or that takes a \u003cpr\u003e without validating it. Both halves were proven to bite by temporarily registering violating commands and observing the failures, then reverted.\n- go build ./cmd/cr produces a working binary that prints help with no arguments. The root previously emitted only its Short line, because cobra suppresses the usage block for a command that is neither runnable nor populated, so newRootCmd now sets Args cobra.NoArgs and a RunE returning cmd.Help(). The freshly built /tmp/cr-dev/cr run with no arguments prints the usage block and all five global flags and exits 0, while cr bogus exits 2, and TestRootPrintsHelpWithNoArguments pins the behaviour.\nOut of scope: registering the §11 command rows belongs to the next task, command-surface-stubs, so the tree-walk guard passes vacuously today and becomes load-bearing the moment those stubs land.",
+      "gate_passed_at": "2026-08-05T18:37:07.822222Z",
+      "commit_sha": "0e64f2b",
+      "commit_shas": [
+        "0e64f2b",
+        "eba5c88",
+        "5fc7ccb",
+        "5a1ff6a",
+        "6f6c935",
+        "36ba45b"
+      ],
+      "commit_files": [
+        "internal/cli/pr.go",
+        "internal/cli/pr_test.go",
+        "internal/cli/root.go",
+        "internal/cli/root_test.go"
+      ]
     },
     {
       "id": "command-surface-stubs",
@@ -298,7 +319,7 @@
     {
       "id": "state-directory-layout",
       "title": "Create the global state directory tree",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -308,7 +329,8 @@
       "source_sections": [
         "### 2.2 State layout"
       ],
-      "started_at": null,
+      "started_at": "2026-08-05T18:37:31.222487Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
