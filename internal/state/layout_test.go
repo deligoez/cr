@@ -61,3 +61,21 @@ func TestDefaultPrefersTheHomeEnvOverride(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(home, dirName), l.Root())
 }
+
+func TestInitCreatesTheGlobalTree(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	require.NoError(t, l.Init())
+
+	for _, dir := range []string{
+		l.Root(), l.ProfilesDir(), l.RolesDir(), l.RulesDir(), l.ReposDir(),
+		l.StateDir(), l.ContextDir(), l.WaiversDir(), l.LocksDir(),
+	} {
+		info, err := os.Stat(dir)
+		require.NoError(t, err, dir)
+		assert.True(t, info.IsDir(), dir)
+	}
+
+	body, err := os.ReadFile(l.Config())
+	require.NoError(t, err)
+	assert.Equal(t, emptyConfig, string(body))
+}
