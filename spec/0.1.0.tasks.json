@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "spec": "spec/0.1.0.md",
+  "created_at": "2026-08-05T10:43:59.85306Z",
+  "updated_at": "2026-08-05T10:43:59.853061Z",
+  "workflow": {
+    "quality_gate": "go test ./... \u0026\u0026 golangci-lint run"
+  },
+  "coverage": {
+    "total_sections": 0,
+    "mapped_sections": 0,
+    "context_only": [],
+    "unmapped": []
+  },
+  "tasks": []
+}

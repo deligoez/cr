@@ -1,0 +1,5 @@
+{
+  "workflow": {
+    "commit_strategy": "hc"
+  }
+}
