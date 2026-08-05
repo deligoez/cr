@@ -86,27 +86,33 @@ source of truth; this table is a map, not a promise.
 
 | Command | Purpose |
 |---------|---------|
-| `cr init` | Create `~/.cr`, write default profiles, roles, and rules |
-| `cr brief <pr>` | Read-only orientation payload for a PR |
-| `cr review <pr>` | Emit per-role, per-unit prompts and output paths |
+| `cr init [--eject-roles]` | Create `~/.cr`, write default profiles, roles, and rules |
+| `cr brief <pr>` | Orientation payload; opens a new round when the head moved |
+| `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths |
 | `cr claims record <pr> <file>` | Store the claims extracted from the issue |
-| `cr merge <files...> -o <out>` | Merge and deduplicate per-role findings |
+| `cr map record <pr> <file>` | Store the claim-to-unit mapping |
+| `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
+| `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
+| `cr merge <files...> -o <out> --repo <r> --pr <n>` | Merge and deduplicate per-role findings |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
 | `cr test <pr> [--filter]` | Run the suite inside the sandbox |
-| `cr probe run <pr> ...` | Execute and record a mutation or gap probe |
+| `cr probe run <pr> --kind <kind> ...` | Execute and record a mutation or gap probe |
 | `cr draft <pr>` | Render the editable draft |
-| `cr post <pr> [--confirm]` | Validate and post the review |
-| `cr recheck <pr>` | Re-review after a head change |
-| `cr resolve <id> --confirm` | Resolve a thread with evidence |
-| `cr answer <question-id> <text>` | Close a question and store the answer |
-| `cr note <ISSUE-KEY> <text>` | Store an out-of-band fact |
+| `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review |
+| `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
+| `cr note <ISSUE-KEY> <text>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
 | `cr rules list\|check\|suggest` | Inspect, run, and harvest project rules |
-| `cr waivers list\|remove` | Inspect and edit waivers |
-| `cr stats` | Triage statistics and demotion candidates |
-| `cr status <pr>` | Coverage, states, and convergence |
+| `cr waivers list\|remove --repo <r> [--pr <n>]` | Inspect and edit waivers in either scope |
+| `cr stats --repo <r>` | Triage statistics, demotion and volume candidates |
+| `cr status <pr>` | Coverage, states, and completeness |
 | `cr config [--resolved]` | Effective configuration and its layers |
+
+v0.1 ends at posting. `cr recheck`, `cr verify`, `cr resolve`, and `cr accept`
+are **not** v0.1 commands — the re-review half of the loop is v0.2, declared out
+of scope in `spec/0.1.0.md` §1.3.6. A moved head makes the round stale (§9.3);
+`cr brief` opens a new one.
 
 ## Project structure
 
