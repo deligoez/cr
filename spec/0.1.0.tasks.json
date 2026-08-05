@@ -6,7 +6,7 @@
   "workflow": {
     "quality_gate": "go test ./... \u0026\u0026 golangci-lint run",
     "review_clean_rounds": 1,
-    "review_max_rounds": 9
+    "review_max_rounds": 13
   },
   "coverage": {
     "total_sections": 0,
