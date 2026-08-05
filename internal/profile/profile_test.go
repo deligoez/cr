@@ -221,3 +221,22 @@ func TestTestsGlobsIsRequiredWhenTestsCmdIsPresent(t *testing.T) {
 	require.ErrorAs(t, err, &malformed)
 	assert.Equal(t, "tests.cmd", malformed.Field)
 }
+
+// §2.4 makes id equal to the file stem. A profile whose id disagrees with its
+// filename is addressable by two different names, so the disagreement is a
+// malformed file rather than a preference.
+func TestParseRequiresTheIDToEqualTheFileStem(t *testing.T) {
+	path := write(t, "generic", `{
+		"id": "laravel-pest",
+		"match": {"files": [], "globs": ["**/*"]},
+		"axes": {}
+	}`)
+
+	_, err := Load(path)
+
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "id", malformed.Field)
+	assert.Contains(t, err.Error(), `"generic"`)
+	assert.Contains(t, err.Error(), `"laravel-pest"`)
+}
