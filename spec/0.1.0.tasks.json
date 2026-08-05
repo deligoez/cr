@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-05T18:53:37.051842Z",
+  "updated_at": "2026-08-05T18:59:57.789381Z",
   "workflow": {
     "quality_gate": "go test ./... \u0026\u0026 golangci-lint run",
     "review_clean_rounds": 1,
@@ -300,7 +300,7 @@
     {
       "id": "axis-id-validator",
       "title": "Close the axis id set",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "exit-code-constants"
@@ -310,11 +310,27 @@
       "source_sections": [
         "### 1.5 Axis identifiers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-05T18:54:08.614564Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-05T18:59:57.748252Z",
+      "closed_reason": "- internal/axis/axis.go holds the one shared validator of §1.5, where ids is the literal set intent, correctness, convention, test, Valid and Validate read only that literal, and TestValidateAcceptsExactlyTheFourAxisIDs asserts both the exact set IDs() returns and that Validate accepts every member.\n- Any other value returns an *axis.InvalidError carrying the file, the field, and the offending value in its message, and exitCodeFor in internal/cli/exit.go maps that error, through any wrapping, onto ExitFile so Execute aborts with exit code 3, covered by TestValidateNamesTheOffendingFileAndValue and TestInvalidAxisExitsWithTheFileCode.\n- The set is closed in v0.1 because the ids literal has no registration entry point and IDs() hands out a copy, which the tamper check in TestNoConfigurationLayerCanExtendTheAxisSet asserts by writing to the returned slice and finding the validator unchanged.\n- No configuration layer can extend it, and the same test proves it by resolving a global config file and a CR_ variable that each name a fifth axis, then asserting no resolved setting addresses an axis id and that Validate still rejects the name.\n\nOut of scope: the profile, role, and rule schemas that will call axis.Validate are later tasks, so no schema loader or call site was added here.",
+      "gate_passed_at": "2026-08-05T18:59:57.748252Z",
+      "commit_sha": "682dad6",
+      "commit_shas": [
+        "682dad6",
+        "0dd6faf",
+        "7d4f74c",
+        "62e4c26",
+        "8d48cef",
+        "e863631"
+      ],
+      "commit_files": [
+        "internal/axis/axis.go",
+        "internal/axis/axis_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/root.go"
+      ]
     },
     {
       "id": "state-directory-layout",
