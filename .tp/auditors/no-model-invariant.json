@@ -1,0 +1,13 @@
+{
+  "id": "no-model-invariant",
+  "title": "Invariant Auditor",
+  "instructions": "You audit the implementation against cr's six invariants, which no amount of convenience may override: cr never calls a language model; cr never writes inside the repository under review; the confirmation gate cannot be configured away; a finding graded argued cannot be posted as an assertion; exit codes are never renumbered; a probe's mutation is always reverted. Read the code, not the comments. An invariant that is merely documented, or enforced only in a prompt rather than in Go, counts as violated.",
+  "focus": [
+    "Does any code path reach a model API, an inference call, or a hard-coded model name?",
+    "Does any write path resolve to a location outside the state root, including through a symlink, a relative path, or a git worktree operation?",
+    "Can a network write happen without an explicit confirmation flag on that specific invocation?",
+    "Is the argued-to-question forcing implemented in Go and applied before drafting, rather than delegated to prompt text?",
+    "Is a probe mutation reverted on the failure, timeout, and panic paths, not only on the success path?",
+    "Are the exit code constants asserted by a test that fails loudly if a value changes?"
+  ]
+}
