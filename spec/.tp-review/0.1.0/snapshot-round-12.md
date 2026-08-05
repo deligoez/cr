@@ -1,0 +1,1388 @@
+# cr v0.1.0 — Reviewer Loop
+
+First release. Delivers the complete reviewer-side loop for a single pull
+request: orient, review across four axes, prove findings with experiments,
+draft, human triage, post, and re-review until every thread is closed.
+
+Design rationale and non-normative background live in `VISION.md`. This document
+is normative.
+
+## 1. Scope
+
+### 1.1 Terms
+
+| Term | Definition |
+|------|------------|
+| PR | A GitHub pull request identified by `owner/repo#number` |
+| Head | The commit SHA at the tip of the PR branch at the time of a round |
+| Issue | The tracker item that states the intent, identified by an issue key |
+| Claim | One atomic requirement extracted from the issue |
+| Hunk | One contiguous changed range in the PR diff |
+| Unit | A cluster of related hunks reviewed as one piece of work |
+| Role | A judgement lens with an id, a title, and prompt instructions |
+| Axis | One of the four review dimensions defined in §4 |
+| Cell | The intersection of one unit and one active role |
+| Finding | An assertion that something is wrong, with evidence |
+| Question | A request for information the reviewer cannot answer alone |
+| Citation | A `path:line` reference that `cr` resolved against the current head |
+| Probe | A reproducible experiment run in a sandbox, with a recorded result |
+| Grade | The strength of a finding's evidence: probed, cited, or argued |
+| Draft | A human-editable rendering of a round's queued output |
+| Thread | A posted GitHub review comment and its replies |
+| Round | One review pass, bound to a single head SHA |
+| Waiver | A recorded decision to never raise a given finding again |
+| Disposition | Why a record was discarded: `wrong` or `not-here` (§7.2) |
+| Note | An out-of-band fact recorded against an issue key |
+| Open | Any record in a non-terminal state per §9.1 |
+
+### 1.2 In scope
+
+1. Reviewing a pull request the user did not author.
+2. Reading intent from a tracker through an existing CLI command.
+3. Ingesting existing review threads from other reviewers.
+4. Running experiments against the PR head in an isolated worktree.
+5. Producing, triaging, and posting review comments as a single GitHub review.
+6. Detecting that the head has moved, and declaring the recorded round stale.
+
+### 1.3 Out of scope
+
+1. Writing to the tracker.
+2. Author-side workflow: consuming review comments on the user's own PRs.
+3. Approving or requesting changes automatically.
+4. Any call to a language model from within `cr`.
+5. Chat platform integrations.
+6. The re-review half of the loop: anchor migration across a push, verifying that
+   a concern was addressed, resolving threads, and withdrawing a posted concern.
+   v0.1 ends at posting; these land in v0.2.
+
+### 1.4 Normalisation
+
+Several requirements hash or compare text. Wherever this document says
+**normalised**, it means exactly this transformation and no other:
+
+1. Decode as UTF-8; invalid input MUST fail with exit code 1.
+2. Replace CRLF and lone CR with LF.
+3. Strip trailing whitespace from every line, where whitespace means U+0020
+   SPACE and U+0009 TAB and nothing else.
+4. Replace every run of one or more U+0020 or U+0009 anywhere in a line —
+   including leading indentation — with a single U+0020.
+5. Drop leading and trailing blank lines, and collapse interior runs of blank
+   lines to one.
+6. Rejoin the lines with a single LF between them. The result MUST NOT end with a
+   trailing LF, so a one-line input normalises to that line with no terminator.
+
+A **normalised hash** is SHA-256 over the normalised text, lowercase hex,
+truncated to the first 16 characters. Normalisation MUST NOT case-fold, MUST NOT
+strip punctuation, and MUST NOT reorder lines.
+
+### 1.5 Axis identifiers
+
+The axis set is closed in v0.1. Valid axis ids are exactly `intent`,
+`correctness`, `convention`, and `test`, defined in §4.1 through §4.4. Any
+`axis` field in a profile, role, or rule MUST name one of these; any other value
+MUST abort the command with exit code 3.
+
+### 1.6 Comment economy
+
+A review comment spends the reviewer's standing with the author. Volume is
+therefore a cost in itself, independent of correctness.
+
+1. Every posted comment MUST be anchored to a line of the diff. v0.1 has no
+   unanchored comment channel: an item with no code location is reported through
+   `cr status` and never posted, per §4.1.3.
+2. `post.max_comments` (default 20) MUST cap the comments in one round. When the
+   cap is exceeded `cr` MUST block posting with exit code 1 and name the count,
+   so the user triages further. `cr` MUST NOT silently drop comments to fit.
+3. Triaging to fit under the cap MUST NOT be destructive. A discard dispositioned
+   `not-here` is scoped to the pull request per §7.4.1, so setting a true finding
+   aside for volume reasons never silences it repository-wide.
+
+## 2. Architecture
+
+### 2.1 Division of labour
+
+`cr` is deterministic. It fetches, clusters, executes, validates, records, and
+reports. It never calls a language model and never decides whether code is
+correct.
+
+The agent judges. It reads code, writes findings, composes prose, and decides
+dispositions. It reaches `cr` through the commands in §11 and the skill in §13.
+
+1. Every `cr` command MUST be reproducible given the same state directory, the
+   same head SHA, and the same inputs.
+2. `cr` MUST NOT perform any network write except the GitHub calls in §8, and
+   those only behind the confirmation gate of §8.5.
+3. The following judgements belong to the agent alone, and `cr` MUST NOT make
+   them: whether a rule hit is a real violation, whether a candidate symbol is
+   semantic reinvention, whether a note explains an unmapped unit, whether an
+   existing human thread already covers a finding, whether a unit is covered by
+   tests, and whether a posted concern has been addressed. For each of these `cr`
+   locates the candidate, supplies it, and records the decision.
+
+### 2.2 State layout
+
+All state lives under `~/.cr/`. `cr` MUST NOT write inside the repository under
+review, with the single exception of git worktree registration metadata under
+`.git/worktrees/` created by §5.1. `cr` MUST NOT modify the repository's tracked
+files, index, HEAD, stash, or any branch.
+
+| Path | Contents |
+|------|----------|
+| `~/.cr/config.json` | Global defaults |
+| `~/.cr/profiles/<id>.json` | Mechanical profiles (§2.4) |
+| `~/.cr/roles/<id>.json` | Judgement roles (§2.5) |
+| `~/.cr/rules/<id>.json` | Global rules (§2.6) |
+| `~/.cr/repos/<owner>/<repo>/config.json` | Per-repository overrides |
+| `~/.cr/repos/<owner>/<repo>/roles/<id>.json` | Per-repository role overrides |
+| `~/.cr/repos/<owner>/<repo>/rules/<id>.json` | Per-repository rule overrides |
+| `~/.cr/repos/<owner>/<repo>/triage.ndjson` | Triage events across PRs (§7.3) |
+| `~/.cr/repos/<owner>/<repo>/rule-stats.ndjson` | Per-rule hits, records, dismissals (§2.6.1) |
+| `~/.cr/state/<owner>/<repo>/pr-<n>/` | Per-PR state (§2.3) |
+| `~/.cr/context/<ISSUE-KEY>.ndjson` | Out-of-band context store (§3.6) |
+| `~/.cr/waivers/<owner>/<repo>.ndjson` | Repository-wide waivers (§7.4) |
+| `~/.cr/locks/` | Advisory locks (§5.6) |
+
+### 2.3 Per-PR state
+
+| File | Contents |
+|------|----------|
+| `meta.json` | PR identity, issue key, profile id, active roles, round index, recorded head, `post_unresolved` |
+| `claims.ndjson` | Extracted claims (§3.3) |
+| `units.ndjson` | Clustered units (§3.4) |
+| `mapping.ndjson` | Claim-to-unit mapping (§4.1.6) |
+| `posted-index.ndjson` | Keys of records that reached `posted` (§9.3.6) |
+| `intent-gaps.ndjson` | Unimplemented-claim entries (§4.1.3) |
+| `runs.ndjson` | Test run records (§5.2.4) |
+| `threads.ndjson` | Ingested and created threads (§3.5) |
+| `findings.ndjson` | All findings and questions, all states (§6.1) |
+| `probes.ndjson` | Probe records (§5.5) |
+| `coverage.ndjson` | Coverage cells (§4.5) |
+| `transitions.ndjson` | State transitions (§9.1) |
+| `waivers.ndjson` | Pull-request-scoped `not-here` waivers (§7.4) |
+| `rounds/<n>/draft.md` | The editable draft for round n (§7.1) |
+| `rounds/<n>/rendered.json` | Bodies exactly as `cr` rendered them (§7.1) |
+| `rounds/<n>/posted.json` | The exact payload posted for round n |
+| `rounds/<n>/summary.json` | Round summary counts (§10.3) |
+
+1. All writes to per-PR state MUST take an exclusive advisory file lock.
+2. Reads MUST be lock-free.
+3. Every record in `claims.ndjson`, `units.ndjson`, `mapping.ndjson`,
+   `findings.ndjson`, `probes.ndjson`, `runs.ndjson`, `intent-gaps.ndjson`, and
+   `coverage.ndjson` MUST carry `head` and `round` fields.
+
+### 2.4 Profiles
+
+A profile is mechanical, language-specific configuration. It is data, never
+prompt text.
+
+| Field | Type | Required | Meaning |
+|-------|------|----------|---------|
+| `id` | string | yes | Profile id, equal to the file stem |
+| `match.files` | array | yes | Marker files selecting this profile; empty means never auto-selected |
+| `match.globs` | array | yes | Source globs this profile owns |
+| `axes` | object | yes | Default enabled state per axis id of §1.5 |
+| `sandbox.copy` | array | no | Paths copied from the main worktree into the sandbox |
+| `sandbox.setup` | array | no | Commands run once after sandbox creation |
+| `tests.cmd` | array | no | Test runner argv; absent disables the test axis |
+| `tests.globs` | array | required when `tests.cmd` is present | Patterns identifying test files; the first entry seeds `tests.probe_path_template`'s default |
+| `tests.filter_flag` | string | no | Flag used to narrow the run to a subset |
+| `tests.timeout_seconds` | integer | no | Per-run timeout, default 900 |
+| `tests.output_tail_bytes` | integer | no | Bytes of runner output retained, default 4096 |
+| `tests.count_pattern` | string | no | Regex with exactly two capture groups yielding the executed and failed test counts, in that order; any other group count aborts with exit code 3 naming the profile |
+| `tests.probe_path_template` | string | no | Where a gap probe's file is placed, default `<root of the first `tests.globs` entry>/cr_probe_<probe-id><ext>`, where the root is the longest leading path prefix free of `*`, `?`, and `[`; each shipped profile MUST set it so the result matches its own `tests.globs` |
+| `rules` | array | no | Rule objects shipped with the profile; the third layer of §2.6 item 1 |
+| `symbols.lang` | string | no | Language hint for the reinvention search of §4.3 |
+
+1. Profile selection MUST be automatic via `match.files`, and overridable by
+   `profile` in the per-repository config.
+2. When more than one profile matches, `cr` MUST select the one with the greatest
+   number of matched marker files; on a tie it MUST abort with exit code 3 and
+   name the tied profiles rather than picking one.
+3. The `generic` profile MUST declare an empty `match.files` and therefore MUST
+   NOT be selected automatically. It applies only when named by configuration.
+4. If no profile matches, `cr` MUST report the situation and disable every axis
+   that requires one, rather than guessing.
+5. v0.1 MUST ship two profiles: `laravel-pest` and `generic`.
+
+### 2.5 Roles
+
+A role customises the prompt for one axis. `cr` owns the output contract; a role
+only supplies persona and focus.
+
+| Field | Type | Required | Meaning |
+|-------|------|----------|---------|
+| `id` | string | yes | Role id, equal to the file stem, kebab-case |
+| `title` | string | yes | Human label shown in prompts and progress output |
+| `axis` | string | yes | The axis this role serves, from §1.5 |
+| `instructions` | string | yes | The role's framing text |
+| `focus` | array | no | Focus questions appended to the prompt |
+| `profiles` | array | no | Profiles this role applies to; empty means all |
+
+1. v0.1 MUST ship four default roles, one per axis: `intent-coverage` on
+   `intent`, `correctness` on `correctness`, `convention` on `convention`, and
+   `test-adequacy` on `test`.
+2. `cr init --eject-roles` MUST write the defaults as editable files that are
+   byte-identical to the built-ins.
+3. A malformed role or profile file MUST abort the command with exit code 3,
+   naming the file and the offending field.
+4. Role resolution order MUST be per-repository, then global, then built-in.
+5. More than one role MAY serve the same axis. **Corpus order**, used by §6.4.2,
+   is resolution layer first (per-repository before global before built-in), then
+   ascending lexicographic role id.
+
+### 2.6 Rules
+
+A rule is one normative statement about how code in a repository must be
+written. Rules are data and are kept separate from roles: a role is a lens, a
+rule is a specific standard that lens enforces.
+
+| Field | Type | Required | Meaning |
+|-------|------|----------|---------|
+| `id` | string | yes | Rule id, equal to the file stem, kebab-case |
+| `title` | string | yes | One-line statement of the standard |
+| `rationale` | string | yes | Why the standard exists, quotable to the author |
+| `axis` | string | no | The axis that enforces it, default `convention` |
+| `class` | string | yes | Defect class assigned to records from this rule |
+| `severity` | string | no | Default severity for records from this rule, default `medium` |
+| `kind` | string | no | Default `finding` or `question`, default `question` |
+| `detect` | object | no | Optional mechanical detector per §2.6.1 |
+| `fix` | object | no | Optional suggestion template per §2.6.2 |
+| `globs` | array | no | Paths the rule applies to; empty means all source |
+| `exempt` | array | no | Paths excluded, for legacy areas |
+| `profiles` | array | no | Profiles the rule applies to; empty means all |
+
+1. Rules MUST resolve in layers, highest first: per-repository (§2.2), then global
+   (§2.2), then the resolved profile's `rules` array (§2.4).
+2. A rule id MUST be unique after resolution; a lower layer carrying the same id
+   is overridden whole, never merged field by field.
+3. Every record produced by a rule MUST carry the rule id.
+4. A record produced by a rule MUST be able to quote the rule's `rationale`, so
+   the author learns the standard and not only the violation.
+5. A malformed rule file MUST abort the command with exit code 3.
+
+#### 2.6.1 Detection
+
+1. A rule carrying a `detect` block MUST be evaluated mechanically by `cr` over
+   the added and modified `RIGHT`-side lines of the diff only — never over
+   removed lines, and never over the whole repository.
+2. `detect.pattern` MUST be a regular expression in Go `regexp` syntax and
+   `detect.mode` MUST be `regex` in v0.1. A pattern that fails to compile MUST
+   abort with exit code 3, naming the rule.
+3. A hit MUST be recorded as a `citations` entry per §6.1 carrying the matched
+   `path`, `line`, and `origin: rule`, which may grade the record `cited` per §6.2.
+   The rule id is carried separately on the record per §2.6 item 3.
+4. A rule without a `detect` block MUST be injected into its axis role's prompt as
+   text, and any record it produces is graded normally per §6.2.
+5. Detection MUST report hits, never verdicts. A hit reaches a draft only when the
+   agent explicitly confirms it; an unconfirmed hit MUST be dropped, not posted.
+   Confirmation is what a rule cannot supply for itself, so no `detect` block can
+   buy the assertion register of §6.3 on its own.
+6. Every hit, record, and dismissal MUST be appended to `rule-stats.ndjson` with
+   the rule id, the matched `path` and `line`, the round, and the head. The path
+   and line are not bookkeeping: §6.2.5 matches a citation against this file
+   positionally, and a rule id alone would let any citation claim any hit.
+
+#### 2.6.2 Fixes
+
+1. A rule MAY carry `fix.replace` and `fix.with` as a regular expression and its
+   replacement, applied to the matched line to produce a suggestion.
+2. A generated suggestion MUST pass the validation of §8.2 before drafting; a
+   suggestion that fails validation MUST be dropped while its record survives.
+3. `cr` MUST NOT apply a fix to any file. A fix only ever produces suggestion text
+   for the author to accept.
+4. `cr` cannot establish that a generated replacement compiles, parses, or
+   preserves behaviour. A suggestion produced by `fix` MUST carry
+   `suggestion_origin: rule`, MUST be labelled as machine generated in the draft,
+   and MUST be dropped when the agent does not confirm it.
+
+#### 2.6.3 Harvesting
+
+1. `cr rules suggest --repo <owner/repo>` MUST scan the bodies of comments posted
+   from recorded rounds and group them by class and by normalised body per §1.4.
+2. A group reaching `rules.harvest_min` occurrences, default 3, MUST be reported
+   as a candidate rule together with the comments that formed it.
+3. Candidates MUST be reported only. `cr` MUST NOT write a rule file by itself.
+4. `cr rules list --dead --repo <owner/repo>` MUST report rules that produced no
+   hit and no record across the last `rules.dead_after` rounds, default 20, so the
+   corpus can be pruned rather than growing without limit.
+
+### 2.7 Configuration layers
+
+Effective configuration MUST resolve at read time in this order, highest first:
+
+1. Command-line flags.
+2. Environment variables prefixed `CR_`.
+3. Per-repository config at `~/.cr/repos/<owner>/<repo>/config.json`.
+4. Global config at `~/.cr/config.json`.
+5. Built-in defaults.
+
+`cr config` MUST print the effective configuration, and `cr config --resolved`
+MUST annotate every setting with the layer that supplied it.
+
+The confirmation gate of §8.5, the argued forcing of §6.3, and the question label
+of §8.1.4 are not settings. They MUST NOT be readable from any layer, and `cr`
+MUST reject and report any `CR_`-prefixed variable or config key whose name would
+address any of them.
+
+## 3. Inputs
+
+### 3.1 Intent source
+
+The tracker is read through a configured command, so `cr` carries no tracker
+authentication code.
+
+1. `intent.cmd` MUST be an argv array with a `{key}` placeholder.
+2. The default MUST be `["jira", "issue", "view", "{key}", "--plain"]`.
+3. A non-zero exit MUST fail with exit code 3 and surface the command's stderr.
+4. `--intent-file <path>` MUST bypass the command and read the issue text from a
+   file, so the loop works with no tracker access at all.
+
+### 3.2 Issue key resolution
+
+The issue key MUST be resolved from the first source that yields a match:
+
+1. The `--issue <KEY>` flag.
+2. The PR branch name.
+3. The PR title.
+4. The PR body.
+
+The pattern MUST default to `[A-Z][A-Z0-9]+-[0-9]+` and be overridable by
+`intent.key_pattern`. If no key is found, `cr` MUST continue with an empty intent
+and mark the intent axis unavailable per §4.5.
+
+### 3.3 Claim extraction
+
+Claims are produced by the agent from the issue text and recorded by `cr`.
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `id` | yes | `<ISSUE-KEY>#c<n>` |
+| `text` | yes | The claim, verbatim or minimally normalised |
+| `source` | yes | `description`, `acceptance`, `comment`, or `note` |
+| `span` | yes | The verbatim substring of the source text the claim was drawn from |
+| `note_id` | no | The note the claim came from; required when `source` is `note` |
+| `span_hash` | computed | Normalised hash of `span`, written by `cr` |
+| `issue_hash` | computed | Normalised hash of the whole issue text at extraction, written by `cr` |
+| `head` | yes | Head SHA the extraction ran against |
+
+1. `cr claims record <pr> <file.ndjson>` MUST validate and store claims, replacing
+   `claims.ndjson` for the current round and clearing `mapping.ndjson`. `cr` MUST
+   compute `span_hash` and `issue_hash` itself. For a claim whose `source` is not
+   `note`, `cr` MUST reject with exit code 1 any claim whose `span` does not occur
+   in the issue text.
+2. A claim sourced from the context store (§3.6) MUST carry `source: note` and a
+   `note_id`, MUST set `span` to that note's body, and MUST be validated against
+   the named note rather than the issue text — the two rules never collide because
+   each claim is checked against exactly one source. Such a claim MUST be included
+   in coverage exactly like a tracker claim, but it rests on weaker provenance, and
+   §8.1.6 requires that provenance to reach the reader.
+3. Drift MUST be detected by re-reading the issue text at the start of every round
+   and comparing its normalised hash to the stored `issue_hash`. When they differ,
+   `cr` MUST report for each claim whether its `span` still occurs in the new issue
+   text. `cr` MUST NOT re-extract; re-extraction happens only through a new
+   `cr claims record`.
+
+### 3.4 Diff ingestion and unit clustering
+
+1. The diff MUST be taken against the PR merge base at the current head. A
+   **changed line** is an added or modified `RIGHT`-side line, and for a hunk that
+   adds none, its removed `LEFT`-side lines. Line numbers below are `RIGHT`-side
+   for the first case and `LEFT`-side for the second.
+2. Files matching `ignore.globs` MUST be excluded and counted as excluded.
+3. An enclosing symbol is **detectable** only when the profile declares
+   `symbols.lang` and `cr` can build a symbol index for the file. When it cannot,
+   clustering MUST fall through to adjacency without reporting an error.
+4. Clustering MUST first partition a file's hunks by the side their changed lines
+   sit on per §3.4.1; adjacency, the §3.4.5 split, and the §3.4.6 hash order compare
+   line numbers only within one side, and a unit never mixes sides. Hunks MUST then
+   be clustered by, in order: same file and same enclosing
+   symbol when detectable; otherwise same file and **adjacency**, where two hunks
+   are adjacent when the gap between the last changed line of one and the first
+   changed line of the next is at most `cluster.gap_lines` (default 12); otherwise
+   one unit per hunk.
+5. A cluster exceeding `cluster.max_lines` changed lines (default 80) MUST be
+   split by taking its hunks in ascending start order and opening a new unit
+   whenever adding the next hunk would exceed the limit.
+   A single hunk that alone exceeds the limit MUST become one unit, MUST be
+   flagged `oversized`, and MUST appear as such in the coverage report; it is the
+   one case where the limit does not bind.
+6. Every unit MUST record an `id` of the form `u<n>`, its file paths, its hunk
+   ranges, its changed line count, a normalised hash of its changed lines called
+   the **unit hash**, and whether it was formed by symbol, by adjacency, or by
+   fallback. The **unit hash** is the normalised hash per §1.4 of the unit's changed
+   lines taken file by file in ascending path order and, within a file, ascending
+   line order, joined by LF. Unit ids are round-scoped, assigned in ascending order
+   of first file path then first changed line, and MUST NOT be carried across
+   rounds.
+7. Binary and generated files MUST be listed but not clustered.
+
+### 3.5 Existing threads
+
+1. All existing review threads on the PR MUST be ingested, including resolved
+   ones, with author, body, anchor, resolution state, and replies.
+2. Each thread MUST be tagged with an author type of `human` or `bot`.
+3. `cr` MUST attach to every unit the ingested human threads whose anchor falls
+   inside the unit's hunks or within `threads.proximity_lines` (default 10) of
+   them. `cr` MUST NOT assign a class to an ingested thread and MUST NOT decide
+   suppression itself.
+4. The agent decides whether an attached thread already covers a finding. When it
+   does, the finding MUST be recorded in state `suppressed` carrying
+   `suppressed_by` with the thread id, and MUST NOT be drafted.
+5. Author replies inside ingested threads MUST be offered as candidate context
+   notes per §3.6.
+
+### 3.6 Context store
+
+The context store holds facts that are true about the issue but absent from the
+tracker.
+
+1. `cr note <ISSUE-KEY> "<text>" --source <source>` MUST append a note with an id
+   of the form `<ISSUE-KEY>#n<n>`, a timestamp, the PR it came from, and the
+   source.
+2. `cr answer <pr> <record-id> "<text>" --source <source>` MUST append a note
+   referencing that record, so the answer to a posted question is captured against
+   the issue key rather than lost in a thread. It MUST NOT change the record's
+   state: v0.1 ends at posting per §9, and whether an answer settles a question is
+   a judgement v0.2 makes.
+3. Valid sources MUST be `chat`, `jira`, `thread`, `meeting`, and `other`.
+4. Notes for the issue key MUST be loaded automatically on every subsequent round
+   and every subsequent PR that resolves to the same key.
+5. `cr context <ISSUE-KEY>` MUST print the accumulated notes with provenance.
+6. A note is unverified hearsay and MUST stay revocable.
+   `cr note --remove <note-id>` MUST retract one, and any coverage cell or record
+   citing a retracted note MUST be reported as needing re-evaluation in the next
+   round rather than silently retained.
+
+### 3.7 Orientation
+
+`cr brief <pr>` is read-only with respect to judgement: it performs no network
+write and creates no finding, coverage cell, probe, or thread. It MAY compute and
+persist the derived inputs of §3.3 through §3.6 — claims already recorded, units,
+threads, notes — because those are facts about the PR rather than opinions about
+it, and §4.6 needs the same unit set. At an unchanged head it is idempotent; when
+the head has moved it opens a new round per §9.3.3, which is the one case where it
+changes state. It MUST assemble and print, without judgement:
+
+1. PR identity, head SHA, merge base, and the resolved profile together with the
+   layer that selected it per §2.4.
+2. The issue key and the source it was resolved from per §3.2, with the issue
+   text, or the reason no key was found.
+3. The claims of §3.3, and whether the issue text has drifted per §3.3.3.
+4. The units of §3.4 with their file paths, hunk ranges, and unit hashes.
+5. The ingested threads of §3.5 and the notes of §3.6 for the issue key.
+6. The active, disabled, and unavailable axes with their reasons per §4.5.
+
+## 4. Review axes
+
+### 4.1 Intent coverage
+
+1. Every unit MUST be mapped to zero or more claims.
+2. A unit mapped to zero claims MUST raise an unmapped-unit item.
+3. A claim mapped to zero units MUST raise an unimplemented-claim entry. It has no
+   code location by construction, so it cannot be a coverage cell — §4.5.5 requires
+   every cell to name a unit — and MUST instead be written to `intent-gaps.ndjson`
+   carrying `claim`, `round`, `head`, and `set_aside_note` when §10.2.3 applies. It
+   MUST be reported by `cr status` per §10.1.2 and MUST block completeness per
+   §10.2.3. It MUST NOT become a record in `findings.ndjson`, and MUST NOT be
+   drafted or posted: v0.1 has no unanchored comment channel per §1.6.1. The
+   reviewer raises it with the author out of band and may record the answer as a
+   note per §3.6.
+4. An unmapped unit MUST default to a question, never a finding, because the most
+   common cause is intent that never reached the tracker.
+5. `cr` MUST attach the issue key's notes to every unmapped unit. The agent
+   decides whether a note explains the unit; when it does, the item MUST NOT be
+   raised and the coverage cell MUST cite the note id. `cr` MUST NOT decide this
+   by matching text.
+6. The claim-to-unit mapping is the agent's judgement. `cr map record <pr>
+   <file.ndjson>` MUST replace `mapping.ndjson` for the current round with one
+   `{claim, unit}` pair per line, rejecting an unknown claim or unit id with exit
+   code 1. Every rule in §4.1 through §4.4 that speaks of the claims a unit is
+   mapped to reads this file.
+7. On each successful `cr map record`, `cr` MUST derive `intent-gaps.ndjson`
+   mechanically as the claims of the current round mapped to zero units.
+8. `cr claims set-aside <pr> <claim-id> --note <note-id>` MUST stamp
+   `set_aside_note` on that gap entry after checking the note exists for the PR's
+   issue key. Judging a claim out of scope is the agent's call, never `cr`'s.
+
+### 4.2 Correctness against claims
+
+1. Each unit MUST be evaluated against the claims it is mapped to.
+2. A correctness finding MUST cite the claim id it violates.
+3. A unit mapped to zero claims MUST still be evaluated for internal defects.
+
+### 4.3 Convention and reinvention
+
+1. For every function, method, or class added by the diff, `cr` MUST attach
+   candidate pre-existing symbols drawn from the head symbol index minus every
+   symbol the diff itself declares on a changed line. This needs a symbol index built from the profile's `symbols.lang`; when
+   none can be built, the reinvention half of this axis MUST be marked unavailable
+   per §4.5 rather than skipped silently.
+2. Candidate ranking MUST work on the **comparison name**: the symbol name
+   case-folded to lowercase with every `_` and `-` removed. Similarity MUST be
+   `1 - levenshtein(a, b) / max(len(a), len(b))` over comparison names, counted in
+   Unicode code points, defined as 1.0 when both names are empty. A candidate
+   qualifies only when its similarity is at least `reinvention.min_similarity`
+   (default 0.6) **and** its declared parameter count equals that of the added
+   symbol. The declared parameter count of a function or method is the number of
+   parameters in its signature; for a class it is the parameter count of its
+   constructor, or zero when it declares none. Qualifying candidates MUST be
+   ordered by similarity descending, then path ascending, then line ascending, and
+   `cr` MUST attach at most `reinvention.max_candidates` (default 5). Semantic
+   equivalence is the agent's judgement, not `cr`'s.
+3. A reinvention item MUST cite the candidate symbol as `path:line`.
+4. Reinvention items MUST default to `kind: question`, because the tool cannot
+   know whether the existing symbol was rejected for a reason.
+5. Project conventions beyond reinvention MUST come from the rule corpus of §2.6,
+   never from hard-coded logic and never from prose buried inside role
+   instructions.
+6. A mechanical rule hit MUST be attached to the unit that contains it, so the
+   agent judges an already-located candidate instead of searching for one.
+
+### 4.4 Test adequacy
+
+1. `cr` MUST attach to every unit the test files changed or added by the PR and
+   the symbols they reference. The agent MUST then classify the unit as covered,
+   partially covered, or uncovered, and the classification MUST be recorded in the
+   coverage cell together with the test paths it rested on.
+2. A test-adequacy finding asserts only with an experiment. Citations to test files
+   MUST NOT grade it `cited`, so without a supporting probe it is `argued` and is
+   posted as a question per §6.3.
+
+### 4.5 Axis activation and honest reporting
+
+1. An axis is active when it is enabled by the resolved configuration and its
+   prerequisites are met. A **role** is active when its axis is active, its
+   `profiles` list is empty or names the resolved profile, and §4.6.4 did not
+   report it skipped.
+2. The test axis MUST be disabled automatically when the profile declares no
+   `tests.cmd`.
+3. The intent axis MUST be marked unavailable when no issue key resolves.
+4. Every lens that did not run MUST appear in the coverage report with its reason:
+   a disabled axis, an unavailable axis, the unavailable reinvention half of §4.3.1,
+   and a role skipped per §4.6.4. `cr` MUST NOT report a round as complete without
+   stating all of them — a skipped role shrinks the cells §10.2.2 demands, so
+   silence about it would let a complete verdict cover a lens that never looked.
+5. Every cell MUST carry the unit id and role id it sits at, one of `pass`,
+   `finding`, `question`, or `na`, the head it was filled against, the unit hash of
+   §3.4.6 it was filled for, and a reason when it is `na`. It MUST also carry
+   `note_id` when a note explained an unmapped unit per §4.1.5, and `coverage` with
+   `test_paths` when the role is on the `test` axis per §4.4.1.
+6. Cells are the agent's judgement and reach `cr` the same way findings do, through
+   `cr cells record <pr> <file.ndjson>`, which replaces the current round's cell for
+   each `(unit, role)` the file names and leaves every other cell untouched. `cr` MUST
+   reject with exit code 1 a cell naming an unknown unit id or an inactive role,
+   and MUST NOT invent a cell for a unit no role reported on — an unfilled cell is
+   a coverage gap per §10.1.1, not something for `cr` to complete.
+
+### 4.6 Review fan-out
+
+`cr review <pr>` emits the prompts an agent runs. It performs no judgement of its
+own and calls no model.
+
+1. For every active role of §2.5 and every unit of §3.4, `cr` MUST emit one prompt
+   carrying the role's `instructions` and `focus`, the unit's hunks, the claims
+   mapped to it, the candidate symbols of §4.3.1, the rule hits of §4.3.6, the test
+   files of §4.4.1, and the threads and notes of §3.5.3 and §4.1.5.
+2. Every prompt MUST name the NDJSON path the role writes to, and MUST state the
+   record schema of §6.1 together with the fields the agent may not write per
+   §6.1.4.
+3. `cr review` MUST NOT write to `findings.ndjson`. It MUST report the set of cells
+   it expects to be filled, so §10.2.2 can be checked once the roles return.
+4. A role whose prerequisites are unmet MUST be reported as skipped with its
+   reason, never omitted silently.
+5. `cr review` runs in two passes. `cr review <pr> --axis intent` MUST emit prompts
+   carrying the units and the claims but no mapping; the intent role produces the
+   mapping and the agent stores it with `cr map record` per §4.1.6. Once the mapping
+   is stored, `cr review <pr> --axis intent` MUST re-emit one prompt per unit mapped
+   to zero claims, carrying the notes of §4.1.5, so §4.1.2 and §4.1.5 have an
+   emitting pass — unmapped-ness is unknowable on the first. `cr review <pr>` MUST
+   refuse the remaining axes with exit code 4 until a mapping exists for the current
+   round and head.
+6. When the intent axis is unavailable per §4.5.3 there is no intent role and no
+   mapping to produce. `cr map record` MUST then be neither required nor accepted,
+   the mapping MUST be treated as empty, and §4.1.2 and §4.1.3 MUST NOT raise
+   items — an absent tracker is not an unmapped unit.
+
+## 5. Probes
+
+### 5.1 Sandbox
+
+1. `cr sandbox create <pr>` MUST create a git worktree at the PR head under
+   `~/.cr/state/<owner>/<repo>/pr-<n>/sandbox/`. The worktree registration under
+   the repository's `.git/worktrees/` is the sole write permitted by §2.2.
+2. Paths listed in `sandbox.copy` MUST be copied from the main checkout into the
+   sandbox after creation.
+3. Commands in `sandbox.setup` MUST run once, in order, in the sandbox root.
+4. `cr` MUST NOT modify the user's main worktree, index, or current branch.
+5. `cr sandbox destroy <pr>` MUST remove the worktree and its registration.
+6. Before every probe or test run, `cr` MUST verify that the sandbox HEAD equals
+   the PR head and that the sandbox is clean. After §5.1.2 and §5.1.3 complete, `cr`
+   MUST record the sandbox's tracked-file state as the **post-setup baseline**.
+   **Clean** means that no tracked file differs from that baseline, and that no
+   leftover probe artefact exists — no file under
+   any path matching `tests.probe_path_template` with its `<probe-id>` position
+   replaced by `*`, which the template MUST contain exactly once. Other
+   untracked files are ignored, because `sandbox.copy` and `sandbox.setup` create
+   them by design. A sandbox failing any of these checks MUST be recreated, and the
+   recreation MUST be reported.
+7. The post-run cleanliness check runs before the probe record is written. A probe
+   whose check fails MUST be recorded with result `error`, overriding the ladder
+   outcome, MUST NOT grade any finding, and MUST force recreation before the next
+   run. Such a probe establishes nothing in either direction, so §5.3.7 MUST NOT be
+   read from it.
+
+### 5.2 Test runs
+
+1. `cr test <pr> [--filter <expr>]` MUST run the profile's test command inside the
+   sandbox and record exit code, duration, the executed and failed test counts
+   when `tests.count_pattern` is configured and matches, and the last
+   `tests.output_tail_bytes` of output. `tests.count_pattern` MUST yield two capture
+   groups, the executed count and the failed count. The **last** match in the
+   captured output MUST be used, and both groups MUST parse as base-10 non-negative
+   integers; a pattern that does not match, or whose groups do not parse, leaves
+   both counts undetermined.
+2. A baseline run with no filter MUST be recorded once per head, so pre-existing
+   failures are never attributed to a probe. A filtered mutation probe MUST
+   additionally record a filtered baseline for the same filter on unmutated code.
+3. A run exceeding `tests.timeout_seconds` MUST be killed and recorded as
+   `timeout`.
+4. Every run MUST be stored as a **run record** in `runs.ndjson` carrying `id` of
+   the form `r<n>`, `head`, `filter` when one was given, `exit_code`,
+   `duration_ms`, `tests_run` and `tests_failed` when derivable, `output_tail`,
+   `passed`, and `probe` when the run was performed on mutated or probe-injected
+   code. This id
+   space is what a probe's `baseline` field references.
+5. A run record has `passed: true` when `exit_code` is 0, `tests_run` is derivable
+   and greater than 0, and `tests_failed` is 0; otherwise `passed: false`. A run
+   whose counts are underivable never passes, so it cannot serve as a baseline.
+6. `cr probe run` MUST resolve its baseline per §5.5 and, when no matching run
+   exists at the current head, MUST perform and record it before the probe. When
+   more than one matches, the most recent MUST be used. Only a run record carrying
+   no `probe` may serve as a baseline.
+
+### 5.3 Mutation probe
+
+A mutation probe proves a test gap by breaking production code.
+
+1. The agent supplies a mutation as a unified diff against a sandbox file.
+2. `cr probe run <pr> --kind mutation --patch <file> --filter <expr>` MUST apply the
+   mutation, run the tests, revert the mutation, and record the result. `cr` MUST
+   derive `target` from the patch itself — the path and pre-image line of the first
+   hunk's first removed or replaced line, or when that hunk only adds lines, its
+   first pre-image line — and
+   MUST reject `--target` for this kind. The evidence chain from experiment to
+   assertion then runs on the patch `cr` executed, not on a flag the agent typed.
+3. The mutation MUST be reverted even when the run fails, times out, or `cr` is
+   killed. On the next invocation the check of §5.1.6 MUST detect an unclean
+   sandbox and recreate it before running anything.
+4. The result MUST be determined by the first matching rung of this ladder, which
+   is total over every run — no run can match two rungs, and none can match none:
+   1. the mutation patch did not apply cleanly → `error`, and no tests are run;
+   2. the run was killed for exceeding `tests.timeout_seconds` → `timeout`;
+   3. the runner could not be started, or exited on a signal → `error`;
+   4. the executed test count is known and equals zero → `no-tests-selected`;
+   5. the executed or failed count is undetermined, whether because no
+      `tests.count_pattern` is configured or because the configured pattern did
+      not match the output → `inconclusive`;
+   6. the failed count is zero → `no-test-failed`;
+   7. otherwise → `failed`.
+5. Only `no-test-failed` proves the gap, and only when the probe's `baseline` run
+   record has `passed: true` per §5.2.5. `timeout`, `error`, `no-tests-selected`,
+   and `inconclusive` MUST NOT support a `probed` grade, so an empty selection, an
+   unparseable runner, and a run that never finished cannot manufacture evidence.
+6. A filtered run proves the gap **only for the tests it selected**. `cr` cannot
+   establish that a filter selects the tests which would have caught the mutation,
+   so it MUST NOT claim it: the filter MUST be carried into the §8.1.7 evidence
+   region, and §5.3.5's guarantee MUST NOT be stated more widely than the empty
+   selection it actually catches.
+7. A result of `failed` disproves the gap; `cr` MUST record it and the agent MUST
+   NOT raise the finding.
+
+### 5.4 Gap probe
+
+A gap probe distinguishes a missing behaviour from a missing test.
+
+1. The agent supplies a new test file targeting the suspected edge case.
+2. `cr probe run <pr> --kind gap --test <file> --target <path:line> --filter <expr>`
+   MUST place the test in the sandbox at the path given by the profile's
+   `tests.probe_path_template` (§2.4), run it, remove it, and record the result.
+   The template is fixed per profile so §5.1.6 can recognise a leftover artefact
+   and the runner's own discovery still finds the file. An existing file at that path MUST abort with exit code 4. The removal
+   MUST happen even when the run fails or times out, and §5.1.6 catches the case
+   where it did not.
+3. The result MUST be determined by the first matching rung of this ladder, which
+   is total over every run:
+   1. the run was killed for exceeding `tests.timeout_seconds` → `timeout`;
+   2. the runner could not be started → `error`;
+   3. the executed test count is known and equals zero, so the filter excluded the
+      supplied test or it failed to load → `no-tests-selected`;
+   4. the executed or failed count is undetermined, whether because no
+      `tests.count_pattern` is configured or because the configured pattern did
+      not match → `inconclusive`;
+   5. the failed count is zero → `passed`;
+   6. otherwise → `failed`.
+   Rung 4 exists for the same reason as §5.3.4's: without it a profile that cannot
+   report counts would drive every gap probe to `failed`, and §5.4.4 would raise it
+   at severity `high` on no evidence at all.
+4. A `failed` gap probe means either the behaviour is wrong or the supplied test is
+   wrong, and `cr` cannot distinguish the two. The result MUST be recorded and the
+   probe output offered as a reproduction. The probe MUST be treated as supporting
+   the finding only when its baseline passed per §5.2.5 **and** the finding's
+   `claim` field names a claim mapped to the finding's unit; otherwise it MUST NOT support a
+   `probed` grade, which leaves the record `argued` under §6.2 and therefore a
+   question under §6.3. Severity MUST be at least `high` only when the probe
+   supports the finding.
+5. A `passed` gap probe establishes that the behaviour is present, not that the
+   suite lacks a test — only §5.3's `no-test-failed` establishes that. It MUST NOT
+   support a `probed` grade, and neither may `timeout`, `error`,
+   `no-tests-selected`, or `inconclusive`; a record resting on one falls to `argued`
+   under §6.2 and is posted as a question. Severity MUST be at most `medium`.
+
+### 5.5 Probe record
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `id` | yes | `p<n>` |
+| `kind` | yes | `mutation` or `gap` |
+| `head` | yes | Head SHA the probe ran against |
+| `input` | yes | The patch or test file content |
+| `filter` | no | The test filter used |
+| `result` | yes | A value from the per-kind table below |
+| `tests_run` | no | Executed test count when derivable |
+| `tests_failed` | no | Failed test count when derivable |
+| `baseline` | yes | Id of the run record (§5.2.4) at the same head measuring the same tests on unmutated, un-probed code: for `mutation`, the run with this probe's filter; for `gap`, the unfiltered run, since the probe's own test does not exist in the baseline |
+| `target` | computed for `mutation`, `--target` for `gap` | `path:line` the probe addresses, always `side: RIGHT` since probes run against the sandbox at head; for `mutation` derived from the patch per §5.3.2, for `gap` supplied and validated as §6.2.3 validates a citation |
+| `duration_ms` | yes | Wall-clock duration |
+| `output_tail` | yes | Runner output truncated to `tests.output_tail_bytes` |
+
+The `result` vocabulary is per kind and MUST NOT be shared:
+
+| Kind | Valid results |
+|------|---------------|
+| `mutation` | `no-test-failed`, `failed`, `no-tests-selected`, `inconclusive`, `error`, `timeout` |
+| `gap` | `passed`, `failed`, `no-tests-selected`, `inconclusive`, `error`, `timeout` |
+
+1. Probe records MUST be immutable once written.
+2. A finding MUST reference at most one probe, by id.
+3. Probe records whose head differs from the current head MUST NOT be used to grade
+   a finding in the current round.
+
+### 5.6 Isolation and budget
+
+1. Probe and test runs MUST take an advisory lock named after the absolute path of
+   the repository under review together with the profile id, so two `cr` runs never
+   share a test database and two unrelated repositories never block each other.
+2. When the lock is held, `cr` MUST wait up to `probe.lock_timeout_seconds`
+   (default 300) and then fail with exit code 4.
+3. `cr` MUST warn that an unrelated local test run can still collide, because the
+   lock only covers `cr`'s own runs.
+4. `probe.max_per_round` (default 10) MUST cap probe executions per round; the cap
+   being hit MUST be reported, never silently applied.
+
+## 6. Findings
+
+### 6.1 Record schema
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `id` | yes | `f<n>`, stable for the life of the PR |
+| `kind` | yes | `finding` or `question` |
+| `axis` | computed | The axis of the record's `role`, written by `cr` |
+| `role` | yes | The role that produced it |
+| `class` | yes | Kebab-case defect class `[a-z0-9-]+`, used for dedup and statistics; `cr` rejects any other form |
+| `rule` | no | The rule id, when a rule produced the record |
+| `severity` | yes | `critical`, `high`, `medium`, or `low` |
+| `grade` | computed | `probed`, `cited`, or `argued`; written by `cr` per §6.2 |
+| `unit` | yes | The unit id |
+| `claim` | no | The claim id, when the axis produces one |
+| `anchor` | yes | Anchor object per §9.2 |
+| `summary` | yes | One sentence, English, structured for dedup |
+| `evidence` | yes | Prose explaining what supports it |
+| `citations` | no | Array of `{path, line, content_hash, origin}`; every citation is resolved against the current head, so it carries no side; `content_hash` and `origin` are computed by `cr`; the machine-readable input to grading |
+| `probe` | no | Probe id, when graded `probed` |
+| `suggestion` | no | Exact replacement lines |
+| `suggestion_origin` | no | `agent` or `rule` |
+| `state` | computed | State per §9.1, written only by the commands of §9.1 |
+| `disposition` | no | `wrong` or `not-here` once discarded (§7.2) |
+| `duplicate_of` | no | Representative record id when suppressed as a duplicate |
+| `suppressed_by` | no | Thread id when suppressed per §3.5.4 |
+| `thread_id` | no | GitHub thread id once posted |
+| `round` | yes | The round that produced it |
+| `head` | yes | Head SHA the record was produced against |
+
+1. `summary` and `evidence` MUST be English. Reader-facing prose is produced at
+   draft time per §8.1.
+2. Every record MUST carry an anchor that resolves — against the head for
+   `side: RIGHT`, against the merge base for `side: LEFT`. An item with no code
+   location never becomes a record, per §4.1.3.
+3. `cr merge` and `cr record` MUST reject a record missing any field marked
+   required, with exit code 1, naming the line and the field.
+4. The agent MUST NOT write `grade`, `state`, `disposition`, `thread_id`,
+   `span_hash`, `issue_hash`, a citation's `content_hash` or `origin`, or any other
+   field marked computed. A record arriving with one MUST be rejected with exit
+   code 1. `duplicate_of` is exempt only on `cr merge` output per §6.5.1.
+
+### 6.2 Evidence grades
+
+| Grade | Requirement |
+|-------|-------------|
+| `probed` | References a probe whose head matches and whose result supports the claim per §5.3 and §5.4 |
+| `cited` | Carries at least one entry in `citations` that `cr` resolved against the current head, and that entry either has `origin: rule` or lies outside the record's own unit, and the record's `axis` is not `test` |
+| `argued` | Neither of the above |
+
+1. The grade MUST be computed by `cr` from the record, never asserted by the agent.
+   The only inputs are `axis`, `unit`, `anchor`, `citations`, and the referenced probe record, whose `result`
+   and supporting conditions are fixed by §5.3 and §5.4; `evidence` prose is never
+   parsed. Containment is evaluated entirely in head coordinates: a `path:line` is
+   **inside** a unit when `path` is one of that unit's file paths and `line` falls
+   within the head-side range of one of its hunks — for a hunk that adds no lines,
+   its head-side insertion point. No side is compared, and no field the agent writes
+   can move a location across the boundary.
+2. A record claiming `probed` without a valid same-head probe that supports it MUST
+   be rejected with exit code 1. A probe supports a record only when its `target`
+   falls within that record's `anchor.start_line`..`anchor.line` range on the same
+   path, so one experiment cannot grade a second finding elsewhere in the unit. A
+   probe target is always `RIGHT`, so a record with a `LEFT` anchor can never reach
+   `probed`; a claim about deleted code is argued or cited, never probed.
+3. `cr` MUST resolve every entry in `citations` against the current head, and MUST
+   reject with exit code 1 an entry whose path does not exist or whose line is out
+   of range. `cr` computes and stores `content_hash` itself at record time, so that
+   hash cannot fail then; it is recorded per §9.2.3 so a v0.2 migration can detect
+   drift, and it does no validating work in v0.1.
+4. Record-time validation establishes that a citation **exists**, never that it
+   **supports** the summary. `cr` MUST NOT describe a `cited` record as verified,
+   confirmed, or proven in any output; `cited` means only that a human-checkable
+   location was supplied.
+5. `origin` MUST be computed, never supplied. A record arriving with any `origin`
+   value MUST be rejected with exit code 1. At record time `cr` MUST stamp each
+   citation by matching it **positionally** against its own detection output: a
+   citation gets `origin: rule` when `rule-stats.ndjson` holds a hit for the same
+   head with the same rule id **and the same `path` and `line`** per §2.6.1.6;
+   every other citation gets `origin: agent`. Matching on rule id alone would let
+   a record name any rule and point anywhere inside its own unit, which is exactly
+   the forgery the deleted `rule` grade branch allowed.
+6. `cr` cannot judge whether a citation supports the summary, and MUST NOT claim
+   to. Every citation of a `cited` record MUST be rendered verbatim into the draft
+   block, so the human makes the judgement `cr` cannot.
+
+### 6.3 The argued rule
+
+1. A record with grade `argued` MUST be forced to `kind: question`. The forcing
+   MUST be applied at record time, again at draft time, and again at post time
+   immediately before the payload is built.
+2. The forcing MUST be visible in the round summary, with a count per class.
+3. There MUST be no flag, configuration setting, environment variable, profile
+   field, or role instruction that disables or overrides the forcing. `cr` MUST
+   reject any attempt to post a record graded `argued` with `kind: finding`, with
+   exit code 1, naming the record id.
+
+### 6.4 Dedup
+
+1. Findings MUST be deduplicated by `(anchor.path, anchor.line, class)`.
+2. Within a duplicate group the representative MUST be the highest grade, then the
+   highest severity, then the earliest role in corpus order per §2.5.5.
+3. Suppressed duplicates MUST be retained in state `duplicate` with `duplicate_of`
+   naming the representative, and the contributing roles MUST be reported as an
+   overlap summary.
+4. Findings matching an active waiver MUST be dropped and counted per §7.4. A
+   dropped finding MUST NOT be written to `findings.ndjson` at all, so no record
+   ever exists in a state §9.1 does not define; only the count reaches the round
+   summary.
+
+### 6.5 Merge
+
+1. `cr merge <files...> -o <out> --repo <owner/repo> --pr <number>` MUST merge
+   per-role NDJSON files, apply §6.4.1, §6.4.2, §6.4.4 and §9.3.6, and report counts
+   by role, axis, severity, and grade. It computes grade in memory for those counts
+   only. Its output MUST carry no computed field except `duplicate_of`, which marks
+   a suppressed duplicate; `cr record` applies §6.4.3 from it and stamps `state`.
+   `cr merge` MUST also write its drop counts into the current round's
+   `summary.json` per §10.3. The repository is required because §6.4.2 needs its resolved role
+   corpus and §6.4.4 needs its repository-wide waivers; the pull request is
+   required because §7.4.1 also scopes `not-here` waivers to it, and a merge that
+   could not read them would resurface exactly what the reviewer set aside.
+2. Missing required fields MUST fail with exit code 1 and name the offending line.
+
+## 7. Draft and triage
+
+### 7.1 Draft format
+
+`cr draft <pr>` MUST render every queued record into a single Markdown file at
+`rounds/<n>/draft.md`.
+
+1. Each record MUST be rendered as a block introduced by an HTML comment marker
+   carrying `id`, `kind`, `path`, `start_line`, `line`, `severity`, `grade`, and
+   `disposition`.
+2. The block body MUST be free-form Markdown that the user may rewrite entirely.
+3. A suggestion MUST be rendered as a fenced `suggestion` block inside the body,
+   and a suggestion with `suggestion_origin: rule` MUST be labelled as machine
+   generated.
+4. The file MUST open with a summary header listing counts, the coverage state,
+   and the comment count against `post.max_comments`, as comments that are not
+   posted.
+5. `cr` MUST write each record's agent region exactly as rendered to
+   `rounds/<n>/rendered.json`. `cr`-owned regions are excluded, since `cr`
+   regenerates them. `rendered.json` MUST hold only the body `cr` itself
+   generated; a body preserved per §7.1.6 MUST NOT replace its entry.
+6. The draft MUST be regenerable. Regeneration MUST first ingest the current
+   draft's triage state per §7.2 — including deletions, which become discards and
+   waivers at that moment — and MUST then preserve bodies for records whose body
+   differs from `rendered.json`. Regeneration MUST NOT resurrect a deleted block.
+
+### 7.2 Triage verbs
+
+Triage happens by editing the file. `cr draft` and `cr post` interpret the result.
+
+| User action in `draft.md` | Effect |
+|---------------------------|--------|
+| Leaves a block unchanged | Posted as rendered |
+| Edits the body prose | Posted as edited |
+| Changes `kind=finding` to `kind=question` | Softened, and recorded as a triage event |
+| Deletes the block entirely | Discarded with disposition `not-here`; a pull-request-scoped waiver is written per §7.4 |
+| Sets `disposition=wrong` in the marker | Discarded as a false positive whether or not the body remains; a repository-wide waiver is written per §7.4 and it counts against the class per §7.3 |
+
+Both discard verbs are observable in the file `cr` reads back: deletion removes
+the marker, and `wrong` is a marker edit that survives precisely because the
+marker stays. A record carrying `disposition=wrong` MUST be discarded even when
+its body is untouched, so the reviewer never has to delete text to express it.
+
+The two dispositions are deliberately distinct. `not-here` means the finding is
+true but not worth a comment on this pull request — the ordinary case under §1.6
+— and MUST NOT count against the class's precision. `wrong` means the finding is
+false, and is the only signal that should demote a class. Collapsing them would
+demote classes that are always right and merely never worth saying.
+
+Marker fields have these edit semantics; any other edit MUST abort with exit
+code 1, naming the record id:
+
+| Marker field | Edit semantics |
+|--------------|----------------|
+| `id` | Immutable; a changed or unknown id aborts |
+| `kind` | `finding`→`question` softens; `question`→`finding` is accepted only when the recomputed grade is `probed` or `cited`, and aborts otherwise per §6.3.3 |
+| `path`, `start_line`, `line` | Re-validated per §6.1.2; aborts when the anchor no longer resolves |
+| `severity` | Freely editable; recorded as a triage event |
+| `disposition` | Setting it to `wrong` discards the record as a false positive; `not-here` is written by `cr` when a block is deleted and MUST NOT be set by hand |
+| `grade` | Informational. `cr` recomputes it per §6.2 and ignores whatever the marker holds; it aborts only when the marker's `kind` contradicts the recomputed grade per §6.3.3 |
+
+1. `cr post` MUST refuse to run when a marker is malformed, naming the line.
+2. `cr post` MUST recompute every record's grade and re-apply §6.3 before building
+   the payload, so no draft edit can turn an `argued` record into a posted
+   assertion.
+3. v0.1 has no manual-comment channel in the draft. A block whose `id` is unknown
+   MUST abort with exit code 1 rather than being adopted as a new record: every
+   record in the corpus carries a role, an axis, and a grade `cr` computed, and a
+   hand-written block can carry none of them. A comment the reviewer wants to make
+   in their own name is written on GitHub directly, after posting.
+
+### 7.3 Triage statistics
+
+1. Triage events MUST be keyed by `(PR, round, record id, action)` and written
+   idempotently: re-running a command MUST overwrite the event for that key rather
+   than append a second one, so regenerating a draft per §7.1.6 or running
+   `cr post` twice cannot inflate a count. `cr draft` MUST write one `raised` event
+   per record it queues, and MUST write the outcome event directly for a record it
+   discards at draft time. `cr post --confirm` MUST write exactly one outcome event
+   per queued record, drawn from `kept`, `softened`, `discarded-not-here`, and
+   `discarded-wrong`; `cr post` without `--confirm` MUST write none, since it
+   changes nothing. Every event MUST carry class, axis, role, grade, rule id when
+   present, the PR, the round, and the head. These five action names are the
+   complete vocabulary the statistics below are computed from.
+2. `cr stats --repo <owner/repo>` MUST report per class and per rule: raised, kept,
+   softened, discarded as `not-here`, and discarded as `wrong`.
+3. `class` is agent-composed, so a reworded slug would silently escape the waiver
+   and posted-index keys of §7.4.1 and §9.3.6. `cr` MUST therefore report every
+   class first seen in a round as new, in the round summary and in `cr stats`, so
+   drift is visible rather than silent.
+4. The demotion rate for a class MUST be computed as
+   `(discarded-wrong + softened) / raised` over that class's events in the
+   repository's `triage.ndjson`. Discards dispositioned `not-here` MUST be excluded
+   from the numerator, because they carry no evidence that the class is imprecise.
+   A class whose rate exceeds `stats.demote_threshold` (default 0.6) over at least
+   `stats.min_samples` (default 8) raised events MUST be listed as a demotion
+   candidate.
+5. Marking a false positive `wrong` costs the reviewer an extra edit while plain
+   deletion is free, so `discarded-wrong` is systematically under-counted and the
+   demotion rate is a lower bound on imprecision. `cr` MUST report it as a lower
+   bound and MUST NOT present it as a measured precision.
+6. A class whose `not-here` rate exceeds `stats.demote_threshold` over the same
+   sample MUST be reported separately as a **volume candidate**: it is accurate but
+   rarely worth posting, and the remedy is to stop raising it, not to soften it.
+7. Both candidacies are reports to the user, not automatic changes. `cr` MUST NOT
+   alter a rule's `kind` by itself.
+
+### 7.4 Waivers
+
+1. A waiver MUST be keyed by `(anchor.path, class, normalised hash of the anchored
+   lines)`, matching the class-based identity of §6.4.1 so a waived finding cannot
+   return under a different producer. Its scope follows its disposition: a waiver
+   written for `wrong` is scoped to the repository, and one written for `not-here`
+   is scoped to the pull request. The summary is deliberately excluded from the
+   key: it is agent-composed prose that differs between rounds, and including it
+   would let a waived finding resurface under a reworded summary.
+2. The key is narrow on purpose. It suppresses the same class at the same unchanged
+   code in the same file, and stops suppressing once that code changes — which is
+   exactly when the judgement behind the waiver should be revisited.
+3. The two scopes follow the two meanings. "This is wrong" is a fact about the
+   class and generalises across the repository; "not worth saying here" is a fact
+   about this pull request and MUST NOT silence the finding anywhere else.
+4. The two scopes live in two files. A repository-wide waiver is written to
+   `~/.cr/waivers/<owner>/<repo>.ndjson`; a pull-request-scoped one is written to
+   that PR's `waivers.ndjson` per §2.3. Both MUST be readable and removable, so
+   neither disposition is a one-way door.
+5. A waiver MUST record its `disposition` per §7.2, so §7.3 can tell a false
+   positive from a deliberate silence.
+6. Waived findings MUST be dropped before drafting and counted in the round summary.
+7. `cr waivers list --repo <owner/repo> [--pr <number>]` MUST print active waivers
+   with their scope and disposition, covering both files of §7.4.4 when `--pr` is
+   given and the repository-wide file alone when it is not.
+   `cr waivers remove <id> --repo <owner/repo> [--pr <number>]` MUST delete one
+   from either scope.
+8. A waiver MUST record the round, the PR, the head, and the reason when one was
+   given.
+
+## 8. Posting
+
+### 8.1 Render contract
+
+1. Comment bodies MUST be written in the language configured by `render.lang`,
+   defaulting to `tr`.
+2. `cr` MUST render each block's initial body from the record's `summary` and
+   `evidence`, in English. The agent then rewrites that body in `render.lang` by
+   editing `draft.md` before the human reads it. Editing the draft is the only
+   input path for reader-facing prose: `cr` MUST NOT translate or compose, and
+   MUST NOT accept a body through any other channel.
+3. A body MUST be non-empty and MUST NOT contain the marker comment. A posted
+   comment is a fixed sequence of regions: the §8.1.4 label, the §8.1.6 provenance
+   block when one applies, the agent body, and the §8.1.7 evidence block when one
+   applies. Each `cr`-owned region MUST be delimited by its own named pair —
+   `<!-- cr:label -->`…`<!-- cr:/label -->`, `<!-- cr:provenance -->`…`<!-- cr:/provenance -->`,
+   `<!-- cr:evidence -->`…`<!-- cr:/evidence -->` — so recovery never depends on
+   counting. A body containing any `<!-- cr:` sequence MUST be rejected with exit
+   code 1. `cr` regenerates every owned region and discards edits inside them;
+   §8.1.5, §7.1.5, and §7.1.6 apply to the agent region alone.
+4. `cr` MUST prepend a fixed, `cr`-owned label line to every `kind=question`
+   comment, naming the register and the grade. The label text MUST be built in per
+   `render.lang` and MUST NOT be configurable: §6.3's forcing reaches the reader
+   through this line alone, so §2.7 protects it exactly as it protects the gate.
+5. `cr` MUST refuse to post a `kind=question` body containing no `?` character,
+   with exit code 1 naming the record id. The register of a question is not
+   cosmetic: without it, §6.3's forcing changes only a field the reader never sees.
+6. Weak provenance MUST be disclosed in the posted body, not only in the draft the
+   author never sees. `cr` MUST emit a `cr`-owned provenance region per §8.1.3 when
+   the record carries `suggestion_origin: rule`, rests on a claim with
+   `source: note`, or takes its grade from a citation with `origin: rule` — the
+   last being the one that buys the assertion register mechanically. The region
+   names the machine origin, or the note and its source per §3.6.3, or the rule id
+   with its `rationale` per §2.6 item 4.
+   Being `cr`-owned, it is generated and enforced rather than requested.
+7. `cr` MUST append a `cr`-owned evidence region per §8.1.3 beneath the agent body
+   of every record whose grade asserts. For `cited` it lists each stored citation as
+   `path:line`; for `probed` it carries the probe's `kind`, `target`, `filter`,
+   `result`, and `output_tail`, so the strongest register is the one the author can
+   check rather than the one they must take on trust. It is generated by template
+   substitution, regenerated at render and post time, and never editable.
+
+### 8.2 Suggestion validation
+
+1. A suggestion MUST map to a contiguous line range that exists in the PR diff on
+   the `RIGHT` side.
+2. The range MUST be within one hunk.
+3. `cr` MUST NOT infer intent about indentation. When the leading whitespace of the
+   suggestion's first line differs from that of the first replaced line, `cr` MUST
+   warn and show both, and MUST still post when the user leaves the block in place.
+4. A suggestion failing validation MUST block posting with exit code 1 and name the
+   record id.
+
+### 8.3 Batching
+
+1. All comments in a round MUST be posted as one GitHub review, so the author
+   receives a single notification.
+2. The review event MUST be `COMMENT` in v0.1. `cr` MUST NOT emit `APPROVE` or
+   `REQUEST_CHANGES`.
+3. The exact posted payload MUST be written to `rounds/<n>/posted.json` before the
+   network call, and updated with returned thread ids after it. The **payload
+   hash** MUST be computed over an explicit pre-image, never over a JSON
+   serialisation whose field order or spacing is unspecified: each comment
+   contributes its `path`, `start_line`, `line`, `side`, and `body` joined by LF,
+   in that order; the comments are ordered by `path` ascending, then `start_line`,
+   then `line`, then `side` (`LEFT` before `RIGHT`), then record id by numeric
+   suffix; the per-comment texts are joined by LF; and the payload hash is the
+   normalised hash per §1.4 of the result. The review body is excluded, so embedding the hash in it
+   per §8.4.3 cannot change the value being embedded.
+
+### 8.4 Partial failure
+
+1. The GitHub review-creation call is atomic: it either creates the review with all
+   its comments or creates nothing. `cr` MUST therefore pre-validate every comment
+   position per §8.2 before the call.
+2. If the call is rejected, no state MUST be marked posted. `cr` MUST report every
+   position GitHub named invalid, with the record id it belongs to, and exit 4.
+3. To make a round identifiable after the fact, `cr` MUST embed the payload hash as
+   an HTML comment in the review's own body before posting. Above it the body MUST
+   carry the disclosure of §4.5.4 — the active axes, and every lens that did not
+   run, with its reason — so the honesty obligation reaches the
+   author and not only the reviewer's terminal. The review body is not a line
+   comment and is unaffected by §1.6.1.
+4. If the outcome is unknown — a timeout, a dropped connection, or a response `cr`
+   cannot parse — `cr` MUST set `post_unresolved` on `meta.json` and MUST NOT retry
+   automatically. `cr post <pr> --reconcile` MUST list the PR's reviews, match the
+   embedded payload hash of §8.4.3, and either adopt that review as posted or clear
+   `post_unresolved` for a retry. Posting twice is a worse failure than posting
+   late.
+
+### 8.5 Confirmation gate
+
+1. `cr post` without `--confirm` MUST validate, print the full payload, report
+   `"posted": false`, and exit 0 without any network call.
+2. `--confirm` MUST be required for every network write, on every round.
+3. There MUST be no configuration setting, environment variable, profile field, or
+   alias that removes the gate or supplies `--confirm` implicitly.
+4. `cr` MUST NOT claim that a human read the draft. The only fact it can establish
+   is that `--confirm` was given, and the round summary MUST record exactly that
+   and the payload hash, and nothing more. In particular `cr` MUST NOT report
+   whether `draft.md` changed as evidence of human involvement: §8.1.2 requires the
+   agent to rewrite every body before the human sees it, so the file has always
+   changed and the signal measures nothing. Any output describing the gate MUST say
+   that confirmation was given, never that the review was read.
+
+## 9. Record states
+
+A record's life in v0.1 ends when it is posted. Everything after that — the
+author replying, pushing, and the reviewer verifying, resolving, or withdrawing —
+is the re-review half of the loop, and lands in v0.2 per §1.3.
+
+### 9.1 States
+
+| State | Meaning |
+|-------|---------|
+| `draft` | Recorded, not yet queued for a draft |
+| `queued` | Rendered into the current draft |
+| `duplicate` | Suppressed as a duplicate of another record (§6.4.3) |
+| `suppressed` | Suppressed by an existing human thread (§3.5.4) |
+| `discarded` | Deleted during triage, waiver written, `disposition` set |
+| `posted` | Sent to GitHub, thread created |
+| `stale` | Abandoned unposted when the head moved (§9.3.4) |
+
+Transitions are exhaustive. A transition not listed here MUST be rejected with
+exit code 4, naming the record and its current state:
+
+| From | To | Command |
+|------|----|---------|
+| — (new record) | `draft` | `cr record` |
+| `draft` | `duplicate`, `suppressed` | `cr record` |
+| `draft` | `queued` | `cr draft` |
+| `queued` | `discarded` | `cr draft`, `cr post --confirm` |
+| `queued` | `posted` | `cr post --confirm`, `cr post --reconcile` on adopt |
+| `draft`, `queued` | `stale` | `cr brief` on a new head (§9.3.4) |
+
+`cr merge` is not a producer: it runs on role output files before any record
+exists, and §6.4.3 marks duplicates as `cr record` writes them.
+
+1. Transitions MUST be recorded in `transitions.ndjson` with a timestamp, the head
+   SHA, and the actor.
+2. Terminal states are `posted`, `discarded`, `duplicate`, `suppressed`, and
+   `stale`. Every other state is open per §1.1.
+
+### 9.2 Anchors
+
+An anchor MUST carry `path`, `side`, `start_line`, `line`, a normalised content
+hash, and up to three lines of context on each side. The content hash is the
+normalised hash per §1.4 of the lines from `start_line` to `line` inclusive,
+treated as one text — so a single-line anchor and a multi-line anchor hash by the
+same rule. Valid `side` values are `RIGHT` and `LEFT`.
+
+1. `RIGHT` anchors a line in the head. `LEFT` anchors a removed line and MUST be
+   used only for records about deletions. Every record in `findings.ndjson` MUST
+   have an anchor; an item with no code location never becomes a record, per
+   §4.1.3.
+2. An anchor is bound to the head it was produced against. `cr` MUST NOT migrate
+   an anchor across a head change in v0.1. Migration is the first thing v0.2 adds,
+   and guessing at it silently is worse than declaring the round stale per §9.3.
+3. The context window and content hash MUST be recorded even though v0.1 never
+   migrates, so that a v0.2 migration has what it needs from rounds v0.1 produced.
+
+### 9.3 A changed head
+
+1. `cr` MUST compare the current head to `meta.json`'s recorded head on every
+   command that reads per-PR state, and MUST report both when they differ.
+2. When they differ, every command that writes per-PR state MUST refuse with exit
+   code 4, naming both heads; `cr brief` is the only way forward. `cr post
+   --reconcile` is exempt: it anchors nothing and only matches the §8.4.3 payload
+   hash against the PR's existing reviews.
+3. `cr brief` MUST increment `meta.json`'s round index if and only if the current
+   head differs from the recorded head, and MUST then store the new head. A
+   same-head `cr brief` MUST be idempotent.
+4. On that increment every record still in `draft` or `queued` MUST move to
+   `stale`, `mapping.ndjson` MUST be cleared, and `cr brief` MUST recompute units
+   and threads for the new head. Claims are carried forward unchanged; `cr brief`
+   MUST re-read the issue text and re-run the §3.3.3 drift comparison, and MUST NOT
+   re-extract.
+5. Every record carries `round` and `head`, and a command MUST read only the
+   current round's records; earlier rounds are history. A command documented as
+   replacing or clearing a file does so for the current round only and MUST leave
+   earlier rounds intact. Waivers per §7.4, the context store per §3.6, and the
+   posted index of §9.3.6 apply across rounds and are exempt from this scoping.
+6. `cr` MUST maintain a **posted index** in `posted-index.ndjson`, keyed exactly as
+   a §7.4.1 waiver is, holding one entry per record that reached `posted`. A
+   finding matching an entry MUST be dropped at merge and counted in the round
+   summary, and MUST NOT be written to `findings.ndjson` at all, exactly as §6.4.4
+   drops a waived finding.
+
+## 10. Reporting and completeness
+
+### 10.1 Coverage report
+
+`cr status <pr>` MUST report:
+
+1. Units total, units with a complete row of cells, units with gaps, and units
+   flagged `oversized` per §3.4.5.
+2. Claims total, claims mapped to units, and the unimplemented-claim entries of
+   §4.1.3, which appear here and nowhere else because they are never posted.
+3. Active axes, and every lens of §4.5.4 that did not run, with its reason.
+4. Findings and questions by state, severity, and grade.
+5. Probes run, and probes that changed a finding's grade.
+6. Waivers applied and duplicates suppressed in the current round.
+
+### 10.2 Completeness
+
+A round is complete when all of the following hold:
+
+1. The current head equals the head the round was recorded against, per §9.3.1.
+2. Every unit has a complete row of cells for every active role, and every one of
+   those cells was filled for that unit's current unit hash per §3.4.6.
+3. Every claim is mapped to at least one unit. A claim carrying an
+   unimplemented-claim entry per §4.1.3 MUST block completeness until it is either
+   mapped, or set aside through `cr claims set-aside` per §4.1.8. The entry is not a record, so §10.2.4 never reaches it; this condition
+   is the only thing that makes an unimplemented claim block, which is what §4.1.3
+   relies on.
+4. No record of the current round remains in `draft` or `queued`.
+
+`cr status` MUST print the completeness verdict and, when it is false, the exact
+reason. A verdict of complete MUST be printed together with every lens of §4.5.4
+that did not run, because completeness across three axes is not completeness
+across four, and neither is completeness with a role that never looked. `cr` MUST NOT approve the PR, and MUST NOT describe a
+complete round as a settled review: v0.1 ends at posting, and whether the author
+addressed anything is outside what it can observe.
+
+### 10.3 Round summary
+
+`cr merge`, `cr draft`, and `cr post` MUST each accumulate their own counts into
+`rounds/<n>/summary.json`, which is created by `cr merge` and finalised by
+`cr post`. Every round MUST record there counts for raised,
+deduplicated, suppressed by thread, waived, forced to question, drafted, posted,
+discarded as `not-here`, and discarded as `wrong`, plus the comment count against
+`post.max_comments` per §1.6.2, the probe cap state, and the payload hash of
+§8.3.3 — so the history of a review is reconstructable from state alone.
+
+## 11. Command surface
+
+| Command | Purpose |
+|---------|---------|
+| `cr init` | Create `~/.cr`, write default profiles and roles |
+| `cr init --eject-roles` | Write built-in roles as editable files |
+| `cr brief <pr>` | Read-only orientation payload for a PR |
+| `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths (§4.6) |
+| `cr claims record <pr> <file>` | Store extracted claims |
+| `cr merge <files...> -o <out> --repo <owner/repo> --pr <n>` | Merge and deduplicate role findings |
+| `cr record <pr> <file>` | Record a round's merged findings |
+| `cr map record <pr> <file>` | Store the claim-to-unit mapping (§4.1.6) |
+| `cr claims set-aside <pr> <claim-id> --note <note-id>` | Mark an unimplemented claim out of scope (§4.1.8) |
+| `cr cells record <pr> <file>` | Store the coverage cells the roles filled (§4.5.6) |
+| `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
+| `cr test <pr> [--filter]` | Run the test suite in the sandbox |
+| `cr probe run <pr> --kind <kind> ...` | Execute and record a probe (§5.3, §5.4) |
+| `cr draft <pr>` | Render the editable draft |
+| `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review |
+| `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
+| `cr note <ISSUE-KEY> <text>` | Store an out-of-band note |
+| `cr note --remove <note-id>` | Retract a note |
+| `cr context <ISSUE-KEY>` | Print accumulated notes |
+| `cr waivers list\|remove --repo <owner/repo> [--pr <n>]` | Inspect and edit waivers in either scope |
+| `cr stats --repo <owner/repo>` | Triage statistics, demotion and volume candidates |
+| `cr rules list [--dead] --repo <owner/repo>` | Effective rules and the layer each came from |
+| `cr rules check <pr>` | Run mechanical rule detection over the diff |
+| `cr rules suggest --repo <owner/repo>` | Propose rules from recurring comment history |
+| `cr status <pr>` | Coverage, states, and completeness |
+| `cr config [--resolved]` | Effective configuration |
+
+Record ids are scoped to a PR, so every command naming one takes the PR.
+
+### 11.1 Global flags
+
+| Flag | Effect |
+|------|--------|
+| `--json` | Force JSON output |
+| `--compact` | Minimal JSON |
+| `--quiet` | Suppress informational messages |
+| `--no-color` | Disable colour |
+| `--repo <owner/repo>` | Override repository detection |
+
+`--quiet` MUST NOT suppress any honesty disclosure. Every lens of §4.5.4 that did
+not run, the probe cap of §5.6.4, the forcing counts of §6.3.2, the waiver
+and duplicate counts of §10.1.6, the sandbox recreation notice of §5.1.6, the
+stale-round report of §9.3.2, and the comment cap of §1.6.2 MUST always be
+printed.
+
+### 11.2 Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Validation failure |
+| 2 | Usage error |
+| 3 | File, configuration, or external command failure |
+| 4 | State conflict, including lock timeout and partial post |
+
+Validation runs before the confirmation gate. A `cr post` whose payload fails
+validation MUST exit 1 whether or not `--confirm` was given; only a payload that
+passes validation reaches §8.5.1's exit 0.
+
+## 12. Output contract
+
+1. Output MUST be JSON when stdout is not a terminal or `--json` is given, and
+   human-readable text otherwise.
+2. JSON MUST be pretty-printed with two-space indentation.
+3. Slice fields MUST serialise as `[]` and never as `null`.
+4. Every error MUST carry a `hint` field naming the next actionable step.
+5. `--compact` MUST omit `output_tail`, `input`, and ingested thread bodies. It
+   MUST NOT omit `evidence` or `citations`: the agent composes every posted body
+   from them, and a compacted payload would leave the composition unfounded.
+6. Every command that could have performed a network write MUST report a `posted`
+   boolean, so a dry run is distinguishable from a successful post in JSON as well
+   as in a terminal.
+
+## 13. Skill
+
+`skills/cr/SKILL.md` MUST ship with the release and MUST document:
+
+1. The full loop: brief, review fan-out, merge, record, probe, draft, human read,
+   post — and that v0.1 stops there, so a moved head means a new round per §9.3.
+2. The argued rule, that it cannot be overridden, and when to escalate to a probe
+   instead of asserting.
+3. The draft triage verbs, the marker edit semantics of §7.2, and the difference
+   between discarding as `wrong` — a marker edit, repository-wide, counted against
+   the class — and as `not-here`, which is plain deletion, scoped to the pull
+   request, and counted separately.
+4. That every network write needs `--confirm`, that `cr` cannot prove the human
+   read the draft, and that the human is therefore the one who must.
+5. The role, profile, and rule file formats, and how to add each.
+6. That a comment written by hand more than twice belongs in the rule corpus, with
+   a `detect` block when the violation is mechanically matchable.
+7. That `citations` is the machine-readable evidence field and `evidence` is prose,
+   so a finding without citations is graded `argued` and posted as a question.
+8. The comment economy of §1.6: fewer comments, each anchored to the line it
+   concerns.
+
+## 14. Distribution
+
+1. `cr` MUST build as a single binary whose only runtime dependencies are `git`,
+   `gh`, and the configured tracker command.
+2. Releases MUST be produced by GoReleaser on a `v*` tag, publishing archives for
+   darwin and linux on both amd64 and arm64.
+3. A release MUST update the Homebrew formula in the `deligoez/homebrew-tap`
+   repository so that `brew install deligoez/tap/cr` installs the binary as `cr`.
+4. `go install github.com/deligoez/cr/cmd/cr@<tag>` MUST install the same version as
+   the tag.
+5. The skill MUST ship inside this repository at `skills/cr/SKILL.md`, and
+   `.claude-plugin/marketplace.json` MUST expose it as an installable plugin.
+6. `cr --version` MUST print the tagged version, injected at build time.

@@ -81,6 +81,42 @@
       "file": "review-round-9.ndjson",
       "spec_hash": "sha256:991666165eed3f5c8999b57e7edfe38cfa9da0c9b2f48cfd940e547a607228f4",
       "roles_hash": "sha256:6a8a6e9b32d9577ce8f1827f8df332d9e8f695adb2f4f2741f0492eda8520fbe"
+    },
+    {
+      "round": 10,
+      "findings": 10,
+      "clean": false,
+      "recorded_at": "2026-08-05T16:13:56Z",
+      "file": "review-round-10.ndjson",
+      "spec_hash": "sha256:6bad8bfd6b47076485c2fa5409e01cced312c269e78425c3d388516faa71c2cb",
+      "roles_hash": "sha256:6a8a6e9b32d9577ce8f1827f8df332d9e8f695adb2f4f2741f0492eda8520fbe"
+    },
+    {
+      "round": 11,
+      "findings": 30,
+      "clean": false,
+      "recorded_at": "2026-08-05T16:47:33Z",
+      "file": "review-round-11.ndjson",
+      "spec_hash": "sha256:670ef1d0f207e165d170d4e18972cdb293dac0fdd0866ae5150e9c28102b91c0",
+      "roles_hash": "sha256:6a8a6e9b32d9577ce8f1827f8df332d9e8f695adb2f4f2741f0492eda8520fbe"
+    },
+    {
+      "round": 12,
+      "findings": 25,
+      "clean": false,
+      "recorded_at": "2026-08-05T17:30:51Z",
+      "file": "review-round-12.ndjson",
+      "spec_hash": "sha256:6039834a31b2e0aff8a52778d3352a5c495e93f164c1713ee84afea9d1e8931b",
+      "roles_hash": "sha256:6a8a6e9b32d9577ce8f1827f8df332d9e8f695adb2f4f2741f0492eda8520fbe"
+    },
+    {
+      "round": 13,
+      "findings": 7,
+      "clean": false,
+      "recorded_at": "2026-08-05T17:43:45Z",
+      "file": "review-round-13.ndjson",
+      "spec_hash": "sha256:890777441e73d5c2278bf82cb913ecef1ba621000ca25ea089cd75183043e3e6",
+      "roles_hash": "sha256:6a8a6e9b32d9577ce8f1827f8df332d9e8f695adb2f4f2741f0492eda8520fbe"
     }
   ],
   "audit_rounds": []
