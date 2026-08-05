@@ -1,8 +1,11 @@
 package axis
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/deligoez/cr/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,4 +36,29 @@ func TestValidateNamesTheOffendingFileAndValue(t *testing.T) {
 	assert.Contains(t, err.Error(), "roles/security.json")
 	assert.Contains(t, err.Error(), `"security"`)
 	assert.Contains(t, err.Error(), "intent, correctness, convention, test")
+}
+
+// The set is closed in v0.1, so neither route into it may work: a config file
+// and a CR_ variable naming a fifth axis must reach no setting, and the ids the
+// validator consults must not be writable through what IDs returns.
+func TestNoConfigurationLayerCanExtendTheAxisSet(t *testing.T) {
+	dir := t.TempDir()
+	global := filepath.Join(dir, "config.json")
+	require.NoError(t, os.WriteFile(global, []byte(`{"axes": {"security": true}}`), 0o600))
+
+	resolved, err := config.Resolve(config.Sources{
+		Environ:      []string{"CR_AXES_SECURITY=true"},
+		GlobalConfig: global,
+	})
+	require.NoError(t, err)
+	for key := range resolved.Map() {
+		assert.NotContains(t, key, "axis", "no setting may address an axis id")
+		assert.NotContains(t, key, "axes", "no setting may address an axis id")
+	}
+
+	tampered := IDs()
+	tampered[0] = "security"
+	assert.Equal(t, "intent", IDs()[0], "IDs must hand out a copy")
+	assert.False(t, Valid("security"))
+	require.Error(t, Validate(global, "axes.security", "security"))
 }
