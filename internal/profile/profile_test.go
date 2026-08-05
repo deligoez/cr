@@ -108,3 +108,42 @@ func TestParseAppliesTheDocumentedDefaults(t *testing.T) {
 	assert.Empty(t, p.Tests.ProbePathTemplate)
 	assert.Empty(t, p.Symbols.Lang)
 }
+
+// An explicit value must survive, or the default would be a ceiling instead of
+// a fallback.
+func TestParseKeepsExplicitOptionalValues(t *testing.T) {
+	path := write(t, "laravel-pest", `{
+		"id": "laravel-pest",
+		"match": {"files": ["artisan"], "globs": ["app/**/*.php"]},
+		"axes": {"test": true},
+		"sandbox": {"copy": [".env"], "setup": ["composer install"]},
+		"tests": {
+			"cmd": ["./vendor/bin/pest"],
+			"globs": ["tests/**/*Test.php"],
+			"filter_flag": "--filter",
+			"timeout_seconds": 120,
+			"output_tail_bytes": 8192,
+			"count_pattern": "Tests:\\s+(\\d+).*?(\\d+) failed",
+			"probe_path_template": "tests/Feature/cr_probe_<probe-id>.php"
+		},
+		"rules": [{"id": "no-facades"}],
+		"symbols": {"lang": "php"}
+	}`)
+
+	p, err := Load(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{".env"}, p.Sandbox.Copy)
+	assert.Equal(t, []string{"composer install"}, p.Sandbox.Setup)
+	assert.Equal(t, []string{"./vendor/bin/pest"}, p.Tests.Cmd)
+	assert.Equal(t, []string{"tests/**/*Test.php"}, p.Tests.Globs)
+	assert.Equal(t, "--filter", p.Tests.FilterFlag)
+	assert.Equal(t, 120, p.Tests.TimeoutSeconds)
+	assert.Equal(t, 8192, p.Tests.OutputTailBytes)
+	assert.Equal(t, `Tests:\s+(\d+).*?(\d+) failed`, p.Tests.CountPattern)
+	assert.Equal(t, "tests/Feature/cr_probe_<probe-id>.php", p.Tests.ProbePathTemplate)
+	assert.Equal(t, "php", p.Symbols.Lang)
+	// §2.6 owns the rule schema, so the profile carries its rules verbatim.
+	require.Len(t, p.Rules, 1)
+	assert.JSONEq(t, `{"id": "no-facades"}`, string(p.Rules[0]))
+}
