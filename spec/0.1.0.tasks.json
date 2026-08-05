@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-05T18:37:31.222487Z",
+  "updated_at": "2026-08-05T18:43:32.649511Z",
   "workflow": {
     "quality_gate": "go test ./... \u0026\u0026 golangci-lint run",
     "review_clean_rounds": 1,
@@ -319,7 +319,7 @@
     {
       "id": "state-directory-layout",
       "title": "Create the global state directory tree",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -331,10 +331,27 @@
       ],
       "started_at": "2026-08-05T18:37:31.222487Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-05T18:43:32.593111Z",
+      "closed_reason": "- cr init creates the §2.2 tree: internal/state/layout.go names every path of the table and Init() creates the global ones (root, config.json, profiles/, roles/, rules/, repos/, state/, context/, waivers/, locks/), while EnsureRepo, EnsurePR, and EnsureContext create the placeholder-bearing paths (repos/\u003cowner\u003e/\u003crepo\u003e/{config.json,roles/,rules/,triage.ndjson,rule-stats.ndjson}, state/\u003cowner\u003e/\u003crepo\u003e/pr-\u003cn\u003e/, waivers/\u003cowner\u003e/\u003crepo\u003e.ndjson, context/\u003cISSUE-KEY\u003e.ndjson) once a command knows the owner, repository, pull request, or issue key; TestInitCreatesTheGlobalTree and TestEnsureCreatesTheScopedPaths assert each one exists on disk, and the built binary was run against CR_HOME to confirm the real tree.\n- Paths are derived from one layout function: the state.Layout type joins every path against a single injectable root resolved by Default() from CR_HOME or \u003chome\u003e/.cr, cr init calls only Layout methods, and TestLayoutDerivesEveryStatePath pins all 25 derived paths against the §2.2 table so no command needs to hand-build one.\n- Running cr init twice is idempotent: directories go through os.MkdirAll and files through touchFile, which leaves an existing file byte-identical, verified by TestInitIsIdempotent writing a config and re-running Init, by the repeated EnsurePR assertion in TestEnsureCreatesTheScopedPaths, and by invoking the binary's init twice.\nOut of scope: internal/cli/root.go still maps every command error onto ExitUsage, so a file failure from cr init exits 2 rather than the §11.2 ExitFile 3; correcting that belongs to usage-errors-exit-two.",
+      "gate_passed_at": "2026-08-05T18:43:32.593111Z",
+      "commit_sha": "3d4ce0f",
+      "commit_shas": [
+        "3d4ce0f",
+        "118cbdf",
+        "2787ad8",
+        "d0d28c3",
+        "008ca0d",
+        "0326f81",
+        "82e3180",
+        "4efdfc8"
+      ],
+      "commit_files": [
+        "internal/cli/init.go",
+        "internal/cli/init_test.go",
+        "internal/cli/root.go",
+        "internal/state/layout.go",
+        "internal/state/layout_test.go"
+      ]
     },
     {
       "id": "repo-write-prohibition-guard",
