@@ -31,6 +31,8 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().Bool("no-color", false, "disable colored output")
 	root.PersistentFlags().String("repo", "", "override repository detection (owner/repo)")
 
+	root.AddCommand(newInitCmd())
+
 	return root
 }
 
