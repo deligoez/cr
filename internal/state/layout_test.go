@@ -92,3 +92,34 @@ func TestInitIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `{"profile":"generic"}`, string(body))
 }
+
+func TestEnsureCreatesTheScopedPaths(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	require.NoError(t, l.Init())
+	require.NoError(t, l.EnsurePR("acme", "web", 42))
+	require.NoError(t, l.EnsureContext("ACME-7"))
+
+	for _, dir := range []string{
+		l.RepoDir("acme", "web"), l.RepoRolesDir("acme", "web"),
+		l.RepoRulesDir("acme", "web"), l.PRDir("acme", "web", 42),
+	} {
+		info, err := os.Stat(dir)
+		require.NoError(t, err, dir)
+		assert.True(t, info.IsDir(), dir)
+	}
+	for _, file := range []string{
+		l.RepoConfig("acme", "web"), l.RepoTriage("acme", "web"),
+		l.RepoRuleStats("acme", "web"), l.WaiversFile("acme", "web"),
+		l.ContextFile("ACME-7"),
+	} {
+		info, err := os.Stat(file)
+		require.NoError(t, err, file)
+		assert.False(t, info.IsDir(), file)
+	}
+
+	require.NoError(t, os.WriteFile(l.RepoTriage("acme", "web"), []byte("{}\n"), filePerm))
+	require.NoError(t, l.EnsurePR("acme", "web", 42))
+	body, err := os.ReadFile(l.RepoTriage("acme", "web"))
+	require.NoError(t, err)
+	assert.Equal(t, "{}\n", string(body))
+}
