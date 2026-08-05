@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -35,4 +36,33 @@ func TestPRArgs(t *testing.T) {
 	assert.Error(t, prArgs(3)(cmd, []string{"42", "r-1"}), "a missing record id is a usage error")
 	assert.Error(t, prArgs(3)(cmd, []string{"42", "r-1", "text", "extra"}))
 	assert.Error(t, prArgs(2)(cmd, []string{"r-1", "42"}), "the pull request comes first")
+}
+
+// Record ids are scoped to a PR (spec/0.1.0.md §11), so a command naming one
+// must take the pull request ahead of it and must reject an argument that is
+// not a pull request number. The walk covers the whole tree, so a command
+// registered later cannot quietly drop the scope.
+func TestRecordIDCommandsTakeThePullRequest(t *testing.T) {
+	var walk func(cmd *cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		for _, sub := range cmd.Commands() {
+			walk(sub)
+		}
+
+		if i := strings.Index(cmd.Use, "<record-id>"); i >= 0 {
+			pr := strings.Index(cmd.Use, prPlaceholder)
+			require.GreaterOrEqual(t, pr, 0,
+				"%q names a record id without the PR that scopes it", cmd.Use)
+			assert.Less(t, pr, i, "%q must take the PR before the record id", cmd.Use)
+		}
+
+		if !strings.Contains(cmd.Use, prPlaceholder) {
+			return
+		}
+		require.NotNil(t, cmd.Args, "%q takes a PR but validates no arguments", cmd.Use)
+		assert.Error(t, cmd.Args(cmd, []string{"not-a-pull-request"}),
+			"%q accepts an argument that is not a pull request", cmd.Use)
+	}
+
+	walk(newRootCmd())
 }
