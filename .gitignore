@@ -1,0 +1,5 @@
+.claude/
+/cr
+dist/
+codedb.snapshot
+*.tasks.json.lock
