@@ -1,10 +1,12 @@
 package state
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Every path of spec/0.1.0.md §2.2 comes from the layout, so no command has a
@@ -43,4 +45,19 @@ func TestLayoutDerivesEveryStatePath(t *testing.T) {
 	for name, c := range cases {
 		assert.Equal(t, c.want, c.got, name)
 	}
+}
+
+// The root is injectable, so the suite never writes into a real ~/.cr.
+func TestDefaultPrefersTheHomeEnvOverride(t *testing.T) {
+	t.Setenv(HomeEnv, filepath.Join("tmp", "cr-state"))
+	l, err := Default()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("tmp", "cr-state"), l.Root())
+
+	t.Setenv(HomeEnv, "")
+	l, err = Default()
+	require.NoError(t, err)
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, dirName), l.Root())
 }
