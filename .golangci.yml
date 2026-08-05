@@ -1,0 +1,40 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - gocritic
+    - misspell
+    - unconvert
+    - unparam
+
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    errcheck:
+      disable-default-exclusions: false
+      exclude-functions:
+        - (*os.File).Close
+        - os.RemoveAll
+        - (*github.com/fatih/color.Color).Fprintf
+        - (*github.com/fatih/color.Color).Fprintln
+
+# golangci-lint v2 only runs formatters listed here. Without this block a
+# gofmt-dirty file passes the quality gate silently.
+formatters:
+  enable:
+    - gofmt
+
+run:
+  timeout: 5m
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 3
