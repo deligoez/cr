@@ -147,3 +147,44 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 	require.Len(t, p.Rules, 1)
 	assert.JSONEq(t, `{"id": "no-facades"}`, string(p.Rules[0]))
 }
+
+// §2.5 item 3 makes a malformed profile abort with exit code 3 naming the file
+// and the offending field. Every required row of the §2.4 table is a way to be
+// malformed, so each one is checked to name itself rather than to fail somewhere
+// downstream where the user cannot act on it.
+func TestParseNamesTheMissingRequiredField(t *testing.T) {
+	cases := map[string]struct {
+		content string
+		field   string
+	}{
+		"id": {`{
+			"match": {"files": [], "globs": []},
+			"axes": {}
+		}`, "id"},
+		"match": {`{"id": "generic", "axes": {}}`, "match"},
+		"match.files": {`{
+			"id": "generic",
+			"match": {"globs": []},
+			"axes": {}
+		}`, "match.files"},
+		"match.globs": {`{
+			"id": "generic",
+			"match": {"files": []},
+			"axes": {}
+		}`, "match.globs"},
+		"axes": {`{"id": "generic", "match": {"files": [], "globs": []}}`, "axes"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := write(t, "generic", tc.content)
+
+			_, err := Load(path)
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, tc.field, malformed.Field)
+			assert.Contains(t, err.Error(), path)
+			assert.Contains(t, err.Error(), tc.field)
+		})
+	}
+}
