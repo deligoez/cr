@@ -8,6 +8,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRootPrintsHelpWithNoArguments(t *testing.T) {
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{})
+
+	require.NoError(t, cmd.Execute())
+	help := out.String()
+	assert.Contains(t, help, "Usage:")
+	assert.Contains(t, help, "--json")
+}
+
 func TestRootVersion(t *testing.T) {
 	cmd := newRootCmd()
 	var out bytes.Buffer
