@@ -53,6 +53,12 @@ against new code, anchors survive force-pushes, and some concerns are answered
 in chat rather than on GitHub. None of this fits in one session or one context
 window, so it has to live on disk.
 
+This is the hardest of the four and v0.1 does not attempt it. v0.1 reviews one
+head and stops at posting; a moved head makes the round stale rather than
+migrating anchors on a guess. The state it records — anchors with their context
+windows, the posted index, waivers, the context store — is shaped so v0.2 can
+pick the conversation up without re-deriving it.
+
 ---
 
 ## 2. What cr bets on
@@ -155,7 +161,8 @@ The relationship is one-directional and clean: **cr is developed using tp.**
 
 | Version | Theme |
 |---------|-------|
-| v0.1 | Full reviewer loop: intent, four axes, probes, draft, post, re-review |
-| v0.2 | Author side: ingest incoming review comments as a work list |
-| v0.3 | Write context supplements back to the tracker; share the context store |
-| v0.4 | Profile ecosystem beyond the first two profiles |
+| v0.1 | One-head reviewer loop: intent, four axes, probes, draft, human triage, post |
+| v0.2 | The conversation: anchor migration, recheck, verification, resolution, withdrawal |
+| v0.3 | Author side: ingest incoming review comments as a work list |
+| v0.4 | Write context supplements back to the tracker; share the context store |
+| v0.5 | Profile ecosystem beyond the first two profiles |
