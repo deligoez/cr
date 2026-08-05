@@ -259,3 +259,29 @@ func TestParseRejectsAnAxisIDOutsideTheClosedSet(t *testing.T) {
 	assert.Equal(t, "axes.security", invalid.Field)
 	assert.Equal(t, path, invalid.File)
 }
+
+// A field of the wrong type, an unparseable file, and an unreadable one are all
+// profile files cr cannot use. Each must name the file, and a type error must
+// name the field too, so the user is told what to open and what to fix.
+func TestParseRejectsUnusableFiles(t *testing.T) {
+	typed := write(t, "generic", `{
+		"id": "generic",
+		"match": {"files": [], "globs": ["**/*"]},
+		"axes": {},
+		"tests": {"timeout_seconds": "fast"}
+	}`)
+	_, err := Load(typed)
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "tests.timeout_seconds", malformed.Field)
+
+	notJSON := write(t, "generic", "id = generic\n")
+	_, err = Load(notJSON)
+	require.ErrorAs(t, err, &malformed)
+	assert.Contains(t, err.Error(), notJSON)
+
+	missing := filepath.Join(t.TempDir(), "generic.json")
+	_, err = Load(missing)
+	require.ErrorAs(t, err, &malformed)
+	assert.Contains(t, err.Error(), missing)
+}
