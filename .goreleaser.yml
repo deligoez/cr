@@ -1,0 +1,65 @@
+version: 2
+
+project_name: cr
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/cr
+    binary: cr
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/deligoez/cr/internal/cli.version={{.Version}}
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else }}{{ .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+brews:
+  - repository:
+      owner: deligoez
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: goreleaser
+      email: goreleaser@users.noreply.github.com
+    homepage: https://github.com/deligoez/cr
+    description: "Code review lifecycle manager for AI coding agents"
+    license: "MIT"
+    install: |
+      bin.install "cr"
+    test: |
+      assert_match "cr version", shell_output("#{bin}/cr --version")
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^chore\\(deps\\)"
+      - "^docs\\(changelog\\)"
