@@ -2,6 +2,7 @@ package state
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -162,4 +163,18 @@ func TestEachWriterUpdatesOnlyItsOwnSummarySection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "{\n  \"raised\": 7,\n  \"drafted\": 5,\n  \"posted\": 4\n}\n", string(body),
 		"every writer's counts survive, in a document pretty-printed like every other JSON cr writes")
+}
+
+// The rounds/<n>/ paths of §2.3 come from the layout like every other state
+// path, so no command joins segments of its own to reach an artefact.
+func TestLayoutDerivesEveryRoundPath(t *testing.T) {
+	root := filepath.Join("home", ".cr")
+	l := New(root)
+	pr := filepath.Join(root, "state", "acme", "web", "pr-42")
+
+	assert.Equal(t, filepath.Join(pr, "rounds", "3"), l.RoundDir("acme", "web", 42, 3))
+	for _, name := range RoundFiles() {
+		assert.Equal(t, filepath.Join(pr, "rounds", "3", name),
+			l.RoundFile("acme", "web", 42, 3, name), name)
+	}
 }
