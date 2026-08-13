@@ -300,3 +300,43 @@ func TestAHunkAnswersForItsHeadSideRange(t *testing.T) {
 	assert.Equal(t, 0, start)
 	assert.Equal(t, 0, end)
 }
+
+// The parser and the diff flags of diffArgs are one contract, and a patch that
+// breaks it is not quietly read as something else. Every one of these shapes
+// would otherwise slide a changed line onto the wrong number or the wrong side.
+func TestAPatchThatIsNotOneIsRejected(t *testing.T) {
+	for _, broken := range []struct{ name, patch, says string }{
+		{
+			name:  "a line inside a hunk that marks nothing",
+			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n one\nmarks nothing\n",
+			says:  `"marks nothing" is not a hunk line`,
+		},
+		{
+			name:  "an empty line inside a hunk",
+			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n one\n\n",
+			says:  "a hunk holds no empty line",
+		},
+		{
+			name:  "a header naming no line on either side",
+			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -0,0 +0,0 @@\n",
+			says:  "covers no line on either side",
+		},
+		{
+			name:  "a header that is not one",
+			patch: "@@ nonsense @@\n",
+			says:  "is not a hunk header",
+		},
+		{
+			name:  "a patch cut off inside a hunk",
+			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n one\n",
+			says:  "the patch ends inside the hunk at f.txt:1",
+		},
+	} {
+		t.Run(broken.name, func(t *testing.T) {
+			hunks, err := ParseHunks(broken.patch)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), broken.says)
+			assert.Nil(t, hunks)
+		})
+	}
+}
