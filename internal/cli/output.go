@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 
 	"github.com/fatih/color"
 	"github.com/mattn/go-isatty"
@@ -93,10 +94,11 @@ func (w *writer) settle(cmd *cobra.Command) error {
 	return nil
 }
 
-// emit writes one command's result in the shape settle chose.
+// emit writes one command's result in the shape settle chose, pretty-printed
+// with §12.2's two-space indentation and carrying §12.3's empty arrays.
 func (w *writer) emit(r result) error {
 	if w.mode == ModeJSON {
-		encoded, err := json.MarshalIndent(r, "", "  ")
+		encoded, err := json.MarshalIndent(withoutNilSlices(r), "", "  ")
 		if err != nil {
 			return err
 		}
@@ -105,6 +107,100 @@ func (w *writer) emit(r result) error {
 	}
 	_, err := fmt.Fprintln(w.out, r.Text(w))
 	return err
+}
+
+// jsonMarshaler is the interface a type uses to take its own serialisation
+// over, and the one thing withoutNilSlices leaves alone.
+var jsonMarshaler = reflect.TypeFor[json.Marshaler]()
+
+// withoutNilSlices returns payload with every nil slice it can reach replaced
+// by an empty one, which is where §12.3 is kept.
+//
+// The rule could be left to the construction site instead — make([]T, 0)
+// rather than var x []T, which is the convention here and stays the convention
+// — but a constructor binds only the payloads somebody has already written. It
+// says nothing about the next one, and nothing about a field set back to nil
+// after it was built. Every JSON document cr prints passes through this one
+// function, so the guarantee holds for a payload nobody constructed at all.
+//
+// The copy is deep, so nothing the caller still holds is rewritten, and it
+// takes a payload for a tree: cr has no output struct that points back at
+// itself.
+func withoutNilSlices(payload any) any {
+	value := reflect.ValueOf(payload)
+	if !value.IsValid() {
+		return payload
+	}
+	return filledSlices(value).Interface()
+}
+
+// filledSlices is withoutNilSlices' recursion, which follows a nil slice
+// wherever one can hide: behind a pointer, inside an any, in a map's value, in
+// an element of another slice, or in an embedded struct. A payload marshalled
+// at its outermost layer alone would answer for none of those.
+func filledSlices(value reflect.Value) reflect.Value {
+	// A type that marshals itself decides what its own nulls mean, and
+	// json.RawMessage is why that has to be honoured: an empty raw message
+	// is not an empty array, it is a document holding nothing, and it
+	// fails to encode.
+	if value.Type().Implements(jsonMarshaler) {
+		return value
+	}
+	switch value.Kind() {
+	case reflect.Interface:
+		// The concrete value is assignable everywhere the interface
+		// was, so it is handed back in the interface's place.
+		if value.IsNil() {
+			return value
+		}
+		return filledSlices(value.Elem())
+	case reflect.Pointer:
+		if value.IsNil() {
+			return value
+		}
+		copied := reflect.New(value.Type().Elem())
+		copied.Elem().Set(filledSlices(value.Elem()))
+		return copied
+	case reflect.Struct:
+		// The whole struct is copied first, which carries the
+		// unexported fields across — reflection may read those and
+		// never write them, and encoding/json does not look at them
+		// either. Only the exported fields are then rebuilt.
+		copied := reflect.New(value.Type()).Elem()
+		copied.Set(value)
+		for i := range value.NumField() {
+			if value.Type().Field(i).IsExported() {
+				copied.Field(i).Set(filledSlices(value.Field(i)))
+			}
+		}
+		return copied
+	case reflect.Map:
+		if value.IsNil() {
+			return value
+		}
+		copied := reflect.MakeMapWithSize(value.Type(), value.Len())
+		for entry := value.MapRange(); entry.Next(); {
+			copied.SetMapIndex(entry.Key(), filledSlices(entry.Value()))
+		}
+		return copied
+	case reflect.Slice:
+		// A nil slice and an empty one differ here and nowhere else:
+		// MakeSlice never returns nil, so the length carries over and
+		// the null does not.
+		copied := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		for i := range value.Len() {
+			copied.Index(i).Set(filledSlices(value.Index(i)))
+		}
+		return copied
+	case reflect.Array:
+		copied := reflect.New(value.Type()).Elem()
+		for i := range value.Len() {
+			copied.Index(i).Set(filledSlices(value.Index(i)))
+		}
+		return copied
+	default:
+		return value
+	}
 }
 
 // accent renders s in the colour a terminal rendering highlights with, and
