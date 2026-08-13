@@ -212,3 +212,17 @@ func TestOnlyTheSharedWriterDecidesTheOutputShape(t *testing.T) {
 	assert.Empty(t, found,
 		"§12.1: the output shape is settled once in "+theWriter+", so no command may settle it again")
 }
+
+// Both shapes belong to every command, not to the one whose own test happens to
+// read them. `cr config` proves the pair above; `cr init` is the other command
+// in the tree, and its terminal rendering has a job of its own — §2.2 puts the
+// state tree wherever $CR_HOME says, so the directory it names is the answer to
+// a question the user could not have answered themselves.
+func TestATerminalInitNamesTheStateDirectory(t *testing.T) {
+	root := crHome(t)
+
+	out := throughATerminal(t, "init")
+
+	assert.Contains(t, out, "state directory ready at ")
+	assert.Contains(t, out, "\x1b[36m"+root+"\x1b[0m")
+}
