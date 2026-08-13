@@ -17,13 +17,14 @@ import (
 )
 
 // crHome points the state tree of spec/0.1.0.md §2.2 at a temporary directory,
-// so `cr config` resolves the built-in defaults and reads nothing of the
-// author's own.
-func crHome(t *testing.T) {
+// so a command resolves the built-in defaults and reads nothing of the author's
+// own. It returns the root, which is what `cr init` reports.
+func crHome(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), ".cr")
 	require.NoError(t, os.MkdirAll(root, 0o700))
 	t.Setenv(state.HomeEnv, root)
+	return root
 }
 
 // execute runs one command with its output on file.
