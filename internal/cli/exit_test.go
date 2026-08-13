@@ -83,6 +83,31 @@ func TestAnInvalidClassExitsWithTheValidationCode(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("merging findings: %w", err)))
 }
 
+// §6.1.3 rejects a record missing a required field, naming a unit the current
+// round does not have, or claiming a role other than the one whose §4.6.2
+// output file it arrived in. The file was found, read, and parsed, so nothing
+// about it failed as a file; the fault is the agent's data inside it, which
+// §11.2 codes 1 and not the 3 an unusable file gets. Both the per-record
+// rejection and the refusal of a whole input cr merge cannot attribute have to
+// survive the wrapping a command adds on the way out.
+func TestARejectedRecordExitsWithTheValidationCode(t *testing.T) {
+	_, err := finding.Decode(
+		finding.FanOutFile("test"),
+		[]byte(`{"id":"f1","kind":"finding","role":"test","class":"missing-test",`+
+			`"severity":"high","unit":"u1","summary":"The guard has no test.",`+
+			`"anchor":{"path":"app/Models/User.php","side":"RIGHT","start_line":12,"line":14}}`),
+		[]string{"u1"},
+	)
+	require.Error(t, err, "the record supplies no evidence")
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("recording findings: %w", err)))
+
+	_, err = finding.DecodePerRole("merged.ndjson", nil, []string{"u1"})
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("merging findings: %w", err)))
+}
+
 // agentRecord stands in for a record type of one of the eight §2.3.3 files. It
 // carries head and round the only way any type can: by embedding state.Stamp.
 type agentRecord struct {
