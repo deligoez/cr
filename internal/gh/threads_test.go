@@ -180,3 +180,28 @@ func TestAnOutdatedThreadKeepsWhereItWasWritten(t *testing.T) {
 	}, threads[0].Anchor)
 }
 
+// A page that claims a successor and names no cursor would be asked for again
+// under the same cursor for as long as the process lives. Ingestion stops and
+// says so instead: a command that never returns is harder to diagnose than one
+// that fails.
+func TestIngestionRefusesAPageThatNamesNoCursor(t *testing.T) {
+	const threadsPage = `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+		"pageInfo":{"hasNextPage":true,"endCursor":null},"nodes":[]}}}}}`
+	const commentsPage = `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+		"pageInfo":{"hasNextPage":false,"endCursor":null},
+		"nodes":[{"id":"PRRT_1","comments":{"pageInfo":{"hasNextPage":true,"endCursor":null},
+		"nodes":[]}}]}}}}}`
+
+	_, err := WithRunner(func(...string) (string, error) { return threadsPage, nil }).
+		Threads("acme", "web", 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "acme/web#42")
+	assert.Contains(t, err.Error(), "names no cursor")
+
+	_, err = WithRunner(func(...string) (string, error) { return commentsPage, nil }).
+		Threads("acme", "web", 42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "thread PRRT_1")
+	assert.Contains(t, err.Error(), "names no cursor")
+}
+
