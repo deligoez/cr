@@ -183,3 +183,23 @@ func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []*stampedRecord{}, empty)
 }
+
+// A line cr cannot decode is named by its number, counted over the file as the
+// agent handed it in, whether the line is no record at all or a record whose
+// field has the wrong type. Neither is a supplied-field rejection.
+func TestAnUndecodableAgentLineIsNamedByItsNumber(t *testing.T) {
+	for _, tc := range []struct{ name, line string }{
+		{name: "not a JSON object", line: "[1, 2]"},
+		{name: "a field of the wrong type", line: `{"id":7}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := DecodeStamped[stampedRecord](
+				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"),
+			)
+			require.Error(t, err)
+			var reserved *ReservedFieldError
+			assert.NotErrorAs(t, err, &reserved)
+			assert.Contains(t, err.Error(), "claims.ndjson line 3")
+		})
+	}
+}
