@@ -156,3 +156,30 @@ func TestAnAgentMayNotSupplyHeadOrRound(t *testing.T) {
 		})
 	}
 }
+
+// Decoding is the road from an agent's file to the writer: what it returns is
+// what WriteStamped stamps. An empty file is no records rather than a null
+// slice (§12.3).
+func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+
+	records, err := DecodeStamped[stampedRecord](
+		FileClaims, []byte("{\"id\":\"c1\"}\n{\"id\":\"c2\"}\n"),
+	)
+	require.NoError(t, err)
+	require.NoError(t, WriteStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
+	require.NoError(t, held.Unlock())
+
+	got, err := ReadRecords[stampedRecord](l, "acme", "web", 42, FileClaims)
+	require.NoError(t, err)
+	assert.Equal(t, []stampedRecord{
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, ID: "c1"},
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, ID: "c2"},
+	}, got)
+
+	empty, err := DecodeStamped[stampedRecord](FileClaims, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []*stampedRecord{}, empty)
+}
