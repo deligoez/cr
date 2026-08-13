@@ -118,3 +118,30 @@ func TestTheGreatestMarkerCountWins(t *testing.T) {
 	}
 }
 
+// The profiles directory is the whole candidate set, so cr must tell "there is
+// nothing to select from" apart from "the candidates could not be read". A
+// state root without one yet holds no profile, which §2.4.4 already answers,
+// while a path cr cannot list hides an unknown number of them: reading that as
+// no match would disable axes on evidence cr never obtained, so it aborts as a
+// malformed file instead, naming the path.
+func TestAProfilesDirectoryIsEitherReadOrReported(t *testing.T) {
+	t.Run("a missing directory holds no profile", func(t *testing.T) {
+		selection, err := Select(filepath.Join(t.TempDir(), "profiles"), repoWith(t, "artisan"), "")
+		require.NoError(t, err)
+
+		assert.False(t, selection.Selected)
+		assert.Empty(t, selection.Tied)
+	})
+
+	t.Run("a directory cr cannot list is named", func(t *testing.T) {
+		notADirectory := filepath.Join(t.TempDir(), "profiles")
+		require.NoError(t, os.WriteFile(notADirectory, []byte("{}"), 0o600))
+
+		_, err := Select(notADirectory, repoWith(t, "artisan"), "")
+
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Equal(t, notADirectory, malformed.File)
+	})
+}
+
