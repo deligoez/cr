@@ -96,3 +96,21 @@ func wireNames(t reflect.Type) []string {
 	return names
 }
 
+// §12.3 lets a slice serialise as [] and never as null, and a record holds
+// three: its citations and its anchor's two context windows. Nil is the normal
+// state of all three — most records cite nothing — so the encoding has to hold
+// for a record that filled none of them, which is exactly the case a filled
+// fixture would not test.
+func TestARecordNeverSerialisesASliceAsNull(t *testing.T) {
+	line, err := json.Marshal(Finding{})
+	require.NoError(t, err)
+	assert.NotContains(t, string(line), "null")
+
+	filled, err := json.Marshal(Finding{
+		Citations: []Citation{{Path: "app/Models/User.php", Line: 12}},
+		Anchor:    Anchor{ContextBefore: []string{"before"}, ContextAfter: []string{"after"}},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, string(filled), `"citations":[{"path":"app/Models/User.php","line":12}]`)
+}
+
