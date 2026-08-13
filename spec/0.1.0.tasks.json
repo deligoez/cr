@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T19:02:13.715867Z",
+  "updated_at": "2026-08-13T19:19:31.972182Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1696,7 +1696,7 @@
     {
       "id": "thread-ingestion",
       "title": "Ingest every existing review thread",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "per-pr-state-files"
@@ -1706,11 +1706,43 @@
       "source_sections": [
         "### 3.5 Existing threads"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T19:02:39.710477Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T19:19:31.88278Z",
+      "closed_reason": "- Every existing review thread on the pull request is ingested with author, body, anchor, resolution state and replies (§3.5.1): internal/gh/threads.go asks GitHub's GraphQL API for reviewThreads, the only place isResolved exists at all — REST's pull request review comments carry no resolution, so a resolved thread could only be guessed at — and walks both connections, following further pages of threads by cursor and a long thread's further comments by node id, so nothing is silently truncated; a thread keeps its opening comment as its author and body, the rest as replies, and its anchor normalised into path, side, start_line and line in git.Side terms §3.5.3 can compare against a hunk, with the original pair kept for an outdated thread whose current line GitHub reports null.\n- Threads are stored in threads.ndjson per §2.3: gh.WriteThreads names that file once and writes it through internal/state's WriteRecords, the writer for the files §2.3.3 does not stamp with head and round, under the §2.3.1 lock, and TestThreadsAreStoredInThreadsNdjson round-trips the ingest and pins the empty reply list as [] rather than null per §12.3.\n- A test ingests a pull request carrying resolved and unresolved threads and asserts both survive: TestIngestionKeepsResolvedAndUnresolvedThreadsAlike replays the recorded payload of cli/cli#11451 — one resolved bot thread, one unresolved human thread with a reply — and asserts both threads, their ids, authors, bodies, anchors, replies and resolution states; every test in internal/gh runs offline, from fixtures under testdata captured once by hand from public pull requests and replayed through the injectable Runner seam, with a shell stub named gh on PATH for the three tests that exercise the real invocation, its allowlisted environment and its failure shape.",
+      "gate_passed_at": "2026-08-13T19:19:31.88278Z",
+      "commit_sha": "d9dde60",
+      "commit_shas": [
+        "d9dde60",
+        "7185650",
+        "7cbfff0",
+        "1490b68",
+        "302a535",
+        "330fbca",
+        "1adae55",
+        "b6a657b",
+        "1790953",
+        "6e996ba",
+        "9b35693",
+        "b1ff39f",
+        "26fc9fd",
+        "ba427ee",
+        "998c72d"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/gh/run.go",
+        "internal/gh/run_test.go",
+        "internal/gh/testdata/replies-second-page.json",
+        "internal/gh/testdata/threads-first-page.json",
+        "internal/gh/testdata/threads-held-replies.json",
+        "internal/gh/testdata/threads-outdated.json",
+        "internal/gh/testdata/threads-second-page.json",
+        "internal/gh/testdata/threads.json",
+        "internal/gh/threads.go",
+        "internal/gh/threads_test.go"
+      ]
     },
     {
       "id": "thread-author-typing",
