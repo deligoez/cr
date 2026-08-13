@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -61,28 +62,53 @@ func throughAPipe(t *testing.T, args ...string) string {
 	return <-drained
 }
 
+// terminalSentinel is written to the pseudo-terminal after the command has
+// finished, so the reader knows it has everything without waiting for the file
+// to close. It is not a value any command produces.
+const terminalSentinel = "cr-output-drained"
+
 // throughATerminal runs a command with stdout on the slave side of a real
 // pseudo-terminal, which is the one way to prove the detection rather than the
 // branch behind it. A boolean the test sets itself would exercise the same
 // line of code and establish nothing about what happens in front of a person.
+//
+// The sentinel is what makes the read deterministic. Closing the slave and
+// reading to the end is the obvious shape and it is a race: the master reports
+// EIO the moment the last slave goes, and output still sitting in the terminal
+// buffer is lost with it, so the test passes or reports nothing at all
+// depending on which side got there first. Reading concurrently keeps a command
+// larger than the buffer from deadlocking, and stopping at the sentinel keeps
+// it from depending on a close at all.
 func throughATerminal(t *testing.T, args ...string) string {
 	t.Helper()
 	master, slave, err := pty.Open()
 	require.NoError(t, err)
 	t.Cleanup(func() { master.Close() })
+	t.Cleanup(func() { slave.Close() })
 
 	drained := make(chan string, 1)
 	go func() {
-		// The master reports EIO rather than EOF when the last slave
-		// closes, after handing over everything already written.
-		read, _ := io.ReadAll(master)
+		var read []byte
+		chunk := make([]byte, 4096)
+		for {
+			n, err := master.Read(chunk)
+			read = append(read, chunk[:n]...)
+			if err != nil || bytes.Contains(read, []byte(terminalSentinel)) {
+				break
+			}
+		}
 		drained <- string(read)
 	}()
 
 	execute(t, slave, args...)
-	require.NoError(t, slave.Close())
+	_, err = slave.WriteString(terminalSentinel + "\n")
+	require.NoError(t, err)
+
 	// A terminal's line discipline turns \n into \r\n on the way out.
-	return strings.ReplaceAll(<-drained, "\r\n", "\n")
+	out := strings.ReplaceAll(<-drained, "\r\n", "\n")
+	out, _, ok := strings.Cut(out, terminalSentinel)
+	require.True(t, ok, "the terminal never handed back the sentinel; it gave %q", out)
+	return out
 }
 
 // §12.1: output is JSON when stdout is not a terminal. No flag is needed to
