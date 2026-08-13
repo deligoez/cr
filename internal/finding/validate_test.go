@@ -146,3 +146,41 @@ func TestARecordNamingAUnitOfNoCurrentRoundIsRejected(t *testing.T) {
 	assert.Equal(t, "u9", records[1].Unit)
 }
 
+// §4.6.2 fixes no form for the path a role writes to, which would leave `role`
+// a field the agent writes and cr believes. §6.1's axis is derived from it and
+// §6.2 grades `cited` only when the axis is not `test`, so a test-adequacy
+// record writing `role: correctness` would buy the assertion register the
+// experiment §4.4.2 demands. Pinning the path to review-<role-id>.ndjson gives
+// §6.1.3 something to check the field against.
+func TestARecordsRoleIsTheOneOfTheFileItArrivedIn(t *testing.T) {
+	assert.Equal(t, "review-test.ndjson", FanOutFile("test"))
+
+	role, bound := RoleForFile(filepath.Join(t.TempDir(), FanOutFile("correctness")))
+	assert.True(t, bound, "a role may write into any directory; the base name binds it")
+	assert.Equal(t, "correctness", role)
+	for _, name := range []string{"merged.ndjson", FanOutFile(""), "review-test.json"} {
+		_, bound := RoleForFile(name)
+		assert.False(t, bound, name)
+	}
+
+	borrowed := aRecord()
+	borrowed["role"] = "correctness"
+	rejected := rejects(t, borrowed)
+	assert.Equal(t, "role", rejected.Field)
+	assert.Contains(t, rejected.Error(), `"correctness" is not "test"`)
+
+	_, err := DecodePerRole("merged.ndjson", onLineThree(t, aRecord()), roundUnits)
+	var unattributable *UnattributableFileError
+	require.ErrorAs(t, err, &unattributable, "cr merge refuses input it cannot bind to a role")
+	assert.Equal(t, "merged.ndjson", unattributable.File)
+	assert.Contains(t, unattributable.Error(), "review-<role-id>.ndjson")
+
+	records, err := DecodePerRole(FanOutFile("test"), onLineThree(t, aRecord()), roundUnits)
+	require.NoError(t, err, "and reads one it can bind")
+	assert.Len(t, records, 2)
+
+	records, err = Decode("merged.ndjson", onLineThree(t, borrowed), roundUnits)
+	require.NoError(t, err, "cr merge's own output holds several roles and its name binds none")
+	require.Len(t, records, 2)
+	assert.Equal(t, "correctness", records[1].Role)
+}
