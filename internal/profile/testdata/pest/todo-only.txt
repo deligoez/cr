@@ -1,0 +1,7 @@
+
+   TODO  Tests\Feature\MixedTest - 1 todo
+  ↓ it is todo
+
+  Tests:    1 todo (0 assertions)
+  Duration: 0.03s
+

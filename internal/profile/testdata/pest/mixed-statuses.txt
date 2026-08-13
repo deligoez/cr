@@ -1,0 +1,51 @@
+
+   PASS  Tests\Unit\ExampleTest
+  ✓ it adds
+  ✓ it concatenates
+
+   FAIL  Tests\Feature\BadTest
+  ⨯ it fails                                                             0.01s  
+
+   FAIL  Tests\Feature\MixedTest - 1 todo
+  ↓ it is todo                                                           0.01s  
+  - it is skipped → not now
+  ⨯ it fails again
+
+   PASS  Tests\Feature\ThingTest
+  ✓ it multiplies                                                        0.01s  
+
+   PASS  Tests\Feature\crprobep1Test
+  ✓ it cr probe placed test runs                                         0.01s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\BadTest > it fails                                     
+  Failed asserting that 1 is identical to 2.
+
+  at tests/Feature/BadTest.php:4
+      1▕ <?php
+      2▕ 
+      3▕ it("fails", function () {
+  ➜   4▕     expect(1)->toBe(2);
+      5▕ });
+      6▕
+
+  1   tests/Feature/BadTest.php:4
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\MixedTest > it fails again                             
+  Failed asserting that 1 is identical to 3.
+
+  at tests/Feature/MixedTest.php:10
+      6▕     expect(true)->toBeTrue();
+      7▕ })->skip('not now');
+      8▕ 
+      9▕ it('fails again', function () {
+  ➜  10▕     expect(1)->toBe(3);
+     11▕ });
+     12▕
+
+  1   tests/Feature/MixedTest.php:10
+
+
+  Tests:    2 failed, 1 todo, 1 skipped, 4 passed (6 assertions)
+  Duration: 0.06s
+

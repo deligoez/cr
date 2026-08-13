@@ -1,0 +1,7 @@
+
+   WARN  Tests\Feature\MixedTest
+  - it is skipped → not now
+
+  Tests:    1 skipped (0 assertions)
+  Duration: 0.04s
+

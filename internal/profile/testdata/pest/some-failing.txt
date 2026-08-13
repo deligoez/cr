@@ -1,0 +1,28 @@
+
+   PASS  Tests\Unit\ExampleTest
+  ✓ it adds
+  ✓ it concatenates
+
+   FAIL  Tests\Feature\BadTest
+  ⨯ it fails                                                             0.01s  
+
+   PASS  Tests\Feature\ThingTest
+  ✓ it multiplies                                                        0.01s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\BadTest > it fails                                     
+  Failed asserting that 1 is identical to 2.
+
+  at tests/Feature/BadTest.php:4
+      1▕ <?php
+      2▕ 
+      3▕ it("fails", function () {
+  ➜   4▕     expect(1)->toBe(2);
+      5▕ });
+      6▕
+
+  1   tests/Feature/BadTest.php:4
+
+
+  Tests:    1 failed, 3 passed (4 assertions)
+  Duration: 0.05s
+

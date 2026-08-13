@@ -121,3 +121,51 @@ func sumPattern(t *testing.T, pattern, output string) (int, bool) {
 	return total, true
 }
 
+// The recap files under testdata/pest are the real output of Pest 4.7.8 on PHP
+// 8.5.9, captured rather than written, so the patterns are judged by the text
+// they will actually meet — failure diffs, source excerpts, and the bare line
+// numbers a failure list prints included.
+//
+// Three readings matter. An all-passing run never writes the word failed, so
+// the failed count comes from no match at all and must be zero rather than
+// undetermined; that is the baseline §5.2.5 has to be able to pass. A mixed run
+// counts only the tests that ran: todo and skipped were selected and never
+// executed, and counting them would let a run of nothing but skipped tests
+// report no failures and hand §5.3.5 the proof a gap finding rests on. And a
+// run that selected nothing prints no recap line at all, so both counts are
+// undetermined and §5.3.4 stops at rung 5, inconclusive, which supports no
+// grade either.
+func TestTheLaravelPestPatternsCountCapturedPestOutput(t *testing.T) {
+	p := loadLaravelPest(t)
+
+	cases := map[string]struct {
+		file     string
+		executed int
+		known    bool
+		failed   int
+	}{
+		"an all-passing run": {"all-passing.txt", 2, true, 0},
+		"a failing run":      {"some-failing.txt", 4, true, 1},
+		// 2 failed and 4 passed ran; 1 todo and 1 skipped did not.
+		"every status at once": {"mixed-statuses.txt", 6, true, 2},
+		"nothing selected":     {"no-tests-found.txt", 0, false, 0},
+		"only skipped tests":   {"skipped-only.txt", 0, false, 0},
+		"only todo tests":      {"todo-only.txt", 0, false, 0},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			output, err := os.ReadFile("testdata/pest/" + tc.file)
+			require.NoError(t, err)
+
+			executed, known := sumPattern(t, p.Tests.CountPattern, string(output))
+			failed, matched := sumPattern(t, p.Tests.FailedPattern, string(output))
+
+			assert.Equal(t, tc.known, known, "executed count known")
+			assert.Equal(t, tc.executed, executed)
+			// An unmatched failed pattern is zero, so the count is
+			// read out whether or not it matched.
+			assert.Equal(t, tc.failed, failed)
+			assert.Equal(t, tc.failed > 0, matched, "failed pattern matched")
+		})
+	}
+}
