@@ -126,3 +126,23 @@ func TestAnItemWithNoCodeLocationNeverBecomesARecord(t *testing.T) {
 	}
 }
 
+// §6.1.3 rejects a record whose unit is not a unit of the current round. It is
+// the round's own set that decides, not the id's shape: §9.3.4 recomputes units
+// on every new head, so a unit id an earlier round issued names nothing now.
+//
+// The check proves the unit exists, never that it is the record's own. A record
+// anchored in one unit may still declare another, and §6.2.1's containment
+// predicate is what has to catch that; nothing here does.
+func TestARecordNamingAUnitOfNoCurrentRoundIsRejected(t *testing.T) {
+	record := aRecord()
+	record["unit"] = "u9"
+	rejected := rejects(t, record)
+	assert.Equal(t, "unit", rejected.Field)
+	assert.Contains(t, rejected.Error(), `"u9" is not a unit of the current round`)
+
+	records, err := Decode(FanOutFile("test"), onLineThree(t, record), []string{"u1", "u9"})
+	require.NoError(t, err, "the same record passes once u9 is a unit of the round")
+	require.Len(t, records, 2)
+	assert.Equal(t, "u9", records[1].Unit)
+}
+
