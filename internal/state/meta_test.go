@@ -30,3 +30,17 @@ func TestMetaSurvivesARoundTrip(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
+// §12.3: an absent list serialises as [], never null.
+func TestMetaNeverWritesANullRoleList(t *testing.T) {
+	l := lockedPR(t)
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&Meta{Owner: "acme", Repo: "web", PR: 42}))
+	require.NoError(t, held.Unlock())
+
+	body, err := l.ReadPR("acme", "web", 42, FileMeta)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "\"active_roles\": []")
+	assert.NotContains(t, string(body), "null")
+}
