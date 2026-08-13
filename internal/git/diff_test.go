@@ -1,0 +1,82 @@
+package git
+
+import (
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// fixtureGit runs one git command in a fixture repository and returns its
+// trimmed output. A failure fails the test, because a fixture that did not
+// build proves nothing about the code under test.
+func fixtureGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	require.NoErrorf(t, err, "git %s: %s", strings.Join(args, " "), out)
+	return strings.TrimSpace(string(out))
+}
+
+// writeFixtureFile puts content at name inside the fixture repository.
+func writeFixtureFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+}
+
+// branched builds a repository in which the base branch moved after the branch
+// under review left it, and returns the repository and the commit the two
+// parted at.
+//
+// That shape is the whole point of the fixture. Only once main carries a commit
+// feature never saw do a two-dot and a three-dot diff disagree, and only then
+// does §3.4.1 say anything a test can fail.
+func branched(t *testing.T) (dir, partedAt string) {
+	t.Helper()
+	dir = t.TempDir()
+	fixtureGit(t, dir, "init", "--quiet", "--initial-branch=main")
+	// The identity and the signing setting are repository-local. A machine
+	// with no global user.email cannot commit at all — CI is such a
+	// machine — and a test must not write a developer's own config.
+	fixtureGit(t, dir, "config", "user.email", "fixture@cr.test")
+	fixtureGit(t, dir, "config", "user.name", "cr fixture")
+	fixtureGit(t, dir, "config", "commit.gpgsign", "false")
+
+	writeFixtureFile(t, dir, "shared.txt", "a\nb\nc\n")
+	fixtureGit(t, dir, "add", "shared.txt")
+	fixtureGit(t, dir, "commit", "--quiet", "-m", "shared")
+	partedAt = fixtureGit(t, dir, "rev-parse", "HEAD")
+
+	fixtureGit(t, dir, "checkout", "--quiet", "-b", "feature")
+	writeFixtureFile(t, dir, "shared.txt", "a\nb\nc\nthe author's line\n")
+	fixtureGit(t, dir, "commit", "--quiet", "-a", "-m", "the change under review")
+
+	fixtureGit(t, dir, "checkout", "--quiet", "main")
+	writeFixtureFile(t, dir, "somebody-else.txt", "landed on main after feature branched\n")
+	fixtureGit(t, dir, "add", "somebody-else.txt")
+	fixtureGit(t, dir, "commit", "--quiet", "-m", "somebody else's commit")
+	return dir, partedAt
+}
+
+// §3.4.1 takes the diff against the merge base at the current head, which is
+// `git diff base...head` with three dots and never `base..head` with two. Two
+// dots diffs the branch tips, so every commit that reached the base branch
+// after the pull request branched appears in the output — reversed, as the
+// author deleting code they never touched. The diff still looks plausible,
+// which is what makes it the most expensive way this tool can be wrong.
+func TestTheDiffExcludesWorkThatLandedOnTheBaseAfterBranching(t *testing.T) {
+	dir, partedAt := branched(t)
+
+	changed, err := DiffAgainstMergeBase(dir, "main", "feature")
+	require.NoError(t, err)
+
+	assert.Equal(t, partedAt, changed.MergeBase)
+	assert.Contains(t, changed.Patch, "+the author's line")
+	assert.NotContains(t, changed.Patch, "somebody-else.txt")
+	assert.NotContains(t, changed.Patch, "landed on main after feature branched")
+}
+
