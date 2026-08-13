@@ -139,3 +139,27 @@ func TestOnlyTheTablesArtefactsReachARoundDirectory(t *testing.T) {
 	}
 	assert.ElementsMatch(t, RoundFiles(), names)
 }
+
+// §10.3 has cr merge, cr draft, and cr post each accumulate their own counts
+// into one summary.json, so a writer must be able to set its own fields without
+// knowing what the others recorded there.
+func TestEachWriterUpdatesOnlyItsOwnSummarySection(t *testing.T) {
+	type summary struct {
+		Raised  int `json:"raised"`
+		Drafted int `json:"drafted"`
+		Posted  int `json:"posted"`
+	}
+	l := lockedPR(t)
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, UpdateRoundJSON(held, 1, FileSummary, func(s *summary) { s.Raised = 7 }))
+	require.NoError(t, UpdateRoundJSON(held, 1, FileSummary, func(s *summary) { s.Drafted = 5 }))
+	require.NoError(t, UpdateRoundJSON(held, 1, FileSummary, func(s *summary) { s.Posted = 4 }))
+	require.NoError(t, held.Unlock())
+
+	body, err := l.ReadRound("acme", "web", 42, 1, FileSummary)
+	require.NoError(t, err)
+	assert.Equal(t, "{\n  \"raised\": 7,\n  \"drafted\": 5,\n  \"posted\": 4\n}\n", string(body),
+		"every writer's counts survive, in a document pretty-printed like every other JSON cr writes")
+}
