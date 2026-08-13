@@ -5,6 +5,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -47,6 +48,14 @@ func exitCodeFor(err error) int {
 		// ExitFile. It is not a validation failure: the run never
 		// reached input data, and it is not a usage error, because
 		// nothing about the invocation can be corrected.
+		return ExitFile
+	}
+	var gitCommand *git.CommandError
+	if errors.As(err, &gitCommand) {
+		// §3.1.3 codes a non-zero exit from an external command 3 and
+		// surfaces its stderr. It fixes that for the tracker command,
+		// and git is one of the same three external tools, so it fails
+		// through the same mapping rather than a second one.
 		return ExitFile
 	}
 	var reservedField *state.ReservedFieldError
