@@ -111,3 +111,17 @@ func TestATerminalCommandEmitsColouredText(t *testing.T) {
 	assert.False(t, json.Valid([]byte(out)), "a terminal was given JSON: %q", out)
 	assert.Contains(t, out, "\x1b[36mpost.max_comments\x1b[0m = 20")
 }
+
+// §12.1 gives `--json` one job, and it is the only override there is: a
+// terminal that would have been given text is given JSON instead. Nothing
+// forces the other direction, so this is the whole of the flag.
+func TestTheJSONFlagForcesJSONOnATerminal(t *testing.T) {
+	crHome(t)
+
+	out := throughATerminal(t, "config", "--json")
+
+	var printed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out), &printed), "a terminal under --json was given %q", out)
+	assert.Equal(t, float64(20), printed["post.max_comments"])
+	assert.NotContains(t, out, "\x1b[", "colour belongs to the text rendering and to nothing else")
+}
