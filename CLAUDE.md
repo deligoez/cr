@@ -185,8 +185,10 @@ accounting, unit briefs, and "agent plans, tool executes".
 2. Share **no code**. No Go module dependency on tp, ever.
 3. Copying a well-understood implementation and adapting it is expected.
    Importing it is not.
-4. When tp has a bug or a gap that cr exposes, record it in
-   `../tp/spec/feedback.md` rather than working around it silently.
+4. **Never write into `../tp`.** It is a separate repository with its own agent
+   working in it; an edit there lands in someone else's uncommitted tree. When
+   tp has a bug or a gap that cr exposes, record it in `spec/tp-feedback.md`
+   here rather than working around it silently, and let the user carry it over.
 
 ## Self-development: cr uses tp
 
