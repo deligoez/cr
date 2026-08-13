@@ -97,6 +97,7 @@ func TestARejectedRecordExitsWithTheValidationCode(t *testing.T) {
 			`"severity":"high","unit":"u1","summary":"The guard has no test.",`+
 			`"anchor":{"path":"app/Models/User.php","side":"RIGHT","start_line":12,"line":14}}`),
 		[]string{"u1"},
+		finding.SourceAgent,
 	)
 	require.Error(t, err, "the record supplies no evidence")
 	assert.Equal(t, ExitValidation, exitCodeFor(err))

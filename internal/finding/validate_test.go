@@ -50,7 +50,7 @@ func onLineThree(t *testing.T, record map[string]any) []byte {
 // rejects decodes the record and returns the §6.1.3 rejection it earned.
 func rejects(t *testing.T, record map[string]any) *RejectedRecordError {
 	t.Helper()
-	_, err := Decode(FanOutFile("test"), onLineThree(t, record), roundUnits)
+	_, err := Decode(FanOutFile("test"), onLineThree(t, record), roundUnits, SourceAgent)
 	var rejected *RejectedRecordError
 	require.ErrorAs(t, err, &rejected)
 	assert.Equal(t, FanOutFile("test"), rejected.File)
@@ -80,7 +80,7 @@ func TestARecordMissingARequiredFieldIsNamedByLineAndField(t *testing.T) {
 		"id", "kind", "role", "class", "severity", "unit", "anchor", "summary", "evidence",
 	}, required, "§6.1's required rows, in table order")
 
-	records, err := Decode(FanOutFile("test"), onLineThree(t, aRecord()), roundUnits)
+	records, err := Decode(FanOutFile("test"), onLineThree(t, aRecord()), roundUnits, SourceAgent)
 	require.NoError(t, err, "a record supplying every required field passes")
 	require.Len(t, records, 2)
 
@@ -140,7 +140,7 @@ func TestARecordNamingAUnitOfNoCurrentRoundIsRejected(t *testing.T) {
 	assert.Equal(t, "unit", rejected.Field)
 	assert.Contains(t, rejected.Error(), `"u9" is not a unit of the current round`)
 
-	records, err := Decode(FanOutFile("test"), onLineThree(t, record), []string{"u1", "u9"})
+	records, err := Decode(FanOutFile("test"), onLineThree(t, record), []string{"u1", "u9"}, SourceAgent)
 	require.NoError(t, err, "the same record passes once u9 is a unit of the round")
 	require.Len(t, records, 2)
 	assert.Equal(t, "u9", records[1].Unit)
@@ -179,7 +179,7 @@ func TestARecordsRoleIsTheOneOfTheFileItArrivedIn(t *testing.T) {
 	require.NoError(t, err, "and reads one it can bind")
 	assert.Len(t, records, 2)
 
-	records, err = Decode("merged.ndjson", onLineThree(t, borrowed), roundUnits)
+	records, err = Decode("merged.ndjson", onLineThree(t, borrowed), roundUnits, SourceAgent)
 	require.NoError(t, err, "cr merge's own output holds several roles and its name binds none")
 	require.Len(t, records, 2)
 	assert.Equal(t, "correctness", records[1].Role)
