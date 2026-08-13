@@ -227,6 +227,22 @@ func TestAThreadCarryingNoCommentIsStillIngested(t *testing.T) {
 	assert.Empty(t, threads[0].Replies)
 }
 
+// §3.5.2 requires every ingested thread to carry an author type of `human` or
+// `bot`, and §3.5.3 filters on it: only the human threads are attached to a
+// unit. The tag is recorded next to the typename GitHub answered rather than
+// in place of it, so the agent can see both the judgement and the fact it was
+// made from.
+func TestEveryIngestedThreadIsTaggedHumanOrBot(t *testing.T) {
+	threads, err := WithRunner(replay(t, "threads.json").run).Threads("cli", "cli", 11451)
+	require.NoError(t, err)
+	require.Len(t, threads, 2)
+
+	assert.Equal(t, AuthorBot, threads[0].AuthorType)
+	assert.Equal(t, "Bot", threads[0].Comment.AuthorTypename)
+	assert.Equal(t, AuthorHuman, threads[1].AuthorType)
+	assert.Equal(t, "User", threads[1].Comment.AuthorTypename)
+}
+
 // §2.3 puts ingested threads in threads.ndjson, and §2.3.3 does not list that
 // file, so its records carry no head and round. They survive the round trip
 // through the state package's own writer, and an empty reply list is written
