@@ -3,10 +3,12 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +43,17 @@ func TestProtectedConfigNameExitsWithTheFileCode(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("resolving configuration: %w", err)))
+}
+
+// §3.1.3 codes a non-zero exit from an external command 3 and surfaces its
+// stderr. git is one of the three external tools cr drives, so a git that
+// refuses exits the same way a refusing tracker command does, and the code must
+// survive the wrapping a command adds on the way out.
+func TestAFailedGitCommandExitsWithTheFileCode(t *testing.T) {
+	_, err := git.MergeBase(filepath.Join(t.TempDir(), "no-such-checkout"), "main", "feature")
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("ingesting the diff: %w", err)))
 }
 
 // agentRecord stands in for a record type of one of the eight §2.3.3 files. It
