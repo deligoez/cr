@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T20:21:57.343275Z",
+  "updated_at": "2026-08-13T20:32:33.376251Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3680,7 +3680,7 @@
     {
       "id": "comment-cap-blocks-posting",
       "title": "Block posting above the comment cap",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "anchored-comments-only"
@@ -3690,11 +3690,28 @@
       "source_sections": [
         "### 1.6 Comment economy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T20:22:28.627644Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T20:32:33.316955Z",
+      "closed_reason": "- post.max_comments caps the comments of one round in internal/finding/cap.go, where CommentCapFor measures the round's queued records against the resolved setting and the built-in default of 20 comes from internal/config's §2.7 table rather than a second path to the value, which the cli test reads out of config.Resolve before it queues anything.\n- Above the cap CommentCap.Err returns a *CommentCapExceededError naming the count, the cap, and the overflow, and internal/cli/exit.go maps it onto ExitValidation, so posting is blocked with exit code 1 and the message tells the user how many comments to triage away.\n- cr never silently drops comments to fit, and the refusal is structural rather than remembered: the cap call hands back a two-int decision and no shape in the package can carry a subset of the queue, which TestNothingCarriesAFittedQueueBackFromTheCap holds open by reading the package's own source and failing any function whose signature names CommentCap and hands back a Finding — verified against a deliberately added FitToCap helper before it was deleted again.\n- The cap report is CommentCap.Disclosure, made whether or not the cap was exceeded and taking no flag at all, so no caller has an answer to give --quiet, and cap.go declares the HonestyDisclosure interface as the shape §11.1's later shared writer consumes rather than building that writer here. TestTheCapReportIsAnHonestyDisclosureOnEitherPath pins the text under the cap, at it, and over it, and pins that the block carries the disclosure whole.\n- TestQueueingPastTheCommentCapExitsWithTheValidationCode queues twenty-one comments against the default cap of 20 and asserts exit code 1 wrapped and unwrapped with the count 21 and the cap named in the message, while TestTheCapBlocksOnlyTheCountAboveIt covers nineteen, twenty and twenty-one. Gremlins killed all six cap.go mutants including both the boundary and the negation at the comparison, at Killed 260 and Lived 4, the four known baseline survivors with no new one.\nOut of scope: nothing posted cannot be driven end to end because cr post does not exist, so single-review-batching, dry-run-posting and confirm-flag-required must make that assertion. The draft header that renders the count is draft-summary-header, the round summary count is round-summary-writers, and §1.6.3's non-destructive triage is triage-to-fit-non-destructive.",
+      "gate_passed_at": "2026-08-13T20:32:33.316955Z",
+      "commit_sha": "6b316c3",
+      "commit_shas": [
+        "6b316c3",
+        "b78cc7c",
+        "069d1d3",
+        "a342658",
+        "616cc11",
+        "398a7f7",
+        "95c7d13",
+        "8425a7e"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/finding/cap.go",
+        "internal/finding/cap_test.go"
+      ]
     },
     {
       "id": "triage-to-fit-non-destructive",
