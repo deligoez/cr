@@ -103,3 +103,20 @@ true and the record should carry both.
 The remaining risk is concentrated and named: three defects, all in §6.1 and §6.2, all in the
 evidence chain that decides whether `cr` may assert to a colleague. If the implementation audit
 finds this decision wrong, that is where it will find it.
+
+## Amendments after this decision
+
+Carrying a finding in acceptance does not freeze the spec forever. Where a unit
+could not satisfy its criterion without the normative text also saying so, the
+repair was made and is recorded here, so this file stays an accurate account of
+what the spec says versus what it said when the decision was taken.
+
+- **§2.3.3, at `stamp-head-round-fields`.** Round 8's `head-round-stamping-unassigned`
+  was carried in acceptance, but the criterion — `cr` owns `head` and `round`, and
+  rejects a record supplying either — is a claim about the contract, not only about
+  the implementation. Three lines were added to the item that already states the
+  requirement, citing §6.1.4's existing computed-field rule rather than inventing a
+  concept. `speccheck.py` clean.
+
+CLAUDE.md now makes this the orchestrator's call rather than a unit's, and sends
+anything larger than restating an existing rule in its own section to the user.
