@@ -13,9 +13,10 @@
 //
 // This package defends the file format and nothing else, plus the one derived
 // value §2.4 documents: probepath.go resolves `tests.probe_path_template`, so a
-// parsed profile always carries the template §5.1.6 and §5.4.2 consume. Selecting
-// a profile by its marker files and checking `tests.count_pattern`'s group arity
-// are separate obligations of §2.4 and are implemented elsewhere.
+// parsed profile always carries the template §5.1.6 and §5.4.2 consume, and
+// `tests.count_pattern` is held to §2.4's group arity. Running that pattern
+// against runner output is §5.2.1's job, not this package's. Selecting a profile
+// by its marker files is a separate obligation of §2.4, implemented elsewhere.
 package profile
 
 import (
@@ -25,6 +26,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -37,6 +39,16 @@ const (
 	DefaultTimeoutSeconds = 900
 	// DefaultOutputTailBytes bounds the retained runner output.
 	DefaultOutputTailBytes = 4096
+)
+
+// The §2.4 constraint on `tests.count_pattern`.
+const (
+	// countPatternField is the field in the dotted §2.4 spelling every
+	// MalformedError about the pattern carries.
+	countPatternField = "tests.count_pattern"
+	// countPatternGroups is the capture group count §2.4 fixes, one per
+	// number §5.2.1 reads out of the runner's output.
+	countPatternGroups = 2
 )
 
 // Profile is one resolved §2.4 profile: every field of the table, with the
@@ -283,6 +295,44 @@ func (t *wireTests) validate(path string) error {
 			File:    path,
 			Field:   "tests.output_tail_bytes",
 			Problem: fmt.Sprintf("is %d; retaining no output leaves a run unevidenced", *t.OutputTailBytes),
+		}
+	}
+	return validateCountPattern(path, t.CountPattern)
+}
+
+// validateCountPattern holds `tests.count_pattern` to the arity §2.4 fixes:
+// exactly two capture groups, which §5.2.1 reads as the executed count and then
+// the failed count. Arity is what makes the pattern's output addressable, so a
+// pattern with any other count is not a weaker pattern but an unreadable one —
+// §5.2.1 would have no group to take either number from, and a three-group
+// pattern gives no rule for which two win.
+//
+// Capturing is the only kind of group that counts, so `(?:...)` is invisible
+// here and `(?P<name>...)` is not: NumSubexp counts exactly the groups §5.2.1
+// can index. An empty pattern is the absent one, since §2.4 makes the field
+// optional and a JSON string cannot distinguish the two.
+//
+// A pattern that does not compile aborts the same way. §2.4 names only the
+// arity fault, but its group count cannot be read at all, and §2.6.1.2 already
+// settles the shape for cr's other configured regex: an uncompilable pattern
+// aborts with exit code 3 naming the file it came from.
+func validateCountPattern(path, pattern string) error {
+	if pattern == "" {
+		return nil
+	}
+	compiled, err := regexp.Compile(pattern)
+	if err != nil {
+		return &MalformedError{
+			File:    path,
+			Field:   countPatternField,
+			Problem: fmt.Sprintf("is not a valid Go regexp: %v", err),
+		}
+	}
+	if n := compiled.NumSubexp(); n != countPatternGroups {
+		return &MalformedError{
+			File:    path,
+			Field:   countPatternField,
+			Problem: fmt.Sprintf("has %d capture groups, but §2.4 requires exactly %d: the executed count then the failed count. A (?:...) group does not capture.", n, countPatternGroups),
 		}
 	}
 	return nil
