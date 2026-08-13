@@ -221,13 +221,21 @@ func (l Layout) EnsureRepo(owner, repo string) error {
 	return nil
 }
 
-// EnsurePR creates one pull request's state directory, and the repository tree
-// that contains it.
+// EnsurePR creates one pull request's state directory, the repository tree that
+// contains it, and every file of the §2.3 table. LockPR creates the directory
+// itself; creating the files inside it is a write to per-PR state, so it happens
+// under the exclusive lock §2.3.1 requires of every write.
 func (l Layout) EnsurePR(owner, repo string, pr int) error {
 	if err := l.EnsureRepo(owner, repo); err != nil {
 		return err
 	}
-	return makeDirs([]string{l.PRDir(owner, repo, pr)})
+	held, err := l.LockPR(owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	// Joined rather than branched: the lock is released whether or not the
+	// files were created, and neither failure is traded away for the other.
+	return errors.Join(held.createFiles(newMeta(owner, repo, pr)), held.Unlock())
 }
 
 // EnsureContext creates one issue's context store.
