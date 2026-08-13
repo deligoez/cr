@@ -207,15 +207,19 @@ func readOnly(args []string) (read bool, why string) {
 	}
 
 	call := readAPI(args[1:])
+	// --input is judged ahead of the endpoint, GraphQL included: a document
+	// arriving from a file or from standard input is one the boundary
+	// cannot read, and a call carrying both a query field and an --input
+	// body is one where gh, not cr, decides which of them is sent.
+	if call.input {
+		return false, "--input sends a request body"
+	}
 	if call.endpoint == "graphql" {
 		document, ok := call.fields["query"]
 		if !ok {
 			return false, "a GraphQL call carrying no query field says nothing about what it does"
 		}
 		return documentReads(document)
-	}
-	if call.input {
-		return false, "--input sends a request body"
 	}
 	if call.method != "" && call.method != "GET" && call.method != "HEAD" {
 		return false, fmt.Sprintf("--method %s writes", call.method)
