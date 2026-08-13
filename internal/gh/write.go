@@ -165,6 +165,11 @@ func readAPI(args []string) apiCall {
 			continue
 		}
 		if !attached {
+			// Mutating this step reports as a timeout rather than a
+			// failure: the scan stops advancing and never reaches
+			// the end of the vector, so no assertion is ever made.
+			// It is caught either way, and there is no test that
+			// would catch it faster.
 			i++
 			if i == len(args) {
 				break
