@@ -3,6 +3,7 @@ module github.com/deligoez/cr
 go 1.26.4
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/fatih/color v1.19.0
 	github.com/gofrs/flock v0.13.0
 	github.com/mattn/go-isatty v0.0.24
