@@ -165,14 +165,10 @@ func filledSlices(value reflect.Value) reflect.Value {
 		// The whole struct is copied first, which carries the
 		// unexported fields across — reflection may read those and
 		// never write them, and encoding/json does not look at them
-		// either. Only the exported fields are then rebuilt.
+		// either. The rest is then rewritten in place.
 		copied := reflect.New(value.Type()).Elem()
 		copied.Set(value)
-		for i := range value.NumField() {
-			if value.Type().Field(i).IsExported() {
-				copied.Field(i).Set(filledSlices(value.Field(i)))
-			}
-		}
+		filledFields(copied)
 		return copied
 	case reflect.Map:
 		if value.IsNil() {
@@ -200,6 +196,24 @@ func filledSlices(value reflect.Value) reflect.Value {
 		return copied
 	default:
 		return value
+	}
+}
+
+// filledFields rewrites a struct's own fields where they sit, which an
+// embedded unexported type is what forces: encoding/json promotes the exported
+// fields inside one into the document, and reflection will not hand the
+// embedding itself over as a value — though it does allow the fields within it
+// to be set. An embedding through a pointer stays out of reach, since filling
+// it would mean writing through the caller's own pointer, and the guard test
+// refuses one rather than let this quietly miss it.
+func filledFields(target reflect.Value) {
+	for i := range target.NumField() {
+		field := target.Type().Field(i)
+		if field.IsExported() {
+			target.Field(i).Set(filledSlices(target.Field(i)))
+		} else if field.Anonymous && field.Type.Kind() == reflect.Struct {
+			filledFields(target.Field(i))
+		}
 	}
 }
 
