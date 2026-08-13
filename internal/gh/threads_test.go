@@ -227,3 +227,26 @@ func TestAThreadCarryingNoCommentIsStillIngested(t *testing.T) {
 	assert.Empty(t, threads[0].Replies)
 }
 
+// §2.3 puts ingested threads in threads.ndjson, and §2.3.3 does not list that
+// file, so its records carry no head and round. They survive the round trip
+// through the state package's own writer, and an empty reply list is written
+// as [] rather than null per §12.3.
+func TestThreadsAreStoredInThreadsNdjson(t *testing.T) {
+	threads, err := WithRunner(replay(t, "threads.json").run).Threads("cli", "cli", 11451)
+	require.NoError(t, err)
+
+	l := state.New(t.TempDir())
+	held, err := l.LockPR("cli", "cli", 11451)
+	require.NoError(t, err)
+	require.NoError(t, WriteThreads(held, threads))
+	require.NoError(t, held.Unlock())
+
+	stored, err := ReadThreads(l, "cli", "cli", 11451)
+	require.NoError(t, err)
+	assert.Equal(t, threads, stored)
+
+	body, err := os.ReadFile(l.PRFile("cli", "cli", 11451, state.FileThreads))
+	require.NoError(t, err)
+	assert.Len(t, strings.Split(strings.TrimSuffix(string(body), "\n"), "\n"), 2)
+	assert.Contains(t, string(body), `"replies":[]`)
+}
