@@ -28,6 +28,21 @@ func writeFixtureFile(t *testing.T, dir, name, content string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
 }
 
+// fixtureRepo initialises an empty repository on main.
+//
+// The identity and the signing setting are repository-local. A machine with no
+// global user.email cannot commit at all — CI is such a machine — and a test
+// must not write a developer's own config.
+func fixtureRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	fixtureGit(t, dir, "init", "--quiet", "--initial-branch=main")
+	fixtureGit(t, dir, "config", "user.email", "fixture@cr.test")
+	fixtureGit(t, dir, "config", "user.name", "cr fixture")
+	fixtureGit(t, dir, "config", "commit.gpgsign", "false")
+	return dir
+}
+
 // branched builds a repository in which the base branch moved after the branch
 // under review left it, and returns the repository and the commit the two
 // parted at.
@@ -37,14 +52,7 @@ func writeFixtureFile(t *testing.T, dir, name, content string) {
 // does §3.4.1 say anything a test can fail.
 func branched(t *testing.T) (dir, partedAt string) {
 	t.Helper()
-	dir = t.TempDir()
-	fixtureGit(t, dir, "init", "--quiet", "--initial-branch=main")
-	// The identity and the signing setting are repository-local. A machine
-	// with no global user.email cannot commit at all — CI is such a
-	// machine — and a test must not write a developer's own config.
-	fixtureGit(t, dir, "config", "user.email", "fixture@cr.test")
-	fixtureGit(t, dir, "config", "user.name", "cr fixture")
-	fixtureGit(t, dir, "config", "commit.gpgsign", "false")
+	dir = fixtureRepo(t)
 
 	writeFixtureFile(t, dir, "shared.txt", "a\nb\nc\n")
 	fixtureGit(t, dir, "add", "shared.txt")
