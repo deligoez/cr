@@ -156,3 +156,27 @@ func TestIngestionFollowsRepliesPastTheFirstPage(t *testing.T) {
 	assert.Equal(t, "Y3Vyc29yOnYyOpK0MjAyNC0wNC0xNVQxNTo0NDo1MFrOXVdaPQ==", cursor)
 }
 
+// An outdated thread hangs on code the head no longer carries, and GitHub
+// answers null for every current line it has. It is still ingested — §3.5.1
+// admits no exception — and it keeps the position it was written against, so
+// §3.5.3 can tell a thread that still resolves from one that does not by
+// looking at the anchor alone. No file has a line zero.
+func TestAnOutdatedThreadKeepsWhereItWasWritten(t *testing.T) {
+	answers := replay(t, "threads-outdated.json")
+
+	threads, err := WithRunner(answers.run).Threads("cli", "cli", 8950)
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+
+	assert.True(t, threads[0].Outdated)
+	assert.False(t, threads[0].Resolved)
+	assert.Equal(t, Anchor{
+		Path:              "docs/install_linux.md",
+		Side:              git.Right,
+		StartLine:         0,
+		Line:              0,
+		OriginalStartLine: 17,
+		OriginalLine:      17,
+	}, threads[0].Anchor)
+}
+
