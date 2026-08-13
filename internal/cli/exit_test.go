@@ -8,6 +8,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,4 +41,24 @@ func TestProtectedConfigNameExitsWithTheFileCode(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("resolving configuration: %w", err)))
+}
+
+// agentRecord stands in for a record type of one of the eight §2.3.3 files. It
+// carries head and round the only way any type can: by embedding state.Stamp.
+type agentRecord struct {
+	state.Stamp
+	ID string `json:"id"`
+}
+
+// §2.3.3 has cr stamp head and round on write, so a record supplying either is
+// bad input data rather than an unusable file, and §11.2 codes that 1 and not
+// the 3 a malformed profile gets. The code must survive the wrapping a command
+// adds on the way out.
+func TestASuppliedStampFieldExitsWithTheValidationCode(t *testing.T) {
+	_, err := state.DecodeStamped[agentRecord](
+		state.FileClaims, []byte(`{"id":"c1","round":2}`),
+	)
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("recording claims: %w", err)))
 }
