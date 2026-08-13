@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T20:05:48.925897Z",
+  "updated_at": "2026-08-13T20:13:47.601085Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1747,7 +1747,7 @@
     {
       "id": "thread-author-typing",
       "title": "Tag threads as human or bot",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "thread-ingestion"
@@ -1759,10 +1759,21 @@
       ],
       "started_at": "2026-08-13T20:05:48.925896Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-13T20:13:47.561666Z",
+      "closed_reason": "- Every ingested thread carries §3.5.2's tag: internal/gh/threads.go adds the AuthorType type with AuthorHuman and AuthorBot, a Thread.AuthorType field serialised as author_type, and authorType(), which Client.thread() applies to every thread it builds, including one whose opening comment is missing. The rule is GitHub's own answer and nothing added to it, so only __typename Bot becomes bot while a User, an Organization, a Mannequin, and an author the API answers null for all become human. That leaves dependabot[bot] posting as a User tagged human, deliberately: reading a [bot] suffix or carrying a login allowlist would be cr deciding whose comment counts, which §2.1 leaves to the agent, and it fails in the expensive direction, because a human wrongly tagged bot loses §3.5.3's attachment and the §3.5.4 suppression built on it, so cr repeats a concern a colleague already raised. TestEveryIngestedThreadIsTaggedHumanOrBot pins the Bot and User threads of the recorded fixture and TestOnlyGitHubsOwnBotTypeIsTaggedBot pins all four judgement cases.\n- cr assigns no class to an ingested thread, and the negative is mechanically held rather than merely true today: TestNoIngestedThreadCarriesAClass walks gh.Thread reflectively against threadFields, the exact §3.5.1 plus §3.5.2 field surface with no class among them, and also marshals a Thread and asserts the wire carries no class key, so both a struct field added years from now and a hand-written marshaller fail it. The guard was verified by temporarily adding a Class string field, which failed both assertions before it was reverted. gremlins unleash --timeout-coefficient 30 ./internal reports Killed 254, Lived 4, efficacy 98.45 percent, the four survivors being the known commented baseline in internal/config and internal/finding, with the new authorType conditional at gh/threads.go:399 killed.",
+      "gate_passed_at": "2026-08-13T20:13:47.561666Z",
+      "commit_sha": "0fbe422",
+      "commit_shas": [
+        "0fbe422",
+        "ae2149a",
+        "c73a6c8",
+        "0ac987d",
+        "8af7cdd"
+      ],
+      "commit_files": [
+        "internal/gh/threads.go",
+        "internal/gh/threads_test.go"
+      ]
     },
     {
       "id": "thread-proximity-attachment",
