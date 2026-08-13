@@ -80,3 +80,18 @@ func TestTheDiffExcludesWorkThatLandedOnTheBaseAfterBranching(t *testing.T) {
 	assert.NotContains(t, changed.Patch, "landed on main after feature branched")
 }
 
+// §2.1.1 has the same state, head, and inputs give the same result. A
+// configured external differ replaces git's output wholesale, and a developer
+// who has one has it on for every repository they own, so cr pins it off
+// rather than parsing whatever the machine happens to print.
+func TestTheDiffIgnoresAConfiguredExternalDiffer(t *testing.T) {
+	dir, _ := branched(t)
+	fixtureGit(t, dir, "config", "diff.external", "echo an external differ ran")
+
+	changed, err := DiffAgainstMergeBase(dir, "main", "feature")
+	require.NoError(t, err)
+
+	assert.Contains(t, changed.Patch, "+the author's line")
+	assert.NotContains(t, changed.Patch, "an external differ ran")
+}
+
