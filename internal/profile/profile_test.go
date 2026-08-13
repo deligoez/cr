@@ -259,6 +259,57 @@ func TestParseRejectsAnAxisIDOutsideTheClosedSet(t *testing.T) {
 	assert.Equal(t, path, invalid.File)
 }
 
+// §2.4 fixes tests.count_pattern at exactly two capture groups, the executed
+// count then the failed count, and makes any other group count abort. Two is a
+// boundary with a side on each of it, so the count is walked from zero to three:
+// zero and one leave §5.2.1 with no group to read a number from, and three gives
+// it no rule for which two win.
+//
+// Go counts capturing groups only, which is the reading §5.2.1 needs — it
+// indexes submatches — so a pattern is checked to be judged by what it captures
+// rather than by how many parentheses it contains.
+func TestCountPatternMustCaptureExactlyTwoGroups(t *testing.T) {
+	cases := map[string]struct {
+		pattern string
+		groups  int
+	}{
+		"zero groups":          {`\d+ passed, \d+ failed`, 0},
+		"one group":            {`(\d+) passed`, 1},
+		"two groups":           {`(\d+) passed, (\d+) failed`, 2},
+		"three groups":         {`(\d+) passed, (\d+) failed, (\d+) skipped`, 3},
+		"only non-capturing":   {`(?:\d+) passed, (?:\d+) failed`, 0},
+		"named groups capture": {`(?P<run>\d+) passed, (?P<failed>\d+) failed`, 2},
+		"non-capturing groups do not count": {
+			`(?:Tests:)\s+(\d+) passed, (?:\s*)(\d+) failed`, 2,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := write(t, "generic", fmt.Sprintf(`{
+				"id": "generic",
+				"match": {"files": [], "globs": ["**/*"]},
+				"axes": {"test": true},
+				"tests": {"count_pattern": %q}
+			}`, tc.pattern))
+
+			p, err := Load(path)
+
+			if tc.groups == 2 {
+				require.NoError(t, err)
+				assert.Equal(t, tc.pattern, p.Tests.CountPattern)
+				return
+			}
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, "tests.count_pattern", malformed.Field)
+			assert.Equal(t, path, malformed.File)
+			// The message names the count it found, so the fix is
+			// visible without counting parentheses by hand.
+			assert.Contains(t, err.Error(), fmt.Sprintf("has %d capture groups", tc.groups))
+		})
+	}
+}
+
 // A field of the wrong type, an unparseable file, and an unreadable one are all
 // profile files cr cannot use. Each must name the file, and a type error must
 // name the field too, so the user is told what to open and what to fix.
