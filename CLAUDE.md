@@ -68,8 +68,8 @@ go test ./...
 # Lint
 golangci-lint run
 
-# Quality gate (run after every task)
-go test ./... && golangci-lint run
+# Quality gate (run after every task; tp runs it at `tp done`)
+go test ./... && golangci-lint run && ./scripts/deadcode.sh
 
 # Stripped binary
 go build -ldflags="-s -w" -o cr ./cmd/cr
@@ -78,6 +78,46 @@ go build -ldflags="-s -w" -o cr ./cmd/cr
 `golangci-lint` v2 only runs formatters that a `formatters:` block enables, so
 `.golangci.yml` enables `gofmt` explicitly. Without it a gofmt-dirty file passes
 the gate silently.
+
+`golangci-lint`'s `unused` skips exported identifiers by design, so an exported
+function nothing calls passes it. `scripts/deadcode.sh` closes that: it fails
+when a function is reachable from no main package **and** no test. The gate
+string is pinned by `TestQualityGateRunsEveryStep`, because a step that can be
+dropped without a test noticing is the blindness the step was added to close.
+
+## Tooling beyond the gate
+
+Review reads what is written; these read what is reachable. Each is cheap, and
+three of them found defects in tp that a seventeen-round review and an
+eight-round audit had passed over.
+
+| Tool | When | Why |
+|------|------|-----|
+| `deadcode -test ./...` | In the gate | Fails on code nothing reaches at all |
+| `deadcode ./...` | End of each implementation phase, **diffed against the previous run** | Reports test-only code; never in the gate, where it would fail on work in progress |
+| `go fix ./...` | After a large push, and before a release | Go 1.26's modernizers; applies only fixes valid at the current `go` directive |
+| `govulncheck ./...` | Before every release | Reports only vulnerabilities the code actually calls |
+| `gremlins unleash ./internal` | Before a release, and whenever a claim is made about test quality | Mutation testing; pass `./internal`, not `./internal/...` |
+
+Two rules that make the phase-boundary run worth doing:
+
+1. **When the task that was meant to wire a function closes, that function must
+   stop being test-only.** If it is still on `deadcode ./...`'s list afterwards,
+   the wiring did not happen — and the tests will not say so, because they call
+   it directly. In tp this exact signal was a real defect: a validator was
+   written, tested, and never called, while every auditor prompt promised that
+   unknown values are rejected.
+2. **A surviving mutant is not a score to drive down.** Classify them: an
+   equivalent mutant nothing can observe, an undocumented boundary, or a
+   documented contract with no boundary test. Only the last is worth acting on,
+   and say which ones are being left and why. `gremlins` is load-sensitive — a
+   run full of `TIMED OUT` is not a result.
+
+**Do not add `-race` to the gate until the first goroutine or file lock lands.**
+§2.3.1 requires an advisory lock on every per-PR write, so it arrives with
+`state-write-locking`; until then a gate step that can never fire teaches
+nothing and costs wall time. **Do not adopt `apidiff`**: every package is under
+`internal/`, so there is no importable API to compare.
 
 ## Command surface
 
