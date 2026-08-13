@@ -27,3 +27,21 @@ func TestAClassIsKebabCaseOrNothing(t *testing.T) {
 	}
 }
 
+// The rejection has to be openable: §6.1.3 names the line and the field for a
+// missing one, and a bad class is no harder to find than a missing one. The
+// value is quoted because the faults that reach here are invisible otherwise —
+// a trailing space, a capital, a newline.
+func TestAnInvalidClassNamesTheLineAndTheValue(t *testing.T) {
+	err := ValidateClass("review-correctness.ndjson", 7, "Missing Test")
+
+	var invalid *InvalidClassError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, "review-correctness.ndjson", invalid.File)
+	assert.Equal(t, 7, invalid.Line)
+	assert.Equal(t, "Missing Test", invalid.Class)
+	assert.Equal(
+		t,
+		`review-correctness.ndjson line 7: class "Missing Test" is not kebab-case; §6.1 fixes the form at [a-z0-9-]+`,
+		err.Error(),
+	)
+}
