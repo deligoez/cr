@@ -1,9 +1,10 @@
-// Package gh reads the pull request under review through the gh command line.
+// Package gh reads the pull request under review through the gh command line,
+// and is the single door §2.1.2 leaves for a network write.
 //
-// Every invocation in this package is a read. §8.5 requires --confirm for
-// every network write, and a read that happens during orientation is nowhere
-// near that gate: §3.7 has cr brief perform no network write at all. Nothing
-// here posts a comment, resolves a thread, or edits anything on GitHub.
+// Every invocation this package builds is a read. §3.7 has cr brief perform no
+// network write at all, and nothing here posts a comment, resolves a thread,
+// or edits anything on GitHub. The write §8 does describe is not built here
+// either; what is here is the boundary it has to come through, in write.go.
 //
 // A run is pinned rather than inherited, for the same reason internal/git
 // pins its own. §2.1.1 requires the same state, the same head, and the same
@@ -120,7 +121,21 @@ func environ() []string {
 type Runner func(args ...string) (string, error)
 
 // Run executes one gh read and returns its standard output.
+//
+// It is the read door of the boundary in write.go: an invocation it cannot
+// recognise as a read is refused here and gh is never started, so the refusal
+// costs a caller nothing and cannot half-happen.
 func Run(args ...string) (string, error) {
+	if read, why := readOnly(args); !read {
+		return "", &WriteRefusedError{Args: slices.Clone(args), Reason: why}
+	}
+	return invoke(args...)
+}
+
+// invoke starts gh and returns its standard output. It is unexported and has
+// no opinion about what it is running: the two doors above it decide that, and
+// a third door would have to be written inside this package to get past them.
+func invoke(args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("gh", args...)
 	cmd.Env = environ()
