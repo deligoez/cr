@@ -131,3 +131,28 @@ func TestIngestionAsksForEveryPageOfThreads(t *testing.T) {
 	assert.Equal(t, "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxODo1MTozOFrOVwLEag==", cursor)
 }
 
+// §3.5.1 requires a thread's replies, and §3.5.5 offers the author's among
+// them as candidate context notes. A thread long enough to need a second page
+// of comments is the one whose replies settled something, so the connection is
+// followed rather than truncated at the page that arrived with the thread.
+func TestIngestionFollowsRepliesPastTheFirstPage(t *testing.T) {
+	answers := replay(t, "threads-held-replies.json", "replies-second-page.json")
+
+	threads, err := WithRunner(answers.run).Threads("cli", "cli", 8950)
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+
+	assert.Equal(t, "williammartin", threads[0].Comment.Author)
+	require.Len(t, threads[0].Replies, 4)
+	assert.Equal(t, "richterdavid", threads[0].Replies[2].Author)
+	assert.Contains(t, threads[0].Replies[3].Body, "let's add `update` back")
+
+	require.Len(t, answers.calls, 2)
+	thread, asked := field(answers.calls[1], "thread")
+	require.True(t, asked, "a further page of comments is asked for by thread id")
+	assert.Equal(t, "PRRT_kwDODKw3uc47mh8c", thread)
+	cursor, resumed := field(answers.calls[1], "cursor")
+	require.True(t, resumed)
+	assert.Equal(t, "Y3Vyc29yOnYyOpK0MjAyNC0wNC0xNVQxNTo0NDo1MFrOXVdaPQ==", cursor)
+}
+
