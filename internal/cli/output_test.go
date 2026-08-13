@@ -125,3 +125,22 @@ func TestTheJSONFlagForcesJSONOnATerminal(t *testing.T) {
 	assert.Equal(t, float64(20), printed["post.max_comments"])
 	assert.NotContains(t, out, "\x1b[", "colour belongs to the text rendering and to nothing else")
 }
+
+// §11.1 gives `--no-color` the colour and nothing beyond it. There is no flag
+// that forces text, so the shape is unchanged in both directions: a pipe under
+// `--no-color` is still JSON, and a terminal under it is still text.
+//
+// The two halves are one test because the claim is about the boundary between
+// them. A run that answered either half alone would be consistent with
+// `--no-color` having quietly become a second way to ask for text.
+func TestNoColorStripsColourAndNothingElse(t *testing.T) {
+	crHome(t)
+
+	piped := throughAPipe(t, "config", "--no-color")
+	assert.True(t, json.Valid([]byte(piped)), "a pipe under --no-color was given %q", piped)
+
+	terminal := throughATerminal(t, "config", "--no-color")
+	assert.False(t, json.Valid([]byte(terminal)), "a terminal under --no-color was given JSON: %q", terminal)
+	assert.Contains(t, terminal, "post.max_comments = 20")
+	assert.NotContains(t, terminal, "\x1b[", "--no-color left an escape sequence behind")
+}
