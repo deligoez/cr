@@ -87,3 +87,18 @@ func TestAFileIsWrittenThroughTheWriterItsSchemaRequires(t *testing.T) {
 	}
 }
 
+// A line that does not decode is named by its number, counted over the file as
+// written so a blank line does not shift what the user is told to open.
+func TestAMalformedRecordNamesItsLine(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(FileThreads, []byte("{\"id\":\"t1\"}\n\nnot json\n")))
+	require.NoError(t, held.Unlock())
+
+	_, err = ReadRecords[plainRecord](l, "acme", "web", 42, FileThreads)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), l.PRFile("acme", "web", 42, FileThreads))
+	assert.Contains(t, err.Error(), "line 3")
+}
+
