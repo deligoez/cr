@@ -308,7 +308,7 @@ func (c Client) thread(node *threadNode) (Thread, error) {
 		thread.Comment = comments[0]
 		thread.Replies = append(thread.Replies, comments[1:]...)
 	}
-	thread.AuthorType = authorType(thread.Comment)
+	thread.AuthorType = authorType(thread.Comment.AuthorTypename)
 	return thread, nil
 }
 
@@ -376,7 +376,8 @@ func (n commentNode) comment() Comment {
 	return comment
 }
 
-// authorType tags one thread's author `human` or `bot`, per §3.5.2.
+// authorType tags one thread's author `human` or `bot`, per §3.5.2, from the
+// GraphQL author type its opening comment arrived with.
 //
 // The judgement is GitHub's own and cr adds nothing to it: the API answers
 // `Bot` for a GitHub App's identity and for nothing else, and that answer
@@ -394,8 +395,8 @@ func (n commentNode) comment() Comment {
 // have attached, so §3.5.4 never suppresses against it and cr raises a concern
 // a colleague already raised. The agent sees the login and the raw typename on
 // every thread and can tell a bot from a person itself.
-func authorType(opener Comment) AuthorType {
-	if opener.AuthorTypename == botTypename {
+func authorType(typename string) AuthorType {
+	if typename == botTypename {
 		return AuthorBot
 	}
 	return AuthorHuman
