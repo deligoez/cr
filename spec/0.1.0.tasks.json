@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T14:53:56.572309Z",
+  "updated_at": "2026-08-13T15:26:29.857873Z",
   "workflow": {
     "quality_gate": "go test ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -731,7 +731,7 @@
     {
       "id": "probe-path-template",
       "title": "Define the probe path template",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "profile-schema"
@@ -741,11 +741,26 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T15:15:38.686166Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T15:26:29.807256Z",
+      "closed_reason": "- tests.probe_path_template now decides where a gap probe's file is placed: Profile.ProbePath in internal/profile/probepath.go returns the sandbox-relative path §5.4.2 writes the supplied test to, substituting the probe id into the template resolved at parse time.\n- The default is \u003croot of the first tests.globs entry\u003e/cr_probe_\u003cprobe-id\u003e\u003cext\u003e, filled in by probeTemplate whenever the profile leaves the field unset, with probeRoot returning the longest leading path prefix free of *, ? and [ and ending on a segment boundary, and TestProbePathTemplateDefaultsToTheFirstTestsGlob pinning six glob shapes including a rooted one, a wildcarded middle segment, one with no root at all, and a multi-entry list where only the first entry seeds the default.\n- probeExt defines \u003cext\u003e mechanically as the literal suffix following the last wildcard segment of that first entry and returns it empty when the entry carries no wildcard, which the \"nothing follows the last wildcard\" and \"no wildcard at all\" cases of the same test pin.\n- \u003cext\u003e is read from tests.globs alone and never from a supplied test file, so §5.1.6's cleanliness scan resolves the template with none in hand, and TestProbePathTemplateVocabularyIsClosed shows it by parsing a template ending in \u003cext\u003e and getting tests/Feature/cr_probe_\u003cprobe-id\u003eTest.php back with no file involved.\n- TestProbePathTemplateAbortsWhenExtIsUnresolvable proves both ways \u003cext\u003e fails to resolve, a glob whose last wildcard is followed by a path separator and an explicit \u003cext\u003e with no globs to answer it, each aborting as a *MalformedError naming the profile file and the field, which internal/cli maps onto exit code 3.\n- The placeholder vocabulary is closed to \u003cprobe-id\u003e and \u003cext\u003e: placeholderToken finds every \u003c...\u003e token and rejects any other, proven over an invented token, a misspelt one and a plausible cousin.\n- TestProbePathTemplateNeedsExactlyOneProbeID rejects zero and two occurrences of \u003cprobe-id\u003e, because §5.1.6 recognises a leftover artefact by replacing exactly one position.\n- The laravel-pest profile of TestShippedProfilesPlaceTheProbeInsideTheirOwnGlobs sets tests/Feature/cr_probe_\u003cprobe-id\u003eTest.php explicitly rather than taking the default, and the generic profile ships no runner, so it has no template to set and no probe to place.\n- assertProbePathSatisfiesGlobs is that test's property: it matches the resolved ProbePath against every entry of the profile's own tests.globs and fails naming the profile when none of them claims it.\n- TestLeftoverGlobFindsTheProbeArtefactOnDisk writes a real probe file at ProbePath(\"a1b2c3\") with a repository-owned test file beside it and asserts that filepath.Glob over LeftoverGlob(), the resolved template with \u003cprobe-id\u003e replaced by *, returns the artefact and nothing else.\nOut of scope: the laravel-pest and generic profile files are a later task, so the shipped-profile property is stated over profile fixtures here rather than over files on disk, and that task must point assertProbePathSatisfiesGlobs at the real files.",
+      "gate_passed_at": "2026-08-13T15:26:29.807256Z",
+      "commit_sha": "ada417b",
+      "commit_shas": [
+        "ada417b",
+        "89d64b8",
+        "34e1e36",
+        "62d3b81",
+        "450a29d",
+        "5e368b8",
+        "f7e4886"
+      ],
+      "commit_files": [
+        "internal/profile/probepath.go",
+        "internal/profile/probepath_test.go",
+        "internal/profile/profile.go"
+      ]
     },
     {
       "id": "ship-laravel-pest-profile",
