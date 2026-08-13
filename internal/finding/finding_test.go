@@ -57,3 +57,30 @@ func TestTheFieldTableIsTheOneTheSpecWrites(t *testing.T) {
 	}, CitationFields())
 }
 
+// §6.1 resolves every citation against the current head, so an entry carries no
+// side. A side would be a second answer to a question already settled, and the
+// wrong one would move a location across §6.2.1's unit boundary — which is the
+// whole difference between a cited grade and an argued one.
+func TestACitationCarriesNoSide(t *testing.T) {
+	names := make([]string, 0, len(citationFields))
+	for _, field := range CitationFields() {
+		names = append(names, field.Name)
+	}
+	assert.ElementsMatch(t, names, wireNames(reflect.TypeFor[Citation]()))
+	assert.NotContains(t, names, "side")
+}
+
+// wireNames returns the JSON key of every field of a record type, flattening an
+// embedded struct because its fields are rows of the same table. A named struct
+// or a slice is one row, whatever it holds.
+func wireNames(t reflect.Type) []string {
+	names := make([]string, 0, t.NumField())
+	for _, field := range reflect.VisibleFields(t) {
+		if field.Anonymous {
+			continue
+		}
+		names = append(names, strings.Split(field.Tag.Get("json"), ",")[0])
+	}
+	return names
+}
+
