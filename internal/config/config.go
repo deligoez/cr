@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"slices"
@@ -192,9 +193,7 @@ type Config struct {
 // Resolve reads every layer and returns the effective configuration.
 func Resolve(src Sources) (Config, error) {
 	values := make(map[string]any, len(defaults))
-	for key, def := range defaults {
-		values[key] = def
-	}
+	maps.Copy(values, defaults)
 	// Files first and lowest layer first, so each later layer overwrites it.
 	for _, path := range []string{src.GlobalConfig, src.RepoConfig} {
 		if path == "" {

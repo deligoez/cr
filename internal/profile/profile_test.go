@@ -39,7 +39,7 @@ var specFields = []string{
 // come through. Walking the struct reflectively catches either, including a
 // field added years from now.
 func TestProfileCarriesExactlyTheSpecFields(t *testing.T) {
-	assert.ElementsMatch(t, specFields, fieldPaths(reflect.TypeOf(Profile{}), ""))
+	assert.ElementsMatch(t, specFields, fieldPaths(reflect.TypeFor[Profile](), ""))
 }
 
 // fieldPaths returns the dotted json names of every leaf field, descending into
@@ -47,8 +47,7 @@ func TestProfileCarriesExactlyTheSpecFields(t *testing.T) {
 // whatever it holds.
 func fieldPaths(t reflect.Type, prefix string) []string {
 	paths := make([]string, 0, t.NumField())
-	for i := range t.NumField() {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		name := field.Tag.Get("json")
 		if prefix != "" {
 			name = prefix + "." + name

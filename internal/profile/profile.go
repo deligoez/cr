@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -296,9 +297,7 @@ func (w *wire) resolve() Profile {
 		Sandbox: Sandbox{Copy: []string{}, Setup: []string{}},
 		Rules:   make([]json.RawMessage, 0, len(w.Rules)),
 	}
-	for id, enabled := range w.Axes {
-		p.Axes[id] = enabled
-	}
+	maps.Copy(p.Axes, w.Axes)
 	p.Rules = append(p.Rules, w.Rules...)
 	if w.Sandbox != nil {
 		p.Sandbox = Sandbox{Copy: list(w.Sandbox.Copy), Setup: list(w.Sandbox.Setup)}

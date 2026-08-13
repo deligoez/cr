@@ -73,7 +73,7 @@ func TestProtectedNamesAreRejected(t *testing.T) {
 		global := filepath.Join(dir, "config.json")
 		repo := filepath.Join(dir, "repo-config.json")
 		section, leaf, _ := strings.Cut(name.key, ".")
-		body := []byte(fmt.Sprintf("{%q: {%q: true}}", section, leaf))
+		body := fmt.Appendf(nil, "{%q: {%q: true}}", section, leaf)
 		require.NoError(t, os.WriteFile(global, body, 0o600))
 		require.NoError(t, os.WriteFile(repo, body, 0o600))
 
@@ -210,6 +210,6 @@ func TestNoFlagLayerCanIntroduceAProtectedSetting(t *testing.T) {
 func writeConfig(t *testing.T, key string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.json")
-	require.NoError(t, os.WriteFile(path, []byte(fmt.Sprintf("{%q: true}", key)), 0o600))
+	require.NoError(t, os.WriteFile(path, fmt.Appendf(nil, "{%q: true}", key), 0o600))
 	return path
 }
