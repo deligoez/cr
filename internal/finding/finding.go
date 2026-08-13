@@ -135,6 +135,14 @@ type Citation struct {
 // Anchor binds a record to a code location, per §9.2. Every record carries one:
 // an item with no code location never becomes a record (§6.1.2, §4.1.3).
 //
+// The fence is §1.6's as much as §6.1's. A review comment spends the
+// reviewer's standing with the author, so volume is a cost in itself,
+// independent of correctness — and an unanchored comment costs the most for
+// the least, because the author has to work out what it is about before they
+// can judge whether it is right. So v0.1 has one comment channel and this
+// field is it: an item cr cannot point at is reported by `cr status` (§10.1.2)
+// and never posted (§1.6.1).
+//
 // §9.2 owns the rest of the anchor's rules — the pre-image of the content hash,
 // the bound on the context window, the ordering of the two line numbers, and
 // the tree each side resolves against — and they are enforced with the anchor
