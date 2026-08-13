@@ -68,6 +68,70 @@ func WriteStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error 
 	return writeRecords(k, name, records)
 }
 
+// ReservedFieldError reports a record that supplied a field cr writes itself.
+// It carries the line so the user can open it and the field so they know what
+// to drop, which is what §6.1.4 requires of the rejection. The cli layer maps
+// it onto exit code 1.
+type ReservedFieldError struct {
+	// File is the NDJSON file the agent handed the command.
+	File string
+	// Line is the one-based line the record sits on, counting blank lines.
+	Line int
+	// Field is the field the record may not carry.
+	Field string
+}
+
+func (e *ReservedFieldError) Error() string {
+	return fmt.Sprintf(
+		"%s line %d: %s is written by cr and must not be supplied", e.File, e.Line, e.Field,
+	)
+}
+
+// stampFields are the two fields of §2.3.3, in the order it names them, so a
+// record supplying both is always reported by the same one.
+var stampFields = []string{"head", "round"}
+
+// DecodeStamped decodes the NDJSON an agent hands a recording command into the
+// record type of one of the eight §2.3.3 files, and refuses a line that
+// supplied head or round.
+//
+// WriteStamped owns the pair, so a record arriving with either was written by
+// the agent, and §6.1.4 rejects that with exit code 1 naming the line and the
+// field. What is tested is presence on the wire rather than a non-zero Go
+// field: `"round": 0` is a value the agent chose exactly as much as
+// `"round": 7` is, and a decoded struct reports the two alike.
+//
+// Decoding is one function rather than one per command because the commands of
+// §3.3.1, §4.1.6, §4.5.6 and §6.1.3 all reach WriteStamped through it. Each
+// inherits the rejection instead of restating it, so none of them can give the
+// agent a different answer about who owns head and round.
+func DecodeStamped[E any, T interface {
+	*E
+	Stamped
+}](file string, body []byte) ([]T, error) {
+	records := make([]T, 0)
+	for i, line := range bytes.Split(body, []byte{'\n'}) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var supplied map[string]json.RawMessage
+		if err := json.Unmarshal(line, &supplied); err != nil {
+			return nil, fmt.Errorf("%s line %d: %w", file, i+1, err)
+		}
+		for _, field := range stampFields {
+			if _, written := supplied[field]; written {
+				return nil, &ReservedFieldError{File: file, Line: i + 1, Field: field}
+			}
+		}
+		record := T(new(E))
+		if err := json.Unmarshal(line, record); err != nil {
+			return nil, fmt.Errorf("%s line %d: %w", file, i+1, err)
+		}
+		records = append(records, record)
+	}
+	return records, nil
+}
+
 // writeRecords encodes records as NDJSON — one JSON document per line — and
 // publishes the file through the held lock.
 func writeRecords[T any](k *Lock, name string, records []T) error {
