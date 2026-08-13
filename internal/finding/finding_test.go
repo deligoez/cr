@@ -1,0 +1,59 @@
+package finding
+
+import (
+	"encoding/json"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/deligoez/cr/internal/state"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// specFields is §6.1's table, transcribed from the spec in its own order, with
+// each row's answer in the Required column. head and round are the column's
+// "yes" that §2.3.3 takes out of the agent's hands.
+var specFields = []Field{
+	{Name: "id", Requirement: Required},
+	{Name: "kind", Requirement: Required},
+	{Name: "axis", Requirement: Computed},
+	{Name: "role", Requirement: Required},
+	{Name: "class", Requirement: Required},
+	{Name: "rule", Requirement: Optional},
+	{Name: "severity", Requirement: Required},
+	{Name: "grade", Requirement: Computed},
+	{Name: "unit", Requirement: Required},
+	{Name: "claim", Requirement: Optional},
+	{Name: "anchor", Requirement: Required},
+	{Name: "summary", Requirement: Required},
+	{Name: "evidence", Requirement: Required},
+	{Name: "citations", Requirement: Optional},
+	{Name: "probe", Requirement: Optional},
+	{Name: "suggestion", Requirement: Optional},
+	{Name: "suggestion_origin", Requirement: Optional},
+	{Name: "state", Requirement: Computed},
+	{Name: "disposition", Requirement: Optional},
+	{Name: "duplicate_of", Requirement: Optional},
+	{Name: "suppressed_by", Requirement: Optional},
+	{Name: "thread_id", Requirement: Optional},
+	{Name: "round", Requirement: Stamped},
+	{Name: "head", Requirement: Stamped},
+}
+
+// §6.1's table is what §6.1.3 and §6.1.4 are read against, so the table cr
+// carries has to be §6.1's own — every row, in order, with the answer the
+// Required column gives it. A row that quietly changed its answer would change
+// what an agent is allowed to write without anything else in cr noticing, and
+// axis is the row that shows why: it is computed, and §6.2's cited grade turns
+// on the axis not being test.
+func TestTheFieldTableIsTheOneTheSpecWrites(t *testing.T) {
+	assert.Equal(t, specFields, Fields())
+	assert.Equal(t, []Field{
+		{Name: "path", Requirement: Required},
+		{Name: "line", Requirement: Required},
+		{Name: "content_hash", Requirement: Computed},
+		{Name: "origin", Requirement: Computed},
+	}, CitationFields())
+}
+
