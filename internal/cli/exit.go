@@ -5,6 +5,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
@@ -65,6 +66,14 @@ func exitCodeFor(err error) int {
 		// GraphQL error reaches cr the same way a refusal does: gh
 		// exits non-zero with the message on stderr. Both are code 3.
 		return ExitFile
+	}
+	var invalidClass *finding.InvalidClassError
+	if errors.As(err, &invalidClass) {
+		// §6.1 rejects a class that is not kebab-case. Like a supplied
+		// computed field, the fault is the agent's data inside a file
+		// that was read and parsed without trouble, which §11.2 codes 1
+		// rather than the 3 an unusable file gets.
+		return ExitValidation
 	}
 	var reservedField *state.ReservedFieldError
 	if errors.As(err, &reservedField) {
