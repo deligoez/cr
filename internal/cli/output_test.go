@@ -300,6 +300,22 @@ func TestANullHidesNowhereInAPayload(t *testing.T) {
 	assert.NotContains(t, string(encoded), "null", "§12.3: the payload printed %s", encoded)
 }
 
+// The one thing §12.3 is not applied to is a type that serialises itself, and
+// json.RawMessage is the case that shows why it cannot be: an empty raw
+// message is not an empty array but a document holding nothing, and filling it
+// would not print a null — it would fail to encode at all and print nothing.
+// So the null a self-marshalling type asks for is the null it gets.
+func TestATypeThatSerialisesItselfKeepsItsOwnNull(t *testing.T) {
+	payload := struct {
+		Raw json.RawMessage `json:"raw"`
+	}{}
+
+	encoded, err := json.Marshal(withoutNilSlices(payload))
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"raw":null}`, string(encoded))
+}
+
 // outputStructs is one value of every payload a command can hand to emit,
 // which is the set §12.3 has to hold for. It is proven complete below rather
 // than trusted: a payload nobody listed here is a payload nobody checked, and
