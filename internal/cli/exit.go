@@ -6,6 +6,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // Exit codes, fixed by spec/0.1.0.md §11.2. Never renumber these.
@@ -47,6 +48,15 @@ func exitCodeFor(err error) int {
 		// reached input data, and it is not a usage error, because
 		// nothing about the invocation can be corrected.
 		return ExitFile
+	}
+	var reservedField *state.ReservedFieldError
+	if errors.As(err, &reservedField) {
+		// §6.1.4: a record supplying a field cr writes itself is
+		// rejected with exit code 1. The file was found, read, and
+		// parsed, so nothing about it failed as a file; what is wrong
+		// is the input data inside it, which §11.2 codes 1 rather than
+		// the 3 a malformed profile gets.
+		return ExitValidation
 	}
 	return ExitUsage
 }
