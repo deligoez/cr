@@ -152,3 +152,38 @@ func TestOnlyTheStateRootIsExemptFromTheProtectedScan(t *testing.T) {
 		assert.Equal(t, name, protected.Name)
 	}
 }
+
+// §2.7 refuses a name that "would address" a protected decision, which is
+// broader than an exact key and narrower than every occurrence of the letters.
+// A word carrying a token addresses the decision however the name is spelled,
+// while a word that merely embeds one does not. Where the two readings disagree
+// the refusal wins, because being wrong costs a rename on one side and an
+// implicit network write on the other.
+func TestProtectedMatchingReadsWordsNotLetters(t *testing.T) {
+	for _, key := range []string{
+		"post.gate_timeout_seconds",
+		"post.labels",
+		"postconfirm",
+		"render.evidenceRegion",
+		"render.PROVENANCE",
+	} {
+		_, err := Resolve(Sources{GlobalConfig: writeConfig(t, key)})
+		var protected *ProtectedError
+		require.ErrorAs(t, err, &protected, key)
+		assert.Equal(t, key, protected.Name)
+	}
+
+	for _, key := range []string{"rules.aggregate_min", "intent.delegate_cmd", "rules.enforcing"} {
+		cfg, err := Resolve(Sources{GlobalConfig: writeConfig(t, key)})
+		require.NoError(t, err, key)
+		assert.NotContains(t, cfg.Map(), key, "an unknown key configures nothing")
+	}
+}
+
+// writeConfig writes a config file carrying one key, spelled exactly as given.
+func writeConfig(t *testing.T, key string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.json")
+	require.NoError(t, os.WriteFile(path, []byte(fmt.Sprintf("{%q: true}", key)), 0o600))
+	return path
+}
