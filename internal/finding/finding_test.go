@@ -57,6 +57,18 @@ func TestTheFieldTableIsTheOneTheSpecWrites(t *testing.T) {
 	}, CitationFields())
 }
 
+// The table decides nothing on its own: a validator that clears every row of it
+// still lets a record through carrying a field the table never named, and drops
+// one the table promised. Walking the struct reflectively catches either,
+// including a field added years from now.
+func TestAFindingCarriesExactlyTheTableRows(t *testing.T) {
+	names := make([]string, 0, len(specFields))
+	for _, field := range specFields {
+		names = append(names, field.Name)
+	}
+	assert.ElementsMatch(t, names, wireNames(reflect.TypeFor[Finding]()))
+}
+
 // §6.1 resolves every citation against the current head, so an entry carries no
 // side. A side would be a second answer to a question already settled, and the
 // wrong one would move a location across §6.2.1's unit boundary — which is the
