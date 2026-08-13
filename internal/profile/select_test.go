@@ -89,3 +89,32 @@ func TestConfigurationOverridesTheMarkerFiles(t *testing.T) {
 	assert.Empty(t, selection.Tied)
 }
 
+// §2.4.2 settles an overlap by count: the profile matching the greatest number
+// of marker files wins. Both orders are exercised, because a matcher that
+// simply keeps the first or the last match agrees with the rule in one of them
+// and contradicts it in the other.
+func TestTheGreatestMarkerCountWins(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		winner string
+		loser  string
+	}{
+		{"the greater count is read last", "z-greater", "a-lesser"},
+		{"the greater count is read first", "a-greater", "z-lesser"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := profilesDir(t, map[string][]string{
+				tc.winner: {"artisan", "composer.json"},
+				tc.loser:  {"artisan"},
+			})
+
+			selection, err := Select(dir, repoWith(t, "artisan", "composer.json"), "")
+			require.NoError(t, err)
+
+			assert.True(t, selection.Selected)
+			assert.Equal(t, tc.winner, selection.Profile.ID)
+			assert.Empty(t, selection.Tied)
+		})
+	}
+}
+
