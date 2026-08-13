@@ -250,6 +250,56 @@ func TestATerminalInitNamesTheStateDirectory(t *testing.T) {
 	assert.Contains(t, out, "\x1b[36m"+root+"\x1b[0m")
 }
 
+// nestedInner is an inner record carrying a slice of its own.
+type nestedInner struct {
+	Items []string `json:"items"`
+}
+
+// hiddenTags is embedded unexported, which encoding/json promotes the exported
+// fields of into the document and reflection refuses to hand over whole.
+type hiddenTags struct {
+	Flags []string `json:"flags"`
+}
+
+// nestedPayload is every place a null can hide in one value: a slice, a slice
+// of slices, a slice of structs, a pointer, a map's value, an any, and a field
+// promoted out of an embedding.
+//
+// It is a test's own type because no payload v0.1 prints carries a slice at
+// all. The walk over the real ones is therefore true of every one of them
+// today and says nothing about the reach of the rule it is walking; this is
+// the shape that rule has to hold for the day a payload does.
+type nestedPayload struct {
+	hiddenTags
+	Tags   []string               `json:"tags"`
+	Groups [][]string             `json:"groups"`
+	Rows   []nestedInner          `json:"rows"`
+	Nested *nestedInner           `json:"nested"`
+	ByName map[string]nestedInner `json:"by_name"`
+	Deep   []map[string][]string  `json:"deep"`
+	Loose  any                    `json:"loose"`
+}
+
+// §12.3 holds wherever a nil slice can sit and not only at a payload's own top
+// layer, which is all a marshal of the outermost value would answer for.
+func TestANullHidesNowhereInAPayload(t *testing.T) {
+	payload := nestedPayload{
+		hiddenTags: hiddenTags{Flags: nil},
+		Tags:       nil,
+		Groups:     [][]string{nil},
+		Rows:       []nestedInner{{Items: nil}},
+		Nested:     &nestedInner{Items: nil},
+		ByName:     map[string]nestedInner{"one": {Items: nil}},
+		Deep:       []map[string][]string{{"two": nil}},
+		Loose:      []string(nil),
+	}
+
+	encoded, err := json.Marshal(withoutNilSlices(payload))
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(encoded), "null", "§12.3: the payload printed %s", encoded)
+}
+
 // outputStructs is one value of every payload a command can hand to emit,
 // which is the set §12.3 has to hold for. It is proven complete below rather
 // than trusted: a payload nobody listed here is a payload nobody checked, and
