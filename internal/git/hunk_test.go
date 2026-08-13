@@ -247,3 +247,56 @@ new mode 100755
 		})
 	}
 }
+
+// §6.2.1 evaluates containment in head coordinates: a path:line is inside a
+// unit when the line falls "within the head-side range of one of its hunks —
+// for a hunk that adds no lines, its head-side insertion point". A hunk answers
+// both halves of that without anyone reading the patch a second time.
+func TestAHunkAnswersForItsHeadSideRange(t *testing.T) {
+	hunks, err := ParseHunks(`--- a/edited.txt
++++ b/edited.txt
+@@ -1,3 +1,3 @@
+ one
+-two
++deux
+ three
+--- a/shrunk.txt
++++ b/shrunk.txt
+@@ -2,7 +2,6 @@
+ b
+ c
+ d
+-e
+ f
+ g
+ h
+--- a/gone.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-x
+-y
+`)
+	require.NoError(t, err)
+	require.Len(t, hunks, 3)
+
+	// A hunk that adds a line has a head-side range: what it covers at the
+	// head, context included.
+	assert.Equal(t, Right, hunks[0].Side)
+	start, end := hunks[0].HeadRange()
+	assert.Equal(t, 1, start)
+	assert.Equal(t, 3, end)
+
+	// A hunk that adds none still has one, as long as the removal left
+	// context standing around it.
+	assert.Equal(t, Left, hunks[1].Side)
+	start, end = hunks[1].HeadRange()
+	assert.Equal(t, 2, start)
+	assert.Equal(t, 7, end)
+
+	// It collapses to the insertion point when nothing of the file is left
+	// at the head. Zero is the top of the file: the removal follows no line.
+	assert.Equal(t, Left, hunks[2].Side)
+	start, end = hunks[2].HeadRange()
+	assert.Equal(t, 0, start)
+	assert.Equal(t, 0, end)
+}
