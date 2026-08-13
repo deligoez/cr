@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T16:28:01.023731Z",
+  "updated_at": "2026-08-13T16:46:01.380961Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1491,7 +1491,7 @@
     {
       "id": "changed-line-definition",
       "title": "Define changed lines per hunk side",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "diff-against-merge-base"
@@ -1501,11 +1501,27 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T16:28:36.978431Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T16:46:01.317828Z",
+      "closed_reason": "- ParseHunks in internal/git/hunk.go reads §3.4.1 changed lines out of the patch DiffAgainstMergeBase produces. A hunk's added lines are exactly its added and modified RIGHT-side lines, because a unified diff has no marker of its own for a modification and writes one as a removal and an addition standing together, and a hunk that adds none contributes its removed LEFT-side lines instead. Hunk.Side records which of the two a hunk turned out to be, so §3.4.4 can partition a file's hunks on it without recounting, and the parser refuses a patch outside the shape the pinned diffArgs produce rather than reading it as something else.\n- Every ChangedLine carries the side its number is counted on instead of leaving it implicit in which field held it. An added or modified line is numbered at the head from the header's plus-side start, a removed line of an add-nothing hunk in the merge base from the minus-side start, which is why a delete-only hunk is described in merge-base coordinates while every other hunk is described at the head. The header shapes that hide an off-by-one are handled at the source: a count omitted means one line, and a zero count is a position between two lines rather than a line.\n- TestChangedLinesCarryTheSideTheyAreNumberedOn drives the real git of the pinned flags over a fixture carrying one hunk of each shape and asserts an add-only hunk gives RIGHT line 4, a modify hunk gives only its head-side line at RIGHT line 2 and never the pre-image it replaced, and a delete-only hunk gives LEFT line 5. TestTheAwkwardShapesOfAHunk adds eleven header and content shapes including a first-line change, a new file, an insertion point, a deleted file, a missing final newline and a patch whose own content looks like file headers. TestAHunkAnswersForItsHeadSideRange pins the §6.2.1 question and TestAPatchThatIsNotOneIsRejected pins five refusals. hunk.go holds 100 percent statement coverage and gremlins leaves no surviving mutant in internal/git.\nOut of scope: clustering, ignore.globs exclusion counting, symbol detectability, the oversized split, unit records with the unit hash, and binary listing are each their own later task. A hunk carries the path from its file header, because a hunk that does not know its file cannot be clustered by one later, but rename and exclusion bookkeeping stays with diff-file-exclusions.",
+      "gate_passed_at": "2026-08-13T16:46:01.317828Z",
+      "commit_sha": "4995b4f",
+      "commit_shas": [
+        "4995b4f",
+        "d312a28",
+        "99b0683",
+        "47659d3",
+        "3eaa412",
+        "d634a2b",
+        "73d10fb",
+        "89bc42e"
+      ],
+      "commit_files": [
+        "internal/git/diff_test.go",
+        "internal/git/hunk.go",
+        "internal/git/hunk_test.go"
+      ]
     },
     {
       "id": "diff-file-exclusions",
