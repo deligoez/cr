@@ -1,0 +1,45 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": true,
+            "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxODo1MTozOFrOVwLEag=="
+          },
+          "nodes": [
+            {
+              "id": "PRRT_kwDODKw3uc5XATDu",
+              "isResolved": true,
+              "isOutdated": false,
+              "path": "pkg/cmd/release/shared/fetch.go",
+              "line": 168,
+              "startLine": 168,
+              "originalLine": 168,
+              "originalStartLine": null,
+              "diffSide": "RIGHT",
+              "comments": {
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxNzoyOTozMlrOhuxsFw=="
+                },
+                "nodes": [
+                  {
+                    "id": "PRRC_kwDODKw3uc6G7GwX",
+                    "url": "https://github.com/cli/cli/pull/11451#discussion_r2263641111",
+                    "body": "This change masks all JSON decoding errors as 'release not found' errors. JSON decoding can fail for reasons other than a missing release (malformed JSON, network issues, etc.). Consider checking the HTTP status code or response content to determine if it's actually a 'not found' case before returning `ErrReleaseNotFound`.\n```suggestion\n\t\treturn \"\", fmt.Errorf(\"failed to decode ref response: %w\", err)\n```",
+                    "createdAt": "2025-08-08T17:29:32Z",
+                    "author": {
+                      "__typename": "Bot",
+                      "login": "copilot-pull-request-reviewer"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

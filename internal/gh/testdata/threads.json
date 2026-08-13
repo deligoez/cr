@@ -1,0 +1,84 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxODo1MTozOFrOVwLEag=="
+          },
+          "nodes": [
+            {
+              "id": "PRRT_kwDODKw3uc5XATDu",
+              "isResolved": true,
+              "isOutdated": false,
+              "path": "pkg/cmd/release/shared/fetch.go",
+              "line": 168,
+              "startLine": 168,
+              "originalLine": 168,
+              "originalStartLine": null,
+              "diffSide": "RIGHT",
+              "comments": {
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxNzoyOTozMlrOhuxsFw=="
+                },
+                "nodes": [
+                  {
+                    "id": "PRRC_kwDODKw3uc6G7GwX",
+                    "url": "https://github.com/cli/cli/pull/11451#discussion_r2263641111",
+                    "body": "This change masks all JSON decoding errors as 'release not found' errors. JSON decoding can fail for reasons other than a missing release (malformed JSON, network issues, etc.). Consider checking the HTTP status code or response content to determine if it's actually a 'not found' case before returning `ErrReleaseNotFound`.\n```suggestion\n\t\treturn \"\", fmt.Errorf(\"failed to decode ref response: %w\", err)\n```",
+                    "createdAt": "2025-08-08T17:29:32Z",
+                    "author": {
+                      "__typename": "Bot",
+                      "login": "copilot-pull-request-reviewer"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_kwDODKw3uc5XAsRq",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "pkg/cmd/release/shared/fetch.go",
+              "line": 168,
+              "startLine": 168,
+              "originalLine": 168,
+              "originalStartLine": null,
+              "diffSide": "RIGHT",
+              "comments": {
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxOTo1MTozM1rOhvABpA=="
+                },
+                "nodes": [
+                  {
+                    "id": "PRRC_kwDODKw3uc6G7pcy",
+                    "url": "https://github.com/cli/cli/pull/11451#discussion_r2263783218",
+                    "body": "This change also affects other `release` subcmds. I agree with CCR in that this error can have other reasons. ",
+                    "createdAt": "2025-08-08T18:51:38Z",
+                    "author": {
+                      "__typename": "User",
+                      "login": "babakks"
+                    }
+                  },
+                  {
+                    "id": "PRRC_kwDODKw3uc6G8AGk",
+                    "url": "https://github.com/cli/cli/pull/11451#discussion_r2263876004",
+                    "body": "When fetching the ref SHA of a tag, a partial semver match returns a 200 response with an empty body, which causes the JSON decode to fail.\r\nFor example, if the tag is v1.0.0, only refs/tags/v1.0.0 will work \u2014 v1 or v1.0 will return 200 with empty body.\r\n\r\nThis behavior aligns with other gh release commands, which also require the exact tag name, otherwise would return release not found. Partial semver versions won\u2019t work \u2014 only the full, exact tag is accepted.",
+                    "createdAt": "2025-08-08T19:51:33Z",
+                    "author": {
+                      "__typename": "User",
+                      "login": "ejahnGithub"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

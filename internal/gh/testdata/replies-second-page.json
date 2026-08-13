@@ -1,0 +1,44 @@
+{
+  "data": {
+    "node": {
+      "comments": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0wNC0xNVQxNTo0NDo1MFrOXVdaPQ=="
+        },
+        "nodes": [
+          {
+            "id": "PRRC_kwDODKw3uc5dU61j",
+            "url": "https://github.com/cli/cli/pull/8950#discussion_r1565764963",
+            "body": "Also, should we `sudo apt update` before we `apt install`?",
+            "createdAt": "2024-04-15T13:06:38Z",
+            "author": {
+              "__typename": "User",
+              "login": "williammartin"
+            }
+          },
+          {
+            "id": "PRRC_kwDODKw3uc5dVz2n",
+            "url": "https://github.com/cli/cli/pull/8950#discussion_r1565998503",
+            "body": "`test` and `type` are builtins, either is fine. `type` is better since it does a path search. `which` isn't a built-in, and I wanted a fallback in case it wasn't installed. I'll change this to `type`.\r\n\r\nI can totally see an argument for an `update` before `install`, I was just trying to do the minimum. Happy to change this.",
+            "createdAt": "2024-04-15T15:39:34Z",
+            "author": {
+              "__typename": "User",
+              "login": "richterdavid"
+            }
+          },
+          {
+            "id": "PRRC_kwDODKw3uc5dV1o9",
+            "url": "https://github.com/cli/cli/pull/8950#discussion_r1566005821",
+            "body": "Yeh let's add `update` back. No one complained about it before.",
+            "createdAt": "2024-04-15T15:44:50Z",
+            "author": {
+              "__typename": "User",
+              "login": "williammartin"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

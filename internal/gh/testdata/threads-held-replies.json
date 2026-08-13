@@ -1,0 +1,55 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0wNC0xNVQxMDowMzozNlrOO5ofHA=="
+          },
+          "nodes": [
+            {
+              "id": "PRRT_kwDODKw3uc47mh8c",
+              "isResolved": false,
+              "isOutdated": true,
+              "path": "docs/install_linux.md",
+              "line": null,
+              "startLine": null,
+              "originalLine": 17,
+              "originalStartLine": null,
+              "diffSide": "RIGHT",
+              "comments": {
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0wNC0xNVQxNTo0NDo1MFrOXVdaPQ=="
+                },
+                "nodes": [
+                  {
+                    "id": "PRRC_kwDODKw3uc5dT-O0",
+                    "url": "https://github.com/cli/cli/pull/8950#discussion_r1565516724",
+                    "body": "Is there a reason to use `test -x` here on a specific path when `which wget` would find it anywhere in the path (or alternatively, as we used to use: `type -p wget`)?\r\n\r\nhttps://github.com/cli/cli/pull/8693/files#diff-e96522c432194385a40054017f7cd2a8be967546c871fc9c8632dc25e54bdfd6L17",
+                    "createdAt": "2024-04-15T10:03:36Z",
+                    "author": {
+                      "__typename": "User",
+                      "login": "williammartin"
+                    }
+                  },
+                  {
+                    "id": "PRRC_kwDODKw3uc5dUBCk",
+                    "url": "https://github.com/cli/cli/pull/8950#discussion_r1565528228",
+                    "body": "Perhaps it's slightly more performant for the most likely case?\r\n\r\nI don't have an issue with it, I just want to make sure I understand it.",
+                    "createdAt": "2024-04-15T10:10:47Z",
+                    "author": {
+                      "__typename": "User",
+                      "login": "williammartin"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
