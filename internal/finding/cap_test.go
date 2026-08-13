@@ -1,7 +1,12 @@
 package finding
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,4 +45,80 @@ func TestTheCapBlocksOnlyTheCountAboveIt(t *testing.T) {
 		assert.Equal(t, max, exceeded.Cap.Max)
 		assert.Contains(t, err.Error(), strconv.Itoa(count), "the block names the count")
 	}
+}
+
+// §1.6.2's two halves pull in opposite directions and both are the rule: cr
+// MUST block posting above the cap, and cr MUST NOT silently drop comments to
+// fit. The implementation that satisfies the first while breaking the second is
+// the tempting one — trim the queue to the cap and post it — and it reads as a
+// helpfulness rather than as the failure the clause names.
+//
+// So the refusal is structural rather than remembered. Nothing that knows the
+// cap hands back records, which leaves no fitted queue for a caller to reach
+// for: a truncation has to be written from scratch, at the call site, against a
+// type that offers nothing towards it.
+//
+// The set of cap-aware functions is read out of the package's own source rather
+// than listed here, so a convenience added years from now by someone who never
+// read §1.6.2 fails this test instead of quietly fitting the round.
+func TestNothingCarriesAFittedQueueBackFromTheCap(t *testing.T) {
+	aware := capAware(t)
+	require.NotEmpty(t, aware,
+		"the cap decision lives in this package; finding none of it proves nothing")
+
+	for name, results := range aware {
+		assert.False(t, handsBackARecord(results),
+			"%s knows the cap and hands back records: §1.6.2 lets nothing fit the queue", name)
+	}
+}
+
+// capAware returns the result list of every function of this package whose
+// signature names the comment cap, keyed by the name callers use. A receiver
+// counts as naming it, so a method that fitted the queue is caught the same way
+// a function would be.
+func capAware(t *testing.T) map[string]*ast.FieldList {
+	t.Helper()
+	sources, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	aware := make(map[string]*ast.FieldList)
+	for _, source := range sources {
+		name := source.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || !namesTheCap(fn) {
+				continue
+			}
+			aware[doorName(fn)] = fn.Type.Results
+		}
+	}
+	return aware
+}
+
+// namesTheCap reports whether a function's receiver, parameters, or results
+// mention the cap by type. Every type of the decision is named for it, so the
+// prefix is what identifies them and a fourth one added later is covered
+// without being listed.
+func namesTheCap(fn *ast.FuncDecl) bool {
+	for _, part := range []*ast.FieldList{fn.Recv, fn.Type.Params, fn.Type.Results} {
+		if part == nil {
+			continue
+		}
+		found := false
+		ast.Inspect(part, func(node ast.Node) bool {
+			if named, ok := node.(*ast.Ident); ok && strings.HasPrefix(named.Name, "CommentCap") {
+				found = true
+			}
+			return !found
+		})
+		if found {
+			return true
+		}
+	}
+	return false
 }
