@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T15:52:10.261756Z",
+  "updated_at": "2026-08-13T16:02:40.406799Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -497,7 +497,7 @@
     {
       "id": "stamp-head-round-fields",
       "title": "Stamp head fields on state records",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "per-pr-state-files"
@@ -507,11 +507,28 @@
       "source_sections": [
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T15:52:57.019794Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T16:02:40.347847Z",
+      "closed_reason": "- Every record of claims.ndjson, units.ndjson, mapping.ndjson, findings.ndjson, probes.ndjson, runs.ndjson, intent-gaps.ndjson and coverage.ndjson carries head and round per §2.3.3: a record type opts in by embedding state.Stamp, and state.WriteStamped, the only writer those eight files accept, sets the pair on every record on the way out. TestAFileIsWrittenThroughTheWriterItsSchemaRequires pins the routing in both directions and TestDecodedRecordsAreStampedOnTheWayOut reads the stamped pair back off disk.\n- Round 8 finding head-round-stamping-unassigned is assigned. Spec §2.3.3 now states that cr writes head and round on every write to the eight files it lists and rejects a record that arrives carrying either, so the authorship the finding found unassigned is written down in the normative document as well as in the code, and state.WriteStamped overwrites whatever a record arrived holding.\n- A record supplying either field is refused at decode time on the wire, because §2.3.3 fields arrive inside agent-authored NDJSON and a struct that already decoded cannot report which keys were present. state.DecodeStamped refuses any line whose JSON object holds the key head or round, returning a state.ReservedFieldError that names the file, the one-based line counted over the file as handed in, and the field, and internal/cli/exit.go maps it onto ExitValidation, which is exit code 1 exactly as §6.1.4 rejects grade. The check is presence rather than a non-zero Go field, because an empty head and a zero round are values the agent chose. TestAnAgentMayNotSupplyHeadOrRound covers both degenerate values, a null head, real values, and a record supplying both, and TestASuppliedStampFieldExitsWithTheValidationCode asserts the code survives the wrapping a command adds on the way out.\n- The stamping and the rejection live in one shared writer, so the four agent-input commands cannot disagree about who owns the fields: state.WriteStamped is the only function that sets the pair, state.DecodeStamped is the only road from an agent file into it, WriteRecords refuses the eight §2.3.3 files and WriteStamped refuses every other file. cr claims record, cr map record, cr cells record and cr record inherit both behaviours the day each lands instead of restating them.\n- Reported rather than faked: none of the four commands exists yet, so no test can supply head and round through them today, and a test against a stub would assert nothing. The rejection is instead implemented and tested at the single point all four must pass through, by three state tests and one cli test covering the presence check, the line number, the field name and the exit code. Gate: go test -race ./... ok, golangci-lint 0 issues, scripts/deadcode.sh clean. Mutation testing with gremlins unleash --timeout-coefficient 30 ./internal moved from the recorded baseline of Killed 125, Lived 2, 98.43 per cent to Killed 131, Lived 2, 98.50 per cent, with no new survivor. The two survivors remain the documented internal/config words pair, and the single TIMED OUT mutant at state/layout.go:233, where negating the LockPR error check returns early while still holding the flock, was confirmed pre-existing by running gremlins on HEAD~7 in a scratch worktree.\nOut of scope: the end-to-end assertion the fourth criterion asks for belongs to the tasks that build the commands, and each must assert that a supplied head or round exits 1 naming the line and the field: claims-record-command, map-record-command, cells-record-command, and finding-required-field-validation, which owns the validation for cr record.",
+      "gate_passed_at": "2026-08-13T16:02:40.347847Z",
+      "commit_sha": "8fce632",
+      "commit_shas": [
+        "8fce632",
+        "7d7e961",
+        "ad20310",
+        "c95be75",
+        "76f4413",
+        "3139678",
+        "8333bb5"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go",
+        "spec/0.1.0.md"
+      ]
     },
     {
       "id": "config-layer-resolution",
