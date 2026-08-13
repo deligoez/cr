@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T19:55:09.14691Z",
+  "updated_at": "2026-08-13T20:05:48.925897Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1747,7 +1747,7 @@
     {
       "id": "thread-author-typing",
       "title": "Tag threads as human or bot",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "thread-ingestion"
@@ -1757,7 +1757,8 @@
       "source_sections": [
         "### 3.5 Existing threads"
       ],
-      "started_at": null,
+      "started_at": "2026-08-13T20:05:48.925896Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
@@ -3253,7 +3254,7 @@
     {
       "id": "finding-computed-field-rejection",
       "title": "Reject agent-written computed fields",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-required-field-validation"
@@ -3263,11 +3264,25 @@
       "source_sections": [
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T19:55:16.1302Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T20:05:12.119713Z",
+      "closed_reason": "- No field §6.1.4 forbids may arrive from the agent: internal/finding/fields.go holds the fence as data derived from §6.1's Required column, plus the three rows §6.1.4 names that the column calls optional (disposition, duplicate_of, thread_id) and §3.3's span_hash and issue_hash, which §6.1.4 names in the same sentence and no finding can legitimately hold, while citationFields' computed rows carry the citation's content_hash and origin. suppressed_by is deliberately outside the fence, because §3.5.4 has the agent decide it.\n- A record arriving with one is rejected with exit code 1 naming the line and the field: checker.computed in internal/finding/validate.go walks the fence ahead of §6.1.3's required walk, so the whole of §6.1.4 answers alike with state.DecodeStamped's head and round half, and reports through the state.ReservedFieldError internal/cli/exit.go already maps onto ExitValidation, while checker.computedCitations holds each citations entry to the same rule and names the offending entry by its index. Presence alone is the fault, as it is for head and round.\n- duplicate_of is exempt on cr merge output alone: the exemption rides on an explicit finding.Source argument to Decode rather than on the entry point or the file name, because cr record has one door that §6.5.1 sends merge output through and an agent's own record file through alike, and a file name is the agent's claim about its own input. SourceAgent is the zero value so a caller that never considered the question gets the closed answer, and DecodePerRole passes SourceAgent because §6.5.1 exempts what cr merge writes and never what it reads.\n- TestARecordArrivingWithAComputedFieldIsRejected pins the fence's exact contents and supplies each of its eight fields in turn, as a value and as null, then supplies each computed citation field and asserts the index-named rejection, and TestDuplicateOfIsExemptOnlyOnMergeOutput reads one record four ways: accepted under SourceMerge, refused under SourceAgent whether the file is named merged.ndjson or a role's fan-out file, refused as cr merge input, and grade still refused on merge output. Gate green, and gremlins unleash --timeout-coefficient 30 ./internal reports Killed 253, Lived 4, efficacy 98.44%, the one new survivor being the capacity-hint arithmetic in reservedFields, commented at the site as equivalent.\n\nOut of scope: grade computation (§6.2), the content_hash pre-image (§9.2.3), the anchor's own schema rules, dedup (§6.4), and cr merge's and cr record's command bodies are each their own later task and none is touched here.",
+      "gate_passed_at": "2026-08-13T20:05:12.119713Z",
+      "commit_sha": "2e8e5f5",
+      "commit_shas": [
+        "2e8e5f5",
+        "49de72e",
+        "a4d71e3",
+        "f8f26eb",
+        "d534fad"
+      ],
+      "commit_files": [
+        "internal/cli/exit_test.go",
+        "internal/finding/fields.go",
+        "internal/finding/validate.go",
+        "internal/finding/validate_test.go"
+      ]
     },
     {
       "id": "citation-content-hash",
