@@ -5,6 +5,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
@@ -56,6 +57,13 @@ func exitCodeFor(err error) int {
 		// surfaces its stderr. It fixes that for the tracker command,
 		// and git is one of the same three external tools, so it fails
 		// through the same mapping rather than a second one.
+		return ExitFile
+	}
+	var ghCommand *gh.CommandError
+	if errors.As(err, &ghCommand) {
+		// gh is the third of the external tools §3.1.3 governs, and a
+		// GraphQL error reaches cr the same way a refusal does: gh
+		// exits non-zero with the message on stderr. Both are code 3.
 		return ExitFile
 	}
 	var reservedField *state.ReservedFieldError
