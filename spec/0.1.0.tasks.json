@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T21:03:46.100225Z",
+  "updated_at": "2026-08-13T21:22:40.949871Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -128,7 +128,7 @@
     {
       "id": "output-mode-switching",
       "title": "Switch JSON output by TTY",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -140,10 +140,32 @@
       ],
       "started_at": "2026-08-13T21:03:46.100224Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-13T21:22:40.87118Z",
+      "closed_reason": "- Output is JSON when stdout is not a terminal or when --json is given, and human-readable coloured text otherwise, per §12.1. internal/cli/output.go settles the shape from cmd.OutOrStdout() and the flag and nothing else, so text is the narrow case and a piped run is JSON without anyone asking. Detection goes through mattn/go-isatty rather than the file mode, because /dev/null and the master side of a pseudo-terminal are both character devices and neither is a terminal, which was measured on this platform before the choice was made. Colour is enabled on the fatih/color instance rather than through its package global, which is set from os.Stdout at init, so a run writing somewhere else is never coloured by a decision about a file it does not touch.\n- The decision is made once in a shared writer, not per command. newRootCmd builds one writer and settles it in PersistentPreRunE before any RunE runs, and cr init and cr config emit through it by handing over an initResult or a configResult instead of formatting anything themselves. TestOnlyTheSharedWriterDecidesTheOutputShape parses the imports of every shipped file under internal/cli and fails any one but output.go that names go-isatty, encoding/json or fatih/color, which are the three ways a command could reach a second answer. It was proven to bite by temporarily importing encoding/json into pr.go and observing the failure, then reverted.\n- Tested by driving a command with a pipe and with a pseudo-terminal. throughAPipe runs the command on a real os.Pipe and throughATerminal on the slave side of a real creack/pty pseudo-terminal, so nothing anywhere injects a boolean and the answer comes from the kernel. Four cases are covered, a pipe getting JSON, a terminal getting coloured text, --json forcing JSON on a terminal, and --no-color stripping the colour in both directions without moving the shape, plus cr init naming its state directory on a terminal. The terminal helper reads to a sentinel rather than to the close, because the master reports EIO the moment the last slave goes and takes the unread buffer with it, which gremlins caught as an empty read.\nOut of scope: §12.2's two-space indentation is already honoured because cr config printed it before this task and regressing it would have been the larger change, but §12.3's never-null slice rule and its walking test stay with output-json-formatting. §12.4's hint field, §12.5's --compact omissions, §12.6's posted boolean and §11.1's seven --quiet exemptions are each their own task and get a seam here rather than an implementation, because results are values the writer encodes and the writer's own comment names it as where finding.HonestyDisclosure will be consumed, the exemption having to be a property of the one thing that writes.",
+      "gate_passed_at": "2026-08-13T21:22:40.87118Z",
+      "commit_sha": "58b9f05",
+      "commit_shas": [
+        "58b9f05",
+        "2ada1f6",
+        "fa32819",
+        "9965fa7",
+        "c0f2378",
+        "d2de54d",
+        "3b34863",
+        "67fc23f",
+        "29d60c3",
+        "f03d044"
+      ],
+      "commit_files": [
+        "CLAUDE.md",
+        "go.mod",
+        "go.sum",
+        "internal/cli/config.go",
+        "internal/cli/init.go",
+        "internal/cli/output.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go"
+      ]
     },
     {
       "id": "output-json-formatting",
