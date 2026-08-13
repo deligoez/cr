@@ -95,3 +95,20 @@ func TestTheDiffIgnoresAConfiguredExternalDiffer(t *testing.T) {
 	assert.NotContains(t, changed.Patch, "an external differ ran")
 }
 
+// A run is given an allowlisted environment, not the ambient one: GIT_DIR and
+// its neighbours would point the read at another repository altogether, and
+// GIT_EXTERNAL_DIFF would replace the output the way the configuration file
+// does. §2.1.1 makes that the inputs' business and not the shell's.
+func TestAReadIgnoresTheAmbientGitEnvironment(t *testing.T) {
+	dir, partedAt := branched(t)
+	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "not-a-repository"))
+	t.Setenv("GIT_EXTERNAL_DIFF", "echo an external differ ran")
+
+	changed, err := DiffAgainstMergeBase(dir, "main", "feature")
+	require.NoError(t, err)
+
+	assert.Equal(t, partedAt, changed.MergeBase)
+	assert.Contains(t, changed.Patch, "+the author's line")
+	assert.NotContains(t, changed.Patch, "an external differ ran")
+}
+
