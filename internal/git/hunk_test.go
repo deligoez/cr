@@ -67,3 +67,183 @@ func TestChangedLinesCarryTheSideTheyAreNumberedOn(t *testing.T) {
 	assert.Equal(t, Left, removes.Side)
 	assert.Equal(t, []ChangedLine{{Side: Left, Line: 5, Text: "5"}}, removes.Changed)
 }
+
+// The header shapes that hide an off-by-one, and the content shapes that look
+// like structure. A hunk header omits a count when it is 1 and writes 0 for a
+// position between two lines rather than a line, so the first and last lines of
+// a file, a new file, and a deleted one each say something different about where
+// a changed line sits.
+func TestTheAwkwardShapesOfAHunk(t *testing.T) {
+	for _, shape := range []struct {
+		name  string
+		patch string
+		want  []Hunk
+	}{
+		{
+			name: "a count the header omitted is one line",
+			patch: `--- a/tiny.txt
++++ b/tiny.txt
+@@ -1 +1,2 @@
+ one
++two
+`,
+			want: []Hunk{{
+				Path: "tiny.txt", BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 2,
+				Side:    Right,
+				Changed: []ChangedLine{{Side: Right, Line: 2, Text: "two"}},
+			}},
+		},
+		{
+			name: "a change at the first line of the file",
+			patch: `--- a/keep.txt
++++ b/keep.txt
+@@ -1,3 +1,4 @@
++the new first line
+ a
+ b
+ c
+`,
+			want: []Hunk{{
+				Path: "keep.txt", BaseStart: 1, BaseLines: 3, HeadStart: 1, HeadLines: 4,
+				Side:    Right,
+				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "the new first line"}},
+			}},
+		},
+		{
+			name: "a new file has no pre-image at all",
+			patch: `--- /dev/null
++++ b/new.txt
+@@ -0,0 +1,2 @@
++first
++second
+`,
+			want: []Hunk{{
+				Path: "new.txt", BaseStart: 0, BaseLines: 0, HeadStart: 1, HeadLines: 2,
+				Side: Right,
+				Changed: []ChangedLine{
+					{Side: Right, Line: 1, Text: "first"},
+					{Side: Right, Line: 2, Text: "second"},
+				},
+			}},
+		},
+		{
+			name: "an insertion point names the line it follows",
+			patch: `--- a/f.txt
++++ b/f.txt
+@@ -41,0 +42,3 @@ func f() {
++one
++two
++three
+`,
+			want: []Hunk{{
+				Path: "f.txt", BaseStart: 41, BaseLines: 0, HeadStart: 42, HeadLines: 3,
+				Side: Right,
+				Changed: []ChangedLine{
+					{Side: Right, Line: 42, Text: "one"},
+					{Side: Right, Line: 43, Text: "two"},
+					{Side: Right, Line: 44, Text: "three"},
+				},
+			}},
+		},
+		{
+			name: "a deleted file leaves no head-side line and keeps its old path",
+			patch: `--- a/gone.txt
++++ /dev/null
+@@ -1,3 +0,0 @@
+-x
+-y
+-z
+`,
+			want: []Hunk{{
+				Path: "gone.txt", BaseStart: 1, BaseLines: 3, HeadStart: 0, HeadLines: 0,
+				Side: Left,
+				Changed: []ChangedLine{
+					{Side: Left, Line: 1, Text: "x"},
+					{Side: Left, Line: 2, Text: "y"},
+					{Side: Left, Line: 3, Text: "z"},
+				},
+			}},
+		},
+		{
+			name: "a missing final newline is a line of neither version",
+			patch: `--- a/tail.txt
++++ b/tail.txt
+@@ -1 +1 @@
+-the last line
+\ No newline at end of file
++the last line, edited
+\ No newline at end of file
+`,
+			want: []Hunk{{
+				Path: "tail.txt", BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 1,
+				Side:    Right,
+				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "the last line, edited"}},
+			}},
+		},
+		{
+			name: "a patch under review is content, not structure",
+			patch: `--- a/example.patch
++++ b/example.patch
+@@ -1,2 +1,6 @@
+ context
++--- a/inner.txt
+++++ b/inner.txt
++@@ -1 +1 @@
++-old
+ tail
+`,
+			want: []Hunk{{
+				Path: "example.patch", BaseStart: 1, BaseLines: 2, HeadStart: 1, HeadLines: 6,
+				Side: Right,
+				Changed: []ChangedLine{
+					{Side: Right, Line: 2, Text: "--- a/inner.txt"},
+					{Side: Right, Line: 3, Text: "+++ b/inner.txt"},
+					{Side: Right, Line: 4, Text: "@@ -1 +1 @@"},
+					{Side: Right, Line: 5, Text: "-old"},
+				},
+			}},
+		},
+		{
+			name:  "a path holding a space carries a trailing tab",
+			patch: "--- a/with space.txt\t\n+++ b/with space.txt\t\n@@ -1 +1 @@\n-old\n+new\n",
+			want: []Hunk{{
+				Path: "with space.txt", BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 1,
+				Side:    Right,
+				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "new"}},
+			}},
+		},
+		{
+			name: "a path git would not write raw is unquoted",
+			patch: `--- "a/we\"ird.txt"
++++ "b/we\"ird.txt"
+@@ -1 +1 @@
+-old
++new
+`,
+			want: []Hunk{{
+				Path: `we"ird.txt`, BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 1,
+				Side:    Right,
+				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "new"}},
+			}},
+		},
+		{
+			name:  "a diff of nothing holds no hunk",
+			patch: "",
+			want:  []Hunk{},
+		},
+		{
+			name: "a mode change alone holds no hunk",
+			patch: `diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100755
+`,
+			want: []Hunk{},
+		},
+	} {
+		t.Run(shape.name, func(t *testing.T) {
+			hunks, err := ParseHunks(shape.patch)
+			require.NoError(t, err)
+			assert.Equal(t, shape.want, hunks)
+		})
+	}
+}
