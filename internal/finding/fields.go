@@ -112,6 +112,11 @@ var claimHashes = []string{"span_hash", "issue_hash"}
 // of the table cannot come to different conclusions about the same row.
 var reserved = reservedFields()
 
+// reservedFields builds that list once, at package initialisation.
+//
+// One mutant survives here and is left deliberately: the arithmetic in the
+// capacity hint changes only how much is allocated up front, and a test written
+// to kill it would assert an implementation detail.
 func reservedFields() []string {
 	names := make([]string, 0, len(fields)+len(claimHashes))
 	for _, field := range fields {
