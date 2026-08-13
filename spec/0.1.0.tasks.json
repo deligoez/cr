@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T16:46:01.380961Z",
+  "updated_at": "2026-08-13T16:55:27.056311Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -734,7 +734,7 @@
     {
       "id": "profile-auto-selection",
       "title": "Select a profile by marker files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "profile-schema",
@@ -745,11 +745,24 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T16:46:41.802408Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T16:55:27.007688Z",
+      "closed_reason": "- internal/profile/select.go Select reads the profiles directory and chooses by match.files alone, counting with os.Stat the marker files present in the repository under review, while a non-empty configured value, which is the profile setting internal/config already resolves through the five §2.7 layers with the per-repository config among them, loads that profile by id and consults no marker at all, so §2.4.1's override has one path to the value and a named profile cr cannot read stays a MalformedError mapped to exit 3.\n- §2.4.2's greatest-match rule is the count comparison in Select, where a profile matching more markers than the current best replaces the winners, an equal count joins them, and a zero count never enters, so an empty match.files matches nothing rather than everything and the shipped generic profile can never win automatically. On a tie Select selects nothing and returns Tied naming both profiles in ascending id order, the seam the separate profile-tie-abort task turns into the exit-3 abort, because silently picking either one is exactly the failure §2.4.2 forbids and no later layer could detect it.\n- internal/profile/select_test.go covers the three: TestSelectionFollowsTheMarkerFilesInTheRepository for automatic selection and for a marker-less profile never winning, TestConfigurationOverridesTheMarkerFiles for the override beating a matched marker, TestTheGreatestMarkerCountWins for the count rule in both directory orders, plus TestATieSelectsNothingAndNamesTheTiedProfiles and TestAProfilesDirectoryIsEitherReadOrReported. Gate green, and gremlins holds at Killed 197, Lived 2 with only the two documented internal/config survivors.",
+      "gate_passed_at": "2026-08-13T16:55:27.007688Z",
+      "commit_sha": "091e0a8",
+      "commit_shas": [
+        "091e0a8",
+        "bc97946",
+        "e459f32",
+        "ef98f52",
+        "d45fe05",
+        "ad191a5"
+      ],
+      "commit_files": [
+        "internal/profile/select.go",
+        "internal/profile/select_test.go"
+      ]
     },
     {
       "id": "profile-tie-abort",
