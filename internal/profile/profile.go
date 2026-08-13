@@ -11,10 +11,11 @@
 // or an *axis.InvalidError when an `axes` key is not one of the four ids of
 // §1.5; the cli layer maps both onto the code.
 //
-// This package defends the file format and nothing else. Selecting a profile by
-// its marker files, checking `tests.count_pattern`'s group arity, and deriving
-// `tests.probe_path_template`'s default are separate obligations of §2.4 and are
-// implemented elsewhere.
+// This package defends the file format and nothing else, plus the one derived
+// value §2.4 documents: probepath.go resolves `tests.probe_path_template`, so a
+// parsed profile always carries the template §5.1.6 and §5.4.2 consume. Selecting
+// a profile by its marker files and checking `tests.count_pattern`'s group arity
+// are separate obligations of §2.4 and are implemented elsewhere.
 package profile
 
 import (
@@ -96,7 +97,9 @@ type Tests struct {
 	// CountPattern yields the executed and failed test counts, in that
 	// order.
 	CountPattern string `json:"count_pattern"`
-	// ProbePathTemplate is where a gap probe's file is placed.
+	// ProbePathTemplate is where a gap probe's file is placed, resolved
+	// per probepath.go: the default is filled in, `<ext>` is substituted,
+	// and `<probe-id>` is the one placeholder left.
 	ProbePathTemplate string `json:"probe_path_template"`
 }
 
@@ -184,7 +187,11 @@ func Parse(path string, data []byte) (Profile, error) {
 	if err := w.validate(path); err != nil {
 		return Profile{}, err
 	}
-	return w.resolve(), nil
+	template, err := w.Tests.probeTemplate(path)
+	if err != nil {
+		return Profile{}, err
+	}
+	return w.resolve(template), nil
 }
 
 // decodeError turns a decoding failure into a MalformedError, keeping the field
@@ -282,8 +289,9 @@ func (t *wireTests) validate(path string) error {
 }
 
 // resolve fills in the §2.4 defaults and normalises every absent list to an
-// empty one.
-func (w *wire) resolve() Profile {
+// empty one. probeTemplate is the already-resolved `tests.probe_path_template`,
+// computed before this point because deriving it can fail.
+func (w *wire) resolve(probeTemplate string) Profile {
 	p := Profile{
 		ID:    w.ID,
 		Match: Match{Files: list(w.Match.Files), Globs: list(w.Match.Globs)},
@@ -310,7 +318,7 @@ func (w *wire) resolve() Profile {
 		p.Tests.Globs = list(t.Globs)
 		p.Tests.FilterFlag = t.FilterFlag
 		p.Tests.CountPattern = t.CountPattern
-		p.Tests.ProbePathTemplate = t.ProbePathTemplate
+		p.Tests.ProbePathTemplate = probeTemplate
 		if t.TimeoutSeconds != nil {
 			p.Tests.TimeoutSeconds = *t.TimeoutSeconds
 		}
