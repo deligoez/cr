@@ -180,6 +180,32 @@ func TestProtectedMatchingReadsWordsNotLetters(t *testing.T) {
 	}
 }
 
+// Flags are exempt by design: §8.5.2 requires --confirm to exist as a flag. The
+// exemption is scoped to that layer and reaches nothing, because a flag entry is
+// keyed by setting key and no built-in setting addresses a protected decision.
+// A protected name handed in as a flag therefore configures nothing, while the
+// same name from the environment or from a file is still refused.
+func TestNoFlagLayerCanIntroduceAProtectedSetting(t *testing.T) {
+	for _, s := range settings {
+		require.NoError(t, checkProtected(s.key, s.key),
+			"a built-in setting must not address a protected decision")
+	}
+
+	cfg, err := Resolve(Sources{Flags: map[string]any{
+		"post.auto_confirm":     true,
+		"render.question_label": "asked",
+	}})
+	require.NoError(t, err)
+	assert.NotContains(t, cfg.Map(), "post.auto_confirm")
+	assert.NotContains(t, cfg.Map(), "render.question_label")
+
+	var protected *ProtectedError
+	_, err = Resolve(Sources{Environ: []string{"CR_POST_AUTO_CONFIRM=1"}})
+	require.ErrorAs(t, err, &protected)
+	_, err = Resolve(Sources{GlobalConfig: writeConfig(t, "post.auto_confirm")})
+	require.ErrorAs(t, err, &protected)
+}
+
 // writeConfig writes a config file carrying one key, spelled exactly as given.
 func writeConfig(t *testing.T, key string) string {
 	t.Helper()
