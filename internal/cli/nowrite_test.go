@@ -4,7 +4,9 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -131,4 +133,80 @@ func TestCrReachesTheNetworkThroughOneRunnerAndNoOtherWay(t *testing.T) {
 
 	assert.Empty(t, found,
 		"§2.1.2: gh is cr's only route to GitHub, so nothing may reach it around internal/gh")
+}
+
+// mintSites are the paths allowed to name gh.Confirm. §8.5's gate is the only
+// legitimate caller, and cr post does not exist yet, so today the list holds
+// only internal/gh, where the mint and the tests that exercise it live.
+//
+// The gate adds its own file here when it is written, and that is the point:
+// widening this is a deliberate act with a reviewer, not something a call site
+// does by existing. A second caller is a second gate, and §8.5.3 allows none.
+var mintSites = []string{filepath.Join("internal", "gh") + string(filepath.Separator)}
+
+// thisFile is this guard's own path, so the scan can exclude the file whose
+// data is the string it searches for. runtime.Caller answers instead of a
+// literal name, so moving or renaming the file cannot silently take the
+// exclusion with it.
+func thisFile(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok, "the compiler kept no path for this file, so the guard cannot exclude itself")
+	return file
+}
+
+// Nothing outside internal/gh mints a Confirmation.
+//
+// The type's own design already stops a token being fabricated: granted is
+// unexported, so every Confirmation composed elsewhere is the zero value and
+// writes nothing. What Go cannot express is that the one constructor has one
+// caller, and this is that sentence. Without it §8.5's gate is a convention —
+// any command could mint a token, pass true, and post without ever having read
+// a flag — and §8.5.3 forbids exactly that: no setting, variable, field, or
+// alias may supply --confirm implicitly, and a second mint is all four at once.
+//
+// Tests are scanned like everything else. A test that mints a token outside
+// this package is a test asserting cr can post without the gate, which is the
+// claim this guard exists to keep false.
+func TestNothingOutsideTheGhPackageMintsAConfirmation(t *testing.T) {
+	root := moduleRoot(t)
+	self := thisFile(t)
+
+	scanned := 0
+	var found []string
+	require.NoError(t, filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != root && strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || path == self {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		require.NoError(t, err)
+		for _, site := range mintSites {
+			if strings.HasPrefix(rel, site) {
+				return nil
+			}
+		}
+
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		scanned++
+		for _, mint := range []string{"gh.Confirm(", "Confirmation{granted"} {
+			if strings.Contains(string(raw), mint) {
+				found = append(found, rel+" names "+mint)
+			}
+		}
+		return nil
+	}))
+
+	require.Greater(t, scanned, 10, "only %d files were scanned, so this guard proved nothing", scanned)
+	assert.Empty(t, found,
+		"§8.5: the confirmation gate is the only mint, so no other path may build a token")
 }
