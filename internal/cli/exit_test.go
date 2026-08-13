@@ -128,3 +128,40 @@ func TestASuppliedStampFieldExitsWithTheValidationCode(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("recording claims: %w", err)))
 }
+
+// §1.6.2 caps one round's comments at post.max_comments and blocks posting
+// above it with exit code 1, naming the count so the user triages further.
+// §11.2 runs that validation before the confirmation gate, so the block lands
+// whether or not --confirm was given, and the code must survive the wrapping a
+// command adds on the way out.
+//
+// The cap comes from the resolved configuration rather than from a literal
+// here: §2.7 resolves post.max_comments across five layers, and a second path
+// to the value would be a second answer to what the default 20 is.
+//
+// Nothing posts here because nothing can — `cr post` is not built — so the
+// block is asserted where it is made, over the round's queued comments.
+func TestQueueingPastTheCommentCapExitsWithTheValidationCode(t *testing.T) {
+	resolved, err := config.Resolve(config.Sources{})
+	require.NoError(t, err)
+	maxComments := resolved.Int("post.max_comments")
+	require.Equal(t, 20, maxComments, "§1.6.2 gives post.max_comments a default of 20")
+
+	queued := make([]*finding.Finding, 0, maxComments+1)
+	for i := 1; i <= maxComments+1; i++ {
+		queued = append(queued, &finding.Finding{
+			ID:   fmt.Sprintf("f%d", i),
+			Kind: finding.KindFinding,
+		})
+	}
+
+	blocked := finding.CommentCapFor(queued, maxComments).Err()
+	require.Error(t, blocked, "twenty-one comments exceed a cap of twenty")
+	assert.Equal(t, ExitValidation, exitCodeFor(blocked))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("posting the review: %w", blocked)))
+	assert.Contains(t, blocked.Error(), "21 comments", "the block names the count")
+	assert.Contains(t, blocked.Error(), "post.max_comments 20", "and the cap it was measured against")
+
+	require.NoError(t, finding.CommentCapFor(queued[:maxComments], maxComments).Err(),
+		"the same round posts once the user has triaged one comment away")
+}
