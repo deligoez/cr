@@ -87,6 +87,11 @@ func TestTheReadsCrMakesStillReachGh(t *testing.T) {
 		"a listing for §8.4.4":         {"api", "repos/cli/cli/pulls/11451/reviews", "--paginate"},
 		"an endpoint after its flags":  {"api", "-q", ".head.sha", "-H", "Accept: application/json", "repos/cli/cli/pulls/11451"},
 		"a read that names its accept": {"api", "--header=Accept: application/vnd.github+json", "repos/cli/cli/pulls/11451"},
+		// A lone dash is one character long and is not a flag. The scan
+		// runs before gh does, over an argument vector it does not
+		// control, so a one-character argument has to be read as a
+		// positional rather than indexed into as a shorthand.
+		"a lone dash among the arguments": {"api", "graphql", "-f", "query={viewer{login}}", "-"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ran := filepath.Join(t.TempDir(), "gh-was-started")
