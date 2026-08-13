@@ -271,3 +271,39 @@ func TestARecordArrivingWithAComputedFieldIsRejected(t *testing.T) {
 		})
 	}
 }
+
+// §6.1.4 exempts duplicate_of on `cr merge` output and nowhere else, so the
+// same bytes are read two ways and the exemption rides on neither the entry
+// point nor the file's name. §6.4.3 keeps a duplicate out of the draft
+// entirely: an agent that could set the field on a record of its own would
+// silence that record by naming another, without a human seeing either.
+func TestDuplicateOfIsExemptOnlyOnMergeOutput(t *testing.T) {
+	suppressed := aRecord()
+	suppressed["duplicate_of"] = "f1"
+
+	records, err := Decode("merged.ndjson", onLineThree(t, suppressed), roundUnits, SourceMerge)
+	require.NoError(t, err, "§6.5.1 lets cr merge's output carry the one computed field")
+	require.Len(t, records, 2)
+	assert.Equal(t, "f1", records[1].DuplicateOf)
+
+	assert.Equal(t, "duplicate_of", oversteps(t, suppressed).Field,
+		"the same record handed to cr record as the agent's own is refused")
+
+	var reservedField *state.ReservedFieldError
+	_, err = Decode("merged.ndjson", onLineThree(t, suppressed), roundUnits, SourceAgent)
+	require.ErrorAs(t, err, &reservedField)
+	assert.Equal(t, "duplicate_of", reservedField.Field,
+		"the name is the agent's claim about its own input and buys nothing")
+
+	_, err = DecodePerRole(FanOutFile("test"), onLineThree(t, suppressed), roundUnits)
+	require.ErrorAs(t, err, &reservedField)
+	assert.Equal(t, "duplicate_of", reservedField.Field,
+		"the exemption is on what cr merge writes, never on what it reads")
+
+	graded := aRecord()
+	graded["grade"] = "cited"
+	_, err = Decode("merged.ndjson", onLineThree(t, graded), roundUnits, SourceMerge)
+	require.ErrorAs(t, err, &reservedField)
+	assert.Equal(t, "grade", reservedField.Field,
+		"duplicate_of is the only computed field §6.5.1 lets that output carry")
+}
