@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,30 +48,52 @@ func TestResolutionPrefersTheHighestLayer(t *testing.T) {
 	}
 }
 
-// §2.7 keeps three decisions off the configuration surface, so a name that
-// would address one is refused wherever it is written, and the refusal names
-// it. CR_HOME is the state root rather than a setting, so it must survive the
-// same scan untouched.
+// §2.7 keeps five decisions off the configuration surface: the confirmation
+// gate, the argued forcing, the question label, and the provenance and evidence
+// regions that carry the disclosure and the checkability to the author. A name
+// addressing one must be refused from the environment and from both config
+// files, and the refusal must name the decision it would have reached.
 func TestProtectedNamesAreRejected(t *testing.T) {
-	dir := t.TempDir()
-	global := filepath.Join(dir, "config.json")
-	require.NoError(t, os.WriteFile(global, []byte(`{"post": {"auto_confirm": true}}`), 0o600))
-
-	_, err := Resolve(Sources{GlobalConfig: global})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "post.auto_confirm")
-	assert.Contains(t, err.Error(), "confirmation gate")
-
-	for _, name := range []string{"CR_POST_CONFIRM", "CR_ARGUED_AS_FINDING", "CR_QUESTION_LABEL"} {
-		_, err := Resolve(Sources{Environ: []string{name + "=1"}})
-		var protected *ProtectedError
-		require.ErrorAs(t, err, &protected, name)
-		assert.Equal(t, name, protected.Name)
+	protectedNames := []struct {
+		key     string
+		env     string
+		subject string
+	}{
+		{"post.auto_confirm", "CR_POST_AUTO_CONFIRM", "the confirmation gate of §8.5"},
+		{"post.gate", "CR_POST_GATE", "the confirmation gate of §8.5"},
+		{"review.argued_as_finding", "CR_REVIEW_ARGUED_AS_FINDING", "the argued forcing of §6.3"},
+		{"review.forcing_enabled", "CR_REVIEW_FORCING_ENABLED", "the argued forcing of §6.3"},
+		{"render.question_label", "CR_RENDER_QUESTION_LABEL", "the question label of §8.1.4"},
+		{"render.provenance_region", "CR_RENDER_PROVENANCE_REGION", "the provenance region of §8.1.6"},
+		{"render.evidence_region", "CR_RENDER_EVIDENCE_REGION", "the evidence region of §8.1.7"},
 	}
 
-	cfg, err := Resolve(Sources{Environ: []string{state.HomeEnv + "=" + dir}})
-	require.NoError(t, err)
-	assert.Equal(t, 20, cfg.Int("post.max_comments"))
+	for _, name := range protectedNames {
+		dir := t.TempDir()
+		global := filepath.Join(dir, "config.json")
+		repo := filepath.Join(dir, "repo-config.json")
+		section, leaf, _ := strings.Cut(name.key, ".")
+		body := []byte(fmt.Sprintf("{%q: {%q: true}}", section, leaf))
+		require.NoError(t, os.WriteFile(global, body, 0o600))
+		require.NoError(t, os.WriteFile(repo, body, 0o600))
+
+		layers := []struct {
+			layer   string
+			sources Sources
+			written string
+		}{
+			{"environment variable", Sources{Environ: []string{name.env + "=1"}}, name.env},
+			{"global config", Sources{GlobalConfig: global}, name.key},
+			{"per-repository config", Sources{RepoConfig: repo}, name.key},
+		}
+		for _, layer := range layers {
+			_, err := Resolve(layer.sources)
+			var protected *ProtectedError
+			require.ErrorAs(t, err, &protected, "%s from the %s", layer.written, layer.layer)
+			assert.Equal(t, layer.written, protected.Name)
+			assert.Equal(t, name.subject, protected.Subject)
+		}
+	}
 }
 
 // Every layer speaks a different dialect: a file supplies JSON types, the
