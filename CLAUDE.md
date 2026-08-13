@@ -344,6 +344,13 @@ Mirrors tp so the experience transfers.
 - Findings are stored in English; reader-facing prose is produced at draft time.
 - `--compact` omits `evidence`, `output_tail`, `input`, and ingested thread
   bodies.
+- **Every `git` invocation goes through `internal/git`'s runner.** It inherits an
+  allowlist of environment variables rather than filtering a denylist, so
+  `GIT_DIR`, `GIT_EXTERNAL_DIFF` and friends cannot redirect a read, and it pins
+  the diff knobs that have no flag with `-c`. This is not theoretical: a dev
+  machine here has `diff.external` set, and an unpinned `git diff` returned that
+  differ's output instead of a unified diff. §2.1.1 requires the same inputs to
+  give the same result, and git reads a lot of ambient state.
 
 ## Distribution
 
