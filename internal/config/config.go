@@ -139,6 +139,12 @@ func checkProtected(name, spelling string) error {
 // words splits a name into the words a reader sees in it. A separator or a
 // camelCase boundary ends a word, and every word is lower-cased, so
 // CR_POST_CONFIRM, post.confirm and postConfirm all read alike.
+//
+// Two mutants survive here and are left deliberately. The +1 on the capacity
+// hint changes only how much is allocated. And flushing on Len() >= 0 would
+// append empty words, which no protected token can match, so the deny-list
+// verdict is identical either way. Neither is observable; a test written to
+// kill them would assert an implementation detail.
 func words(name string) []string {
 	out := make([]string, 0, strings.Count(name, "_")+strings.Count(name, ".")+1)
 	var word strings.Builder
