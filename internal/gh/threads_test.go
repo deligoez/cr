@@ -243,6 +243,40 @@ func TestEveryIngestedThreadIsTaggedHumanOrBot(t *testing.T) {
 	assert.Equal(t, "User", threads[1].Comment.AuthorTypename)
 }
 
+// Only GitHub's own `Bot` author type makes the tag `bot`. A login ending in
+// `[bot]`, an imported mannequin, and an author the API answers null for are
+// all `human`, because none of them is GitHub saying a bot wrote the comment.
+//
+// `dependabot[bot]` posting as a `User` is therefore tagged `human`, and that
+// is deliberate. Reading the suffix would catch it and would be cr judging
+// whose comment counts, which §2.1 leaves to the agent; it would also err in
+// the expensive direction, because a human wrongly tagged `bot` loses the
+// attachment §3.5.3 makes and the suppression §3.5.4 builds on it, and cr
+// repeats a concern a colleague already raised.
+func TestOnlyGitHubsOwnBotTypeIsTaggedBot(t *testing.T) {
+	const authors = `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+		"pageInfo":{"hasNextPage":false},"nodes":[
+		{"id":"PRRT_1","comments":{"pageInfo":{"hasNextPage":false},
+			"nodes":[{"id":"c1","author":{"__typename":"User","login":"dependabot[bot]"}}]}},
+		{"id":"PRRT_2","comments":{"pageInfo":{"hasNextPage":false},
+			"nodes":[{"id":"c2","author":{"__typename":"Mannequin","login":"imported"}}]}},
+		{"id":"PRRT_3","comments":{"pageInfo":{"hasNextPage":false},
+			"nodes":[{"id":"c3","author":null}]}},
+		{"id":"PRRT_4","comments":{"pageInfo":{"hasNextPage":false},
+			"nodes":[{"id":"c4","author":{"__typename":"Bot","login":"copilot"}}]}}
+		]}}}}}`
+
+	threads, err := WithRunner(func(...string) (string, error) { return authors, nil }).
+		Threads("acme", "web", 42)
+	require.NoError(t, err)
+	require.Len(t, threads, 4)
+
+	assert.Equal(t, AuthorHuman, threads[0].AuthorType, "a `[bot]` login GitHub calls a User")
+	assert.Equal(t, AuthorHuman, threads[1].AuthorType, "a mannequin stands in for a person")
+	assert.Equal(t, AuthorHuman, threads[2].AuthorType, "an author the API does not name")
+	assert.Equal(t, AuthorBot, threads[3].AuthorType, "GitHub itself reports a bot")
+}
+
 // §2.3 puts ingested threads in threads.ndjson, and §2.3.3 does not list that
 // file, so its records carry no head and round. They survive the round trip
 // through the state package's own writer, and an empty reply list is written
