@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T16:55:27.056311Z",
+  "updated_at": "2026-08-13T18:54:55.119821Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -869,7 +869,7 @@
     {
       "id": "ship-laravel-pest-profile",
       "title": "Ship the laravel-pest profile",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "probe-path-template",
@@ -880,11 +880,40 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T16:56:05.118822Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T18:54:55.046043Z",
+      "closed_reason": "- internal/profile/builtin/laravel-pest.json ships the §2.4.5 profile as an embedded file, so cr init writes the reviewed bytes rather than whatever a JSON encoder produces that day: match.files selects on artisan, composer.json, phpunit.xml and tests/Pest.php, match.globs owns the PHP a Laravel repository keeps under app, config, database, routes, tests and resources/views, axes answers all four ids of §1.5 with true, sandbox.copy takes the two untracked paths a git worktree cannot carry (.env and vendor) and sandbox.setup reconciles them with the head under review through composer install, tests.cmd is ./vendor/bin/pest with --colors=never so the recap reads the same on a terminal and through a pipe, tests.globs is tests/**/*Test.php, tests.filter_flag is --filter, and symbols.lang is php. internal/cli/init.go writes every shipped profile through the new state.EnsureProfile, which fills an absent path and leaves an edited one alone, and TestInitWritesTheShippedProfiles asserts the bytes on disk equal the built-in and still load under profile.Load.\n- tests.probe_path_template is set explicitly to tests/Feature/cr_probe_\u003cprobe-id\u003eTest.php because both halves of §5.4.2 fail on the default. The default roots at the first glob's literal prefix, placing the file directly under tests/, which Laravel's phpunit.xml registers under no testsuite, and the Test.php suffix is what makes Pest collect the file at all. TestTheLaravelPestProbePathSatisfiesItsTestGlobs reads the glob's two literal anchors off the profile itself through probeRoot and probeExt, asserts the placed path carries both, asserts its directory is the registered tests/Feature, and pins the §5.1.6 leftover glob. Pest 4.7.8 on PHP 8.5.9 was observed collecting a file written to exactly this path in a real Pest project.\n- The spec repair at 2eaa338 replaced the single two-group pattern with two one-group patterns summed over every match, and the shipped profile follows it: tests.count_pattern sums a count of executed tests and tests.failed_pattern a count of failed ones, each anchored on the recap's own delimiters so a test whose name happens to read '3 passed' cannot inflate either. Executed counts every Collision status whose test body ran (deprecated, failed, warning, risky, incomplete, notice, passed) and omits todo and skipped, which are selected but never executed. Counting them would let a run of nothing but skipped tests report zero failures and hand §5.3.5 the no-test-failed proof a gap finding rests on, so those runs instead match nothing, leave both counts undetermined, and stop §5.3.4 at rung 5, inconclusive, which supports no grade either.\n- TestTheLaravelPestPatternsCountCapturedPestOutput asserts extraction against six recap files under internal/profile/testdata/pest, captured from real Pest 4.7.8 runs rather than written by hand, failure diffs and bare line numbers included: all-passing yields 2 executed and 0 failed from a run that never writes the word failed, which is the baseline §5.2.5 must be able to pass, some-failing yields 4 and 1, mixed-statuses yields 6 and 2 from '2 failed, 1 todo, 1 skipped, 4 passed', and no-tests-found, skipped-only and todo-only each leave the executed count undetermined. The test carries §5.2.1's summing arithmetic itself, since running the patterns belongs to count-pattern-extraction.\n\nClosed-task code touched, both forced by the spec repair and both left with meaningful tests rather than deleted ones: profile-schema (internal/profile/profile.go gains tests.failed_pattern in Profile.Tests and the wire shape, and TestProfileCarriesExactlyTheSpecFields gains the row) and profile-count-pattern-validation (validateCountPattern becomes validatePattern, serving both fields at exactly one group, and the arity walk in TestACountPatternMustCaptureExactlyOneGroup moves its boundary from two to one, with TestAFailedPatternIsRequiredBesideTheCountPattern added for the new required-when rule). Neither closure's claim is weakened: the schema still carries exactly §2.4's table and the arity is still enforced, at the number §2.4 now states.\n\nMutation testing: gremlins unleash --timeout-coefficient 30 ./internal reports Killed 203, Lived 2, efficacy 99.02%. The two survivors are the documented internal/config words pair at config.go:149 and :152, and the one TIMED OUT is the known state/layout.go case. Every mutant in the code this task added or changed was killed. No new survivor.\n\nOut of scope: the generic profile and the §2.4.2 tie abort and §2.4.4 axis disabling are their own tasks, and the production implementation of §5.2.1 count extraction belongs to count-pattern-extraction.",
+      "gate_passed_at": "2026-08-13T18:54:55.046043Z",
+      "commit_sha": "3a008cb",
+      "commit_shas": [
+        "3a008cb",
+        "615d80b",
+        "3898bca",
+        "dd95b10",
+        "5642509",
+        "0217c80",
+        "90a9d8b",
+        "04aedf2",
+        "eb020af",
+        "a9fd811"
+      ],
+      "commit_files": [
+        "internal/cli/init.go",
+        "internal/cli/init_test.go",
+        "internal/profile/builtin.go",
+        "internal/profile/builtin/laravel-pest.json",
+        "internal/profile/builtin_test.go",
+        "internal/profile/profile.go",
+        "internal/profile/profile_test.go",
+        "internal/profile/testdata/pest/all-passing.txt",
+        "internal/profile/testdata/pest/mixed-statuses.txt",
+        "internal/profile/testdata/pest/no-tests-found.txt",
+        "internal/profile/testdata/pest/skipped-only.txt",
+        "internal/profile/testdata/pest/some-failing.txt",
+        "internal/profile/testdata/pest/todo-only.txt",
+        "internal/state/layout.go"
+      ]
     },
     {
       "id": "ship-generic-profile",
