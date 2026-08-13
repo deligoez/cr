@@ -154,6 +154,14 @@ func (l Layout) WaiversFile(owner, repo string) string {
 // LocksDir holds the advisory locks (§5.6).
 func (l Layout) LocksDir() string { return filepath.Join(l.root, "locks") }
 
+// PRLockFile is the advisory lock guarding one pull request's state (§2.3.1).
+// It is nested by owner and repository, so its name can never collide with the
+// probe lock of §5.6, which is named after a repository path and a profile id
+// and lives directly in the same directory.
+func (l Layout) PRLockFile(owner, repo string, pr int) string {
+	return filepath.Join(l.LocksDir(), owner, repo, "pr-"+strconv.Itoa(pr)+".lock")
+}
+
 // globalDirs are the directories that exist independently of any repository,
 // pull request, or issue.
 func (l Layout) globalDirs() []string {
