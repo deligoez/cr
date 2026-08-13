@@ -110,3 +110,24 @@ func TestIngestionKeepsResolvedAndUnresolvedThreadsAlike(t *testing.T) {
 	assert.Equal(t, "11451", number)
 }
 
+// A pull request carrying more threads than one page holds must be ingested
+// whole. A first page taken for the whole set drops threads silently, and a
+// thread cr never saw is a thread §3.5.3 cannot attach and §3.5.4 cannot
+// suppress a finding against.
+func TestIngestionAsksForEveryPageOfThreads(t *testing.T) {
+	answers := replay(t, "threads-first-page.json", "threads-second-page.json")
+
+	threads, err := WithRunner(answers.run).Threads("cli", "cli", 11451)
+	require.NoError(t, err)
+	require.Len(t, threads, 2)
+	assert.Equal(t, "PRRT_kwDODKw3uc5XATDu", threads[0].ID)
+	assert.Equal(t, "PRRT_kwDODKw3uc5XAsRq", threads[1].ID)
+
+	require.Len(t, answers.calls, 2)
+	_, opened := field(answers.calls[0], "cursor")
+	assert.False(t, opened, "the first page is asked for from the start, not from a cursor")
+	cursor, resumed := field(answers.calls[1], "cursor")
+	require.True(t, resumed)
+	assert.Equal(t, "Y3Vyc29yOnYyOpK0MjAyNS0wOC0wOFQxODo1MTozOFrOVwLEag==", cursor)
+}
+
