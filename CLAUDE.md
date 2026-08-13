@@ -241,6 +241,14 @@ cr is built with tp, the same way tp builds itself.
   and fell to 14 the round the rule became ~2 lines. The spec did not change;
   the repair style did. Explanation belongs in the round record and the commit
   message.
+- **During implementation, a spec repair is never a unit's own call.** The spec
+  is frozen; a task's acceptance criteria carry the findings review left open, and
+  implementing the criterion is the unit's job. When the criterion cannot be
+  satisfied without the normative text also changing, the unit stops and reports
+  it — the orchestrator decides, and anything beyond restating an existing rule in
+  the section that already owns it goes to the user. Rounds 10–13 are why: four
+  rounds of individually reasonable repairs raised the blocking count from 5 to 9,
+  and every one of them looked correct alone.
 - **Run `scripts/speccheck.py <spec>` after every spec edit**, before the next
   review round. It resolves every `§X.Y` against real headings and numbered
   items and finds numbered-list breaks — the two failure modes that fixing one
