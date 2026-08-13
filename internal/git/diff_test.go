@@ -112,3 +112,24 @@ func TestAReadIgnoresTheAmbientGitEnvironment(t *testing.T) {
 	assert.NotContains(t, changed.Patch, "an external differ ran")
 }
 
+// §3.1.3 fixes what an external command does when it refuses: the command's
+// stderr reaches the user, and §11.2 codes it 3. git is one such command, so a
+// failed read carries the command that ran, what git said about it, and the
+// exec failure underneath, which tells a git that ran and refused from a git
+// that never started.
+func TestAFailedGitReadSurfacesItsStderr(t *testing.T) {
+	dir, _ := branched(t)
+
+	_, err := DiffAgainstMergeBase(dir, "main", "no-such-branch")
+
+	var refused *CommandError
+	require.ErrorAs(t, err, &refused)
+	assert.Contains(t, refused.Stderr, "no-such-branch")
+	assert.Contains(t, refused.Error(), refused.Stderr)
+	assert.Contains(t, refused.Error(), "merge-base")
+	var exited *exec.ExitError
+	require.ErrorAs(t, err, &exited)
+
+	silent := &CommandError{Args: []string{"merge-base"}, Err: errors.New("exit status 1")}
+	assert.Equal(t, "git merge-base: exit status 1", silent.Error())
+}
