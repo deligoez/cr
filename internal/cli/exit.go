@@ -75,6 +75,22 @@ func exitCodeFor(err error) int {
 		// rather than the 3 an unusable file gets.
 		return ExitValidation
 	}
+	var rejectedRecord *finding.RejectedRecordError
+	if errors.As(err, &rejectedRecord) {
+		// §6.1.3 rejects a record missing a required field, naming one
+		// unit no round has, or claiming a role other than the one whose
+		// output file it arrived in, with exit code 1. The file read and
+		// parsed; the fault is the agent's data inside it.
+		return ExitValidation
+	}
+	var unattributable *finding.UnattributableFileError
+	if errors.As(err, &unattributable) {
+		// The same clause, one level up: an input cr merge cannot bind
+		// to a role leaves every role field in it unchecked. It is the
+		// file's contents that are unusable rather than the file, so it
+		// codes 1 with the rest of §6.1.3 rather than 3.
+		return ExitValidation
+	}
 	var reservedField *state.ReservedFieldError
 	if errors.As(err, &reservedField) {
 		// §6.1.4: a record supplying a field cr writes itself is
