@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T15:37:23.923742Z",
+  "updated_at": "2026-08-13T15:52:10.261756Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -433,7 +433,7 @@
     {
       "id": "per-pr-state-files",
       "title": "Create the per-PR state files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "state-write-locking"
@@ -443,11 +443,37 @@
       "source_sections": [
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T15:38:29.72259Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T15:52:10.157048Z",
+      "closed_reason": "- Layout.EnsurePR now creates every file of the §2.3 table — meta.json, claims.ndjson, units.ndjson, mapping.ndjson, posted-index.ndjson, intent-gaps.ndjson, runs.ndjson, threads.ndjson, findings.ndjson, probes.ndjson, coverage.ndjson, transitions.ndjson, waivers.ndjson — named once in internal/state/prfiles.go and asserted in table order by TestEnsurePRCreatesEveryStateFile; creating them is a write to per-PR state, so it happens inside LockPR's exclusive lock (§2.3.1) and publishes through writeAtomic, and TestEnsurePRKeepsRecordedState proves a second ensure never discards a recorded round.\n- internal/state/meta.go's Meta carries every part of the §2.3 meta.json row: owner, repo, and pr for the identity, issue_key, profile_id, active_roles, round, head, and post_unresolved, with round 0 documented as a directory no round has been opened in since §9.3.3 starts the count at 1; TestMetaSurvivesARoundTrip asserts all of them survive the writer and the reader, and TestMetaNeverWritesANullRoleList pins active_roles to [] rather than null (§12.3).\n- Every file has a typed reader and writer: Layout.ReadMeta and Lock.WriteMeta for meta.json, and the generic ReadRecords, WriteRecords, and WriteStamped for the twelve NDJSON files, which each later schema task instantiates with its own record type. NDJSON is one JSON document per line, an empty file decodes to an empty slice rather than nil, and a line that does not decode is reported by its path and line number.\n- No command parses NDJSON inline, because there is no route to a per-PR file that does not pass through these functions: writes are methods and package functions taking the held *Lock, and reads go through Layout.ReadRecords. The head and round stamping of §2.3.3 is a property of the writer rather than of its callers — WriteStamped sets the pair on every record and overwrites whatever it arrived with, WriteRecords refuses one of the eight §2.3.3 files, and WriteStamped refuses a file outside that list, so the four agent-input commands cannot disagree about who owns the fields; a record type opts in by embedding state.Stamp, whose unexported setStamp makes the Stamped interface unimplementable from outside the package. The later stamp-head-round-fields task adds its rejection of an agent-supplied head or round in that one writer. Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh. Mutation testing: gremlins unleash --timeout-coefficient 30 ./internal gives Killed 125, Lived 2, efficacy 98.43%, above the 98.25% baseline and with no new survivor — the two survivors are the documented internal/config words pair.",
+      "gate_passed_at": "2026-08-13T15:52:10.157048Z",
+      "commit_sha": "2d09cef",
+      "commit_shas": [
+        "2d09cef",
+        "64239ca",
+        "f2ec1fb",
+        "5e02065",
+        "64c3ca8",
+        "95da71d",
+        "75f80b1",
+        "e94c32a",
+        "58df9a6",
+        "2d4953e",
+        "2355526",
+        "d87f444",
+        "ccd9639"
+      ],
+      "commit_files": [
+        "internal/state/layout.go",
+        "internal/state/lock.go",
+        "internal/state/meta.go",
+        "internal/state/meta_test.go",
+        "internal/state/prfiles.go",
+        "internal/state/prfiles_test.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go"
+      ]
     },
     {
       "id": "round-directory-artefacts",
