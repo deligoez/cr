@@ -27,6 +27,7 @@ var specFields = []string{
 	"tests.timeout_seconds",
 	"tests.output_tail_bytes",
 	"tests.count_pattern",
+	"tests.failed_pattern",
 	"tests.probe_path_template",
 	"rules",
 	"symbols.lang",
@@ -106,6 +107,7 @@ func TestParseAppliesTheDocumentedDefaults(t *testing.T) {
 	// The remaining optional fields stay unset: §2.4 gives them no default.
 	assert.Empty(t, p.Tests.FilterFlag)
 	assert.Empty(t, p.Tests.CountPattern)
+	assert.Empty(t, p.Tests.FailedPattern)
 	assert.Empty(t, p.Tests.ProbePathTemplate)
 	assert.Empty(t, p.Symbols.Lang)
 }
@@ -124,7 +126,8 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 			"filter_flag": "--filter",
 			"timeout_seconds": 120,
 			"output_tail_bytes": 8192,
-			"count_pattern": "Tests:\\s+(\\d+).*?(\\d+) failed",
+			"count_pattern": "(\\d+) (?:passed|failed)",
+			"failed_pattern": "(\\d+) failed",
 			"probe_path_template": "tests/Feature/cr_probe_<probe-id>.php"
 		},
 		"rules": [{"id": "no-facades"}],
@@ -141,7 +144,8 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 	assert.Equal(t, "--filter", p.Tests.FilterFlag)
 	assert.Equal(t, 120, p.Tests.TimeoutSeconds)
 	assert.Equal(t, 8192, p.Tests.OutputTailBytes)
-	assert.Equal(t, `Tests:\s+(\d+).*?(\d+) failed`, p.Tests.CountPattern)
+	assert.Equal(t, `(\d+) (?:passed|failed)`, p.Tests.CountPattern)
+	assert.Equal(t, `(\d+) failed`, p.Tests.FailedPattern)
 	assert.Equal(t, "tests/Feature/cr_probe_<probe-id>.php", p.Tests.ProbePathTemplate)
 	assert.Equal(t, "php", p.Symbols.Lang)
 	// §2.6 owns the rule schema, so the profile carries its rules verbatim.
@@ -259,28 +263,30 @@ func TestParseRejectsAnAxisIDOutsideTheClosedSet(t *testing.T) {
 	assert.Equal(t, path, invalid.File)
 }
 
-// §2.4 fixes tests.count_pattern at exactly two capture groups, the executed
-// count then the failed count, and makes any other group count abort. Two is a
-// boundary with a side on each of it, so the count is walked from zero to three:
-// zero and one leave §5.2.1 with no group to read a number from, and three gives
-// it no rule for which two win.
+// §2.4 fixes tests.count_pattern at exactly one capture group, a count of
+// executed tests, and makes any other group count abort. One is a boundary with
+// a side on each of it, so the count is walked from zero to two: zero leaves
+// §5.2.1 with no group to read a number from, and two gives it no rule for
+// which one it must sum.
 //
 // Go counts capturing groups only, which is the reading §5.2.1 needs — it
 // indexes submatches — so a pattern is checked to be judged by what it captures
 // rather than by how many parentheses it contains.
-func TestCountPatternMustCaptureExactlyTwoGroups(t *testing.T) {
+//
+// Every case carries a well-formed failed_pattern, so what fails is the arity
+// of the count pattern and never its missing companion.
+func TestACountPatternMustCaptureExactlyOneGroup(t *testing.T) {
 	cases := map[string]struct {
 		pattern string
 		groups  int
 	}{
-		"zero groups":          {`\d+ passed, \d+ failed`, 0},
+		"zero groups":          {`\d+ passed`, 0},
 		"one group":            {`(\d+) passed`, 1},
 		"two groups":           {`(\d+) passed, (\d+) failed`, 2},
-		"three groups":         {`(\d+) passed, (\d+) failed, (\d+) skipped`, 3},
-		"only non-capturing":   {`(?:\d+) passed, (?:\d+) failed`, 0},
-		"named groups capture": {`(?P<run>\d+) passed, (?P<failed>\d+) failed`, 2},
+		"only non-capturing":   {`(?:\d+) passed`, 0},
+		"named groups capture": {`(?P<run>\d+) passed`, 1},
 		"non-capturing groups do not count": {
-			`(?:Tests:)\s+(\d+) passed, (?:\s*)(\d+) failed`, 2,
+			`(?:Tests:)\s+(\d+) passed`, 1,
 		},
 	}
 	for name, tc := range cases {
@@ -289,12 +295,12 @@ func TestCountPatternMustCaptureExactlyTwoGroups(t *testing.T) {
 				"id": "generic",
 				"match": {"files": [], "globs": ["**/*"]},
 				"axes": {"test": true},
-				"tests": {"count_pattern": %q}
+				"tests": {"count_pattern": %q, "failed_pattern": "(\\d+) failed"}
 			}`, tc.pattern))
 
 			p, err := Load(path)
 
-			if tc.groups == 2 {
+			if tc.groups == 1 {
 				require.NoError(t, err)
 				assert.Equal(t, tc.pattern, p.Tests.CountPattern)
 				return
