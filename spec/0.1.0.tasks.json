@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T21:22:40.949871Z",
+  "updated_at": "2026-08-13T21:43:36.079087Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -170,7 +170,7 @@
     {
       "id": "output-json-formatting",
       "title": "Pretty-print JSON with empty slice rule",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "output-mode-switching"
@@ -180,11 +180,24 @@
       "source_sections": [
         "## 12. Output contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T21:23:27.95433Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T21:43:36.033009Z",
+      "closed_reason": "- §12.2: internal/cli/output.go's emit is the one encoder and it calls json.MarshalIndent with a two-space indent, so no command picks its own width. TestJSONIsPrettyPrintedWithTwoSpaceIndentation re-indents the document cr printed and gets it back byte for byte, which holds at every depth the document has and fails for a tab, for four spaces, and for a compact document alike.\n- §12.3 is kept at the marshal site rather than the construction site. withoutNilSlices deep-copies each payload on its way into the encoder and replaces every nil slice it can reach with an empty one, following one behind a pointer, inside an any, in a map's value, in an element of another slice, and in a field an unexported embedding promotes. A constructor binds only the payloads somebody has already written, whereas emit is the one door every JSON document leaves by, so the rule holds for output structs that do not exist yet and for a slice reassigned to nil after it was built. The single carve-out is a type that serialises itself, pinned by TestATypeThatSerialisesItselfKeepsItsOwnNull, because filling a json.RawMessage would not print a null but fail to encode at all.\n- TestNoOutputStructPrintsANullArray walks a fully-zero-valued payload of every output struct. The set is read out of internal/cli's own source with go/ast rather than kept by hand, every type whose Text method takes the unexported writer being a payload and nothing outside the package being able to implement one, and it is matched against the walked list so a payload added later fails the test instead of going unchecked. Each probe materialises every other position, a pointer allocated, a map given an entry, an any holding a nil list, and is re-run once per layer of slice nesting so a null under a slice of structs is reachable at all. TestANullHidesNowhereInAPayload does the same to a fixture carrying every hiding place at once, which is what caught the fields of an unexported embedding being skipped.\n- Constructors use make([]T, 0) rather than var x []T wherever a slice reaches output. The audit found no var x []T on any path to a payload, config.Strings and config.Map each build with append(make([]string, 0, len(value)), value...), and toStrings turns a decoded nil into []string{}, so cr config prints ignore.globs as []. The convention stands and the marshal-site rule now backs it, a slice made empty at construction being reassignable to nil afterwards.",
+      "gate_passed_at": "2026-08-13T21:43:36.033009Z",
+      "commit_sha": "c67b90e",
+      "commit_shas": [
+        "c67b90e",
+        "d54ecb0",
+        "912bb45",
+        "05bdc55",
+        "a7606ad",
+        "cdf0315"
+      ],
+      "commit_files": [
+        "internal/cli/output.go",
+        "internal/cli/output_test.go"
+      ]
     },
     {
       "id": "output-error-hints",
