@@ -144,3 +144,44 @@ func TestNoColorStripsColourAndNothingElse(t *testing.T) {
 	assert.Contains(t, terminal, "post.max_comments = 20")
 	assert.NotContains(t, terminal, "\x1b[", "--no-color left an escape sequence behind")
 }
+
+// outputDeciders are the imports that would let a file under internal/cli
+// answer §12.1 for itself: the terminal check, the encoder, and the colour.
+// Each is a way of deciding what output looks like, and the writer is where all
+// three are already decided.
+var outputDeciders = map[string]string{
+	"github.com/mattn/go-isatty": "asks for itself whether stdout is a terminal",
+	"encoding/json":              "encodes its own output",
+	"github.com/fatih/color":     "reaches for colour of its own",
+}
+
+// §12.1's decision is made once, in the shared writer, and not per command.
+//
+// The rule is not that today's commands happen to route through it — they do,
+// and a reader can check that by eye — but that a command added later cannot
+// quietly reach a second answer. Imports are what that costs: a command cannot
+// consult a terminal, encode a document, or emit a colour without naming the
+// package that does it, and none of the three can be spelled around.
+//
+// Only internal/cli is fenced. A package below it parses JSON from files and
+// must go on doing so; what it may not do is decide what a command prints,
+// which it has no way to reach from there anyway.
+func TestOnlyTheSharedWriterDecidesTheOutputShape(t *testing.T) {
+	commands := filepath.Join("internal", "cli") + string(filepath.Separator)
+	theWriter := filepath.Join("internal", "cli", "output.go")
+
+	var found []string
+	crSource(t, func(rel string, imports []string) {
+		if !strings.HasPrefix(rel, commands) || rel == theWriter {
+			return
+		}
+		for _, name := range imports {
+			if why, ok := outputDeciders[name]; ok {
+				found = append(found, rel+" "+why)
+			}
+		}
+	})
+
+	assert.Empty(t, found,
+		"§12.1: the output shape is settled once in "+theWriter+", so no command may settle it again")
+}
