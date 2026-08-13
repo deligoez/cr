@@ -74,7 +74,7 @@ type Hunk struct {
 // the removal follows, and zero when the removal reaches the top of the file.
 // Whether a hunk adds any line at all is Side, which is Left for exactly the
 // hunk §3.4.1 describes in merge-base coordinates.
-func (h Hunk) HeadRange() (start, end int) {
+func (h *Hunk) HeadRange() (start, end int) {
 	if h.HeadLines == 0 {
 		return h.HeadStart, h.HeadStart
 	}
