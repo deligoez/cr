@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T16:02:40.406799Z",
+  "updated_at": "2026-08-13T16:08:36.54198Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -778,7 +778,7 @@
     {
       "id": "profile-count-pattern-validation",
       "title": "Validate count pattern group arity",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "profile-schema"
@@ -788,11 +788,22 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T16:04:07.415223Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T16:08:36.513449Z",
+      "closed_reason": "- internal/profile/profile.go validateCountPattern holds tests.count_pattern to §2.4's arity: the pattern is compiled and Go's NumSubexp, which counts capturing groups only, must equal countPatternGroups 2, the executed count then the failed count that §5.2.1 reads out in that order. An absent pattern, spelled as the empty string, stays optional and is not checked.\n- Any other count returns a *MalformedError carrying the file and tests.count_pattern, which internal/cli/exit.go's exitCodeFor already maps onto ExitFile 3, so the abort names the profile file and the offending field per §2.5 item 3. A pattern that fails to compile aborts the same way with its own message, following §2.6.1.2's ruling for cr's other configured regex.\n- TestCountPatternMustCaptureExactlyTwoGroups walks the arity from zero to three, accepting only two, and adds the cases that separate parentheses from captures: (?:...) does not count, (?P\u003cname\u003e...) does. TestAnUncompilableCountPatternIsMalformedToo covers the uncompilable pattern and asserts its message is not the arity one. gremlins kills every mutant in the new function.",
+      "gate_passed_at": "2026-08-13T16:08:36.513449Z",
+      "commit_sha": "277bb65",
+      "commit_shas": [
+        "277bb65",
+        "752e6b9",
+        "5bbffde"
+      ],
+      "commit_files": [
+        "internal/profile/boundary_test.go",
+        "internal/profile/profile.go",
+        "internal/profile/profile_test.go"
+      ]
     },
     {
       "id": "probe-path-template",
