@@ -61,7 +61,7 @@ func CommentCapFor(queued []*Finding, max int) CommentCap {
 // than a truncation.
 func (c CommentCap) Disclosure() string {
 	if c.exceeded() {
-		return fmt.Sprintf("%d comments queued against post.max_comments %d: %d over the cap",
+		return fmt.Sprintf("%d comments queued against post.max_comments %d, %d over the cap",
 			c.Count, c.Max, c.Count-c.Max)
 	}
 	return fmt.Sprintf("%d comments queued against post.max_comments %d", c.Count, c.Max)
