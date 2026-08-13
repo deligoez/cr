@@ -102,3 +102,58 @@ func TestAReaderProceedsWhileAWriterHoldsTheLock(t *testing.T) {
 	require.NoError(t, held.Unlock())
 }
 
+// Lock-free reads are only safe because writes publish by rename. An in-place
+// write would hand a reader half a document, and the reader holds nothing that
+// could have stopped it.
+func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
+	l := lockedPR(t)
+
+	const size = 1 << 16
+	docs := [2][]byte{bytes.Repeat([]byte("a"), size), bytes.Repeat([]byte("b"), size)}
+
+	first, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, first.Write("findings.ndjson", docs[0]))
+	require.NoError(t, first.Unlock())
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(done)
+		for round := range 200 {
+			held, err := l.LockPR("acme", "web", 42)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.NoError(t, held.Write("findings.ndjson", docs[round%2]))
+			assert.NoError(t, held.Unlock())
+		}
+	}()
+
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				body, err := l.ReadPR("acme", "web", 42, "findings.ndjson")
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !bytes.Equal(body, docs[0]) && !bytes.Equal(body, docs[1]) {
+					t.Errorf("torn read: %d bytes, neither document", len(body))
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
