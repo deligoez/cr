@@ -43,3 +43,42 @@ func TestARoundDirectoryHoldsEveryArtefact(t *testing.T) {
 			"a JSON artefact starts as a document with nothing in it, not as an unparseable empty file")
 	}
 }
+
+// §9.3.5: earlier rounds are history, and a command that writes the current
+// round MUST leave them intact. Opening round 2 and filling every one of its
+// artefacts must therefore leave round 1's four files byte-identical.
+func TestASecondRoundLeavesTheFirstIntact(t *testing.T) {
+	l := lockedPR(t)
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	for _, name := range RoundFiles() {
+		require.NoError(t, held.WriteRound(1, name, []byte("round one "+name)))
+	}
+	require.NoError(t, held.Unlock())
+
+	first := make(map[string][]byte, len(RoundFiles()))
+	for _, name := range RoundFiles() {
+		body, err := l.ReadRound("acme", "web", 42, 1, name)
+		require.NoError(t, err, name)
+		first[name] = body
+	}
+
+	held, err = l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	for _, name := range RoundFiles() {
+		require.NoError(t, held.WriteRound(2, name, []byte("round two "+name)))
+	}
+	require.NoError(t, held.Unlock())
+
+	for _, name := range RoundFiles() {
+		body, err := l.ReadRound("acme", "web", 42, 1, name)
+		require.NoError(t, err, name)
+		assert.Equal(t, string(first[name]), string(body),
+			"round 2 disturbed round 1's "+name)
+
+		body, err = l.ReadRound("acme", "web", 42, 2, name)
+		require.NoError(t, err, name)
+		assert.Equal(t, "round two "+name, string(body))
+	}
+}
