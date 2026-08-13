@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -138,4 +140,44 @@ func TestNoModelSDKSitsInTheModuleGraph(t *testing.T) {
 	}
 
 	assert.Empty(t, found, "invariant 1: cr never calls a language model, so no model SDK may sit in its module graph")
+}
+
+// Nothing cr compiles imports a model SDK. The module graph above answers a
+// different question from this one: the graph says what could be reached, and
+// this says what the build actually reaches. Both are faults, because the
+// distance between them is a single import line, but they fail with different
+// messages because the fixes differ — one is a `go mod tidy` away, the other is
+// a design that has already gone wrong.
+//
+// `go list -deps` answers rather than the import blocks of cr's own files,
+// because those cannot see through a dependency: cobra or flock could grow a
+// model client in a release, and the AST of this repository would still look
+// clean while the binary reached one. `-test` widens it to the test binaries,
+// so a model called only from a test — during development, on the author's
+// machine, shaping what cr does with what it learned — is caught too.
+func TestNothingCrBuildsImportsAModelSDK(t *testing.T) {
+	root := moduleRoot(t)
+
+	// A guard that quietly skips when its tool is missing guards nothing, so
+	// an absent toolchain is a failure and not a skip.
+	gotool, err := exec.LookPath("go")
+	require.NoError(t, err, "the go toolchain is how this guard reads the compiled closure")
+
+	var stdout, stderr bytes.Buffer
+	list := exec.Command(gotool, "list", "-deps", "-test", "./...")
+	list.Dir = root
+	list.Stdout = &stdout
+	list.Stderr = &stderr
+	require.NoError(t, list.Run(), "go list failed: %s", strings.TrimSpace(stderr.String()))
+
+	var found []string
+	for _, pkg := range strings.Fields(stdout.String()) {
+		for _, sdk := range modelSDKPaths {
+			if strings.Contains(strings.ToLower(pkg), sdk) {
+				found = append(found, fmt.Sprintf("%s names %q", pkg, sdk))
+			}
+		}
+	}
+
+	assert.Empty(t, found, "invariant 1: cr never calls a language model, so nothing it compiles may import one")
 }
