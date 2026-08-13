@@ -27,3 +27,13 @@ func TestARecordIDIsNeverReusedAcrossRounds(t *testing.T) {
 	assert.Equal(t, "f8", NextID(acrossRounds), "round 1 spent f7, so round 2 starts after it")
 }
 
+// An id cr did not write says nothing about what is taken, so it contributes
+// nothing rather than being read as some number near it. f0 is the boundary:
+// ids are numbered from one, so counting it would hand the next record f1 while
+// something already claimed to be a record id below it.
+func TestAnIDCrDidNotWriteIsNotCounted(t *testing.T) {
+	for _, id := range []string{"", "9", "u9", "F9", "f", "f0", "f-9", "f+9", "f09", "f9x", "fnine"} {
+		assert.Equal(t, "f1", NextID([]Finding{{ID: id}}), "%q", id)
+	}
+	assert.Equal(t, "f10", NextID([]Finding{{ID: "f9"}, {ID: "u99"}}))
+}
