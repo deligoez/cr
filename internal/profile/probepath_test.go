@@ -55,3 +55,34 @@ func TestProbePathTemplateDefaultsToTheFirstTestsGlob(t *testing.T) {
 	}
 }
 
+// The template's placeholder vocabulary is closed to <probe-id> and <ext>. A
+// token cr does not substitute would reach the sandbox literally, so the file
+// §5.4.2 places and the file §5.1.6 looks for would be two different names, and
+// a leftover artefact would go unnoticed for the rest of the review.
+func TestProbePathTemplateVocabularyIsClosed(t *testing.T) {
+	block := `{"cmd": ["make", "test"], "globs": ["tests/*Test.php"], "probe_path_template": %q}`
+
+	// <ext> is the second member of the vocabulary, and it resolves from
+	// tests.globs with no test file supplied.
+	p, err := Load(testsProfile(t, fmt.Sprintf(block, "tests/Feature/cr_probe_<probe-id><ext>")))
+	require.NoError(t, err)
+	assert.Equal(t, "tests/Feature/cr_probe_<probe-id>Test.php", p.Tests.ProbePathTemplate)
+
+	for name, template := range map[string]string{
+		"an invented token":  "tests/cr_probe_<probe-id>_<slug>.php",
+		"a misspelt one":     "tests/cr_probe_<probeid>.php",
+		"a plausible cousin": "tests/cr_probe_<probe-id><extension>",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := testsProfile(t, fmt.Sprintf(block, template))
+
+			_, err := Load(path)
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, "tests.probe_path_template", malformed.Field)
+			assert.Contains(t, err.Error(), path)
+		})
+	}
+}
+
