@@ -8,6 +8,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
@@ -69,6 +70,17 @@ func TestAFailedGhCommandExitsWithTheFileCode(t *testing.T) {
 	})
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("ingesting threads: %w", err)))
+}
+
+// §6.1 rejects a class that is not kebab-case. The record's file was read and
+// parsed, so nothing about it failed as a file; what is wrong is the agent's
+// data inside it, which §11.2 codes 1. The code must survive the wrapping a
+// command adds on the way out.
+func TestAnInvalidClassExitsWithTheValidationCode(t *testing.T) {
+	err := finding.ValidateClass("review-correctness.ndjson", 7, "Missing Test")
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("merging findings: %w", err)))
 }
 
 // agentRecord stands in for a record type of one of the eight §2.3.3 files. It
