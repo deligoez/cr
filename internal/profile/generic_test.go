@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,4 +75,60 @@ func TestTheShippedGenericProfileIsNeverSelectedAutomatically(t *testing.T) {
 		assert.Equal(t, laravelPestID, selection.Profile.ID)
 		assert.Empty(t, selection.Tied)
 	})
+}
+
+// lensesTheProfileTakesOut names every lens §4.5.4 has to report as not run
+// because of the profile alone. §4.5's activation is a later obligation, so
+// this is the test's own reading of the conditions that will drive it, written
+// out here rather than in the package: what a profile settles, not what a run
+// settles. The intent axis of §4.5.3 and a role skipped per §4.6.4 are outside
+// it, because no profile field decides either.
+func lensesTheProfileTakesOut(p *Profile) []string {
+	out := make([]string, 0, 2)
+	for _, id := range axis.IDs() {
+		if !p.Axes[id] {
+			out = append(out, "axis "+id+" disabled by axes")
+		}
+	}
+	if len(p.Tests.Cmd) == 0 {
+		out = append(out, "axis test disabled by an absent tests.cmd, per §4.5.2")
+	}
+	if p.Symbols.Lang == "" {
+		out = append(out, "reinvention half of §4.3.1 unavailable by an absent symbols.lang")
+	}
+	return out
+}
+
+// §2.4.3 leaves configuration as the only way to reach generic, and what naming
+// it buys is a review with exactly two lenses honestly out: the test axis,
+// because §4.5.2 disables it on a profile declaring no `tests.cmd`, and the
+// reinvention half of §4.3.1, because there is no `symbols.lang` to build a
+// symbol index from. Exactness is the assertion in both directions. A third
+// entry would mean generic gave up a lens it could have run — the `axes` block
+// answers all four ids of §1.5 with true, so nothing here is switched off by
+// declaration, which is what keeps the disabling attributable to the absent
+// field §4.5.2 names and lets a user who adds a runner to their own copy get
+// the axis back. Fewer than two would mean cr claimed a lens it cannot support.
+//
+// The other shipped profile is read the same way as a control, so the two
+// entries are generic's own emptiness rather than a verdict this reading
+// returns for any profile.
+func TestSelectingGenericByConfigurationTakesOutExactlyTwoLenses(t *testing.T) {
+	dir := shippedProfilesDir(t)
+
+	// The repository carries a marker of the other profile, so the choice
+	// is the configuration's and nothing else's.
+	selection, err := Select(dir, repoWith(t, "artisan"), genericID)
+	require.NoError(t, err)
+	require.True(t, selection.Selected)
+	require.Equal(t, genericID, selection.Profile.ID)
+
+	assert.Equal(t, []string{
+		"axis test disabled by an absent tests.cmd, per §4.5.2",
+		"reinvention half of §4.3.1 unavailable by an absent symbols.lang",
+	}, lensesTheProfileTakesOut(&selection.Profile))
+
+	laravel, err := Load(filepath.Join(dir, laravelPestID+fileExt))
+	require.NoError(t, err)
+	assert.Empty(t, lensesTheProfileTakesOut(&laravel))
 }
