@@ -115,3 +115,27 @@ func TestRoundZeroIsNotARound(t *testing.T) {
 	assert.NoError(t, held.EnsureRound(1), "1 is the first round §9.3.3 opens")
 	require.NoError(t, held.Unlock())
 }
+
+// The §2.3 table decides what a round directory holds, so a name it does not
+// give a round is refused rather than written beside the four artefacts.
+func TestOnlyTheTablesArtefactsReachARoundDirectory(t *testing.T) {
+	l := lockedPR(t)
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, held.EnsureRound(1))
+	assert.ErrorContains(t, held.WriteRound(1, "notes.md", []byte("scratch")),
+		"§2.3 gives a round no such artefact")
+	assert.ErrorContains(t,
+		UpdateRoundJSON(held, 1, "notes.json", func(*map[string]int) {}),
+		"§2.3 gives a round no such artefact")
+	require.NoError(t, held.Unlock())
+
+	entries, err := os.ReadDir(l.RoundDir("acme", "web", 42, 1))
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	assert.ElementsMatch(t, RoundFiles(), names)
+}
