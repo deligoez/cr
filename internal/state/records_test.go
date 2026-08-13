@@ -102,3 +102,21 @@ func TestAMalformedRecordNamesItsLine(t *testing.T) {
 	assert.Contains(t, err.Error(), "line 3")
 }
 
+// A record cr cannot encode is reported by its position, and the file it was
+// bound for keeps what it had: the whole document is built before any of it is
+// published.
+func TestAnUnencodableRecordLeavesTheFileUntouched(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, WriteRecords(held, FileThreads, []plainRecord{{ID: "t1"}}))
+
+	err = WriteRecords(held, FileThreads, []any{plainRecord{ID: "t2"}, make(chan int)})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "record 2 of threads.ndjson")
+	require.NoError(t, held.Unlock())
+
+	body, err := l.ReadPR("acme", "web", 42, FileThreads)
+	require.NoError(t, err)
+	assert.Equal(t, "{\"id\":\"t1\"}\n", string(body))
+}
