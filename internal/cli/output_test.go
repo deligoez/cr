@@ -172,6 +172,25 @@ func TestNoColorStripsColourAndNothingElse(t *testing.T) {
 	assert.NotContains(t, terminal, "\x1b[", "--no-color left an escape sequence behind")
 }
 
+// §12.2: the JSON is pretty-printed with two-space indentation.
+//
+// Re-indenting what cr printed has to be a no-op, which is a stronger claim
+// than reading one line off the top: it holds at every depth the document has,
+// and it fails for a tab, for four spaces, and for a document printed compact
+// alike. The line is then read as well, because an equality between two
+// derived strings is hard to see a width in.
+func TestJSONIsPrettyPrintedWithTwoSpaceIndentation(t *testing.T) {
+	crHome(t)
+
+	out := strings.TrimSuffix(throughAPipe(t, "config"), "\n")
+
+	var compact, indented bytes.Buffer
+	require.NoError(t, json.Compact(&compact, []byte(out)), "a pipe was given %q", out)
+	require.NoError(t, json.Indent(&indented, compact.Bytes(), "", "  "))
+	assert.Equal(t, indented.String(), out)
+	assert.Contains(t, out, "\n  \"post.max_comments\": 20")
+}
+
 // outputDeciders are the imports that would let a file under internal/cli
 // answer §12.1 for itself: the terminal check, the encoder, and the colour.
 // Each is a way of deciding what output looks like, and the writer is where all
