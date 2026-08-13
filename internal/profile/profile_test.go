@@ -316,6 +316,90 @@ func TestACountPatternMustCaptureExactlyOneGroup(t *testing.T) {
 	}
 }
 
+// §2.4 makes tests.failed_pattern required exactly when tests.count_pattern is
+// present, and §5.2.1 says what rests on it: a failed pattern that never
+// matches yields zero rather than nothing, so a profile configuring only the
+// executed count would read every run as having no failures at all. That is the
+// one misconfiguration cr cannot afford to accept quietly — it manufactures the
+// `no-test-failed` result §5.3.5 lets a probe assert on.
+//
+// The two fields are therefore checked together: neither is a fault, both is
+// the working shape, and the failed pattern is held to the same single group as
+// its companion.
+func TestAFailedPatternIsRequiredBesideTheCountPattern(t *testing.T) {
+	t.Run("neither pattern is configured", func(t *testing.T) {
+		path := write(t, "generic", `{
+			"id": "generic",
+			"match": {"files": [], "globs": ["**/*"]},
+			"axes": {"test": true},
+			"tests": {"cmd": ["make", "test"], "globs": ["*_test.go"]}
+		}`)
+
+		p, err := Load(path)
+
+		require.NoError(t, err)
+		assert.Empty(t, p.Tests.CountPattern)
+		assert.Empty(t, p.Tests.FailedPattern)
+	})
+
+	t.Run("a count pattern without a failed pattern", func(t *testing.T) {
+		path := write(t, "generic", `{
+			"id": "generic",
+			"match": {"files": [], "globs": ["**/*"]},
+			"axes": {"test": true},
+			"tests": {"count_pattern": "(\\d+) passed"}
+		}`)
+
+		_, err := Load(path)
+
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Equal(t, "tests.failed_pattern", malformed.Field)
+		assert.Equal(t, path, malformed.File)
+		assert.Contains(t, err.Error(), "is required when tests.count_pattern is present")
+	})
+
+	t.Run("a failed pattern with two groups", func(t *testing.T) {
+		path := write(t, "generic", `{
+			"id": "generic",
+			"match": {"files": [], "globs": ["**/*"]},
+			"axes": {"test": true},
+			"tests": {
+				"count_pattern": "(\\d+) passed",
+				"failed_pattern": "(\\d+) failed of (\\d+)"
+			}
+		}`)
+
+		_, err := Load(path)
+
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		// The abort names the companion, not the count pattern it sits
+		// beside, so the author edits the field that is actually wrong.
+		assert.Equal(t, "tests.failed_pattern", malformed.Field)
+		assert.Contains(t, err.Error(), "has 2 capture groups")
+		assert.Contains(t, err.Error(), "a count of failed tests")
+	})
+
+	t.Run("both patterns with one group", func(t *testing.T) {
+		path := write(t, "generic", `{
+			"id": "generic",
+			"match": {"files": [], "globs": ["**/*"]},
+			"axes": {"test": true},
+			"tests": {
+				"count_pattern": "(\\d+) (?:passed|failed)",
+				"failed_pattern": "(\\d+) failed"
+			}
+		}`)
+
+		p, err := Load(path)
+
+		require.NoError(t, err)
+		assert.Equal(t, `(\d+) (?:passed|failed)`, p.Tests.CountPattern)
+		assert.Equal(t, `(\d+) failed`, p.Tests.FailedPattern)
+	})
+}
+
 // A field of the wrong type, an unparseable file, and an unreadable one are all
 // profile files cr cannot use. Each must name the file, and a type error must
 // name the field too, so the user is told what to open and what to fix.
