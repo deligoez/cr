@@ -145,3 +145,21 @@ func TestAProfilesDirectoryIsEitherReadOrReported(t *testing.T) {
 	})
 }
 
+// §2.4.2 forbids picking one of two profiles that matched the same number of
+// marker files. This package therefore selects nothing and reports both names,
+// which is the seam the abort of §2.4.2 — exit code 3, naming them — is built
+// on. Silently returning either one would be the failure the rule exists to
+// prevent, and no later layer could detect it.
+func TestATieSelectsNothingAndNamesTheTiedProfiles(t *testing.T) {
+	dir := profilesDir(t, map[string][]string{
+		"laravel-pest": {"artisan"},
+		"symfony":      {"artisan"},
+	})
+
+	selection, err := Select(dir, repoWith(t, "artisan"), "")
+	require.NoError(t, err)
+
+	assert.False(t, selection.Selected)
+	assert.Empty(t, selection.Profile.ID)
+	assert.Equal(t, []string{"laravel-pest", "symfony"}, selection.Tied)
+}
