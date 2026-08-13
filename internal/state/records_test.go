@@ -64,3 +64,26 @@ func TestTheWriterOwnsHeadAndRound(t *testing.T) {
 	}, got)
 }
 
+// §2.3.3 names exactly eight files. Which writer a file takes follows from that
+// list and not from the caller, so a stamped file cannot be written unstamped
+// and an unstamped one cannot acquire the pair by accident.
+func TestAFileIsWrittenThroughTheWriterItsSchemaRequires(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, held.Unlock()) }()
+
+	at := Stamp{Head: "0f1e2d3", Round: 1}
+	for _, name := range []string{
+		FileClaims, FileUnits, FileMapping, FileFindings,
+		FileProbes, FileRuns, FileIntentGaps, FileCoverage,
+	} {
+		assert.Error(t, WriteRecords(held, name, []plainRecord{}), name)
+		assert.NoError(t, WriteStamped(held, name, at, []*stampedRecord{}), name)
+	}
+	for _, name := range []string{FilePostedIndex, FileThreads, FileTransitions, FileWaivers} {
+		assert.NoError(t, WriteRecords(held, name, []plainRecord{}), name)
+		assert.Error(t, WriteStamped(held, name, at, []*stampedRecord{}), name)
+	}
+}
+
