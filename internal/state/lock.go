@@ -60,7 +60,7 @@ func (k *Lock) Unlock() error {
 // §2.3.2 requires reads to be lock-free, which is what obliges every write to
 // publish by rename.
 func (l Layout) ReadPR(owner, repo string, pr int, name string) ([]byte, error) {
-	path := filepath.Join(l.PRDir(owner, repo, pr), name)
+	path := l.PRFile(owner, repo, pr, name)
 	body, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %s: %w", path, err)

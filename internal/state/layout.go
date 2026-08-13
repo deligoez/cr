@@ -135,6 +135,11 @@ func (l Layout) PRDir(owner, repo string, pr int) string {
 	return filepath.Join(l.RepoStateDir(owner, repo), "pr-"+strconv.Itoa(pr))
 }
 
+// PRFile is one file inside a pull request's state directory (§2.3).
+func (l Layout) PRFile(owner, repo string, pr int, name string) string {
+	return filepath.Join(l.PRDir(owner, repo, pr), name)
+}
+
 // ContextDir holds the out-of-band context store (§3.6).
 func (l Layout) ContextDir() string { return filepath.Join(l.root, "context") }
 
