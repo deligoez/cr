@@ -69,7 +69,7 @@ go test ./...
 golangci-lint run
 
 # Quality gate (run after every task; tp runs it at `tp done`)
-go test ./... && golangci-lint run && ./scripts/deadcode.sh
+go test -race ./... && golangci-lint run && ./scripts/deadcode.sh
 
 # Stripped binary
 go build -ldflags="-s -w" -o cr ./cmd/cr
@@ -113,11 +113,11 @@ Two rules that make the phase-boundary run worth doing:
    and say which ones are being left and why. `gremlins` is load-sensitive — a
    run full of `TIMED OUT` is not a result.
 
-**Do not add `-race` to the gate until the first goroutine or file lock lands.**
-§2.3.1 requires an advisory lock on every per-PR write, so it arrives with
-`state-write-locking`; until then a gate step that can never fire teaches
-nothing and costs wall time. **Do not adopt `apidiff`**: every package is under
-`internal/`, so there is no importable API to compare.
+**`-race` is in the gate**, added by `state-write-locking`: §2.3.1 puts an
+advisory lock on every per-PR write and §2.3.2 makes reads lock-free, so the
+suite now spawns goroutines and a race has somewhere to hide. **Do not adopt
+`apidiff`**: every package is under `internal/`, so there is no importable API
+to compare.
 
 ## Command surface
 

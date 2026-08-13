@@ -33,7 +33,7 @@ func TestQualityGateRunsEveryStep(t *testing.T) {
 
 	gate := file.Workflow.QualityGate
 	for _, step := range []string{
-		"go test ./...",
+		"go test -race ./...",
 		"golangci-lint run",
 		"./scripts/deadcode.sh",
 	} {
