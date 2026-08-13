@@ -122,14 +122,14 @@ func TestARecordNeverSerialisesASliceAsNull(t *testing.T) {
 // built on the same separation, so it has to hold for a findings.ndjson line.
 func TestHeadAndRoundReachARecordOnlyFromTheWriter(t *testing.T) {
 	_, err := state.DecodeStamped[Finding](
-		state.FileFindings, []byte(`{"id":"f1","class":"missing-test","head":"0f1e2d3"}`),
+		state.FileFindings, []byte(`{"id":"f1","class":"missing-test","head":"0f1e2d3"}`), nil,
 	)
 	var reserved *state.ReservedFieldError
 	require.ErrorAs(t, err, &reserved)
 	assert.Equal(t, "head", reserved.Field)
 
 	records, err := state.DecodeStamped[Finding](
-		state.FileFindings, []byte(`{"id":"f1","class":"missing-test"}`),
+		state.FileFindings, []byte(`{"id":"f1","class":"missing-test"}`), nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)

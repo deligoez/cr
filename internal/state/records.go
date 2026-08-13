@@ -105,10 +105,19 @@ var stampFields = []string{"head", "round"}
 // §3.3.1, §4.1.6, §4.5.6 and §6.1.3 all reach WriteStamped through it. Each
 // inherits the rejection instead of restating it, so none of them can give the
 // agent a different answer about who owns head and round.
+//
+// check is what one command adds to that shared rejection. §4.1.6, §4.5.6 and
+// §6.1.3 each refuse a line for reasons of their own, and each has to name the
+// line it refused, so the check runs inside this loop rather than after it:
+// there is one place that counts lines, and a second pass could not agree with
+// it about a blank one. It is given the one-based line number, the line's
+// fields by JSON key — so a check can tell a field the agent omitted from one
+// it wrote empty — and the decoded record. A command with nothing to add passes
+// nil.
 func DecodeStamped[E any, T interface {
 	*E
 	Stamped
-}](file string, body []byte) ([]T, error) {
+}](file string, body []byte, check func(int, map[string]json.RawMessage, T) error) ([]T, error) {
 	records := make([]T, 0)
 	for i, line := range bytes.Split(body, []byte{'\n'}) {
 		if len(bytes.TrimSpace(line)) == 0 {
@@ -126,6 +135,11 @@ func DecodeStamped[E any, T interface {
 		record := T(new(E))
 		if err := json.Unmarshal(line, record); err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", file, i+1, err)
+		}
+		if check != nil {
+			if err := check(i+1, supplied, record); err != nil {
+				return nil, err
+			}
 		}
 		records = append(records, record)
 	}

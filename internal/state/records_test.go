@@ -141,7 +141,7 @@ func TestAnAgentMayNotSupplyHeadOrRound(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := DecodeStamped[stampedRecord](
-				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"),
+				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"), nil,
 			)
 			var reserved *ReservedFieldError
 			require.ErrorAs(t, err, &reserved)
@@ -166,7 +166,7 @@ func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
 	require.NoError(t, err)
 
 	records, err := DecodeStamped[stampedRecord](
-		FileClaims, []byte("{\"id\":\"c1\"}\n{\"id\":\"c2\"}\n"),
+		FileClaims, []byte("{\"id\":\"c1\"}\n{\"id\":\"c2\"}\n"), nil,
 	)
 	require.NoError(t, err)
 	require.NoError(t, WriteStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
@@ -179,7 +179,7 @@ func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
 		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, ID: "c2"},
 	}, got)
 
-	empty, err := DecodeStamped[stampedRecord](FileClaims, nil)
+	empty, err := DecodeStamped[stampedRecord](FileClaims, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []*stampedRecord{}, empty)
 }
@@ -194,7 +194,7 @@ func TestAnUndecodableAgentLineIsNamedByItsNumber(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := DecodeStamped[stampedRecord](
-				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"),
+				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"), nil,
 			)
 			require.Error(t, err)
 			var reserved *ReservedFieldError

@@ -96,7 +96,7 @@ type agentRecord struct {
 // adds on the way out.
 func TestASuppliedStampFieldExitsWithTheValidationCode(t *testing.T) {
 	_, err := state.DecodeStamped[agentRecord](
-		state.FileClaims, []byte(`{"id":"c1","round":2}`),
+		state.FileClaims, []byte(`{"id":"c1","round":2}`), nil,
 	)
 	require.Error(t, err)
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
