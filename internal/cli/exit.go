@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/profile"
 )
 
@@ -36,6 +37,15 @@ func exitCodeFor(err error) int {
 	if errors.As(err, &malformedProfile) {
 		// §2.5 item 3: a malformed profile file aborts with exit
 		// code 3, naming the file and the offending field.
+		return ExitFile
+	}
+	var protectedName *config.ProtectedError
+	if errors.As(err, &protectedName) {
+		// §2.7: a CR_ variable or config key addressing a protected
+		// decision is a configuration failure, which §11.2 codes as
+		// ExitFile. It is not a validation failure: the run never
+		// reached input data, and it is not a usage error, because
+		// nothing about the invocation can be corrected.
 		return ExitFile
 	}
 	return ExitUsage
