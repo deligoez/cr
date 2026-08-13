@@ -19,9 +19,8 @@ type Comment struct {
 	// AuthorTypename is the GraphQL type of the author — `User`, `Bot`,
 	// `Organization`, or `Mannequin` — verbatim, and empty when the
 	// account is gone. It is the raw fact the API reports and not the
-	// tag: §3.5.2 requires an author type of `human` or `bot`, which is a
-	// judgement about this value that a later round makes and records
-	// under its own field.
+	// tag: §3.5.2's `human` or `bot` is a judgement about this value,
+	// and it is recorded separately as Thread.AuthorType.
 	AuthorTypename string `json:"author_typename"`
 	// Body is the comment's text as it was written.
 	Body string `json:"body"`
@@ -57,6 +56,25 @@ type Anchor struct {
 	OriginalLine int `json:"original_line"`
 }
 
+// AuthorType is §3.5.2's tag over a thread's author: `human` or `bot`, and
+// nothing else.
+//
+// It is a judgement about Comment.AuthorTypename rather than a copy of it, so
+// it gets its own field: the raw value is what GitHub answered, and the tag is
+// what §3.5.3 filters on.
+type AuthorType string
+
+const (
+	// AuthorHuman tags a thread cr has not been told is a bot.
+	AuthorHuman AuthorType = "human"
+	// AuthorBot tags a thread GitHub itself reports a bot wrote.
+	AuthorBot AuthorType = "bot"
+)
+
+// botTypename is the one GraphQL author type that means a bot. GitHub answers
+// it for a GitHub App's own identity and for nothing else.
+const botTypename = "Bot"
+
 // Thread is one existing review thread on the pull request under review, with
 // everything §3.5.1 requires ingestion to carry: author, body, anchor,
 // resolution state, and replies.
@@ -81,6 +99,10 @@ type Thread struct {
 	// Comment is the opening comment, which carries the thread's author
 	// and body.
 	Comment Comment `json:"comment"`
+	// AuthorType is §3.5.2's tag over that author. It is the thread's,
+	// not the reply's: a thread is attached or not as a whole, so who
+	// opened it decides.
+	AuthorType AuthorType `json:"author_type"`
 	// Replies are the comments answering it, oldest first. §3.5.5 offers
 	// the author's among them as candidate context notes.
 	Replies []Comment `json:"replies"`
@@ -286,6 +308,7 @@ func (c Client) thread(node *threadNode) (Thread, error) {
 		thread.Comment = comments[0]
 		thread.Replies = append(thread.Replies, comments[1:]...)
 	}
+	thread.AuthorType = authorType(thread.Comment)
 	return thread, nil
 }
 
@@ -351,6 +374,31 @@ func (n commentNode) comment() Comment {
 		comment.Author, comment.AuthorTypename = n.Author.Login, n.Author.Typename
 	}
 	return comment
+}
+
+// authorType tags one thread's author `human` or `bot`, per §3.5.2.
+//
+// The judgement is GitHub's own and cr adds nothing to it: the API answers
+// `Bot` for a GitHub App's identity and for nothing else, and that answer
+// alone makes the tag `bot`. A `User`, an `Organization`, a `Mannequin`, and
+// an author the API answers null for because the account is gone are all
+// `human`.
+//
+// That leaves `dependabot[bot]`, `github-actions[bot]`, and every CI account
+// somebody made by hand tagged `human`, because GitHub reports them as `User`.
+// Reading the `[bot]` suffix or carrying a login allowlist would catch them,
+// and cr does neither. It would be cr deciding whose comment counts, which is
+// the shape of judgement §2.1 leaves to the agent, and it errs in the
+// expensive direction: a bot tagged `human` costs the agent one comment to
+// read and discard, while a human tagged `bot` drops the thread §3.5.3 would
+// have attached, so §3.5.4 never suppresses against it and cr raises a concern
+// a colleague already raised. The agent sees the login and the raw typename on
+// every thread and can tell a bot from a person itself.
+func authorType(opener Comment) AuthorType {
+	if opener.AuthorTypename == botTypename {
+		return AuthorBot
+	}
+	return AuthorHuman
 }
 
 // anchor normalises a thread's position into the range a containment test can
