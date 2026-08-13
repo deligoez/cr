@@ -110,3 +110,31 @@ func TestProbePathTemplateNeedsExactlyOneProbeID(t *testing.T) {
 	}
 }
 
+// §5.1.6 resolves the template with no test file in hand, so <ext> can only come
+// from tests.globs. A profile whose globs cannot yield one is malformed: cr
+// aborts naming the profile rather than placing a probe at a path the runner
+// will never discover.
+func TestProbePathTemplateAbortsWhenExtIsUnresolvable(t *testing.T) {
+	cases := map[string]string{
+		// The last wildcard is followed by a path separator, so no
+		// suffix of the glob's final segment follows it.
+		"the default needs it": `{"cmd": ["make", "test"], "globs": ["tests/*/AllTest.php"]}`,
+		"an explicit template asks for it with no globs to answer": `{"probe_path_template": "cr_probe_<probe-id><ext>"}`,
+	}
+	for name, block := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := testsProfile(t, block)
+
+			_, err := Load(path)
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, "tests.probe_path_template", malformed.Field)
+			assert.Contains(t, err.Error(), "<ext>")
+			// The file names the profile, whose id §2.4 fixes to the
+			// file stem; the cli layer maps the error onto exit 3.
+			assert.Contains(t, err.Error(), path)
+		})
+	}
+}
+
