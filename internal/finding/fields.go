@@ -1,12 +1,14 @@
 package finding
 
+import "slices"
+
 // Requirement is what §6.1's Required column says about one row.
 //
 // The column is not the same question as "may the agent write this". §6.1.4
 // names fields of its own that no agent may supply — disposition, thread_id and
-// duplicate_of among them — and the column calls all three optional. Whoever
-// implements §6.1.4 reads that list as well as this one; Optional here means
-// only that a record without the field is complete.
+// duplicate_of among them — and the column calls all three optional. reserved
+// below is §6.1.4's own list, and it reads this column as well; Optional here
+// means only that a record without the field is complete.
 type Requirement int
 
 const (
@@ -79,6 +81,45 @@ var citationFields = []Field{
 	{Name: "line", Requirement: Required},
 	{Name: "content_hash", Requirement: Computed},
 	{Name: "origin", Requirement: Computed},
+}
+
+// alsoReserved are the fields §6.1.4 forbids that §6.1's Required column does
+// not mark computed. `cr` writes all three: §7.2 sets `disposition` at triage,
+// §8.4 sets `thread_id` at posting, and §6.4.3 sets `duplicate_of` when it
+// suppresses a duplicate — which §6.5.1 lets `cr merge` carry in its output and
+// lets nothing else write anywhere.
+//
+// `suppressed_by` is deliberately absent. §3.5.4 has the **agent** decide
+// whether an attached thread already covers a finding, so that field holds the
+// agent's judgement rather than `cr`'s, which is exactly what `duplicate_of`
+// does not.
+var alsoReserved = []string{"disposition", "duplicate_of", "thread_id"}
+
+// claimHashes are §3.3's two computed claim fields, which §6.1.4 names in the
+// same sentence as its own. They are rows of §3.3's table, not §6.1's, so a
+// finding line carrying one carries a key no finding row can hold: §6.1.4
+// forbids it in as many words, no finding has a use for either, and refusing
+// them takes nothing from a record it may keep. `cr claims record` reads §3.3's
+// table and refuses them there on its own account.
+var claimHashes = []string{"span_hash", "issue_hash"}
+
+// reserved is §6.1.4's fence: every field a record may not arrive carrying,
+// in §6.1's table order with §3.3's two last, so a record overstepping in
+// several places is always reported by the same one.
+//
+// Most of it is derived from the Required column rather than restated, so a row
+// the spec marks computed joins the fence by being marked and the two readings
+// of the table cannot come to different conclusions about the same row.
+var reserved = reservedFields()
+
+func reservedFields() []string {
+	names := make([]string, 0, len(fields)+len(claimHashes))
+	for _, field := range fields {
+		if field.Requirement == Computed || slices.Contains(alsoReserved, field.Name) {
+			names = append(names, field.Name)
+		}
+	}
+	return append(names, claimHashes...)
 }
 
 // Fields returns §6.1's rows in table order. The result is a copy, so a caller
