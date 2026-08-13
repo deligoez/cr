@@ -3,9 +3,13 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -244,4 +248,210 @@ func TestATerminalInitNamesTheStateDirectory(t *testing.T) {
 
 	assert.Contains(t, out, "state directory ready at ")
 	assert.Contains(t, out, "\x1b[36m"+root+"\x1b[0m")
+}
+
+// outputStructs is one value of every payload a command can hand to emit,
+// which is the set §12.3 has to hold for. It is proven complete below rather
+// than trusted: a payload nobody listed here is a payload nobody checked, and
+// a list somebody has to remember to extend is the failure §12.3 keeps having.
+var outputStructs = []result{initResult{}, configResult(nil)}
+
+// payloadName is a payload's own type name, whether the value listed is the
+// type or a pointer to it, so it can be matched against the receiver its Text
+// method names in the source.
+func payloadName(payload result) string {
+	structure := reflect.TypeOf(payload)
+	if structure.Kind() == reflect.Pointer {
+		structure = structure.Elem()
+	}
+	return structure.Name()
+}
+
+// §12.3: no slice reaches a printed document as null.
+//
+// The payloads are walked zero-valued, which is the state that makes the rule
+// bite: a slice a constructor would have made empty is nil until the
+// constructor runs, and nothing runs one here. Every other position is
+// materialised instead — a pointer allocated, a map given an entry, an any
+// holding a nil list, which is how `cr config`'s list settings arrive — so a
+// null can hide nowhere, and no null the document does print has an innocent
+// explanation. That is what lets the document's own text be the assertion.
+//
+// A payload holding a type that marshals itself is beyond this. Such a type
+// decides what its own nulls mean and withoutNilSlices leaves it alone, so if
+// one ever reaches an output struct this is where it stops and asks.
+func TestNoOutputStructPrintsANullArray(t *testing.T) {
+	listed := make([]string, 0, len(outputStructs))
+	for _, payload := range outputStructs {
+		listed = append(listed, payloadName(payload))
+	}
+	require.ElementsMatch(t, emittablePayloads(t), listed,
+		"a payload cr can print is a place a null array can appear: walk it here too")
+
+	for _, payload := range outputStructs {
+		t.Run(payloadName(payload), func(t *testing.T) {
+			structure := reflect.TypeOf(payload)
+			for open := 0; open <= sliceLayers(structure, map[reflect.Type]bool{}); open++ {
+				probe := zeroPayload(structure, open, map[reflect.Type]bool{})
+
+				var printed bytes.Buffer
+				out := &writer{out: &printed, mode: ModeJSON}
+				require.NoError(t, out.emit(probe.Interface().(result)))
+
+				assert.NotContains(t, printed.String(), "null",
+					"§12.3: with %d slice layer(s) opened, the payload printed %s", open, printed.String())
+			}
+		})
+	}
+}
+
+// emittablePayloads reads out of internal/cli's own source the name of every
+// type a command can emit: one whose Text method takes the writer, which is
+// what the result interface asks for.
+//
+// Nothing outside this package can implement it — writer is unexported — so
+// the package's source is the whole list, and a payload written years from now
+// by someone who never read §12.3 is on it whether or not they remember this
+// test exists.
+func emittablePayloads(t *testing.T) []string {
+	t.Helper()
+	sources, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(outputStructs))
+	for _, source := range sources {
+		name := source.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		for _, decl := range parsed.Decls {
+			if method, ok := decl.(*ast.FuncDecl); ok && rendersForTheWriter(method) {
+				names = append(names, receiverName(method))
+			}
+		}
+	}
+	return names
+}
+
+// rendersForTheWriter reports whether a declaration is the result interface's
+// method: a method named Text taking the writer and nothing else.
+func rendersForTheWriter(method *ast.FuncDecl) bool {
+	if method.Recv == nil || method.Name.Name != "Text" || len(method.Type.Params.List) != 1 {
+		return false
+	}
+	pointer, ok := method.Type.Params.List[0].Type.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	named, ok := pointer.X.(*ast.Ident)
+	return ok && named.Name == "writer"
+}
+
+// receiverName is the type a method hangs off, with any pointer dropped. Only
+// the type is walked; what the receiver calls itself is no part of the name.
+func receiverName(method *ast.FuncDecl) string {
+	name := ""
+	ast.Inspect(method.Recv.List[0].Type, func(node ast.Node) bool {
+		if named, ok := node.(*ast.Ident); ok && name == "" {
+			name = named.Name
+		}
+		return name == ""
+	})
+	return name
+}
+
+// sliceLayers is how deep slices nest inside a type: a []string is one layer,
+// a [][]string or a []struct{ Tags []string } is two. It bounds the probes
+// below, since a nil under two slices is unreachable until the first one has
+// an element to look inside.
+func sliceLayers(structure reflect.Type, seen map[reflect.Type]bool) int {
+	if seen[structure] {
+		return 0
+	}
+	seen[structure] = true
+	defer delete(seen, structure)
+
+	switch structure.Kind() {
+	case reflect.Slice:
+		return 1 + sliceLayers(structure.Elem(), seen)
+	case reflect.Pointer, reflect.Array, reflect.Map:
+		return sliceLayers(structure.Elem(), seen)
+	case reflect.Struct:
+		deepest := 0
+		for i := range structure.NumField() {
+			if field := structure.Field(i); field.IsExported() {
+				deepest = max(deepest, sliceLayers(field.Type, seen))
+			}
+		}
+		return deepest
+	default:
+		return 0
+	}
+}
+
+// zeroPayload builds the payload a command would hand over having filled in
+// nothing: every string empty, every number zero. Everything a JSON document
+// can reach is materialised, so no position goes unprinted for want of a value
+// — except slices, which are left nil, that being the state §12.3 forbids the
+// document.
+//
+// open is how many layers of slices are given one element each before the rest
+// are left nil. A nil slice inside a slice of structs is invisible until the
+// outer slice has an element, so the probe is run once per layer.
+func zeroPayload(structure reflect.Type, open int, seen map[reflect.Type]bool) reflect.Value {
+	if seen[structure] {
+		// A type reached from inside itself. The probe stops rather
+		// than recurring forever, and the nil pointer it leaves is a
+		// null this test would then report.
+		return reflect.Zero(structure)
+	}
+	seen[structure] = true
+	defer delete(seen, structure)
+
+	switch structure.Kind() {
+	case reflect.Interface:
+		// A nil list inside an any is the live hazard here, since
+		// §2.7's list settings reach `cr config`'s payload exactly
+		// that way. A named interface is left alone: no type is known
+		// to satisfy it from here.
+		if structure.NumMethod() > 0 {
+			return reflect.Zero(structure)
+		}
+		return reflect.ValueOf([]string(nil))
+	case reflect.Pointer:
+		allocated := reflect.New(structure.Elem())
+		allocated.Elem().Set(zeroPayload(structure.Elem(), open, seen))
+		return allocated
+	case reflect.Struct:
+		built := reflect.New(structure).Elem()
+		for i := range structure.NumField() {
+			if field := structure.Field(i); field.IsExported() {
+				built.Field(i).Set(zeroPayload(field.Type, open, seen))
+			}
+		}
+		return built
+	case reflect.Map:
+		// The key is left zero: a JSON key is a string, and no slice
+		// can become one.
+		built := reflect.MakeMap(structure)
+		built.SetMapIndex(reflect.Zero(structure.Key()), zeroPayload(structure.Elem(), open, seen))
+		return built
+	case reflect.Slice:
+		if open <= 0 {
+			return reflect.Zero(structure)
+		}
+		built := reflect.MakeSlice(structure, 1, 1)
+		built.Index(0).Set(zeroPayload(structure.Elem(), open-1, seen))
+		return built
+	case reflect.Array:
+		built := reflect.New(structure).Elem()
+		for i := range structure.Len() {
+			built.Index(i).Set(zeroPayload(structure.Elem(), open, seen))
+		}
+		return built
+	default:
+		return reflect.Zero(structure)
+	}
 }
