@@ -64,3 +64,60 @@ func TestTheShippedLaravelPestProfileFillsEveryFieldItNeeds(t *testing.T) {
 	assert.Equal(t, "php", p.Symbols.Lang)
 }
 
+// §5.4.2 places a gap probe's test at tests.probe_path_template and then runs
+// the suite, so a template the runner does not collect turns every gap probe
+// into a run of the untouched suite — a green result that proves nothing and
+// looks exactly like proof. Two conditions decide it, and §2.4 names both: the
+// path must satisfy the profile's own tests.globs, and the runner's discovery
+// must find the file there.
+//
+// The default template would satisfy neither. It roots at the first glob's
+// literal prefix, tests, and a file directly under tests/ belongs to no
+// testsuite in the phpunit.xml Laravel ships, whose suites are tests/Unit and
+// tests/Feature. Hence the explicit template. Pest 4.7.8 was observed
+// collecting a file written to exactly this path and skipping one written a
+// directory higher.
+func TestTheLaravelPestProbePathSatisfiesItsTestGlobs(t *testing.T) {
+	p := loadLaravelPest(t)
+
+	placed := p.ProbePath("p7")
+
+	assert.Equal(t, "tests/Feature/cr_probe_p7Test.php", placed)
+	// The glob's two literal anchors, read off the profile rather than
+	// restated: everything before its first wildcard and everything after
+	// its last.
+	root := probeRoot(p.Tests.Globs[0])
+	ext, unresolvable := probeExt(p.Tests.Globs)
+	require.Empty(t, unresolvable)
+	assert.True(t, strings.HasPrefix(placed, root+"/"), "%s must sit under %s", placed, root)
+	assert.True(t, strings.HasSuffix(placed, ext), "%s must end with %s", placed, ext)
+	// The directory is a registered testsuite, which is the half of
+	// discovery the globs cannot express.
+	assert.Equal(t, "tests/Feature", path.Dir(placed))
+	// §5.1.6 recognises a leftover artefact by replacing the probe id,
+	// which only works while the rest of the path stays fixed.
+	assert.Equal(t, "tests/Feature/cr_probe_*Test.php", p.LeftoverGlob())
+}
+
+// §5.2.1 sums each pattern over every match and reads an unmatched
+// tests.failed_pattern as zero. sumPattern is that arithmetic, kept here
+// because running the patterns is §5.2.1's implementation and not this
+// package's: what the test proves is that the shipped patterns yield the right
+// numbers from output Pest really produced.
+func sumPattern(t *testing.T, pattern, output string) (int, bool) {
+	t.Helper()
+	compiled, err := regexp.Compile(pattern)
+	require.NoError(t, err)
+	matches := compiled.FindAllStringSubmatch(output, -1)
+	if len(matches) == 0 {
+		return 0, false
+	}
+	total := 0
+	for _, match := range matches {
+		n, err := strconv.Atoi(match[1])
+		require.NoError(t, err)
+		total += n
+	}
+	return total, true
+}
+
