@@ -205,3 +205,25 @@ func TestIngestionRefusesAPageThatNamesNoCursor(t *testing.T) {
 	assert.Contains(t, err.Error(), "names no cursor")
 }
 
+// A review thread is created by its opening comment, so one carrying none is a
+// shape GitHub does not answer with. Reading it as though it did would index
+// past the end of the slice, and an ingest that panics loses every other thread
+// on the pull request along with the unreadable one.
+func TestAThreadCarryingNoCommentIsStillIngested(t *testing.T) {
+	const empty = `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+		"pageInfo":{"hasNextPage":false,"endCursor":null},
+		"nodes":[{"id":"PRRT_1","path":"web/app.go","line":9,"diffSide":"LEFT",
+		"isResolved":true,"comments":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]}}}}}`
+
+	threads, err := WithRunner(func(...string) (string, error) { return empty, nil }).
+		Threads("acme", "web", 42)
+
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+	assert.Equal(t, "PRRT_1", threads[0].ID)
+	assert.True(t, threads[0].Resolved)
+	assert.Equal(t, git.Left, threads[0].Anchor.Side)
+	assert.Equal(t, Comment{}, threads[0].Comment)
+	assert.Empty(t, threads[0].Replies)
+}
+
