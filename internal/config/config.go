@@ -5,10 +5,12 @@
 // config, then the global config, then the built-in defaults. Resolution
 // happens at read time, so no layer is ever baked into a file.
 //
-// Three decisions are deliberately outside that surface: the confirmation gate
-// of §8.5, the argued forcing of §6.3, and the question label of §8.1.4. They
-// are not settings. A name that would address one is rejected here rather than
-// by a caller, so no later code path is in a position to honour it.
+// Five decisions are deliberately outside that surface: the confirmation gate
+// of §8.5, the argued forcing of §6.3, the question label of §8.1.4, and the
+// provenance and evidence regions of §8.1.6 and §8.1.7. The last three are the
+// only channels carrying the register, the disclosure, and the checkability to
+// the author, so a name that would address any of them is rejected here rather
+// than by a caller, and no later code path is in a position to honour it.
 package config
 
 import (
@@ -21,6 +23,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/deligoez/cr/internal/state"
 )
@@ -63,7 +66,8 @@ var defaults = func() map[string]any {
 // would address. The check is on the name rather than on an exact key list: a
 // list of exact spellings is defeated by any synonym, and the two costs are not
 // comparable. Refusing an unrelated key costs a rename; honouring a protected
-// one costs an implicit network write.
+// one costs an implicit network write, an assertion the register forbids, or a
+// disclosure the author never sees.
 var protectedTokens = []struct {
 	token   string
 	subject string
@@ -73,6 +77,22 @@ var protectedTokens = []struct {
 	{"argued", "the argued forcing of §6.3"},
 	{"forcing", "the argued forcing of §6.3"},
 	{"label", "the question label of §8.1.4"},
+	{"provenance", "the provenance region of §8.1.6"},
+	{"evidence", "the evidence region of §8.1.7"},
+}
+
+// carriers are the words that embed a token's letters without naming its
+// decision. The list is deliberately short: a word missing from it is refused,
+// which costs a rename, while a word wrongly on it makes a protected decision
+// addressable from a file.
+var carriers = map[string]string{
+	"aggregate":   "gate",
+	"delegate":    "gate",
+	"propagate":   "gate",
+	"mitigate":    "gate",
+	"navigate":    "gate",
+	"enforcing":   "forcing",
+	"reinforcing": "forcing",
 }
 
 // ProtectedError reports a name that would address a decision no layer may
@@ -94,14 +114,54 @@ func (e *ProtectedError) Error() string {
 // checkProtected rejects a name whose spelling addresses a protected decision.
 // name is reported to the user; spelling is the part matched against the
 // tokens, so an environment variable is judged without its CR_ prefix.
+//
+// §2.7 refuses a name that "would address" a decision. That is neither an exact
+// key list, which any synonym defeats, nor every occurrence of the letters,
+// which would refuse "aggregate" and blame the confirmation gate for it. A name
+// is read as its words, and a word carrying a token addresses the decision, so
+// post.gate_timeout_seconds and post.labels are refused while rules.aggregate_min
+// is not.
 func checkProtected(name, spelling string) error {
-	lowered := strings.ToLower(spelling)
-	for _, protected := range protectedTokens {
-		if strings.Contains(lowered, protected.token) {
-			return &ProtectedError{Name: name, Subject: protected.subject}
+	for _, word := range words(spelling) {
+		for _, protected := range protectedTokens {
+			if carriers[word] == protected.token {
+				continue
+			}
+			if strings.Contains(word, protected.token) {
+				return &ProtectedError{Name: name, Subject: protected.subject}
+			}
 		}
 	}
 	return nil
+}
+
+// words splits a name into the words a reader sees in it. A separator or a
+// camelCase boundary ends a word, and every word is lower-cased, so
+// CR_POST_CONFIRM, post.confirm and postConfirm all read alike.
+func words(name string) []string {
+	out := make([]string, 0, strings.Count(name, "_")+strings.Count(name, ".")+1)
+	var word strings.Builder
+	flush := func() {
+		if word.Len() > 0 {
+			out = append(out, word.String())
+			word.Reset()
+		}
+	}
+	var previous rune
+	for _, letter := range name {
+		switch {
+		case !unicode.IsLetter(letter) && !unicode.IsDigit(letter):
+			flush()
+		case unicode.IsUpper(letter) && unicode.IsLower(previous):
+			flush()
+			word.WriteRune(unicode.ToLower(letter))
+		default:
+			word.WriteRune(unicode.ToLower(letter))
+		}
+		previous = letter
+	}
+	flush()
+	return out
 }
 
 // Sources are the four layers a resolution reads above the built-in defaults.
@@ -109,8 +169,10 @@ type Sources struct {
 	// Flags holds the settings a command's own flags supplied, keyed by
 	// setting key. A command adds an entry only for a flag the user actually
 	// gave: an unset flag carries its own default, which would mask every
-	// layer below it. No flag may address a protected decision, because the
-	// table above is the only surface a flag can reach.
+	// layer below it. Flag names are not scanned, because §8.5.2 requires
+	// --confirm to exist as a flag. That exemption reaches no protected
+	// decision: an entry is keyed by setting key, and the table above is the
+	// only surface a flag can reach.
 	Flags map[string]any
 	// Environ is the environment, in os.Environ form.
 	Environ []string
