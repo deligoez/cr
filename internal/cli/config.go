@@ -1,9 +1,10 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/deligoez/cr/internal/config"
@@ -11,9 +12,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// configResult is the effective configuration of spec/0.1.0.md §2.7, keyed by
+// the flat dotted names that section gives its settings.
+type configResult map[string]any
+
+// Text lists every setting, one per line, in key order. The order is sorted
+// rather than incidental so two runs can be diffed against each other, which is
+// most of what reading the effective configuration is for.
+func (r configResult) Text(w *writer) string {
+	lines := make([]string, 0, len(r))
+	for _, key := range slices.Sorted(maps.Keys(r)) {
+		lines = append(lines, fmt.Sprintf("%s = %v", w.accent(key), r[key]))
+	}
+	return strings.Join(lines, "\n")
+}
+
 // newConfigCmd prints the effective configuration of spec/0.1.0.md §2.7,
 // resolved at read time from every layer.
-func newConfigCmd() *cobra.Command {
+func newConfigCmd(out *writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "config",
 		Short: "Print the effective configuration",
@@ -44,12 +60,7 @@ func newConfigCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			encoded, err := json.MarshalIndent(resolved.Map(), "", "  ")
-			if err != nil {
-				return err
-			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(encoded))
-			return err
+			return out.emit(configResult(resolved.Map()))
 		},
 	}
 }

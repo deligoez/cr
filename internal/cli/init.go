@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 
@@ -10,15 +9,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// initResult is what `cr init` has to report: the state tree it prepared.
+type initResult struct {
+	// Root is ~/.cr, the directory spec/0.1.0.md §2.2 lays out.
+	Root string `json:"root"`
+}
+
+// Text names the directory, which is the one thing a reader wants confirmed:
+// §2.2 puts the tree under $CR_HOME when it is set, so where it landed is not
+// always where it was expected to land.
+func (r initResult) Text(w *writer) string {
+	return "state directory ready at " + w.accent(r.Root)
+}
+
 // newInitCmd creates the state tree of spec/0.1.0.md §2.2 and writes the
 // profiles §2.4.5 ships. Running it again on an existing tree changes nothing,
 // an edited profile included.
-func newInitCmd() *cobra.Command {
+func newInitCmd(out *writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Create the cr state directory",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			layout, err := state.Default()
 			if err != nil {
 				return err
@@ -34,8 +46,7 @@ func newInitCmd() *cobra.Command {
 					return err
 				}
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "state directory ready at %s\n", layout.Root())
-			return err
+			return out.emit(initResult{Root: layout.Root()})
 		},
 	}
 }

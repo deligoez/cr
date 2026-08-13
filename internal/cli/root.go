@@ -12,6 +12,10 @@ import (
 var version = "dev"
 
 func newRootCmd() *cobra.Command {
+	// One writer for the whole tree. §12.1's decision is settled on it once,
+	// before any command runs, so every command in the tree emits through
+	// the same answer rather than reaching its own.
+	out := &writer{}
 	root := &cobra.Command{
 		Use:           "cr",
 		Short:         "Code review lifecycle manager for AI coding agents",
@@ -19,6 +23,9 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true,
 		Version:       version,
 		Args:          cobra.NoArgs,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			return out.settle(cmd)
+		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -31,8 +38,8 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().Bool("no-color", false, "disable colored output")
 	root.PersistentFlags().String("repo", "", "override repository detection (owner/repo)")
 
-	root.AddCommand(newInitCmd())
-	root.AddCommand(newConfigCmd())
+	root.AddCommand(newInitCmd(out))
+	root.AddCommand(newConfigCmd(out))
 
 	return root
 }
