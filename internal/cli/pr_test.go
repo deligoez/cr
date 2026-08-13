@@ -11,11 +11,15 @@ import (
 )
 
 func TestParsePR(t *testing.T) {
-	t.Run("accepts a positive pull request number", func(t *testing.T) {
-		n, err := parsePR("42")
-		require.NoError(t, err)
-		assert.Equal(t, 42, n)
-	})
+	// 1 is the lowest pull request GitHub issues, and it is the value that tells
+	// `n < 1` from `n <= 1`. Testing only 42 passes under either bound.
+	for arg, want := range map[string]int{"1": 1, "42": 42} {
+		t.Run("accepts "+arg, func(t *testing.T) {
+			n, err := parsePR(arg)
+			require.NoError(t, err)
+			assert.Equal(t, want, n)
+		})
+	}
 
 	for _, arg := range []string{"", "0", "-1", "4.2", "#42", " 42", "forty-two"} {
 		t.Run("rejects "+arg, func(t *testing.T) {
