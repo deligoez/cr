@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T20:13:47.601085Z",
+  "updated_at": "2026-08-13T20:21:57.343275Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3652,7 +3652,7 @@
     {
       "id": "anchored-comments-only",
       "title": "Post only comments anchored to lines",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-required-field-validation"
@@ -3662,11 +3662,20 @@
       "source_sections": [
         "### 1.6 Comment economy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T20:14:18.669672Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T20:21:57.315246Z",
+      "closed_reason": "- Every posted comment is anchored to a line of the diff, because the fence sits on the way in rather than at the payload: internal/finding's Decode refuses a record whose anchor names no path, so an item with no code location never becomes a record (§6.1.2, §4.1.3) and nothing unanchored exists downstream for a draft or a payload to render. No second enforcement point was added, since §1.6.1 needs one fence with no bypass rather than two checks a future author must remember.\n- v0.1 has no unanchored comment channel, and today that is held as a negative: a comment is rendered from a record, a record is what the finding package's decoders hand back, and every one of them refuses an item with no code location, so there is no channel to widen. Reporting such an item through cr status is the positive half and belongs to intent-gap-entries and status-coverage-report, both open, and the end-to-end negative against a posted payload belongs to single-review-batching and pre-validate-positions, which build the payload.\n- §1.6's economic claim now lives in the code it governs, as a paragraph on internal/finding.Anchor, the type that owns the fence: a review comment spends the reviewer's standing with the author, so volume is a cost in itself, independent of correctness, and an unanchored comment costs the most for the least, because the author has to work out what it is about before judging whether it is right. That is why v0.1 has one comment channel and this field is it.\n- TestNoUnanchoredItemBecomesARecordByAnyDoor in internal/finding/anchored_test.go asserts an unanchored item cannot reach a record by any path. It reads the door set out of the package's own source with go/ast, taking every exported function whose results carry a Finding, requires that set to match the doors it drives, and feeds each of them, Decode as SourceAgent, Decode as SourceMerge, and DecodePerRole, four shapes of an item with no code location: no anchor key, an empty anchor, an anchor naming no path, and an anchor naming the empty path, asserting a RejectedRecordError naming anchor each time while the same fixture passes once anchored. The guard was verified by temporarily adding an exported Loophole returning []*Finding, which failed the set assertion, and by temporarily deleting the anchor branch from checker.check, which failed eight assertions, both reverted. gremlins unleash --timeout-coefficient 30 ./internal reports Killed 254, Lived 4, efficacy 98.45 percent, the documented baseline unchanged, as a doc comment and a test add no production branch.",
+      "gate_passed_at": "2026-08-13T20:21:57.315246Z",
+      "commit_sha": "094a141",
+      "commit_shas": [
+        "094a141",
+        "42f1dc0"
+      ],
+      "commit_files": [
+        "internal/finding/anchored_test.go",
+        "internal/finding/finding.go"
+      ]
     },
     {
       "id": "comment-cap-blocks-posting",
