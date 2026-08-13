@@ -1,0 +1,53 @@
+package finding
+
+import (
+	"strconv"
+	"strings"
+)
+
+// idPrefix is the letter §6.1 gives a record id.
+const idPrefix = "f"
+
+// NextID allocates the id for a new record.
+//
+// existing MUST be every record findings.ndjson holds, not the current round's.
+// §6.1 makes a record id stable for the life of the pull request, so an id an
+// earlier round assigned is spent even when that record went stale, was
+// discarded, or was posted: reusing it would put two different records under
+// one id in a file that keeps all of them (§2.3), and point one id at two
+// different comments in the pull request's history.
+//
+// §3.4.6's unit ids follow the opposite rule — they are round-scoped and MUST
+// NOT be carried across rounds — and the two allocations share nothing, so the
+// round-scoped rule cannot reach a record id by way of a common helper.
+func NextID(existing []Finding) string {
+	highest := 0
+	// Indexed rather than ranged by value: a record is a wide struct, and
+	// only its id is read here.
+	for i := range existing {
+		// `>=` here would behave identically — it would assign the
+		// value already held — so no test can tell the two apart.
+		if n, ok := parseID(existing[i].ID); ok && n > highest {
+			highest = n
+		}
+	}
+	return idPrefix + strconv.Itoa(highest+1)
+}
+
+// parseID reads the n of an f<n> id.
+//
+// It accepts only the canonical spelling: f7 is an id, f+7, f07 and f-7 are
+// not, and neither is f0, because ids are numbered from one. An id cr did not
+// write is no evidence about what is taken, so it contributes nothing to the
+// next allocation rather than being read as some number near it.
+func parseID(id string) (int, bool) {
+	rest, found := strings.CutPrefix(id, idPrefix)
+	if !found {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest)
+	if err != nil || rest != strconv.Itoa(n) || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
