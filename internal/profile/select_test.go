@@ -70,3 +70,22 @@ func TestSelectionFollowsTheMarkerFilesInTheRepository(t *testing.T) {
 	})
 }
 
+// §2.4.1 makes the automatic choice overridable by `profile` in the
+// per-repository config, which §2.7 resolves through its layers before this
+// package sees it. The override must beat a marker file that would otherwise
+// decide, and it is the only way to reach a profile with an empty
+// `match.files`, which §2.4.3 says applies only when named by configuration.
+func TestConfigurationOverridesTheMarkerFiles(t *testing.T) {
+	dir := profilesDir(t, map[string][]string{
+		"laravel-pest":  {"artisan"},
+		"empty-markers": {},
+	})
+
+	selection, err := Select(dir, repoWith(t, "artisan"), "empty-markers")
+	require.NoError(t, err)
+
+	assert.True(t, selection.Selected)
+	assert.Equal(t, "empty-markers", selection.Profile.ID)
+	assert.Empty(t, selection.Tied)
+}
+
