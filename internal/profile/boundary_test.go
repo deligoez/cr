@@ -40,6 +40,34 @@ func TestNonPositiveTestBudgetsAreMalformed(t *testing.T) {
 	}
 }
 
+// §2.4 gives tests.count_pattern's arity fault its own words but says nothing
+// about a pattern that never compiles. cr treats the two alike: a pattern cr
+// cannot compile has no group count to check, so it cannot be shown to satisfy
+// the arity §2.4 demands, and §5.2.1 could never run it. §2.6.1.2 already
+// settles the shape for cr's other configured regex — a pattern that fails to
+// compile aborts with exit code 3, naming what it came from — and a profile
+// answering the same fault differently would be the anomaly.
+//
+// The two faults stay distinguishable in the message, because the fix differs:
+// one is a typo in the expression, the other a miscount of its groups.
+func TestAnUncompilableCountPatternIsMalformedToo(t *testing.T) {
+	path := write(t, "generic", `{
+		"id": "generic",
+		"match": {"files": [], "globs": ["**/*"]},
+		"axes": {"test": true},
+		"tests": {"count_pattern": "(\\d+) passed, (\\d+ failed"}
+	}`)
+
+	_, err := Load(path)
+
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "tests.count_pattern", malformed.Field)
+	assert.Contains(t, err.Error(), path)
+	// Not the arity message: an uncompilable pattern has no group count.
+	assert.NotContains(t, err.Error(), "capture groups")
+}
+
 // A profile cr cannot read or parse has no offending field to name, so its
 // message must not leave a gap where one would go. Nothing else distinguishes
 // the two forms of MalformedError.Error, so nothing else notices if they merge.
