@@ -86,3 +86,27 @@ func TestProbePathTemplateVocabularyIsClosed(t *testing.T) {
 	}
 }
 
+// §5.1.6 recognises a leftover artefact by replacing the template's <probe-id>
+// with *, so the template must contain exactly one. None leaves every probe
+// writing the same path, and two leave a glob that no longer names one file.
+func TestProbePathTemplateNeedsExactlyOneProbeID(t *testing.T) {
+	block := `{"cmd": ["make", "test"], "globs": ["tests/*Test.php"], "probe_path_template": %q}`
+
+	for name, template := range map[string]string{
+		"none": "tests/cr_probe.php",
+		"two":  "tests/<probe-id>/cr_probe_<probe-id>.php",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := testsProfile(t, fmt.Sprintf(block, template))
+
+			_, err := Load(path)
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, "tests.probe_path_template", malformed.Field)
+			assert.Contains(t, err.Error(), "<probe-id>")
+			assert.Contains(t, err.Error(), path)
+		})
+	}
+}
+
