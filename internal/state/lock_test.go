@@ -77,3 +77,28 @@ func TestConcurrentWritersSerialise(t *testing.T) {
 		"increments were lost, so the writes were not serialised")
 }
 
+// §2.3.2: reads are lock-free, so a reader must not wait behind a writer.
+func TestAReaderProceedsWhileAWriterHoldsTheLock(t *testing.T) {
+	l := lockedPR(t)
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, held.Write("findings.ndjson", []byte("recorded")))
+
+	read := make(chan []byte, 1)
+	go func() {
+		body, err := l.ReadPR("acme", "web", 42, "findings.ndjson")
+		assert.NoError(t, err)
+		read <- body
+	}()
+
+	select {
+	case body := <-read:
+		assert.Equal(t, "recorded", string(body))
+	case <-time.After(10 * time.Second):
+		t.Error("a read waited on a held write lock; §2.3.2 makes reads lock-free")
+	}
+
+	require.NoError(t, held.Unlock())
+}
+
