@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T20:32:33.376251Z",
+  "updated_at": "2026-08-13T20:42:53.925092Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -637,7 +637,7 @@
     {
       "id": "no-model-client-guard",
       "title": "Guard that no model client exists",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -647,11 +647,20 @@
       "source_sections": [
         "### 2.1 Division of labour"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T20:33:09.080942Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T20:42:53.892474Z",
+      "closed_reason": "- Invariant 1 is enforced in Go rather than documented. internal/cli/nomodel_test.go fences the three ways a language model can reach cr — an SDK sitting in the module graph, an SDK inside the compiled closure, and a model endpoint or identifier written by hand — so §2.1.1's reproducibility now has a mechanical reason to hold rather than a stated one, and the register cr asserts in stays backed by what it established itself.\n- No API client, no model name, and no inference survives any of the three checks. A constructed client is caught as an import, a hand-rolled call is caught by its host and request path, and a model name is caught by its family prefix, with credential names listed alongside the hosts because they are the same call one step earlier. The scope is what executes, not what is written: prose is deliberately outside, because CLAUDE.md, §1.3.4, §2.1, and thirteen rounds under spec/.tp-review/ are the documents that state the invariant and a repository-wide grep would convict exactly them. §3.1's tracker command and a user's own profile are outside for the opposite reason, being argv the user supplies at runtime, while §2.4.5's built-in profiles are inside, because they ship in the binary and name commands cr runs itself.\n- A guard test reads both the dependency graph and the source, failing when a provider client or a model identifier appears. TestNoModelSDKSitsInTheModuleGraph scans go.mod and go.sum as text, which needs no network and catches a transitive module nobody chose. TestNothingCrBuildsImportsAModelSDK scans go list -deps -test ./..., which sees through a dependency in a way cr's own import blocks cannot. TestNoModelEndpointOrIdentifierReachesTheBinary walks every .go file plus the assets they //go:embed, with the guard file excluded from its own surface and a floor on the files scanned so a misresolved root cannot pass vacuously. Each was watched to fail on a real violating input and then reverted: a fake anthropic module appended to go.sum, then that module required and replaced with a local package and blank-imported from internal/cli, then a hand-written api.anthropic.com constant in a .go file together with a gpt-4o string added to the embedded generic profile. The graph guard alone fired for the required-but-unimported case, which keeps the weaker fault distinguishable from the stronger one while still failing it, since the distance between the two is one import line.\n- go.mod carries no model SDK dependency. Its require blocks hold cobra, flock, testify and their indirects and nothing else, and that is now asserted rather than observed, proven by appending a fake anthropic-sdk-go line to go.sum and watching the graph guard name the file, the line number, and the matched fragment.\nOut of scope: §2.1.2's network-write boundary and §2.1.3's six agent-only judgements are network-write-boundary-guard and agent-only-judgement-guard. The guard does not scan scripts/ or .github/workflows/, which execute in CI rather than inside cr. gremlins unleash --timeout-coefficient 30 ./internal is unchanged at Killed 260, Lived 4, efficacy 98.48% with the one known state/layout.go timeout, as expected from a unit that adds no production branch.",
+      "gate_passed_at": "2026-08-13T20:42:53.892474Z",
+      "commit_sha": "5c77ad7",
+      "commit_shas": [
+        "5c77ad7",
+        "88019f5",
+        "6ecb910"
+      ],
+      "commit_files": [
+        "internal/cli/nomodel_test.go"
+      ]
     },
     {
       "id": "network-write-boundary-guard",
