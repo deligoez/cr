@@ -82,3 +82,36 @@ func TestASecondRoundLeavesTheFirstIntact(t *testing.T) {
 		assert.Equal(t, "round two "+name, string(body))
 	}
 }
+
+// meta.json carries round 0 until §9.3.3 opens round 1, so 0 is the signal that
+// no round has been opened rather than a round of its own. Asking for its
+// directory must be refused on every route in and leave nothing on disk, so a
+// pull request never acquires a history it does not have.
+func TestRoundZeroIsNotARound(t *testing.T) {
+	l := lockedPR(t)
+
+	meta, err := l.ReadMeta("acme", "web", 42)
+	require.NoError(t, err)
+	require.Equal(t, 0, meta.Round, "a state directory starts with no round opened")
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	for name, err := range map[string]error{
+		"ensure": held.EnsureRound(meta.Round),
+		"write":  held.WriteRound(meta.Round, FileDraft, []byte("drafted")),
+	} {
+		assert.ErrorContains(t, err, "no round has been opened", name)
+	}
+	require.NoError(t, held.Unlock())
+
+	_, err = l.ReadRound("acme", "web", 42, meta.Round, FileDraft)
+	assert.ErrorContains(t, err, "no round has been opened")
+
+	_, err = os.Stat(l.RoundDir("acme", "web", 42, meta.Round))
+	assert.ErrorIs(t, err, os.ErrNotExist, "rounds/0/ must never be created")
+
+	held, err = l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	assert.NoError(t, held.EnsureRound(1), "1 is the first round §9.3.3 opens")
+	require.NoError(t, held.Unlock())
+}
