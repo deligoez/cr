@@ -8,6 +8,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
@@ -54,6 +55,20 @@ func TestAFailedGitCommandExitsWithTheFileCode(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("ingesting the diff: %w", err)))
+}
+
+// gh is the third of those tools, and §3.5's ingestion is the first thing that
+// drives it. A GraphQL error arrives as a refusal like any other — gh exits
+// non-zero with the message on stderr — so it maps onto the same code, and the
+// code must survive the wrapping a command adds on the way out.
+func TestAFailedGhCommandExitsWithTheFileCode(t *testing.T) {
+	err := error(&gh.CommandError{
+		Args:   []string{"api", "graphql"},
+		Stderr: "Could not resolve to a Repository with the name 'acme/web'.",
+		Err:    errors.New("exit status 1"),
+	})
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("ingesting threads: %w", err)))
 }
 
 // agentRecord stands in for a record type of one of the eight §2.3.3 files. It
