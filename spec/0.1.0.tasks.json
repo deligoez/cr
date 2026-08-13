@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T19:36:05.143984Z",
+  "updated_at": "2026-08-13T19:53:41.720217Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3212,7 +3212,7 @@
     {
       "id": "finding-required-field-validation",
       "title": "Reject records missing required fields",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-record-schema"
@@ -3222,11 +3222,33 @@
       "source_sections": [
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T19:36:44.187621Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T19:53:41.660276Z",
+      "closed_reason": "- cr merge and cr record reject a record missing any field marked required, with exit code 1, naming the line and the field: internal/finding/validate.go's checker.check walks Fields() in §6.1 table order and refuses the first Required row the wire line does not supply, returning a RejectedRecordError carrying the file, the one-based line counted over the file as handed in, and the JSON key, which internal/cli/exit.go maps onto ExitValidation and TestARejectedRecordExitsWithTheValidationCode pins through the wrapping a command adds. Presence is read from the raw line rather than from the decoded record, for the reason state.DecodeStamped already gives about head and round, and null and the empty string are read as missing too, because a record whose evidence is \"\" has no evidence and passing it would put a record in the assertion register with nothing behind it.\n- Every record carries an anchor: anchor is a Required row of Fields(), so a record without one is refused by that same walk before anything else looks at it. Resolving the anchor — a RIGHT side against the head and a LEFT side against the merge base — is anchor-side-semantics' own criterion, with its own test and its own dependency on diff-against-merge-base, and is left to that task rather than half-built here against a tree this unit has no way to reach.\n- An item with no code location never becomes a record: an anchor object that names no path is refused per §6.1.2 and §4.1.3, because v0.1 has no unanchored comment channel to post such an item through, and TestAnItemWithNoCodeLocationNeverBecomesARecord covers both an anchor missing its path and an empty anchor.\n- TestARecordMissingARequiredFieldIsNamedByLineAndField first pins that Fields() marks exactly id, kind, role, class, severity, unit, anchor, summary and evidence required, then omits each of the nine in turn and repeats each with null and with the empty string, asserting the RejectedRecordError names the file, line 3, and that field, and that the rendered message carries both the line number and the field name. Each record is handed in behind a good record and a blank line, so an error reporting a record's position among the records rather than its line in the file would name 2 and fail.\n- §6.1.3's other two rejections are in that same function: a record whose unit is not in the current round's unit set is refused with the offending value named, and a record whose role is not the role its file's name binds it to is refused with both names given. TestARecordNamingAUnitOfNoCurrentRoundIsRejected shows the same record passing once u9 is a unit of the round, so it is the round's own set that decides and never the id's shape, and the doc comment records that this proves the unit exists and never that it is the record's own.\n- Round 13 findings unvalidated-role-field, unbound-role-to-file-binding and unattributable-merge-input are assigned here and are one defect: §4.6.2 requires a prompt to name the path its role writes to but fixes no form for it, so cr merge had no path-to-role binding to check a record's role field against and the field was taken on the agent's word.\n- The implementation pins the fan-out path in internal/finding/fanout.go: FanOutFile composes review-\u003crole-id\u003e.ndjson, RoleForFile derives the role back out of the base name so a role may write into any directory, and finding.DecodePerRole — the entry point cr merge must use — refuses with UnattributableFileError an input whose name binds its records to no role rather than falling back to the field the agent wrote. The per-record check then rejects a role that is not the file's, and rejecting on mismatch leaves the two equal, so the stored role is the emitting file's by construction and nothing is left to overwrite. review-prompt-contract inherits this convention and must emit exactly this path, or the binding has nothing to hold at the emitting end.\n- Without it an unvalidated role determines the computed axis, and §6.2 grades cited only when the axis is not test, so a test-adequacy record writing role: correctness would clear that bar and buy the assertion register the experiment §4.4.2 demands. TestARecordsRoleIsTheOneOfTheFileItArrivedIn drives exactly that record into review-test.ndjson and asserts the refusal names both roles.\n- Round 13 finding unvalidated-role-field for cr record is assigned here too, and both commands reach one function so neither can be given a different answer: finding.Decode is what cr record calls, finding.DecodePerRole is Decode plus the attributability refusal, so the unit rejection always applies and the role binding applies whenever the file's name carries a role. §11's \"a round's merged findings\" is prose and §9.1's table lets cr record create records outright, so the check cannot live only in merge.\n- That closes the bypass exactly as §6.4.4's waiver drops and §9.3.6's posted-index drops are re-applied at record time: feeding a single role's fan-out file straight to cr record is checked as cr merge would have checked it. §6.5.1's merged output holds several roles and its name carries none, and those role fields were bound by cr merge at the file each record arrived in, which the doc comment states rather than leaving implied.\n- state.DecodeStamped now takes a per-line check, so the line counting keeps one home: §4.1.6, §4.5.6 and §6.1.3 each refuse an agent's line for reasons of their own and each has to name the line it refused, and a second pass over the body could not agree with the first about a blank line. A command with nothing to add passes nil.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh. Mutation testing with gremlins unleash --timeout-coefficient 30 ./internal moved from the recorded baseline of Killed 238, Lived 3, 98.76 per cent to Killed 248, Lived 3, 98.80 per cent, with no new survivor. The three are the documented internal/config words pair and finding/id.go's equivalent NextID boundary, all commented at their sites, plus the one known TIMED OUT mutant at state/layout.go. Every mutant raised in fanout.go and validate.go was killed and neither file left a line uncovered.\nOut of scope: neither cr merge nor cr record exists yet, so nothing asserts this end to end today. merge-command must assert that cr merge exits 1 naming the line and the field and refuses an input it cannot attribute to a role. cr record has no task that builds the command itself, and record-reapplies-drops is the nearest home for the end-to-end assertion. unit-containment-predicate owns the other half of the unit question, that the anchor lies inside the unit the record names. anchor-side-semantics owns resolving RIGHT against the head and LEFT against the merge base. finding-computed-field-rejection owns §6.1.4, and grade computation, the content_hash pre-image, dedup, merge counts and the posted-index drops are each their own task.\n",
+      "gate_passed_at": "2026-08-13T19:53:41.660276Z",
+      "commit_sha": "3f7239d",
+      "commit_shas": [
+        "3f7239d",
+        "000a9fa",
+        "3a77cb4",
+        "7ead248",
+        "9ec1e49",
+        "5460428",
+        "178e312",
+        "9fccd4a",
+        "cfcf356"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/finding/fanout.go",
+        "internal/finding/finding_test.go",
+        "internal/finding/validate.go",
+        "internal/finding/validate_test.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go"
+      ]
     },
     {
       "id": "finding-computed-field-rejection",
