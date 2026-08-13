@@ -157,3 +157,17 @@ func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
 	wg.Wait()
 }
 
+// An advisory lock binds to an inode. Removing the file on release would let
+// the next waiter lock a fresh inode at the same path and run alongside the
+// holder, so the file is kept on purpose.
+func TestReleasingTheLockKeepsItsFile(t *testing.T) {
+	l := lockedPR(t)
+
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	require.NoError(t, held.Unlock())
+
+	info, err := os.Stat(l.PRLockFile("acme", "web", 42))
+	require.NoError(t, err, "the released lock file must survive: it is the inode the next waiter locks")
+	assert.False(t, info.IsDir())
+}
