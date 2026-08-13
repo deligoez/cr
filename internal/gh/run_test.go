@@ -72,3 +72,16 @@ func TestAFailedGhReadSurfacesItsStderr(t *testing.T) {
 	assert.Equal(t, "gh api graphql: exit status 1", silent.Error())
 }
 
+// An answer that is not the JSON the query asked for must name the command
+// that produced it. gh reports a transport failure on stderr and a non-zero
+// exit, so a zero exit carrying something else is the API changing shape under
+// cr, which is worth saying out loud rather than decoding into an empty
+// ingest.
+func TestAnAnswerThatIsNotJSONNamesTheCommand(t *testing.T) {
+	stubGh(t, "printf '%s' 'not json at all'")
+
+	_, err := New().Threads("cli", "cli", 11451)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gh api graphql")
+}
