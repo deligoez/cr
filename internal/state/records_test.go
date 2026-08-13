@@ -41,3 +41,26 @@ func TestRecordsAreOneDocumentPerLine(t *testing.T) {
 	assert.Equal(t, []plainRecord{}, empty, "an empty file is no records, never a null slice")
 }
 
+// §2.3.3's head and round belong to the writer. A record arriving with values
+// of its own does not keep them, which is what lets a later command reject the
+// agent that supplied them without every call site remembering to check.
+func TestTheWriterOwnsHeadAndRound(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+
+	records := []*stampedRecord{
+		{ID: "c1"},
+		{ID: "c2", Stamp: Stamp{Head: "deadbee", Round: 99}},
+	}
+	require.NoError(t, WriteStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
+	require.NoError(t, held.Unlock())
+
+	got, err := ReadRecords[stampedRecord](l, "acme", "web", 42, FileClaims)
+	require.NoError(t, err)
+	assert.Equal(t, []stampedRecord{
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, ID: "c1"},
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, ID: "c2"},
+	}, got)
+}
+
