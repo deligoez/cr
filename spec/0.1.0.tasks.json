@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T15:26:29.857873Z",
+  "updated_at": "2026-08-13T15:37:23.923742Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -391,7 +391,7 @@
     {
       "id": "state-write-locking",
       "title": "Take advisory locks on writes",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "state-directory-layout"
@@ -401,11 +401,34 @@
       "source_sections": [
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T15:26:58.725011Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T15:37:23.866256Z",
+      "closed_reason": "- Every write to per-PR state goes through the exclusive gofrs/flock lock of §2.3.1: internal/state/lock.go makes Write a method on the held *Lock rather than on the Layout, so no writer can reach a file under state/\u003cowner\u003e/\u003crepo\u003e/pr-\u003cn\u003e/ without first blocking in LockPR, whose lock file Layout.PRLockFile nests at locks/\u003cowner\u003e/\u003crepo\u003e/pr-\u003cn\u003e.lock, where it can never collide with the differently named probe lock of §5.6. A released lock keeps its file, because flock binds to an inode and unlinking it would let the next waiter lock a fresh one while the holder still ran, which TestReleasingTheLockKeepsItsFile pins.\n- Reads are lock-free per §2.3.2: Layout.ReadPR calls os.ReadFile and takes nothing at all, which is exactly why every write publishes by rename. writeAtomic writes a temporary file beside the target and renames it into place, so a reader holding no lock sees either the previous document or the whole new one, proved by TestALockFreeReadNeverSeesAPartialWrite over 200 rewrites of a 64 KiB document read concurrently by four goroutines.\n- TestConcurrentWritersSerialise drives eight goroutines through 25 locked read-modify-writes each and asserts the counter reaches 200, so a single lost update fails it, and TestAReaderProceedsWhileAWriterHoldsTheLock reads the file while a writer holds the lock and fails if that read has not returned within ten seconds. The gate now runs go test -race, changed in one commit across all three places that must agree: spec/0.1.0.tasks.json, TestQualityGateRunsEveryStep and CLAUDE.md.\n\nOut of scope: the per-PR state files of the §2.3 table and the head and round fields of §2.3.3 belong to a later task, as does the probe lock of §5.6.",
+      "gate_passed_at": "2026-08-13T15:37:23.866256Z",
+      "commit_sha": "9111ca9",
+      "commit_shas": [
+        "9111ca9",
+        "a2550fa",
+        "7b8719e",
+        "73057f7",
+        "8425598",
+        "f87d0b4",
+        "64a70f5",
+        "d3928d7",
+        "a586990"
+      ],
+      "commit_files": [
+        "CLAUDE.md",
+        "go.mod",
+        "go.sum",
+        "internal/cli/gate_test.go",
+        "internal/state/layout.go",
+        "internal/state/layout_test.go",
+        "internal/state/lock.go",
+        "internal/state/lock_test.go",
+        "spec/0.1.0.tasks.json"
+      ]
     },
     {
       "id": "per-pr-state-files",
