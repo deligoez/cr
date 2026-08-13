@@ -50,3 +50,25 @@ func TestAReadIgnoresTheAmbientGhEnvironment(t *testing.T) {
 	assert.Contains(t, string(environment), "GH_PROMPT_DISABLED=1")
 }
 
+// §3.1.3 fixes what an external command does when it refuses: the command's
+// stderr reaches the user, and §11.2 codes it 3. gh is one such command, and a
+// GraphQL error arrives the same way — the API answers 200 with an errors
+// array and gh exits non-zero with the message on stderr — so a pull request
+// nobody can see fails like any other refusal rather than as an empty ingest.
+func TestAFailedGhReadSurfacesItsStderr(t *testing.T) {
+	stubGh(t, "echo 'Could not resolve to a PullRequest with the number of 9300.' >&2\nexit 1")
+
+	_, err := New().Threads("cli", "cli", 9300)
+
+	var refused *CommandError
+	require.ErrorAs(t, err, &refused)
+	assert.Contains(t, refused.Stderr, "Could not resolve to a PullRequest")
+	assert.Contains(t, refused.Error(), "api graphql")
+	assert.Contains(t, refused.Error(), refused.Stderr)
+	var exited *exec.ExitError
+	require.ErrorAs(t, err, &exited)
+
+	silent := &CommandError{Args: []string{"api", "graphql"}, Err: errors.New("exit status 1")}
+	assert.Equal(t, "gh api graphql: exit status 1", silent.Error())
+}
+
