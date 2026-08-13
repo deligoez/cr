@@ -309,22 +309,22 @@ func TestAPatchThatIsNotOneIsRejected(t *testing.T) {
 		{
 			name:  "a line inside a hunk that marks nothing",
 			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n one\nmarks nothing\n",
-			says:  `"marks nothing" is not a hunk line`,
+			says:  `diff line 5: "marks nothing" is not a hunk line`,
 		},
 		{
 			name:  "an empty line inside a hunk",
 			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n one\n\n",
-			says:  "a hunk holds no empty line",
+			says:  "diff line 5: a hunk holds no empty line",
 		},
 		{
 			name:  "a header naming no line on either side",
 			patch: "--- a/f.txt\n+++ b/f.txt\n@@ -0,0 +0,0 @@\n",
-			says:  "covers no line on either side",
+			says:  `diff line 3: "@@ -0,0 +0,0 @@" covers no line on either side`,
 		},
 		{
 			name:  "a header that is not one",
 			patch: "@@ nonsense @@\n",
-			says:  "is not a hunk header",
+			says:  `diff line 1: "@@ nonsense @@" is not a hunk header`,
 		},
 		{
 			name:  "a patch cut off inside a hunk",
