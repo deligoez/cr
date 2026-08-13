@@ -120,3 +120,39 @@ func TestAnUnencodableRecordLeavesTheFileUntouched(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "{\"id\":\"t1\"}\n", string(body))
 }
+
+// §2.3.3's pair is written by cr, so a record that supplied either was written
+// by the agent and is refused by the line and the field, exactly as §6.1.4
+// refuses a computed field. Presence on the wire is what counts: a zero round
+// and an empty head are values the agent chose, and a decoded struct could not
+// tell them from a field that was never there.
+func TestAnAgentMayNotSupplyHeadOrRound(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		line  string
+		field string
+	}{
+		{name: "a head of its own", line: `{"id":"c2","head":"deadbee"}`, field: "head"},
+		{name: "a round of its own", line: `{"id":"c2","round":9}`, field: "round"},
+		{name: "an empty head", line: `{"id":"c2","head":""}`, field: "head"},
+		{name: "a zero round", line: `{"id":"c2","round":0}`, field: "round"},
+		{name: "a null head", line: `{"id":"c2","head":null}`, field: "head"},
+		{name: "both, named by the first", line: `{"id":"c2","round":9,"head":"x"}`, field: "head"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := DecodeStamped[stampedRecord](
+				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"),
+			)
+			var reserved *ReservedFieldError
+			require.ErrorAs(t, err, &reserved)
+			assert.Equal(t, FileClaims, reserved.File)
+			assert.Equal(t, 3, reserved.Line)
+			assert.Equal(t, tc.field, reserved.Field)
+			assert.Equal(
+				t,
+				"claims.ndjson line 3: "+tc.field+" is written by cr and must not be supplied",
+				err.Error(),
+			)
+		})
+	}
+}
