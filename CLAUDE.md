@@ -115,9 +115,13 @@ Two rules that make the phase-boundary run worth doing:
 
 **`-race` is in the gate**, added by `state-write-locking`: §2.3.1 puts an
 advisory lock on every per-PR write and §2.3.2 makes reads lock-free, so the
-suite now spawns goroutines and a race has somewhere to hide. **Do not adopt
-`apidiff`**: every package is under `internal/`, so there is no importable API
-to compare.
+suite now spawns goroutines and a race has somewhere to hide. It does **not**
+guard the file lock itself — `flock(2)` establishes no happens-before edge the
+detector can see, so removing the lock fails the file-state assertions and emits
+no `DATA RACE`. Measured, not assumed. A lock defect is caught by asserting on
+what reached the file, and a witness added only to make `-race` fire would
+report a race even when the lock works. **Do not adopt `apidiff`**: every
+package is under `internal/`, so there is no importable API to compare.
 
 ## Command surface
 
