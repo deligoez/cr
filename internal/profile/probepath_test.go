@@ -138,3 +138,51 @@ func TestProbePathTemplateAbortsWhenExtIsUnresolvable(t *testing.T) {
 	}
 }
 
+// §2.4 makes each shipped profile set the template explicitly so the placed
+// probe satisfies its own tests.globs — a probe the runner's own discovery skips
+// reports no-tests-selected and establishes nothing. The profile files are
+// written by their own tasks; this is the property they must satisfy.
+func TestShippedProfilesPlaceTheProbeInsideTheirOwnGlobs(t *testing.T) {
+	// A Laravel/Pest repository: Pest discovers tests/Feature and
+	// tests/Unit by their Test.php suffix, so the probe carries it too.
+	pest, err := Load(write(t, "laravel-pest", `{
+		"id": "laravel-pest",
+		"match": {"files": ["artisan"], "globs": ["app/**/*.php"]},
+		"axes": {"test": true},
+		"tests": {
+			"cmd": ["./vendor/bin/pest"],
+			"globs": ["tests/Feature/*Test.php", "tests/Unit/*Test.php"],
+			"probe_path_template": "tests/Feature/cr_probe_<probe-id>Test.php"
+		}
+	}`))
+	require.NoError(t, err)
+	assertProbePathSatisfiesGlobs(t, &pest)
+
+	// The generic profile owns no runner, so §5's test axis is off and
+	// there is no probe file to place at all.
+	generic, err := Load(write(t, "generic", `{
+		"id": "generic",
+		"match": {"files": [], "globs": ["**/*"]},
+		"axes": {"convention": true}
+	}`))
+	require.NoError(t, err)
+	assert.Empty(t, generic.Tests.ProbePathTemplate)
+	assert.Empty(t, generic.ProbePath("a1b2c3"))
+}
+
+// assertProbePathSatisfiesGlobs checks the §2.4 property on a profile that
+// configures a runner: the path its template resolves to is a file its own
+// tests.globs claim.
+func assertProbePathSatisfiesGlobs(t *testing.T, p *Profile) {
+	t.Helper()
+	placed := p.ProbePath("a1b2c3")
+	for _, glob := range p.Tests.Globs {
+		ok, err := filepath.Match(glob, placed)
+		require.NoError(t, err)
+		if ok {
+			return
+		}
+	}
+	t.Fatalf("profile %q places its probe at %q, which none of its tests.globs %v claims", p.ID, placed, p.Tests.Globs)
+}
+
