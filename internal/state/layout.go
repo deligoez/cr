@@ -192,6 +192,17 @@ func (l Layout) Init() error {
 	return touchFile(l.Config(), emptyConfig)
 }
 
+// EnsureProfile writes one shipped profile file into the profiles directory,
+// leaving an existing file exactly as it was: §2.4 makes a profile the user's
+// to edit, so re-running `cr init` must never discard an edit. Init creates the
+// directory, and this method creates it too so the caller need not order them.
+func (l Layout) EnsureProfile(id, content string) error {
+	if err := makeDirs([]string{l.ProfilesDir()}); err != nil {
+		return err
+	}
+	return touchFile(l.Profile(id), content)
+}
+
 // EnsureRepo creates the repository-scoped paths of §2.2 for one repository.
 // The owner and repository are only known once a command names them, so they
 // are created here rather than by Init.
