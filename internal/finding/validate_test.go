@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/state"
 )
 
 // roundUnits is the current round's units, which is the set §6.1.3 reads a
@@ -183,4 +185,89 @@ func TestARecordsRoleIsTheOneOfTheFileItArrivedIn(t *testing.T) {
 	require.NoError(t, err, "cr merge's own output holds several roles and its name binds none")
 	require.Len(t, records, 2)
 	assert.Equal(t, "correctness", records[1].Role)
+}
+
+// oversteps decodes the record as the agent's own and returns the §6.1.4
+// rejection it earned. The file it arrives in carries a role, so the record is
+// held to the whole of §6.1.3 as well and nothing about the name softens the
+// fence.
+func oversteps(t *testing.T, record map[string]any) *state.ReservedFieldError {
+	t.Helper()
+	_, err := Decode(FanOutFile("test"), onLineThree(t, record), roundUnits, SourceAgent)
+	var overstep *state.ReservedFieldError
+	require.ErrorAs(t, err, &overstep)
+	assert.Equal(t, FanOutFile("test"), overstep.File)
+	assert.Equal(t, 3, overstep.Line)
+	assert.Contains(t, err.Error(), "line 3")
+	return overstep
+}
+
+// §6.1.4 has cr write the computed fields and rejects a record arriving with
+// one. Each is supplied in turn, because a fence that held for seven of eight
+// fields would hand the eighth to the agent for the life of the tool: the agent
+// that writes its own grade writes itself past §6.3's forcing, the one that
+// writes its own axis picks the axis §6.2 grades it on, and the one that writes
+// state answers §9.1 for cr.
+//
+// Presence alone is the fault. A key holding null was still written by the
+// agent, and the field has one author whatever value sits under it — unlike a
+// required field, where §6.1.3 reads null as nothing supplied.
+func TestARecordArrivingWithAComputedFieldIsRejected(t *testing.T) {
+	require.Equal(t, []string{
+		"axis", "grade", "state", "disposition", "duplicate_of", "thread_id",
+		"span_hash", "issue_hash",
+	}, reserved, "§6.1.4's fence, in §6.1's table order with §3.3's two last")
+
+	for field, value := range map[string]any{
+		"axis":        "correctness",
+		"grade":       "cited",
+		"state":       "queued",
+		"disposition": "wrong",
+		// §6.5.1's exemption is on cr merge's output alone, and
+		// TestDuplicateOfIsExemptOnlyOnMergeOutput is where that is
+		// read both ways round.
+		"duplicate_of": "f1",
+		"thread_id":    "PRRT_kwDOAbCd",
+		// §3.3's computed claim fields. §6.1.4 names them in the same
+		// sentence as its own, and no finding has a use for either.
+		"span_hash":  "9f2a1c",
+		"issue_hash": "4b7e00",
+	} {
+		t.Run(field, func(t *testing.T) {
+			supplied := aRecord()
+			supplied[field] = value
+			assert.Equal(t, field, oversteps(t, supplied).Field)
+			assert.Contains(t, oversteps(t, supplied).Error(), "written by cr")
+
+			empty := aRecord()
+			empty[field] = nil
+			assert.Equal(t, field, oversteps(t, empty).Field, "null is a key the agent wrote")
+		})
+	}
+
+	// §6.1's citations row computes two of an entry's four fields, and
+	// §6.2.5 rejects a record arriving with any origin at all: cr stamps
+	// origin positionally against its own detection output, and an agent
+	// that could write `origin: rule` would buy its own record the cited
+	// grade §6.2 withholds from a citation inside the record's own unit.
+	cited := aRecord()
+	cited["citations"] = []any{map[string]any{"path": "app/Models/User.php", "line": 12}}
+	records, err := Decode(FanOutFile("test"), onLineThree(t, cited), roundUnits, SourceAgent)
+	require.NoError(t, err, "an entry of path and line is the whole of what the agent supplies")
+	require.Len(t, records, 2)
+
+	for _, field := range CitationFields() {
+		if field.Requirement != Computed {
+			continue
+		}
+		t.Run("citations."+field.Name, func(t *testing.T) {
+			stamped := aRecord()
+			stamped["citations"] = []any{
+				map[string]any{"path": "app/Models/User.php", "line": 12},
+				map[string]any{"path": "app/Models/User.php", "line": 20, field.Name: "rule"},
+			}
+			assert.Equal(t, "citations[1]."+field.Name, oversteps(t, stamped).Field,
+				"the entry at fault is named by its index")
+		})
+	}
 }
