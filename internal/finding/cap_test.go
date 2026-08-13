@@ -122,3 +122,35 @@ func namesTheCap(fn *ast.FuncDecl) bool {
 	}
 	return false
 }
+
+// §11.1 makes the comment cap of §1.6.2 one of seven disclosures `--quiet` may
+// never suppress, and a suppressed cap report is the silent drop §1.6.2 forbids
+// reached through an output flag instead of a truncation: the comments the
+// round could not fit would go unmentioned either way.
+//
+// The disclosure is therefore on the decision rather than at a call site, and
+// it is one text on both paths — the §7.1.4 draft header at or under the cap,
+// the block above it — so the block cannot name a different number from the one
+// the user triaged against. Nothing here takes a flag, because there is no
+// answer to `--quiet` for this report to give.
+func TestTheCapReportIsAnHonestyDisclosureOnEitherPath(t *testing.T) {
+	// The shape §11.1's shared writer consumes, so adopting the cap report
+	// into it is a call site rather than a rewrite.
+	var _ HonestyDisclosure = CommentCap{}
+
+	under := CommentCapFor(queue(12), 20)
+	assert.Equal(t, "12 comments queued against post.max_comments 20", under.Disclosure())
+	require.NoError(t, under.Err(), "the report is made whether or not the cap was exceeded")
+
+	atTheCap := CommentCapFor(queue(20), 20)
+	assert.Equal(t, "20 comments queued against post.max_comments 20", atTheCap.Disclosure(),
+		"twenty comments fit under a cap of twenty and nothing is over it")
+
+	over := CommentCapFor(queue(21), 20)
+	assert.Equal(t, "21 comments queued against post.max_comments 20, 1 over the cap",
+		over.Disclosure())
+	assert.Equal(t,
+		"21 comments queued against post.max_comments 20, 1 over the cap: "+
+			"triage the draft down to 20, or raise post.max_comments; cr will not drop 1 to fit",
+		over.Err().Error(), "the block carries the disclosure whole and names the refusal")
+}
