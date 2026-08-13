@@ -100,3 +100,55 @@ func TestTheReadsCrMakesStillReachGh(t *testing.T) {
 		})
 	}
 }
+
+// The write door opens for a confirmed token and for nothing else.
+//
+// The refusals are the three ways a caller can arrive at it. A Confirmation
+// composed rather than minted is the zero value — the only thing a package
+// outside this one can build, since granted is unexported — and it writes
+// nothing. A token minted from a --confirm that was not given is the same. And
+// a confirmed token is still not a licence for any call: §8.3.1 requires every
+// comment of a round to arrive as one review and §8.4.1 requires that review to
+// be created atomically, so `gh pr comment` and `gh pr review` are refused
+// after the token, not before it.
+//
+// The last case is the one §8 sanctions, and it must actually run: a door that
+// never opens would pass every test above while making cr post nothing at all.
+func TestOnlyAConfirmedTokenOpensTheWriteDoor(t *testing.T) {
+	review := []string{"api", "repos/cli/cli/pulls/11451/reviews", "--method", "POST", "--input", "-"}
+
+	for name, tc := range map[string]struct {
+		token  Confirmation
+		args   []string
+		reason string
+	}{
+		"a token composed instead of minted": {Confirmation{}, review, "no confirmation was presented"},
+		"a token minted without --confirm":   {Confirm(false), review, "no confirmation was presented"},
+		"a comment posted by subcommand":     {Confirm(true), []string{"pr", "comment", "11451", "--body", "hi"}, "§8's only write is an API call"},
+		"a review posted by subcommand":      {Confirm(true), []string{"pr", "review", "11451", "--comment"}, "§8's only write is an API call"},
+		"no invocation at all":               {Confirm(true), nil, "§8's only write is an API call"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ran := filepath.Join(t.TempDir(), "gh-was-started")
+			stubGh(t, "touch "+ran+"\necho '{}'")
+
+			_, err := tc.token.Write(tc.args...)
+
+			var refused *WriteRefusedError
+			require.ErrorAs(t, err, &refused)
+			assert.Contains(t, refused.Error(), tc.reason)
+			assert.NoFileExists(t, ran, "gh was started before the boundary refused")
+		})
+	}
+
+	t.Run("the review creation of §8.3", func(t *testing.T) {
+		ran := filepath.Join(t.TempDir(), "gh-was-started")
+		stubGh(t, "touch "+ran+"\necho '{}'")
+
+		out, err := Confirm(true).Write(review...)
+
+		require.NoError(t, err)
+		assert.Equal(t, "{}\n", out)
+		assert.FileExists(t, ran, "the write §8 sanctions never reached gh")
+	})
+}
