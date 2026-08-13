@@ -41,6 +41,7 @@ func TestLayoutDerivesEveryStatePath(t *testing.T) {
 		"waivers dir":     {l.WaiversDir(), filepath.Join(root, "waivers")},
 		"waivers file":    {l.WaiversFile("acme", "web"), filepath.Join(root, "waivers", "acme", "web.ndjson")},
 		"locks dir":       {l.LocksDir(), filepath.Join(root, "locks")},
+		"pr lock file":    {l.PRLockFile("acme", "web", 42), filepath.Join(root, "locks", "acme", "web", "pr-42.lock")},
 	}
 	for name, c := range cases {
 		assert.Equal(t, c.want, c.got, name)
