@@ -1,8 +1,10 @@
 package gh
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -275,6 +277,65 @@ func TestOnlyGitHubsOwnBotTypeIsTaggedBot(t *testing.T) {
 	assert.Equal(t, AuthorHuman, threads[1].AuthorType, "a mannequin stands in for a person")
 	assert.Equal(t, AuthorHuman, threads[2].AuthorType, "an author the API does not name")
 	assert.Equal(t, AuthorBot, threads[3].AuthorType, "GitHub itself reports a bot")
+}
+
+// §3.5.3 forbids cr to assign a class to an ingested thread. A class is §6.1's
+// defect class, which drives dedup, triage statistics, and waivers; an
+// ingested thread is somebody else's comment, and cr has no basis to say what
+// defect it names.
+//
+// The prohibition is held by pinning the record's whole field surface rather
+// than by asserting the absence of one name, because the way it would be
+// broken is a field added years from now — and the type is walked as well as
+// the wire, so a hand-written marshaller could not slip a key past either.
+func TestNoIngestedThreadCarriesAClass(t *testing.T) {
+	assert.ElementsMatch(t, threadFields, fieldPaths(reflect.TypeFor[Thread](), ""))
+
+	wire, err := json.Marshal(Thread{})
+	require.NoError(t, err)
+	keys := map[string]any{}
+	require.NoError(t, json.Unmarshal(wire, &keys))
+	assert.NotContains(t, keys, "class")
+}
+
+// threadFields is everything an ingested thread records: §3.5.1's author,
+// body, anchor, resolution state, and replies, plus §3.5.2's tag.
+var threadFields = []string{
+	"id",
+	"anchor.path",
+	"anchor.side",
+	"anchor.start_line",
+	"anchor.line",
+	"anchor.original_start_line",
+	"anchor.original_line",
+	"resolved",
+	"outdated",
+	"comment.id",
+	"comment.author",
+	"comment.author_typename",
+	"comment.body",
+	"comment.created_at",
+	"comment.url",
+	"author_type",
+	"replies",
+}
+
+// fieldPaths returns the dotted json names of every leaf field, descending
+// into nested structs only. A slice is a leaf: it holds the same type again.
+func fieldPaths(t reflect.Type, prefix string) []string {
+	paths := make([]string, 0, t.NumField())
+	for field := range t.Fields() {
+		name := field.Tag.Get("json")
+		if prefix != "" {
+			name = prefix + "." + name
+		}
+		if field.Type.Kind() == reflect.Struct {
+			paths = append(paths, fieldPaths(field.Type, name)...)
+			continue
+		}
+		paths = append(paths, name)
+	}
+	return paths
 }
 
 // §2.3 puts ingested threads in threads.ndjson, and §2.3.3 does not list that
