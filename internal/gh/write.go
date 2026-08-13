@@ -227,7 +227,7 @@ func readOnly(args []string) (read bool, why string) {
 	// gh defaults the method to POST as soon as a field flag is given, so a
 	// field with no method is a write however innocent the endpoint looks.
 	// With GET named explicitly the same fields become query parameters.
-	if call.body {
+	if call.body && call.method == "" {
 		return false, "a field flag with no --method GET makes the request a POST"
 	}
 	return true, ""
