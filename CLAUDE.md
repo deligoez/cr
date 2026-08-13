@@ -325,6 +325,7 @@ Mirrors tp so the experience transfers.
 | Language | Go |
 | CLI | spf13/cobra |
 | Colors | fatih/color |
+| Terminal detection | mattn/go-isatty, with creack/pty in tests |
 | File locking | gofrs/flock |
 | Testing | stretchr/testify |
 | JSON | encoding/json |
