@@ -91,6 +91,15 @@ func exitCodeFor(err error) int {
 		// codes 1 with the rest of §6.1.3 rather than 3.
 		return ExitValidation
 	}
+	var capExceeded *finding.CommentCapExceededError
+	if errors.As(err, &capExceeded) {
+		// §1.6.2 blocks posting above post.max_comments with exit code
+		// 1, naming the count. Every record in the round may be
+		// well-formed, so what fails is the payload as a whole, and
+		// §11.2 runs that validation before the confirmation gate:
+		// the block lands whether or not --confirm was given.
+		return ExitValidation
+	}
 	var reservedField *state.ReservedFieldError
 	if errors.As(err, &reservedField) {
 		// §6.1.4: a record supplying a field cr writes itself is
