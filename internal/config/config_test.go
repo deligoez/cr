@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/deligoez/cr/internal/state"
@@ -98,4 +99,33 @@ func TestLayerValuesAreCoercedToTheSettingType(t *testing.T) {
 	_, err = Resolve(Sources{Environ: []string{"CR_POST_MAX_COMMENTS=many"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "post.max_comments")
+}
+
+// CR_HOME is the state root of §2.2 rather than a setting, so §2.7's scan lets
+// it through. That exemption cannot widen by accident on two counts: it is
+// equality against one constant, and it grants no immunity at all — the state
+// root passes the scan on its own spelling, so deleting the skip would change
+// nothing. Every neighbouring name is scanned as usual.
+func TestOnlyTheStateRootIsExemptFromTheProtectedScan(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg, err := Resolve(Sources{Environ: []string{state.HomeEnv + "=" + dir}})
+	require.NoError(t, err)
+	assert.Equal(t, 20, cfg.Int("post.max_comments"))
+	assert.NotContains(t, cfg.Map(), "home", "the state root is not a setting")
+
+	require.NoError(t, checkProtected(state.HomeEnv, strings.TrimPrefix(state.HomeEnv, EnvPrefix)),
+		"the state root must survive the scan without the exemption")
+
+	for _, name := range []string{
+		state.HomeEnv + "_LABEL",
+		state.HomeEnv + "_CONFIRM",
+		state.HomeEnv + "CONFIRM",
+		state.HomeEnv + "_EVIDENCE_REGION",
+	} {
+		_, err := Resolve(Sources{Environ: []string{name + "=" + dir}})
+		var protected *ProtectedError
+		require.ErrorAs(t, err, &protected, name)
+		assert.Equal(t, name, protected.Name)
+	}
 }
