@@ -14,9 +14,10 @@
 // This package defends the file format and nothing else, plus the one derived
 // value §2.4 documents: probepath.go resolves `tests.probe_path_template`, so a
 // parsed profile always carries the template §5.1.6 and §5.4.2 consume, and
-// `tests.count_pattern` is held to §2.4's group arity. Running that pattern
-// against runner output is §5.2.1's job, not this package's. Selecting a profile
-// by its marker files is a separate obligation of §2.4, implemented elsewhere.
+// `tests.count_pattern` and `tests.failed_pattern` are held to §2.4's group
+// arity. Running them against runner output is §5.2.1's job, not this
+// package's. Selecting a profile by its marker files is a separate obligation
+// of §2.4, implemented elsewhere.
 package profile
 
 import (
@@ -41,14 +42,15 @@ const (
 	DefaultOutputTailBytes = 4096
 )
 
-// The §2.4 constraint on `tests.count_pattern`.
+// The §2.4 constraints on the two test count patterns.
 const (
-	// countPatternField is the field in the dotted §2.4 spelling every
-	// MalformedError about the pattern carries.
-	countPatternField = "tests.count_pattern"
-	// countPatternGroups is the capture group count §2.4 fixes, one per
-	// number §5.2.1 reads out of the runner's output.
-	countPatternGroups = 2
+	// countPatternField and failedPatternField are the fields in the dotted
+	// §2.4 spelling every MalformedError about a pattern carries.
+	countPatternField  = "tests.count_pattern"
+	failedPatternField = "tests.failed_pattern"
+	// patternGroups is the capture group count §2.4 fixes for each of them:
+	// one, holding the count that match contributes to §5.2.1's sum.
+	patternGroups = 1
 )
 
 // Profile is one resolved §2.4 profile: every field of the table, with the
@@ -106,9 +108,12 @@ type Tests struct {
 	// OutputTailBytes is the retained runner output, default
 	// DefaultOutputTailBytes.
 	OutputTailBytes int `json:"output_tail_bytes"`
-	// CountPattern yields the executed and failed test counts, in that
-	// order.
+	// CountPattern yields one executed test count per match, which §5.2.1
+	// sums over every match in the output.
 	CountPattern string `json:"count_pattern"`
+	// FailedPattern yields one failed test count per match, summed the same
+	// way. Matching nothing means zero rather than undetermined.
+	FailedPattern string `json:"failed_pattern"`
 	// ProbePathTemplate is where a gap probe's file is placed, resolved
 	// per probepath.go: the default is filled in, `<ext>` is substituted,
 	// and `<probe-id>` is the one placeholder left.
@@ -171,6 +176,7 @@ type wireTests struct {
 	TimeoutSeconds    *int     `json:"timeout_seconds"`
 	OutputTailBytes   *int     `json:"output_tail_bytes"`
 	CountPattern      string   `json:"count_pattern"`
+	FailedPattern     string   `json:"failed_pattern"`
 	ProbePathTemplate string   `json:"probe_path_template"`
 }
 
@@ -297,15 +303,34 @@ func (t *wireTests) validate(path string) error {
 			Problem: fmt.Sprintf("is %d; retaining no output leaves a run unevidenced", *t.OutputTailBytes),
 		}
 	}
-	return validateCountPattern(path, t.CountPattern)
+	if err := validatePattern(path, countPatternField, "executed", t.CountPattern); err != nil {
+		return err
+	}
+	// §2.4 makes tests.failed_pattern required alongside tests.count_pattern,
+	// and §5.2.1 says why: no match is zero failures, so a profile that
+	// configured only the executed count would read every run as a clean one.
+	if t.CountPattern != "" && t.FailedPattern == "" {
+		return &MalformedError{
+			File:    path,
+			Field:   failedPatternField,
+			Problem: "is required when " + countPatternField + " is present",
+		}
+	}
+	return validatePattern(path, failedPatternField, "failed", t.FailedPattern)
 }
 
-// validateCountPattern holds `tests.count_pattern` to the arity §2.4 fixes:
-// exactly two capture groups, which §5.2.1 reads as the executed count and then
-// the failed count. Arity is what makes the pattern's output addressable, so a
+// validatePattern holds one of §2.4's two count patterns to the arity §2.4
+// fixes: exactly one capture group, holding the number that match contributes
+// to §5.2.1's sum. Arity is what makes the pattern's output addressable, so a
 // pattern with any other count is not a weaker pattern but an unreadable one —
-// §5.2.1 would have no group to take either number from, and a three-group
-// pattern gives no rule for which two win.
+// with none §5.2.1 has no group to take a number from, and with two it has no
+// rule for which one counts. field and what name the pattern and the number its
+// group yields, so one function serves both fields and still says which of them
+// the author must fix.
+//
+// One group is what lets a runner spread its counts over several matches
+// instead of one: §5.2.1 matches the pattern repeatedly and adds the groups up,
+// which is how a recap line naming a status per count is read.
 //
 // Capturing is the only kind of group that counts, so `(?:...)` is invisible
 // here and `(?P<name>...)` is not: NumSubexp counts exactly the groups §5.2.1
@@ -316,7 +341,7 @@ func (t *wireTests) validate(path string) error {
 // arity fault, but its group count cannot be read at all, and §2.6.1.2 already
 // settles the shape for cr's other configured regex: an uncompilable pattern
 // aborts with exit code 3 naming the file it came from.
-func validateCountPattern(path, pattern string) error {
+func validatePattern(path, field, what, pattern string) error {
 	if pattern == "" {
 		return nil
 	}
@@ -324,15 +349,15 @@ func validateCountPattern(path, pattern string) error {
 	if err != nil {
 		return &MalformedError{
 			File:    path,
-			Field:   countPatternField,
+			Field:   field,
 			Problem: fmt.Sprintf("is not a valid Go regexp: %v", err),
 		}
 	}
-	if n := compiled.NumSubexp(); n != countPatternGroups {
+	if n := compiled.NumSubexp(); n != patternGroups {
 		return &MalformedError{
 			File:    path,
-			Field:   countPatternField,
-			Problem: fmt.Sprintf("has %d capture groups, but §2.4 requires exactly %d: the executed count then the failed count. A (?:...) group does not capture.", n, countPatternGroups),
+			Field:   field,
+			Problem: fmt.Sprintf("has %d capture groups, but §2.4 requires exactly %d, yielding a count of %s tests. A (?:...) group does not capture.", n, patternGroups, what),
 		}
 	}
 	return nil
@@ -368,6 +393,7 @@ func (w *wire) resolve(probeTemplate string) Profile {
 		p.Tests.Globs = list(t.Globs)
 		p.Tests.FilterFlag = t.FilterFlag
 		p.Tests.CountPattern = t.CountPattern
+		p.Tests.FailedPattern = t.FailedPattern
 		p.Tests.ProbePathTemplate = probeTemplate
 		if t.TimeoutSeconds != nil {
 			p.Tests.TimeoutSeconds = *t.TimeoutSeconds
