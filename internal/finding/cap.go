@@ -48,8 +48,8 @@ type CommentCap struct {
 // §7.1.4's draft header and `cr post` read their number from this one call, so
 // the count the user triages against and the count that blocks the post are one
 // number by construction rather than two that happen to agree.
-func CommentCapFor(queued []*Finding, max int) CommentCap {
-	return CommentCap{Count: len(queued), Max: max}
+func CommentCapFor(queued []*Finding, maxComments int) CommentCap {
+	return CommentCap{Count: len(queued), Max: maxComments}
 }
 
 // Disclosure is the §11.1 honesty disclosure of the comment cap, printed

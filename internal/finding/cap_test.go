@@ -30,19 +30,19 @@ func queue(count int) []*Finding {
 // cap that blocked at twenty would refuse a round §1.6.2 permits, and one that
 // let twenty-one through would post the comment the clause exists to stop.
 func TestTheCapBlocksOnlyTheCountAboveIt(t *testing.T) {
-	const max = 20
+	const maxComments = 20
 
-	for _, count := range []int{0, 1, 19, max} {
-		require.NoError(t, CommentCapFor(queue(count), max).Err(),
-			"%d comments fit under a cap of %d", count, max)
+	for _, count := range []int{0, 1, 19, maxComments} {
+		require.NoError(t, CommentCapFor(queue(count), maxComments).Err(),
+			"%d comments fit under a cap of %d", count, maxComments)
 	}
 
-	for _, count := range []int{max + 1, 40} {
-		err := CommentCapFor(queue(count), max).Err()
+	for _, count := range []int{maxComments + 1, 40} {
+		err := CommentCapFor(queue(count), maxComments).Err()
 		var exceeded *CommentCapExceededError
-		require.ErrorAs(t, err, &exceeded, "%d comments exceed a cap of %d", count, max)
+		require.ErrorAs(t, err, &exceeded, "%d comments exceed a cap of %d", count, maxComments)
 		assert.Equal(t, count, exceeded.Cap.Count, "the count reaches the caller as a number")
-		assert.Equal(t, max, exceeded.Cap.Max)
+		assert.Equal(t, maxComments, exceeded.Cap.Max)
 		assert.Contains(t, err.Error(), strconv.Itoa(count), "the block names the count")
 	}
 }
