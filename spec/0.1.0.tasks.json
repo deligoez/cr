@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T20:42:53.925092Z",
+  "updated_at": "2026-08-13T21:03:46.100225Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -128,7 +128,7 @@
     {
       "id": "output-mode-switching",
       "title": "Switch JSON output by TTY",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -138,7 +138,8 @@
       "source_sections": [
         "## 12. Output contract"
       ],
-      "started_at": null,
+      "started_at": "2026-08-13T21:03:46.100224Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
@@ -665,7 +666,7 @@
     {
       "id": "network-write-boundary-guard",
       "title": "Guard network writes to posting only",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "no-model-client-guard"
@@ -675,11 +676,32 @@
       "source_sections": [
         "### 2.1 Division of labour"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-13T20:43:43.912197Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-13T21:03:08.012918Z",
+      "closed_reason": "- cr performs no network write except §8's GitHub calls, and only behind §8.5's gate: internal/gh is the single route out, asserted in internal/cli/nowrite_test.go by parsing every shipped Go file's imports — os/exec appears only in internal/gh/run.go and internal/git/run.go, and no network transport (net, net/http and their neighbours, golang.org/x/net; net/url excepted as parsing only) appears anywhere, so cr cannot address GitHub in process or start gh around the boundary.\n- Every outbound call goes through one gh-invoking helper that refuses a write without the gate's token: internal/gh/run.go's unexported invoke is the only exec site, and the two doors above it are asymmetric. Run is the read door, closed by default — it admits only api, judges a GraphQL call by its operation keyword rather than its verb (gh POSTs every query, so the verb decides nothing), and judges a REST call by --method, --input, and the field flags that make gh default to POST. Confirmation.Write is the write door, a method rather than a function taking a token, so no call shape omits it; Confirmation's granted field is unexported and Confirm is its only constructor, so a token composed outside internal/gh is the zero value and writes nothing, and a confirmed token still runs only an api call because §8.3.1 and §8.4.1 need one atomic review that gh pr comment and gh pr review cannot express.\n- A write attempt from any other path fails: TestNoWriteReachesGhThroughTheReadDoor refuses seventeen shapes — a verb in each spelling gh accepts, a body from --input, a field with no GET, pr comment and pr review, a mutation, a mutation behind a leading query, and one behind a leading comment — and proves gh was never started; TestOnlyAConfirmedTokenOpensTheWriteDoor refuses a fabricated and an unconfirmed token; TestAWriteFromOutsideTheGateIsRefused asserts the same from internal/cli, where the zero value is all Go can build; TestNothingOutsideTheGhPackageMintsAConfirmation keeps the mint to one site. The guard was proved to bite by making the real ingestion call --method POST and then making threadsQuery a mutation: TestAReadIgnoresTheAmbientGhEnvironment failed on both, and both were reverted.\nOut of scope: end-to-end assertion that cr post reaches this door belongs to single-review-batching, dry-run-posting, and confirm-flag-required, which build §8.5's gate and the payload it presents.",
+      "gate_passed_at": "2026-08-13T21:03:08.012918Z",
+      "commit_sha": "2085d95",
+      "commit_shas": [
+        "2085d95",
+        "16e1974",
+        "caf041e",
+        "6f35f5d",
+        "70d5934",
+        "5b8c0fa",
+        "261188b",
+        "402c489",
+        "11d4906",
+        "7026c7b",
+        "3d171e9",
+        "9c7cb22"
+      ],
+      "commit_files": [
+        "internal/cli/nowrite_test.go",
+        "internal/gh/run.go",
+        "internal/gh/write.go",
+        "internal/gh/write_test.go"
+      ]
     },
     {
       "id": "agent-only-judgement-guard",
