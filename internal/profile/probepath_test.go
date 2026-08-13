@@ -186,3 +186,30 @@ func assertProbePathSatisfiesGlobs(t *testing.T, p *Profile) {
 	t.Fatalf("profile %q places its probe at %q, which none of its tests.globs %v claims", p.ID, placed, p.Tests.Globs)
 }
 
+// §5.1.6 scans for a leftover artefact with the template's every placeholder
+// substituted except <probe-id>, which becomes *. The glob is worth nothing
+// unless it finds a file a probe actually wrote and leaves the repository's own
+// tests alone, so the check runs against real paths on disk.
+func TestLeftoverGlobFindsTheProbeArtefactOnDisk(t *testing.T) {
+	p, err := Load(testsProfile(t, `{
+		"cmd": ["./vendor/bin/pest"],
+		"globs": ["tests/Feature/*Test.php"],
+		"probe_path_template": "tests/Feature/cr_probe_<probe-id><ext>"
+	}`))
+	require.NoError(t, err)
+	assert.Equal(t, "tests/Feature/cr_probe_*Test.php", p.LeftoverGlob())
+
+	sandbox := t.TempDir()
+	artefact := filepath.Join(sandbox, filepath.FromSlash(p.ProbePath("a1b2c3")))
+	require.NoError(t, os.MkdirAll(filepath.Dir(artefact), 0o750))
+	require.NoError(t, os.WriteFile(artefact, []byte("<?php\n"), 0o600))
+	// A test file the repository owns is not an artefact, and recreating a
+	// sandbox because of one would never end.
+	own := filepath.Join(filepath.Dir(artefact), "UserTest.php")
+	require.NoError(t, os.WriteFile(own, []byte("<?php\n"), 0o600))
+
+	found, err := filepath.Glob(filepath.Join(sandbox, filepath.FromSlash(p.LeftoverGlob())))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{artefact}, found)
+}
