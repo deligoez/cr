@@ -114,3 +114,37 @@ func TestARecordNeverSerialisesASliceAsNull(t *testing.T) {
 	assert.Contains(t, string(filled), `"citations":[{"path":"app/Models/User.php","line":12}]`)
 }
 
+// The struct is the resolved record, not the line an agent hands in, and head
+// and round are where the two forms already come apart: §2.3.3 has cr write the
+// pair and state.DecodeStamped refuses a line that supplied either, while
+// state.WriteStamped is what puts it on the stored record. A record type
+// inherits both only by embedding state.Stamp, and §6.1.4's wider rejection is
+// built on the same separation, so it has to hold for a findings.ndjson line.
+func TestHeadAndRoundReachARecordOnlyFromTheWriter(t *testing.T) {
+	_, err := state.DecodeStamped[Finding](
+		state.FileFindings, []byte(`{"id":"f1","class":"missing-test","head":"0f1e2d3"}`),
+	)
+	var reserved *state.ReservedFieldError
+	require.ErrorAs(t, err, &reserved)
+	assert.Equal(t, "head", reserved.Field)
+
+	records, err := state.DecodeStamped[Finding](
+		state.FileFindings, []byte(`{"id":"f1","class":"missing-test"}`),
+	)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Equal(t, state.Stamp{}, records[0].Stamp, "the wire form carries no stamp")
+
+	l := state.New(t.TempDir())
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	at := state.Stamp{Head: "0f1e2d3", Round: 2}
+	require.NoError(t, state.WriteStamped(held, state.FileFindings, at, records))
+	require.NoError(t, held.Unlock())
+
+	stored, err := state.ReadRecords[Finding](l, "acme", "web", 42, state.FileFindings)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	assert.Equal(t, at, stored[0].Stamp)
+	assert.Equal(t, "f1", stored[0].ID)
+}
