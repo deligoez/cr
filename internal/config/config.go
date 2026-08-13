@@ -272,6 +272,12 @@ func flatten(prefix string, nested, flat map[string]any) {
 			full = prefix + "." + key
 		}
 		if child, ok := value.(map[string]any); ok {
+			// An empty object still writes a key, and a key is what the
+			// protected scan reads, so it must survive the flattening.
+			if len(child) == 0 {
+				flat[full] = child
+				continue
+			}
 			flatten(full, child, flat)
 			continue
 		}
