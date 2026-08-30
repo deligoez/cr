@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T20:51:38.339166Z",
+  "updated_at": "2026-08-30T21:22:20.686468Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1759,7 +1759,7 @@
     {
       "id": "claim-schema",
       "title": "Define the claim record schema",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "normalised-hash",
@@ -1770,11 +1770,45 @@
       "source_sections": [
         "### 3.3 Claim extraction"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T20:52:27.337324Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T21:22:20.593444Z",
+      "closed_reason": "- internal/intent/claim.go holds §3.3's field table as data in the spec's own row order (id, text, source, span, note_id, span_hash, issue_hash, head) and the Claim struct carries every one of them, with state.Stamp supplying head and the round §2.3.3 adds; TestTheClaimFieldTableIsTheOneTheSpecWrites pins the table against the spec and TestAClaimCarriesExactlyTheTableRows walks the struct reflectively so no row can be added or dropped unnoticed.\n- The id is held to §3.3's \u003cISSUE-KEY\u003e#c\u003cn\u003e by SplitClaimID in internal/intent/claimid.go, which splits at the last infix and admits only the canonical number, while DecodeClaims compares the key that comes out against the key §3.2 resolved for the run; TestAClaimIDNamesTheIssueItBelongsTo covers the spelling boundaries and TestAClaimIDMustNameTheIssueTheRunResolved covers the foreign key.\n- source is a closed four-value vocabulary fenced as a struct with an unexported field, so description, acceptance, comment and note are the only values representable and ParseClaimSource is the one door in; TestTheFourClaimSourcesAreTheOnesTheSpecWrites and TestAClaimSourceCrossesTheWireAsItsName assert the set, its order, the refusal of anything outside it, and the wire round trip.\n- span_hash and issue_hash are marked Computed in the same table and refused on the wire by claimChecker.computed through state.ReservedFieldError, presence alone being the test, so an agent cannot write either; ComputeClaimHashes is what writes them, from the pre-images §3.3 states — the normalised hash of span for one and of the whole issue text at extraction for the other, the issue hash computed once for the extraction because §3.3.3 compares against one stored value — and both route through text.NormalisedHash so §1.4's six steps cannot be skipped.\n- note_id is enforced in both directions by claimChecker.noteID against the decoded source, because the Required column cannot express a condition: it is required when source is note, and refused on a claim drawn from the issue text, since such a field would name a provenance §3.3.1 never checked and §8.1.6 would disclose anyway; TestANoteSourcedClaimNamesItsNoteAndNothingElseDoes covers both directions plus null and empty spellings, TestAClaimMustSupplyEveryRequiredRow covers the four required rows, and internal/cli/exit.go maps both new refusals onto exit code 1 with TestARejectedClaimExitsWithTheValidationCode.\n- Quality gate green (go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh); gremlins unleash --timeout-coefficient 30 ./internal reports Killed 604, Lived 13, Not covered 41, Timed out 6, efficacy 97.89% against a 586/13/39/6/97.83% baseline, the two added not-covered being the bare-switch case clauses of noteID at 100% statement coverage, which is the known attribution artifact.",
+      "gate_passed_at": "2026-08-30T21:22:20.593444Z",
+      "commit_sha": "467d64f",
+      "commit_shas": [
+        "467d64f",
+        "132a4fa",
+        "8bfe3ae",
+        "1e0a95e",
+        "9e90c65",
+        "9d65faf",
+        "86f92cf",
+        "a01ad73",
+        "af4e8e9",
+        "9670fc8",
+        "3512de3",
+        "9dce632",
+        "5654753",
+        "0ea347f",
+        "a611f27",
+        "1b7c9fd",
+        "47713e8"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/intent/claim.go",
+        "internal/intent/claim_test.go",
+        "internal/intent/claimhash.go",
+        "internal/intent/claimhash_test.go",
+        "internal/intent/claimid.go",
+        "internal/intent/claimid_test.go",
+        "internal/intent/claimsource.go",
+        "internal/intent/claimsource_test.go",
+        "internal/intent/claimvalidate.go",
+        "internal/intent/claimvalidate_test.go"
+      ]
     },
     {
       "id": "claims-record-command",
