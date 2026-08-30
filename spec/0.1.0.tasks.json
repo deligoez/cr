@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T13:00:02.388934Z",
+  "updated_at": "2026-08-30T14:33:54.208517Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2200,7 +2200,7 @@
     {
       "id": "note-retraction",
       "title": "Retract a note within the round",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "context-command"
@@ -2210,11 +2210,50 @@
       "source_sections": [
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T14:04:29.933363Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T14:33:54.025376Z",
+      "closed_reason": "- A note stays unverified hearsay and stays revocable: internal/note/note.go gives Note a `retracted_at` that is nil while the note stands, and §3.6.6's revocation is a mark on the note rather than a deletion of it, so a note nobody has withdrawn and a note that was withdrawn are two states of one record instead of a line and its absence.\n- `cr note --remove \u003cnote-id\u003e` retracts one and takes no issue key, because note.SplitID reads the store out of §3.6.1's id, and note.Retract marks the note in place with a UTC timestamp under state.ContextLock. Marking and not deleting is the decision this task turned on: §3.6.1 numbers a note by counting the store, so a removed line would hand the retracted note's number to the next one while §3.3.2's claims and §8.1.6's provenance still cite it by id. The cost is that a note retracted precisely because it was wrong keeps its text on disk and keeps printing from `cr context`, under its retraction, which is what lets a later round name the cells and records that rested on it rather than silently retaining them. TestRetractMarksTheNoteAndKeepsItInTheStore reads the marking, the untouched sibling, the retained text and the spent id back off disk, and TestNextIDNeverReusesARetractedNotesNumber pins §3.6.1's counter against a store a retraction has changed.\n- The round-9 finding retracted-provenance-still-posts is answered structurally rather than by a check somebody has to remember to run in the right round. internal/note/note.go's StandingOf is derived from the store every time it is asked and is never stamped onto a citing record, and §9.3.5 exempts the store from round scoping, so there is no snapshot for a retraction to arrive too late for and no next round for the consequence to wait in.\n- The re-evaluation is therefore immediate rather than scheduled: `cr draft`, `cr post`, `cr status` and the round summary each read note.StandingOf at the moment they run, so a record whose note was retracted after it was recorded reads as retracted the first time any of them looks. TestRetractingANoteMidRoundStopsTheRecordRestingOnIt in internal/cli/note_test.go records a note, establishes that a citation of it stands and may assert, retracts it mid-round through the command, and asserts the same citation no longer stands against the same store.\n- That is what makes it correct for v0.1 ending at posting: a consequence held over to the next round is a consequence that never lands, since `cr brief` may never open another round for this pull request, and nothing in this implementation waits for one.\n- The register and the provenance region turn on one fact rather than two, which is the second half of the round-9 finding. note.Standing.Stands is a single predicate documented in internal/note/note.go as what §6.3's assertion register and §8.1.6's provenance region both read, and it answers false for a retracted note and for a dangling note id alike, since a record citing either has equally little provenance to disclose. TestAStandingIsWhatACitationOfANoteMayStillDo pins all three standings and the predicate for each, including an id belonging to another issue key.\n- The retraction is reported on every surface v0.1 has a reader for today: `cr note --remove` emits the whole note plus a machine-readable `standing` field through internal/cli/note.go's retractResult, its terminal shape names the consequence in words rather than leaving it to be inferred from a timestamp, and internal/cli/context.go renders the retraction into §3.6.5's provenance line so a reader never weighs withdrawn hearsay as though it stood. TestATerminalRetractionSaysWhatNeedsReevaluation and TestContextNamesARetractionInTheProvenance cover both surfaces.\n- Retention is what keeps the decision auditable, and it is enforced at the store: note.Retract rewrites the file with the same records in the same order and one field added, so the withdrawn text, its source, its pull request and its number all survive, and TestRetractMarksTheNoteAndKeepsItInTheStore asserts the store still holds both notes afterwards while TestRetractingTwiceKeepsTheFirstDecision asserts a second run keeps the first retraction's moment rather than restamping it.\n- The mid-round test is TestRetractingANoteMidRoundStopsTheRecordRestingOnIt, and its doc comment says exactly how far it reaches. It asserts the decision every consequence reads, since there is no record, draft, post, coverage cell, `cr status` or round summary in the tree to drive, and a draft written here to give the test something to fail against would have tested itself. The unreached halves are named below against the tasks that own them.\n- Found by context-command and fixed here: a §3.6 store cr found and could not parse exited 2, a malformed invocation, when nothing about the invocation was wrong and no retyping of it could help. It now exits §11.2's 3 through `cr note`, `cr answer` and `cr context` alike, which TestACorruptContextStoreExitsWithTheFileCode in internal/cli/exit_test.go proves through all three commands rather than through one.\n- The error and its branch are state.ContextStoreError in internal/state/context.go and the `errors.As` arm in internal/cli/exit.go. The type wraps both ways the store can fail as a file, unreadable and unparseable, and adds no second message, since the wrapped error already names the path and the one-based line the user has to open. The same commit maps note.UnknownNoteError onto ExitValidation beside note.NoIssueKeyError, since an id spelled §3.6.1's way that names no note is a retraction that failed rather than a command line that can be retyped.\n- A file cr read and could not parse is a file failure and not a malformed invocation, and the two are kept apart rather than merged: TestACorruptContextStoreExitsWithTheFileCode asserts the corrupt store gets §11.2's 3 and names the file and line, while TestRetractRefusesAnIdThatNamesNoNote and TestTheTwoRowsOfTheNoteCommandDoNotMix assert that a malformed note id, a positional given to the retraction, and an append flag given with it all stay §11.2's 2.\nOut of scope: forcing a dependent record to kind question belongs to argued-forcing, and blocking it from drafting to draft-render-command. Neither command exists in the tree, so the forcing is present here only as the decision those two will read.\nOut of scope: withholding §8.1.6's provenance region for a retracted or dangling note id belongs to provenance-region. The rule is implemented as note.Standing.Stands and has no caller outside tests yet.\nOut of scope: reporting the retraction in `cr status` belongs to status-findings-report and status-coverage-report, and in the round summary to round-summary-writers. It is met here on the two surfaces that exist.\nOut of scope: re-evaluating coverage cells citing a retracted note belongs to cells-record-command and cell-record-consistency, and re-evaluating records to record-command.\nOut of scope: note.Standing.Stands has only test callers today. When argued-forcing and provenance-region close, it must stop being test-only, per CLAUDE.md's phase-boundary rule 1.\nOut of scope: gremlins unleash --timeout-coefficient 30 ./internal reports Killed 452, Lived 8, efficacy 98.26 percent, with the same eight commented-equivalent survivors and the same three known TIMED OUT as the baseline of Killed 436, Lived 8, 98.20 percent. One new survivor appeared and was closed rather than classified: CONDITIONALS_BOUNDARY on SplitID's `at \u003c 1` lived because no test used a one-character issue key, which commit 200456d pins.\n",
+      "gate_passed_at": "2026-08-30T14:33:54.025376Z",
+      "commit_sha": "55a25cd",
+      "commit_shas": [
+        "55a25cd",
+        "fee6aa7",
+        "6d4d298",
+        "3c7d190",
+        "aca1557",
+        "dd4e705",
+        "c83afb2",
+        "1eae1d1",
+        "afca944",
+        "f758de4",
+        "56259f3",
+        "9e4e056",
+        "304b947",
+        "9943f3a",
+        "232354f",
+        "2960f48",
+        "2c23976",
+        "eefc5d9",
+        "48febe8",
+        "f2658ca",
+        "944d160",
+        "200456d"
+      ],
+      "commit_files": [
+        "internal/cli/context.go",
+        "internal/cli/context_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/note.go",
+        "internal/cli/note_test.go",
+        "internal/cli/output_test.go",
+        "internal/note/note.go",
+        "internal/note/note_test.go",
+        "internal/note/store.go",
+        "internal/note/store_test.go",
+        "internal/state/context.go"
+      ]
     },
     {
       "id": "brief-creates-state",
