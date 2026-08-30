@@ -558,3 +558,85 @@ func TestADryRunAndAConfirmedPostAreDistinguishable(t *testing.T) {
 	assert.Contains(t, sent, "posted: the review was sent to GitHub")
 	assert.NotContains(t, sent, "not posted")
 }
+
+// gatedCommands names each file under internal/cli against whether it mints
+// §8.5's confirmation.
+//
+// The mint is the gate, and the gate is the whole of what could have written:
+// §8.5.2 requires `--confirm` for every network write, §8.5.3 forbids anything
+// that supplies it implicitly, and a confirmation's only field is unexported,
+// so a file naming neither of mints holds nothing but the zero token and
+// writes nothing with it. TestNothingOutsideTheGhPackageMintsAConfirmation
+// keeps that set to one deliberate widening.
+//
+// mints is that guard's own list, read here rather than restated, and the set
+// is derived from the source on every run rather than written down. So §12.6's
+// commands and the write boundary's commands are one set and have no way to
+// come apart.
+func gatedCommands(t *testing.T) map[string]bool {
+	t.Helper()
+	sources, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	gated := map[string]bool{}
+	for _, source := range sources {
+		name := source.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(name)
+		require.NoError(t, err)
+		gated[name] = slices.ContainsFunc(mints, func(mint string) bool {
+			return strings.Contains(string(raw), mint)
+		})
+	}
+
+	require.Greater(t, len(gated), 3,
+		"only %d files were scanned, so this guard proved nothing", len(gated))
+	return gated
+}
+
+// printsPosted reports whether a payload's own JSON document carries §12.6's
+// field. The document is read rather than the type, so a command that spells
+// the field for itself is answered for exactly as one that embeds posting.
+func printsPosted(t *testing.T, payload result) bool {
+	t.Helper()
+	encoded, err := json.Marshal(withoutNilSlices(payload))
+	require.NoError(t, err)
+
+	document := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(encoded, &document))
+	_, carried := document["posted"]
+	return carried
+}
+
+// §12.6: a command reports `posted` exactly when it could have performed a
+// network write.
+//
+// The negative half is the one that is easy to get wrong. A `"posted": false`
+// on `cr status` is not a harmless default — it says the command weighed
+// posting and did not post, which is a claim about a decision nothing made. So
+// presence is a property of the command, and both sides of the equality are
+// read out of the source: the field from the document the payload prints, the
+// permission from the file that mints §8.5's confirmation.
+//
+// cr post is unwritten, so nothing mints one today and the rule bites in the
+// negative direction alone: no payload carries the field. The positive
+// direction arrives with the gate, and in the same commit, because the file
+// that gains the mint is the file this then requires the field of.
+func TestOnlyACommandBehindTheGateReportsPosted(t *testing.T) {
+	gated := gatedCommands(t)
+	declared := emittablePayloads(t)
+
+	for _, payload := range outputStructs {
+		name := payloadName(payload)
+		t.Run(name, func(t *testing.T) {
+			file, found := declared[name]
+			require.True(t, found, "no file under internal/cli declares %s's Text method", name)
+
+			assert.Equal(t, gated[file], printsPosted(t, payload),
+				"§12.6: %s reports posted if and only if %s could have performed a network write",
+				name, file)
+		})
+	}
+}
