@@ -340,3 +340,27 @@ func TestAPatchThatIsNotOneIsRejected(t *testing.T) {
 		})
 	}
 }
+
+// §9.2 closes the vocabulary in one sentence: valid side values are RIGHT and
+// LEFT. Side is a defined string, so the type keeps nothing out — every value
+// that arrives from outside, an agent's `side` per §9.2 and GitHub's `diffSide`
+// per §3.5.1 alike, is assignable to it, and this is the check both of them go
+// through.
+//
+// The near misses are what the readers actually receive: a field left out of an
+// answer decodes to the empty string, and a lowercase or capitalised spelling
+// is what a neighbouring API and a memory of one produce. Each of them would
+// otherwise become a side that resolves against no tree per §6.1.2 and matches
+// no hunk per §3.4.4.
+func TestParseSideAdmitsRightAndLeftAndNothingElse(t *testing.T) {
+	for _, side := range []Side{Right, Left} {
+		parsed, known := ParseSide(string(side))
+		assert.True(t, known, side)
+		assert.Equal(t, side, parsed, "the value is handed back typed, not reconstructed")
+	}
+
+	for _, value := range []string{"", "right", "Right", "RIGHT ", " LEFT", "MIDDLE", "BOTH"} {
+		_, known := ParseSide(value)
+		assert.Falsef(t, known, "%q is not one of §9.2's two sides", value)
+	}
+}
