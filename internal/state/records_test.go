@@ -1,6 +1,7 @@
 package state
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -202,4 +203,44 @@ func TestAnUndecodableAgentLineIsNamedByItsNumber(t *testing.T) {
 			assert.Contains(t, err.Error(), "claims.ndjson line 3")
 		})
 	}
+}
+
+// §9.3.5 through the writer: an append adds a round's records and leaves what
+// the file already held exactly as it was.
+//
+// findings.ndjson is the file this is about. §2.3 has it hold every finding and
+// question in every state, so a round adds to it, and §9.3.5 leaves earlier
+// rounds intact. WriteStamped cannot be used for that: it stamps every record
+// it is handed, so reading the file back and rewriting it through WriteStamped
+// would carry every earlier round into the head being recorded now — the first
+// round's records would claim to have been produced against a commit that did
+// not exist when they were written.
+//
+// The first append lands on a file that is not there yet, which is what a state
+// directory opened by LockPR alone has: an absent file holds as many records as
+// an empty one, and the append creates it.
+func TestAnAppendLeavesEarlierRoundsAsTheyWere(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	require.NoError(t, l.Init())
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+
+	first := Stamp{Head: "0f1e2d3", Round: 1}
+	second := Stamp{Head: "4c5b6a7", Round: 2}
+	require.NoError(t, AppendStamped(held, FileFindings, first, []*stampedRecord{{ID: "f1"}}))
+	require.NoError(t, AppendStamped(held, FileFindings, second,
+		[]*stampedRecord{{ID: "f2", Stamp: first}, {ID: "f3"}}))
+
+	// A file §2.3.3 does not list carries no pair at all, and is refused
+	// here for the reason WriteStamped refuses it.
+	assert.Error(t, AppendStamped(held, FileThreads, first, []*stampedRecord{}))
+	require.NoError(t, held.Unlock())
+
+	got, err := ReadRecords[stampedRecord](l, "acme", "web", 42, FileFindings)
+	require.NoError(t, err)
+	assert.Equal(t, []stampedRecord{
+		{Stamp: first, ID: "f1"},
+		{Stamp: second, ID: "f2"},
+		{Stamp: second, ID: "f3"},
+	}, got, "the first round keeps the head it was recorded against, and the second stamps its own")
 }
