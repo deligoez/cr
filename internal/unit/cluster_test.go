@@ -258,3 +258,22 @@ const twoFiles = `--- a/app/Money.php
  context
 `
 
+// Every grouping branch of §3.4.4 says "same file" before it says anything
+// else, so two changes three lines apart in two files are two units however
+// close their numbers are. The partition is by file as well as by side, and
+// dropping either half of that key would merge these.
+func TestClustersNeverSpanTwoFiles(t *testing.T) {
+	generic := shipped(t, "generic")
+
+	hunks, err := git.ParseHunks(twoFiles)
+	require.NoError(t, err)
+	require.Len(t, hunks, 2)
+
+	clusters := Clusters(hunks, &generic, nil, defaultGapLines(t))
+
+	require.Len(t, clusters, 2)
+	assert.Equal(t, moneyPath, clusters[0].Path)
+	assert.Equal(t, "app/Order.php", clusters[1].Path)
+	assertNoClusterMixesSides(t, clusters)
+}
+
