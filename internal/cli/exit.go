@@ -8,6 +8,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -73,6 +74,22 @@ func exitCodeFor(err error) int {
 		// gh is the third of the external tools §3.1.3 governs, and a
 		// GraphQL error reaches cr the same way a refusal does: gh
 		// exits non-zero with the message on stderr. Both are code 3.
+		return ExitFile
+	}
+	var trackerCommand *intent.CommandError
+	if errors.As(err, &trackerCommand) {
+		// §3.1.3 is written about this command in particular: a
+		// non-zero exit fails with exit code 3 and surfaces the
+		// command's stderr. git and gh borrow the clause; the tracker
+		// is what it was written for.
+		return ExitFile
+	}
+	var malformedTracker *intent.MalformedCommandError
+	if errors.As(err, &malformedTracker) {
+		// An intent.cmd §3.1.1 does not describe is a configuration
+		// failure, which §11.2 codes 3 alongside the command failure
+		// it would otherwise have become. Nothing about the invocation
+		// can be corrected, so it is not a usage error.
 		return ExitFile
 	}
 	var invalidClass *finding.InvalidClassError
