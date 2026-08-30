@@ -54,6 +54,29 @@ func TestTestGlobsSelectTestFilesAtEveryDepth(t *testing.T) {
 	}
 }
 
+// A `**` at the end of a glob selects every file beneath it, however deep.
+//
+// It is the boundary the shipped `tests/**/*Test.php` never reaches, because
+// there `**` always has a segment behind it to stop at. A suite whose every file
+// under `tests/` is a test writes `tests/**` instead, and then `**` has to
+// consume the whole remaining path rather than all but the last segment — an
+// off-by-one that mutation testing surfaced and that no glob in the repository
+// would have found. It fails the same silent way the depth cases do: files
+// recognised as tests everywhere except at the bottom of the tree.
+//
+// Nothing here asserts what `tests/**` does with the bare directory `tests`. A
+// diff header names a file, never a directory, so the question cannot arise from
+// anything §4.4.1 reads.
+func TestATrailingDoubleStarSelectsEveryFileBeneathIt(t *testing.T) {
+	p := Profile{Tests: Tests{Globs: []string{"tests/**"}}}
+
+	assert.True(t, p.IsTestFile("tests/OrderTest.php"))
+	assert.True(t, p.IsTestFile("tests/Feature/OrderTest.php"))
+	assert.True(t, p.IsTestFile("tests/Feature/Api/Billing/InvoiceTest.php"))
+
+	assert.False(t, p.IsTestFile("app/Models/Order.php"))
+}
+
 // §2.4 makes `tests.globs` required whenever `tests.cmd` is present and §4.5.2
 // disables the test axis when `tests.cmd` is absent, so a profile that can run
 // tests can always name them. generic is the profile that declares neither, and
