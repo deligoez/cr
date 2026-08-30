@@ -165,3 +165,17 @@ func TestQueueingPastTheCommentCapExitsWithTheValidationCode(t *testing.T) {
 	require.NoError(t, finding.CommentCapFor(queued[:maxComments], maxComments).Err(),
 		"the same round posts once the user has triaged one comment away")
 }
+
+// §2.4.2 aborts a profile tie with exit code 3 naming the tied profiles. The
+// tie is not a malformed profile file — each one in it parsed and validated —
+// so it arrives here as its own type and needs its own mapping; without it the
+// abort would fall through to the malformed-invocation default and report 2,
+// telling the user to fix a command line that was correct. The code must
+// survive the wrapping a command adds on the way out.
+func TestAProfileTieExitsWithTheFileCode(t *testing.T) {
+	err := error(&profile.TieError{Profiles: []string{"laravel-pest", "symfony"}})
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("selecting a profile: %w", err)))
+	assert.Contains(t, err.Error(), "laravel-pest")
+	assert.Contains(t, err.Error(), "symfony")
+}
