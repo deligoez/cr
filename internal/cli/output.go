@@ -38,6 +38,42 @@ type result interface {
 	Text(w *writer) string
 }
 
+// posting carries §12.6's boolean — whether this run performed the network
+// write of §8 — and a command reports it by embedding this in its result.
+//
+// The field is opt-in rather than a default on every payload, because false is
+// not a neutral value. On `cr status` a `"posted": false` would read as a
+// command that weighed posting and declined, which is a claim about a decision
+// nothing made. Presence is therefore a property of the command: §8.5.2
+// requires `--confirm` for every network write and §8.5.3 allows nothing that
+// supplies it implicitly, so the commands that could have written are exactly
+// the commands that mint a confirmation, and
+// TestOnlyACommandBehindTheGateReportsPosted reads both of those sets out of
+// the source rather than keeping a list of either.
+//
+// Declaring the field in one place is the other half. A command spelling
+// `posted` for itself could give it another name, another type, or an
+// omitempty that hides the very dry run §8.5.1 exists to make visible.
+type posting struct {
+	// Posted is whether the write happened. §8.5.4 bounds what it may
+	// mean: it records that cr sent the review, never that a human read
+	// the draft.
+	Posted bool `json:"posted"`
+}
+
+// line is §12.6's other half, which asks for a dry run to be distinguishable
+// in a terminal and not only in the JSON document.
+//
+// It says what became of the review and stops. §8.5.4 forbids cr to offer the
+// gate as evidence of human involvement, so the sentence names the write and
+// neither the confirmation, the reading, nor the draft.
+func (p posting) line(w *writer) string {
+	if p.Posted {
+		return w.accent("posted") + ": the review was sent to GitHub"
+	}
+	return w.accent("not posted") + ": nothing was sent to GitHub"
+}
+
 // writer is the single place §12's output contract is applied, and it lives
 // here for the reason exit.go does: §11.1 registers the output flags on the
 // root command and §11.2 fixes the exit codes, so both contracts are settled
