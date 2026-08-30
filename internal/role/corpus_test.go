@@ -279,3 +279,21 @@ func TestAMalformedShippedRoleAbortsToo(t *testing.T) {
 	assert.Equal(t, "correctness"+fileExt, malformed.File, "a shipped role is named as the file it ejects to")
 }
 
+// §2.2 names the role file <id>.json and says nothing about what else may sit
+// in the directory, so a subdirectory or an editor's leftover is not a
+// malformed role — refusing it would make an unrelated file able to stop every
+// review in the repository. What must not happen is the opposite: reading it as
+// a role, which is what the extension check prevents.
+func TestResolutionIgnoresWhatIsNotARoleFile(t *testing.T) {
+	repo := layerDir(t, map[string]string{"security": roleJSON(t, "security", nil)})
+	require.NoError(t, os.Mkdir(filepath.Join(repo, "archive.json"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "notes.md"), []byte("not a role"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "security.json.bak"), []byte("{"), 0o600))
+
+	got, err := Resolve(repo, absentDir(t))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"security", "convention", "correctness", "intent-coverage", "test-adequacy"},
+		corpusIDs(got))
+}
+
