@@ -132,3 +132,21 @@ func TestEveryRequiredTextFieldIsNamedWhenItIsBlank(t *testing.T) {
 		}
 	}
 }
+
+// §1.5 closes the axis id set and axis.Validate is the one place that judges
+// it, so a role naming an axis of its own is rejected there rather than by a
+// second copy of the rule here. §1.5 and §2.5.3 fix the same abort, and the
+// error carries the file and the field either way — a role package that wrapped
+// it in a MalformedError of its own would be the second judge §1.5 exists to
+// prevent.
+func TestAnAxisOutsideTheClosedSetIsRejected(t *testing.T) {
+	path := roleFile(t, "security", map[string]any{"axis": "security"})
+
+	_, err := Load(path)
+
+	var invalid *axis.InvalidError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, path, invalid.File)
+	assert.Equal(t, "axis", invalid.Field)
+	assert.Equal(t, "security", invalid.Value)
+}
