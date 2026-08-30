@@ -36,9 +36,11 @@ const (
 // recordedHome puts a state root behind CR_HOME holding one pull request in
 // round recordRound, with two units of that round and one of the round before.
 //
-// The units are written as bytes rather than through a record type because
-// §3.4.6's unit record does not exist yet, and the id and the round are the
-// whole of what `cr record` reads out of the file.
+// The units are written as bytes rather than through a record type, and the
+// line carries only the id and the stamp. That is deliberate: the id and the
+// round are the whole of what `cr record` reads out of the file, and a fixture
+// built from §3.4.6's record would stop proving that a line holding no other
+// field is read correctly.
 func recordedHome(t *testing.T) state.Layout {
 	t.Helper()
 	layout := state.New(crHome(t))
