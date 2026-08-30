@@ -321,3 +321,29 @@ func TestACorruptContextStoreExitsWithTheFileCode(t *testing.T) {
 		})
 	}
 }
+
+// Round 8's finding render-lang-domain-unbounded closes the domain of
+// render.lang at the two languages §8.1.4 builds a question label in, and a
+// value outside them aborts with exit code 3 naming the setting. §11.2 codes it
+// 3 rather than 2: the command line is correct and no retyping of it can help,
+// and rather than 1: the run never reached input data at all.
+//
+// It is run through `cr config` as well as mapped, because the abort has to
+// survive the whole path a user takes to it — the environment layer of §2.7,
+// the resolution, and the wrapping a command adds on the way out — and because
+// a configuration cr refuses must print nothing that looks like an answer.
+func TestAnUnknownRenderLanguageExitsWithTheFileCode(t *testing.T) {
+	_, err := config.Resolve(config.Sources{Environ: []string{"CR_RENDER_LANG=de"}})
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("resolving configuration: %w", err)))
+
+	crHome(t)
+	t.Setenv("CR_RENDER_LANG", "de")
+	out, err := runIn(t, "config")
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err), "§11.2 codes a configuration failure 3")
+	assert.Contains(t, err.Error(), "render.lang", "the abort names the setting")
+	assert.Contains(t, err.Error(), `"de"`, "and the value it rejected")
+	assert.Empty(t, out, "a configuration cr refuses prints no configuration")
+}
