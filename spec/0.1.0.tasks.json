@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T21:52:01.245583Z",
+  "updated_at": "2026-08-30T22:01:48.128552Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2036,7 +2036,7 @@
     {
       "id": "oversized-unit-split",
       "title": "Split clusters exceeding the line cap",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "hunk-clustering"
@@ -2046,11 +2046,27 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T21:53:29.51052Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T22:01:48.07824Z",
+      "closed_reason": "- internal/unit/split.go's Split applies §3.4.5 to §3.4.4's clusters: it takes a cluster's hunks in the order the cluster holds them, which already is ascending start order because §3.4.4 partitions one file's hunks on one side and every branch keeps the order of the partition it selects from, and it opens a new unit at the hunk whose changed lines would carry the running count past cluster.max_lines. A cluster inside the cap runs the same loop and comes back whole, so there is no branch on whether the cap binds, and the cluster at exactly the cap is not a case such a branch could be written wrong at.\n- cluster.max_lines is registered in internal/config/config.go's §2.7 settings table with its default of 80, the only place the number lives. internal/unit's tests read it through config.Resolve, and TestTheMaxLinesDefaultComesFromTheSettingsTable pins both the default and that a layer above it reaches the key, which a name absent from the table could not.\n- A hunk whose own changed lines exceed the cap becomes one unit and carries Cluster.Oversized, which Split sets and §3.4.4 forms no cluster carrying. It is the one place the limit does not bind because there is nothing below a hunk to split, and a unit cut at a line the diff never marked would give §3.4.6 a hunk range no hunk has.\n- The flag reaching the coverage report is §10.1.1's sentence and belongs to the still-open status-coverage-report task. Reported rather than claimed: this task records the flag on the unit, and no reader of units.ndjson renders a report yet.\n- TestASplittableClusterOpensAUnitAtTheHunkThatWouldNotFit covers the splittable cluster at the boundary the rule turns on. Fifty and thirty changed lines reach the cap exactly and stay together, and the single line after them is the first that would exceed it, so an implementation splitting at reaches-the-limit rather than exceeds-it leaves three units where two are right.\n- TestAHunkOverTheCapAloneIsOneOversizedUnit covers the unsplittable oversized hunk with an ordinary hunk on either side of it, neither flagged, and adds a second cluster whose one hunk sits at exactly the cap and is a plain unit, which is the same boundary from the other side. go test -race, golangci-lint and scripts/deadcode.sh are all green.\nOut of scope: §3.4.6's unit record and unit hash, the round-scoped id ordering, and §10.1.1's coverage report are each their own task.",
+      "gate_passed_at": "2026-08-30T22:01:48.07824Z",
+      "commit_sha": "0cee876",
+      "commit_shas": [
+        "0cee876",
+        "372b9fd",
+        "0518eac",
+        "30b0c76",
+        "7d9de3f",
+        "f453856",
+        "45e67cd"
+      ],
+      "commit_files": [
+        "internal/config/config.go",
+        "internal/unit/cluster.go",
+        "internal/unit/split.go",
+        "internal/unit/split_test.go"
+      ]
     },
     {
       "id": "unit-record-fields",
