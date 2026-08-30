@@ -19,6 +19,24 @@ func Append(l state.Layout, issueKey, text string, source Source, pr int, at tim
 	return appendNote(l, issueKey, &Note{Text: text, Source: source, PR: pr}, at)
 }
 
+// Load returns every note recorded against issueKey, in the order they were
+// recorded. It is what §3.6.4 means by loading the notes for an issue key, and
+// what §3.6.5 prints.
+//
+// The issue key is the whole of the lookup, and that is the requirement rather
+// than an economy. §3.6.4 has these notes reach every subsequent round and every
+// subsequent pull request that resolves to the same key, and §9.3.5 exempts this
+// store from round scoping outright, so there is no round to filter by and no
+// pull request either: a note's PR field is the provenance §3.6.1 requires of it
+// and is never read as a scope. A parameter here to narrow by would be a way of
+// not seeing a fact somebody recorded.
+//
+// The read takes no lock, per §2.3.2. A store nobody has recorded against is no
+// notes rather than a failure, for the reason state.ContextRecords gives.
+func Load(l state.Layout, issueKey string) ([]Note, error) {
+	return state.ReadContextRecords[Note](l, issueKey)
+}
+
 // appendNote records one note against issueKey, taking everything but the id
 // and the timestamp from draft. It reads draft and never writes to it: the id
 // and the timestamp are set on a copy, so the caller's value is left alone.
