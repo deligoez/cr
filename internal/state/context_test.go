@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,39 @@ func TestAnUnwrittenContextStoreHoldsNoRecords(t *testing.T) {
 	assert.Empty(t, records)
 	assert.NotNil(t, records, "an absent store is no records, and §12.3 spells that []")
 	assert.NoFileExists(t, l.ContextFile("CR-1"), "reading must not create the store")
+}
+
+// §2.3.2 makes reads lock-free, and this is the file where that has teeth:
+// §3.6.5's `cr context` prints a store §3.6.1's `cr note` may be appending to at
+// that moment. The read is asserted to complete while another holder has the
+// exclusive lock, which is the whole of the claim — a reader that took the lock
+// would sit here until the writer let go, and no assertion about the records it
+// eventually returned would notice.
+//
+// What makes the lock-free read safe rather than merely quick is the rename:
+// WriteContextRecords publishes the file whole, so the reader sees one version
+// of it and never half of two.
+func TestTheContextStoreIsReadWhileAWriterHoldsTheLock(t *testing.T) {
+	l := contextRoot(t)
+
+	held, err := l.LockContext("CR-1")
+	require.NoError(t, err)
+	require.NoError(t, WriteContextRecords(held, []numbered{{N: 1}, {N: 2}}))
+
+	read := make(chan []numbered, 1)
+	go func() {
+		records, err := ReadContextRecords[numbered](l, "CR-1")
+		assert.NoError(t, err)
+		read <- records
+	}()
+
+	select {
+	case records := <-read:
+		assert.Equal(t, []numbered{{N: 1}, {N: 2}}, records)
+	case <-time.After(10 * time.Second):
+		t.Fatal("§2.3.2: the read blocked behind the writer's lock, so it is not lock-free")
+	}
+	require.NoError(t, held.Unlock())
 }
 
 // The context store is keyed by issue and not by pull request, so §2.3.1's lock
