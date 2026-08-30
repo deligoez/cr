@@ -354,3 +354,45 @@ func TestRecordingClaimsClearsThisRoundsMappingEntries(t *testing.T) {
 		string(mapping),
 		"§3.3.1 clears this round's entry, and §9.3.5 leaves the round before's alone")
 }
+
+// §3.2 leaves the issue key empty when none of its four sources yields one, and
+// a pull request in that state has no claims to record.
+//
+// The refusal is not a convenience. §3.3 forms every claim id as
+// `<ISSUE-KEY>#c<n>`, so there is no id a claim could carry that would name
+// this pull request's issue; and §3.1.1 puts a `{key}` placeholder in the
+// tracker command, so reading the issue text for an empty key would start that
+// command with the placeholder substituted to nothing and read back whatever
+// the tracker makes of a blank issue id. intent.Resolve avoids that by never
+// reaching the source without a key, and a command that takes the key out of
+// §2.3's metadata instead has to refuse in the same place.
+//
+// §11.2 codes it 1 rather than 2: nothing about the invocation is wrong, and no
+// retyping of the command line can fix recorded state.
+func TestClaimsRecordRefusesAPullRequestWithNoIssueKey(t *testing.T) {
+	layout := claimedHome(t)
+	held, err := layout.LockPR(claimsOwner, claimsRepo, claimsPRNum)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: claimsOwner, Repo: claimsRepo, PR: claimsPRNum,
+		Round: claimsRound, Head: claimsHead,
+	}))
+	require.NoError(t, held.Unlock())
+
+	file := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+	)
+	err = runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t))
+
+	var noKey *intent.NoIssueKeyError
+	require.ErrorAs(t, err, &noKey)
+	assert.Equal(t, ExitValidation, exitCodeFor(err), "§11.2 codes recorded state 1")
+	assert.Equal(t,
+		"acme/api#21 resolved to no issue key, so §3.3 has no issue to draw claims from "+
+			"and §3.1.1 has no key to read the issue text for: "+
+			"re-run `cr brief 21 --issue <KEY>` to name one",
+		err.Error(),
+		"§12.4: the refusal names the pull request and the next actionable step")
+}
