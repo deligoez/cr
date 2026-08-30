@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T17:56:05.783305Z",
+  "updated_at": "2026-08-30T18:19:43.503587Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -339,7 +339,7 @@
     {
       "id": "normalise-text-transform",
       "title": "Implement the six-step text normalisation",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "exit-code-constants"
@@ -349,11 +349,31 @@
       "source_sections": [
         "### 1.4 Normalisation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T17:57:04.709585Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T18:19:43.424842Z",
+      "closed_reason": "- internal/text/normalise.go's Normalise runs §1.4's six steps in the order §1.4 numbers them, each carrying its step number in a comment: step 1 validates UTF-8 over the bytes, step 2 replaces CRLF then lone CR with LF, step 3 trims trailing SPACE and TAB per line, step 4 collapses every SPACE/TAB run including leading indentation to one SPACE, step 5 drops the leading and trailing blank runs and collapses interior ones to one, and step 6 rejoins with a single LF; TestNormaliseAppliesTheSixStepsOfSection14 asserts each step on its own case.\n- TestAOneLineInputNormalisesWithNoTerminator normalises the same line as typed, with a trailing LF, with CRLF and with surrounding blank lines to the bare line, and asserts the result contains no LF at all.\n- internal/cli/exit.go maps text.InvalidUTF8Error onto ExitValidation and TestTextThatDoesNotDecodeExitsWithTheValidationCode raises the error through Normalise rather than constructing it, asserting exit code 1 through a wrapping error; the check sits before every other step, because []rune and range decoding replace an invalid byte with U+FFFD and would leave nothing to detect.\n- TestNormalisationDoesNotCaseFold, TestNormalisationDoesNotStripPunctuation and TestNormalisationDoesNotReorderLines each assert their negative on an input that would visibly break it — two texts differing only in case, two conditions one operator apart, and a permutation of the same three lines — and each asserts the pair still differs afterwards rather than only that the shape looks right.\n- FuzzNormaliseHoldsTheInvariantsOfSection14 states all three negatives as one fuzzed invariant, that striking SPACE, TAB, CR and LF from input and output leaves the same string, alongside idempotence and an iff on the UTF-8 refusal; 3.3M executions found no counterexample and gremlins killed 18 of 18 mutants in internal/text with none lived and none uncovered.",
+      "gate_passed_at": "2026-08-30T18:19:43.424842Z",
+      "commit_sha": "a1b5ce5",
+      "commit_shas": [
+        "a1b5ce5",
+        "0ff8fcd",
+        "69b78a6",
+        "66904be",
+        "e727394",
+        "ca95ad3",
+        "54e97db",
+        "619ec73",
+        "efbc471",
+        "5676abd",
+        "d7b1f3d"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/text/normalise.go",
+        "internal/text/normalise_test.go"
+      ]
     },
     {
       "id": "normalised-hash",
