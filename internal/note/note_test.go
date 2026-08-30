@@ -142,3 +142,21 @@ func TestSplitIDReadsTheStoreOutOfTheNoteID(t *testing.T) {
 		assert.Empty(t, split, "%q", id)
 	}
 }
+
+// §3.6.6 retracts a note; it never frees the note's number.
+//
+// This is the same counter whose `n < 1` boundary NextID pins above, read now
+// against a store a retraction has changed — which is the state that makes the
+// rule bite. §3.3.2 lets a claim cite a note by id and §8.1.6 discloses that
+// provenance in a posted body, so an id handed out twice would point a claim at
+// a fact nobody recorded under it, and the claim would read as founded.
+func TestNextIDNeverReusesARetractedNotesNumber(t *testing.T) {
+	assert.Equal(t, "CR-1#n2", NextID("CR-1", []Note{retracted("CR-1#n1")}),
+		"a retracted note keeps its number")
+	assert.Equal(t, "CR-1#n4", NextID("CR-1", []Note{
+		{ID: "CR-1#n1"}, retracted("CR-1#n2"), retracted("CR-1#n3"),
+	}), "the highest number is spent whether or not it still stands")
+	assert.Equal(t, "CR-1#n8", NextID("CR-1", []Note{
+		{ID: "CR-1#n1"}, retracted("CR-1#n7"),
+	}), "the highest is the retracted one, and it is still the highest")
+}
