@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T09:26:57.174674Z",
+  "updated_at": "2026-08-30T09:36:28.132842Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -883,7 +883,7 @@
     {
       "id": "profile-none-matched",
       "title": "Disable axes when no profile matches",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "profile-tie-abort"
@@ -893,11 +893,23 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T09:27:29.880819Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T09:36:28.098879Z",
+      "closed_reason": "- internal/profile/none.go answers §2.4.4 for the third state of Selection: Missing returns a MissingProfile naming the test axis disabled per §4.5.2, because a repository with no profile has no tests.cmd to declare, and the convention/reinvention lens unavailable per §4.3.1, because there is no symbols.lang to build a symbol index from. Nothing else is taken out, and that exactness is the rule's other half. §4.5.3 settles the intent axis on an issue key rather than on a profile, §4.2 reads claims and units and asks a profile for nothing, and §4.3.5 leaves the convention axis its rule corpus, whose per-repository and global layers of §2.6 outlive any profile, so reporting any of those as dead would be the guess §2.4.4 forbids, aimed at the review instead of at the language. Falling back to generic would be the same guess, and §2.4.3 keeps it out of automatic selection.\n- MissingProfile.Disclosure is the §4.5.4 entry and satisfies finding.HonestyDisclosure, the contract internal/finding/cap.go declares for the writer that will hold the §11.1 --quiet exemption, so the report reaches the reader as a disclosure rather than as an informational message a flag can silence. The text is derived from the Disabled and Unavailable fields rather than written beside them, so the JSON a caller reads and the line a human reads cannot drift, and it names `profile` in the per-repository config as §12.4's next actionable step.\n- TestARepositoryNoProfileMatchesDisablesOnlyTheAxesThatNeedOne drives Select over the two shipped profiles against a repository carrying no marker file, asserts the exact two-entry result in both directions, and checks that a selected profile and a tie are not the missing state. TestTheMissingProfileReportIsAnHonestyDisclosure pins the finding.HonestyDisclosure conformance at compile time and asserts every field entry reaches the printed text.\nOut of scope: no command selects a profile yet, so Selection.Missing and MissingProfile.Disclosure are test-only on deadcode ./... exactly like Select and Selection.Err beside them. The end-to-end assertion that a run with no profile really skips those two lenses belongs to axis-activation-rules, and the always-printed half belongs to quiet-honesty-exemptions, which builds the exempt writer. gremlins unleash --timeout-coefficient 30 ./internal reports Killed 305, Lived 5, efficacy 98.39%, up eight killed from the 297 baseline. The one new survivor is ARITHMETIC_BASE on the capacity hint in Disclosure, an equivalent mutant that changes how often append reallocates and nothing a test can observe, commented at the site alongside the NOT COVERED report on the constant string concatenation in ReinventionLens, whose mutated form does not compile.",
+      "gate_passed_at": "2026-08-30T09:36:28.098879Z",
+      "commit_sha": "01129a6",
+      "commit_shas": [
+        "01129a6",
+        "6b854a9",
+        "9babb7e",
+        "7c93335"
+      ],
+      "commit_files": [
+        "internal/profile/none.go",
+        "internal/profile/none_test.go",
+        "internal/profile/select.go"
+      ]
     },
     {
       "id": "profile-count-pattern-validation",
