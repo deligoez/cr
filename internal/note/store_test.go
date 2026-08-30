@@ -66,3 +66,40 @@ func TestAppendRecordsTheFieldsTheSpecNames(t *testing.T) {
 		"the store holds both notes, in the order they were appended")
 }
 
+// Nothing that could not become a §3.6.1 note reaches the store, and a refusal
+// leaves the file exactly as it was — a run that fails half way through would
+// otherwise spend an id on a note nobody recorded.
+func TestAppendRefusesWhatCannotBecomeANote(t *testing.T) {
+	l := storeRoot(t)
+	at := time.Now()
+	_, err := Append(l, "CR-1", "recorded", SourceChat, 42, at)
+	require.NoError(t, err)
+
+	for name, attempt := range map[string]func() (Note, error){
+		"an unlisted source": func() (Note, error) {
+			return Append(l, "CR-1", "hearsay", Source("gossip"), 42, at)
+		},
+		"an absent source": func() (Note, error) { return Append(l, "CR-1", "hearsay", "", 42, at) },
+		"an empty note":    func() (Note, error) { return Append(l, "CR-1", "", SourceChat, 42, at) },
+		"a blank note":     func() (Note, error) { return Append(l, "CR-1", " \t\n", SourceChat, 42, at) },
+		"no pull request":  func() (Note, error) { return Append(l, "CR-1", "hearsay", SourceChat, 0, at) },
+		"a negative pull request": func() (Note, error) {
+			return Append(l, "CR-1", "hearsay", SourceChat, -1, at)
+		},
+		"a key that is a path": func() (Note, error) {
+			return Append(l, "../escaped", "hearsay", SourceChat, 42, at)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			recorded, err := attempt()
+			require.Error(t, err)
+			assert.Zero(t, recorded)
+		})
+	}
+
+	notes := stored(t, l, "CR-1")
+	require.Len(t, notes, 1, "a refusal must add nothing")
+	assert.Equal(t, "CR-1#n1", notes[0].ID, "and must spend no id")
+	assert.NoFileExists(t, filepath.Join(filepath.Dir(l.Root()), "escaped.ndjson"))
+}
+
