@@ -105,3 +105,30 @@ func appendNumbered(t *testing.T, l Layout) bool {
 	return assert.NoError(t, WriteContextRecords(held, append(records, numbered{N: len(records) + 1})))
 }
 
+// §2.2 stores the notes at context/<ISSUE-KEY>.ndjson, and the key arrives as a
+// positional argument. Invariant 2 keeps every write cr makes inside ~/.cr, so
+// a key that is not one name is refused where the path is built rather than
+// wherever a command happens to pass one along.
+func TestAnIssueKeyCannotReachOutOfTheContextDirectory(t *testing.T) {
+	l := contextRoot(t)
+	outside := filepath.Join(filepath.Dir(l.Root()), "escaped.ndjson")
+
+	for _, key := range []string{"", ".", "..", "a/b", "../escaped", `a\b`, "../../escaped"} {
+		t.Run("refuses "+key, func(t *testing.T) {
+			held, err := l.LockContext(key)
+			require.Error(t, err)
+			assert.Nil(t, held)
+		})
+	}
+
+	assert.NoFileExists(t, outside)
+	entries, err := os.ReadDir(l.ContextDir())
+	require.NoError(t, err)
+	assert.Empty(t, entries, "a refused key must leave nothing behind")
+
+	held, err := l.LockContext("CR-1")
+	require.NoError(t, err)
+	require.NoError(t, WriteContextRecords(held, []numbered{{N: 1}}))
+	require.NoError(t, held.Unlock())
+	assert.FileExists(t, filepath.Join(l.ContextDir(), "CR-1.ndjson"))
+}
