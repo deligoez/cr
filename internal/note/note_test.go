@@ -2,10 +2,18 @@ package note
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// retracted is one note §3.6.6 has retracted, which is a note the store still
+// holds rather than a line it no longer has.
+func retracted(id string) Note {
+	at := time.Date(2026, 8, 30, 11, 0, 0, 0, time.UTC)
+	return Note{ID: id, RetractedAt: &at}
+}
 
 // §3.6.3 closes the set of sources, so the five it names are admitted and
 // nothing else is — an absent flag included, which is the round-11 finding
@@ -69,4 +77,39 @@ func TestNextIDCountsOverTheNotesTheStoreHolds(t *testing.T) {
 	assert.Equal(t, "CR-1#n10", NextID("CR-1", []Note{{ID: "CR-1#n9"}, {ID: "CR-1#n0"}}))
 	assert.Equal(t, "PROJ-42#n2", NextID("PROJ-42", []Note{{ID: "PROJ-42#n1"}}),
 		"the key is part of the id, so another key's ids are another store's")
+}
+
+// §3.6.6's retraction is what a citation of a note may still do, and the store
+// is the only thing that can answer it. Three standings and not two: an id no
+// note bears has exactly as little provenance behind it as a retracted one, so
+// §8.1.6 has no region to emit for either and §6.3's register is bought by
+// neither. The dangling case is kept separate all the same, because it is the
+// one `cr status` and the round summary have something different to say about.
+//
+// Stands() is asserted beside the standing rather than instead of it: it is the
+// single predicate every consumer reads, and a standing that named itself
+// correctly while answering the predicate wrongly would let an assertion out.
+func TestAStandingIsWhatACitationOfANoteMayStillDo(t *testing.T) {
+	held := []Note{{ID: "CR-1#n1"}, retracted("CR-1#n2")}
+
+	assert.Equal(t, StandingStands, StandingOf(held, "CR-1#n1"))
+	assert.Equal(t, StandingRetracted, StandingOf(held, "CR-1#n2"))
+	assert.Equal(t, StandingDangling, StandingOf(held, "CR-1#n3"),
+		"an id the store bears no note for")
+	assert.Equal(t, StandingDangling, StandingOf(held, "OTHER-9#n1"),
+		"another key's id is another store's, and dangles in this one")
+	assert.Equal(t, StandingDangling, StandingOf(nil, "CR-1#n1"),
+		"a store nobody has recorded against holds no citation up")
+
+	assert.True(t, StandingStands.Stands())
+	assert.False(t, StandingRetracted.Stands(),
+		"§3.6.6: a record resting on a retracted note may not assert on it")
+	assert.False(t, StandingDangling.Stands(),
+		"§8.1.6 has no provenance to disclose for a dangling note id either")
+
+	stands, pulled := Note{ID: "CR-1#n1"}, retracted("CR-1#n2")
+	assert.Equal(t, StandingStands, stands.Standing())
+	assert.Equal(t, StandingRetracted, pulled.Standing())
+	assert.False(t, stands.Retracted())
+	assert.True(t, pulled.Retracted())
 }
