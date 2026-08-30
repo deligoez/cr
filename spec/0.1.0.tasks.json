@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T11:46:47.431303Z",
+  "updated_at": "2026-08-30T11:58:35.042487Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1577,7 +1577,7 @@
     {
       "id": "missing-issue-key-fallback",
       "title": "Continue without an issue key",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "issue-key-resolution"
@@ -1587,11 +1587,24 @@
       "source_sections": [
         "### 3.2 Issue key resolution"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T11:47:26.95885Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T11:58:34.983246Z",
+      "closed_reason": "- internal/intent/intent.go's Resolve takes §3.2's fallback structurally: ResolveKey returning KeyAbsent yields Intent{Pattern} without ever consulting the Source, so a keyless run continues with an empty intent and never starts the tracker command with a blank key, and Intent.Unavailability() derives §4.5.3's mark from Key.Origin rather than storing it, mirroring profile.Selection.Missing, so no Intent can carry issue text and report itself unavailable or resolve no key and report itself available. TestNoIssueKeyContinuesWithAnEmptyIntent asserts the empty intent, the unavailable axis id, and a marker file the stub tracker never wrote, and TestAnIntentFileDoesNotStandInForAMissingKey pins that §3.1.4 bypasses the command and not the key.\n- intent.Unavailable{Axis, Reason} reuses the per-entry §4.5.4 shape testadequacy.Unavailable already holds, with Lens spelled Axis because §4.5.4 lists an unavailable axis and an unavailable half of one as different things, and its Disclosure satisfies finding.HonestyDisclosure so the report reaches the reader through the one channel §11.1 exempts from --quiet rather than through a message a flag can silence. TestTheUnavailableIntentAxisIsAnHonestyDisclosure asserts the interface, the text derived from both fields so data and print cannot drift, and a reason naming intent.key_pattern, the expression the resolution actually ran with, and --issue as the next actionable step.\n- TestNoIssueKeyContinuesWithAnEmptyIntent is the keyless-PR assertion made at the seam cr brief will call, because brief does not exist yet: a KeySources whose branch, title, and body are all populated and all keyless resolves with no error, an empty Text, and the §4.5.3 mark, while TestAResolvedKeyLeavesTheIntentAxisAvailable holds the other direction and TestResolveSurfacesTheFailuresOfTheStepsItComposes keeps an uncompilable intent.key_pattern and a refusing tracker out of the fallback. The gate is green and gremlins unleash --timeout-coefficient 30 ./internal reports Killed 366, Lived 5, efficacy 98.65%, the same five commented equivalents and the same two known TIMED OUT as the baseline.\n",
+      "gate_passed_at": "2026-08-30T11:58:34.983246Z",
+      "commit_sha": "8800115",
+      "commit_shas": [
+        "8800115",
+        "2aed0d6",
+        "7ba021d",
+        "7b9b0ef",
+        "78f3c71",
+        "3e8e93e"
+      ],
+      "commit_files": [
+        "internal/intent/intent.go",
+        "internal/intent/intent_test.go"
+      ]
     },
     {
       "id": "claim-schema",
