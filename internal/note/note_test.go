@@ -113,3 +113,32 @@ func TestAStandingIsWhatACitationOfANoteMayStillDo(t *testing.T) {
 	assert.False(t, stands.Retracted())
 	assert.True(t, pulled.Retracted())
 }
+
+// §3.6.1 forms an id as `<ISSUE-KEY>#n<n>`, so `cr note --remove <note-id>`
+// needs no issue key of its own — which is why §11's row for it takes none.
+// Only the canonical spelling splits, for the reason parseID accepts only the
+// canonical spelling: an id cr did not write names no store cr wrote.
+func TestSplitIDReadsTheStoreOutOfTheNoteID(t *testing.T) {
+	for id, key := range map[string]string{
+		"CR-1#n1":       "CR-1",
+		"CR-1#n42":      "CR-1",
+		"PROJ-42#n7":    "PROJ-42",
+		"CR-1#n2#n3":    "CR-1#n2",
+		"A#nB#n1":       "A#nB",
+		"has space#n1":  "has space",
+		"CR-1#n1234567": "CR-1",
+	} {
+		split, ok := SplitID(id)
+		require.True(t, ok, "%q", id)
+		assert.Equal(t, key, split, "%q", id)
+	}
+
+	for _, id := range []string{
+		"", "CR-1", "CR-1#n", "CR-1#n0", "CR-1#n-1", "CR-1#n+1", "CR-1#n01",
+		"CR-1#nx", "CR-1#1", "#n1", "#n", "n1", "CR-1#n1.0", "CR-1#n 1",
+	} {
+		split, ok := SplitID(id)
+		assert.False(t, ok, "%q", id)
+		assert.Empty(t, split, "%q", id)
+	}
+}
