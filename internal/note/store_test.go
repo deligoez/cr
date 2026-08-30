@@ -203,3 +203,38 @@ func TestRetractingTwiceKeepsTheFirstDecision(t *testing.T) {
 	require.NotNil(t, held[0].RetractedAt)
 	assert.Equal(t, first, held[0].RetractedAt.UTC(), "the second run did not restamp the file")
 }
+
+// What cannot be retracted, and which failure each one is.
+//
+// An id that is not spelled §3.6.1's way is the invocation being wrong, which
+// §11.2 codes 2 through internal/cli's unmapped path. An id that is spelled
+// correctly and names no note is not: the store read and parsed, and what
+// failed is the retraction, so it is typed and §11.2 codes it 1. A store with
+// nothing in it goes the same way as one with the wrong note in it — §3.6's
+// file is created by the first note appended to it, so there is nothing to tell
+// a mistyped key from a key whose notes are still to come.
+func TestRetractRefusesAnIdThatNamesNoNote(t *testing.T) {
+	l := storeRoot(t)
+	at := time.Date(2026, 8, 30, 9, 15, 0, 0, time.UTC)
+	_, err := Append(l, "CR-1", "the deadline moved to Friday", SourceChat, 42, at)
+	require.NoError(t, err)
+
+	for _, id := range []string{"CR-1#n2", "CR-1#n9", "OTHER-9#n1", "CR-404#n1", ""} {
+		_, err := Retract(l, id, at)
+		require.Error(t, err, "%q", id)
+	}
+
+	var unknown *UnknownNoteError
+	_, err = Retract(l, "CR-1#n2", at)
+	require.ErrorAs(t, err, &unknown, "an id spelled §3.6.1's way that names no note is typed")
+	assert.Equal(t, "CR-1#n2", unknown.ID)
+	assert.Equal(t, "CR-1", unknown.IssueKey)
+
+	_, err = Retract(l, "CR-1#n0", at)
+	require.Error(t, err)
+	assert.NotErrorAs(t, err, &unknown, "a malformed id is the invocation, not the store")
+
+	held := stored(t, l, "CR-1")
+	require.Len(t, held, 1)
+	assert.Nil(t, held[0].RetractedAt, "a refused retraction retracts nothing")
+}
