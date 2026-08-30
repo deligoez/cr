@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T17:39:20.23862Z",
+  "updated_at": "2026-08-30T17:56:05.783305Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2803,7 +2803,7 @@
     {
       "id": "axis-activation-rules",
       "title": "Activate axes from configuration with prerequisites",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "missing-issue-key-fallback",
@@ -2814,11 +2814,23 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T17:39:58.604018Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T17:56:05.757534Z",
+      "closed_reason": "- internal/activation/activation.go Activate walks axis.IDs() and returns an axis as Active only when the resolved profile's axes object enables it and its prerequisite holds, per §4.5.1 — the profile is the only layer carrying an enabled state, because internal/config's closed key set names no axis id and drops any key it does not carry.\n- The test axis leaves as a Disabled carrying RuleNoTestCommand whenever the resolved profile declares no tests.cmd, per §4.5.2, checked before the configuration because §4.5.2 is written without a condition, so a Disabled citing §4.5.1 always means the configuration alone kept the axis out.\n- The intent axis leaves as the existing intent.Unavailable, asked of intent.Intent.Unavailability rather than recomputed, whenever no issue key resolved, per §4.5.3, and the other three axes still run — an absent tracker narrows the review by one lens rather than four.\n- TestAxisActivationAppliesTheThreeRulesOf45 asserts the whole active/disabled/unavailable partition over five cases: laravel-pest with a key (four active), a profile declaring correctness false and omitting convention (two §4.5.1 entries), generic with no tests.cmd (§4.5.2), laravel-pest with no key (intent unavailable), and a profile both switching test off and lacking a runner. TestEveryAxisThatDidNotRunReachesTheReaderAsADisclosure pins finding.HonestyDisclosure and keeps disabled and unavailable mutually exclusive in the printed text.",
+      "gate_passed_at": "2026-08-30T17:56:05.757534Z",
+      "commit_sha": "377b02c",
+      "commit_shas": [
+        "377b02c",
+        "696299d",
+        "ab33dd2",
+        "65066b2"
+      ],
+      "commit_files": [
+        "internal/activation/activation.go",
+        "internal/activation/activation_test.go",
+        "internal/activation/disclosure_test.go"
+      ]
     },
     {
       "id": "role-activation-definition",
