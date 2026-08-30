@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/state"
 )
 
 // Invariant 2, which §2.2 states as normative text: all state lives under
@@ -190,4 +193,67 @@ func TestOnlyTheStatePackageWritesToTheFilesystem(t *testing.T) {
 	slices.Sort(found)
 	assert.Empty(t, found,
 		"invariant 2: internal/state derives every path cr writes, so no other package may write at all")
+}
+
+// Every path internal/state hands out lands under its own root.
+//
+// This is the other half of the sentence above. Confining the writes to one
+// package is worth something only if that package cannot address anything but
+// `~/.cr`, and §2.2's root is a field nothing outside internal/state can set:
+// state.New and state.Default are the two constructors, and every path method
+// joins onto it.
+//
+// The methods are enumerated by reflection rather than listed, so a path added
+// later is checked by existing. The filter is the signature §2.2's table
+// implies — strings and pull request numbers in, one path out — and a method
+// that takes an argument this guard cannot supply fails rather than being
+// passed over, because an unchecked path is the one this test exists to find.
+//
+// The boundary it does not claim: a caller who hands a path segment of their
+// own — `l.PRFile(owner, repo, pr, "../../escape")` — walks out of the tree, and
+// no reflection over the signature can see that. What is fenced is the root,
+// which is where a write into the repository under review would have to come
+// from.
+func TestEveryPathTheStateLayoutHandsOutIsUnderItsRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "state-root")
+	layout := reflect.ValueOf(state.New(root))
+	surface := layout.Type()
+
+	checked := 0
+	for i := range surface.NumMethod() {
+		method := surface.Method(i)
+		signature := method.Type
+		if signature.NumOut() != 1 || signature.Out(0).Kind() != reflect.String {
+			continue
+		}
+
+		// The receiver first, then one argument per parameter. The values
+		// are arbitrary: what is asserted is where the path lands, and
+		// every §2.2 path is a join onto the root whatever the segments say.
+		args := make([]reflect.Value, 0, signature.NumIn())
+		args = append(args, layout)
+		for at := 1; at < signature.NumIn(); at++ {
+			switch signature.In(at).Kind() {
+			case reflect.String:
+				args = append(args, reflect.ValueOf("segment"))
+			case reflect.Int:
+				args = append(args, reflect.ValueOf(7))
+			default:
+				require.Fail(t, "unsupported parameter",
+					"%s takes a %s, which this guard cannot supply, so its path went unchecked",
+					method.Name, signature.In(at))
+			}
+		}
+
+		produced := method.Func.Call(args)[0].String()
+		inside, err := filepath.Rel(root, produced)
+		require.NoError(t, err)
+		assert.False(t, inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)),
+			"§2.2: %s resolves to %s, which is outside the state root", method.Name, produced)
+		checked++
+	}
+
+	// The floor is the size of §2.2's table, so a filter that quietly
+	// stopped matching fails here rather than passing over an empty set.
+	require.Greater(t, checked, 20, "only %d paths were checked, so this guard proved nothing", checked)
 }
