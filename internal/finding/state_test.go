@@ -105,3 +105,29 @@ func TestOpenIsEveryStateThatIsNotTerminal(t *testing.T) {
 	assert.False(t, none.Terminal())
 }
 
+// A state exists to be written to `findings.ndjson` and read back, and the
+// vocabulary is only closed if the file cannot widen it. §6.1.4 has cr write
+// the field and rejects a record arriving with it, so a line naming an eighth
+// state was not produced by this cr, and carrying it forward would let §9.1's
+// transition table and §10.2.4's completeness check reason about a state
+// neither of them has a rule for.
+func TestAStateOutsideTheTableNeverReachesARecord(t *testing.T) {
+	assert.Contains(t, string(mustMarshal(t, &Finding{ID: "f1", State: StateQueued})), `"state":"queued"`)
+	// A record with no state carries no key, rather than one holding "".
+	assert.NotContains(t, string(mustMarshal(t, &Finding{ID: "f1"})), "state")
+
+	var stored Finding
+	err := json.Unmarshal([]byte(`{"id":"f1","state":"verified"}`), &stored)
+	var unknown *UnknownStateError
+	require.ErrorAs(t, err, &unknown)
+	assert.Equal(t, "verified", unknown.Value)
+
+	// null is the one value this refuses to answer. It is a key the agent
+	// wrote, so §6.1.4's fence owns the rejection — which reads the wire
+	// keys rather than the decoded record — and failing here would report
+	// it as malformed JSON instead.
+	// TestARecordArrivingWithAComputedFieldIsRejected is the other half.
+	var record Finding
+	require.NoError(t, json.Unmarshal([]byte(`{"id":"f1","state":null}`), &record))
+	assert.False(t, record.State.Valid())
+}
