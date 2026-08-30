@@ -38,3 +38,43 @@ func TestNothingInCrCanFillInAClassification(t *testing.T) {
 	assert.Empty(t, unclassified.TestPaths())
 }
 
+// §4.4.1 requires the classification to be recorded in the coverage cell
+// "together with the test paths it rested on", so the two travel as one value:
+// a verdict stored without the evidence behind it cannot be re-read later, and
+// §9 re-reads every round's cells.
+//
+// The round trip is the assertion because the cell is stored as NDJSON. A value
+// that decodes but does not encode back to the same thing is a cell that changes
+// between the round that filled it and the round that reads it.
+func TestACoverageValueRoundTripsTheAgentsDecision(t *testing.T) {
+	line := []byte(`{"classification":"partially-covered","test_paths":["tests/Feature/OrderTest.php"]}`)
+
+	var recorded Coverage
+	require.NoError(t, json.Unmarshal(line, &recorded))
+	assert.Equal(t, PartiallyCovered, recorded.Classification())
+	assert.Equal(t, []string{"tests/Feature/OrderTest.php"}, recorded.TestPaths())
+
+	encoded, err := json.Marshal(recorded)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(line), string(encoded))
+
+	t.Run("a verdict that rested on no test file keeps an empty array", func(t *testing.T) {
+		var uncovered Coverage
+		require.NoError(t, json.Unmarshal([]byte(`{"classification":"uncovered"}`), &uncovered))
+
+		encoded, err := json.Marshal(uncovered)
+		require.NoError(t, err)
+		// A slice reaching JSON as null is the convention this
+		// repository keeps, and a reader distinguishing null from []
+		// would read "cr does not know which tests" from a cell that
+		// says "none".
+		assert.JSONEq(t, `{"classification":"uncovered","test_paths":[]}`, string(encoded))
+	})
+
+	t.Run("the third verdict", func(t *testing.T) {
+		var covered Coverage
+		require.NoError(t, json.Unmarshal([]byte(`{"classification":"covered","test_paths":[]}`), &covered))
+		assert.Equal(t, Covered, covered.Classification())
+	})
+}
+
