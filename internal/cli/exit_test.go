@@ -11,6 +11,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
@@ -70,6 +71,20 @@ func TestAFailedGhCommandExitsWithTheFileCode(t *testing.T) {
 	})
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("ingesting threads: %w", err)))
+}
+
+// The tracker is the command §3.1.3 was written about, and it is the one of the
+// three cr does not choose: §3.1.1 makes the program the user's own argv, so a
+// refusal can say anything at all. It still exits 3, and the code must survive
+// the wrapping a command adds on the way out.
+func TestAFailedTrackerCommandExitsWithTheFileCode(t *testing.T) {
+	err := error(&intent.CommandError{
+		Args:   []string{"jira", "issue", "view", "CR-1", "--plain"},
+		Stderr: "ERROR unable to authenticate: 401 Unauthorized",
+		Err:    errors.New("exit status 2"),
+	})
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("reading the issue: %w", err)))
 }
 
 // §6.1 rejects a class that is not kebab-case. The record's file was read and
