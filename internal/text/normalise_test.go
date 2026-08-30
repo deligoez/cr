@@ -66,3 +66,29 @@ func TestNormaliseAppliesTheSixStepsOfSection14(t *testing.T) {
 		})
 	}
 }
+
+// §1.4 step 6 spells out the one-line case, because it is where a rejoin that
+// appends a terminator per line rather than between lines looks right on every
+// multi-line document and is wrong on every single-line one. The hashes of
+// §3.3, §7.4 and §9.2 are taken over short texts — a claim span, an anchored
+// line — so a stray terminator would be the common case and not the corner.
+//
+// A trailing LF on the input is asserted alongside the bare line, since it is
+// how a file arrives from disk and must reach the same value: the whole point
+// of the transform is that two spellings of one text hash alike.
+func TestAOneLineInputNormalisesWithNoTerminator(t *testing.T) {
+	for name, in := range map[string]string{
+		"as typed, with no terminator": "the guard has no test",
+		"as a file leaves it, with LF": "the guard has no test\n",
+		"as Windows leaves it":         "the guard has no test\r\n",
+		"with the blank lines a paste adds": "\n\n" +
+			"the guard has no test" + "\n\n\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := Normalise(in)
+			require.NoError(t, err)
+			assert.Equal(t, "the guard has no test", got)
+			assert.NotContains(t, got, "\n", "a one-line result carries no line separator at all")
+		})
+	}
+}
