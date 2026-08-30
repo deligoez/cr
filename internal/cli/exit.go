@@ -14,6 +14,7 @@ import (
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // Exit codes, fixed by spec/0.1.0.md §11.2. Never renumber these.
@@ -210,6 +211,16 @@ func exitCodeFor(err error) int {
 		// corrupt store as a malformed invocation, and no retyping of
 		// the command could ever have fixed it.
 		return ExitFile
+	}
+	var invalidUTF8 *text.InvalidUTF8Error
+	if errors.As(err, &invalidUTF8) {
+		// §1.4 step 1 fixes the code itself: text that does not decode
+		// as UTF-8 fails with exit code 1. It is the first content
+		// fault in the tree that is not a field of a parsed record —
+		// the file was found and read whole, and what is unusable is
+		// the bytes in it, which §11.2 codes 1 rather than the 3 a
+		// file cr cannot use as a file gets.
+		return ExitValidation
 	}
 	var reservedField *state.ReservedFieldError
 	if errors.As(err, &reservedField) {
