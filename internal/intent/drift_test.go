@@ -116,3 +116,33 @@ func TestAnUnmovedIssueTextReportsNoDrift(t *testing.T) {
 
 	assert.Equal(t, before, asStored(t, stored), "and nothing was rewritten")
 }
+
+// A span can stop occurring while the issue text reports no drift, and the
+// report says so.
+//
+// The two questions §3.3.3 asks are asked of different texts. The hash is taken
+// over the §1.4 normal form, whose fourth step replaces every run of spaces and
+// tabs with a single space, so doubling a space between two words leaves the
+// hash exactly as it was. The span is "the verbatim substring of the source
+// text" per §3.3's table, and §3.3.1 refuses a claim by a literal comparison,
+// so the same edit takes the span away.
+//
+// That is why SpanOccurs is computed for every claim rather than only for the
+// drifted ones. A report that asked the question only when the hashes differed
+// would answer "no drift" here and say nothing about the claim that can no
+// longer be pointed at anything in the issue.
+func TestASpanCanGoWhileTheHashStandsStill(t *testing.T) {
+	stored := extracted(t)
+	spaced := "The upload retries on a 5xx response.\n" +
+		"The upload is abandoned after  five attempts.\n"
+
+	drift, err := DetectDrift(slices.Values(stored), spaced)
+	require.NoError(t, err)
+
+	assert.False(t, drift.Drifted,
+		"§1.4 step 4 collapses the doubled space, so the normalised hash did not move")
+	assert.Equal(t, stored[1].IssueHash, drift.Hash)
+	assert.True(t, drift.Claims[0].SpanOccurs, "the untouched line still holds its span")
+	assert.False(t, drift.Claims[1].SpanOccurs,
+		"§3.3 calls a span verbatim, and the doubled space is not in the stored span")
+}
