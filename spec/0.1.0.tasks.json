@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T09:18:11.226252Z",
+  "updated_at": "2026-08-30T09:26:57.174674Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -847,7 +847,7 @@
     {
       "id": "profile-tie-abort",
       "title": "Abort on a profile selection tie",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "profile-auto-selection"
@@ -857,11 +857,28 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T09:18:38.614216Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T09:26:57.124789Z",
+      "closed_reason": "- §2.4.2's abort now exists: internal/profile/select.go gives Selection an Err that turns a tie into a *TieError naming the tied profiles in the ascending id order Select reports them in, and internal/cli/exit.go maps that type onto ExitFile, the code 3 of §11.2. It is deliberately its own type rather than a *MalformedError, because every tied profile was read, parsed and validated, so there is no file to open and no field to correct, and its message carries the next actionable step, naming a profile in the per-repository config.\n- The shipped generic profile still declares an empty match.files and is still never selected automatically, re-checked rather than rebuilt: TestTheShippedGenericProfileIsNeverSelectedAutomatically asserts the emptiness against the file cr writes and that Select chooses nothing, and the new TestTheShippedGenericProfileNeverJoinsATie extends that onto the tie path, where a universal-match reading would abort in exactly the two repository shapes §2.4.4 requires cr to report and carry on from.\n- Configuration remains the only route to generic: TestSelectingGenericByConfigurationTakesOutExactlyTwoLenses and TestConfigurationOverridesTheMarkerFiles both still pass, so naming it beats a marker file that would otherwise decide and nothing else reaches it.\n- TestATieBecomesAnAbortNamingTheTiedProfiles builds laravel-pest and symfony both marking the single file artisan in one repository and asserts the *TieError names both and is not a *MalformedError, TestOnlyATieAborts holds the abort to the tie alone, and TestAProfileTieExitsWithTheFileCode pins the exit code through a wrapping error. The deciding equality was mutation-checked by hand as well: flipping matched == best to matched != best fails both tie tests, and gremlins unleash --timeout-coefficient 30 ./internal reports Killed 297, Lived 4, efficacy 98.67 percent with the same four pre-existing survivors and two known timeouts as the baseline.",
+      "gate_passed_at": "2026-08-30T09:26:57.124789Z",
+      "commit_sha": "15d24a7",
+      "commit_shas": [
+        "15d24a7",
+        "65c6a6e",
+        "3bf950f",
+        "77b57ce",
+        "dc3843c",
+        "60b0b8e",
+        "8c40304"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/profile/generic_test.go",
+        "internal/profile/select.go",
+        "internal/profile/select_test.go"
+      ]
     },
     {
       "id": "profile-none-matched",
