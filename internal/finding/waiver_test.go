@@ -382,3 +382,44 @@ func TestARecordIsNotWaivedWithoutOneOfTheTwoDispositions(t *testing.T) {
 		})
 	}
 }
+
+// Round 8's finding capability-without-mechanism, resolved by an approved
+// decision: §7.4.6's path-prefix widening is dropped from v0.1. No command ever
+// wrote a widened waiver, §7.4.1 fixed the key shape without one, and the
+// legacy-area case the widening existed for is covered by a rule's `exempt`
+// field per §2.6 — which keeps a rule off those paths before it produces a
+// record, rather than silencing records after the fact.
+//
+// A decision not to build something leaves no code behind to read, so this is
+// where it is written down. Matching is `==` over the four fields of the key,
+// and a path that merely contains the waived one is a different path. The cases
+// below hold the class, the side and the content hash fixed, so each is one
+// waiver meeting code that reads identically in a file whose name extends the
+// waived path or whose directory contains it — exactly the pairs a widening
+// rule would join. Equality has no direction, so each case covers a waiver
+// written above the file and a waiver written below it alike.
+func TestAWaiverNeverWidensAlongThePath(t *testing.T) {
+	waived, _ := theSameDefectAtTheSameCode(t)
+	key := WaiverKeyOf(&waived)
+	require.Equal(t, "app/Models/Order.php", waived.Anchor.Path)
+
+	unchanged, _ := theSameDefectAtTheSameCode(t)
+	require.Equal(t, key, WaiverKeyOf(&unchanged),
+		"the waived path still matches itself, so the cases below fail on the path and not on the fixture")
+
+	for _, path := range []string{
+		"app",
+		"app/Models",
+		"app/Models/",
+		"app/Models/Order",
+		"app/Models/Order.php.orig",
+		"app/Models/Order/Line.php",
+	} {
+		t.Run(path, func(t *testing.T) {
+			nearby, _ := theSameDefectAtTheSameCode(t)
+			nearby.Anchor.Path = path
+			assert.NotEqual(t, key, WaiverKeyOf(&nearby),
+				"§7.4.6's path-prefix widening is dropped from v0.1: a waiver reaches one path, exactly")
+		})
+	}
+}
