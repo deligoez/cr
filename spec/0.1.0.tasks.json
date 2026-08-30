@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T14:33:54.208517Z",
+  "updated_at": "2026-08-30T14:51:09.964731Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -221,7 +221,7 @@
     {
       "id": "output-compact-flag",
       "title": "Implement compact flag omissions",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "output-json-formatting"
@@ -232,11 +232,26 @@
         "## 12. Output contract",
         "### 11.1 Global flags"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T14:34:38.247529Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T14:51:09.904078Z",
+      "closed_reason": "- §12.5's three omissions are made in internal/cli/output.go. compactOmits names output_tail and input bare, and an ingested thread body under the key it sits behind (comment.body and replies.body), because a bare body is not one field everywhere and §8.1 gives a drafted record a body of its own. The rule is keyed on the JSON name rather than on a Go type, since §5.5's probe record has no Go type in this repository yet and output_tail belongs to §5.2.4's run record too, so withoutBulk prunes the encoded document and answers for a payload nobody has written. It composes with §12.3's existing deep copy rather than replacing it. withoutNilSlices fills the value first, the document it encodes to is pruned after, and §12.2's two-space indentation still applies to the result.\n- evidence and citations are unreachable rather than merely un-listed. omittedFields builds the table and panics on any name whose last segment is a founding field, so a table naming one does not fail a test, it fails to start. Proven by temporarily adding evidence and watching both the test binary and the cr binary abort in package init, then reverting. TestTheOmissionTableRefusesAFoundingField keeps it, and refuses the qualified forms record.evidence and finding.citations so narrowing a name by its key is no way round the rule.\n- TestCompactDropsTheBulkAndKeepsWhatAPostedBodyRestsOn prints one payload carrying all five fields, a §5.5 probe stand-in for input and output_tail, a real finding.Finding for evidence and citations, and a real gh.Thread with a reply for the two bodies, both with the flag and without it, so every absence is the flag's doing rather than a field the payload never had. It also asserts the thread keeps its id and author while losing only its bodies, since §3.5.4 suppresses a finding by naming the thread. TestEveryPlaceAnIngestedThreadKeepsABodyIsOmitted reads those keys out of gh.Thread rather than restating them. Both were proven to bite by shrinking the table and observing the failures.\nOut of scope: §12.4's hint field is output-error-hints, §11.1's --quiet honesty exemptions are quiet-honesty-exemptions, and §5.5's probe record and §12.6's posted commands are their own later tasks. CLAUDE.md's convention line was corrected in b43284b, having stated that --compact omits evidence, which §12.5 forbids.",
+      "gate_passed_at": "2026-08-30T14:51:09.904078Z",
+      "commit_sha": "5840e07",
+      "commit_shas": [
+        "5840e07",
+        "dd5a28b",
+        "0dc7bed",
+        "02c66cb",
+        "b43284b",
+        "214aad8",
+        "78ecd6d"
+      ],
+      "commit_files": [
+        "CLAUDE.md",
+        "internal/cli/output.go",
+        "internal/cli/output_test.go"
+      ]
     },
     {
       "id": "output-posted-boolean",
