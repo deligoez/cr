@@ -92,3 +92,60 @@ func TestAOneLineInputNormalisesWithNoTerminator(t *testing.T) {
 		})
 	}
 }
+
+// §1.4 step 1 decodes as UTF-8 and makes invalid input fail with exit code 1,
+// so the refusal has to happen before anything else in the transform touches
+// the bytes. Every case below is built with string([]byte{…}) rather than
+// written into a literal, because that conversion copies bytes and replaces
+// nothing — it is the one way to hand Normalise a string that is genuinely not
+// UTF-8, and it is also the reason the check can exist at all.
+//
+// The offsets are asserted, not just the failure. A refusal that could not say
+// where the text went wrong would leave the user with an issue body or a diff
+// and nowhere to look, and the offset is also what separates a real check from
+// one that fires on the first byte whatever the input.
+func TestInvalidUTF8IsRefusedBeforeAnyStepRuns(t *testing.T) {
+	for name, tc := range map[string]struct {
+		in     string
+		offset int
+		bad    byte
+	}{
+		"a byte that begins no sequence, at the very start": {
+			string([]byte{0xFF}) + "abc", 0, 0xFF,
+		},
+		"the same byte behind a multi-byte rune": {
+			"aé" + string([]byte{0xFF}), 3, 0xFF,
+		},
+		"a continuation byte with nothing in front of it": {
+			string([]byte{0x80}) + "abc", 0, 0x80,
+		},
+		"a two-byte sequence cut short": {
+			"a" + string([]byte{0xC3}), 1, 0xC3,
+		},
+		"an overlong encoding of SPACE": {
+			string([]byte{0xC0, 0xA0}), 0, 0xC0,
+		},
+		"a surrogate half, which UTF-8 does not encode": {
+			string([]byte{0xED, 0xA0, 0x80}), 0, 0xED,
+		},
+		"a bad byte behind text that would have normalised": {
+			"  a  \n\n" + string([]byte{0xFE}), 7, 0xFE,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := Normalise(tc.in)
+			require.Error(t, err)
+			assert.Empty(t, got, "a refused text normalises to nothing at all")
+
+			var invalid *InvalidUTF8Error
+			require.ErrorAs(t, err, &invalid)
+			assert.Equal(t, tc.offset, invalid.Offset, "the refusal names the byte to look at")
+			assert.Equal(t, tc.bad, invalid.Byte, "and what that byte is")
+			assert.Contains(t, err.Error(), "UTF-8", "§12.4: the error names the next step")
+		})
+	}
+
+	valid, err := Normalise("aé" + replacementChar + "b")
+	require.NoError(t, err, "a text that decodes is not refused for looking unusual")
+	assert.Equal(t, "aé"+replacementChar+"b", valid)
+}
