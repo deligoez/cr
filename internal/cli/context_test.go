@@ -189,3 +189,34 @@ func TestContextOnAKeyNobodyRecordedAgainstIsNoNotes(t *testing.T) {
 	assert.Contains(t, throughATerminal(t, "context", "CR-404"),
 		"no notes recorded against \x1b[36mCR-404\x1b[0m")
 }
+
+// §3.6.4 as a command surface that cannot narrow, which is the half of it that
+// can regress. A note loads for every subsequent round and every subsequent
+// pull request resolving to the same key, so there is nothing here to filter by
+// — and a flag that filtered would be a way of not seeing a fact somebody
+// recorded, which is exactly the loss §3.6 exists to prevent.
+//
+// The command therefore declares no flag of its own and takes the key alone.
+// The flags are read off the command rather than exercised one by one, so a
+// `--pr`, a `--round`, or a `--since` added later fails here whatever it is
+// called.
+func TestContextIsAddressedByTheIssueKeyAlone(t *testing.T) {
+	crHome(t)
+
+	assert.False(t, newContextCmd(&writer{}).Flags().HasFlags(),
+		"§3.6.4: nothing may narrow which notes an issue key loads")
+
+	for name, args := range map[string][]string{
+		"no issue key":     {},
+		"a second key":     {"CR-7", "CR-8"},
+		"a pull request":   {"CR-7", "--pr", "1"},
+		"a round to scope": {"CR-7", "--round", "2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out, err := runContext(t, args...)
+			require.Error(t, err)
+			assert.Equal(t, ExitUsage, exitCodeFor(err), "§11.2 codes a malformed invocation 2")
+			assert.Empty(t, out, "a refused run prints no notes")
+		})
+	}
+}
