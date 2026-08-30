@@ -99,3 +99,24 @@ func TestAClaimIsCheckedAgainstOneTextAndNeverTheOther(t *testing.T) {
 		})
 	}
 }
+
+// §3.3.2 validates a note-sourced claim against "the named note", so an id
+// naming no note leaves the rule with nothing to carry out.
+//
+// The refusal is on `note_id` rather than on `span`, because the span is not
+// what is wrong: it may well be a faithful copy of a note somebody recorded
+// somewhere else. What fails is the provenance §8.1.6 would disclose — cr would
+// print a note id no store holds — and the check itself, since falling through
+// to the issue text is the one collision §3.3.2 rules out.
+func TestANoteSourcedClaimNamingNoNoteIsRefused(t *testing.T) {
+	_, err := DecodeClaims(
+		claimsFile, aClaimLine("note", "ten-second cap", "CR-1#n9"), "CR-1", disjointSpans(),
+	)
+	var rejected *RejectedClaimError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, "note_id", rejected.Field)
+	assert.Equal(t,
+		`claims.ndjson line 1: note_id names "CR-1#n9", and the context store for CR-1 holds `+
+			`no such note; §3.3.2 validates this claim against that note and against nothing else`,
+		err.Error())
+}
