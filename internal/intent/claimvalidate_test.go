@@ -210,3 +210,70 @@ func TestAClaimIDMustNameTheIssueTheRunResolved(t *testing.T) {
 		})
 	}
 }
+
+// §3.3's `note_id` row is conditional — "required when `source` is `note`" —
+// and the Required column cannot say so: it answers the row "no", which is
+// right for three sources out of four and wrong for the fourth. So the rule is
+// checked against the decoded source, in both directions, because both are
+// silent faults that reach the reader as provenance.
+//
+// A note-sourced claim with no note names no note, and §3.3.2 has nothing to
+// validate its span against: the claim would enter coverage looking exactly
+// like a tracker claim while resting on unverified hearsay, which is the one
+// distinction §3.3.2 exists to keep. The converse is the same fault mirrored: a
+// claim drawn from the issue text is validated against the issue text and never
+// against a note, so a `note_id` on it names a provenance nothing checked and
+// §8.1.6 would disclose it anyway.
+func TestANoteSourcedClaimNamesItsNoteAndNothingElseDoes(t *testing.T) {
+	fromNote := `{"id":"CR-1#c1","text":"t","source":"note","span":"s","note_id":"CR-1#n2"}`
+	accepted, err := DecodeClaims(claimsFile, []byte(fromNote+"\n"), "CR-1")
+	require.NoError(t, err)
+	require.Len(t, accepted, 1)
+	assert.Equal(t, ClaimFromNote, accepted[0].Source)
+	assert.Equal(t, "CR-1#n2", accepted[0].NoteID)
+
+	for _, quiet := range []string{
+		`{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s"}`,
+		`{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","note_id":null}`,
+		`{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","note_id":""}`,
+	} {
+		claims, err := DecodeClaims(claimsFile, []byte(quiet+"\n"), "CR-1")
+		require.NoError(t, err, quiet)
+		assert.Empty(t, claims[0].NoteID, "a claim drawn from the issue text names no note")
+	}
+
+	for name, tc := range map[string]struct{ line, problem string }{
+		"a note-sourced claim with no note": {
+			line:    `{"id":"CR-1#c1","text":"t","source":"note","span":"s"}`,
+			problem: "is required by §3.3 when source is note",
+		},
+		"a note-sourced claim whose note is null": {
+			line:    `{"id":"CR-1#c1","text":"t","source":"note","span":"s","note_id":null}`,
+			problem: "is required by §3.3 when source is note",
+		},
+		"a note-sourced claim whose note is empty": {
+			line:    `{"id":"CR-1#c1","text":"t","source":"note","span":"s","note_id":""}`,
+			problem: "is required by §3.3 when source is note",
+		},
+		"a description claim that names a note": {
+			line:    `{"id":"CR-1#c1","text":"t","source":"description","span":"s","note_id":"CR-1#n2"}`,
+			problem: "names a note, and §3.3 draws a claim sourced from description out of the issue text",
+		},
+		"an acceptance claim that names a note": {
+			line:    `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","note_id":"CR-1#n2"}`,
+			problem: "names a note, and §3.3 draws a claim sourced from acceptance out of the issue text",
+		},
+		"a comment claim that names a note": {
+			line:    `{"id":"CR-1#c1","text":"t","source":"comment","span":"s","note_id":"CR-1#n2"}`,
+			problem: "names a note, and §3.3 draws a claim sourced from comment out of the issue text",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := DecodeClaims(claimsFile, []byte(tc.line+"\n"), "CR-1")
+			var rejected *RejectedClaimError
+			require.ErrorAs(t, err, &rejected)
+			assert.Equal(t, "note_id", rejected.Field)
+			assert.Equal(t, "claims.ndjson line 1: note_id "+tc.problem, err.Error())
+		})
+	}
+}
