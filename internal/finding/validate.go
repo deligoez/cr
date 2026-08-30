@@ -99,8 +99,6 @@ func Decode(file string, body []byte, units []string, from Source) ([]*Finding, 
 
 // DecodePerRole reads one role's §4.6.2 output file for `cr merge`, under the
 // same rules, and refuses an input whose name binds its records to no role.
-// DecodePerRole reads one role's §4.6.2 output file for `cr merge`, under the
-// same rules, and refuses an input whose name binds its records to no role.
 //
 // Every file `cr merge` reads is a role's own output, so §6.5.1's exemption
 // never applies here whatever `cr record` later does with the merged result:
