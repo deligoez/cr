@@ -78,3 +78,34 @@ func TestACoverageValueRoundTripsTheAgentsDecision(t *testing.T) {
 	})
 }
 
+// §4.4.1 names exactly three classifications, and a value outside them is
+// refused rather than carried.
+//
+// A cell is what §10.2 reads completeness out of, so a verdict nothing
+// downstream recognises would let a round report itself complete on a word no
+// rule in the spec defines — the failure a written-and-never-called validator
+// produces, with every prompt still promising that unknown values are rejected.
+// The empty string is one of those values, so a coverage object that omits the
+// classification is refused on the same path rather than defaulting to anything.
+func TestAnUnrecognisedClassificationIsRejected(t *testing.T) {
+	for _, line := range []string{
+		`{"classification":"mostly-covered","test_paths":[]}`,
+		`{"classification":"","test_paths":[]}`,
+		`{"test_paths":[]}`,
+		// The vocabulary is the three words as §4.4.1 writes them, and
+		// a spelling that only reads the same is a fourth value.
+		`{"classification":"Covered","test_paths":[]}`,
+		`{"classification":"partially covered","test_paths":[]}`,
+	} {
+		var refused Coverage
+		err := json.Unmarshal([]byte(line), &refused)
+
+		require.Error(t, err, "%s was accepted", line)
+		var invalid *InvalidClassificationError
+		require.ErrorAs(t, err, &invalid)
+		// §12.4: the message names the next actionable step, which is
+		// the set the agent may write.
+		assert.Contains(t, invalid.Error(), "partially-covered")
+		assert.Empty(t, refused.Classification(), "a refused line left a verdict behind")
+	}
+}
