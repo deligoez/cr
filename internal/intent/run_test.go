@@ -201,3 +201,37 @@ func TestAnIntentFileBypassesTheTrackerCommandEntirely(t *testing.T) {
 	assert.NoFileExists(t, ran,
 		"§3.1.4 bypasses the command; it does not run it and discard the output")
 }
+
+// §3.1.4's promise is that the loop works with no tracker access **at all**,
+// and "at all" reaches past the command not being started: nothing about
+// intent.cmd may have to hold for the run to succeed.
+//
+// Each row is an intent.cmd that fails a different way, and every one of them
+// is reachable. §3.1.2's default is what every user has until they configure
+// otherwise, so a bypass that resolved the command first would need jira
+// installed to read an issue from a file. The two argv shapes below it are the
+// ones expand refuses, so a bypass that validated before choosing would refuse
+// them too — and refuse a run that was never going to use them.
+func TestAnIntentFileNeedsNoTrackerCommandThatCouldEverRun(t *testing.T) {
+	defaults, err := config.Resolve(config.Sources{})
+	require.NoError(t, err)
+
+	issue := "CR-2 The tracker is unreachable from here\n"
+	path := issueFile(t, issue)
+	absent := filepath.Join(t.TempDir(), "jira")
+	require.NoFileExists(t, absent)
+
+	for name, argv := range map[string][]string{
+		"§3.1.2's default, naming a program cr does not ship": defaults.Strings("intent.cmd"),
+		"a program that does not exist":                       {absent, "issue", "view", Placeholder},
+		"an argv expand refuses for carrying no placeholder":  {absent, "issue", "view", "CR-2"},
+		"no intent.cmd configured at all":                     nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			text, err := Read(Source{File: path, Cmd: argv}, "CR-2")
+
+			require.NoError(t, err)
+			assert.Equal(t, issue, text)
+		})
+	}
+}
