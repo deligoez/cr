@@ -1,6 +1,7 @@
 package intent
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -41,4 +42,26 @@ func TestNoIssueKeyContinuesWithAnEmptyIntent(t *testing.T) {
 	require.True(t, marked, "§4.5.3 marks the intent axis unavailable when no key resolves")
 	assert.Equal(t, axis.Intent, unavailable.Axis, "the whole axis is out, not a half of one")
 	assert.NotEmpty(t, unavailable.Reason, "§4.5.4 requires the reason, not only the fact")
+}
+
+// §3.1.4's file is the one place the fallback looks avoidable: the issue text is
+// sitting on disk, so reading it and carrying on looks like a kindness. It is
+// not one. §3.2's fallback is written without exceptions, and §3.3 forms every
+// claim id as `<ISSUE-KEY>#c<n>`, so text held for no key is text no claim can
+// be extracted from — the axis would report itself available and then fill no
+// cell. `--intent-file` bypasses the command, not the key.
+//
+// The file's contents would be unmistakable in Text, so a run that read it
+// anyway cannot pass this quietly.
+func TestAnIntentFileDoesNotStandInForAMissingKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "issue.txt")
+	require.NoError(t, os.WriteFile(path, []byte("Add a thing to the thing.\n"), 0o600))
+
+	intent, err := Resolve(KeySources{Branch: "feature/add-a-thing"}, specDefaultPattern, Source{File: path})
+
+	require.NoError(t, err)
+	assert.Empty(t, intent.Text, "the file supplies the text for a key, never the key")
+
+	_, marked := intent.Unavailability()
+	assert.True(t, marked, "§4.5.3 turns on the key, and no tracker access was needed to find there is none")
 }
