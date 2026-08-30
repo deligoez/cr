@@ -118,3 +118,21 @@ func TestAPathTheCommitDoesNotHoldAsAFileIsAbsent(t *testing.T) {
 	}
 }
 
+// A revision git cannot resolve is a failure and not an absence.
+//
+// The head cr resolves against is cr's own, so a revision it cannot name is a
+// fault of the run rather than of the record's content: §3.1.3 surfaces the
+// command's stderr and §11.2 codes it 3, where reporting it as a path the head
+// does not hold would blame the agent's citation for it with exit code 1.
+func TestARevisionGitCannotResolveIsAFailureAndNotAnAbsence(t *testing.T) {
+	dir := committed(t, map[string]string{"app.go": "package app\n"})
+
+	lines, exists, err := FileAtRevision(dir, "no-such-revision", "app.go")
+
+	var refused *CommandError
+	require.ErrorAs(t, err, &refused)
+	assert.False(t, exists)
+	assert.Empty(t, lines)
+	assert.Contains(t, refused.Stderr, "no-such-revision")
+	assert.Contains(t, refused.Error(), "ls-tree")
+}
