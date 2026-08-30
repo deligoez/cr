@@ -149,3 +149,19 @@ func TestAPatternThatMatchesTheEmptyStringYieldsNoKey(t *testing.T) {
 	assert.Equal(t, Key{Value: "", Origin: KeyAbsent}, key)
 }
 
+// §3.2 leaves an uncompilable override undefined, and cr answers it the way
+// §2.6.1.2 answers the same fault in a rule's detect.pattern: abort naming what
+// the expression came from. Nothing is resolved from a pattern cr cannot run,
+// so the fault is reported instead of a key being taken from a source further
+// down that would have matched a working pattern.
+func TestAnUncompilableKeyPatternIsAConfigurationFault(t *testing.T) {
+	key, err := ResolveKey(KeySources{Branch: "feature/CR-7-add-a-thing"}, `[A-Z`)
+
+	var bad *KeyPatternError
+	require.ErrorAs(t, err, &bad)
+	assert.Equal(t, `[A-Z`, bad.Pattern)
+	// The message names the config key, so the fix is a setting rather
+	// than a hunt through cr's own expressions.
+	assert.Contains(t, err.Error(), "intent.key_pattern")
+	assert.Equal(t, Key{}, key)
+}
