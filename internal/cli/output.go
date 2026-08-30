@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"reflect"
+	"slices"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/mattn/go-isatty"
@@ -102,6 +105,14 @@ type writer struct {
 	// in ModeJSON: an escape sequence inside a JSON document is a defect in
 	// the document, not a decoration.
 	color bool
+	// compact is §11.1's `--compact`, which §12.5 spends on the JSON
+	// document alone. It is read in either mode and acted on in one: the
+	// flag asks for minimal JSON, and a terminal rendering already prints
+	// a summary rather than a payload, so there is nothing there for it to
+	// take away. It also does not change the shape — §12.1 settles that
+	// from stdout and `--json`, so `--compact` through a pipe is JSON and
+	// through a terminal is still text.
+	compact bool
 }
 
 // settle makes §12.1's decision from stdout and `--json`, and from nothing
@@ -120,8 +131,13 @@ func (w *writer) settle(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	compact, err := cmd.Flags().GetBool("compact")
+	if err != nil {
+		return err
+	}
 
 	w.out = cmd.OutOrStdout()
+	w.compact = compact
 	if forceJSON || !isTerminal(w.out) {
 		w.mode, w.color = ModeJSON, false
 		return nil
@@ -134,7 +150,11 @@ func (w *writer) settle(cmd *cobra.Command) error {
 // with §12.2's two-space indentation and carrying §12.3's empty arrays.
 func (w *writer) emit(r result) error {
 	if w.mode == ModeJSON {
-		encoded, err := json.MarshalIndent(withoutNilSlices(r), "", "  ")
+		payload, err := w.document(r)
+		if err != nil {
+			return err
+		}
+		encoded, err := json.MarshalIndent(payload, "", "  ")
 		if err != nil {
 			return err
 		}
@@ -143,6 +163,131 @@ func (w *writer) emit(r result) error {
 	}
 	_, err := fmt.Fprintln(w.out, r.Text(w))
 	return err
+}
+
+// document is the value emit encodes: §12.3's filled slices always, and
+// §12.5's omissions on top of them under `--compact`.
+//
+// The two compose rather than one replacing the other, and in this order.
+// §12.3 is a rule about what a present field becomes, §12.5 about which fields
+// are present at all, so the value is filled first and the document it encodes
+// to is pruned after. §12.2 is unaffected either way: a compacted document is
+// still pretty-printed, because §11.1 asks `--compact` for minimal JSON and not
+// for JSON a person cannot read.
+func (w *writer) document(r result) (any, error) {
+	filled := withoutNilSlices(r)
+	if !w.compact {
+		return filled, nil
+	}
+	return withoutBulk(filled)
+}
+
+// foundingFields are the two fields §12.5 forbids `--compact` to omit.
+//
+// They are not spared for being small. §8.1.2 has the agent compose every
+// posted body out of `evidence` and `citations`, so a payload handed over
+// without them is a payload the composition has nothing to rest on — and the
+// agent would have no way to know it was reading a compacted document rather
+// than a record that never had them. The bulk below is re-derivable from the
+// state tree; a body composed out of nothing is not recoverable at all.
+var foundingFields = []string{"evidence", "citations"}
+
+// compactOmits are the fields `--compact` drops, named by their JSON key
+// rather than by the Go type that prints them.
+//
+// The wire name is what §12.5 states, and it is the only thing the three have
+// in common: `output_tail` belongs to §5.5's probe record and §5.2.4's run
+// record alike, `input` to the probe record, and a body to an ingested thread
+// from internal/gh. Keying on a type would answer for whichever of them
+// happened to be written first and stay silent about the rest.
+//
+// `output_tail` and `input` are named bare, since no other object in the
+// contract carries either. A thread body is named under the key it sits behind,
+// because `body` on its own is not one field everywhere: §8.1 gives a drafted
+// record a body too, and that one is the whole of what `cr draft` is for.
+var compactOmits = omittedFields(
+	"output_tail",
+	"input",
+	"comment.body",
+	"replies.body",
+)
+
+// omittedFields builds compactOmits' set, and refuses a founding field while
+// it does.
+//
+// The refusal is the mechanism §12.5's second sentence needs. Getting the
+// table right today leaves `evidence` one plausible edit away — it is prose, it
+// is often the longest string in a record, and it is exactly what someone
+// trimming a payload would reach for next — and a rule written only in a
+// comment is a rule that edit reads past. This one aborts the package before a
+// command can run, so `--compact` is incapable of naming the two fields rather
+// than merely coded not to today.
+func omittedFields(names ...string) map[string]bool {
+	omitted := make(map[string]bool, len(names))
+	for _, name := range names {
+		// The field is the last segment, so qualifying a name by the
+		// key it sits behind is no way around the refusal.
+		field := name[strings.LastIndex(name, ".")+1:]
+		if slices.Contains(foundingFields, field) {
+			panic("§12.5: --compact may not omit " + field +
+				"; the agent composes every posted body from it")
+		}
+		omitted[name] = true
+	}
+	return omitted
+}
+
+// withoutBulk returns payload with §12.5's fields gone.
+//
+// The pruning is done on the encoded document and not on the Go value, which
+// is what lets it answer for a payload nobody has written yet: reflection
+// would have to be told which struct fields to skip, and §5.5's probe record
+// has no Go type in this repository at all. A document has the field names,
+// and the field names are what §12.5 fixes.
+func withoutBulk(payload any) (any, error) {
+	document, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	// Numbers are kept exactly as they were written. Decoding them into
+	// float64 and encoding them back would round anything past 2^53,
+	// which is a corruption of the payload and not a compaction of it.
+	decoder.UseNumber()
+
+	var parsed any
+	if err := decoder.Decode(&parsed); err != nil {
+		return nil, err
+	}
+	return pruned(parsed, ""), nil
+}
+
+// pruned drops every omitted field from node, where under is the key node
+// itself arrived behind.
+//
+// An array hands its own key down to its elements, so a reply's body is judged
+// under `replies` rather than under a position that would differ for every
+// reply in the thread.
+func pruned(node any, under string) any {
+	switch value := node.(type) {
+	case map[string]any:
+		kept := make(map[string]any, len(value))
+		for name, field := range value {
+			if compactOmits[name] || compactOmits[under+"."+name] {
+				continue
+			}
+			kept[name] = pruned(field, name)
+		}
+		return kept
+	case []any:
+		for i, element := range value {
+			value[i] = pruned(element, under)
+		}
+		return value
+	default:
+		return node
+	}
 }
 
 // jsonMarshaler is the interface a type uses to take its own serialisation
