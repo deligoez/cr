@@ -8,6 +8,18 @@ import (
 // idPrefix is the letter §6.1 gives a record id.
 const idPrefix = "f"
 
+// ValidID reports whether id is spelled the way §6.1 spells a record id.
+//
+// It is the same reading NextID allocates against, exported for a command that
+// takes a record id from a person rather than from the file cr wrote it to.
+// §3.6.2's `cr answer` is the first of those: it names a record inside a note
+// without resolving one, so the spelling is the whole of what it can check, and
+// it is checked here rather than spelled a second time there.
+func ValidID(id string) bool {
+	_, ok := parseID(id)
+	return ok
+}
+
 // NextID allocates the id for a new record.
 //
 // existing MUST be every record findings.ndjson holds, not the current round's.
