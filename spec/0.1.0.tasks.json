@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T22:01:48.128552Z",
+  "updated_at": "2026-08-30T22:07:08.623574Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2071,7 +2071,7 @@
     {
       "id": "unit-record-fields",
       "title": "Record unit fields with the hash",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "oversized-unit-split",
@@ -2082,11 +2082,25 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T22:01:59.924929Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T22:07:08.590442Z",
+      "closed_reason": "- internal/unit/unit.go's Unit records every field §3.4.6 names: the round-scoped u\u003cn\u003e id, the file path, the hunk ranges, the changed line count, the unit hash, and the Formation the §3.4.4 branch that formed it put on the cluster, together with §3.4.5's oversized flag and the side the unit's lines are numbered on, which §3.4.4 makes a fact about a unit and the id ordering needs. Units numbers them u1 upwards over §3.4.5's clusters and returns §1.4 step 1's error rather than hashing bytes it could not decode.\n- Path is singular, and that is a claim about §3.4.4 rather than a shortening of §3.4.6. §3.4.6 writes \"its file paths\" and §6.2.1 writes \"path is one of that unit's file paths\", but every branch of §3.4.4 says \"same file\" before anything else, so the set both sentences range over always holds one element; a []string would advertise a shape no diff produces and give every reader a loop, an ordering rule and an empty case for a second path that never arrives. The plural survives where it is real: the hash's \"file by file in ascending path order\" is that rule for a set of one, and §6.2.1's membership test is an equality.\n- The hunk ranges are head-side, from git.Hunk.HeadRange, because §6.2.1 evaluates containment entirely in head coordinates against the head-side range of one of a unit's hunks and, for a hunk that adds no lines, its head-side insertion point. A record keeping merge-base numbers would look right on a one-sided fixture and put every §6.2.1 answer one file version out.\n- The unit hash routes through text.NormalisedHash, the fenced entry point, and is taken over the unit's changed lines joined by LF once — the shape finding.AnchorContentHash uses, so a per-hunk pre-image cannot drift away from it. Both orderings the sentence names are the order the hunks already hold: a unit has one file, §3.4.4 partitions before it compares and every branch keeps the partition's order, and ParseHunks keeps a hunk's changed lines ascending.\n- TestAUnitRecordsTheFieldsSection346Names asserts every field over the fixture giving all three formations, with the hash lifted out and its shape checked. TestTheUnitHashIsSection14sValueOverTheUnitsChangedLines pins 3040505c498fab51 as a literal and asserts the value is not d1537a8b7cf8801f, which is the equally well-formed value a site that skipped Normalise would produce; it then changes a line in the last hunk and asserts the hash moves, and re-indents the same code and asserts it does not. internal/cli/record.go's placeholder roundUnit is gone: it now embeds unit.Unit beside state.Stamp, and the closed record-command task's tests needed no change.\nOut of scope: the total id ordering with its side tiebreak, the single-path pinning test, §6.2.1's containment predicate, and writing units.ndjson from cr brief are each their own task.",
+      "gate_passed_at": "2026-08-30T22:07:08.590442Z",
+      "commit_sha": "b61d25b",
+      "commit_shas": [
+        "b61d25b",
+        "7294b90",
+        "13a28de",
+        "ed6232e",
+        "6546e4d"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/record_test.go",
+        "internal/unit/unit.go",
+        "internal/unit/unit_test.go"
+      ]
     },
     {
       "id": "unit-id-total-ordering",
