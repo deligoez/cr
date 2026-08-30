@@ -120,6 +120,9 @@ func TestAStandingIsWhatACitationOfANoteMayStillDo(t *testing.T) {
 // canonical spelling: an id cr did not write names no store cr wrote.
 func TestSplitIDReadsTheStoreOutOfTheNoteID(t *testing.T) {
 	for id, key := range map[string]string{
+		// The shortest key there can be, which is the boundary between
+		// an id whose key is empty and one whose key is a name.
+		"A#n1":          "A",
 		"CR-1#n1":       "CR-1",
 		"CR-1#n42":      "CR-1",
 		"PROJ-42#n7":    "PROJ-42",
