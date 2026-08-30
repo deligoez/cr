@@ -219,3 +219,50 @@ func TestMoreThanOneRoleMayServeTheSameAxis(t *testing.T) {
 	assert.Equal(t, []string{"security", "concurrency", "correctness"}, serving)
 }
 
+// §2.5.3 aborts on a malformed role file and names it, without qualifying which
+// layer holds it. The shadowed case is the one worth writing down: a broken
+// per-repository file skipped over would resolve to the global role while its
+// author believes their override is in force, and a broken global file skipped
+// over is a role the user edited and cr silently does not use. Both are the
+// silent-wrong §1.6 forbids, so resolution reads every layer before it resolves
+// anything.
+func TestAMalformedRoleAbortsResolutionWhicheverLayerHoldsIt(t *testing.T) {
+	const broken = "{"
+	valid := roleJSON(t, "correctness", nil)
+
+	for _, tc := range []struct {
+		name         string
+		repo, global map[string]string
+		wantID       string
+	}{
+		{
+			name:   "per-repository",
+			repo:   map[string]string{"correctness": broken},
+			global: map[string]string{},
+			wantID: "correctness",
+		},
+		{
+			name:   "global",
+			repo:   map[string]string{},
+			global: map[string]string{"convention": broken},
+			wantID: "convention",
+		},
+		{
+			name:   "global, shadowed by a valid per-repository copy",
+			repo:   map[string]string{"correctness": valid},
+			global: map[string]string{"correctness": broken},
+			wantID: "correctness",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, global := layerDir(t, tc.repo), layerDir(t, tc.global)
+
+			_, err := Resolve(repo, global)
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed, "§2.5.3 aborts, and the cli layer codes that 3")
+			assert.Equal(t, tc.wantID+fileExt, filepath.Base(malformed.File), "the abort names the file")
+		})
+	}
+}
+
