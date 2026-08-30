@@ -17,6 +17,7 @@ import (
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -359,4 +360,25 @@ func TestAnUnknownRenderLanguageExitsWithTheFileCode(t *testing.T) {
 	assert.Contains(t, err.Error(), "render.lang", "the abort names the setting")
 	assert.Contains(t, err.Error(), `"de"`, "and the value it rejected")
 	assert.Empty(t, out, "a configuration cr refuses prints no configuration")
+}
+
+// §1.4 step 1 fixes the code in the spec text itself: input that does not
+// decode as UTF-8 fails with exit code 1. It is the first content fault in the
+// tree that is not a field of a parsed record — every other ExitValidation
+// above is the agent's data inside a file that read and parsed cleanly, and
+// this one is the bytes of the text. §11.2 still codes it 1 rather than the 3
+// an unusable file gets, because the file was found and read whole; what
+// cannot be used is what it says. Without this mapping every undecodable issue
+// body, diff hunk and comment would have reported 2 — a malformed invocation —
+// telling the user to retype a command line that was correct.
+//
+// The error is raised rather than constructed, so the mapping is checked
+// against the type the transform actually returns, and the input is built with
+// string([]byte{…}) because that conversion copies bytes and replaces nothing.
+func TestTextThatDoesNotDecodeExitsWithTheValidationCode(t *testing.T) {
+	_, err := text.Normalise("a" + string([]byte{0xFF}) + "b")
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("hashing the claim span: %w", err)))
+	assert.Contains(t, err.Error(), "byte 1", "the refusal names where to look")
 }
