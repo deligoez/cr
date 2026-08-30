@@ -25,8 +25,8 @@ import "github.com/deligoez/cr/internal/git"
 // no hunk has.
 func Split(clusters []Cluster, maxLines int) []Cluster {
 	split := make([]Cluster, 0, len(clusters))
-	for _, cluster := range clusters {
-		split = append(split, cluster.split(maxLines)...)
+	for i := range clusters {
+		split = append(split, clusters[i].split(maxLines)...)
 	}
 	return split
 }
@@ -35,7 +35,7 @@ func Split(clusters []Cluster, maxLines int) []Cluster {
 // runs the same loop as one over it and comes back out whole, so there is no
 // branch on whether the cap binds — a cluster at exactly the cap is the case
 // such a branch would be written wrong at, and here it is not a case at all.
-func (c Cluster) split(maxLines int) []Cluster {
+func (c *Cluster) split(maxLines int) []Cluster {
 	units := make([]Cluster, 0, len(c.Hunks))
 	var current []git.Hunk
 	count := 0
@@ -60,7 +60,7 @@ func (c Cluster) split(maxLines int) []Cluster {
 // come from the cluster being split, because §3.4.5 divides a cluster and does
 // not re-form it: the branch of §3.4.4 that gathered these hunks is still the
 // branch that gathered them, and §3.4.6 records that branch.
-func (c Cluster) unit(hunks []git.Hunk, oversized bool) Cluster {
+func (c *Cluster) unit(hunks []git.Hunk, oversized bool) Cluster {
 	return Cluster{
 		Path:      c.Path,
 		Side:      c.Side,
