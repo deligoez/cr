@@ -63,8 +63,8 @@ func WriteRecords[T any](k *Lock, name string, records []T) error {
 // carrying the agent's own values through: whatever a record already holds is
 // overwritten here.
 func WriteStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error {
-	if !slices.Contains(stampedFiles, name) {
-		return fmt.Errorf("%s: §2.3.3 does not list it, so its records carry no head or round", name)
+	if err := checkStamped(name); err != nil {
+		return err
 	}
 	for _, record := range records {
 		record.setStamp(at)
@@ -93,8 +93,8 @@ func WriteStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error 
 // The read is unlocked-safe because the caller holds the §2.3.1 lock: no other
 // writer can be between this read and the Write that follows it.
 func AppendStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error {
-	if !slices.Contains(stampedFiles, name) {
-		return fmt.Errorf("%s: §2.3.3 does not list it, so its records carry no head or round", name)
+	if err := checkStamped(name); err != nil {
+		return err
 	}
 	for _, record := range records {
 		record.setStamp(at)
