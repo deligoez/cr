@@ -1,11 +1,17 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,4 +75,66 @@ func TestRecordIDCommandsTakeThePullRequest(t *testing.T) {
 	}
 
 	walk(newRootCmd())
+}
+
+// standingIn builds a working directory that is a git repository naming slug
+// as its origin, which is what a repository detection has to work from.
+func standingIn(t *testing.T, slug string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, argv := range [][]string{
+		{"init", "--quiet"},
+		{"remote", "add", "origin", "https://github.com/" + slug + ".git"},
+	} {
+		out, err := exec.Command("git", append([]string{"-C", dir}, argv...)...).CombinedOutput()
+		require.NoError(t, err, "git %v: %s", argv, out)
+	}
+	return dir
+}
+
+// §11.1 makes `--repo <owner/repo>` an override of repository detection, and an
+// override is not a contribution: cr works against the repository the flag
+// names, and what the working directory says is not consulted alongside it.
+//
+// The run therefore stands inside a repository naming a different remote, with
+// a configuration layer waiting under each of the two slugs. Detection is
+// repository-detection's and is not built, so today the working directory is
+// inert and what this proves is that the named repository's layer is the one in
+// force; the day detection lands the same run becomes the adversarial one, and
+// a detection that supplemented rather than yielded would put elsewhere's layer
+// into the same answer.
+//
+// The two layers therefore set different settings rather than the same one at
+// different values. An override and a merge agree about `post.max_comments`
+// whichever wins, and disagree about whether `render.lang` came back as the
+// standing repository asked or as the default nobody overrode — so the second
+// assertion is the one that tells them apart, in both worlds.
+func TestRepoOverridesRepositoryDetection(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".cr")
+	t.Setenv(state.HomeEnv, root)
+	named := filepath.Join(root, "repos", "acme", "web")
+	standing := filepath.Join(root, "repos", "other", "elsewhere")
+	require.NoError(t, os.MkdirAll(named, 0o700))
+	require.NoError(t, os.MkdirAll(standing, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "config.json"),
+		[]byte(`{"post": {"max_comments": 9}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(named, "config.json"),
+		[]byte(`{"post": {"max_comments": 7}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(standing, "config.json"),
+		[]byte(`{"render": {"lang": "en"}}`), 0o600))
+
+	t.Chdir(standingIn(t, "other/elsewhere"))
+
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"config", "--repo", "acme/web"})
+	require.NoError(t, cmd.Execute())
+
+	var printed map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &printed))
+	assert.Equal(t, float64(7), printed["post.max_comments"],
+		"§11.1: --repo names the repository whose layer is in force")
+	assert.Equal(t, "tr", printed["render.lang"],
+		"§11.1: the repository cr was standing in contributed a layer of its own")
 }
