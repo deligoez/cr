@@ -382,3 +382,36 @@ func TestTextThatDoesNotDecodeExitsWithTheValidationCode(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("hashing the claim span: %w", err)))
 	assert.Contains(t, err.Error(), "byte 1", "the refusal names where to look")
 }
+
+// §3.3.1 rejects a claim with exit code 1. The file was found, read, and
+// parsed, so nothing about it failed as a file; what is wrong is the agent's
+// data inside it, exactly as it is for a rejected record. Without these
+// mappings a claims file with one missing row or one mistyped source would
+// report 2 — a malformed invocation — telling the user to retype a command line
+// that was correct.
+//
+// Both errors are raised rather than constructed, so each mapping is checked
+// against the type the door actually returns: the required-row rejection comes
+// back from the checker, and the closed `source` vocabulary refuses its value
+// while the line is still being decoded.
+func TestARejectedClaimExitsWithTheValidationCode(t *testing.T) {
+	_, err := intent.DecodeClaims(
+		state.FileClaims,
+		[]byte(`{"id":"CR-1#c1","text":"An expired token is rejected.","source":"acceptance"}`),
+		"CR-1",
+	)
+	require.Error(t, err, "the claim supplies no span")
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("recording claims: %w", err)))
+
+	_, err = intent.DecodeClaims(
+		state.FileClaims,
+		[]byte(`{"id":"CR-1#c1","text":"t","source":"spec","span":"s"}`),
+		"CR-1",
+	)
+	require.Error(t, err, "§3.3 closes the source row at four values")
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("recording claims: %w", err)))
+	assert.Contains(t, err.Error(), "description, acceptance, comment, note",
+		"§12.4: the refusal names what the user may choose from")
+}
