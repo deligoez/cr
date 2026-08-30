@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"testing"
 
+	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,4 +102,72 @@ func bodyOf(t *testing.T, file *ast.File, name string) *ast.BlockStmt {
 	}
 	require.FailNowf(t, "the fenced function is gone", "anchor.go declares no %s", name)
 	return nil
+}
+
+// Round 12's finding unordered-range-fields. §9.2 requires an anchor to carry
+// both line numbers and says nothing about their order, so an anchor running
+// backwards satisfies every word of the section — and the pair is read as a
+// range downstream, by §6.2.2's probe-target containment and §8.3.3's payload
+// ordering, neither of which re-checks it.
+//
+// Both boundaries are here because both are where the rule is decided rather
+// than restated. §9.2's range is inclusive, so start_line == line is a one-line
+// anchor and not an empty one, and the ordering test has to admit it; and line 1
+// is a line while line 0 is what an absent field decodes to, which is why §9.2's
+// required start_line is not GitHub's optional one.
+func TestAnAnchorRangeRunsForwardsFromALineOfTheFile(t *testing.T) {
+	for name, spans := range map[string][2]int{
+		"a one-line anchor writes the same number twice": {12, 12},
+		"a multi-line anchor runs forwards":              {12, 14},
+		"the first line of the file is a line":           {1, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.NoError(t, ValidateAnchor(state.FileFindings, 7, ranged(spans[0], spans[1])))
+		})
+	}
+
+	for name, spans := range map[string][2]int{
+		"an inverted range":                     {14, 12},
+		"a range that ends one short of itself": {13, 12},
+		"an absent start_line":                  {0, 14},
+		"an absent line":                        {12, 0},
+		"a start_line below the first line":     {-1, 14},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rejected := rejectsAnchor(t, ranged(spans[0], spans[1]))
+			assert.Contains(t, rejected.Error(), "§9.2",
+				"the user is told which section refused the range")
+		})
+	}
+}
+
+// anAnchor is a well-formed anchor, so each case above and below writes only the
+// field it is about and a check the case never meant to trip cannot pass it.
+func anAnchor() Anchor {
+	return Anchor{
+		Path:      "app/Models/User.php",
+		Side:      git.Right,
+		StartLine: 12,
+		Line:      14,
+	}
+}
+
+// ranged is anAnchor over one range.
+func ranged(startLine, line int) *Anchor {
+	anchor := anAnchor()
+	anchor.StartLine, anchor.Line = startLine, line
+	return &anchor
+}
+
+// rejectsAnchor asserts that §9.2 refuses an anchor, and that the refusal
+// reaches the user as the record rejection §6.1.3 shapes: exit code 1 through
+// RejectedRecordError, naming the line the record sits on and the field.
+func rejectsAnchor(t *testing.T, anchor *Anchor) *RejectedRecordError {
+	t.Helper()
+	var rejected *RejectedRecordError
+	require.ErrorAs(t, ValidateAnchor(state.FileFindings, 7, anchor), &rejected)
+	assert.Equal(t, "anchor", rejected.Field)
+	assert.Equal(t, 7, rejected.Line)
+	assert.Equal(t, state.FileFindings, rejected.File)
+	return rejected
 }
