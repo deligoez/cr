@@ -171,3 +171,33 @@ func rejectsAnchor(t *testing.T, anchor *Anchor) *RejectedRecordError {
 	assert.Equal(t, state.FileFindings, rejected.File)
 	return rejected
 }
+
+// §9.2 closes the vocabulary in one sentence: valid side values are RIGHT and
+// LEFT. It is not decoration. §9.2.1 and §6.1.2 resolve the two against
+// different trees, so a third value names a tree cr resolves nothing against,
+// and §6.2.2 turns on the same distinction — a probe target is always RIGHT, so
+// a LEFT anchor can never reach the probed grade.
+//
+// The set has to be closed here rather than by the type: a side arrives on an
+// agent's NDJSON line, and git.Side is a defined string, which any untyped
+// constant in the tree is assignable to.
+func TestAnAnchorNamesOneOfSection92sTwoSides(t *testing.T) {
+	for _, side := range []git.Side{git.Right, git.Left} {
+		anchor := anAnchor()
+		anchor.Side = side
+		assert.NoError(t, ValidateAnchor(state.FileFindings, 7, &anchor), side)
+	}
+
+	// The near misses are the ones worth naming: a side left out decodes to
+	// the empty string, and the spellings GitHub's own API does not use are
+	// what an agent writing from memory produces.
+	for _, side := range []git.Side{"", "right", "Right", "RIGHT ", "MIDDLE", "BOTH"} {
+		anchor := anAnchor()
+		anchor.Side = side
+		rejected := rejectsAnchor(t, &anchor)
+		assert.Contains(t, rejected.Error(), string(git.Right))
+		assert.Contains(t, rejected.Error(), string(git.Left))
+		assert.Contains(t, rejected.Error(), string(side),
+			"the value is quoted back, because the faults that reach here are invisible otherwise")
+	}
+}
