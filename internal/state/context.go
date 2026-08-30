@@ -109,6 +109,30 @@ func ReadContextRecords[T any](l Layout, issueKey string) ([]T, error) {
 	return contextRecords[T](l.ContextFile(issueKey))
 }
 
+// ContextStoreError reports a §3.6 context store cr found and could not use —
+// one it could not read, or one whose NDJSON it could not parse.
+//
+// It exists to be mapped. `cr note`, `cr answer` and `cr context` all reach
+// this file, and with no type of its own a corrupt store failed through
+// internal/cli's unmapped path, which §11.2 codes 2: a malformed invocation,
+// when nothing about the invocation was wrong and no retyping of it could
+// help. §11.2's code 3 covers the file failure, and it is the one thing that
+// tells the caller to go and open the file.
+//
+// A store that is not there at all is not one of these. §3.6's file is created
+// by the first note appended to it, so an absent one is no notes rather than a
+// failure, per contextRecords.
+type ContextStoreError struct {
+	// Err is the read or the decode that failed. It already names the
+	// store's path, and for an undecodable line its one-based number, so
+	// this type adds a name to map onto rather than a second message.
+	Err error
+}
+
+func (e *ContextStoreError) Error() string { return e.Err.Error() }
+
+func (e *ContextStoreError) Unwrap() error { return e.Err }
+
 // contextRecords decodes one context store, whether or not its caller holds the
 // lock. Both readers share it so a note is decoded the same way by the command
 // that appends one and the command that prints them.
@@ -118,9 +142,13 @@ func contextRecords[T any](path string) ([]T, error) {
 		return make([]T, 0), nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+		return nil, &ContextStoreError{Err: fmt.Errorf("cannot read %s: %w", path, err)}
 	}
-	return decodeRecords[T](path, body)
+	records, err := decodeRecords[T](path, body)
+	if err != nil {
+		return nil, &ContextStoreError{Err: err}
+	}
+	return records, nil
 }
 
 // WriteContextRecords publishes the locked issue's context store, replacing it
