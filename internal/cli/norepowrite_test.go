@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -256,4 +257,238 @@ func TestEveryPathTheStateLayoutHandsOutIsUnderItsRoot(t *testing.T) {
 	// The floor is the size of §2.2's table, so a filter that quietly
 	// stopped matching fails here rather than passing over an empty set.
 	require.Greater(t, checked, 20, "only %d paths were checked, so this guard proved nothing", checked)
+}
+
+// gitReads are the git subcommands internal/git is allowed to run, each with
+// the section that asks for it.
+//
+// This is the second route into the repository under review, and the one §2.2's
+// second sentence is about: the index, HEAD, the stash and every branch are
+// files under `.git/`, and cr does not address them — git does, on cr's behalf.
+// So the guard is over the verb rather than over the path, and it is an
+// allowlist of what cr runs today rather than a denylist of what git can
+// destroy, because the denylist is the one that goes stale in the unsafe
+// direction.
+//
+// §5.1.1's exception is not here. `cr sandbox create` will run `git worktree
+// add`, which is a write, and the sandbox-worktree task adds `worktree` to this
+// map with §5.1.1 as its reason. Widening the map is then a deliberate act with
+// a reviewer, which is the point — and the behavioural guard below independently
+// fixes how far that write may reach, so the map growing by one word cannot
+// quietly grant more than the one path §2.2 names.
+var gitReads = map[string]string{
+	"diff":       "§3.4.1's diff of the head against the merge base",
+	"merge-base": "§3.4.1's merge base",
+}
+
+// gitSourceFiles parses internal/git's own source, tests excluded.
+func gitSourceFiles(t *testing.T) []*ast.File {
+	t.Helper()
+	dir := filepath.Join(moduleRoot(t), "internal", "git")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err, "internal/git is cr's only door to git; if it moved, move this guard with it")
+
+	parsed := make([]*ast.File, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		parsed = append(parsed, file)
+	}
+	require.NotEmpty(t, parsed, "no source was read, so this guard proved nothing")
+	return parsed
+}
+
+// packageValues collects the package-level variables of internal/git by name.
+//
+// They are collected across the whole package rather than per file, because
+// the argument list a call spreads and the runner it is spread into need not
+// live in the same file — diffArgs and run do not.
+func packageValues(files []*ast.File) map[string]ast.Expr {
+	values := make(map[string]ast.Expr)
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			general, ok := decl.(*ast.GenDecl)
+			if !ok || general.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range general.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for at, name := range value.Names {
+					if at < len(value.Values) {
+						values[name.Name] = value.Values[at]
+					}
+				}
+			}
+		}
+	}
+	return values
+}
+
+// resolutionDepth bounds the walk back from a call site to a literal. Nothing
+// in internal/git needs more than three steps, and the bound is what keeps a
+// cycle from hanging the suite rather than failing it.
+const resolutionDepth = 8
+
+// firstElement reports the first string an expression's argument list begins
+// with: the literal itself, a slice's first element, the variable it names, or
+// the first element of what slices.Clone and append were given.
+//
+// Clone and append are followed because both keep their first argument's first
+// element, which is where the subcommand sits. Anything else returns false, and
+// the caller turns that into a failure rather than into silence.
+func firstElement(values map[string]ast.Expr, within *ast.FuncDecl, expr ast.Expr, depth int) (string, bool) {
+	if depth > resolutionDepth {
+		return "", false
+	}
+	switch node := expr.(type) {
+	case *ast.BasicLit:
+		if node.Kind != token.STRING {
+			return "", false
+		}
+		name, err := strconv.Unquote(node.Value)
+		return name, err == nil
+	case *ast.CompositeLit:
+		if len(node.Elts) == 0 {
+			return "", false
+		}
+		return firstElement(values, within, node.Elts[0], depth+1)
+	case *ast.Ident:
+		return namedArgv(values, within, node.Name, depth+1)
+	case *ast.CallExpr:
+		if len(node.Args) == 0 || !keepsItsFirstElement(node.Fun) {
+			return "", false
+		}
+		return firstElement(values, within, node.Args[0], depth+1)
+	}
+	return "", false
+}
+
+// keepsItsFirstElement reports whether a call hands back a slice beginning with
+// its own first argument's first element.
+func keepsItsFirstElement(fun ast.Expr) bool {
+	if builtin, ok := fun.(*ast.Ident); ok {
+		return builtin.Name == "append"
+	}
+	selector, ok := fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Name == "slices" && selector.Sel.Name == "Clone"
+}
+
+// namedArgv resolves a variable back to the argument list it holds: a
+// package-level one by name, or a local one through the first assignment made
+// to it in the function the call sits in.
+//
+// The first assignment is the one read because it is the one that establishes
+// what the list begins with; every later append adds to the tail, which is
+// arguments rather than the subcommand.
+func namedArgv(values map[string]ast.Expr, within *ast.FuncDecl, name string, depth int) (string, bool) {
+	if origin, ok := values[name]; ok {
+		return firstElement(values, within, origin, depth+1)
+	}
+	if within == nil || within.Body == nil {
+		return "", false
+	}
+	var origin ast.Expr
+	ast.Inspect(within.Body, func(n ast.Node) bool {
+		if origin != nil {
+			return false
+		}
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for at, target := range assign.Lhs {
+			ident, isIdent := target.(*ast.Ident)
+			if isIdent && ident.Name == name && at < len(assign.Rhs) {
+				origin = assign.Rhs[at]
+				return false
+			}
+		}
+		return true
+	})
+	if origin == nil {
+		return "", false
+	}
+	return firstElement(values, within, origin, depth+1)
+}
+
+// unreadableSubcommand is what a call reports when the guard cannot say which
+// subcommand it runs. It is never in gitReads, so the unanswerable case fails
+// rather than passing: a reader who cannot tell what a git invocation does is
+// exactly the reader §2.2 is written for.
+const unreadableSubcommand = "a subcommand named at run time"
+
+// gitSubcommand reports the git subcommand a call runs, and whether the call
+// runs one at all.
+func gitSubcommand(values map[string]ast.Expr, within *ast.FuncDecl, call *ast.CallExpr) (string, bool) {
+	fun, ok := call.Fun.(*ast.Ident)
+	if !ok || fun.Name != "run" {
+		return "", false
+	}
+	// The directory first, then the argument list, whose head is the
+	// subcommand.
+	if len(call.Args) < 2 {
+		return unreadableSubcommand, true
+	}
+	if name, resolved := firstElement(values, within, call.Args[1], 0); resolved {
+		return name, true
+	}
+	return unreadableSubcommand, true
+}
+
+// Every git subcommand cr runs is a read.
+//
+// §2.2's second sentence names five things cr must not modify — tracked files,
+// the index, HEAD, the stash, and any branch — and all five are reached by
+// running git, never by cr writing a path. Fixing the verbs is therefore how
+// that sentence is held: `git diff` and `git merge-base` cannot move any of the
+// five, whatever arguments they are given, and no other subcommand is reachable
+// from internal/git at all.
+//
+// It is a source guard rather than a run, so it covers what internal/git can do
+// rather than what today's commands happen to ask of it. The behavioural guard
+// below is the complement, and neither is worth much without the other: this
+// one sees a write added to internal/git before any command wires it, and that
+// one sees a write arriving by a route nobody thought to fence.
+func TestEveryGitSubcommandCrRunsIsARead(t *testing.T) {
+	files := gitSourceFiles(t)
+	values := packageValues(files)
+
+	invocations := 0
+	var found []string
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			within, _ := decl.(*ast.FuncDecl)
+			ast.Inspect(decl, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				name, runs := gitSubcommand(values, within, call)
+				if !runs {
+					return true
+				}
+				invocations++
+				if _, read := gitReads[name]; !read {
+					found = append(found, "internal/git runs `git "+name+"`")
+				}
+				return true
+			})
+		}
+	}
+
+	require.Greater(t, invocations, 1, "only %d git invocations were read, so this guard proved nothing", invocations)
+	slices.Sort(found)
+	assert.Empty(t, slices.Compact(found),
+		"§2.2: cr must not modify the repository's tracked files, index, HEAD, stash, or any branch")
 }
