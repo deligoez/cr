@@ -343,8 +343,11 @@ Mirrors tp so the experience transfers.
 - Every error carries a `hint` naming the next actionable step.
 - All writes take a flock; reads are lock-free.
 - Findings are stored in English; reader-facing prose is produced at draft time.
-- `--compact` omits `evidence`, `output_tail`, `input`, and ingested thread
-  bodies.
+- `--compact` omits `output_tail`, `input`, and ingested thread bodies. It never
+  omits `evidence` or `citations`: §8.1.2 has the agent compose every posted body
+  out of those two, so a compacted payload without them leaves the composition
+  unfounded. `internal/cli/output.go` refuses the pair at package init rather
+  than trusting the table to stay right.
 - **Every `git` invocation goes through `internal/git`'s runner.** It inherits an
   allowlist of environment variables rather than filtering a denylist, so
   `GIT_DIR`, `GIT_EXTERNAL_DIFF` and friends cannot redirect a read, and it pins
