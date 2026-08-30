@@ -118,3 +118,18 @@ func TestAFlagTheKeyPatternDoesNotRecogniseFallsThrough(t *testing.T) {
 	assert.Equal(t, Key{Value: "CR-7", Origin: KeyFromBranch}, key)
 }
 
+// §3.2's fallback needs a no-key answer to fall back from, and it has to be
+// distinguishable from a key: every source here is populated and none of them
+// carries anything the pattern recognises. The origin is what §4.5.3 will read,
+// so it is asserted rather than only the empty value.
+func TestNoSourceYieldsNoKey(t *testing.T) {
+	key, err := ResolveKey(KeySources{
+		Branch: "feature/add-a-thing",
+		Title:  "add a thing",
+		Body:   "There is no tracker for this one.",
+	}, specDefaultPattern)
+
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "", Origin: KeyAbsent}, key)
+}
+
