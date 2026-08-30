@@ -297,9 +297,13 @@ func (c Client) thread(node *threadNode) (Thread, error) {
 	if err != nil {
 		return Thread{}, err
 	}
+	anchor, err := node.anchor()
+	if err != nil {
+		return Thread{}, err
+	}
 	thread := Thread{
 		ID:       node.ID,
-		Anchor:   node.anchor(),
+		Anchor:   anchor,
 		Resolved: node.IsResolved,
 		Outdated: node.IsOutdated,
 		Replies:  make([]Comment, 0),
@@ -403,7 +407,7 @@ func authorType(typename string) AuthorType {
 }
 
 // anchor normalises a thread's position into the range a containment test can
-// use unchanged.
+// use unchanged, and refuses a position cr cannot place.
 //
 // GitHub reports a range as a start and an end and answers null for the start
 // of a thread covering one line, so a missing start becomes the end and every
@@ -412,17 +416,39 @@ func authorType(typename string) AuthorType {
 // the original pair. Line is then zero, and no file has a line zero, so
 // §3.5.3 can tell a thread that still resolves from one that does not without
 // consulting anything else.
-func (n *threadNode) anchor() Anchor {
+//
+// The side is the one field of the answer that is not taken on trust. GitHub
+// declares `diffSide` non-null over exactly RIGHT and LEFT, and §9.2 closes the
+// same two, so a third value — or none, which is what an answer missing the
+// field decodes to — means this is not the answer the query asked for.
+// Converting it unchanged would put a side on the thread that matches no hunk:
+// §3.4.4 partitions a unit's hunks by side, so §3.5.3 would attach the thread
+// to no unit, §3.5.4 would suppress nothing against it, and cr would raise a
+// concern a colleague has already raised. That is the expensive direction of
+// wrong, and nothing in the run would say it had happened.
+//
+// So ingestion refuses rather than drops the thread. Dropping it leaves exactly
+// the same silence with the fault hidden as well, and §3.5.1 admits no
+// exception in any case: every existing thread is ingested. A refusal names the
+// thread and quotes the value back, which is a failure a human can act on.
+func (n *threadNode) anchor() (Anchor, error) {
+	side, known := git.ParseSide(n.DiffSide)
+	if !known {
+		return Anchor{}, fmt.Errorf(
+			"thread %s: GitHub answered diffSide %q, and §9.2's sides are %s and %s",
+			n.ID, n.DiffSide, git.Right, git.Left,
+		)
+	}
 	line := lineOr(n.Line, 0)
 	original := lineOr(n.OriginalLine, 0)
 	return Anchor{
 		Path:              n.Path,
-		Side:              git.Side(n.DiffSide),
+		Side:              side,
 		StartLine:         lineOr(n.StartLine, line),
 		Line:              line,
 		OriginalStartLine: lineOr(n.OriginalStartLine, original),
 		OriginalLine:      original,
-	}
+	}, nil
 }
 
 // lineOr reads a line the API may have answered null for.
