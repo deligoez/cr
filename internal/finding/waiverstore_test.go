@@ -269,3 +269,45 @@ func TestAWaiverRecordsTheRoundThePullRequestTheHeadAndTheReason(t *testing.T) {
 	})
 }
 
+// §7.4.6 drops a waived finding before drafting, and §6.4.4 does the dropping
+// at merge. This is the lookup that pass rests on: given the waivers of both
+// scopes, does one cover this record?
+//
+// The two directions are the whole of the claim. It matches across both files,
+// so a `wrong` waived on another pull request still silences this one and a
+// `not-here` silences only this one; and it stops matching the moment the
+// anchored lines change, which §7.4.2 says is exactly when the judgement behind
+// the waiver should be revisited.
+func TestAnActiveWaiverCoversTheRecordItWasWrittenForUntilThatCodeChanges(t *testing.T) {
+	layout := waiverHome(t)
+	wrong, notHere := theSameDefectAtTheSameCode(t)
+	notHere.Class = "unhandled-error"
+
+	wide := waive(t, layout, &wrong, theProvenance())
+	here := waive(t, layout, &notHere, theProvenance())
+
+	active, err := ActiveWaivers(layout, waiverOwner, waiverRepo, waiverPR)
+	require.NoError(t, err)
+
+	covering, waived := WaivedBy(active, &wrong)
+	assert.True(t, waived)
+	assert.Equal(t, wide, covering, "the repository-wide waiver covers its own record")
+
+	covering, waived = WaivedBy(active, &notHere)
+	assert.True(t, waived)
+	assert.Equal(t, here, covering, "the pull-request-scoped waiver covers its own record")
+
+	moved := wrong
+	moved.Anchor.StartLine, moved.Anchor.Line = 400, 402
+	_, waived = WaivedBy(active, &moved)
+	assert.True(t, waived, "§7.4.2: the same unchanged code stays waived when the file above it moves")
+
+	rewritten := wrong
+	rewritten.Anchor.ContentHash = hashOf(t, []string{"if ($discount > 0) {", "    $total -= $discount;", "}"})
+	_, waived = WaivedBy(active, &rewritten)
+	assert.False(t, waived, "§7.4.2: a waiver stops suppressing once the anchored code changes")
+
+	_, waived = WaivedBy(nil, &wrong)
+	assert.False(t, waived, "no waiver covers a record when none was ever written")
+}
+
