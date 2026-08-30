@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T09:55:05.257354Z",
+  "updated_at": "2026-08-30T09:56:05.781575Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5096,7 +5096,7 @@
         "goreleaser-release"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- A release updates the Homebrew formula in the deligoez/homebrew-tap repository so that brew install deligoez/tap/cr installs the binary as cr, per §14.3.\n- The formula is published by the release workflow, not by hand.",
+      "acceptance": "- A release updates the Homebrew formula in the deligoez/homebrew-tap repository so that brew install deligoez/tap/cr installs the binary as cr, per §14.3.\n- The formula is published by the release workflow, not by hand.\n- Measured by goreleaser-release, assigned here: goreleaser check fails with \"DEPRECATED: brews should not be used anymore\", so .goreleaser.yml's brews block must migrate to homebrew_casks; goreleaser check exits 0 afterwards and a snapshot run still produces the four §14.2 archives.",
       "source_sections": [
         "## 14. Distribution"
       ],
@@ -5115,7 +5115,7 @@
         "goreleaser-release"
       ],
       "estimate_minutes": 6,
-      "acceptance": "- cr --version prints the tagged version, injected at build time via -X github.com/deligoez/cr/internal/cli.version, per §14.6.\n- A test asserts an unset version renders as a development marker rather than an empty string.",
+      "acceptance": "- cr --version prints the tagged version, injected at build time via -X github.com/deligoez/cr/internal/cli.version, per §14.6.\n- A test asserts an unset version renders as a development marker rather than an empty string.\n- Measured by goreleaser-release, assigned here: go install applies no ldflags, so go install github.com/deligoez/cr/cmd/cr@\u003ctag\u003e yields \"cr version dev\" and §14.4 is unmet by the -X path alone. The buildinfo mod line does carry the tag, so internal/cli reads runtime/debug.ReadBuildInfo() as a fallback when the injected version is unset, and a test drives a real go install to assert the tag reaches cr --version.",
       "source_sections": [
         "## 14. Distribution"
       ],
