@@ -141,3 +141,56 @@ func TestTheGlobalRoleWinsOverTheBuiltinOne(t *testing.T) {
 	assert.Equal(t, "The global convention lens", resolved[0].Role.Title)
 }
 
+// §2.5.5 fixes corpus order, and §6.4.2 reads it to pick the representative of
+// a duplicate group — so the order is a normative contract and not a rendering
+// detail. Three things are asserted at once because they can only go wrong
+// together:
+//
+//   - layer before id, so every per-repository role precedes every global one;
+//   - ascending id *within* a layer, spelled with `a` and `a-b`, whose file
+//     names sort the other way round — `a-b.json` is below `a.json` because `-`
+//     is below `.` — so a resolver trusting os.ReadDir's order fails here and
+//     passes on every other pair of ids;
+//   - a shadowed id sitting at the winning layer's position: `correctness` is
+//     global here, so it comes before `zz` and not among the built-ins it
+//     displaced. §2.5.4 resolved it from the global layer, and that is the
+//     layer §2.5.5 then orders it by.
+func TestCorpusOrderIsLayerThenAscendingRoleID(t *testing.T) {
+	require.Less(t, int(RepoLayer), int(GlobalLayer), "§2.5.4's order is the constants' order")
+	require.Less(t, int(GlobalLayer), int(BuiltinLayer))
+
+	repo := layerDir(t, map[string]string{
+		"a-b": roleJSON(t, "a-b", nil),
+		"a":   roleJSON(t, "a", nil),
+	})
+	global := layerDir(t, map[string]string{
+		"zz":          roleJSON(t, "zz", nil),
+		"correctness": roleJSON(t, "correctness", nil),
+	})
+
+	got, err := Resolve(repo, global)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		"a", "a-b",
+		"correctness", "zz",
+		"convention", "intent-coverage", "test-adequacy",
+	}, corpusIDs(got))
+
+	assert.Equal(t, []Layer{
+		RepoLayer, RepoLayer,
+		GlobalLayer, GlobalLayer,
+		BuiltinLayer, BuiltinLayer, BuiltinLayer,
+	}, layersOf(got))
+}
+
+// layersOf reports the layer each corpus entry was resolved from, in corpus
+// order.
+func layersOf(roles []Resolved) []Layer {
+	out := make([]Layer, 0, len(roles))
+	for _, r := range roles {
+		out = append(out, r.Layer)
+	}
+	return out
+}
+
