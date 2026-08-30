@@ -153,3 +153,48 @@ func TestClaimsRecordStoresTheHashesCrComputes(t *testing.T) {
 		assert.Equal(t, claimsRound, claim.Round, "§2.3.3: and round with it")
 	}
 }
+
+// §3.3.1 replaces claims.ndjson and clears mapping.ndjson, and §9.3.5 scopes
+// both to the current round: the round before this one comes out unchanged.
+//
+// The command is run twice on purpose. The second run is what tells a replace
+// from an append — one extraction of one claim follows another of two, and a
+// command that appended would leave three in the round. The earlier round's
+// mapping line is read back as bytes, because that is the only assertion a
+// writer that decoded and re-encoded it could fail.
+func TestClaimsRecordReplacesThisRoundAndLeavesTheOneBefore(t *testing.T) {
+	layout := claimedHome(t)
+	issue := anIssueFile(t, issueText)
+	first := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+		`{"id":"`+claimsIssue+`#c2","text":"Give up.","source":"acceptance",`+
+			`"span":"abandoned after five attempts"}`,
+	)
+	_, err := runClaimsRecord(t, claimsPR, first, "--repo", claimsSlug, "--intent-file", issue)
+	require.NoError(t, err)
+
+	second := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Retry a 5xx.","source":"description",`+
+			`"span":"Retry the upload on a 5xx response."}`,
+	)
+	_, err = runClaimsRecord(t, claimsPR, second, "--repo", claimsSlug, "--intent-file", issue)
+	require.NoError(t, err)
+
+	stored, err := state.ReadRecords[intent.Claim](
+		layout, claimsOwner, claimsRepo, claimsPRNum, state.FileClaims,
+	)
+	require.NoError(t, err)
+	require.Len(t, stored, 2, "§3.3.1 replaces the round's claims rather than adding to them")
+	assert.Equal(t, 1, stored[0].Round, "§9.3.5: the round before is left intact")
+	assert.Equal(t, claimsIssue+"#c9", stored[0].ID)
+	assert.Equal(t, claimsRound, stored[1].Round)
+	assert.Equal(t, claimsIssue+"#c1", stored[1].ID)
+
+	mapping, err := layout.ReadPR(claimsOwner, claimsRepo, claimsPRNum, state.FileMapping)
+	require.NoError(t, err)
+	assert.Equal(t,
+		`{"claim":"`+claimsIssue+`#c9","unit":"u4","head":"1f2e3d4c","round":1}`+"\n",
+		string(mapping),
+		"§3.3.1 clears the mapping, and §9.3.5 scopes the clearing to this round")
+}
