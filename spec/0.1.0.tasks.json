@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T21:22:20.686468Z",
+  "updated_at": "2026-08-30T21:50:30.853565Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1813,7 +1813,7 @@
     {
       "id": "claims-record-command",
       "title": "Store claims replacing the round file",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "claim-schema",
@@ -1824,7 +1824,8 @@
       "source_sections": [
         "### 3.3 Claim extraction"
       ],
-      "started_at": null,
+      "started_at": "2026-08-30T21:24:37.401202Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
@@ -5787,7 +5788,7 @@
     {
       "id": "record-command",
       "title": "Record a round's merged findings",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-required-field-validation",
@@ -5799,11 +5800,32 @@
         "## 11. Command surface",
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T21:24:43.627493Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T21:50:30.801995Z",
+      "closed_reason": "- cr record \u003cpr\u003e \u003cfile\u003e is registered in internal/cli/record.go and root.go: it reads the NDJSON the agent names, hands every line to internal/finding's Decode with the current round's unit ids, stamps §9.1's draft state through MayTransition(Creation -\u003e StateDraft, ActorRecord), and appends the survivors to findings.ndjson under layout.LockPR, per §11's command table and §9.1's first transition row.\n- Validation is finding.Decode's and nothing else: TestRecordRefusesTheThreeFaultsSection613Names drives a missing required field, a unit belonging to the round before, and a role borrowed from another role's §4.6.2 output file, and asserts each arrives as the same finding.RejectedRecordError carrying the file, the one-based line and the field, mapped by internal/cli/exit.go onto exit code 1.\n- Nothing is written when any line is refused, and that is atomicity by construction rather than rollback: Decode returns no records at all on the first fault, so the single state.AppendStamped publish never runs. TestARefusedLineLeavesFindingsExactlyAsItWas records a round first, then hands in a four-line file whose third line drops evidence, and asserts the error names line 3 and that findings.ndjson is byte-identical afterwards, so neither the two good lines above the fault nor the good line below it were stored.\n- TestRecordStoresEveryRecordOfAnAcceptedFile drives the good file and asserts every record reached findings.ndjson in file order, each carrying the three fields the agent may not supply: state draft (§6.1.4), and the head and round of meta.json (§2.3.3).\n- state.AppendStamped was added because WriteStamped restamps every record it is handed, which would rewrite earlier rounds' head and round on every append; TestAnAppendLeavesEarlierRoundsAsTheyWere holds the first round's stamp across a second append, per §9.3.5.\n- The unit set is scoped to the round because §3.4.6 makes a unit id round-scoped, so roundUnitIDs filters units.ndjson by meta.json's round and a record naming the previous round's unit is refused.\n- Dogfooded against a scratch CR_HOME with a hand-written merged.ndjson: two records stored with state, head and round written by cr; refusals for a bad third line, an out-of-round unit and a supplied grade all exit 1 leaving the file byte-identical.",
+      "gate_passed_at": "2026-08-30T21:50:30.801995Z",
+      "commit_sha": "5f1b63b",
+      "commit_shas": [
+        "5f1b63b",
+        "6f24abd",
+        "76ffe34",
+        "3eb3a84",
+        "73a6847",
+        "8c4940a",
+        "8938ae5",
+        "74493d5",
+        "7804a2c"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/record.go",
+        "internal/cli/record_test.go",
+        "internal/cli/root.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go"
+      ]
     },
     {
       "id": "repository-detection",
