@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -13,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -491,4 +497,354 @@ func TestEveryGitSubcommandCrRunsIsARead(t *testing.T) {
 	slices.Sort(found)
 	assert.Empty(t, slices.Compact(found),
 		"§2.2: cr must not modify the repository's tracked files, index, HEAD, stash, or any branch")
+}
+
+// The pull request the fixture repository stands in for. Nothing resolves it —
+// cr does not detect a repository yet — so it is named on the command line and
+// its §2.3 state is prepared under CR_HOME, which is where every command that
+// takes a `--repo` looks.
+const (
+	fixtureOwner    = "octocat"
+	fixtureProject  = "hello"
+	fixtureSlug     = fixtureOwner + "/" + fixtureProject
+	fixturePR       = "7"
+	fixturePRNumber = 7
+	fixtureIssue    = "CR-7"
+)
+
+// worktreeRegistration is §5.1.1's exception, spelled as a repository-relative
+// path: the sole write §2.2 permits inside the repository under review.
+const worktreeRegistration = ".git/worktrees"
+
+// gitIn runs one git command inside dir.
+//
+// The environment is pinned rather than inherited, for the reason internal/git
+// pins its own: a machine whose owner configures git is a machine where an
+// unpinned read answers differently. GIT_OPTIONAL_LOCKS=0 is the one that
+// matters most here — without it `git status` may refresh the index, and a
+// fingerprint that disturbs the repository cannot measure whether cr did.
+func gitIn(t *testing.T, dir string, args ...string) (string, error) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"TMPDIR=" + os.TempDir(),
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_OPTIONAL_LOCKS=0",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_PAGER=cat",
+		"LC_ALL=C",
+		"LANG=C",
+		"GIT_AUTHOR_NAME=cr guard",
+		"GIT_AUTHOR_EMAIL=guard@example.invalid",
+		"GIT_COMMITTER_NAME=cr guard",
+		"GIT_COMMITTER_EMAIL=guard@example.invalid",
+	}
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return strings.TrimSpace(stderr.String()), err
+	}
+	return stdout.String(), nil
+}
+
+// mustGit runs one git command inside dir and fails the test if it refuses.
+func mustGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := gitIn(t, dir, args...)
+	require.NoErrorf(t, err, "git %s: %s", strings.Join(args, " "), out)
+	return out
+}
+
+// fixtureRepository builds the repository cr is run against.
+//
+// It carries one of everything §2.2's second sentence names, because a
+// fingerprint of an empty checkout would compare nothing to nothing: a commit
+// to be HEAD, a second branch, a stash entry, a tracked file edited, a file
+// staged and not committed, an untracked file, and a file the repository
+// ignores. Each of those is something a careless run could disturb, and each
+// has to be present before the guard can say it was not.
+func fixtureRepository(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	}
+
+	mustGit(t, dir, "-c", "init.defaultBranch=main", "init", "--quiet")
+	write("app.go", "package app\n\nfunc Retry() {}\n")
+	write(".gitignore", "built/\n")
+	mustGit(t, dir, "add", "app.go", ".gitignore")
+	mustGit(t, dir, "commit", "--quiet", "-m", "the commit under review")
+	mustGit(t, dir, "branch", "spare")
+
+	write("app.go", "package app\n\nfunc Retry() { stashed() }\n")
+	mustGit(t, dir, "stash", "push", "--quiet", "-m", "work in progress")
+
+	write("app.go", "package app\n\nfunc Retry() { edited() }\n")
+	write("staged.go", "package app\n")
+	mustGit(t, dir, "add", "staged.go")
+	write("scratch.txt", "notes\n")
+	write("built/output.bin", "\x00\x01\n")
+
+	// The fixture is checked rather than assumed. A guard run against a
+	// checkout that turned out to hold no stash, no second branch and no
+	// staged change would pass and would mean nothing.
+	require.Contains(t, mustGit(t, dir, "stash", "list"), "work in progress")
+	refs := mustGit(t, dir, "for-each-ref", "--format=%(refname)")
+	for _, ref := range []string{"refs/heads/main", "refs/heads/spare", "refs/stash"} {
+		require.Contains(t, refs, ref, "the fixture was meant to hold %s", ref)
+	}
+	status := mustGit(t, dir, "status", "--porcelain=v2", "--untracked-files=all", "--ignored=matching")
+	for _, expected := range []string{"app.go", "staged.go", "scratch.txt", "built/"} {
+		require.Contains(t, status, expected, "the fixture was meant to hold %s in its status", expected)
+	}
+	return dir
+}
+
+// repoState is everything §2.2 forbids cr to disturb, read back off disk.
+type repoState struct {
+	// status is `git status`, which is the comparison the acceptance
+	// criterion names.
+	status string
+	// refs is what `git status` alone does not report: the commit HEAD sits
+	// at, the ref HEAD follows, every branch and tag, and the stash. §2.2
+	// names four of those, and a branch created off the current commit
+	// leaves `git status` byte-identical.
+	refs string
+	// files is every byte in the repository, `.git/` included, so a write
+	// that neither git status nor a ref would report is caught too. This is
+	// the half that answers §2.2's first sentence rather than its second.
+	files string
+	// permitted is the same manifest for §5.1.1's `.git/worktrees/`, held
+	// apart because it is the one write §2.2 allows.
+	permitted []string
+}
+
+// fileManifest hashes every entry in the repository, and returns §5.1.1's
+// permitted path separately from everything else.
+//
+// Content rather than modification time, because a rewrite with identical bytes
+// is not a modification of anything a reader can observe, and a mtime that
+// moved without the content changing would fail a guard that means nothing by
+// it. Directories and symlinks are recorded too: an empty directory left behind
+// is still a write inside the repository under review.
+func fileManifest(t *testing.T, dir string) (manifest string, permitted []string) {
+	t.Helper()
+	var entries []string
+	require.NoError(t, filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+
+		var entry string
+		switch {
+		case d.IsDir():
+			entry = "dir  " + rel
+		case d.Type()&fs.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			entry = "link " + rel + " -> " + target
+		default:
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			body, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			sum := sha256.Sum256(body)
+			entry = fmt.Sprintf("file %s %04o %x", rel, info.Mode().Perm(), sum)
+		}
+
+		if rel == worktreeRegistration || strings.HasPrefix(rel, worktreeRegistration+"/") {
+			permitted = append(permitted, entry)
+			return nil
+		}
+		entries = append(entries, entry)
+		return nil
+	}))
+
+	slices.Sort(entries)
+	slices.Sort(permitted)
+	require.Greater(t, len(entries), 10, "the fixture holds almost nothing, so a manifest of it proves nothing")
+	return strings.Join(entries, "\n"), permitted
+}
+
+// fingerprintOf reads the repository's whole observable state.
+//
+// The manifest is taken on both sides of the git half and required to match,
+// which is what makes the reading trustworthy: a fingerprint that changed the
+// repository could not tell whether cr had.
+func fingerprintOf(t *testing.T, dir string) repoState {
+	t.Helper()
+	opening, _ := fileManifest(t, dir)
+
+	taken := repoState{
+		status: mustGit(t, dir, "status", "--porcelain=v2", "--untracked-files=all", "--ignored=matching"),
+		refs: strings.Join([]string{
+			"head " + mustGit(t, dir, "rev-parse", "HEAD"),
+			"following " + mustGit(t, dir, "rev-parse", "--symbolic-full-name", "HEAD"),
+			"refs\n" + mustGit(t, dir, "for-each-ref", "--format=%(refname) %(objectname)"),
+			"stash\n" + mustGit(t, dir, "stash", "list"),
+		}, "\n"),
+	}
+
+	closing, permitted := fileManifest(t, dir)
+	require.Equal(t, opening, closing,
+		"reading the fingerprint changed the repository, so it cannot measure whether cr did")
+	taken.files, taken.permitted = closing, permitted
+	return taken
+}
+
+// leafCommands names every command in the tree that does work, spelled the way
+// it is typed.
+//
+// It is read off the tree rather than listed, so a command added later arrives
+// here by existing. Cobra's own `help` and `completion` are left out: they are
+// not cr's commands, §11 does not name them, and neither reads a repository.
+func leafCommands(t *testing.T) []string {
+	t.Helper()
+	var names []string
+	var walk func(prefix string, cmd *cobra.Command)
+	walk = func(prefix string, cmd *cobra.Command) {
+		name := strings.TrimSpace(prefix + " " + cmd.Name())
+		children := cmd.Commands()
+		if len(children) == 0 {
+			names = append(names, name)
+			return
+		}
+		for _, sub := range children {
+			walk(name, sub)
+		}
+	}
+	for _, sub := range newRootCmd().Commands() {
+		if sub.Name() == "help" || sub.Name() == "completion" {
+			continue
+		}
+		walk("", sub)
+	}
+
+	require.NotEmpty(t, names, "a guard over none of the tree's commands proves nothing")
+	return names
+}
+
+// repoRuns is the argv each command in the tree is exercised with, keyed by the
+// command as it is typed.
+//
+// cr cannot invent a command's arguments, so this half is a table. What keeps
+// it from freezing at today's five is that it is checked against the tree
+// rather than trusted: a command added later fails the guard until someone
+// gives it a real invocation, and "representative" therefore keeps meaning
+// every command that exists.
+//
+// Every one of them is required to succeed. A command refused at its arguments
+// never reaches the code that could write, so a run that exits 2 would prove
+// nothing about the command it named.
+var repoRuns = map[string][]string{
+	"init":    {"init"},
+	"config":  {"config", "--repo", fixtureSlug},
+	"note":    {"note", fixtureIssue, "the retry is deliberate", "--source", "chat", "--pr", fixturePR},
+	"answer":  {"answer", fixturePR, "f1", "the retry is deliberate", "--source", "thread", "--repo", fixtureSlug},
+	"context": {"context", fixtureIssue},
+}
+
+// No command in the tree writes inside the repository it is run in.
+//
+// This is the criterion with teeth, and the only one of the three guards that
+// runs anything: the built binary, from inside a real repository, with the
+// whole of §2.2's second sentence read off disk before and after. The two
+// source guards above say what cr can be seen to do; this one says what it did.
+//
+// The honest limit is the command surface. v0.1 is five commands in, none of
+// them yet drives git, and every one of them keeps its state under CR_HOME — so
+// what this run proves today is narrower than what it will prove once `cr brief`
+// and `cr review` read the repository. That is why the list of runs is derived
+// from the tree instead of written out: the guard widens as the surface does,
+// without anybody remembering it.
+func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
+	fixture := fixtureRepository(t)
+	binary := crBinary(t)
+	home := t.TempDir()
+	root := filepath.Join(home, ".cr")
+
+	// `cr answer` answers a record of a pull request cr has been briefed
+	// on, and that briefing is §2.3 state under CR_HOME rather than
+	// anything in the repository. It is prepared here so the command runs
+	// to completion instead of refusing at its first read.
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber, IssueKey: fixtureIssue,
+	}))
+	require.NoError(t, held.Unlock())
+
+	env := []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + home,
+		"TMPDIR=" + t.TempDir(),
+		"CR_HOME=" + root,
+	}
+	run := func(args ...string) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		cmd := exec.Command(binary, args...)
+		// The repository under review is the directory cr is run from,
+		// which is what would make a relative path inside cr land in it.
+		cmd.Dir = fixture
+		cmd.Env = env
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		require.NoErrorf(t, cmd.Run(), "cr %s: %s",
+			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
+	}
+
+	commands := leafCommands(t)
+	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(repoRuns)),
+		"every command in the tree is run against the fixture, so a new one needs an invocation here")
+
+	before := fingerprintOf(t, fixture)
+
+	run("--version")
+	run("--help")
+	for _, name := range slices.Sorted(maps.Keys(repoRuns)) {
+		run(append(strings.Fields(name), "--help")...)
+		run(repoRuns[name]...)
+	}
+
+	after := fingerprintOf(t, fixture)
+	assert.Equal(t, before.status, after.status,
+		"§2.2: git status must be byte-identical across a run of every command")
+	assert.Equal(t, before.refs, after.refs,
+		"§2.2: cr must not modify the repository's HEAD, stash, or any branch")
+	assert.Equal(t, before.files, after.files,
+		"§2.2: cr must not write inside the repository under review")
+
+	// §5.1.1's exception, left open and unexercised. `.git/worktrees/` is
+	// held out of the manifest, so the worktree registration `cr sandbox
+	// create` will leave behind passes here while anything wider still
+	// fails. No sandbox command exists yet, so until one does the exception
+	// must stay empty — and that is asserted rather than assumed.
+	if !slices.ContainsFunc(commands, func(name string) bool { return strings.HasPrefix(name, "sandbox") }) {
+		assert.Empty(t, after.permitted,
+			"§5.1.1 gives the exception to the sandbox, and no sandbox command exists yet")
+	}
 }
