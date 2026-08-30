@@ -148,17 +148,31 @@ func DecodeStamped[E any, T interface {
 
 // writeRecords encodes records as NDJSON — one JSON document per line — and
 // publishes the file through the held lock.
+// writeRecords encodes records as NDJSON and publishes the file through the
+// held lock.
 func writeRecords[T any](k *Lock, name string, records []T) error {
+	body, err := encodeRecords(name, records)
+	if err != nil {
+		return err
+	}
+	return k.Write(name, body)
+}
+
+// encodeRecords renders records as NDJSON — one JSON document per line. It is
+// shared with the context store of §3.6, which is NDJSON too but is not per-PR
+// state, so it is written outside the §2.3.1 lock this file's other writers
+// hold.
+func encodeRecords[T any](name string, records []T) ([]byte, error) {
 	var body bytes.Buffer
 	for i, record := range records {
 		line, err := json.Marshal(record)
 		if err != nil {
-			return fmt.Errorf("cannot encode record %d of %s: %w", i+1, name, err)
+			return nil, fmt.Errorf("cannot encode record %d of %s: %w", i+1, name, err)
 		}
 		body.Write(line)
 		body.WriteByte('\n')
 	}
-	return k.Write(name, body.Bytes())
+	return body.Bytes(), nil
 }
 
 // ReadRecords decodes one NDJSON file of a pull request's state into its record
@@ -172,6 +186,13 @@ func ReadRecords[T any](l Layout, owner, repo string, pr int, name string) ([]T,
 	if err != nil {
 		return nil, err
 	}
+	return decodeRecords[T](l.PRFile(owner, repo, pr, name), body)
+}
+
+// decodeRecords decodes an NDJSON body into its record type, naming path in
+// whatever it refuses. It is shared with the context store of §3.6 for the
+// reason encodeRecords is.
+func decodeRecords[T any](path string, body []byte) ([]T, error) {
 	records := make([]T, 0)
 	for i, line := range bytes.Split(body, []byte{'\n'}) {
 		if len(bytes.TrimSpace(line)) == 0 {
@@ -179,7 +200,7 @@ func ReadRecords[T any](l Layout, owner, repo string, pr int, name string) ([]T,
 		}
 		var record T
 		if err := json.Unmarshal(line, &record); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", l.PRFile(owner, repo, pr, name), i+1, err)
+			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
 		}
 		records = append(records, record)
 	}
