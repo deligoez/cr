@@ -54,3 +54,19 @@ func TestEachKeySourceWinsInTurn(t *testing.T) {
 	}
 }
 
+// §3.2's order is normative, not a preference, and the case that decides it is
+// the one where obeying it looks wrong: a stray key in the branch beats the
+// ticket named in the title and the body together. Choosing the better-looking
+// match would be cr forming an opinion about which key is meant, which P5 does
+// not allow it to do — the pattern and the order are the whole of the rule.
+func TestAnEarlierSourceWinsEvenWhenALaterOneReadsBetter(t *testing.T) {
+	key, err := ResolveKey(KeySources{
+		Branch: "feature/AB-1-spike",
+		Title:  "CR-123: the ticket this pull request is actually for",
+		Body:   "Closes CR-123.",
+	}, specDefaultPattern)
+
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "AB-1", Origin: KeyFromBranch}, key)
+}
+
