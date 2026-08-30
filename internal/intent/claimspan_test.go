@@ -2,6 +2,7 @@ package intent
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,4 +120,33 @@ func TestANoteSourcedClaimNamingNoNoteIsRefused(t *testing.T) {
 		`claims.ndjson line 1: note_id names "CR-1#n9", and the context store for CR-1 holds `+
 			`no such note; §3.3.2 validates this claim against that note and against nothing else`,
 		err.Error())
+}
+
+// A retracted note still founds a claim, and that is a reading of §3.3.2 and
+// §3.6.6 together rather than an oversight.
+//
+// §3.3.2 says the claim is validated against the named note and says nothing
+// about its standing. §3.6.6 gives retraction a different consequence
+// altogether: a coverage cell or record citing a retracted note is *reported as
+// needing re-evaluation in the next round* rather than silently retained — a
+// report, not a refusal, and one that nothing can produce if the claim was
+// never recorded in the first place.
+//
+// note.Standing is derived from the store every time it is asked for, so `cr
+// draft` and `cr post` read the retraction as it stands when they run. Refusing
+// here would move that decision to extraction time, where neither section puts
+// it, and would lose the audit trail §3.6.6 keeps the retracted note on disk for.
+func TestARetractedNoteStillFoundsItsClaim(t *testing.T) {
+	at := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	spans := disjointSpans()
+	spans.Notes[0].RetractedAt = &at
+	require.Equal(t, note.StandingRetracted, note.StandingOf(spans.Notes, noteOne),
+		"the fixture's note is retracted, which is what this case is about")
+
+	accepted, err := DecodeClaims(
+		claimsFile, aClaimLine("note", "ten-second cap", noteOne), "CR-1", spans,
+	)
+	require.NoError(t, err,
+		"§3.6.6 reports a citation of a retracted note; it does not refuse the extraction")
+	assert.Equal(t, noteOne, accepted[0].NoteID)
 }
