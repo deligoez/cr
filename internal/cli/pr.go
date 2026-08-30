@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -31,4 +32,24 @@ func prArgs(total int) cobra.PositionalArgs {
 		_, err := parsePR(args[0])
 		return err
 	}
+}
+
+// repoOf reads the owner and repository a PR-scoped command works against.
+//
+// §11.1 registers `--repo <owner/repo>` as the override for repository
+// detection, and v0.1 has not built the detection yet, so today the flag is the
+// only source and a command that has to locate §2.2's state directory requires
+// it. When detection lands the flag goes back to being the override §11.1 calls
+// it, and this is the one place that has to change.
+func repoOf(cmd *cobra.Command) (owner, repo string, err error) {
+	named, err := cmd.Flags().GetString("repo")
+	if err != nil {
+		return "", "", err
+	}
+	if named == "" {
+		return "", "", errors.New(
+			"--repo is required: cr does not detect the repository yet, so name it as owner/repo",
+		)
+	}
+	return splitRepo(named)
 }
