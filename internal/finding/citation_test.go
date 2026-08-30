@@ -113,3 +113,51 @@ func calls(body *ast.BlockStmt) []string {
 	})
 	return names
 }
+
+// headHolding is a HeadFile over a fixed head: the files it holds, keyed by
+// path and given as their lines. internal/git answers the same question against
+// a real revision; what is exercised here is what §6.2.3 does with the answer.
+func headHolding(files map[string][]string) HeadFile {
+	return func(path string) ([]string, bool, error) {
+		lines, held := files[path]
+		return lines, held, nil
+	}
+}
+
+// The file the citations below point into, whose second line is the one every
+// hash in this file is taken over.
+var orderModel = map[string][]string{
+	"app/Models/Order.php":  {"<?php", citedLine, "return $this->total;"},
+	"app/Support/Money.php": {"final class Money"},
+}
+
+// §6.2.3 resolves every entry in `citations` against the current head and
+// stamps each one with the hash of the line it names.
+//
+// Every entry, and not the first that answers: §6.2.6 renders all of them into
+// the draft block for the human to open. The first and last lines of a file are
+// both cited, because they are the two the range check can be wrong about while
+// looking right.
+//
+// The second entry arrives carrying a hash, which is the state a v0.2 drift
+// check would read: a value taken at some earlier head. §6.2.3 has that hash do
+// no validating work in v0.1, so resolution overwrites it from the line it just
+// read and refuses nothing on account of it. A v0.1 that compared the two would
+// pass this assertion only by accident and would reject a record §6.2.3 accepts.
+func TestEveryCitationIsResolvedAndStampedFromTheHead(t *testing.T) {
+	const takenAtAnEarlierHead = "0000000000000000"
+	citations := []Citation{
+		{Path: "app/Models/Order.php", Line: 2},
+		{Path: "app/Models/Order.php", Line: 3, ContentHash: takenAtAnEarlierHead},
+		{Path: "app/Support/Money.php", Line: 1},
+	}
+
+	require.NoError(t, ResolveCitations(headHolding(orderModel), "review-security.ndjson", 4, citations))
+
+	assert.Equal(t, citedLineHash, citations[0].ContentHash,
+		"§6.2.3 stores the hash of the line the citation names, computed by cr")
+	assert.Equal(t, hashOf(t, []string{"return $this->total;"}), citations[1].ContentHash,
+		"the last line of a file resolves, and a hash already on the entry is replaced rather than checked")
+	assert.Equal(t, hashOf(t, []string{"final class Money"}), citations[2].ContentHash,
+		"the first line of a second file resolves too, so no entry is passed over")
+}
