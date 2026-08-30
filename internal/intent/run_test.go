@@ -135,3 +135,33 @@ func TestAFailedTrackerCommandSurfacesItsStderr(t *testing.T) {
 	silent := &CommandError{Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2")}
 	assert.Equal(t, "jira issue view CR-1: exit status 2", silent.Error())
 }
+
+// The tracker command is handed the ambient environment whole, which is the
+// one place this runner deliberately departs from internal/git and
+// internal/gh.
+//
+// §3.1 says cr carries no tracker authentication code, and the only way that
+// can be true is if the command authenticates itself. A tracker CLI does that
+// out of its own configuration and its own variables — the very names an
+// allowlist strips — and cr cannot enumerate them, because it has never heard
+// of the tool. git and gh are cr's own tools and cr knows exactly which of
+// their variables redirect a read; here there is nothing to know.
+//
+// §2.1.1 is what that costs. The same key on two machines can read different
+// issue text, and cr cannot tell, so a run is reproducible given the same
+// environment rather than given the state directory alone. §3.1.4's
+// --intent-file is where a run that needs the stronger guarantee goes.
+func TestTheTrackerCommandKeepsTheEnvironmentItAuthenticatesWith(t *testing.T) {
+	seen := filepath.Join(t.TempDir(), "environment")
+	tracker := stubTracker(t, "env > "+seen)
+	t.Setenv("JIRA_API_TOKEN", "the-users-own-token")
+	t.Setenv("JIRA_AUTH_TYPE", "bearer")
+
+	_, err := Read([]string{tracker, "issue", "view", Placeholder, "--plain"}, "CR-1")
+	require.NoError(t, err)
+
+	environment, err := os.ReadFile(seen)
+	require.NoError(t, err)
+	assert.Contains(t, string(environment), "JIRA_API_TOKEN=the-users-own-token")
+	assert.Contains(t, string(environment), "JIRA_AUTH_TYPE=bearer")
+}
