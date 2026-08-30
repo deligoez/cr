@@ -152,3 +152,38 @@ func TestARightAnchorResolvesAgainstTheHeadAndALeftOneAgainstTheMergeBase(t *tes
 		}).Error(),
 		`"app/legacy.go", which the head under review does not hold as a file`)
 }
+
+// A LEFT anchor pointing at a line only the head has is the failure §6.1.2's
+// two trees exist to produce.
+//
+// It is the shape a record about added code takes when its side is wrong, and
+// it is invisible to every check that reads the anchor alone: the path is a
+// path of the change, the range runs forwards, and the numbers are lines of a
+// real file. Only the merge base can say that they are not lines of it — the
+// change added four lines to this file, so the head's line 7 is past the end of
+// the merge base's copy, and §9.2.1's removed line is not there to be anchored.
+//
+// The boundary either side of the merge base's last line is asserted because
+// that is where a reader off by one, or one measuring against the wrong file,
+// stops agreeing with this: line 5 of the merge base is a line and line 6 is
+// not, while at the head both are.
+func TestALeftAnchorPointingAtAHeadOnlyLineIsRefused(t *testing.T) {
+	trees := twoTrees(t)
+
+	assert.Contains(t,
+		refusesToResolve(t, trees, &Anchor{
+			Path: "app/money.go", Side: git.Left, StartLine: 7, Line: 9,
+		}).Error(),
+		`runs to line 9 of "app/money.go", which holds 5 lines at the merge base`,
+		"the user is told which tree was read and how far it goes")
+
+	resolves(t, trees, "app/money.go", git.Left, 5, 5)
+	refusesToResolve(t, trees, &Anchor{
+		Path: "app/money.go", Side: git.Left, StartLine: 6, Line: 6,
+	})
+
+	// The same two ranges on the side §9.2.1 gives the head resolve, so what
+	// the assertions above measure is the tree and not the range.
+	resolves(t, trees, "app/money.go", git.Right, 7, 9)
+	resolves(t, trees, "app/money.go", git.Right, 6, 6)
+}
