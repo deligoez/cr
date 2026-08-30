@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-13T21:43:36.079087Z",
+  "updated_at": "2026-08-30T09:18:11.226252Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -241,7 +241,7 @@
     {
       "id": "output-posted-boolean",
       "title": "Report posted boolean on write commands",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "output-json-formatting"
@@ -251,11 +251,25 @@
       "source_sections": [
         "## 12. Output contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T09:04:35.56652Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T09:18:11.181325Z",
+      "closed_reason": "- §12.6's boolean is carried by internal/cli/output.go's posting, a marker a result embeds, and by nothing else. Both halves of the sentence are there, the field in the JSON document and posting.line in the terminal rendering, because §12.6 names the terminal as well as the document. TestADryRunAndAConfirmedPostAreDistinguishable drives a payload through the writer in both modes and asserts each shape on its own, a payload being able to carry the field faithfully and still print a line that reads the same whichever way the run went.\n- A dry run prints \"posted\": false, which is what posting carries unset, so §8.5.1's run that validates and sends nothing says so in the document and prints not posted in a terminal.\n- A confirmed run prints true. That half is asserted at the seam rather than end to end, because cr post does not exist yet and nothing outside internal/gh can mint the confirmation whose write would set it, so the test drives the payload the gate will hand over instead of building the posting path to give itself something to fail against.\n- A command that can never write omits the field rather than reporting false, which is what TestOnlyACommandBehindTheGateReportsPosted keeps true. A \"posted\": false on cr status would say the command weighed posting and declined, a claim about a decision nothing made, so presence is a property of the command rather than a default on every payload. The set that could have written is derived from the source as the files naming one of nowrite_test.go's mints, the same list TestNothingOutsideTheGhPackageMintsAConfirmation scans with, so §12.6's commands and §8.5's gate are one set rather than two lists free to drift. TestThePostedFieldIsDeclaredInOnePlace refuses a second spelling of the field, so embedding posting is the only way to carry it. Both directions were proven to bite by hand and reverted, embedding posting in initResult and hand-rolling the field each failing the equality, and a temporary mint literal in init.go failing it the other way. Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh. Mutation testing: gremlins unleash --timeout-coefficient 30 ./internal gives Killed 295, Lived 4, efficacy 98.66%, above the 98.65% baseline, with no new survivor and the two known timeouts unchanged.\nOut of scope: cr post itself, so the confirmed half is asserted at the seam and not end to end, which belongs to dry-run-posting, confirm-flag-required and single-review-batching. §12.4's hint field is output-error-hints and §12.5's --compact omissions are output-compact-flag.",
+      "gate_passed_at": "2026-08-30T09:18:11.181325Z",
+      "commit_sha": "6409473",
+      "commit_shas": [
+        "6409473",
+        "1f49388",
+        "9845e0d",
+        "3b7f993",
+        "f2b7405",
+        "bf888a4"
+      ],
+      "commit_files": [
+        "internal/cli/nowrite_test.go",
+        "internal/cli/output.go",
+        "internal/cli/output_test.go"
+      ]
     },
     {
       "id": "global-flags",
