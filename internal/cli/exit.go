@@ -160,6 +160,24 @@ func exitCodeFor(err error) int {
 		// keep it in, which §11.2 codes 1.
 		return ExitValidation
 	}
+	var unknownNote *note.UnknownNoteError
+	if errors.As(err, &unknownNote) {
+		// §3.6.6 retracts a note by id. An id naming no note is spelled
+		// the way §3.6.1 spells one, and the store read and parsed
+		// without trouble, so nothing about the invocation or the file
+		// is wrong; what fails is the retraction, which §11.2 codes 1
+		// alongside note.NoIssueKeyError.
+		return ExitValidation
+	}
+	var contextStore *state.ContextStoreError
+	if errors.As(err, &contextStore) {
+		// §3.6's store is a file cr found and could not use, which
+		// §11.2 codes 3 with its other file failures. Without this
+		// branch `cr note`, `cr answer` and `cr context` all reported a
+		// corrupt store as a malformed invocation, and no retyping of
+		// the command could ever have fixed it.
+		return ExitFile
+	}
 	var reservedField *state.ReservedFieldError
 	if errors.As(err, &reservedField) {
 		// §6.1.4: a record supplying a field cr writes itself is
