@@ -197,3 +197,29 @@ func TestNormalisationDoesNotStripPunctuation(t *testing.T) {
 	assert.NotEqual(t, negated, affirmed,
 		"two conditions one operator apart do not collapse onto one value")
 }
+
+// §1.4 forbids reordering lines, which rules out the obvious way to make two
+// texts compare equal regardless of layout — sort them. §3.4.6 hashes a unit's
+// changed lines and §9.2 hashes an anchor's, and in both the order is the
+// meaning: two statements swapped are a different program, and a review that
+// could not tell them apart would carry a waiver from one head onto a line that
+// no longer says what it said.
+//
+// The permutation is the assertion. A transform that sorted, or that grouped
+// blank lines by moving rather than dropping them, would make these two equal.
+func TestNormalisationDoesNotReorderLines(t *testing.T) {
+	asWritten, err := Normalise("lock()\nread()\nunlock()")
+	require.NoError(t, err)
+	assert.Equal(t, "lock()\nread()\nunlock()", asWritten, "the lines come back in the order they went in")
+
+	swapped, err := Normalise("read()\nlock()\nunlock()")
+	require.NoError(t, err)
+	assert.NotEqual(t, asWritten, swapped, "a permutation of the same lines is a different text")
+
+	sortedAlready, err := Normalise("a\nb\nc")
+	require.NoError(t, err)
+	reversed, err := Normalise("c\nb\na")
+	require.NoError(t, err)
+	assert.Equal(t, "c\nb\na", reversed, "descending order is left descending")
+	assert.NotEqual(t, sortedAlready, reversed, "and never sorted into agreement with its reverse")
+}
