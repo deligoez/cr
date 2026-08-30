@@ -174,3 +174,26 @@ func TestNormalisationDoesNotCaseFold(t *testing.T) {
 	assert.Equal(t, "İSTANBUL istanbul", turkish,
 		"including where a locale-aware fold would not even round-trip")
 }
+
+// §1.4 forbids stripping punctuation, and in a code review punctuation is very
+// often the whole difference. `x != nil` and `x == nil` are one substitution
+// apart; so are a call and a call whose result is discarded. A transform that
+// dropped punctuation would let §6.4 suppress a finding about the second on the
+// strength of a finding about the first.
+//
+// The comparison texts are chosen so that only punctuation separates them: the
+// letters, the words and the order are identical, and if the two normalise
+// alike then punctuation was thrown away.
+func TestNormalisationDoesNotStripPunctuation(t *testing.T) {
+	kept, err := Normalise("if (x != nil) { return -1; } // guard, always.")
+	require.NoError(t, err)
+	assert.Equal(t, "if (x != nil) { return -1; } // guard, always.", kept,
+		"every punctuation mark survives exactly where it was written")
+
+	negated, err := Normalise("if x != nil")
+	require.NoError(t, err)
+	affirmed, err := Normalise("if x == nil")
+	require.NoError(t, err)
+	assert.NotEqual(t, negated, affirmed,
+		"two conditions one operator apart do not collapse onto one value")
+}
