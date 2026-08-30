@@ -3,6 +3,7 @@ package intent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,4 +42,30 @@ func TestTheDefaultTrackerCommandIsTheArgvTheSpecNames(t *testing.T) {
 	expanded, err := expand(argv, "CR-1")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"jira", "issue", "view", "CR-1", "--plain"}, expanded)
+}
+
+// §3.1.1 puts the placeholder in an argv element, and the element is the whole
+// of the safety here. Substitution neither quotes nor splits, so every element
+// arrives at the program exactly as it was written and a key nobody sanitised
+// stays one argument.
+//
+// The key below is what makes that a claim rather than a hope. §3.2's pattern
+// is overridable and --issue takes whatever the user typed, so a key carrying a
+// space and a shell metacharacter is reachable, and through a shell string it
+// would be a second command. Through argv it is a key that no issue matches.
+func TestTheKeyIsSubstitutedIntoEveryElementThatCarriesIt(t *testing.T) {
+	tracker := stubTracker(t, `for arg in "$@"; do printf '%s\n' "$arg"; done`)
+
+	out, err := Read([]string{
+		tracker, "issue", "view", Placeholder, "--jql=key = " + Placeholder, "--plain",
+	}, "CR-1; rm -rf /")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		"issue",
+		"view",
+		"CR-1; rm -rf /",
+		"--jql=key = CR-1; rm -rf /",
+		"--plain",
+	}, strings.Split(strings.TrimSuffix(out, "\n"), "\n"))
 }
