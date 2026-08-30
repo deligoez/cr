@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T18:19:43.503587Z",
+  "updated_at": "2026-08-30T18:31:47.822849Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -378,7 +378,7 @@
     {
       "id": "normalised-hash",
       "title": "Compute truncated normalised SHA-256 hash",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "normalise-text-transform"
@@ -388,11 +388,24 @@
       "source_sections": [
         "### 1.4 Normalisation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T18:20:43.460668Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T18:31:47.792108Z",
+      "closed_reason": "- internal/text/hash.go's NormalisedHash is §1.4's normalised hash exactly: sha256.Sum256 over the normal form, hex.EncodeToString for lowercase hex, sliced to hashLength, which is spelled once as 16 because the truncation is the only number the five sections could drift apart on.\n- It takes raw text and runs Normalise itself rather than taking text a caller already normalised, which is what makes routing through it true by construction: a signature taking normalised text can be called correctly on text that was never normalised, and the result is still sixteen deterministic hex characters, so nothing local to the caller could notice; TestNormalisedHashRefusesWhateverStep1Refuses shows step 1's InvalidUTF8Error reaching the caller rather than a digest being taken over bytes §1.4 refuses.\n- TestNormalisedHashIsTheValueSection14Pins asserts the literal 46d80e6defec6c66 for the fragment every one of the six steps moves, pinned as a constant rather than recomputed, and asserts it is not 0e8cce8b6619337f, the same-shaped value a site that skipped Normalise would produce; TestNormalisedHashAgreesExactlyWithNormalisation ties hash equality to normal-form equality in both directions over the shared corpus.\n- TestNothingOutsideThisPackageCanReachADigest walks every non-test .go file under the module root and fails when any package outside internal/text imports crypto/md5, crypto/sha1, crypto/sha256, crypto/sha512, encoding/hex or anything in the hash tree, reading import paths so an alias does not slip past; it bites on a planted crypto/sha256 file and on an aliased hash/fnv one, and two floors keep it from passing vacuously - over ten files scanned, and internal/text still importing crypto/sha256.",
+      "gate_passed_at": "2026-08-30T18:31:47.792108Z",
+      "commit_sha": "14bcb2e",
+      "commit_shas": [
+        "14bcb2e",
+        "85c58e0",
+        "08d86e4",
+        "91d19c2",
+        "69cbce2"
+      ],
+      "commit_files": [
+        "internal/text/hash.go",
+        "internal/text/hash_test.go",
+        "internal/text/hashfence_test.go"
+      ]
     },
     {
       "id": "axis-id-validator",
