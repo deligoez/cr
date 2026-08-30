@@ -160,3 +160,60 @@ const mixedSides = `--- a/app/Money.php
  context
 `
 
+// §3.4.4 partitions a file's hunks by side before it compares anything, and a
+// unit never mixes sides. The two hunks here are nine apart on the two sides
+// of one file, so the partition is the only thing keeping them apart, and the
+// index names a symbol spanning both numbers, so the symbol branch would
+// gather them too if it ran on the merge-base side.
+//
+// It must not: §4.3.1 builds the index over the head, §6.1.2 resolves a RIGHT
+// anchor against the head and a LEFT one against the merge base, and §6.2.1
+// evaluates containment entirely in head coordinates. A unit holding both
+// sides has no coordinate space either question could be answered in, so the
+// LEFT side has no index of its own and falls through to adjacency per §3.4.3.
+func TestNoClusterMixesSides(t *testing.T) {
+	php := shipped(t, "laravel-pest")
+
+	hunks, err := git.ParseHunks(mixedSides)
+	require.NoError(t, err)
+	require.Len(t, hunks, 2)
+	require.Equal(t, git.Left, hunks[0].Side)
+	require.Equal(t, git.Right, hunks[1].Side)
+
+	index := symbolsAt{path: moneyPath, symbols: []span{{name: "Money::add", first: 5, last: 50}}}
+	clusters := Clusters(hunks, &php, index, defaultGapLines(t))
+
+	require.Len(t, clusters, 2, "one cluster per side, never one across both")
+	assertNoClusterMixesSides(t, clusters)
+
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Left, Formation: ByAdjacency,
+		Hunks: []git.Hunk{hunks[0]},
+	}, clusters[0], "the merge-base side has no index and falls through")
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Right, Formation: BySymbol,
+		Hunks: []git.Hunk{hunks[1]},
+	}, clusters[1], "the head side reads the head index")
+}
+
+// straddling adds two lines far enough apart to sit in different symbols, in
+// one hunk.
+const straddling = `--- a/app/Money.php
++++ b/app/Money.php
+@@ -10,12 +10,14 @@
+ context
++added at head 11
+ context
+ context
+ context
+ context
+ context
+ context
+ context
+ context
+ context
++added at head 22
+ context
+ context
+`
+
