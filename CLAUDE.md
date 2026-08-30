@@ -397,8 +397,12 @@ export CR=/tmp/cr-qa/cr
 #    - one changed branch with no test covering it (mutation probe target)
 #    - one existing comment from another reviewer (dedup and ingestion)
 
-# 3. Point cr at it with a file-based intent source, so no tracker is needed
-$CR brief 1 --repo <owner>/<scratch> --intent-file issue.txt
+# 3. Point cr at it with a file-based intent source, so no tracker is needed.
+#    --issue is still required: §3.1.4 bypasses the tracker command, not §3.2's
+#    key resolution, and §3.3 forms every claim id as <ISSUE-KEY>#c<n>. Without
+#    a key the run marks the intent axis unavailable and extracts no claim, so
+#    the recipe would exercise none of what it is here to exercise.
+$CR brief 1 --repo <owner>/<scratch> --issue CR-1 --intent-file issue.txt
 ```
 
 The scratch PR is the regression fixture. When a bug is found in a real review,
