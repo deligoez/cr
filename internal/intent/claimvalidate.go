@@ -42,20 +42,33 @@ func (e *RejectedClaimError) Error() string {
 // takes the current round's unit ids — which issue this run resolved is a fact
 // about the run, and no claim can carry it in a way that proves anything.
 //
-// What is *not* checked here is everything that needs a second text. §3.3.1's
-// "the span occurs in the issue text", §3.3.2's validation against the named
-// note, and §3.3.3's drift comparison each read a text this function is not
-// given, and `cr claims record` holds a claim to them after this door.
-func DecodeClaims(file string, body []byte, issueKey string) ([]*Claim, error) {
-	against := claimChecker{file: file, issueKey: issueKey}
+// spans carries the two texts of §3.3.1 and §3.3.2 in through the same door,
+// so a span is validated by the function that decodes it rather than by a
+// second pass. That is not tidiness: DecodeStamped is the one place that counts
+// lines, blank ones included, and §3.3.1 rejects a claim by naming its line. A
+// later pass over the decoded claims would have their ordinal and not their
+// line, and would point the user at the wrong one of them.
+//
+// It also means no caller can obtain claims without their spans having been
+// checked. §3.3.1 and §3.3.2 are the whole of what separates a claim drawn from
+// the issue from a sentence an agent wrote, and a decode that returned claims
+// and left the check to whoever remembered would make that separation optional.
+//
+// §3.3.3's drift comparison is still not here, and cannot be: it reads claims
+// that were recorded in an earlier round against an issue text that has since
+// moved, so there is no file being decoded when it runs.
+func DecodeClaims(file string, body []byte, issueKey string, spans SpanTexts) ([]*Claim, error) {
+	against := claimChecker{file: file, issueKey: issueKey, spans: spans}
 	return state.DecodeStamped[Claim](file, body, against.check)
 }
 
 // claimChecker holds what one file's claims are checked against: the file they
-// arrived in, and the issue key §3.2 resolved for the run.
+// arrived in, the issue key §3.2 resolved for the run, and the texts §3.3
+// validates a span against.
 type claimChecker struct {
 	file     string
 	issueKey string
+	spans    SpanTexts
 }
 
 // check holds one line to §3.3's table.
@@ -71,6 +84,12 @@ type claimChecker struct {
 // produced against the wrong contract. Required fields are then walked in
 // §3.3's table order, so a claim missing several is always reported by the
 // same one.
+//
+// The span check is last, and has to be: §3.3 routes it on `source` and, for a
+// note-sourced claim, on `note_id`, so it is the one check that reads fields
+// two earlier ones are still deciding whether the claim may have. A claim with
+// no source has no rule to be checked under, and one whose `note_id` is
+// missing or does not belong names no note to be checked against.
 func (c claimChecker) check(line int, supplied map[string]json.RawMessage, claim *Claim) error {
 	if err := c.computed(line, supplied); err != nil {
 		return err
@@ -92,7 +111,10 @@ func (c claimChecker) check(line int, supplied map[string]json.RawMessage, claim
 			),
 		}
 	}
-	return c.noteID(line, supplied, claim)
+	if err := c.noteID(line, supplied, claim); err != nil {
+		return err
+	}
+	return c.span(line, claim)
 }
 
 // computed holds one line to §3.3's two computed rows: cr writes `span_hash`

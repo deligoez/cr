@@ -8,6 +8,7 @@ import (
 
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -118,7 +119,18 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			claims, err := intent.DecodeClaims(args[1], body, recorded.IssueKey)
+			// §3.6.4 loads the issue key's notes on every round, and
+			// §3.3.2 has a note-sourced claim validated against the
+			// one it names. The whole store is loaded rather than a
+			// selection: §9.3.5 exempts it from round scoping, and a
+			// narrowed slice would refuse a claim resting on a note
+			// somebody recorded.
+			notes, err := note.Load(layout, recorded.IssueKey)
+			if err != nil {
+				return err
+			}
+			claims, err := intent.DecodeClaims(args[1], body, recorded.IssueKey,
+				intent.SpanTexts{Issue: issueText, Notes: notes})
 			if err != nil {
 				return err
 			}

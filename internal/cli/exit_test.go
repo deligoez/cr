@@ -398,7 +398,7 @@ func TestARejectedClaimExitsWithTheValidationCode(t *testing.T) {
 	_, err := intent.DecodeClaims(
 		state.FileClaims,
 		[]byte(`{"id":"CR-1#c1","text":"An expired token is rejected.","source":"acceptance"}`),
-		"CR-1",
+		"CR-1", intent.SpanTexts{},
 	)
 	require.Error(t, err, "the claim supplies no span")
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
@@ -407,7 +407,7 @@ func TestARejectedClaimExitsWithTheValidationCode(t *testing.T) {
 	_, err = intent.DecodeClaims(
 		state.FileClaims,
 		[]byte(`{"id":"CR-1#c1","text":"t","source":"spec","span":"s"}`),
-		"CR-1",
+		"CR-1", intent.SpanTexts{},
 	)
 	require.Error(t, err, "§3.3 closes the source row at four values")
 	assert.Equal(t, ExitValidation, exitCodeFor(err))

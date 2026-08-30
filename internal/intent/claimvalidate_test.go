@@ -3,6 +3,7 @@ package intent
 import (
 	"testing"
 
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,18 @@ const claimsFile = "claims.ndjson"
 const wellFormedClaim = `{"id":"CR-1#c1","text":"An expired token is rejected.",` +
 	`"source":"acceptance","span":"expired tokens are rejected"}`
 
+// claimSpans are the texts §3.3 validates this file's spans against.
+//
+// The issue text holds every tracker span the cases use, `s` among them — the
+// one-character stand-in the field-level cases carry where the span itself is
+// not what is under test — and the store holds the one note they name. Each
+// case is about some other row of §3.3's table, so the span has to pass for the
+// row under test to be the thing that refuses.
+var claimSpans = SpanTexts{
+	Issue: "expired tokens are rejected\ns\n",
+	Notes: []note.Note{{ID: "CR-1#n2", Text: "s"}},
+}
+
 // §3.3's table marks four rows required, and a claim missing any of them is
 // rejected naming the line and the field. The rejection has to read the wire
 // rather than the decoded claim: `""` is a value the agent chose exactly as
@@ -28,7 +41,7 @@ const wellFormedClaim = `{"id":"CR-1#c1","text":"An expired token is rejected.",
 // reported by the same one and a user fixing them meets them in the order the
 // spec writes them.
 func TestAClaimMustSupplyEveryRequiredRow(t *testing.T) {
-	claims, err := DecodeClaims(claimsFile, []byte(wellFormedClaim+"\n"), "CR-1")
+	claims, err := DecodeClaims(claimsFile, []byte(wellFormedClaim+"\n"), "CR-1", claimSpans)
 	require.NoError(t, err)
 	require.Len(t, claims, 1)
 	assert.Equal(t, &Claim{
@@ -82,7 +95,7 @@ func TestAClaimMustSupplyEveryRequiredRow(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := DecodeClaims(
-				claimsFile, []byte(wellFormedClaim+"\n\n"+tc.line+"\n"), "CR-1",
+				claimsFile, []byte(wellFormedClaim+"\n\n"+tc.line+"\n"), "CR-1", claimSpans,
 			)
 			var rejected *RejectedClaimError
 			require.ErrorAs(t, err, &rejected)
@@ -152,7 +165,7 @@ func TestAnAgentMayNotSupplyTheClaimHashes(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := DecodeClaims(
-				claimsFile, []byte(wellFormedClaim+"\n\n"+tc.line+"\n"), "CR-1",
+				claimsFile, []byte(wellFormedClaim+"\n\n"+tc.line+"\n"), "CR-1", claimSpans,
 			)
 			var reserved *state.ReservedFieldError
 			require.ErrorAs(t, err, &reserved)
@@ -180,7 +193,7 @@ func TestAClaimIDMustNameTheIssueTheRunResolved(t *testing.T) {
 	accepted, err := DecodeClaims(
 		claimsFile,
 		[]byte(`{"id":"CR-1#c9","text":"t","source":"acceptance","span":"s"}`+"\n"),
-		"CR-1",
+		"CR-1", claimSpans,
 	)
 	require.NoError(t, err)
 	require.Len(t, accepted, 1)
@@ -198,7 +211,7 @@ func TestAClaimIDMustNameTheIssueTheRunResolved(t *testing.T) {
 			_, err := DecodeClaims(
 				claimsFile,
 				[]byte(`{"id":"`+id+`","text":"t","source":"acceptance","span":"s"}`+"\n"),
-				"CR-1",
+				"CR-1", claimSpans,
 			)
 			var rejected *RejectedClaimError
 			require.ErrorAs(t, err, &rejected)
@@ -226,7 +239,7 @@ func TestAClaimIDMustNameTheIssueTheRunResolved(t *testing.T) {
 // §8.1.6 would disclose it anyway.
 func TestANoteSourcedClaimNamesItsNoteAndNothingElseDoes(t *testing.T) {
 	fromNote := `{"id":"CR-1#c1","text":"t","source":"note","span":"s","note_id":"CR-1#n2"}`
-	accepted, err := DecodeClaims(claimsFile, []byte(fromNote+"\n"), "CR-1")
+	accepted, err := DecodeClaims(claimsFile, []byte(fromNote+"\n"), "CR-1", claimSpans)
 	require.NoError(t, err)
 	require.Len(t, accepted, 1)
 	assert.Equal(t, ClaimFromNote, accepted[0].Source)
@@ -237,7 +250,7 @@ func TestANoteSourcedClaimNamesItsNoteAndNothingElseDoes(t *testing.T) {
 		`{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","note_id":null}`,
 		`{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","note_id":""}`,
 	} {
-		claims, err := DecodeClaims(claimsFile, []byte(quiet+"\n"), "CR-1")
+		claims, err := DecodeClaims(claimsFile, []byte(quiet+"\n"), "CR-1", claimSpans)
 		require.NoError(t, err, quiet)
 		assert.Empty(t, claims[0].NoteID, "a claim drawn from the issue text names no note")
 	}
@@ -269,7 +282,7 @@ func TestANoteSourcedClaimNamesItsNoteAndNothingElseDoes(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := DecodeClaims(claimsFile, []byte(tc.line+"\n"), "CR-1")
+			_, err := DecodeClaims(claimsFile, []byte(tc.line+"\n"), "CR-1", claimSpans)
 			var rejected *RejectedClaimError
 			require.ErrorAs(t, err, &rejected)
 			assert.Equal(t, "note_id", rejected.Field)
