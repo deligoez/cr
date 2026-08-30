@@ -77,6 +77,30 @@ func TestTheContextStoreIsReadWhileAWriterHoldsTheLock(t *testing.T) {
 	require.NoError(t, held.Unlock())
 }
 
+// A read of the context store writes nothing, which is the other half of why it
+// does not take the lock: LockContext creates the directories it will write in,
+// so a §3.6.5 read that locked would put a lock file and its directory inside
+// ~/.cr in order to answer a question about a store that may not exist.
+//
+// A key nobody has recorded against is no records rather than a failure, for
+// the reason the locked read gives: §3.6's file is created by the first note
+// appended to it, so a key with no notes yet and one nobody will ever record
+// against are the same absent file, and cr does not pretend to tell them apart.
+func TestReadingTheContextStoreCreatesNothing(t *testing.T) {
+	l := contextRoot(t)
+
+	records, err := ReadContextRecords[numbered](l, "CR-1")
+	require.NoError(t, err)
+	assert.Empty(t, records)
+	assert.NotNil(t, records, "an absent store is no records, and §12.3 spells that []")
+
+	assert.NoFileExists(t, l.ContextFile("CR-1"), "the read created the store")
+	assert.NoDirExists(t, filepath.Dir(l.ContextLockFile("CR-1")), "the read created the lock directory")
+	entries, err := os.ReadDir(l.ContextDir())
+	require.NoError(t, err)
+	assert.Empty(t, entries, "the read left something in §2.2's context directory")
+}
+
 // The context store is keyed by issue and not by pull request, so §2.3.1's lock
 // cannot serialise it: two runs against one key from two pull requests would
 // take two different PR locks. §3.6.1's id is a counter over the records
