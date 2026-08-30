@@ -103,3 +103,18 @@ func TestAnOverridingKeyPatternReplacesTheDefaultShape(t *testing.T) {
 	assert.Equal(t, Key{Value: "#42", Origin: KeyFromBody}, key)
 }
 
+// The flag is item 1 of §3.2's one ordered list and carries no separate rule,
+// so the pattern applies to it as it applies to the other three: a flag value
+// the configured pattern does not recognise yields no match and the branch is
+// consulted next. §3.2's fallback is why that is not an error — every way of
+// finding no key ends in an empty intent rather than a refusal.
+func TestAFlagTheKeyPatternDoesNotRecogniseFallsThrough(t *testing.T) {
+	key, err := ResolveKey(KeySources{
+		Flag:   "gh-42",
+		Branch: "feature/CR-7-add-a-thing",
+	}, specDefaultPattern)
+
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "CR-7", Origin: KeyFromBranch}, key)
+}
+
