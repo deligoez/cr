@@ -11,6 +11,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -60,6 +61,17 @@ func exitCodeFor(err error) int {
 		// ExitFile. It is not a validation failure: the run never
 		// reached input data, and it is not a usage error, because
 		// nothing about the invocation can be corrected.
+		return ExitFile
+	}
+	var unknownLang *render.UnknownLangError
+	if errors.As(err, &unknownLang) {
+		// §8.1.1 takes the language of every author-facing body from
+		// render.lang, and §8.1.4 builds the question label in per
+		// language. A value outside the two v0.1 enumerates has no
+		// built-in label, so §6.3's forcing would reach the reader
+		// through nothing at all. It is a configuration failure, which
+		// §11.2 codes 3 — the run never reached input data, and nothing
+		// about the invocation can be corrected.
 		return ExitFile
 	}
 	var gitCommand *git.CommandError
