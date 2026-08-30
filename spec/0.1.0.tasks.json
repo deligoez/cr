@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T15:05:07.297011Z",
+  "updated_at": "2026-08-30T15:20:05.011541Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4601,7 +4601,7 @@
     {
       "id": "record-state-set",
       "title": "Define the seven record states",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-record-schema"
@@ -4612,11 +4612,24 @@
         "## 9. Record states",
         "### 9.1 States"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T15:06:34.835686Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T15:20:04.980402Z",
+      "closed_reason": "- A record's life ends at posting, and StatePosted is where internal/finding/state.go's vocabulary stops: nothing follows it, and the type's doc says so in the words §9's opening paragraph uses.\n- The four states the re-review half would need — verified, resolved, accepted, withdrawn — are unrepresentable rather than merely absent, because State is a struct around an unexported name that nothing outside state.go can build and ParseState is the only door in from a string; TestTheSevenStatesAreTheOnesTheSpecWrites puts all four through it and reads the §1.3.6 pointer back out of the error, so a later contributor cannot widen the set by writing a literal anywhere in the tree.\n- The seven of the §9.1 table are StateDraft, StateQueued, StateDuplicate, StateSuppressed, StateDiscarded, StatePosted and StateStale, each documented with the meaning and cross-reference the table gives it, held in table order by the states literal and handed out only as a copy by States(); ParseState round-trips every name, MarshalJSON and UnmarshalJSON carry them to and from findings.ndjson under the same check with §6.1's row switched to omitzero, and TestTheSevenStatesAreTheOnesTheSpecWrites and TestAStateOutsideTheTableNeverReachesARecord pin the exact set, the copy, and the refusal of an eighth on the wire.\n- §9.1.2's five — posted, discarded, duplicate, suppressed, stale — are the one list written out, in the order that item writes them, and State.Terminal() reads only that literal.\n- §1.1's open set is derived from the terminal list rather than restated, by State.Open() and by OpenStates(), so §10.2.4's \"no record remains in draft or queued\" cannot drift from it; TestOpenIsEveryStateThatIsNotTerminal asserts over the whole table that no state falls into both halves or neither, that the derived open set is exactly draft and queued, and that the zero State is neither open nor terminal.",
+      "gate_passed_at": "2026-08-30T15:20:04.980402Z",
+      "commit_sha": "63a0f71",
+      "commit_shas": [
+        "63a0f71",
+        "5887a7c",
+        "340ecf5",
+        "cf2f5ed",
+        "907caaa"
+      ],
+      "commit_files": [
+        "internal/finding/finding.go",
+        "internal/finding/state.go",
+        "internal/finding/state_test.go"
+      ]
     },
     {
       "id": "state-transition-table",
