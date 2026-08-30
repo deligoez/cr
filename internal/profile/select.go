@@ -24,8 +24,8 @@ const fileExt = ".json"
 // The tie is reported rather than broken here. §2.4.2 forbids picking one of
 // the tied profiles, so Select stops and Err turns the names into the abort
 // that rule requires, which the cli layer maps onto exit code 3. The empty
-// outcome stays entirely the caller's: §2.4.4's report and axis disabling
-// belong to it, not to the matcher.
+// outcome is answered by Missing instead, because §2.4.4 continues the run: it
+// hands back the report and the lenses that are out, never an error.
 type Selection struct {
 	// Profile is the selected profile, meaningful only when Selected is true.
 	Profile Profile
@@ -45,7 +45,7 @@ type Selection struct {
 //
 // A selection that matched nothing is not an error here. §2.4.4 answers that
 // state with a report and every axis needing a profile disabled, which is a run
-// that continues, so Selected stays the caller's own check.
+// that continues, so it belongs to Missing rather than to this method.
 func (s *Selection) Err() error {
 	if len(s.Tied) == 0 {
 		return nil
