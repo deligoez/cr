@@ -344,3 +344,41 @@ func TestAWaiverRecordsTheDispositionItWasWrittenFor(t *testing.T) {
 		})
 	}
 }
+
+// §7.2's table has exactly two dispositions, so the mapping of §7.4.1 is total
+// over what a discard can carry — and nothing else may be waived. A record with
+// no disposition is a discard §9.1 never recorded, and a value outside the two
+// was written by something that is not cr, since §6.1.4 has cr write the field.
+//
+// The fail-closed direction is the whole point. A scope guessed for an unknown
+// disposition would have to guess one of the two, and the tempting guess is
+// repository — the wider file, on the record cr understands least, which is
+// precisely the silence §7.4.3 forbids. Refusing costs a discard that has to be
+// re-expressed; guessing costs a finding that stops being raised and never says
+// so.
+func TestARecordIsNotWaivedWithoutOneOfTheTwoDispositions(t *testing.T) {
+	for name, disposition := range map[string]Disposition{
+		"never dispositioned":     "",
+		"a verb cr did not write": "accepted",
+	} {
+		t.Run(name, func(t *testing.T) {
+			discarded, _ := theSameDefectAtTheSameCode(t)
+			discarded.Disposition = disposition
+
+			waiver, err := WaiverFor(&discarded)
+			require.Error(t, err, "§7.2 has two dispositions, and a waiver may be written for neither more nor fewer")
+			assert.Equal(t, Waiver{}, waiver,
+				"a refused waiver must carry no key either, or a caller could store what it was refused")
+
+			var unknown *UnknownDispositionError
+			require.ErrorAs(t, err, &unknown)
+			assert.Equal(t, string(disposition), unknown.Value,
+				"the error names what was rejected, exactly as it was written")
+
+			scope, err := waiver.Scope()
+			require.Error(t, err)
+			assert.Equal(t, WaiverScope{}, scope,
+				"§7.4.3: an unknown disposition must not fall back to the repository, the wider of the two")
+		})
+	}
+}
