@@ -465,6 +465,7 @@ func TestATypeThatSerialisesItselfKeepsItsOwnNull(t *testing.T) {
 // a list somebody has to remember to extend is the failure §12.3 keeps having.
 var outputStructs = []result{
 	initResult{}, configResult(nil), &noteResult{}, &retractResult{}, &answerResult{}, &contextResult{},
+	&recordResult{},
 }
 
 // payloadName is a payload's own type name, whether the value listed is the
