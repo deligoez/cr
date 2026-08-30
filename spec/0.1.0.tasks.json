@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T12:43:38.46814Z",
+  "updated_at": "2026-08-30T12:45:04.889955Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4574,7 +4574,7 @@
         "brief-creates-state"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- cr compares the current head to meta.json's recorded head on every command that reads per-PR state, and reports both when they differ, per §9.3.1.\n- The stale-round report is an honesty disclosure and survives --quiet per §11.1.\n- A test asserts every state-reading command emits the comparison.",
+      "acceptance": "- cr compares the current head to meta.json's recorded head on every command that reads per-PR state, and reports both when they differ, per §9.3.1.\n- The stale-round report is an honesty disclosure and survives --quiet per §11.1.\n- A test asserts every state-reading command emits the comparison.\n- Found by answer-command, assigned here: cr answer reads meta.json for the issue key, so §9.3.1 binds it even though it writes no per-PR state and §9.3.2's refusal therefore does not. The command set this task enumerates is derived from what actually reads per-PR state, not from a hand-kept list.",
       "source_sections": [
         "### 9.3 A changed head"
       ],
@@ -5356,6 +5356,25 @@
       "source_sections": [
         "## 11. Command surface",
         "### 6.1 Record schema"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "repository-detection",
+      "title": "Detect the repository from its remote",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "diff-against-merge-base"
+      ],
+      "estimate_minutes": 12,
+      "acceptance": "- cr derives owner/repo from the repository under review, so §11.1's --repo is an override rather than the only source, and every PR-scoped command works without it.\n- The remote is read through internal/git's pinned runner, never a second exec path, and a repository with no remote, several remotes, or a non-GitHub remote is refused with a named next step rather than a guess.\n- A test covers detection from an ssh remote and an https remote, the --repo override winning over both, and each refusal.",
+      "source_sections": [
+        "### 11.1 Global flags"
       ],
       "started_at": null,
       "closed_at": null,
