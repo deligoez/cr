@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T16:14:08.520793Z",
+  "updated_at": "2026-08-30T16:29:32.448213Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1098,7 +1098,7 @@
     {
       "id": "role-schema",
       "title": "Define the role field schema",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "axis-id-validator",
@@ -1109,11 +1109,31 @@
       "source_sections": [
         "### 2.5 Roles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T16:15:03.572082Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T16:29:32.383626Z",
+      "closed_reason": "- internal/role/role.go carries every row of the §2.5 table as Role.ID, Title, Axis, Instructions, Focus and Profiles, with the id required to equal the file stem and to match ^[a-z0-9]+(-[a-z0-9]+)*$, and TestRoleCarriesExactlyTheSpecFields walks the struct reflectively and asserts the json names equal the table in order.\n- A role customises the prompt for one axis: the axis field is required and goes through axis.Validate, the one §1.5 closed-set judge, so no role can name a lens of its own, asserted by TestAnAxisOutsideTheClosedSetIsRejected.\n- cr owns the output contract and a role only supplies persona and focus, made structural rather than stated: the struct has no field an output path or record schema could land in, and checkKeys refuses every top-level key outside §2.5's table by name, with TestARoleFileCannotCarryAKeyCrDoesNotDefine rejecting output_path, schema, record, grade, state and prompt and pinning the deterministic first offender.\n- A malformed role file aborts with exit code 3 naming the file and the offending field: role.MalformedError carries File, Field and Problem, internal/cli/exit.go maps it and axis.InvalidError onto ExitFile, and TestAMalformedRoleExitsWithTheFileCode, TestTheIDMustBeTheKebabCaseFileStem, TestEveryRequiredTextFieldIsNamedWhenItIsBlank and TestAFileCrCannotReadOrDecodeSaysWhatItCan cover the field-named and whole-file forms.",
+      "gate_passed_at": "2026-08-30T16:29:32.383626Z",
+      "commit_sha": "db8e5ee",
+      "commit_shas": [
+        "db8e5ee",
+        "eeea352",
+        "4d7a586",
+        "9730ccd",
+        "ae8edc4",
+        "98c3f42",
+        "234e761",
+        "2da51ea",
+        "e6854d1",
+        "63ab95c"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/role/boundary_test.go",
+        "internal/role/role.go",
+        "internal/role/role_test.go"
+      ]
     },
     {
       "id": "ship-default-roles",
