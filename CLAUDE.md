@@ -279,7 +279,10 @@ cr is built with tp, the same way tp builds itself.
 - **English in every committed artifact** — code, comments, specs, docs, commit
   messages, closure reasons, release notes. Author thinking may be in any
   language; nothing in the repository may be. Rendered review comments are
-  Turkish, but they live in `~/.cr/` state, never in this repository.
+  Turkish, but they live in `~/.cr/` state, never in this repository. The one
+  exception is §8.1.4's question labels: the spec requires them **built in** and
+  non-configurable, so `internal/render`'s `tr` label strings are Turkish and
+  belong in the tree. They are the only ones.
 
 ### Dogfooding
 
