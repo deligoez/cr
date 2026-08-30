@@ -3,6 +3,7 @@ package text
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -279,4 +280,56 @@ func assertNormalForm(t *testing.T, got string) {
 	assert.False(t, strings.HasPrefix(got, "\n"), "step 5 leaves no leading blank line")
 	assert.False(t, strings.HasSuffix(got, "\n"), "step 6 leaves no trailing LF")
 	assert.False(t, strings.HasSuffix(got, " "), "step 3 leaves no trailing space")
+}
+
+// The fuzz target states the three §1.4 negatives as one invariant a generated
+// input can actually break: the six steps only ever insert or remove SPACE,
+// TAB, CR and LF, so striking those four out of the input and out of the result
+// must leave the same string. Case-fold, drop a comma, or move a line and the
+// two stop matching, whatever the spacing around them.
+//
+// The refusal is stated as an equivalence rather than a one-way check, so a
+// transform that grew lenient about a malformed byte fails here as loudly as
+// one that grew strict about a valid one. The seeds are the corpus plus the
+// encodings §1.4 step 1 exists to reject; the quality gate runs them on every
+// `go test`, and a longer campaign is `go test -run=Fuzz -fuzz=Fuzz`.
+func FuzzNormaliseHoldsTheInvariantsOfSection14(f *testing.F) {
+	for _, seed := range normalisationCorpus {
+		f.Add(seed)
+	}
+	f.Add(string([]byte{0xFF}))
+	f.Add("a" + string([]byte{0x80}) + "b")
+	f.Add(string([]byte{0xC0, 0xA0}))
+	f.Add(string([]byte{0xED, 0xA0, 0x80}))
+
+	f.Fuzz(func(t *testing.T, in string) {
+		got, err := Normalise(in)
+
+		if !utf8.ValidString(in) {
+			var invalid *InvalidUTF8Error
+			require.ErrorAs(t, err, &invalid, "step 1 refuses every text that does not decode")
+			require.Empty(t, got)
+			return
+		}
+		require.NoError(t, err, "step 1 refuses nothing that does decode")
+
+		assertNormalForm(t, got)
+		require.Equal(t, stripLayout(in), stripLayout(got),
+			"nothing but SPACE, TAB, CR and LF moved: no case folded, no punctuation dropped, no line reordered")
+
+		again, err := Normalise(got)
+		require.NoError(t, err)
+		require.Equal(t, got, again, "the result is already normal")
+	})
+}
+
+// stripLayout removes exactly the four characters the six steps are allowed to
+// insert or remove. What is left is the content §1.4's negatives protect.
+func stripLayout(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == ' ' || r == '\t' || r == '\r' || r == '\n' {
+			return -1
+		}
+		return r
+	}, s)
 }
