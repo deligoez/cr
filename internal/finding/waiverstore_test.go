@@ -120,3 +120,83 @@ func TestTheTwoScopesOfSection744LandInTheTwoFilesItNames(t *testing.T) {
 	})
 }
 
+// §7.4.4: both files MUST be readable and removable, so neither disposition is
+// a one-way door.
+//
+// Readable is asserted through the three readers §7.4.7 and §6.4.4 will use,
+// and removable from each scope in turn, with the other file required to be
+// untouched — a removal that emptied both would make the door swing the wrong
+// way instead of not at all. The last case is the one that keeps the deletion
+// honest: an id a removed waiver held is spent, so the next waiver takes a new
+// number and a listing the reviewer already read cannot come to name something
+// else.
+func TestAWaiverIsReadableAndRemovableFromEitherScope(t *testing.T) {
+	layout := waiverHome(t)
+	wrong, notHere := theSameDefectAtTheSameCode(t)
+	wide := waive(t, layout, &wrong, theProvenance())
+	here := waive(t, layout, &notHere, theProvenance())
+
+	stored, err := RepositoryWaivers(layout, waiverOwner, waiverRepo)
+	require.NoError(t, err)
+	assert.Equal(t, []WaiverRecord{wide}, stored)
+
+	stored, err = PullRequestWaivers(layout, waiverOwner, waiverRepo, waiverPR)
+	require.NoError(t, err)
+	assert.Equal(t, []WaiverRecord{here}, stored)
+
+	stored, err = ActiveWaivers(layout, waiverOwner, waiverRepo, waiverPR)
+	require.NoError(t, err)
+	assert.Equal(t, []WaiverRecord{wide, here}, stored,
+		"§6.4.4 drops a finding matching an active waiver of either scope, so both files are read")
+
+	removed, err := RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, wide.ID)
+	require.NoError(t, err)
+	assert.Equal(t, wide, removed)
+	assert.Empty(t, storedAt(t, layout.WaiversFile(waiverOwner, waiverRepo)))
+	stored, err = PullRequestWaivers(layout, waiverOwner, waiverRepo, waiverPR)
+	require.NoError(t, err)
+	assert.Equal(t, []WaiverRecord{here}, stored,
+		"§7.4.3: removing a repository-wide waiver must not reach a pull request's own")
+
+	removed, err = RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, here.ID)
+	require.NoError(t, err)
+	assert.Equal(t, here, removed)
+	assert.Empty(t, storedAt(t, layout.PRFile(waiverOwner, waiverRepo, waiverPR, state.FileWaivers)))
+
+	t.Run("an id that names no waiver is refused", func(t *testing.T) {
+		_, err := RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, wide.ID)
+		require.ErrorAs(t, err, new(*UnknownWaiverError))
+
+		_, err = RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, "w1")
+		require.ErrorContains(t, err, "wr<n>",
+			"an id names its own file, so one under neither prefix names no file to open")
+
+		_, err = RemoveWaiver(layout, waiverOwner, waiverRepo, 0, "wp1")
+		require.ErrorContains(t, err, "--pr",
+			"§7.4.4 stores a pull-request-scoped waiver in that pull request's directory")
+	})
+
+	// Nothing cites a waiver by id, so an emptied file starting again at one
+	// strands no record — which is the whole of why §7.4.7 deletes where
+	// §3.6.6 marks, and it is asserted rather than left to the comment.
+	t.Run("an emptied file numbers from one again", func(t *testing.T) {
+		assert.Equal(t, "wr1", waive(t, layout, &wrong, theProvenance()).ID)
+		assert.Equal(t, "wp1", waive(t, layout, &notHere, theProvenance()).ID)
+	})
+
+	// A gap left by a removal is not filled: the count runs to the highest
+	// id the file holds, so an id in it can never name two waivers at once.
+	t.Run("a waiver beside a gap takes a number no line holds", func(t *testing.T) {
+		second := wrong
+		second.Class = "unhandled-error"
+		assert.Equal(t, "wr2", waive(t, layout, &second, theProvenance()).ID)
+
+		_, err := RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, "wr1")
+		require.NoError(t, err)
+
+		third := wrong
+		third.Class = "reinvented-helper"
+		assert.Equal(t, "wr3", waive(t, layout, &third, theProvenance()).ID)
+	})
+}
+
