@@ -70,3 +70,21 @@ func TestAnEarlierSourceWinsEvenWhenALaterOneReadsBetter(t *testing.T) {
 	assert.Equal(t, Key{Value: "AB-1", Origin: KeyFromBranch}, key)
 }
 
+// §3.2's default and the resolver that runs it are one claim, the way §3.1.2's
+// argv and its reader are: a default edited in the table alone would resolve
+// perfectly well and go wrong only where a key is looked for. The branch below
+// is the shape the default exists for — the pattern is unanchored because a
+// branch is a path and a title is a sentence, and an anchored one would find a
+// key in neither.
+func TestTheKeyPatternDefaultIsTheOneTheSpecNames(t *testing.T) {
+	defaults, err := config.Resolve(config.Sources{})
+	require.NoError(t, err)
+
+	pattern := defaults.String("intent.key_pattern")
+	assert.Equal(t, specDefaultPattern, pattern)
+
+	key, err := ResolveKey(KeySources{Branch: "feature/CR-123-add-a-thing"}, pattern)
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "CR-123", Origin: KeyFromBranch}, key)
+}
+
