@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T09:36:28.132842Z",
+  "updated_at": "2026-08-30T09:45:04.881982Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5028,7 +5028,7 @@
     {
       "id": "single-binary-dependencies",
       "title": "Depend only on three external commands",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -5038,11 +5038,19 @@
       "source_sections": [
         "## 14. Distribution"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T09:37:05.372067Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T09:45:04.862033Z",
+      "closed_reason": "- internal/cli/dependencies_test.go TestTheRunnersStartNothingButGitAndGh parses the two runner files that nowrite_test.go already confines os/exec to, and asserts each one names its program as a plain string literal, internal/git/run.go starting git and internal/gh/run.go starting gh, one invocation each. That closes what an import scan cannot see, because a call naming a variable reads the same to it as a call naming a literal, and a fourth dependency added inside a runner would therefore pass it untouched. crBinary makes the single-binary half a fact rather than a reading, one go build of ./cmd/cr producing one regular file, and that file is what the second criterion runs. The tracker is the third dependency and is treated differently on purpose, because §3.1.1 makes it argv the user configures and §3.1.4 lets --intent-file replace it outright.\n- TestTheBinaryRunsWithNothingButGitAndGhOnPath runs that binary on a PATH of one directory holding a symlink to git, a symlink to gh and nothing else, with the directory listing asserted to be exactly those two names, and exercises --version, --help, every registered command with --help, cr init and cr config, in an environment carrying only PATH, HOME, TMPDIR and CR_HOME, the allowlist internal/git and internal/gh had already settled on. jira, the §3.1.2 default tracker, is installed on this machine and deliberately absent from that PATH, and cr config prints the default argv naming it while it stays unreachable, which is what makes the default a default rather than a dependency of every command. Run by hand, that PATH cannot resolve even sh, so the strip is total.",
+      "gate_passed_at": "2026-08-30T09:45:04.862033Z",
+      "commit_sha": "d682716",
+      "commit_shas": [
+        "d682716",
+        "552ec92"
+      ],
+      "commit_files": [
+        "internal/cli/dependencies_test.go"
+      ]
     },
     {
       "id": "goreleaser-release",
