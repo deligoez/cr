@@ -1,6 +1,9 @@
 package role
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/deligoez/cr/internal/axis"
@@ -60,5 +63,37 @@ func TestTheShippedRolesCoverEveryAxisExactlyOnce(t *testing.T) {
 
 	for _, id := range axis.IDs() {
 		assert.Contains(t, filled, id, "no shipped role serves the %s axis", id)
+	}
+}
+
+// §2.5.2's byte-identity is a claim about the files in this repository, so the
+// guard has to read them. An ejected tree compared against Builtins() alone
+// would still pass a Builtins() that marshalled a Role struct instead of
+// embedding the file: both sides would move together, and what `cr init
+// --eject-roles` wrote would quietly become whatever the encoder chose that
+// day rather than the reviewed file. Reading builtin/<id>.json off disk is the
+// only comparison that can see that, and `go test` runs a package's tests with
+// the package directory as the working directory, so the relative path names
+// this package's own corpus and no copy of it.
+//
+// The directory listing is the other direction. A file added to builtin/ and
+// never embedded ships in no binary and is ejected by nothing, and Builtins()
+// on its own has no way to say so.
+func TestBuiltinsReturnsTheFilesOnDisk(t *testing.T) {
+	const dir = "builtin"
+
+	shipped := Builtins()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, len(shipped), "%s holds the shipped roles and nothing else", dir)
+
+	for _, entry := range entries {
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		content, ok := shipped[id]
+		require.True(t, ok, "%s is embedded by nothing", entry.Name())
+
+		onDisk, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		require.NoError(t, err)
+		assert.Equal(t, string(onDisk), content, "%s is not the bytes of its own file", entry.Name())
 	}
 }
