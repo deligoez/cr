@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T10:54:01.255744Z",
+  "updated_at": "2026-08-30T11:10:42.550384Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2391,7 +2391,7 @@
     {
       "id": "test-file-attachment",
       "title": "Attach changed test files per unit",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "hunk-clustering",
@@ -2402,11 +2402,36 @@
       "source_sections": [
         "### 4.4 Test adequacy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T10:54:43.042653Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T11:10:42.432522Z",
+      "closed_reason": "- internal/testadequacy/attach.go's Attach builds one round's §4.4.1 attachment out of the diff's hunks, taking the test files from the profile's tests.globs through the new profile.IsTestFile and the symbols they reference from the References interface, and PerUnit hands that same attachment to every unit of §3.4 so 'to every unit' is produced rather than remembered. profile.IsTestFile reads tests.globs as a real glob, with ** standing for any run of path segments, because the shipped laravel-pest glob tests/**/*Test.php read through path.Match alone would select one directory depth and silently withhold the rest of a suite.\n- internal/testadequacy/coverage.go carries §4.5.5's coverage value, which is §4.4.1's classification (covered, partially-covered, or uncovered) together with the test paths it rested on, and it round-trips through NDJSON so the cell that stores it and the round that reads it back see one value. The cell itself and the file it is written to belong to coverage-cell-schema and cells-record-command.\n- Coverage's two fields are unexported and no exported function takes a Classification, so UnmarshalJSON reading the agent's own line is the only way a classification comes into existence, which is §2.1.3 made structural the way state.Stamp's unexported setStamp is. A value outside §4.4.1's three, the empty string included, is refused rather than defaulted, and nothing in cr derives a classification from an Attachment.\n- The symbol half of §4.4.1 needs an index no shipped profile can yet provide, and §4.4 states no unavailability path the way §4.3.1 does. testadequacy.References is its own interface because unit.SymbolIndex answers where a symbol is declared rather than what a file names, and nothing implements it until symbol-index-build.\n- Attach marks that half unavailable through §4.5.4 rather than failing the run or returning an empty list cr never established: testadequacy.SymbolLens spells the lens the way profile.ReinventionLens spells §4.3.1's, Unavailable implements finding.HonestyDisclosure so the report survives --quiet per §11.1, both ways the index can be missing are named, and References answers with a bool so a file it cannot read is reported by name instead of collapsing into the same silence. The file half needs no such path: §2.4 makes tests.globs required whenever tests.cmd is present and §4.5.2 disables the test axis when tests.cmd is absent, so generic, which declares neither, never reaches §4.4 at all.",
+      "gate_passed_at": "2026-08-30T11:10:42.432522Z",
+      "commit_sha": "df1a015",
+      "commit_shas": [
+        "df1a015",
+        "6266ba4",
+        "3d7da41",
+        "f9ddb28",
+        "d67b496",
+        "712ccec",
+        "9636ad2",
+        "aff0701",
+        "276faff",
+        "697898a",
+        "95459a6",
+        "88a7cb6",
+        "59b267d",
+        "fcb6a66"
+      ],
+      "commit_files": [
+        "internal/profile/testfile.go",
+        "internal/profile/testfile_test.go",
+        "internal/testadequacy/attach.go",
+        "internal/testadequacy/attach_test.go",
+        "internal/testadequacy/coverage.go",
+        "internal/testadequacy/coverage_test.go"
+      ]
     },
     {
       "id": "edge-case-role-guidance",
