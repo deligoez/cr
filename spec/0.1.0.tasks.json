@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T20:26:11.569748Z",
+  "updated_at": "2026-08-30T20:51:38.339166Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4801,7 +4801,7 @@
     {
       "id": "anchor-side-semantics",
       "title": "Resolve anchor sides against two trees",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "anchor-schema",
@@ -4812,11 +4812,33 @@
       "source_sections": [
         "### 9.2 Anchors"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T20:27:28.787996Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T20:51:38.273059Z",
+      "closed_reason": "- §9.2.1's first half is where §6.1.2 puts it: internal/finding/anchor.go's ResolveAnchor sends a RIGHT anchor to the head and a LEFT one to the merge base, through a Trees pair of readers, so RIGHT anchors a line in the head and LEFT a line the head no longer has.\n- The second half, that LEFT is used only for records about deletions, is documented rather than enforced, and ResolveAnchor says why: whether a record is about a deletion is a judgement about what it says, which §2.1 leaves to the agent and invariant 1 keeps cr out of. What cr establishes is the location, and a line the change added is not in the merge base to be anchored.\n- Every record in findings.ndjson has an anchor already, and nothing was rebuilt: internal/finding/fields.go marks the anchor row Required, checker.check walks that table on every door and then hands the anchor to ValidateAnchor, which refuses one naming no path as an item with no code location per §6.1.2 and §4.1.3.\n- The test that would catch the rule's removal already exists as well: TestNoUnanchoredItemBecomesARecordByAnyDoor in internal/finding/anchored_test.go reads the set of exported functions handing back a Finding out of the package's own source and drives all four shapes of an unanchored item through each, so a new door is a failing test rather than a reopened comment channel.\n- TestARightAnchorResolvesAgainstTheHeadAndALeftOneAgainstTheMergeBase resolves a RIGHT anchor against the head and a LEFT anchor against the merge base over a real two-commit repository built by twoTrees, whose branch rewrites a line, adds a file and deletes one, so each side resolves the file only its own tree holds and is refused the other's by name. Swapping the two readers was verified to fail it in three places.\n- TestALeftAnchorPointingAtAHeadOnlyLineIsRefused asserts the failure the two trees exist to produce: the head's lines 7 to 9 are four lines the change added, the merge base holds five, and the LEFT anchor is refused naming the tree and its length, with the boundary either side of line 5 pinned and the same ranges resolving on RIGHT.\n- TestASideNamingNeitherTreeResolvesAgainstNothing drives six near-miss sides through readers that fail the test if they are opened at all, because refused and read-the-head-anyway are the same error to a caller and different faults.\n- The carried finding is fixed at its root: §9.2's vocabulary is now closed once, by git.ParseSide beside the two constants, and both readers of an outside value go through it, ValidateAnchor for an agent's NDJSON side and internal/gh for GitHub's diffSide, so the set cannot be closed twice and drift.\n- internal/gh/threads.go's raw git.Side(n.DiffSide) is gone: threadNode.anchor now returns an error, and an unknown value refuses the thread and aborts the ingest naming the thread id and quoting the value, rather than dropping it. Dropping is the quiet answer and it is the expensive one, because a thread with a side matching no hunk attaches to no unit under §3.5.3, suppresses nothing under §3.5.4, and cr repeats a concern a colleague already raised with nothing in the run reporting it; §3.5.1 admits no exception either.\n- TestAThreadWhoseDiffSideNamesNeitherTreeIsRefused covers six unplaceable values, asserts no partial thread set is handed back, and asserts RIGHT and LEFT still ingest unchanged. One existing payload, TestOnlyGitHubsOwnBotTypeIsTaggedBot's, was completed with the diffSide GitHub declares non-null; no assertion of any existing test changed.\n- gremlins unleash --timeout-coefficient 30 ./internal reports Killed 586, Lived 13, Not covered 39, Timed out 6, efficacy 97.83 percent: all eight new mutants killed, the thirteen commented equivalents unchanged, and the two ParseSide mutants gremlins first reported as not covered are killed by TestParseSideAdmitsRightAndLeftAndNothingElse in internal/git.",
+      "gate_passed_at": "2026-08-30T20:51:38.273059Z",
+      "commit_sha": "3b066e6",
+      "commit_shas": [
+        "3b066e6",
+        "c39d5ef",
+        "cb8104c",
+        "a87e03c",
+        "c834806",
+        "4196674",
+        "e826078",
+        "1159920",
+        "aadf7a8",
+        "8c1bda6",
+        "1ab8224"
+      ],
+      "commit_files": [
+        "internal/finding/anchor.go",
+        "internal/finding/anchorside_test.go",
+        "internal/gh/threads.go",
+        "internal/gh/threads_test.go",
+        "internal/git/hunk.go",
+        "internal/git/hunk_test.go"
+      ]
     },
     {
       "id": "anchor-no-migration",
