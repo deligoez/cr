@@ -516,6 +516,10 @@ const (
 	// value rather than the fixture's own HEAD because nothing compares the
 	// two yet, and a record is stamped with whatever meta.json holds.
 	fixtureHead = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"
+	// fixtureHeadBranch is the branch the briefed pull request is opened
+	// from, so §3.4.1 has a merge base and a diff rather than two names
+	// for one commit.
+	fixtureHeadBranch = "pr-head"
 )
 
 // worktreeRegistration is §5.1.1's exception, spelled as a repository-relative
@@ -588,6 +592,18 @@ func fixtureRepository(t *testing.T) string {
 	mustGit(t, dir, "add", "app.go", ".gitignore")
 	mustGit(t, dir, "commit", "--quiet", "-m", "the commit under review")
 	mustGit(t, dir, "branch", "spare")
+
+	// A branch with a commit of its own, so the pull request cr is briefed
+	// on has a diff to take against its merge base. Without it §3.4 would
+	// cluster an empty patch, and the run would prove nothing about what
+	// `cr brief` does while it reads the repository. It is created before
+	// the working tree is dirtied, so the stash, the staged file, and the
+	// edited file below are exactly what they were.
+	mustGit(t, dir, "checkout", "--quiet", "-b", fixtureHeadBranch)
+	write("app.go", "package app\n\nfunc Retry() { backoff() }\n")
+	mustGit(t, dir, "add", "app.go")
+	mustGit(t, dir, "commit", "--quiet", "-m", "the change under review")
+	mustGit(t, dir, "checkout", "--quiet", "main")
 
 	write("app.go", "package app\n\nfunc Retry() { stashed() }\n")
 	mustGit(t, dir, "stash", "push", "--quiet", "-m", "work in progress")
@@ -751,6 +767,41 @@ func leafCommands(t *testing.T) []string {
 	return names
 }
 
+// ghShim writes a `gh` that answers the two reads `cr brief` performs, and
+// returns the directory holding it.
+//
+// It stands in for the real binary rather than for internal/gh, so everything
+// between the command and the transport runs exactly as it does in production:
+// the read boundary of §2.1.2 judges the invocation, the environment allowlist
+// is applied, and the answer is parsed by the same code. What it removes is the
+// network, a token, and a pull request that would have to exist.
+//
+// The two revisions are the fixture's own, because §3.4.1 diffs the head
+// against the merge base and git cannot resolve a commit the checkout does not
+// hold.
+func ghShim(t *testing.T, dir, head, base string) string {
+	t.Helper()
+	answers := t.TempDir()
+	write := func(name, body string) string {
+		t.Helper()
+		path := filepath.Join(answers, name)
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+		return path
+	}
+	pr := write("pr.json", `{"data":{"repository":{"pullRequest":{`+
+		`"number":`+fixturePR+`,"title":"`+fixtureIssue+` retry the upload",`+
+		`"body":"Closes `+fixtureIssue+`.","headRefName":"`+fixtureHeadBranch+`",`+
+		`"headRefOid":"`+head+`","baseRefName":"main","baseRefOid":"`+base+`"}}}}`)
+	threads := write("threads.json", `{"data":{"repository":{"pullRequest":{`+
+		`"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":""},"nodes":[]}}}}}`)
+
+	shim := filepath.Join(dir, "gh")
+	require.NoError(t, os.WriteFile(shim, []byte(
+		"#!/bin/sh\ncase \"$*\" in\n  *reviewThreads*) exec cat "+threads+
+			" ;;\n  *) exec cat "+pr+" ;;\nesac\n"), 0o700))
+	return dir
+}
+
 // repoRuns is the argv each command in the tree is exercised with, keyed by the
 // command as it is typed.
 //
@@ -785,6 +836,15 @@ func repoRuns(merged, claims, issue string) map[string][]string {
 		"claims record": {
 			"claims", "record", fixturePR, claims,
 			"--repo", fixtureSlug, "--intent-file", issue,
+		},
+		// `cr brief` is the one command that reads the repository, so
+		// it is the one this guard was widened for: §3.4.1 takes a
+		// diff and §2.4.1 stats marker files, both inside the checkout
+		// cr must not write to. `--issue` and `--intent-file` keep the
+		// run off the tracker for the reason above.
+		"brief": {
+			"brief", fixturePR,
+			"--repo", fixtureSlug, "--issue", fixtureIssue, "--intent-file", issue,
 		},
 	}
 }
@@ -849,8 +909,14 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 		`"text":"The retry backs off exponentially.","source":"acceptance",`+
 		`"span":"back off exponentially"}`+"\n"), 0o600))
 
+	// `cr brief` reads GitHub, so a `gh` that answers without a network
+	// call goes first on the PATH. It answers with the fixture's own two
+	// revisions, which is what lets §3.4.1 resolve a merge base at all.
+	shims := ghShim(t, t.TempDir(),
+		strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch)),
+		strings.TrimSpace(mustGit(t, fixture, "rev-parse", "main")))
 	env := []string{
-		"PATH=" + os.Getenv("PATH"),
+		"PATH=" + shims + string(os.PathListSeparator) + os.Getenv("PATH"),
 		"HOME=" + home,
 		"TMPDIR=" + t.TempDir(),
 		"CR_HOME=" + root,
