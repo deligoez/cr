@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T22:23:46.186333Z",
+  "updated_at": "2026-08-30T22:25:13.892518Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5537,7 +5537,7 @@
         "lens-honesty-reporting"
       ],
       "estimate_minutes": 15,
-      "acceptance": "- cr status \u003cpr\u003e reports units total, units with a complete row of cells, units with gaps, and units flagged oversized per §3.4.5, per §10.1.1.\n- It reports claims total, claims mapped to units, and the unimplemented-claim entries of §4.1.3, which appear here and nowhere else because they are never posted, per §10.1.2. This includes the surviving set-aside stamp count required by the §4.1.7 carry-forward rule.\n- It reports active axes, disabled and unavailable axes with reasons, and skipped roles with reasons per §4.5.4, per §10.1.3.\n- A test asserts all three sections against a fixture holding an oversized unit, a gap entry, and a skipped role.\n- §10.1.3 reports active axes and every lens of §4.5.4 that did not run, with its reason.",
+      "acceptance": "- cr status \u003cpr\u003e reports units total, units with a complete row of cells, units with gaps, and units flagged oversized per §3.4.5, per §10.1.1.\n- It reports claims total, claims mapped to units, and the unimplemented-claim entries of §4.1.3, which appear here and nowhere else because they are never posted, per §10.1.2. This includes the surviving set-aside stamp count required by the §4.1.7 carry-forward rule.\n- It reports active axes, disabled and unavailable axes with reasons, and skipped roles with reasons per §4.5.4, per §10.1.3.\n- A test asserts all three sections against a fixture holding an oversized unit, a gap entry, and a skipped role.\n- §10.1.3 reports active axes and every lens of §4.5.4 that did not run, with its reason.\n- Carried from oversized-unit-split: internal/unit records Cluster.Oversized per §3.4.5, but nothing renders it. The coverage report is where an oversized unit must appear as such, so a reader knows the cap did not bind there.",
       "source_sections": [
         "### 10.1 Coverage report"
       ],
