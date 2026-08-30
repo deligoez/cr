@@ -113,7 +113,10 @@ func TestNotesAccumulateAgainstTheKeyAndNotThePullRequest(t *testing.T) {
 	l := storeRoot(t)
 	at := time.Now()
 
-	_, err := Append(l, "CR-1", "from the first PR", SourceChat, 7, at)
+	// 1 is the lowest pull request GitHub issues, and it is the value that
+	// tells Append's `pr < 1` from `pr <= 1`. A first note from PR 42 would
+	// pass under either bound.
+	_, err := Append(l, "CR-1", "from the first PR", SourceChat, 1, at)
 	require.NoError(t, err)
 	_, err = Append(l, "CR-1", "from the second PR", SourceThread, 8, at)
 	require.NoError(t, err)
@@ -123,7 +126,7 @@ func TestNotesAccumulateAgainstTheKeyAndNotThePullRequest(t *testing.T) {
 	shared := stored(t, l, "CR-1")
 	require.Len(t, shared, 2, "one key, one store, whatever pull request each note came from")
 	assert.Equal(t, []string{"CR-1#n1", "CR-1#n2"}, []string{shared[0].ID, shared[1].ID})
-	assert.Equal(t, []int{7, 8}, []int{shared[0].PR, shared[1].PR},
+	assert.Equal(t, []int{1, 8}, []int{shared[0].PR, shared[1].PR},
 		"the pull request is recorded on the note, not folded into the file it lives in")
 
 	other := stored(t, l, "CR-2")
