@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T19:28:04.507755Z",
+  "updated_at": "2026-08-30T19:59:02.815915Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4341,7 +4341,7 @@
     {
       "id": "waiver-storage",
       "title": "Write waivers to the two files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "waiver-scopes"
@@ -4352,11 +4352,34 @@
         "### 7.4 Waivers",
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T19:28:44.525614Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T19:59:02.745541Z",
+      "closed_reason": "- internal/finding/waiverstore.go's Waive derives the scope with Waiver.Scope() and never takes one from a caller, and appendWaiver is the single switch over it: ScopeRepository writes ~/.cr/waivers/\u003cowner\u003e/\u003crepo\u003e.ndjson through state.LockRepoWaivers, ScopePullRequest writes that PR's waivers.ndjson through state.LockPR and state.WriteRecords(state.FileWaivers), and a scope naming neither file is refused rather than falling into the last arm.\n- TestTheTwoScopesOfSection744LandInTheTwoFilesItNames waives two records that share one §7.4.1 key and differ only in disposition, then reads both §7.4.4 paths straight off disk: the wrong record is the only line in the repository file, the not-here record the only line in the pull request's, and neither file holds the other's — §7.4.3's silence-outside-the-PR failure asserted from both sides.\n- RepositoryWaivers, PullRequestWaivers and ActiveWaivers read both files lock-free per §2.3.2, and RemoveWaiver deletes from the file the id names — wr\u003cn\u003e for the repository-wide store, wp\u003cn\u003e for a pull request's — so a waiver is readable and removable in both scopes.\n- RemoveWaiver deletes the line rather than marking it: §7.4.1 matches a waiver by key and never by id, so unlike §3.6.6's note nothing cites one and a reissued number strands no record, while a tombstone in a suppression file is one forgotten filter away from a silence nobody ever observes.\n- TestAWaiverIsReadableAndRemovableFromEitherScope reads all three readers, removes from each scope with the other file asserted untouched, and covers the refusals: an unknown id, an id under neither prefix, a wp id with no --pr, and pull request 1 as the boundary beside that refusal.\n- WaiverProvenance carries §7.4.8's four fields — round, pr, head, and reason with omitempty — as its own fields rather than embedding state.Stamp, because §9.3.5 exempts waivers from the round scoping every reader of that pair applies and neither waiver file is one of §2.3.3's eight.\n- TestAWaiverRecordsTheRoundThePullRequestTheHeadAndTheReason reads the stored line by JSON key: the four are present with their values, the reason key is absent when none was given, and validate refuses a waiver with no round, no pull request or no head before it reaches either file.\n- WaivedBy is §7.4.6's lookup half — given both scopes' active waivers, does one cover this record — and TestAnActiveWaiverCoversTheRecordItWasWrittenForUntilThatCodeChanges asserts it matches across both files, follows the code when the file above it moves, and stops the moment the anchored lines change per §7.4.2; the drop itself and the round-summary count stay with waived-findings-dropped, which §6.4.4 puts at merge time.\n- The repository-wide file is §2.2 state shared by every pull request, so §2.3.1's per-PR lock cannot serialise it: state.WaiverLock adds one of its own at locks/waivers/\u003cowner\u003e/\u003crepo\u003e.lock, and TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest was measured against a disabled lock, where five of eight waivers were lost.\n- §7.4's eight items are all read: 1 and 2 by WaiverKey, 3 and 4 by the scope switch and the two files, 5 by the stored disposition, 6 by WaivedBy, 7 by the id form and RemoveWaiver, 8 by WaiverProvenance; the path-prefix widening round 8 removed is nowhere, matching being equality over the whole key.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh. Mutation testing at Killed 558, Lived 13, Not covered 39, efficacy 97.72%; the one new survivor is the documented equivalent mutant in nextWaiverID that finding.NextID and note.NextID already carry, and the new not-covered are validate's three bare-switch case clauses, which go tool cover reports at 100%.",
+      "gate_passed_at": "2026-08-30T19:59:02.745541Z",
+      "commit_sha": "24c51f3",
+      "commit_shas": [
+        "24c51f3",
+        "961fed3",
+        "d73427a",
+        "abf5a6b",
+        "b397532",
+        "3b29796",
+        "62d8fa6",
+        "16489b1",
+        "1ee0561",
+        "be90b66",
+        "7d87df4",
+        "1e7f203"
+      ],
+      "commit_files": [
+        "internal/finding/waiverstore.go",
+        "internal/finding/waiverstore_test.go",
+        "internal/state/context.go",
+        "internal/state/records.go",
+        "internal/state/waivers.go",
+        "internal/state/waivers_test.go"
+      ]
     },
     {
       "id": "waivers-list-command",
