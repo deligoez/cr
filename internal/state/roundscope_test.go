@@ -46,3 +46,25 @@ func TestReplaceStampedRewritesOneRoundAndLeavesTheOthers(t *testing.T) {
 		{Stamp: at, ID: "c9"},
 	}, got, "§9.3.5: the round is replaced, and earlier rounds are left intact")
 }
+
+// §3.3.1 clears mapping.ndjson when claims are recorded, and §9.3.5 scopes that
+// clearing the same way: the file is emptied of this round and of nothing else.
+//
+// The file is read back as bytes as well as records, because "cleared" has two
+// readings and only one of them is right. A writer that truncated the file
+// would satisfy any assertion counting this round's records, and would have
+// destroyed exactly the history §9.3.5 protects.
+func TestClearStampedEmptiesOneRoundAndNotTheFile(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	roundsRecorded(t, held, FileMapping, 1, 2)
+
+	require.NoError(t, ClearStamped(held, FileMapping, 2))
+	require.NoError(t, held.Unlock())
+
+	body, err := l.ReadPR("acme", "web", 42, FileMapping)
+	require.NoError(t, err)
+	assert.Equal(t, "{\"id\":\"r1\",\"head\":\"0f1e2d3\",\"round\":1}\n", string(body),
+		"round 1's line is carried through byte for byte, and round 2's is gone")
+}
