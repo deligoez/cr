@@ -8,6 +8,7 @@ import (
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/unit"
 )
 
 // recordResult is what `cr record` has to report: the records it stored, whole.
@@ -30,13 +31,17 @@ func (r *recordResult) Text(w *writer) string {
 		" in state " + finding.StateDraft.String()
 }
 
-// roundUnit is as much of a §3.4.6 unit as `cr record` reads: the id, and the
-// round that formed it. The rest of the unit record is §3.4.6's own and nothing
-// here has a use for it.
+// roundUnit is one line of units.ndjson: §3.4.6's unit record, and the head and
+// round §2.3.3 stamps onto it.
+//
+// The unit is embedded whole rather than re-declared with the two fields this
+// command reads. A second declaration of a stored record's shape is a second
+// thing to keep in agreement with the writer, and it agrees silently — a field
+// renamed on the way out decodes as a zero value here, and `cr record` would
+// then check every record's `unit` against a set of empty ids rather than
+// report anything.
 type roundUnit struct {
-	// ID is the unit's `u<n>` id.
-	ID string `json:"id"`
-	// Stamp carries the round the unit belongs to, per §2.3.3.
+	unit.Unit
 	state.Stamp
 }
 
@@ -55,9 +60,9 @@ func roundUnitIDs(l state.Layout, owner, repo string, pr, round int) ([]string, 
 		return nil, err
 	}
 	ids := make([]string, 0, len(units))
-	for _, formed := range units {
-		if formed.Round == round {
-			ids = append(ids, formed.ID)
+	for i := range units {
+		if units[i].Round == round {
+			ids = append(ids, units[i].ID)
 		}
 	}
 	return ids, nil
