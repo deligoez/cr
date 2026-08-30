@@ -122,3 +122,72 @@ func TestEveryUnitIsAttachedTheSameTestFiles(t *testing.T) {
 	}
 }
 
+// §4.4.1 wants "the symbols they reference", and that half needs a symbol index.
+// §4.4 states no unavailability path the way §4.3.1 does, so the round-12 finding
+// missing-unavailability-path routes it through §4.5.4 instead: the half that
+// could not run is named with its reason.
+//
+// Both ways it can be missing are covered, because they are different facts
+// about the run and a reader acts on them differently — a profile that declares
+// no `symbols.lang` is fixed in the profile, and an index cr did not build is
+// not. The third state is a partial one, and it is the reason References answers
+// with a bool: the symbols cr did read are still attached, and the files it could
+// not read are named rather than absorbed into the same empty list.
+//
+// The failure this guards against is an empty `Symbols` with nothing said. That
+// reads to the agent as "cr looked and the tests reference nothing", which is an
+// assertion cr never made, and it is the one input to a coverage classification
+// that would be silently missing.
+func TestTheSymbolHalfIsMarkedUnavailableRatherThanLeftEmpty(t *testing.T) {
+	p := laravelPest(t)
+	full := index{
+		"tests/Feature/OrderTest.php":  {"Order", "Order::total"},
+		"tests/Unit/PricingTest.php":   {"Order::total", "Pricing"},
+		"tests/Feature/LegacyTest.php": nil,
+	}
+
+	t.Run("an index that answers for every file leaves nothing unavailable", func(t *testing.T) {
+		attached := Attach(&p, full, hunks(t))
+
+		assert.Equal(t, []string{"Order", "Order::total", "Pricing"}, attached.Symbols)
+		require.NotNil(t, attached.Unavailable)
+		assert.Empty(t, attached.Unavailable)
+	})
+
+	t.Run("no symbols.lang", func(t *testing.T) {
+		none := p
+		none.Symbols = profile.Symbols{}
+
+		attached := Attach(&none, full, hunks(t))
+
+		assert.Empty(t, attached.Symbols)
+		require.Len(t, attached.Unavailable, 1)
+		assert.Equal(t, SymbolLens, attached.Unavailable[0].Lens)
+		assert.Contains(t, attached.Unavailable[0].Reason, "symbols.lang")
+		// The file half is untouched by the symbol half's absence.
+		assert.Equal(t, changedTests, attached.Paths)
+	})
+
+	t.Run("no index built", func(t *testing.T) {
+		attached := Attach(&p, nil, hunks(t))
+
+		assert.Empty(t, attached.Symbols)
+		require.Len(t, attached.Unavailable, 1)
+		assert.Equal(t, SymbolLens, attached.Unavailable[0].Lens)
+		assert.Contains(t, attached.Unavailable[0].Reason, "php")
+		assert.Equal(t, changedTests, attached.Paths)
+	})
+
+	t.Run("an index that cannot answer for one file", func(t *testing.T) {
+		partial := index{"tests/Feature/OrderTest.php": {"Order"}}
+
+		attached := Attach(&p, partial, hunks(t))
+
+		assert.Equal(t, []string{"Order"}, attached.Symbols)
+		require.Len(t, attached.Unavailable, 1)
+		assert.Contains(t, attached.Unavailable[0].Reason, "tests/Unit/PricingTest.php")
+		assert.Contains(t, attached.Unavailable[0].Reason, "tests/Feature/LegacyTest.php")
+		assert.NotContains(t, attached.Unavailable[0].Reason, "tests/Feature/OrderTest.php")
+	})
+}
+
