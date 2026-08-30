@@ -180,6 +180,23 @@ func TestNoColorStripsColourAndNothingElse(t *testing.T) {
 	assert.NotContains(t, terminal, "\x1b[", "--no-color left an escape sequence behind")
 }
 
+// §11.1 has `--quiet` suppress informational messages, and a command's own
+// result is not one of them.
+//
+// Both shapes are asserted because they fail differently. A flag reaching into
+// the JSON takes a field out of the document an agent parses; one reaching into
+// the text leaves a person's terminal empty. §12.1 settles the shape from
+// stdout and `--json` alone, and no output flag empties a command's answer.
+func TestQuietLeavesACommandsResultAlone(t *testing.T) {
+	crHome(t)
+
+	assert.Equal(t, throughAPipe(t, "config"), throughAPipe(t, "config", "--quiet"),
+		"§11.1: --quiet took something out of the document cr config printed")
+
+	terminal := throughATerminal(t, "config", "--quiet")
+	assert.Contains(t, terminal, "\x1b[36mpost.max_comments\x1b[0m = 20")
+}
+
 // §12.2: the JSON is pretty-printed with two-space indentation.
 //
 // Re-indenting what cr printed has to be a no-op, which is a stronger claim
