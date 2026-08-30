@@ -24,6 +24,12 @@ import (
 // is a contract with §1.4 and is fixed by the test below, and restating it here
 // would be a second place to keep in agreement with it. What is asserted here
 // is that every unit has one and that they are not all the same string.
+//
+// The fallback unit takes `u1`. §3.4.6 assigns ids by first changed line and
+// that unit has no changed line, so the ordering answers 0 for it and puts it
+// ahead of the file. Nothing a diff produces lands there — git emits no hunk
+// without a changed line, which is why the fixture has to build one by hand —
+// and any other answer would be an invented position rather than a smaller one.
 func TestAUnitRecordsTheFieldsSection346Names(t *testing.T) {
 	php := shipped(t, "laravel-pest")
 
@@ -54,18 +60,18 @@ func TestAUnitRecordsTheFieldsSection346Names(t *testing.T) {
 	assert.Equal(t, []Unit{
 		{
 			ID: "u1", Path: moneyPath, Side: git.Right,
+			HunkRanges:   []Range{{Start: 96, End: 98}},
+			ChangedLines: 0, Formation: ByFallback,
+		},
+		{
+			ID: "u2", Path: moneyPath, Side: git.Right,
 			HunkRanges:   []Range{{Start: 10, End: 13}, {Start: 39, End: 42}},
 			ChangedLines: 2, Formation: BySymbol,
 		},
 		{
-			ID: "u2", Path: moneyPath, Side: git.Right,
+			ID: "u3", Path: moneyPath, Side: git.Right,
 			HunkRanges:   []Range{{Start: 79, End: 82}, {Start: 87, End: 90}},
 			ChangedLines: 2, Formation: ByAdjacency,
-		},
-		{
-			ID: "u3", Path: moneyPath, Side: git.Right,
-			HunkRanges:   []Range{{Start: 96, End: 98}},
-			ChangedLines: 0, Formation: ByFallback,
 		},
 	}, units)
 }
