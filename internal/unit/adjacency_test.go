@@ -31,11 +31,6 @@ const threeHunks = `--- a/app/Money.php
  context
 `
 
-// defaultGapLines is §3.4.4's default for `cluster.gap_lines`. The setting
-// itself belongs to the task that implements §3.4.4; what this task needs is
-// the number the fallthrough is exercised at.
-const defaultGapLines = 12
-
 // §3.4.3 requires clustering to fall through to adjacency without reporting an
 // error when a symbol is not detectable, and the shipped generic profile is
 // the case that reaches it in practice: it declares no symbols.lang, so no
@@ -59,7 +54,7 @@ func TestTheGenericProfileClustersByAdjacencyWithoutError(t *testing.T) {
 	// the absent symbols.lang and nothing else.
 	require.False(t, Detectable(&generic, indexOf{"app/Money.php"}, "app/Money.php"))
 
-	groups := Adjacency(hunks, defaultGapLines)
+	groups := Adjacency(hunks, defaultGapLines(t))
 
 	assert.Equal(t, [][]git.Hunk{{hunks[0], hunks[1]}, {hunks[2]}}, groups)
 }
@@ -99,6 +94,6 @@ func TestAdjacencyMeasuresTheGapBetweenChangedLines(t *testing.T) {
 // nothing in it — an entry in the coverage report asking a role to review a
 // change nobody made.
 func TestAdjacencyGroupsNothingOutOfNoHunks(t *testing.T) {
-	assert.Empty(t, Adjacency(nil, defaultGapLines))
-	assert.Empty(t, Adjacency([]git.Hunk{}, defaultGapLines))
+	assert.Empty(t, Adjacency(nil, defaultGapLines(t)))
+	assert.Empty(t, Adjacency([]git.Hunk{}, defaultGapLines(t)))
 }
