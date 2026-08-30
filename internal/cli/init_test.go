@@ -120,3 +120,19 @@ func TestEjectRolesWritesTheBuiltinsByteForByte(t *testing.T) {
 		assert.Equal(t, content, ejected(t, id), "and leaves the rest as they were")
 	}
 }
+
+// §2.5.2 puts the eject behind a flag, and §2.5.4 says why that has to hold:
+// an unejected role is read from the built-in layer, so a `cr init` that wrote
+// the four files anyway would leave every tree carrying a frozen copy of
+// defaults nobody asked for — one that no upgrade could ever refresh, because
+// §2.5.2 also forbids overwriting what the user may have edited.
+func TestInitWritesNoRoleWithoutTheEjectFlag(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".cr")
+	t.Setenv(state.HomeEnv, root)
+
+	runInit(t)
+
+	entries, err := os.ReadDir(filepath.Join(root, "roles"))
+	require.NoError(t, err, "§2.2 lays out the directory either way")
+	assert.Empty(t, entries)
+}
