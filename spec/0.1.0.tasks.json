@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T14:51:09.964731Z",
+  "updated_at": "2026-08-30T15:05:07.297011Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -289,7 +289,7 @@
     {
       "id": "global-flags",
       "title": "Wire the five global flags",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "output-compact-flag"
@@ -299,11 +299,23 @@
       "source_sections": [
         "### 11.1 Global flags"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T14:51:45.487851Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T15:05:07.270384Z",
+      "closed_reason": "- internal/cli/root.go registers all five §11.1 flags as persistent flags on the root command, and each carries the effect its row names. --json forces JSON on a terminal and --compact prunes §12.5's fields, both settled in internal/cli/output.go. --no-color strips the colour and leaves §12.1's shape alone. --repo names the repository, read through repoOf in internal/cli/pr.go. --quiet suppresses nothing, which is the decision rather than an omission and is now recorded where the flag is registered: §11.1 gives it informational messages and then names seven disclosures it may never touch, cr prints no informational message today because every byte on stdout is a command's own result that §12.1 shapes, and a suppression written before the exempt writer of quiet-honesty-exemptions would silence the seven §11.1 exists to protect.\n- TestRepoOverridesRepositoryDetection drives cr config with --repo acme/web from inside a git repository whose origin names other/elsewhere, with a configuration layer waiting under each slug. The named repository's layer is the one in force and the repository cr stands in contributes nothing, which is what tells an override from a merge. The two layers set different settings rather than the same one at different values, because an override and a merge agree about post.max_comments whichever wins and disagree about render.lang. Detection is repository-detection's and is unbuilt, so today the working directory is inert and the same run becomes the adversarial one the day detection lands. The assertion was proven to bite by pointing config.go's repository layer at the standing slug and watching both halves fail, then reverting.\n- Every flag is exercised through a real command. --json, --no-color and --compact were already covered by TestTheJSONFlagForcesJSONOnATerminal, TestNoColorStripsColourAndNothingElse (which asserts both that a pipe under it is still JSON and that a terminal under it carries no escape sequence) and TestCompactDropsTheBulkAndKeepsWhatAPostedBodyRestsOn. --repo is covered by TestRepoOverridesRepositoryDetection through cr config. --quiet is covered by TestQuietLeavesACommandsResultAlone, which runs cr config under the flag on a real pipe and on a real pseudo-terminal and finds the same document and the same coloured line, and is held honest by TestNoSuppressionUnderQuietArrivesBeforeItsExemption, a walk over the shipped source that fails the moment a file reads the flag while no writer under internal/cli consumes finding.HonestyDisclosure. Both branches of that walk were measured, not assumed: reading the flag in output.go failed the test naming internal/cli/output.go, and adding an internal/cli reference to the interface made it pass, both reverted afterwards. gremlins unleash --timeout-coefficient 30 ./internal is unchanged at Killed 461, Lived 8, efficacy 98.29 percent, with the same three known timeouts and no new survivor.\nOut of scope: the exempt writer for the seven honesty disclosures is quiet-honesty-exemptions, repository detection itself is repository-detection, and §12.4's hint field is output-error-hints.",
+      "gate_passed_at": "2026-08-30T15:05:07.270384Z",
+      "commit_sha": "0c64ee1",
+      "commit_shas": [
+        "0c64ee1",
+        "f9f475b",
+        "780ddaf",
+        "caa5f1c"
+      ],
+      "commit_files": [
+        "internal/cli/output_test.go",
+        "internal/cli/pr_test.go",
+        "internal/cli/root.go"
+      ]
     },
     {
       "id": "quiet-honesty-exemptions",
