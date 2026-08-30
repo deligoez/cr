@@ -244,6 +244,12 @@ func omittedFields(names ...string) map[string]bool {
 // would have to be told which struct fields to skip, and §5.5's probe record
 // has no Go type in this repository at all. A document has the field names,
 // and the field names are what §12.5 fixes.
+//
+// It costs the field order: a document rebuilt from maps comes out with its
+// keys sorted, where an uncompacted one follows the struct. §12 fixes the
+// shape, the indentation, the nulls and the omissions and says nothing about
+// the order, and no reader of JSON may depend on it — so this is the whole of
+// the difference `--compact` makes beyond the fields it removes.
 func withoutBulk(payload any) (any, error) {
 	document, err := json.Marshal(payload)
 	if err != nil {
