@@ -808,3 +808,33 @@ func TestCompactDropsTheBulkAndKeepsWhatAPostedBodyRestsOn(t *testing.T) {
 	assert.True(t, json.Valid([]byte(compact)), "--compact printed %q", compact)
 	assert.Contains(t, compact, "\n  \"findings\": [")
 }
+
+// §12.5's second sentence is a rule about what the omission table may never
+// say, so it is enforced where the table is built rather than beside it.
+//
+// omittedFields refuses the name outright, which is what makes `--compact`
+// incapable of reaching `evidence` and `citations` rather than merely coded not
+// to today: a table naming one of them does not fail this test, it fails to
+// start — every command in the tree aborts before it runs, and so does every
+// other test in the package. This checks that the refusal is real, and that a
+// qualified name is no way round it, since narrowing an omission to one key is
+// exactly the shape a later edit would reach for to make it look local.
+func TestTheOmissionTableRefusesAFoundingField(t *testing.T) {
+	for name, field := range map[string]string{
+		"evidence":          "evidence",
+		"citations":         "citations",
+		"record.evidence":   "evidence",
+		"finding.citations": "citations",
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.PanicsWithValue(t,
+				"§12.5: --compact may not omit "+field+"; the agent composes every posted body from it",
+				func() { omittedFields(name) },
+				"§12.5: the omissions accepted %q", name)
+		})
+	}
+
+	assert.NotPanics(t, func() { omittedFields("output_tail", "comment.body") },
+		"§12.5 refuses two fields, not the table they are kept out of")
+	require.NotEmpty(t, compactOmits, "the refusal is worth nothing if the table it guards is empty")
+}
