@@ -166,6 +166,10 @@ func TestAWaiverIsReadableAndRemovableFromEitherScope(t *testing.T) {
 	t.Run("an id that names no waiver is refused", func(t *testing.T) {
 		_, err := RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, wide.ID)
 		require.ErrorAs(t, err, new(*UnknownWaiverError))
+		assert.ErrorContains(t, err, wide.ID,
+			"the refusal must name the id, so the reviewer can see which one missed")
+		assert.ErrorContains(t, err, "cr waivers list",
+			"every error names the next actionable step")
 
 		_, err = RemoveWaiver(layout, waiverOwner, waiverRepo, waiverPR, "w1")
 		require.ErrorContains(t, err, "wr<n>",
