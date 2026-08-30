@@ -396,3 +396,31 @@ func TestClaimsRecordRefusesAPullRequestWithNoIssueKey(t *testing.T) {
 		err.Error(),
 		"§12.4: the refusal names the pull request and the next actionable step")
 }
+
+// §3.1's two sources, and the order between them.
+//
+// §3.1.4 says `--intent-file` bypasses the command, and "bypass" is stronger
+// than "prefer": a run given a file must work with no tracker configured and no
+// tracker installed, so configuration is not read at all on that path. Reading
+// it first and using the file only where it disagreed would keep the promise by
+// accident and break it the first time a malformed config made config.Resolve
+// refuse — which is why the flag is answered before the resolution rather than
+// after it, and why this asserts an empty Cmd rather than merely a set File.
+//
+// With no file the source is `intent.cmd` as §2.7 resolves it, which for a
+// freshly initialised state root is §3.1.2's default.
+func TestTheIntentFileBypassesTheTrackerCommandRatherThanOutrankingIt(t *testing.T) {
+	layout := state.New(crHome(t))
+	require.NoError(t, layout.Init())
+
+	named, err := intentSource(layout, claimsOwner, claimsRepo, "/tmp/issue.txt")
+	require.NoError(t, err)
+	assert.Equal(t, intent.Source{File: "/tmp/issue.txt"}, named,
+		"§3.1.4: the file is the whole source, and intent.cmd is never resolved")
+
+	configured, err := intentSource(layout, claimsOwner, claimsRepo, "")
+	require.NoError(t, err)
+	assert.Empty(t, configured.File)
+	assert.Equal(t, []string{"jira", "issue", "view", intent.Placeholder, "--plain"},
+		configured.Cmd, "§3.1.2 is the default intent.cmd, resolved through §2.7's layers")
+}
