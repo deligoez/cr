@@ -190,3 +190,25 @@ func TestATieBecomesAnAbortNamingTheTiedProfiles(t *testing.T) {
 	var malformed *MalformedError
 	assert.NotErrorAs(t, selection.Err(), &malformed)
 }
+
+// The abort belongs to the tie alone. A repository one profile matches and a
+// repository none matches are both states cr carries on from — §2.4.4 answers
+// the second with a report and disabled axes, which is a run that continues, not
+// an exit — so an Err firing on either would stop work §2.4 requires to proceed,
+// and it would stop it with an error naming no profile at all.
+func TestOnlyATieAborts(t *testing.T) {
+	dir := profilesDir(t, map[string][]string{
+		"laravel-pest": {"artisan"},
+		"node":         {"package.json"},
+	})
+
+	selected, err := Select(dir, repoWith(t, "artisan"), "")
+	require.NoError(t, err)
+	require.True(t, selected.Selected)
+	assert.NoError(t, selected.Err())
+
+	none, err := Select(dir, repoWith(t), "")
+	require.NoError(t, err)
+	require.False(t, none.Selected)
+	assert.NoError(t, none.Err())
+}
