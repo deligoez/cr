@@ -184,3 +184,98 @@ func TestARefusalNamesTheRecordAndItsCurrentState(t *testing.T) {
 	assert.Equal(t, ActorRecord, illegal.Actor)
 }
 
+// `cr merge` is not a producer, and the way to keep that true is to leave it no
+// way to be one.
+//
+// The claim has two halves and the spec writes both. §9.1 says `cr merge` runs
+// on role output files before any record exists, so nothing it reads or writes
+// is in a §9.1 state; and §6.4.3's duplicate marking is applied by `cr record`
+// as it writes, so the one computed field §6.5.1 lets `cr merge` carry is not a
+// transition it made.
+//
+// The first half is structural. An Actor cannot be built outside transition.go,
+// so the set of commands that can ask for a transition is the set of Actor
+// literals in this package's own source — which is read here rather than
+// listed, so an `Actor{"cr merge"}` added years from now fails this test
+// instead of quietly making the merge a producer. Whether it also reached
+// `actors` would not matter: the value alone would be mintable inside the
+// package and passable to MayTransition.
+//
+// The second half is behavioural, driven through the doors `cr merge` actually
+// uses. A record it reads carries no state on the way in, because §6.1.4
+// reserves the field, and none on the way out, because nothing between them
+// sets one.
+func TestCrMergeIsNoProducerOfRecordState(t *testing.T) {
+	assert.ElementsMatch(t, specActors, actorMints(t),
+		"§9.1's third column is the whole set of commands that may move a record")
+	assert.Equal(t, specActors, actorNames(Actors()))
+
+	widened := Actors()
+	widened[0] = ActorBrief
+	assert.Equal(t, specActors, actorNames(Actors()), "the exported list is a copy, not the set")
+
+	merged, err := DecodePerRole(FanOutFile("test"), onLineThree(t, aRecord()), roundUnits)
+	require.NoError(t, err)
+	require.Len(t, merged, 2)
+	for _, record := range merged {
+		assert.False(t, record.State.Valid(),
+			"a record cr merge read is in no §9.1 state; cr record is what stamps one")
+		assert.Equal(t, Existing(State{}), Existing(record.State),
+			"and it is not Creation either, which is a From cr record supplies")
+	}
+
+	stated := aRecord()
+	stated["state"] = "draft"
+	_, err = DecodePerRole(FanOutFile("test"), onLineThree(t, stated), roundUnits)
+	var reserved *state.ReservedFieldError
+	require.ErrorAs(t, err, &reserved,
+		"§6.1.4: cr writes state, so no input file may arrive carrying one")
+	assert.Equal(t, "state", reserved.Field)
+}
+
+// actorMints returns the string of every Actor composite literal in this
+// package's own source, tests excluded. The literal is what a new actor has to
+// be written as — the field is unexported, so there is no conversion and no
+// other spelling — which makes this the complete list of commands that could
+// ever be handed to MayTransition.
+func actorMints(t *testing.T) []string {
+	t.Helper()
+	sources, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	scanned := 0
+	minted := make([]string, 0, len(specActors))
+	for _, source := range sources {
+		name := source.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		scanned++
+
+		ast.Inspect(parsed, func(node ast.Node) bool {
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			if named, ok := literal.Type.(*ast.Ident); !ok || named.Name != "Actor" {
+				return true
+			}
+			for _, element := range literal.Elts {
+				basic, ok := element.(*ast.BasicLit)
+				if !ok || basic.Kind != token.STRING {
+					continue
+				}
+				command, err := strconv.Unquote(basic.Value)
+				require.NoError(t, err)
+				minted = append(minted, command)
+			}
+			return true
+		})
+	}
+
+	// A walk that found nothing would pass and would mean nothing.
+	require.Greater(t, scanned, 5, "only %d files were scanned, so this guard proved nothing", scanned)
+	return minted
+}
