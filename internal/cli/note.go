@@ -57,18 +57,37 @@ func (r *retractResult) Text(w *writer) string {
 // the note to carry the pull request it came from and cr forms no opinion about
 // which one that was.
 //
-// §11's table gives `cr note` a second form, `--remove <note-id>`, which is not
-// v0.1's here: retraction has its own task, and it reaches this command as a
-// flag alongside these, not as a rewrite of them.
+// `--remove` is §11's second row for this command, and it takes no positional
+// at all: §3.6.1 forms an id as `<ISSUE-KEY>#n<n>`, so the id already names the
+// store it belongs to.
 func newNoteCmd(out *writer) *cobra.Command {
 	var source string
 	var pr int
+	var remove string
 
 	cmd := &cobra.Command{
 		Use:   "note <ISSUE-KEY> <text>",
 		Short: "Store an out-of-band fact against an issue key",
-		Args:  cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) error {
+		Args: func(cmd *cobra.Command, args []string) error {
+			if retracting(cmd) {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.ExactArgs(2)(cmd, args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if retracting(cmd) {
+				layout, err := state.Default()
+				if err != nil {
+					return err
+				}
+				retracted, err := note.Retract(layout, remove, time.Now())
+				if err != nil {
+					return err
+				}
+				return out.emit(&retractResult{
+					Note: retracted, Standing: retracted.Standing(),
+				})
+			}
 			parsed, err := note.ParseSource(source)
 			if err != nil {
 				return err
@@ -86,12 +105,29 @@ func newNoteCmd(out *writer) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&source, "source", "", "where the fact came from: "+sourceList())
 	cmd.Flags().IntVar(&pr, "pr", 0, "the pull request the fact came from")
-	// The error is a flag that does not exist, which the two lines above
-	// rule out.
-	_ = cmd.MarkFlagRequired("source")
-	_ = cmd.MarkFlagRequired("pr")
+	cmd.Flags().StringVar(&remove, "remove", "", "retract the note with this id (§3.6.6)")
+	// §3.6.1's two flags are required of an append and meaningless to a
+	// retraction, which is a different row of §11's table reached through
+	// the same command. cobra's required flags are unconditional, so the
+	// requirement is kept where the append is made instead — ParseSource
+	// refuses an absent `--source` and note.Append an absent `--pr`, both
+	// through §11.2's code 2, which is where cobra put them too. Naming
+	// them as exclusions here means `--remove` with either is refused
+	// rather than quietly ignoring one.
+	cmd.MarkFlagsMutuallyExclusive("remove", "source")
+	cmd.MarkFlagsMutuallyExclusive("remove", "pr")
 
 	return cmd
+}
+
+// retracting reports whether this run is §11's `cr note --remove <note-id>`
+// row rather than its `cr note <ISSUE-KEY> <text>` one.
+//
+// It reads whether the flag was given rather than whether it carries a value,
+// so `--remove ""` is a retraction of an empty id — refused as an id no note
+// bears — rather than silently becoming an append that was never asked for.
+func retracting(cmd *cobra.Command) bool {
+	return cmd.Flags().Changed("remove")
 }
 
 // sourceList renders §3.6.3's set for the flag's help, read out of the package
