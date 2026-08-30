@@ -63,3 +63,31 @@ func TestTheGenericProfileClustersByAdjacencyWithoutError(t *testing.T) {
 
 	assert.Equal(t, [][]git.Hunk{{hunks[0], hunks[1]}, {hunks[2]}}, groups)
 }
+
+// §3.4.4 measures adjacency between the last changed line of one hunk and the
+// first changed line of the next, and "at most" makes a gap of exactly
+// `cluster.gap_lines` join rather than split. The boundary is asserted from
+// both sides of one real pair of hunks, so the number under test is a gap the
+// diff has rather than one the test declared.
+//
+// A hunk with no changed line is the third case, and it is an absence rather
+// than a boundary: there is no line to measure from, so it joins nothing on
+// either side. git emits no such hunk — ParseHunks takes a hunk's changed
+// lines from its additions, or from its removals when it adds none — but the
+// type admits one, and reading it as adjacent would sweep lines nobody changed
+// into somebody's unit.
+func TestAdjacencyMeasuresTheGapBetweenChangedLines(t *testing.T) {
+	hunks, err := git.ParseHunks(threeHunks)
+	require.NoError(t, err)
+	pair := hunks[:2]
+	gap := 22 - 11
+
+	assert.Len(t, Adjacency(pair, gap), 1, "a gap of exactly cluster.gap_lines joins")
+	assert.Len(t, Adjacency(pair, gap-1), 2, "one line further apart than the gap splits")
+
+	contextOnly := git.Hunk{Path: "app/Money.php", BaseStart: 12, BaseLines: 3, HeadStart: 13, HeadLines: 3}
+	assert.Equal(t,
+		[][]git.Hunk{{hunks[0]}, {contextOnly}, {hunks[1]}},
+		Adjacency([]git.Hunk{hunks[0], contextOnly, hunks[1]}, gap),
+	)
+}
