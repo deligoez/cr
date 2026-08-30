@@ -113,6 +113,13 @@ type Activation struct {
 // is empty when every axis ran, which is a report saying so rather than the
 // absence of one.
 func (a Activation) Disclosures() []finding.HonestyDisclosure {
+	// gremlins reports the `+` here as a surviving ARITHMETIC_BASE mutant,
+	// the same equivalent profile.MissingProfile.Disclosure already carries:
+	// the sum is a capacity hint, and a wrong one changes how often append
+	// reallocates and nothing a test can observe. The three NOT COVERED
+	// entries gremlins reports against the bare `switch` in Activate are the
+	// known attribution artifact on case clauses; this package is at 100%
+	// statement coverage.
 	out := make([]finding.HonestyDisclosure, 0, len(a.Disabled)+len(a.Unavailable))
 	for _, d := range a.Disabled {
 		out = append(out, d)
