@@ -137,3 +137,111 @@ func TestAnAnswerLeavesTheAnsweredRecordByteIdentical(t *testing.T) {
 	assert.Contains(t, string(recorded), `"record":"f3"`)
 }
 
+// Every way `cr answer` can be refused, with the §11.2 code its cause carries.
+//
+// The three codes are three different faults. A malformed invocation is 2; a
+// pull request cr was never briefed on is a file it expected and did not find,
+// which is 3; and a pull request that resolved to no issue key is recorded
+// state under §3.2's fallback with nowhere to keep the answer, which is 1.
+func TestAnswerRefusesWithTheCodeItsCauseCarries(t *testing.T) {
+	for name, refusal := range map[string]struct {
+		issueKey string
+		briefed  bool
+		args     []string
+		code     int
+	}{
+		"a record id §6.1 does not spell": {
+			issueKey: "CR-7", briefed: true,
+			args: []string{answeredPR, "f03", "answered", "--source", "chat", "--repo", answeredSlug},
+			code: ExitUsage,
+		},
+		"no record id at all": {
+			issueKey: "CR-7", briefed: true,
+			args: []string{answeredPR, "answered", "--source", "chat", "--repo", answeredSlug},
+			code: ExitUsage,
+		},
+		"no source": {
+			issueKey: "CR-7", briefed: true,
+			args: []string{answeredPR, "f3", "answered", "--repo", answeredSlug},
+			code: ExitUsage,
+		},
+		"an unlisted source": {
+			issueKey: "CR-7", briefed: true,
+			args: []string{answeredPR, "f3", "answered", "--source", "gossip", "--repo", answeredSlug},
+			code: ExitUsage,
+		},
+		"no repository": {
+			issueKey: "CR-7", briefed: true,
+			args: []string{answeredPR, "f3", "answered", "--source", "chat"},
+			code: ExitUsage,
+		},
+		"a pull request that is not one": {
+			issueKey: "CR-7", briefed: true,
+			args: []string{"zero", "f3", "answered", "--source", "chat", "--repo", answeredSlug},
+			code: ExitUsage,
+		},
+		"a pull request cr has never briefed": {
+			briefed: false,
+			args:    []string{answeredPR, "f3", "answered", "--source", "chat", "--repo", answeredSlug},
+			code:    ExitFile,
+		},
+		"a pull request that resolved to no issue key": {
+			issueKey: "", briefed: true,
+			args: []string{answeredPR, "f3", "answered", "--source", "chat", "--repo", answeredSlug},
+			code: ExitValidation,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var layout state.Layout
+			if refusal.briefed {
+				layout = briefedHome(t, refusal.issueKey)
+			} else {
+				layout = state.New(crHome(t))
+				require.NoError(t, layout.Init())
+			}
+
+			out, err := runAnswer(t, refusal.args...)
+			require.Error(t, err)
+			assert.Equal(t, refusal.code, exitCodeFor(err))
+			assert.Empty(t, out, "a refused run prints no note")
+			assert.NoFileExists(t, layout.ContextFile("CR-7"))
+		})
+	}
+}
+
+// answerSource are the non-test files `cr answer` is made of: the command
+// itself and the package that owns §3.6's store. Everything they call below
+// that is shared infrastructure whose per-PR write door is a method on the
+// exclusive lock, so a caller that never takes the lock reaches none of it.
+//
+// Tests are excluded on purpose. This says what the command does when it runs;
+// the tests beside it are what put the record on disk for it to leave alone,
+// and they must be free to write the very state the command may not.
+func answerSource(t *testing.T) []string {
+	t.Helper()
+	root := moduleRoot(t)
+
+	files := []string{filepath.Join(root, "internal", "cli", "answer.go")}
+	matched, err := filepath.Glob(filepath.Join(root, "internal", "note", "*.go"))
+	require.NoError(t, err)
+	for _, path := range matched {
+		if !strings.HasSuffix(path, "_test.go") {
+			files = append(files, path)
+		}
+	}
+	require.Greater(t, len(files), 3, "only %d files were scanned, so this guard proved nothing", len(files))
+	return files
+}
+
+// stateWriters are the names that can reach a record's state: the constructor
+// of the exclusive per-PR lock, the three writers that are methods on it, and
+// the two §2.3 files a record's state and its history live in.
+//
+// They are searched for as text, which is what a file that never mentions one
+// cannot be doing anything with. Nothing here is reachable by another spelling:
+// the lock's fields are unexported, so its constructor is the only way to hold
+// one, and every write to §2.3's files goes through a method that demands it.
+var stateWriters = []string{
+	"LockPR", "WriteStamped", "WriteRecords", "WriteMeta", "FileFindings", "FileTransitions",
+}
+
