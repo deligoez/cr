@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T09:56:05.781575Z",
+  "updated_at": "2026-08-30T10:39:33.880414Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1708,7 +1708,7 @@
     {
       "id": "symbol-detectability-fallthrough",
       "title": "Fall through to adjacency without error",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "changed-line-definition",
@@ -1719,11 +1719,26 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T09:56:12.939112Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T10:39:33.840822Z",
+      "closed_reason": "- internal/unit/symbols.go answers §3.4.3 with unit.Detectable, which returns true only when the profile declares symbols.lang and the SymbolIndex it is handed reports the file indexed, and false for each half missing on its own, a nil index being cr having none until §4.3.1's index exists.\n- The answer is one bit and no error, and Adjacency in internal/unit/adjacency.go is the fallthrough it sends a file to: it groups one file's hunks on the gap between the last changed line of one and the first changed line of the next, returns no error, and neither call has any channel through which the absent symbols.lang could be reported, which is the opposite of profile.MissingProfile carrying ReinventionLens in Unavailable for the same absent field.\n- TestTheGenericProfileClustersByAdjacencyWithoutError parses the shipped generic profile, asserts it declares no symbols.lang and that Detectable is false even against an index covering the file, then clusters a three-hunk diff by adjacency into the two groups the default gap of 12 produces, with no error anywhere in the path. TestASymbolIsDetectableOnlyWithBothALanguageAndAnIndex, TestAdjacencyMeasuresTheGapBetweenChangedLines and TestAdjacencyGroupsNothingOutOfNoHunks cover the detectability halves, the gap boundary from both sides plus a hunk with no changed line, and the empty input.",
+      "gate_passed_at": "2026-08-30T10:39:33.840822Z",
+      "commit_sha": "fbfd733",
+      "commit_shas": [
+        "fbfd733",
+        "816e8cd",
+        "7ac57fc",
+        "f9ae3ad",
+        "cc8f7c8",
+        "42b0c79"
+      ],
+      "commit_files": [
+        "internal/unit/adjacency.go",
+        "internal/unit/adjacency_test.go",
+        "internal/unit/symbols.go",
+        "internal/unit/symbols_test.go"
+      ]
     },
     {
       "id": "hunk-clustering",
