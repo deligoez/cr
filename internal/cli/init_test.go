@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,4 +68,55 @@ func TestInitWritesTheShippedProfiles(t *testing.T) {
 	onDisk, err := os.ReadFile(edited)
 	require.NoError(t, err)
 	assert.Equal(t, `{"id": "laravel-pest"}`, string(onDisk))
+}
+
+// runInit runs `cr init` with the given flags through the real command tree,
+// so what a test measures is what a user would get.
+func runInit(t *testing.T, args ...string) {
+	t.Helper()
+	cmd := newRootCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetArgs(append([]string{"init"}, args...))
+	require.NoError(t, cmd.Execute())
+}
+
+// §2.5.2 requires `cr init --eject-roles` to write the defaults as editable
+// files that are byte-identical to the built-ins. Byte-identical is the whole
+// of it: the file a user is invited to edit has to start as the reviewed file
+// this repository ships, not as whatever an encoder would produce from it.
+//
+// The second eject is the other half of §2.5.2's word `editable`. Re-running
+// the flag has to complete a tree without reverting an edit, because cr still
+// holds the default in the binary while the user holds the only copy of what
+// they wrote.
+func TestEjectRolesWritesTheBuiltinsByteForByte(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".cr")
+	t.Setenv(state.HomeEnv, root)
+	ejected := func(t *testing.T, id string) string {
+		t.Helper()
+		onDisk, err := os.ReadFile(filepath.Join(root, "roles", id+".json"))
+		require.NoError(t, err)
+		return string(onDisk)
+	}
+
+	runInit(t, "--eject-roles")
+
+	shipped := role.Builtins()
+	require.Contains(t, shipped, "correctness", "§2.5.1 fixes which four roles ship")
+	for id, content := range shipped {
+		assert.Equal(t, content, ejected(t, id))
+	}
+
+	const edit = `{"id": "correctness"}`
+	mine := filepath.Join(root, "roles", "correctness.json")
+	require.NoError(t, os.WriteFile(mine, []byte(edit), 0o600))
+	runInit(t, "--eject-roles")
+
+	assert.Equal(t, edit, ejected(t, "correctness"), "a second eject reverts no edit")
+	for id, content := range shipped {
+		if id == "correctness" {
+			continue
+		}
+		assert.Equal(t, content, ejected(t, id), "and leaves the rest as they were")
+	}
 }
