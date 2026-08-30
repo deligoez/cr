@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T23:26:59.844227Z",
+  "updated_at": "2026-08-30T23:56:09.024041Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2554,7 +2554,7 @@
     {
       "id": "brief-creates-state",
       "title": "Create per-PR state on first brief",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "unit-id-total-ordering",
@@ -2566,16 +2566,58 @@
       "source_sections": [
         "### 3.7 Orientation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T23:27:59.386821Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T23:56:04.689806Z",
+      "closed_reason": "- internal/brief's Run assembles §3.7's payload and persist writes meta.json with round 1 and the recorded head set to the current head (gh's headRefOid, never a local ref), units.ndjson stamped per §2.3.3, and threads.ndjson, under one hold of the §2.3.1 lock; TestAFirstBriefOpensRoundOneAndRecordsTheDerivedInputs asserts all three off disk rather than off the returned payload.\n- The persistence is an obligation and not a permission: EnsurePR materialises the whole §2.3 table before the three writes, so §4.1.6's and §4.5.6's unit ids, §9.3.1's and §9.3.3's recorded head, and §3.5.3's ingested threads all have an authoritative file, and the same test asserts every file of state.PRFiles() exists afterwards.\n- state.Layout.Briefed is the single door onto §2.3's per-round files: it refuses an absent meta.json and one carrying round 0 alike with state.NotBriefedError, whose message names `cr brief \u003cpr\u003e --repo \u003cowner\u003e/\u003crepo\u003e` per §12.4, internal/cli/exit.go maps it onto §11.2's code 4, and cr claims record and cr record now read the round through it instead of ReadMeta.\n- TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief runs every registered per-round-state reader against a never-briefed pull request and asserts exit 4 plus the hint; cr review, cr cells record and cr map record are not registered in v0.1 yet, so TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent pins all three as absent and fails the moment one is built without an invocation in briefRuns, where the first test then runs it.",
+      "gate_passed_at": "2026-08-30T23:56:04.689806Z",
+      "commit_sha": "cdc53e5",
+      "commit_shas": [
+        "cdc53e5",
+        "14ac5e5",
+        "b78d7b0",
+        "38502d1",
+        "f22f563",
+        "98ae01e",
+        "af8627c",
+        "9998b53",
+        "c08156f",
+        "c5cbab5",
+        "0c7a13e",
+        "de47931",
+        "3a3fd63",
+        "f6a9aeb",
+        "9b3cf61",
+        "da20ec8",
+        "33b2c24",
+        "d369599",
+        "8b20bea"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/brief_test.go",
+        "internal/brief/store.go",
+        "internal/cli/brief.go",
+        "internal/cli/briefed_test.go",
+        "internal/cli/claims.go",
+        "internal/cli/context_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/record.go",
+        "internal/cli/root.go",
+        "internal/gh/pr.go",
+        "internal/gh/pr_test.go",
+        "internal/gh/testdata/pull-request.json",
+        "internal/state/briefed.go",
+        "internal/state/briefed_test.go",
+        "internal/unit/record.go"
+      ]
     },
     {
       "id": "brief-payload",
       "title": "Print the six-part orientation payload",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "brief-creates-state",
@@ -2588,7 +2630,8 @@
       "source_sections": [
         "### 3.7 Orientation"
       ],
-      "started_at": null,
+      "started_at": "2026-08-30T23:56:09.02404Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
