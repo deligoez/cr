@@ -20,15 +20,17 @@ import (
 )
 
 // execProgram reports the program an exec.Command or exec.CommandContext call
-// starts, and whether the call starts one at all.
+// starts, and whether the call starts one at all. within is the function the
+// call sits in, because one of the two sanctioned forms takes its program out
+// of that function's own argument.
 //
-// A program that is not a plain string literal is reported as unfixed rather
-// than passed over. The reader of a runner cannot say which command such a
-// call runs, so neither can this guard, and the unanswerable case is the one
-// that has to fail. An aliased import of os/exec fails the same way, from the
-// other direction: the call is then invisible here and the runner it sits in
-// goes missing from the result.
-func execProgram(call *ast.CallExpr) (string, bool) {
+// A program named any other way is reported as unfixed rather than passed
+// over. The reader of a runner cannot say which command such a call runs, so
+// neither can this guard, and the unanswerable case is the one that has to
+// fail. An aliased import of os/exec fails the same way, from the other
+// direction: the call is then invisible here and the runner it sits in goes
+// missing from the result.
+func execProgram(within *ast.FuncDecl, call *ast.CallExpr) (string, bool) {
 	fun, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return "", false
@@ -51,31 +53,104 @@ func execProgram(call *ast.CallExpr) (string, bool) {
 	if len(call.Args) <= at {
 		return "", false
 	}
-	literal, ok := call.Args[at].(*ast.BasicLit)
-	if !ok || literal.Kind != token.STRING {
-		return "a program named at run time", true
+	if literal, isLiteral := call.Args[at].(*ast.BasicLit); isLiteral && literal.Kind == token.STRING {
+		name, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			return "a program named at run time", true
+		}
+		return name, true
 	}
-	name, err := strconv.Unquote(literal.Value)
-	if err != nil {
-		return "a program named at run time", true
+	if name, whole := wholeArgv(within, call, at); whole {
+		return "the whole of its " + name + " argument", true
 	}
-	return name, true
+	return "a program named at run time", true
 }
 
-// §14.1 gives cr three runtime dependencies, and two of them are programs cr
+// wholeArgv reports the []string parameter a call starts in full: its first
+// element as the program, the rest as the arguments, and nothing besides.
+//
+// This is the second sanctioned way to name a program, and §3.1.1 is why it
+// exists: the tracker is argv the user configures, so its runner cannot name a
+// literal the way internal/git and internal/gh do. It is a narrowing and not
+// an exemption. The program and every argument are one slice the caller handed
+// over, so the runner cannot append an argument, cannot pick a different
+// element, and cannot fall back to a name of its own — a fourth dependency
+// would have to be smuggled past the caller, and the caller is where §2.7's
+// configuration is. Everything the old rule rejected it still rejects: a
+// package-level variable, a field, a name assembled at run time, and a slice
+// the runner built rather than received all fail here.
+func wholeArgv(within *ast.FuncDecl, call *ast.CallExpr, at int) (string, bool) {
+	if within == nil || within.Type.Params == nil || call.Ellipsis == token.NoPos {
+		return "", false
+	}
+	// The program: argv[0], where argv is a []string parameter.
+	index, ok := call.Args[at].(*ast.IndexExpr)
+	if !ok {
+		return "", false
+	}
+	argv, ok := index.X.(*ast.Ident)
+	if !ok || !stringSliceParam(within, argv.Name) {
+		return "", false
+	}
+	if first, isLiteral := index.Index.(*ast.BasicLit); !isLiteral || first.Kind != token.INT || first.Value != "0" {
+		return "", false
+	}
+	// The arguments: argv[1:]..., and nothing after them.
+	if len(call.Args) != at+2 {
+		return "", false
+	}
+	rest, ok := call.Args[at+1].(*ast.SliceExpr)
+	if !ok || rest.High != nil || rest.Max != nil {
+		return "", false
+	}
+	if tail, isIdent := rest.X.(*ast.Ident); !isIdent || tail.Name != argv.Name {
+		return "", false
+	}
+	if from, isLiteral := rest.Low.(*ast.BasicLit); !isLiteral || from.Kind != token.INT || from.Value != "1" {
+		return "", false
+	}
+	return argv.Name, true
+}
+
+// stringSliceParam reports whether fn takes a []string parameter under name.
+//
+// A parameter is the point. A package-level variable of the same type would
+// read identically at the call site and could hold anything by the time the
+// call runs; a parameter can only hold what the caller passed.
+func stringSliceParam(fn *ast.FuncDecl, name string) bool {
+	for _, field := range fn.Type.Params.List {
+		array, ok := field.Type.(*ast.ArrayType)
+		if !ok || array.Len != nil {
+			continue
+		}
+		if elem, isIdent := array.Elt.(*ast.Ident); !isIdent || elem.Name != "string" {
+			continue
+		}
+		for _, ident := range field.Names {
+			if ident.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// §14.1 gives cr three runtime dependencies, and all three are programs cr
 // starts itself.
 //
 // TestCrReachesTheNetworkThroughOneRunnerAndNoOtherWay already fixes where a
-// process may be started: os/exec is imported by the two files in runners and
-// by nothing else. This fixes what those two start, which is a different
-// claim that the first does not imply — an import scan reads
-// exec.Command(helper, ...) exactly as it reads exec.Command("git", ...), so
-// a fourth dependency introduced inside a runner passes it untouched.
+// process may be started: os/exec is imported by the files in runners and by
+// nothing else. This fixes what those files start, which is a different claim
+// that the first does not imply — an import scan reads exec.Command(helper,
+// ...) exactly as it reads exec.Command("git", ...), so a fourth dependency
+// introduced inside a runner passes it untouched.
 //
-// Requiring a literal costs the runners nothing, because each exists to drive
-// exactly one command, and the result below says so: two runners, two
-// invocations, one program each.
-func TestTheRunnersStartNothingButGitAndGh(t *testing.T) {
+// git and gh name a literal, which costs them nothing: each runner exists to
+// drive exactly one command. The tracker cannot, because §3.1.1 makes its argv
+// the user's to write, so it is held to wholeArgv instead — one program per
+// invocation, taken whole out of the array it was handed. The result below
+// says so: three runners, three invocations, one program each.
+func TestTheRunnersStartGitGhAndTheConfiguredTracker(t *testing.T) {
 	root := moduleRoot(t)
 
 	var found []string
@@ -83,23 +158,31 @@ func TestTheRunnersStartNothingButGitAndGh(t *testing.T) {
 		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
 		require.NoError(t, err)
 
-		ast.Inspect(parsed, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
+		// Every top-level declaration is walked, not only the
+		// functions, so an exec call in a package-level initialiser is
+		// seen — with no enclosing function, and therefore no argument
+		// to be the whole of.
+		for _, decl := range parsed.Decls {
+			within, _ := decl.(*ast.FuncDecl)
+			ast.Inspect(decl, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if program, isExec := execProgram(within, call); isExec {
+					found = append(found, rel+" starts "+program)
+				}
 				return true
-			}
-			if program, isExec := execProgram(call); isExec {
-				found = append(found, rel+" starts "+program)
-			}
-			return true
-		})
+			})
+		}
 	}
 
 	slices.Sort(found)
 	assert.Equal(t, []string{
 		filepath.Join("internal", "gh", "run.go") + " starts gh",
 		filepath.Join("internal", "git", "run.go") + " starts git",
-	}, found, "§14.1: git and gh are the only programs cr starts, one to each runner")
+		filepath.Join("internal", "intent", "run.go") + " starts the whole of its argv argument",
+	}, found, "§14.1: git, gh, and the configured tracker are the only programs cr starts, one to each runner")
 }
 
 // crBinary builds cr and returns the path to the binary it produced.
@@ -158,7 +241,7 @@ func strippedPath(t *testing.T) string {
 // cr runs with git and gh on PATH and nothing else, which is §14.1 asserted as
 // a run rather than as a reading of the source.
 //
-// It is the other half of TestTheRunnersStartNothingButGitAndGh, and neither
+// It is the other half of TestTheRunnersStartGitGhAndTheConfiguredTracker, and neither
 // half restates the other. That one reads what the source names and cannot see
 // a program reached by an absolute path, which needs no PATH entry at all;
 // this one runs the binary and cannot see a dependency the exercised commands
