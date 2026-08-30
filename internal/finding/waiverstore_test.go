@@ -176,6 +176,21 @@ func TestAWaiverIsReadableAndRemovableFromEitherScope(t *testing.T) {
 			"§7.4.4 stores a pull-request-scoped waiver in that pull request's directory")
 	})
 
+	// The first pull request of a repository is the boundary that refusal
+	// sits next to, and the one a reviewer would meet on a new repository.
+	t.Run("the first pull request is a pull request", func(t *testing.T) {
+		first := theProvenance()
+		first.PR = 1
+		waiver, err := WaiverFor(&notHere)
+		require.NoError(t, err)
+		recorded, err := Waive(layout, waiverOwner, waiverRepo, &waiver, first)
+		require.NoError(t, err)
+
+		removed, err := RemoveWaiver(layout, waiverOwner, waiverRepo, 1, recorded.ID)
+		require.NoError(t, err)
+		assert.Equal(t, recorded, removed)
+	})
+
 	// Nothing cites a waiver by id, so an emptied file starting again at one
 	// strands no record — which is the whole of why §7.4.7 deletes where
 	// §3.6.6 marks, and it is asserted rather than left to the comment.
