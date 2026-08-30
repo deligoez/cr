@@ -133,3 +133,19 @@ func TestNoSourceYieldsNoKey(t *testing.T) {
 	assert.Equal(t, Key{Value: "", Origin: KeyAbsent}, key)
 }
 
+// A pattern that can match the empty string is reachable — `intent.key_pattern`
+// is a user's string, and `[A-Z]*` is a plausible attempt at "any key". It
+// matches at position zero of the first source, so a resolution reading "the
+// regexp matched" as "a key was found" would report an empty key from the flag
+// and never consult the branch. An empty key is not a key: what is asserted is
+// that the run reaches §3.2's fallback rather than a key nobody can look up.
+func TestAPatternThatMatchesTheEmptyStringYieldsNoKey(t *testing.T) {
+	key, err := ResolveKey(KeySources{
+		Branch: "feature/add-a-thing",
+		Title:  "add a thing",
+	}, `[A-Z]*`)
+
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "", Origin: KeyAbsent}, key)
+}
+
