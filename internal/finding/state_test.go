@@ -76,3 +76,32 @@ func TestTheSevenStatesAreTheOnesTheSpecWrites(t *testing.T) {
 	assert.Equal(t, specStates, names(States()))
 }
 
+// §1.1 defines Open as any record in a non-terminal state per §9.1, which makes
+// the open set a derivation and not a list. Both halves are asserted against
+// §9.1's whole table so that they stay a partition of it: §10.2.4 reads the open
+// set as "no record remains in `draft` or `queued`", and a state that fell out
+// of both halves — or into both — would make that a wrong verdict about whether
+// a round is finished, in either direction.
+func TestOpenIsEveryStateThatIsNotTerminal(t *testing.T) {
+	open, closed := make([]string, 0), make([]string, 0)
+	for _, s := range States() {
+		require.NotEqual(t, s.Open(), s.Terminal(), "%s is neither open nor terminal, or both", s)
+		if s.Terminal() {
+			closed = append(closed, s.String())
+			continue
+		}
+		open = append(open, s.String())
+	}
+	assert.ElementsMatch(t, specTerminal, closed)
+	assert.Equal(t, []string{"draft", "queued"}, open)
+	assert.Equal(t, open, names(OpenStates()))
+
+	// A record that has been through no §9.1 transition is in no state at
+	// all. Reading it as open would make every unstamped record hold a
+	// round back; reading it as terminal would let one out unposted.
+	var none State
+	assert.False(t, none.Valid())
+	assert.False(t, none.Open())
+	assert.False(t, none.Terminal())
+}
+
