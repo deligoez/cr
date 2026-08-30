@@ -246,4 +246,3 @@ func TestARefusedClaimLeavesTheRoundExactlyAsItWas(t *testing.T) {
 	assert.Equal(t, string(mappingBefore), string(mappingAfter),
 		"and the mapping it would have cleared stands with it")
 }
-
