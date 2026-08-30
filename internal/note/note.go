@@ -91,6 +91,12 @@ type Note struct {
 	// scope: §3.6.4 has the note load for every later pull request that
 	// resolves to the same issue key.
 	PR int `json:"pr"`
+	// Record is the record this note answers (§3.6.2), spelled as §6.1
+	// spells one, and empty on a note that answers none. It is read
+	// together with PR above rather than alone: §11 scopes a record id to
+	// its pull request, so the pair is the reference and the id by itself
+	// is not.
+	Record string `json:"record,omitempty"`
 	// RecordedAt is §3.6.1's timestamp, in UTC.
 	RecordedAt time.Time `json:"recorded_at"`
 }
