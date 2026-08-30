@@ -39,6 +39,10 @@ type Cluster struct {
 	Formation Formation
 	// Hunks are the cluster's hunks, in the order the diff gave them.
 	Hunks []git.Hunk
+	// Oversized marks §3.4.5's one exception: a cluster holding a single
+	// hunk whose own changed lines already exceed `cluster.max_lines`.
+	// Split sets it; §3.4.4 forms no cluster carrying it.
+	Oversized bool
 }
 
 // Clusters forms §3.4.4's clusters out of one round's hunks.
