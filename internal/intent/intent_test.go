@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/finding"
 )
 
 // §3.2's fallback is two claims in one sentence — cr continues, and the intent
@@ -88,4 +89,44 @@ func TestAResolvedKeyLeavesTheIntentAxisAvailable(t *testing.T) {
 	unavailable, marked := intent.Unavailability()
 	assert.False(t, marked, "the axis ran, so §4.5.4 has nothing to report about it")
 	assert.Equal(t, Unavailable{}, unavailable, "and no entry to hand a caller that ignores the bool")
+}
+
+// §11.1 exempts every lens of §4.5.4 that did not run from `--quiet`, and the
+// exemption belongs to the shared writer rather than to each call site, so the
+// report has to arrive there as a disclosure. Implementing
+// finding.HonestyDisclosure is what makes that possible before the writer exists
+// — the same contract profile.MissingProfile and testadequacy.Unavailable
+// already satisfy, so §4.5.4 collects all three through one interface.
+//
+// The text is asserted against the fields rather than against a literal, because
+// the two must not be able to drift: an axis counted as out in the data and left
+// out of the printed report would be honest to a caller reading JSON and silent
+// to the human reading a terminal.
+//
+// An empty Source is the second claim here. §3.1.1 refuses an empty `intent.cmd`
+// before anything is started, so a nil error proves the source was not merely
+// unused but never reached.
+func TestTheUnavailableIntentAxisIsAnHonestyDisclosure(t *testing.T) {
+	var _ finding.HonestyDisclosure = Unavailable{}
+
+	intent, err := Resolve(KeySources{Branch: "feature/add-a-thing"}, specDefaultPattern, Source{})
+	require.NoError(t, err)
+	unavailable, marked := intent.Unavailability()
+	require.True(t, marked)
+
+	disclosure := unavailable.Disclosure()
+	assert.Contains(t, disclosure, unavailable.Axis)
+	assert.Contains(t, disclosure, unavailable.Reason)
+	// §4.5 spends `disabled` and `unavailable` on two different states, and
+	// this is the second: nothing was switched off, a prerequisite the axis
+	// cannot supply itself is missing.
+	assert.Contains(t, disclosure, "axis "+axis.Intent+" unavailable")
+	// A key the author can see in the branch and a pattern that does not
+	// match its shape look identical from outside, so the reason names the
+	// setting and the expression the resolution actually ran with.
+	assert.Contains(t, disclosure, "intent.key_pattern")
+	assert.Contains(t, disclosure, specDefaultPattern)
+	// §12.4's next actionable step, which is the user's: the flag §3.2 puts
+	// first, or the pattern that would have recognised what is already there.
+	assert.Contains(t, disclosure, "--issue")
 }
