@@ -232,3 +232,41 @@ func TestAWaiverStopsMatchingOnceTheAnchoredLinesChange(t *testing.T) {
 	assert.NotEqual(t, key, WaiverKeyOf(&edited),
 		"§7.4.2: the waiver stops once that code changes, which is when the judgement behind it is worth revisiting")
 }
+
+// §7.4.1 does not let a caller choose where a waiver reaches: the scope follows
+// the disposition, `wrong` to the repository and `not-here` to the pull request.
+// Both directions are asserted here, over one record that differs between the
+// two runs in the disposition alone, so what moves the scope is the only thing
+// that changed.
+//
+// The names are asserted too, because §7.4.7 prints the scope beside the
+// disposition and §7.4.4 selects a file by it — a scope that could not say which
+// of the two it is would leave both of those to guess.
+func TestAWaiverScopeFollowsItsDisposition(t *testing.T) {
+	for _, expected := range []struct {
+		disposition Disposition
+		scope       WaiverScope
+		name        string
+	}{
+		{DispositionWrong, ScopeRepository, "repository"},
+		{DispositionNotHere, ScopePullRequest, "pull-request"},
+	} {
+		t.Run(string(expected.disposition), func(t *testing.T) {
+			discarded, _ := theSameDefectAtTheSameCode(t)
+			discarded.Disposition = expected.disposition
+
+			waiver, err := WaiverFor(&discarded)
+			require.NoError(t, err)
+
+			scope, err := waiver.Scope()
+			require.NoError(t, err)
+			assert.Equal(t, expected.scope, scope,
+				"§7.4.1: a waiver written for %q is scoped there and nowhere else", expected.disposition)
+			assert.Equal(t, expected.name, scope.String(),
+				"§7.4.7 prints the scope, and §7.4.4 selects one of two files by it")
+		})
+	}
+
+	assert.NotEqual(t, ScopeRepository, ScopePullRequest,
+		"§7.2: the two dispositions are deliberately distinct, and collapsing their scopes collapses them")
+}
