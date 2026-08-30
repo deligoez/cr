@@ -266,3 +266,16 @@ func TestAMalformedRoleAbortsResolutionWhicheverLayerHoldsIt(t *testing.T) {
 	}
 }
 
+// The built-in layer goes through the same loader, so a shipped file cr could
+// not read stops the run rather than being trusted unread. It cannot be reached
+// through Resolve — a guard test already holds the four shipped files to §2.5 —
+// so the parse is exercised where it lives, which is also what keeps the branch
+// from being an unexecuted claim.
+func TestAMalformedShippedRoleAbortsToo(t *testing.T) {
+	_, err := parseAll(map[string]string{"correctness": "{"})
+
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "correctness"+fileExt, malformed.File, "a shipped role is named as the file it ejects to")
+}
+
