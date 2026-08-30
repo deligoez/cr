@@ -25,7 +25,30 @@ func (r *noteResult) Text(w *writer) string {
 	return "recorded " + w.accent(r.Note.ID) + " from " + string(r.Note.Source)
 }
 
-// newNoteCmd stores one out-of-band fact against an issue key (§3.6.1).
+// retractResult is what `cr note --remove` has to report: the note as it now
+// stands, and what a citation of it may now do (§3.6.6).
+type retractResult struct {
+	// Note is the record as it now sits on disk, carrying its retraction.
+	// It is printed whole for the reason contextResult prints one whole:
+	// the text is how the reader recognises the records that rested on it.
+	Note note.Note `json:"note"`
+	// Standing is what a record or coverage cell citing this note may now
+	// do. It is reported rather than left to be inferred from the
+	// timestamp, because it is the one value §6.3's register and §8.1.6's
+	// provenance region both turn on.
+	Standing note.Standing `json:"standing"`
+}
+
+// Text names the id and says plainly what the retraction did to whatever rested
+// on it. §3.6.6 asks for the dependants to be reported rather than silently
+// retained, and this is that report reaching the person who just retracted it.
+func (r *retractResult) Text(w *writer) string {
+	return "retracted " + w.accent(r.Note.ID) +
+		": every record and coverage cell citing it needs re-evaluation, and none may assert on it"
+}
+
+// newNoteCmd stores one out-of-band fact against an issue key (§3.6.1), and
+// retracts one through `--remove` (§3.6.6).
 //
 // The store is keyed by issue and not by pull request, so this command takes no
 // `<pr>` positional: §3.6.4 has the note load for every later round and every
