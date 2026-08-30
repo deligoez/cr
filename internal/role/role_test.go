@@ -2,6 +2,7 @@ package role
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -106,5 +107,28 @@ func TestTheIDMustBeTheKebabCaseFileStem(t *testing.T) {
 			assert.Contains(t, err.Error(), path)
 			assert.Contains(t, err.Error(), c.says)
 		})
+	}
+}
+
+// §2.5 marks title, axis, and instructions required, and §2.5.3 requires the
+// abort to name the offending field: a message saying only "malformed role"
+// leaves the user opening every field by hand. Blank counts as absent, because
+// a title of " " is not a human label and instructions of " " frame nothing,
+// and the fix is the same one either way.
+func TestEveryRequiredTextFieldIsNamedWhenItIsBlank(t *testing.T) {
+	for _, field := range []string{"title", "axis", "instructions"} {
+		for _, value := range []any{nil, "", "   "} {
+			t.Run(fmt.Sprintf("%s is %q", field, value), func(t *testing.T) {
+				path := roleFile(t, "test-adequacy", map[string]any{field: value})
+
+				_, err := Load(path)
+
+				var malformed *MalformedError
+				require.ErrorAs(t, err, &malformed)
+				assert.Equal(t, field, malformed.Field)
+				assert.Equal(t, "is required", malformed.Problem)
+				assert.Contains(t, err.Error(), path)
+			})
+		}
 	}
 }
