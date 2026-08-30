@@ -121,3 +121,23 @@ func TestThePerRepositoryRoleWinsWholeAcrossAllThreeLayers(t *testing.T) {
 	assert.Equal(t, axis.Convention, resolved[0].Role.Axis, "even the axis comes from the winning file")
 }
 
+// The second half of §2.5.4, on its own: with no per-repository copy the global
+// file must win over the built-in one, which is the case a user's edit to
+// ~/.cr/roles/<id>.json depends on. Asserting it apart from the three-layer
+// case is what separates a resolver that prefers the highest present layer from
+// one that only ever prefers the repository.
+func TestTheGlobalRoleWinsOverTheBuiltinOne(t *testing.T) {
+	const id = "convention"
+	require.Contains(t, Builtins(), id)
+
+	globalFile := roleJSON(t, id, map[string]any{"title": "The global convention lens"})
+
+	got, err := Resolve(absentDir(t), layerDir(t, map[string]string{id: globalFile}))
+	require.NoError(t, err)
+
+	resolved := entriesFor(got, id)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, GlobalLayer, resolved[0].Layer)
+	assert.Equal(t, "The global convention lens", resolved[0].Role.Title)
+}
+
