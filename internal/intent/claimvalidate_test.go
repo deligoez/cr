@@ -3,6 +3,7 @@ package intent
 import (
 	"testing"
 
+	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,6 +92,75 @@ func TestAClaimMustSupplyEveryRequiredRow(t *testing.T) {
 			assert.Equal(t,
 				"claims.ndjson line 3: "+tc.field+
 					" is required by §3.3 and this claim does not supply it",
+				err.Error())
+		})
+	}
+}
+
+// §3.3 marks `span_hash` and `issue_hash` computed and §3.3.1 has cr compute
+// both itself, so a claim arriving with either is refused. §6.1.4 names the
+// same two among the fields no agent may supply, and the refusal is reported
+// through the type that already carries §2.3.3's head and round half, so the
+// whole fence has one answer and one exit code.
+//
+// Presence alone is the test. `"issue_hash": null` is a key the agent wrote,
+// and the stakes are §3.3.3's: drift is detected by comparing the stored
+// `issue_hash` against a fresh one, so an agent that could write that row could
+// make a changed issue report no drift at all.
+//
+// The fence is walked before the required rows, so a line that both oversteps
+// and omits is reported by the overstep — the fault that says the file was
+// produced against the wrong contract, which no amount of filling rows in will
+// fix.
+func TestAnAgentMayNotSupplyTheClaimHashes(t *testing.T) {
+	for name, tc := range map[string]struct{ line, field string }{
+		"a span hash of its own": {
+			line: `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s",` +
+				`"span_hash":"0123456789abcdef"}`,
+			field: "span_hash",
+		},
+		"an issue hash of its own": {
+			line: `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s",` +
+				`"issue_hash":"0123456789abcdef"}`,
+			field: "issue_hash",
+		},
+		"a null span hash": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","span_hash":null}`,
+			field: "span_hash",
+		},
+		"an empty issue hash": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","issue_hash":""}`,
+			field: "issue_hash",
+		},
+		"both, named by the first": {
+			line: `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s",` +
+				`"issue_hash":"a","span_hash":"b"}`,
+			field: "span_hash",
+		},
+		"an overstep on a line that also omits": {
+			line:  `{"span_hash":"0123456789abcdef"}`,
+			field: "span_hash",
+		},
+		"a head of its own": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","head":"0f1e2d3"}`,
+			field: "head",
+		},
+		"a round of its own": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","round":2}`,
+			field: "round",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := DecodeClaims(
+				claimsFile, []byte(wellFormedClaim+"\n\n"+tc.line+"\n"), "CR-1",
+			)
+			var reserved *state.ReservedFieldError
+			require.ErrorAs(t, err, &reserved)
+			assert.Equal(t, claimsFile, reserved.File)
+			assert.Equal(t, 3, reserved.Line)
+			assert.Equal(t, tc.field, reserved.Field)
+			assert.Equal(t,
+				"claims.ndjson line 3: "+tc.field+" is written by cr and must not be supplied",
 				err.Error())
 		})
 	}
