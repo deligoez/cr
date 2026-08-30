@@ -311,3 +311,19 @@ func TestAbsentLayersLeaveTheBuiltinsAsTheWholeCorpus(t *testing.T) {
 	}
 }
 
+// A roles directory cr cannot list is not an empty layer. Treating it as one
+// would resolve to the layer below and never say that the user's own roles were
+// unreachable, so the listing failure is reported as a malformed layer and
+// aborts with the code §2.5.3 gives an unusable role file.
+func TestARolesDirectoryThatCannotBeListedAborts(t *testing.T) {
+	notADir := filepath.Join(t.TempDir(), "roles")
+	require.NoError(t, os.WriteFile(notADir, []byte("this is a file"), 0o600))
+
+	_, err := Resolve(notADir, absentDir(t))
+
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, notADir, malformed.File)
+	assert.Contains(t, malformed.Error(), "cannot be listed",
+		"an absent layer resolves to nothing; an unreadable one must not quietly do the same")
+}
