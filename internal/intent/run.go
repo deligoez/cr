@@ -84,6 +84,28 @@ func (e *MalformedCommandError) Error() string {
 	return fmt.Sprintf("intent.cmd %v: %s", e.Args, e.Reason)
 }
 
+// FileError reports an `--intent-file` that could not be read.
+//
+// §3.1.4 replaces the tracker command with a file, and a file cr cannot read
+// leaves the run without issue text exactly as a refusing command does. §11.2
+// codes both 3: it is not a validation failure, because cr never saw the
+// contents to validate, and not a usage error, because the path may be
+// perfectly well formed and simply absent.
+type FileError struct {
+	// Path is the path as `--intent-file` gave it.
+	Path string
+	// Err is the failure the filesystem reported.
+	Err error
+}
+
+func (e *FileError) Error() string {
+	return fmt.Sprintf("--intent-file %s: %v", e.Path, e.Err)
+}
+
+// Unwrap exposes the filesystem failure, so a caller can tell a path that is
+// absent from one it may not read.
+func (e *FileError) Unwrap() error { return e.Err }
+
 // expand substitutes key into every element of argv that carries the
 // placeholder, and refuses an argv §3.1.1 does not describe.
 //
@@ -137,10 +159,50 @@ func run(argv []string) (string, error) {
 	return stdout.String(), nil
 }
 
-// Read runs the configured tracker command for one issue key and returns the
-// issue text it printed.
-func Read(argv []string, key string) (string, error) {
-	expanded, err := expand(argv, key)
+// readFile reads the issue text §3.1.4 puts in a file.
+//
+// The bytes are returned as they were written, exactly as the command's
+// standard output is. The two are interchangeable sources for one value, so
+// anything done to one and not the other would make the choice of source
+// visible downstream; §1.4's normalisation and §3.3's issue_hash run later,
+// over whichever source produced the text.
+func readFile(path string) (string, error) {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return "", &FileError{Path: path, Err: err}
+	}
+	return string(text), nil
+}
+
+// Source is where one run's issue text comes from.
+//
+// §3.1 has two: the tracker command the user configures, and the file §3.1.4
+// replaces it with. The choice between them lives here rather than at each
+// call site, because §3.1.4 promises the loop works with no tracker access at
+// all — and that promise is broken without ever starting a command. Resolving
+// intent.cmd, validating its shape, or falling back to it when the file is
+// unhelpful would each break it, and each is the sort of thing a call site
+// does by reflex. One entry point taking both possibilities makes the bypass
+// structural rather than a rule every future caller has to remember.
+type Source struct {
+	// File is the path `--intent-file` named, empty when it was not given.
+	// When it is set, intent.cmd is not expanded, not validated, and not
+	// started, so it need not name a program that exists.
+	File string
+	// Cmd is `intent.cmd` as configured, read only when File is empty.
+	Cmd []string
+}
+
+// Read returns the issue text for one issue key from whichever of §3.1's two
+// sources applies, the file first.
+//
+// The key reaches only the command. A file is the issue text already, which is
+// what makes §3.1.4 a bypass rather than a cache.
+func Read(source Source, key string) (string, error) {
+	if source.File != "" {
+		return readFile(source.File)
+	}
+	expanded, err := expand(source.Cmd, key)
 	if err != nil {
 		return "", err
 	}

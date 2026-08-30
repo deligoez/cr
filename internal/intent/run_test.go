@@ -58,9 +58,9 @@ func TestTheDefaultTrackerCommandIsTheArgvTheSpecNames(t *testing.T) {
 func TestTheKeyIsSubstitutedIntoEveryElementThatCarriesIt(t *testing.T) {
 	tracker := stubTracker(t, `for arg in "$@"; do printf '%s\n' "$arg"; done`)
 
-	out, err := Read([]string{
+	out, err := Read(Source{Cmd: []string{
 		tracker, "issue", "view", Placeholder, "--jql=key = " + Placeholder, "--plain",
-	}, "CR-1; rm -rf /")
+	}}, "CR-1; rm -rf /")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
@@ -92,7 +92,7 @@ func TestAnIntentCmdThatCannotCarryAKeyIsRefusedBeforeAnythingStarts(t *testing.
 		"an argv with no placeholder": {argv: []string{tracker, "issue", "view", "CR-1"}, says: Placeholder},
 	} {
 		t.Run(name, func(t *testing.T) {
-			out, err := Read(malformed.argv, "CR-1")
+			out, err := Read(Source{Cmd: malformed.argv}, "CR-1")
 
 			var refused *MalformedCommandError
 			require.ErrorAs(t, err, &refused)
@@ -116,7 +116,7 @@ func TestAFailedTrackerCommandSurfacesItsStderr(t *testing.T) {
 	tracker := stubTracker(t, "echo 'ERROR unable to authenticate: 401 Unauthorized' >&2\n"+
 		"echo 'run jira init to configure a token' >&2\nexit 2")
 
-	out, err := Read([]string{tracker, "issue", "view", Placeholder, "--plain"}, "CR-1")
+	out, err := Read(Source{Cmd: []string{tracker, "issue", "view", Placeholder, "--plain"}}, "CR-1")
 
 	var refused *CommandError
 	require.ErrorAs(t, err, &refused)
@@ -157,7 +157,7 @@ func TestTheTrackerCommandKeepsTheEnvironmentItAuthenticatesWith(t *testing.T) {
 	t.Setenv("JIRA_API_TOKEN", "the-users-own-token")
 	t.Setenv("JIRA_AUTH_TYPE", "bearer")
 
-	_, err := Read([]string{tracker, "issue", "view", Placeholder, "--plain"}, "CR-1")
+	_, err := Read(Source{Cmd: []string{tracker, "issue", "view", Placeholder, "--plain"}}, "CR-1")
 	require.NoError(t, err)
 
 	environment, err := os.ReadFile(seen)
