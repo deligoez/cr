@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T11:26:29.602363Z",
+  "updated_at": "2026-08-30T11:36:51.089271Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1504,7 +1504,7 @@
     {
       "id": "intent-file-bypass",
       "title": "Bypass the tracker with intent file",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "intent-command-invocation"
@@ -1514,11 +1514,26 @@
       "source_sections": [
         "### 3.1 Intent source"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T11:27:07.850398Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T11:36:51.03055Z",
+      "closed_reason": "- internal/intent/run.go now takes both of §3.1's sources through one entry point: Read(Source{File, Cmd}, key) returns the file's bytes when File is set and never expands, validates, or starts intent.cmd, so TestAnIntentFileNeedsNoTrackerCommandThatCouldEverRun reads an issue with §3.1.2's default argv, with a program that does not exist, with an argv expand refuses, and with no intent.cmd at all, while TestAnIntentFileBypassesTheTrackerCommandEntirely proves the command was not run and its output merely discarded by asserting a stub tracker never touched its sentinel, and an unreadable file fails as intent.FileError, which internal/cli/exit.go codes 3 alongside the command failure it replaced.\n- The full-brief assertion is driven at the intent layer rather than through cr brief, which does not exist yet (brief-creates-state, brief-payload, brief-no-judgement and brief-idempotent-at-head are later tasks), and --intent-file is deliberately not registered as a flag because §11.1 fixes exactly five persistent flags without it and command-surface-stubs owns the §11 rows, so the mechanism is in place and the flag lands with cr brief.",
+      "gate_passed_at": "2026-08-30T11:36:51.03055Z",
+      "commit_sha": "ba0df51",
+      "commit_shas": [
+        "ba0df51",
+        "dbfb8e0",
+        "776d9a0",
+        "241a066",
+        "e20aebb",
+        "367c93e"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/intent/run.go",
+        "internal/intent/run_test.go"
+      ]
     },
     {
       "id": "issue-key-resolution",
