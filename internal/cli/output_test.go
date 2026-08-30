@@ -640,3 +640,35 @@ func TestOnlyACommandBehindTheGateReportsPosted(t *testing.T) {
 		})
 	}
 }
+
+// §12.6's field is declared once, in the writer, and nowhere else.
+//
+// The equality above holds between a command's permission and its document,
+// and a payload spelling the field itself would satisfy it while giving
+// `posted` another meaning, another type, or an omitempty that drops the false
+// §8.5.1 requires a dry run to print. Embedding posting is the only way to
+// carry it, and this is what makes that so.
+func TestThePostedFieldIsDeclaredInOnePlace(t *testing.T) {
+	sources, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	scanned := 0
+	var found []string
+	for _, source := range sources {
+		name := source.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || name == "output.go" {
+			continue
+		}
+		raw, err := os.ReadFile(name)
+		require.NoError(t, err)
+		scanned++
+		if strings.Contains(string(raw), `json:"posted"`) {
+			found = append(found, name)
+		}
+	}
+
+	require.Greater(t, scanned, 3,
+		"only %d files were scanned, so this guard proved nothing", scanned)
+	assert.Empty(t, found,
+		"§12.6: posting declares the field, so a payload carries it by embedding posting")
+}
