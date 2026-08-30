@@ -91,3 +91,28 @@ func TestDriftReportsEachClaimAndChangesNone(t *testing.T) {
 	assert.Equal(t, before, asStored(t, stored),
 		"§3.3.3: cr MUST NOT re-extract, so the claims come out byte for byte as they went in")
 }
+
+// An issue text that has not moved reports no drift, and every span is still
+// where it was.
+//
+// It is the case §3.3.3 runs on most rounds, and the one a report that always
+// answered "drifted" would get wrong while passing the mutation test above.
+// The claims are checked byte for byte here too: a round that changes nothing
+// is exactly where an unnecessary rewrite would go unnoticed.
+func TestAnUnmovedIssueTextReportsNoDrift(t *testing.T) {
+	stored := extracted(t)
+	before := asStored(t, stored)
+
+	drift, err := DetectDrift(slices.Values(stored), issueBefore)
+	require.NoError(t, err)
+
+	assert.False(t, drift.Drifted, "the stored issue_hash and the fresh one agree")
+	assert.Equal(t, stored[0].IssueHash, drift.Hash,
+		"and the fresh hash is the one the extraction stored")
+	for _, reported := range drift.Claims {
+		assert.True(t, reported.SpanOccurs, reported.ID)
+		assert.False(t, reported.Drifted(drift.Hash), reported.ID)
+	}
+
+	assert.Equal(t, before, asStored(t, stored), "and nothing was rewritten")
+}
