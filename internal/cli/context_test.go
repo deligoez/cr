@@ -83,3 +83,30 @@ func TestContextPrintsEveryFieldTheStoreHolds(t *testing.T) {
 	assert.Equal(t, "f3", printed.Notes[1].Record, "§3.6.2's answer names the record it was given to")
 	assert.Equal(t, answeredPRNum, printed.Notes[1].PR)
 }
+
+// §12.1's other shape for this command. A terminal reader gets a line of
+// provenance and a line of text for each note, and both are asserted: the text
+// is printed here where `cr note` withholds it, because this reader did not
+// write these notes and may never have seen them, which is what §3.6.5 exists
+// for. The provenance line names the source §8.1.6 discloses, the pull request
+// the fact came from, when it was recorded, and — on §3.6.2's answer alone —
+// the record it was given to.
+func TestATerminalContextNamesEachNotesProvenance(t *testing.T) {
+	briefedHome(t, "CR-7")
+
+	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "9")
+	require.NoError(t, err)
+	_, err = runIn(t, "answer", answeredPR, "f3", "the retry is deliberate",
+		"--source", "thread", "--repo", answeredSlug)
+	require.NoError(t, err)
+
+	out := throughATerminal(t, "context", "CR-7")
+
+	assert.Contains(t, out, "\x1b[36mCR-7\x1b[0m: 2 note(s)")
+	assert.Contains(t, out, "\x1b[36mCR-7#n1\x1b[0m from chat on pr 9 at ")
+	assert.Contains(t, out, "\n    the deadline moved to Friday\n")
+	assert.Contains(t, out, "\x1b[36mCR-7#n2\x1b[0m from thread on pr 42 at ")
+	assert.Contains(t, out, ", answering f3")
+	assert.Contains(t, out, "\n    the retry is deliberate\n")
+	assert.NotContains(t, out, "answering\n", "a note answering no record names none")
+}
