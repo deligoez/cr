@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T12:20:46.061932Z",
+  "updated_at": "2026-08-30T12:43:38.46814Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2103,7 +2103,7 @@
     {
       "id": "answer-command",
       "title": "Store an answer as a note",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "note-command"
@@ -2113,11 +2113,45 @@
       "source_sections": [
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T12:26:56.722514Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T12:43:38.365931Z",
+      "closed_reason": "- `cr answer \u003cpr\u003e \u003crecord-id\u003e \"\u003ctext\u003e\" --source \u003csource\u003e` appends a note referencing that record: internal/cli/answer.go registers the command, note.Answer reads the issue key the pull request resolved to out of its §2.3 meta.json — never a second typing of it, so the answer lands where §3.6.4 loads it — and appends through the same locked critical section `cr note` uses, with the record id on the note as `record`; a pull request cr never briefed refuses with §11.2's code 3, and one that resolved to no issue key under §3.2's fallback refuses with code 1 naming `cr brief --issue`, because §2.2 keys the store by issue and a note filed under no key is a note no round reads.\n- It does not change the record's state, and the way that is kept is structural rather than merely untrue today: the answer path never takes the exclusive per-PR lock every write to §2.3's files is a method on, and never opens findings at all — the record id is checked only for the spelling §6.1 gives it, deliberately not resolved, because reading the current round's records would tie the answer to a round §9.3.5 exempts this store from and refuse a true answer arriving after the next round opened. TestAnswerHasNoRouteToARecordsState reads internal/cli/answer.go and every non-test file of internal/note and fails on any mention of the lock constructor, the three writers that are methods on it, or the two record files.\n- A test asserts the referenced record's state is byte-identical before and after: TestAnAnswerLeavesTheAnsweredRecordByteIdentical writes a posted question into findings.ndjson, runs the command through the root, compares the whole file byte for byte, and then asserts the answer really was recorded so the comparison is about a run that happened rather than one that refused early.",
+      "gate_passed_at": "2026-08-30T12:43:38.365931Z",
+      "commit_sha": "0a8c173",
+      "commit_shas": [
+        "0a8c173",
+        "ce9b73f",
+        "5160815",
+        "0776438",
+        "b505193",
+        "f795f64",
+        "4c4cc9c",
+        "2c8acce",
+        "87ac567",
+        "4167605",
+        "593c0ff",
+        "1692281",
+        "4d162a9",
+        "76bd324",
+        "ca64ea2",
+        "0b51e7d",
+        "fd42552"
+      ],
+      "commit_files": [
+        "internal/cli/answer.go",
+        "internal/cli/answer_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/output_test.go",
+        "internal/cli/pr.go",
+        "internal/cli/root.go",
+        "internal/finding/id.go",
+        "internal/finding/id_test.go",
+        "internal/note/answer.go",
+        "internal/note/answer_test.go",
+        "internal/note/note.go",
+        "internal/note/store.go"
+      ]
     },
     {
       "id": "context-command",
