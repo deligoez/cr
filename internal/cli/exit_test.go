@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
@@ -236,4 +237,15 @@ func TestAProfileTieExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("selecting a profile: %w", err)))
 	assert.Contains(t, err.Error(), "laravel-pest")
 	assert.Contains(t, err.Error(), "symfony")
+}
+
+// §3.6.6 retracts a note by id, and an id naming no note is not a mistyped
+// command line: it is spelled the way §3.6.1 spells one, and the store was read
+// and parsed without trouble. What failed is the retraction, which §11.2 codes
+// 1 alongside a pull request that resolved to no issue key.
+func TestAnUnknownNoteExitsWithTheValidationCode(t *testing.T) {
+	unknown := &note.UnknownNoteError{ID: "CR-1#n9", IssueKey: "CR-1"}
+	assert.Equal(t, ExitValidation, exitCodeFor(unknown))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("retracting: %w", unknown)))
+	assert.Contains(t, unknown.Error(), "cr context CR-1", "§12.4: the error names the next step")
 }
