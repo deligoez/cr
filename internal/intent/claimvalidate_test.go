@@ -165,3 +165,48 @@ func TestAnAgentMayNotSupplyTheClaimHashes(t *testing.T) {
 		})
 	}
 }
+
+// §3.3 forms every claim id as `<ISSUE-KEY>#c<n>`, so the id is a foreign key
+// into the key §3.2 resolved for this run — and the run is the only side that
+// knows what that key is. A claim whose id names some other issue was extracted
+// from some other issue's text, and §3.3.1 would then check its span against a
+// text it never came from and either pass it by luck or report a drift that
+// never happened.
+//
+// The claim is held to the run's key here rather than in the struct for the
+// reason finding.Decode takes the current round's unit ids: nothing a claim
+// carries can prove which issue this run is about.
+func TestAClaimIDMustNameTheIssueTheRunResolved(t *testing.T) {
+	accepted, err := DecodeClaims(
+		claimsFile,
+		[]byte(`{"id":"CR-1#c9","text":"t","source":"acceptance","span":"s"}`+"\n"),
+		"CR-1",
+	)
+	require.NoError(t, err)
+	require.Len(t, accepted, 1)
+	assert.Equal(t, "CR-1#c9", accepted[0].ID)
+
+	for name, id := range map[string]string{
+		"another issue's claim":   "CR-2#c1",
+		"a record id":             "f1",
+		"a note id":               "CR-1#n1",
+		"the issue key alone":     "CR-1",
+		"a claim numbered zero":   "CR-1#c0",
+		"the right key, misspelt": "CR-1#c01",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := DecodeClaims(
+				claimsFile,
+				[]byte(`{"id":"`+id+`","text":"t","source":"acceptance","span":"s"}`+"\n"),
+				"CR-1",
+			)
+			var rejected *RejectedClaimError
+			require.ErrorAs(t, err, &rejected)
+			assert.Equal(t, "id", rejected.Field)
+			assert.Equal(t,
+				`claims.ndjson line 1: id "`+id+
+					`" is not a claim of CR-1; §3.3 forms every claim id as <ISSUE-KEY>#c<n>`,
+				err.Error())
+		})
+	}
+}
