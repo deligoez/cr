@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T11:36:51.089271Z",
+  "updated_at": "2026-08-30T11:38:01.278352Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -96,7 +96,7 @@
         "cobra-root-command"
       ],
       "estimate_minutes": 15,
-      "acceptance": "- Every row of the §11 command table is registered with its documented argument shape and flags: init (--eject-roles), brief, review (--axis), claims record, merge (-o --repo --pr), record, map record, claims set-aside (--note), cells record, sandbox create|destroy, test (--filter), probe run (--kind), draft, post (--confirm --reconcile), answer, note (--remove), context, waivers list|remove (--repo --pr), stats (--repo), rules list (--dead --repo)|check|suggest, status, config (--resolved).\n- A table-driven test enumerates the §11 rows and asserts each command resolves with its flag set.\n- Unimplemented behaviour returns a not-yet-implemented error carrying a hint; the surface itself is complete.",
+      "acceptance": "- Every row of the §11 command table is registered with its documented argument shape and flags: init (--eject-roles), brief, review (--axis), claims record, merge (-o --repo --pr), record, map record, claims set-aside (--note), cells record, sandbox create|destroy, test (--filter), probe run (--kind), draft, post (--confirm --reconcile), answer, note (--remove), context, waivers list|remove (--repo --pr), stats (--repo), rules list (--dead --repo)|check|suggest, status, config (--resolved).\n- A table-driven test enumerates the §11 rows and asserts each command resolves with its flag set.\n- Unimplemented behaviour returns a not-yet-implemented error carrying a hint; the surface itself is complete.\n- Found by intent-file-bypass, assigned here: §11 lists flags on other rows but omits --intent-file from cr brief, though §3.1.4 requires it and CLAUDE.md dogfoods it. cr brief therefore registers --intent-file even though the §11 row does not name it, and the table-driven test records that as a deliberate addition rather than letting the surface follow §11 into the gap.",
       "source_sections": [
         "## 11. Command surface"
       ],
@@ -1538,7 +1538,7 @@
     {
       "id": "issue-key-resolution",
       "title": "Resolve the issue key from sources",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "intent-file-bypass"
@@ -1548,7 +1548,8 @@
       "source_sections": [
         "### 3.2 Issue key resolution"
       ],
-      "started_at": null,
+      "started_at": "2026-08-30T11:37:28.019605Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
