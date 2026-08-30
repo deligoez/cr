@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T15:20:05.011541Z",
+  "updated_at": "2026-08-30T15:34:02.787649Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4634,7 +4634,7 @@
     {
       "id": "state-transition-table",
       "title": "Enforce the exhaustive transition table",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "record-state-set"
@@ -4644,11 +4644,26 @@
       "source_sections": [
         "### 9.1 States"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T15:22:16.92826Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T15:34:02.751582Z",
+      "closed_reason": "- internal/finding/transition.go holds §9.1's transition table as six rows in the spec's own three columns, so a cell holding several values stays one row and the decision is a lookup into what those rows expand to, closed by default because §9.1 says a transition not listed MUST be rejected.\n- Row one, creation to draft by cr record, is spelled with a From type rather than a State: Creation is a value no State can equal, and the zero From is Existing of the zero State, which no row names, so state.go's deliberate reading of the zero State as neither open nor terminal is left intact.\n- Row two, draft to duplicate and draft to suppressed by cr record, puts §6.4.3's duplicate marking and §3.5.4's thread suppression at the command that writes the record.\n- Row three, draft to queued by cr draft, and row four, queued to discarded by cr draft and by cr post --confirm, are listed with their actors, which is why the actor is part of the key rather than context around it.\n- Row five, queued to posted by cr post --confirm and by cr post --reconcile, gives the reconcile the one move §9.1 allows it and refuses it the discard row four gives cr post --confirm, and the on-adopt qualifier stays a precondition cr post checks before it asks.\n- Row six, draft to stale and queued to stale by cr brief, is §9.3.4's move, and the new-head qualifier is likewise a fact about the run that §9.1 gives no state to read from.\n- MayTransition returns an IllegalTransitionError for every triple the six rows do not list, naming the record, the state it is in and the actor that asked, with a §12.4 hint listing what §9.1 does allow out of that state, and internal/cli/exit.go maps it onto ExitState, the first error to reach §11.2's code 4, asserted by TestAnUnlistedTransitionExitsWithTheStateCode over five ways the table can be misread.\n- cr merge is left no way to be a producer: Actor's only field is unexported so no command outside internal/finding can be one, and TestCrMergeIsNoProducerOfRecordState reads every Actor composite literal out of the package's own non-test source and matches the set against §9.1's third column, then drives cr merge's own door, DecodePerRole, and finds its records in no §9.1 state and a supplied state refused by §6.1.4.\n- TestEveryTransitionIsTheTableAndNothingElse is table-driven over §9.1 transcribed by hand rather than read from the implementation, and walks the whole cross product of nine From values, eight To values and six actors, asserting the ten listed cells pass and all 422 others are refused.\n- TestARefusalNamesTheRecordAndItsCurrentState covers the queued, posted, creation and no-state renderings, the terminal case where §9.1 lists no move out, and the error's fields as fields rather than as text.\n- Gate green and gremlins unleash --timeout-coefficient 30 ./internal reports Killed 466, Lived 10, efficacy 97.90 percent with the same three known TIMED OUT, and all ten survivors are the previously classified equivalents in cli/context.go, config/config.go, finding/fields.go, finding/id.go, finding/state.go, note/note.go and profile/none.go, none of them in transition.go.\nOut of scope: §9.1.1's transitions.ndjson journal is transition-journal, §9.3.4's stale sweep is new-round-invalidation, and the six commands are their own tasks, so nothing here performs or records a transition. internal/finding/validate.go lines 100-103 carry the DocPerRole doc comment sentence twice, a stray duplication left by an earlier unit.",
+      "gate_passed_at": "2026-08-30T15:34:02.751582Z",
+      "commit_sha": "74f76e2",
+      "commit_shas": [
+        "74f76e2",
+        "466663b",
+        "3a3871f",
+        "124d2e1",
+        "1f35ae6",
+        "fc0b015"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/finding/transition.go",
+        "internal/finding/transition_test.go"
+      ]
     },
     {
       "id": "transition-journal",
