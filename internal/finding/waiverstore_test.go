@@ -360,3 +360,24 @@ func TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest(t *testing.T) {
 	assert.Len(t, ids, triages, "each waiver must take an id of its own")
 }
 
+// §7.4.4 names two files and Waive routes to them by scope alone. The third arm
+// of that routing is unreachable through Waive — Scope returns one of exactly
+// two values or an error — and it is asserted anyway, because what it defends
+// against is a scope added later: a routing that fell into whichever arm came
+// last would write a waiver of unknown reach into one of the two files, and the
+// wider of them silences findings across a repository forever.
+func TestAScopeNamingNeitherFileOfSection744IsRefused(t *testing.T) {
+	layout := waiverHome(t)
+	wrong, _ := theSameDefectAtTheSameCode(t)
+	waiver, err := WaiverFor(&wrong)
+	require.NoError(t, err)
+	draft := WaiverRecord{Waiver: waiver, WaiverProvenance: theProvenance()}
+
+	_, err = appendWaiver(layout, waiverOwner, waiverRepo, WaiverScope{}, &draft)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), ScopeRepository.String())
+	assert.Contains(t, err.Error(), ScopePullRequest.String())
+
+	repository, _ := waiverFiles(layout)
+	assert.Empty(t, storedAt(t, repository), "a waiver of no scope must reach neither file")
+}
