@@ -152,5 +152,16 @@ anything larger than restating an existing rule in its own section to the user.
   one-line summaries of the clauses that own the behaviour. Carried here so the
   audit re-tests the reading rather than inheriting it silently.
 
+- **§11 gives `cr record` no way to name its input's door, at `record-command`.
+  Open, not repaired.** `finding.Source` requires the caller to say which door a
+  file came through — it is what stops an agent-authored file carrying
+  `duplicate_of`. But §11's row for `cr record` has no flag for it, so the
+  command must choose one reading for every invocation. It passes `SourceMerge`,
+  because §11's purpose line calls the input a round's merged findings and
+  §6.5.1 has `cr record` apply `duplicate_of` from merge output. The consequence
+  is stated rather than hidden: a hand-written file fed to `cr record` may carry
+  `duplicate_of` and will be believed. Whether §11 wants a flag is a decision for
+  the user, not the implementation.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.
