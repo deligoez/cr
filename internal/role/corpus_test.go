@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/deligoez/cr/internal/axis"
@@ -192,6 +193,49 @@ func layersOf(roles []Resolved) []Layer {
 		out = append(out, r.Layer)
 	}
 	return out
+}
+
+// §6.4.2 picks a duplicate group's representative by "the earliest role in
+// corpus order per §2.5.5", and Order is the one function it reads that order
+// through. What is asserted here is that the comparison agrees with the corpus
+// rather than with a second copy of §2.5.5's rule: the ids are sorted by it and
+// required to come back in the order Resolve laid them in, so a comparison that
+// ordered by id alone, or by layer alone, fails.
+//
+// `zz` against `convention` is the pair that separates the two halves of the
+// rule. It is a global role and `convention` is a built-in one, so §2.5.5 puts
+// it first while its id sorts last.
+//
+// The unresolved id is the case a bare map of positions gets wrong. Read with
+// the zero value it would rank an id nobody resolved ahead of every real role,
+// and every group's representative would go to a role that never looked at the
+// code.
+func TestOrderComparesRoleIDsByTheirPlaceInTheCorpus(t *testing.T) {
+	repo := layerDir(t, map[string]string{
+		"a-b": roleJSON(t, "a-b", nil),
+		"a":   roleJSON(t, "a", nil),
+	})
+	global := layerDir(t, map[string]string{"zz": roleJSON(t, "zz", nil)})
+
+	corpus, err := Resolve(repo, global)
+	require.NoError(t, err)
+	earlier := Order(corpus)
+
+	shuffled := corpusIDs(corpus)
+	slices.Reverse(shuffled)
+	slices.SortFunc(shuffled, earlier)
+	assert.Equal(t, corpusIDs(corpus), shuffled,
+		"the comparison must reproduce the corpus, not re-derive it")
+
+	assert.Negative(t, earlier("a", "a-b"), "ascending id within a layer")
+	assert.Negative(t, earlier("zz", "convention"),
+		"layer before id: a global role precedes every built-in one")
+	assert.Zero(t, earlier("zz", "zz"))
+
+	assert.Positive(t, earlier("nobody-resolved", "test-adequacy"),
+		"an id no layer resolved sorts behind every resolved role, never ahead of them")
+	assert.Negative(t, earlier("aa-unresolved", "zz-unresolved"),
+		"two unresolved ids still order, so the comparison stays total")
 }
 
 // §2.5.5 says more than one role MAY serve the same axis, so resolution
