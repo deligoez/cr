@@ -217,3 +217,44 @@ const straddling = `--- a/app/Money.php
  context
 `
 
+// §3.4.4's first branch groups hunks by "same enclosing symbol", and a hunk
+// whose changed lines lie in two symbols has none: it shares an enclosing
+// symbol with nothing, and naming it after either one would put lines that
+// symbol does not contain into a unit the reader reads as that symbol's. So it
+// falls to the branch below, which places it on the gap like any other hunk.
+func TestAHunkStraddlingTwoSymbolsHasNoEnclosingSymbol(t *testing.T) {
+	php := shipped(t, "laravel-pest")
+
+	hunks, err := git.ParseHunks(straddling)
+	require.NoError(t, err)
+	require.Len(t, hunks, 1)
+	require.Len(t, hunks[0].Changed, 2)
+
+	index := symbolsAt{path: moneyPath, symbols: []span{
+		{name: "Money::add", first: 5, last: 15},
+		{name: "Money::subtract", first: 16, last: 30},
+	}}
+	clusters := Clusters(hunks, &php, index, defaultGapLines(t))
+
+	require.Len(t, clusters, 1)
+	assert.Equal(t, ByAdjacency, clusters[0].Formation)
+	assert.Equal(t, hunks, clusters[0].Hunks)
+}
+
+// twoFiles changes one line in each of two files, three lines apart.
+const twoFiles = `--- a/app/Money.php
++++ b/app/Money.php
+@@ -10,3 +10,4 @@
+ context
++added at head 11
+ context
+ context
+--- a/app/Order.php
++++ b/app/Order.php
+@@ -13,3 +13,4 @@
+ context
++added at head 14
+ context
+ context
+`
+
