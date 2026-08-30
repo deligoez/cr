@@ -246,3 +246,22 @@ func TestARefusedClaimLeavesTheRoundExactlyAsItWas(t *testing.T) {
 	assert.Equal(t, string(mappingBefore), string(mappingAfter),
 		"and the mapping it would have cleared stands with it")
 }
+
+// §12.1's other shape for this command. A terminal reader gets the count, the
+// round, and the fact that the mapping went — not the claims, which came out of
+// the caller's own file.
+func TestATerminalClaimsRecordNamesTheCountAndTheRound(t *testing.T) {
+	claimedHome(t)
+	file := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+	)
+
+	out := throughATerminal(t, "claims", "record", claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t, issueText))
+
+	assert.Contains(t, out, "recorded ")
+	assert.Contains(t, out, "\x1b[36m1\x1b[0m",
+		"the count is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, " claim(s) in round 2; mapping cleared")
+}
