@@ -99,6 +99,111 @@ type Note struct {
 	Record string `json:"record,omitempty"`
 	// RecordedAt is §3.6.1's timestamp, in UTC.
 	RecordedAt time.Time `json:"recorded_at"`
+	// RetractedAt is when §3.6.6 retracted the note, in UTC, and nil while
+	// the note still stands. Retracting marks the note rather than erasing
+	// it: §3.3.2 lets a claim cite a note by id and §8.1.6 discloses that
+	// provenance in a posted body, so a deleted line would leave those
+	// citations pointing at nothing and would free the id for the next
+	// note to take.
+	RetractedAt *time.Time `json:"retracted_at,omitempty"`
+}
+
+// Retracted reports whether §3.6.6 has retracted the note.
+func (n *Note) Retracted() bool { return n.RetractedAt != nil }
+
+// Standing reports what a citation of this note may still do.
+//
+// A note can only ever report the two standings it can be in itself. An id the
+// store holds no note for is StandingDangling, and only StandingOf can see
+// that, because only it is given the store.
+func (n *Note) Standing() Standing {
+	if n.Retracted() {
+		return StandingRetracted
+	}
+	return StandingStands
+}
+
+// Standing is what a record or coverage cell citing a note may still do
+// (§3.6.6).
+//
+// It is derived from the store every time it is asked for and is never copied
+// onto the citing record. That is the whole of the round-9 finding
+// retracted-provenance-still-posts: a retraction has to bite inside the round
+// it happens in, and §9.3.5 exempts this store from round scoping outright, so
+// there is no snapshot for a retraction to arrive too late for. `cr draft` and
+// `cr post` read the standing as it is at the moment they run. Deferring the
+// consequence to the next round would not be a delay but a loss — v0.1 ends at
+// posting per §9, so for this pull request the next round may never arrive.
+//
+// Every consumer asks this rather than deriving it again. §6.3's register and
+// §8.1.6's provenance region turn on one fact, and two derivations of it are
+// two chances to disagree about whether an assertion may go out.
+type Standing string
+
+const (
+	// StandingStands is a note the store holds and nobody has retracted.
+	// It is the only standing that carries provenance, which makes it the
+	// only one §8.1.6 has a region to emit for and the only one a record
+	// may take the assertion register from.
+	StandingStands Standing = "stands"
+	// StandingRetracted is a note §3.6.6 has retracted. The citing record
+	// is retained rather than deleted, so the decision stays auditable,
+	// and is reported as needing re-evaluation rather than silently kept.
+	StandingRetracted Standing = "retracted"
+	// StandingDangling is an id no note in the store bears. It is not a
+	// standing citation for want of a retraction: a record citing it has
+	// exactly as little provenance to disclose as one citing a retracted
+	// note, so §8.1.6 emits no region for it either.
+	StandingDangling Standing = "dangling"
+)
+
+// Stands reports whether a citation of this standing may still be built on.
+//
+// One predicate and not two, because §3.6.6's two consequences have one cause:
+// a record whose note no longer stands has no provenance left to disclose, so
+// it neither qualifies for the assertion register nor gives §8.1.6 a region to
+// emit.
+func (s Standing) Stands() bool { return s == StandingStands }
+
+// StandingOf reports the standing of the note noteID names.
+//
+// notes MUST be every note the store holds, for the reason NextID's argument
+// must be: an id absent from the slice is reported as dangling, so a slice
+// narrowed by round or by pull request would retract notes nobody retracted.
+func StandingOf(notes []Note, noteID string) Standing {
+	at := indexOf(notes, noteID)
+	if at < 0 {
+		return StandingDangling
+	}
+	return notes[at].Standing()
+}
+
+// indexOf is the position of the note bearing id, or -1 when the store holds
+// none.
+func indexOf(notes []Note, id string) int {
+	return slices.IndexFunc(notes, func(n Note) bool { return n.ID == id })
+}
+
+// UnknownNoteError reports a `--remove` naming a note the store does not hold.
+//
+// The id is spelled the way §3.6.1 spells one and the store read and parsed
+// without trouble, so neither the invocation nor the file is what is wrong.
+// What fails is the retraction itself: §3.6.6 has no note to retract. §11.2
+// codes that 1, alongside NoIssueKeyError, rather than the 2 a mistyped command
+// line gets.
+type UnknownNoteError struct {
+	// ID is the note id that named nothing.
+	ID string
+	// IssueKey is the store that was searched, which is the store the id
+	// itself named per §3.6.1.
+	IssueKey string
+}
+
+func (e *UnknownNoteError) Error() string {
+	return fmt.Sprintf(
+		"no note %s is recorded against %s: run `cr context %s` for the ids the store holds",
+		e.ID, e.IssueKey, e.IssueKey,
+	)
 }
 
 // idInfix separates an id's issue key from its number, per §3.6.1's
