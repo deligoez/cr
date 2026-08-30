@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T18:51:38.690366Z",
+  "updated_at": "2026-08-30T19:07:11.23588Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4277,7 +4277,7 @@
     {
       "id": "waiver-key",
       "title": "Key waivers by anchor with class",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "normalised-hash",
@@ -4289,11 +4289,22 @@
       "source_sections": [
         "### 7.4 Waivers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T18:51:46.28091Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T19:07:11.192502Z",
+      "closed_reason": "- internal/finding/waiver.go's WaiverKey is §7.4.1's key over (anchor.path, anchor.side, class, anchor.content_hash), and WaiverKeyOf is its only construction, so §7.4's waiver, §9.3.6's posted index and §6.4.4's merge-time lookup read one set of four fields off the record rather than three spellings of it.\n- TestAWaiverKeyIsTheAnchoredCodeAndTheClassAndNothingElse keys two records identically that share nothing but the anchored code and the class, and reads §6.1's table off the record type to require every other field to differ, so the summary exclusion bites as a collision rather than as a comment and a field added later without being varied fails the test.\n- anchor.side is the fourth field, per round 8's side-omitted-from-identity-keys, and TestAWaiverReachesOneClassInOneFileInOneTree holds the content hash fixed while varying the side, so a waiver over a line removed from the merge base cannot silence a finding about the identical line added to the head.\n- The key carries the anchored code where §6.4.1's dedup key carries the line, so it suppresses one class at one unchanged range in one file and stops at the edit, and the type is comparable with no looser comparison after round 8 dropped §7.4.6's path-prefix widening.\n- TestAWaiverStopsMatchingOnceTheAnchoredLinesChange asserts both directions, that the same code moved down the file and re-indented still matches, and that an edited condition does not.",
+      "gate_passed_at": "2026-08-30T19:07:11.192502Z",
+      "commit_sha": "4f5dfae",
+      "commit_shas": [
+        "4f5dfae",
+        "0b78b7e",
+        "b560d33",
+        "65e9ddd"
+      ],
+      "commit_files": [
+        "internal/finding/waiver.go",
+        "internal/finding/waiver_test.go"
+      ]
     },
     {
       "id": "waiver-scopes",
