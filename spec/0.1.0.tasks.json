@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T20:09:34.613186Z",
+  "updated_at": "2026-08-30T20:26:11.569748Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3932,7 +3932,7 @@
     {
       "id": "citation-resolution",
       "title": "Resolve citations against the current head",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "citation-content-hash"
@@ -3942,11 +3942,31 @@
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T20:10:15.582324Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T20:26:11.508659Z",
+      "closed_reason": "- internal/finding/citation.go's ResolveCitations walks every entry of a record's citations and resolves each against the current head through a HeadFile reader, so no entry is passed over.\n- An entry whose path the head does not hold, and an entry whose line falls below 1 or past the file's last line, are both rejected with a RejectedRecordError naming the entry by index and field, which internal/cli/exit.go maps onto ExitValidation, §11.2's exit code 1.\n- internal/git/file.go's FileAtRevision is the head-side reader: it asks git ls-tree whether the revision holds the path as a blob and reads that blob with git cat-file, both through internal/git's pinned runner, so the read is of the head commit and never of the worktree and §2.1.1 holds on a dirty checkout.\n- cr computes and stores content_hash itself, by calling the existing (*Citation).StampContentHash on the line it has just read from the head, so the agent supplies none and the hash cannot fail at record time.\n- The value is §9.2's rule over a range of one line, recorded per §9.2.3 so a v0.2 migration can detect drift; nothing in v0.1 reads it back and ResolveCitations compares it against nothing, so the field does no validating work.\n- TestACitationTheHeadCannotOpenIsRejected covers a missing path, a directory, a line past the end of the file, and line 0, and TestEveryCitationIsResolvedAndStampedFromTheHead covers the accepted boundaries and the stamping.\n- internal/cli/norepowrite_test.go's gitReads allowlist gains ls-tree and cat-file, both reads with no writing mode, so §2.2's fence over the repository under review still holds.",
+      "gate_passed_at": "2026-08-30T20:26:11.508659Z",
+      "commit_sha": "b60c63f",
+      "commit_shas": [
+        "b60c63f",
+        "3251359",
+        "0d4cec7",
+        "f5f342b",
+        "57035e2",
+        "1649f1c",
+        "92cd1d0",
+        "4105e08",
+        "69e8322",
+        "ac99bd0"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/finding/citation.go",
+        "internal/finding/citation_test.go",
+        "internal/git/file.go",
+        "internal/git/file_test.go"
+      ]
     },
     {
       "id": "cited-never-called-verified",
