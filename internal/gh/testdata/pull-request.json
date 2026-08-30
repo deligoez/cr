@@ -1,0 +1,15 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "number": 7,
+        "title": "CR-31 retry the upload on a 5xx response",
+        "body": "Closes CR-31.\n\nThe retry backs off exponentially.\n",
+        "headRefName": "feature/CR-31-retry-upload",
+        "headRefOid": "5e6d7c8b9a807162534455667788990a1b2c3d4e",
+        "baseRefName": "main",
+        "baseRefOid": "1f2e3d4c5b6a798071625344556677889900aabb"
+      }
+    }
+  }
+}
