@@ -5,7 +5,9 @@ project_name: cr
 before:
   hooks:
     - go mod tidy
-    - go test ./...
+    - go test -race ./...
+    - golangci-lint run
+    - ./scripts/deadcode.sh
 
 builds:
   - main: ./cmd/cr
