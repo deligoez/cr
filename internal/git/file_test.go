@@ -77,3 +77,44 @@ func TestTheLastLineIsCountedWhateverTheFinalNewline(t *testing.T) {
 	}
 }
 
+// A path the commit does not hold as a file is reported absent, and reported
+// rather than returned as a failure.
+//
+// §6.2.3 rejects a citation whose path does not exist with exit code 1 — the
+// record's content is wrong — while §3.1.3 codes a git that refuses 3. A
+// citation's path is written by an agent, so the shapes that are not paths at
+// all arrive here too, and git answers two of them with a fatal error instead of
+// an empty listing; they are settled before git is asked.
+//
+// The two directory shapes are not one case. `ls-tree -- dir` reports the
+// directory itself, which is not a file a citation can name a line in, while
+// `ls-tree -- dir/` reports that directory's children — so a reader that took
+// the first record of a listing would answer with a file nobody asked about.
+func TestAPathTheCommitDoesNotHoldAsAFileIsAbsent(t *testing.T) {
+	dir := committed(t, map[string]string{
+		"app.go":       "package app\n",
+		"one/only.go":  "package one\n",
+		"two/first.go": "package two\n",
+		"two/next.go":  "package two\n",
+	})
+
+	for _, path := range []string{
+		"missing.go",    // no such entry at this head
+		"one",           // a directory is not a file
+		"one/",          // nor is the one file its listing begins with
+		"two/",          // nor are the several a wider listing holds
+		"/etc/passwd",   // absolute, so no entry of any tree
+		"../outside.go", // above the repository root
+		"one/../app.go", // reaching the right file the wrong way
+		"./app.go",      // the same, through a current-directory segment
+		"one//only.go",  // an empty segment
+		"",              // no path at all
+	} {
+		lines, exists, err := FileAtRevision(dir, "HEAD", path)
+
+		require.NoErrorf(t, err, "%q is a citation's path, so it is validation's business and not git's", path)
+		assert.Falsef(t, exists, "%q names no file at this head", path)
+		assert.Emptyf(t, lines, "%q names no file at this head", path)
+	}
+}
+
