@@ -311,3 +311,52 @@ func TestAnActiveWaiverCoversTheRecordItWasWrittenForUntilThatCodeChanges(t *tes
 	assert.False(t, waived, "no waiver covers a record when none was ever written")
 }
 
+// §7.4.4's repository-wide file is not per-PR state, so §2.3.1's lock does not
+// reach it — which is the argument for a lock of its own rather than against
+// one. Every pull request of a repository writes this one file, and each takes
+// a different §2.3.1 lock, so nothing those locks do keeps two triages from
+// publishing over each other.
+//
+// What that would cost is not a crash. The loser's waiver is simply gone, the
+// finding it silenced comes back next round, and nothing on disk says why — the
+// failure §7.4.4 calls a one-way door, running the other way. So the assertion
+// is that every waiver written survives, and that each took an id of its own.
+func TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest(t *testing.T) {
+	layout := waiverHome(t)
+	wrong, _ := theSameDefectAtTheSameCode(t)
+
+	const triages = 8
+	var running sync.WaitGroup
+	for i := range triages {
+		running.Add(1)
+		go func() {
+			defer running.Done()
+			// One class and one pull request each, so the waivers are
+			// distinct records rather than one record written eight
+			// times, which the idempotence above would collapse.
+			record := wrong
+			record.Class = fmt.Sprintf("waived-class-%d", i)
+			prov := theProvenance()
+			prov.PR = i + 1
+			waiver, err := WaiverFor(&record)
+			assert.NoError(t, err)
+			_, err = Waive(layout, waiverOwner, waiverRepo, &waiver, prov)
+			assert.NoError(t, err)
+		}()
+	}
+	running.Wait()
+
+	stored := storedAt(t, layout.WaiversFile(waiverOwner, waiverRepo))
+	require.Len(t, stored, triages,
+		"every triage's waiver must survive, whichever pull request it was written from")
+
+	classes := make(map[string]bool, triages)
+	ids := make(map[string]bool, triages)
+	for i := range stored {
+		classes[stored[i].Class] = true
+		ids[stored[i].ID] = true
+	}
+	assert.Len(t, classes, triages)
+	assert.Len(t, ids, triages, "each waiver must take an id of its own")
+}
+
