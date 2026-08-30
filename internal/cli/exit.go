@@ -9,6 +9,7 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -140,6 +141,23 @@ func exitCodeFor(err error) int {
 		// well-formed, so what fails is the payload as a whole, and
 		// §11.2 runs that validation before the confirmation gate:
 		// the block lands whether or not --confirm was given.
+		return ExitValidation
+	}
+	var noPRState *note.NoStateError
+	if errors.As(err, &noPRState) {
+		// §2.2's state directory is opened by `cr brief`, and §3.6.2's
+		// answer reads the issue key out of it. A pull request with no
+		// state is a file cr expected and did not find, which §11.2
+		// codes 3 alongside its other file failures.
+		return ExitFile
+	}
+	var noIssueKey *note.NoIssueKeyError
+	if errors.As(err, &noIssueKey) {
+		// §3.2 leaves the issue key empty when none of its four sources
+		// yields one, and has the run continue, so this is recorded
+		// state rather than an unusable file or a mistyped command
+		// line. What fails is the answer itself: §3.6.2 has no store to
+		// keep it in, which §11.2 codes 1.
 		return ExitValidation
 	}
 	var reservedField *state.ReservedFieldError
