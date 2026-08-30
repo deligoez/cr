@@ -43,6 +43,14 @@ func exitCodeFor(err error) int {
 		// code 3, naming the file and the offending field.
 		return ExitFile
 	}
+	var profileTie *profile.TieError
+	if errors.As(err, &profileTie) {
+		// §2.4.2: profiles matching the same number of marker files
+		// abort with exit code 3 naming them, rather than one of them
+		// being picked. It is not a malformed file — each tied profile
+		// is valid on its own — but §2.4.2 fixes the same code.
+		return ExitFile
+	}
 	var protectedName *config.ProtectedError
 	if errors.As(err, &protectedName) {
 		// §2.7: a CR_ variable or config key addressing a protected
