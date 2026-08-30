@@ -2,7 +2,10 @@ package intent
 
 import (
 	"encoding/json"
+	"go/parser"
+	"go/token"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -145,4 +148,34 @@ func TestASpanCanGoWhileTheHashStandsStill(t *testing.T) {
 	assert.True(t, drift.Claims[0].SpanOccurs, "the untouched line still holds its span")
 	assert.False(t, drift.Claims[1].SpanOccurs,
 		"§3.3 calls a span verbatim, and the doubled space is not in the stored span")
+}
+
+// §3.3.3's "cr MUST NOT re-extract", read off the source rather than off a
+// comment: the file that detects drift cannot write per-PR state, because it
+// does not import the package that holds the only door to it.
+//
+// §2.3.1 admits no unlocked write to §2.3's files, and state.Lock is how that
+// is enforced — Write is a method on the held lock, so a file with no
+// internal/state import has no way to reach claims.ndjson at all. That is the
+// half of the invariant a signature cannot express: DetectDrift's parameters
+// say it is not *given* a lock, and this says it cannot go and take one.
+//
+// The check is on imports rather than on the text of the file, for the reason
+// internal/cli's runner fence gives: an import is what a call needs and cannot
+// be spelled around, so a package cannot be reached by aliasing it or by
+// building its name at run time.
+func TestDriftDetectionCannotReachThePerPRState(t *testing.T) {
+	parsed, err := parser.ParseFile(token.NewFileSet(), "drift.go", nil, parser.ImportsOnly)
+	require.NoError(t, err)
+
+	imported := make([]string, 0, len(parsed.Imports))
+	for _, spec := range parsed.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		require.NoError(t, err)
+		imported = append(imported, path)
+	}
+	require.NotEmpty(t, imported, "a fence over no imports at all would pass on an empty file")
+	assert.NotContains(t, imported, "github.com/deligoez/cr/internal/state",
+		"§3.3.3 has drift detection report and nothing else, and state.Lock is the only "+
+			"way to write the claims it reports on")
 }
