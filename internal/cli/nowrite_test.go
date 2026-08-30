@@ -144,6 +144,17 @@ func TestCrReachesTheNetworkThroughOneRunnerAndNoOtherWay(t *testing.T) {
 // does by existing. A second caller is a second gate, and §8.5.3 allows none.
 var mintSites = []string{filepath.Join("internal", "gh") + string(filepath.Separator)}
 
+// mints are the two ways a token can come into being: the constructor, and the
+// composite literal that would set its unexported field. They are searched for
+// as text, that being what a file outside internal/gh cannot write and still
+// compile.
+//
+// The list is shared with gatedCommands, which reads out of it §12.6's set of
+// commands that could have performed a network write. §8.5.3 allows exactly one
+// gate, so the commands that can mint and the commands that could have written
+// are one set, and they are read from one list rather than kept as two.
+var mints = []string{"gh.Confirm(", "Confirmation{granted"}
+
 // thisFile is this guard's own path, so the scan can exclude the file whose
 // data is the string it searches for. runtime.Caller answers instead of a
 // literal name, so moving or renaming the file cannot silently take the
@@ -198,7 +209,7 @@ func TestNothingOutsideTheGhPackageMintsAConfirmation(t *testing.T) {
 		raw, err := os.ReadFile(path)
 		require.NoError(t, err)
 		scanned++
-		for _, mint := range []string{"gh.Confirm(", "Confirmation{granted"} {
+		for _, mint := range mints {
 			if strings.Contains(string(raw), mint) {
 				found = append(found, rel+" names "+mint)
 			}
