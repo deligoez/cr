@@ -54,3 +54,23 @@ func TestTestGlobsSelectTestFilesAtEveryDepth(t *testing.T) {
 	}
 }
 
+// §2.4 makes `tests.globs` required whenever `tests.cmd` is present and §4.5.2
+// disables the test axis when `tests.cmd` is absent, so a profile that can run
+// tests can always name them. generic is the profile that declares neither, and
+// the assertion is that it recognises nothing rather than everything: a matcher
+// reading an empty glob list as a wildcard would attach every changed file in
+// the repository as a test file, and the agent would classify a unit as covered
+// by the source it was supposed to be reviewing.
+func TestAProfileWithNoTestGlobsRecognisesNoTestFile(t *testing.T) {
+	p, err := Parse(genericID+fileExt, []byte(Builtins()[genericID]))
+	require.NoError(t, err)
+	require.Empty(t, p.Tests.Globs)
+	// The half of §4.4 that needs no symbol index still needs this, and
+	// generic's silence here is §4.5.2's disabled axis rather than a lens
+	// that looked and found nothing.
+	require.Empty(t, p.Tests.Cmd)
+
+	assert.False(t, p.IsTestFile("tests/OrderTest.php"))
+	assert.False(t, p.IsTestFile("app/Models/Order.php"))
+}
+
