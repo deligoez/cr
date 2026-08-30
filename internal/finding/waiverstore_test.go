@@ -200,3 +200,72 @@ func TestAWaiverIsReadableAndRemovableFromEitherScope(t *testing.T) {
 	})
 }
 
+// §7.4.8: a waiver MUST record the round, the PR, the head, and the reason when
+// one was given.
+//
+// The four are read off the stored line by JSON key rather than off the decoded
+// struct, because "when one was given" is a statement about the wire: a reason
+// nobody gave and a reason given as the empty string decode alike, and only the
+// absent key says which happened. The three that are not optional are asserted
+// from the other side too — a waiver that recorded no round, no pull request or
+// no head would be a silence nobody could account for, so it is refused rather
+// than written.
+func TestAWaiverRecordsTheRoundThePullRequestTheHeadAndTheReason(t *testing.T) {
+	layout := waiverHome(t)
+	wrong, _ := theSameDefectAtTheSameCode(t)
+	waive(t, layout, &wrong, theProvenance())
+
+	body, err := os.ReadFile(layout.WaiversFile(waiverOwner, waiverRepo))
+	require.NoError(t, err)
+	var written map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(string(body))), &written))
+
+	for field, value := range map[string]string{
+		"round":  "3",
+		"pr":     "7",
+		"head":   `"0a1b2c3"`,
+		"reason": `"the legacy area is exempt"`,
+	} {
+		assert.JSONEq(t, value, string(written[field]),
+			"§7.4.8: a waiver records %s", field)
+	}
+
+	t.Run("the reason is absent when none was given", func(t *testing.T) {
+		layout := waiverHome(t)
+		silent := theProvenance()
+		silent.Reason = ""
+		waive(t, layout, &wrong, silent)
+
+		body, err := os.ReadFile(layout.WaiversFile(waiverOwner, waiverRepo))
+		require.NoError(t, err)
+		var written map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(string(body))), &written))
+		assert.NotContains(t, written, "reason",
+			"§7.4.8 asks for the reason when one was given, so none written is none given")
+		for _, field := range []string{"round", "pr", "head"} {
+			assert.Contains(t, written, field)
+		}
+	})
+
+	t.Run("provenance §7.4.8 requires is not optional", func(t *testing.T) {
+		for name, incomplete := range map[string]func(*WaiverProvenance){
+			"no round":        func(p *WaiverProvenance) { p.Round = 0 },
+			"no pull request": func(p *WaiverProvenance) { p.PR = 0 },
+			"no head":         func(p *WaiverProvenance) { p.Head = "  " },
+		} {
+			t.Run(name, func(t *testing.T) {
+				layout := waiverHome(t)
+				prov := theProvenance()
+				incomplete(&prov)
+				waiver, err := WaiverFor(&wrong)
+				require.NoError(t, err)
+
+				_, err = Waive(layout, waiverOwner, waiverRepo, &waiver, prov)
+				require.Error(t, err)
+				assert.Empty(t, storedAt(t, layout.WaiversFile(waiverOwner, waiverRepo)),
+					"a waiver §7.4.8 would not accept must not reach the file either")
+			})
+		}
+	})
+}
+
