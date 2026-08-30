@@ -72,10 +72,10 @@ func claimedHome(t *testing.T) state.Layout {
 
 // anIssueFile writes the issue text §3.1.4 reads in place of the tracker
 // command, and returns its path.
-func anIssueFile(t *testing.T, body string) string {
+func anIssueFile(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "issue.txt")
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(issueText), 0o600))
 	return path
 }
 
@@ -90,16 +90,19 @@ func aClaimFile(t *testing.T, lines ...string) string {
 }
 
 // runClaimsRecord runs `cr claims record` with args against whatever CR_HOME
-// points at, and returns what it printed and what it refused.
-func runClaimsRecord(t *testing.T, args ...string) (printed string, err error) {
+// points at, and returns what it refused.
+//
+// What it printed is discarded, and the state tree is read instead. §3.3 has cr
+// write four fields onto every claim that no agent may supply, so what the run
+// produced is on disk; a test satisfied by the printed document would pass on a
+// command that computed the hashes and stored none of them.
+func runClaimsRecord(t *testing.T, args ...string) error {
 	t.Helper()
 	cmd := newRootCmd()
-	var out bytes.Buffer
-	cmd.SetOut(&out)
+	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetArgs(append([]string{"claims", "record"}, args...))
-	err = cmd.Execute()
-	return out.String(), err
+	return cmd.Execute()
 }
 
 // §3.3.1 through the command: every claim of an accepted file reaches
@@ -124,8 +127,8 @@ func TestClaimsRecordStoresTheHashesCrComputes(t *testing.T) {
 			`"source":"acceptance","span":"abandoned after five attempts"}`,
 	)
 
-	_, err := runClaimsRecord(t, claimsPR, file,
-		"--repo", claimsSlug, "--intent-file", anIssueFile(t, issueText))
+	err := runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t))
 	require.NoError(t, err)
 
 	stored, err := state.ReadRecords[intent.Claim](
@@ -164,21 +167,21 @@ func TestClaimsRecordStoresTheHashesCrComputes(t *testing.T) {
 // writer that decoded and re-encoded it could fail.
 func TestClaimsRecordReplacesThisRoundAndLeavesTheOneBefore(t *testing.T) {
 	layout := claimedHome(t)
-	issue := anIssueFile(t, issueText)
+	issue := anIssueFile(t)
 	first := aClaimFile(t,
 		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
 			`"span":"backs off exponentially"}`,
 		`{"id":"`+claimsIssue+`#c2","text":"Give up.","source":"acceptance",`+
 			`"span":"abandoned after five attempts"}`,
 	)
-	_, err := runClaimsRecord(t, claimsPR, first, "--repo", claimsSlug, "--intent-file", issue)
+	err := runClaimsRecord(t, claimsPR, first, "--repo", claimsSlug, "--intent-file", issue)
 	require.NoError(t, err)
 
 	second := aClaimFile(t,
 		`{"id":"`+claimsIssue+`#c1","text":"Retry a 5xx.","source":"description",`+
 			`"span":"Retry the upload on a 5xx response."}`,
 	)
-	_, err = runClaimsRecord(t, claimsPR, second, "--repo", claimsSlug, "--intent-file", issue)
+	err = runClaimsRecord(t, claimsPR, second, "--repo", claimsSlug, "--intent-file", issue)
 	require.NoError(t, err)
 
 	stored, err := state.ReadRecords[intent.Claim](
@@ -229,8 +232,8 @@ func TestARefusedClaimLeavesTheRoundExactlyAsItWas(t *testing.T) {
 			`"span":"Retry the upload"}`,
 	)
 
-	_, err = runClaimsRecord(t, claimsPR, file,
-		"--repo", claimsSlug, "--intent-file", anIssueFile(t, issueText))
+	err = runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t))
 	require.Error(t, err)
 	assert.Equal(t, ExitValidation, exitCodeFor(err), "§3.3 rejects with exit code 1")
 	assert.Contains(t, err.Error(), file, "the refusal names the file")
@@ -258,7 +261,7 @@ func TestATerminalClaimsRecordNamesTheCountAndTheRound(t *testing.T) {
 	)
 
 	out := throughATerminal(t, "claims", "record", claimsPR, file,
-		"--repo", claimsSlug, "--intent-file", anIssueFile(t, issueText))
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t))
 
 	assert.Contains(t, out, "recorded ")
 	assert.Contains(t, out, "\x1b[36m1\x1b[0m",
