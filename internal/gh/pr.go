@@ -1,0 +1,124 @@
+package gh
+
+import (
+	"fmt"
+	"strconv"
+)
+
+// PullRequest is the pull request under review as §3.7.1 identifies it, and as
+// §3.2 resolves an issue key out of.
+//
+// The two revisions are object ids rather than ref names, and that is the whole
+// reason this type exists instead of a pair of `git rev-parse` calls. §3.4.1
+// takes the diff against the merge base "at the current head", and the current
+// head is GitHub's answer about the pull request: a local branch of the same
+// name may sit anywhere, and on a fork it names a different history altogether.
+// §9.3.1 then compares this value against `meta.json`'s recorded head, so a head
+// read from the local checkout would make the round's staleness a property of
+// what the user happened to have checked out.
+//
+// The cost is that both commits must already be in the local repository. cr
+// cannot fetch them: §2.2 permits no write inside the repository under review
+// beyond §5.1's worktree registration, and a fetch writes refs and objects. A
+// revision the checkout does not hold fails as the git read it is.
+type PullRequest struct {
+	// Number is the pull request number, as GitHub reports it.
+	Number int `json:"number"`
+	// Title is §3.2's third key source.
+	Title string `json:"title"`
+	// Body is §3.2's fourth.
+	Body string `json:"body"`
+	// HeadRefName is the head branch name, §3.2's second source.
+	HeadRefName string `json:"head_ref_name"`
+	// Head is the head commit, which §3.7.1 prints and §9.3.1 compares
+	// against the recorded head.
+	Head string `json:"head"`
+	// BaseRefName is the branch the pull request targets.
+	BaseRefName string `json:"base_ref_name"`
+	// Base is that branch's commit, which §3.4.1's merge base is taken
+	// against.
+	Base string `json:"base"`
+}
+
+// pullRequestQuery reads the identity of one pull request.
+//
+// It is GraphQL rather than `gh pr view` because the read boundary in write.go
+// admits `gh api` and nothing else: a subcommand allowlist that grew every time
+// a read was needed would be an allowlist that goes stale in the direction that
+// posts something. The document opens with `query`, which is what the boundary
+// reads it by.
+const pullRequestQuery = `query($owner:String!,$repo:String!,$number:Int!){
+  repository(owner:$owner,name:$repo){
+    pullRequest(number:$number){
+      number title body headRefName headRefOid baseRefName baseRefOid
+    }
+  }
+}`
+
+// pullRequestNode is the answer's shape, in GitHub's own field names.
+type pullRequestNode struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	Body        string `json:"body"`
+	HeadRefName string `json:"headRefName"`
+	HeadRefOid  string `json:"headRefOid"`
+	BaseRefName string `json:"baseRefName"`
+	BaseRefOid  string `json:"baseRefOid"`
+}
+
+// pullRequestResponse wraps that node the way the API answers it. The pull
+// request is a pointer so an answer naming none is a nil rather than a zero
+// value indistinguishable from a pull request with an empty title.
+type pullRequestResponse struct {
+	Data struct {
+		Repository struct {
+			PullRequest *pullRequestNode `json:"pullRequest"`
+		} `json:"repository"`
+	} `json:"data"`
+}
+
+// PullRequest reads the identity of one pull request.
+//
+// The two revisions are checked rather than taken on trust, for the reason
+// threadNode.anchor checks `diffSide`: GitHub declares both non-null, so an
+// empty one means this is not the answer the query asked for. An empty head
+// would be recorded in meta.json as the round's head and every §9.3.1
+// comparison afterwards would run against it, which is a wrong answer that
+// looks like a right one.
+func (c Client) PullRequest(owner, repo string, number int) (PullRequest, error) {
+	var answer pullRequestResponse
+	args := []string{
+		"api", "graphql",
+		// -f rather than -F for the owner and the repository, for the
+		// reason Threads gives: -F would convert a name that looks
+		// like a number to the wrong GraphQL type.
+		"-f", "query=" + pullRequestQuery,
+		"-f", "owner=" + owner,
+		"-f", "repo=" + repo,
+		"-F", "number=" + strconv.Itoa(number),
+	}
+	if err := c.query(&answer, args); err != nil {
+		return PullRequest{}, err
+	}
+	node := answer.Data.Repository.PullRequest
+	if node == nil {
+		return PullRequest{}, fmt.Errorf(
+			"%s/%s#%d: GitHub answered no pull request", owner, repo, number,
+		)
+	}
+	if node.HeadRefOid == "" || node.BaseRefOid == "" {
+		return PullRequest{}, fmt.Errorf(
+			"%s/%s#%d: GitHub answered head %q and base %q, and §3.4.1 needs both commits to take the diff",
+			owner, repo, number, node.HeadRefOid, node.BaseRefOid,
+		)
+	}
+	return PullRequest{
+		Number:      node.Number,
+		Title:       node.Title,
+		Body:        node.Body,
+		HeadRefName: node.HeadRefName,
+		Head:        node.HeadRefOid,
+		BaseRefName: node.BaseRefName,
+		Base:        node.BaseRefOid,
+	}, nil
+}
