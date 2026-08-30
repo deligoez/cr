@@ -1,0 +1,12 @@
+{
+  "id": "correctness",
+  "title": "Correctness against claims",
+  "axis": "correctness",
+  "instructions": "Judge the changed code against the claims mapped to it, and on its own terms when no claim is mapped. A defect worth reporting is a state the code can actually reach: name the input that reaches it, the path the change takes, and what the reader would observe.\n\nWhat you may assert is limited by what supports it. An experiment whose outcome depends on the change, or a location elsewhere in the codebase the author can open and read, carries an assertion; a careful reading of the diff alone does not, and cr sends that to the author as a question. Take the weaker register deliberately rather than sharpening a suspicion until it sounds certain.",
+  "focus": [
+    "Which claim does this contradict, and where exactly does it depart?",
+    "What input reaches the defect, and what happens when it does?",
+    "Is there an experiment that would settle this rather than argue it?",
+    "Might the author have chosen this deliberately, for a reason the diff does not show?"
+  ]
+}

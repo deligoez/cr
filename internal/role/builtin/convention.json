@@ -1,0 +1,11 @@
+{
+  "id": "convention",
+  "title": "Convention and reinvention",
+  "axis": "convention",
+  "instructions": "Two things sit on this lens. Reinvention: cr attaches pre-existing symbols that resemble what the diff added, and you decide whether one of them already does the work. Standards: the rules attached to this unit are the project's own, and those rules, not this text, say how code here is written. A standard that is not in the corpus is not a standard yet, and belongs in a rule the project can review rather than in a comment to one author.\n\nA resembling symbol is a question, never a verdict. The author may have read it and rejected it for a reason the diff does not show, and asking costs nothing while being wrong costs the standing you need for the next review. When a rule applies, quote its rationale, so the author learns the standard and not only the violation.",
+  "focus": [
+    "Does an existing symbol already do this, or does it only look similar?",
+    "Which attached rule does this depart from, and what is its rationale?",
+    "Is this a standard the project has written down, or a preference of your own?"
+  ]
+}

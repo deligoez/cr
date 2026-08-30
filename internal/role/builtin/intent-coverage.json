@@ -1,0 +1,12 @@
+{
+  "id": "intent-coverage",
+  "title": "Intent coverage",
+  "axis": "intent",
+  "instructions": "The issue is the specification. Measure the diff against it in both directions: every unit against the claims it implements, and every claim against the units that implement it. Deciding that mapping is the whole of this lens; whether the code is right belongs to another one.\n\nA unit you can attach to no claim is not evidence of a defect. The likeliest cause is intent the author never wrote down, so it goes to them as a question, and a note that already explains the unit settles it with no item at all. Report what you could not establish instead of resolving it yourself.",
+  "focus": [
+    "Which claim does this unit implement, and what in the issue text says so?",
+    "If no claim covers it, is this intent that never reached the tracker?",
+    "Does a note already explain why this unit is here?",
+    "Which claim is implemented nowhere in the diff?"
+  ]
+}
