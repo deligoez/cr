@@ -165,3 +165,39 @@ func TestTheTrackerCommandKeepsTheEnvironmentItAuthenticatesWith(t *testing.T) {
 	assert.Contains(t, string(environment), "JIRA_API_TOKEN=the-users-own-token")
 	assert.Contains(t, string(environment), "JIRA_AUTH_TYPE=bearer")
 }
+
+// issueFile writes issue text where --intent-file can point at it, and
+// returns the path.
+func issueFile(t *testing.T, text string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "issue.txt")
+	require.NoError(t, os.WriteFile(path, []byte(text), 0o600))
+	return path
+}
+
+// §3.1.4: --intent-file bypasses the command and reads the issue text from a
+// file.
+//
+// Bypass is the word under test, and it is not the same claim as the returned
+// text being the file's. A run that started the tracker and then preferred the
+// file would satisfy every assertion about what came back and none of what
+// §3.1.4 is for: the command would still have authenticated, still have
+// reached the network, and still have failed on a machine with no tracker
+// access. So the stub records having run at all, and the assertion is that the
+// record is not there.
+func TestAnIntentFileBypassesTheTrackerCommandEntirely(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	tracker := stubTracker(t, "touch "+ran+"\necho 'text the tracker would have printed'")
+	issue := "CR-1 Bypass the tracker with an intent file\n\n" +
+		"Acceptance: the loop works with no tracker access at all.\n"
+
+	text, err := Read(Source{
+		File: issueFile(t, issue),
+		Cmd:  []string{tracker, "issue", "view", Placeholder, "--plain"},
+	}, "CR-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, issue, text)
+	assert.NoFileExists(t, ran,
+		"§3.1.4 bypasses the command; it does not run it and discard the output")
+}
