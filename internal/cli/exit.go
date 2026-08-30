@@ -100,6 +100,15 @@ func exitCodeFor(err error) int {
 		// row, and the run reaches no issue text either way.
 		return ExitFile
 	}
+	var badKeyPattern *intent.KeyPatternError
+	if errors.As(err, &badKeyPattern) {
+		// §3.2 makes intent.key_pattern overridable without saying what
+		// an uncompilable override does. §2.6.1.2 already fixed it for
+		// cr's other configured regex — abort with exit code 3, naming
+		// what it came from — and a profile's count pattern follows the
+		// same rule, so the third configured expression does too.
+		return ExitFile
+	}
 	var invalidClass *finding.InvalidClassError
 	if errors.As(err, &invalidClass) {
 		// §6.1 rejects a class that is not kebab-case. Like a supplied
