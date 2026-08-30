@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T11:38:01.278352Z",
+  "updated_at": "2026-08-30T11:46:47.431303Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1538,7 +1538,7 @@
     {
       "id": "issue-key-resolution",
       "title": "Resolve the issue key from sources",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "intent-file-bypass"
@@ -1550,10 +1550,29 @@
       ],
       "started_at": "2026-08-30T11:37:28.019605Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-30T11:46:47.346588Z",
+      "closed_reason": "- internal/intent/key.go's ResolveKey walks §3.2's four sources in the order the section fixes them — the --issue flag, then the PR branch, then the PR title, then the PR body — and returns the first non-empty match together with a KeyOrigin naming where it came from, so a later source never wins over an earlier one. The sources arrive as plain strings in a KeySources value rather than being fetched here, keeping resolution beside the {key} placeholder it fills without internal/intent reaching for GitHub.\n- The pattern is the resolver's second argument and comes from the configuration layer, whose table already carries [A-Z][A-Z0-9]+-[0-9]+ at intent.key_pattern. TestTheKeyPatternDefaultIsTheOneTheSpecNames pins the resolved default to the literal §3.2 names and extracts CR-123 from a branch with it, and TestAnOverridingKeyPatternReplacesTheDefaultShape puts a #-shaped override past a default-shaped key in an earlier source to prove the override replaces the default rather than joining it. An override that will not compile is a KeyPatternError naming intent.key_pattern, which internal/cli maps to exit code 3, the answer §2.6.1.2 already fixed for a rule's detect.pattern and a profile's tests.count_pattern.\n- TestEachKeySourceWinsInTurn runs all four cases with the earlier sources populated but keyless, so a skipped source cannot pass as a working fall-through, and the boundary tests walk the other side: an earlier stray key beating a better-looking later one, a flag the pattern does not recognise falling through, four keyless sources yielding no key, and a pattern matching the empty string yielding no key rather than an empty one. gremlins unleash --timeout-coefficient 30 ./internal reports Killed 352 Lived 5 efficacy 98.60%, both mutants in key.go killed and no new survivor.",
+      "gate_passed_at": "2026-08-30T11:46:47.346588Z",
+      "commit_sha": "9e600a8",
+      "commit_shas": [
+        "9e600a8",
+        "c090cf5",
+        "3c2a997",
+        "7ea3b26",
+        "c0f49e7",
+        "8cb2c4a",
+        "39a6842",
+        "259e333",
+        "64722d9",
+        "a3ccff6",
+        "1d6a2bd"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/intent/key.go",
+        "internal/intent/key_test.go"
+      ]
     },
     {
       "id": "missing-issue-key-fallback",
