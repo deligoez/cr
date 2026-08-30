@@ -1,6 +1,9 @@
 package unit
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/deligoez/cr/internal/git"
@@ -125,4 +128,145 @@ func TestUnitIdsOrderLeftBeforeRightAtTheSameLineNumber(t *testing.T) {
 
 	assert.Equal(t, units, unitsOf(t, collision),
 		"§2.1.1: the same input gives the same units, ids included")
+}
+
+// orderPath is the second file the enumeration below changes. It sorts after
+// moneyPath, so a path comparison that ran backwards would be visible.
+const orderPath = "app/Order.php"
+
+// fill is what one slot of the enumeration holds.
+type fill int
+
+const (
+	absent fill = iota
+	adds
+	removes
+)
+
+// slot is a place a hunk may sit: a file, and the merge-base line its hunk
+// starts at. The two slots of a file are forty lines apart, far past
+// `cluster.gap_lines`, so every hunk becomes a unit of its own and the number
+// of units is the number of filled slots.
+type slot struct {
+	path string
+	base int
+}
+
+var slots = []slot{
+	{moneyPath, 20}, {moneyPath, 60},
+	{orderPath, 20}, {orderPath, 60},
+}
+
+// patchOf renders a valid unified diff holding one hunk per filled slot: an
+// addition of one line, or a removal of one, each with three lines of context
+// on either side. The head coordinate of a hunk is its merge-base coordinate
+// plus what the earlier hunks of its file added or removed, so the diff is one
+// a tree could actually produce and not a shape only the parser would accept.
+func patchOf(filled []fill) string {
+	var out strings.Builder
+	for _, path := range []string{moneyPath, orderPath} {
+		opened, delta := false, 0
+		for i, at := range slots {
+			if at.path != path || filled[i] == absent {
+				continue
+			}
+			if !opened {
+				fmt.Fprintf(&out, "--- a/%s\n+++ b/%s\n", path, path)
+				opened = true
+			}
+			head := at.base + delta
+			if filled[i] == adds {
+				fmt.Fprintf(&out, "@@ -%d,6 +%d,7 @@\n context\n context\n context\n+added at head %d\n context\n context\n context\n",
+					at.base, head, head+3)
+				delta++
+				continue
+			}
+			fmt.Fprintf(&out, "@@ -%d,7 +%d,6 @@\n context\n context\n context\n-removed at base %d\n context\n context\n context\n",
+				at.base, head, at.base+3)
+			delta--
+		}
+	}
+	return out.String()
+}
+
+// Round 8's vacuous-multi-file-unit: every branch of §3.4.4 says "same file"
+// before it says anything else, so a unit carries exactly one file path, and
+// §3.4.6's "its file paths" and §6.2.1's "one of that unit's file paths" range
+// over a set of one.
+//
+// The strongest half of that is structural and not testable: Unit.Path is one
+// string, sided.cluster is the only place a Cluster is built, and it takes the
+// path from the partition rather than from the hunks — so a unit spanning two
+// files is not a value this package can construct. What a test can add is that
+// no diff drives a hunk of one file into a cluster of another, and this one
+// asks it of every diff in a closed space rather than of one fixture: each of
+// the two files may hold, at each of two positions, an addition, a removal, or
+// nothing, which is every one of the eighty-one combinations and so every
+// arrangement of files and sides the clustering can be handed.
+//
+// The id ordering rides along, because the same enumeration is exactly the
+// space where paths and sides interleave. Every combination is asserted to
+// ascend by path, then LEFT before RIGHT, then line, to number its units `u1`
+// upwards, and to come out the same on a second run per §2.1.1.
+func TestNoDiffPutsTwoFilesInOneUnit(t *testing.T) {
+	for combination := range 81 {
+		filled := make([]fill, len(slots))
+		remaining, hunks := combination, 0
+		for i := range filled {
+			filled[i] = fill(remaining % 3)
+			remaining /= 3
+			if filled[i] != absent {
+				hunks++
+			}
+		}
+		if hunks == 0 {
+			continue
+		}
+
+		t.Run(fmt.Sprintf("combination-%d", combination), func(t *testing.T) {
+			patch := patchOf(filled)
+			generic := shipped(t, "generic")
+			parsed, err := git.ParseHunks(patch)
+			require.NoError(t, err, patch)
+			require.Len(t, parsed, hunks)
+
+			clusters := Split(Clusters(parsed, &generic, nil, defaultGapLines(t)), defaultMaxLines(t))
+			assertNoClusterMixesSides(t, clusters)
+			require.Len(t, clusters, hunks, "the slots are far enough apart to cluster alone")
+
+			units, err := Units(clusters)
+			require.NoError(t, err)
+			require.Len(t, units, hunks)
+
+			for i := range units {
+				assert.Equal(t, "u"+strconv.Itoa(i+1), units[i].ID)
+				assert.Contains(t, []string{moneyPath, orderPath}, units[i].Path)
+				require.Len(t, units[i].HunkRanges, 1)
+			}
+			for i := 1; i < len(units); i++ {
+				assertOrdered(t, &units[i-1], &units[i])
+			}
+
+			again, err := Units(Split(Clusters(parsed, &generic, nil, defaultGapLines(t)), defaultMaxLines(t)))
+			require.NoError(t, err)
+			assert.Equal(t, units, again, "§2.1.1: the same inputs give the same units")
+		})
+	}
+}
+
+// assertOrdered holds two neighbouring units to §3.4.6's assignment order with
+// the side tiebreak: ascending path, then LEFT before RIGHT, then ascending
+// line. Only one of the three fires for any pair, which is what makes it an
+// order and not three independent checks.
+func assertOrdered(t *testing.T, prev, next *Unit) {
+	t.Helper()
+	switch {
+	case prev.Path != next.Path:
+		assert.Less(t, prev.Path, next.Path, "units ascend by file path")
+	case prev.Side != next.Side:
+		assert.Equal(t, git.Left, prev.Side, "inside a file, LEFT precedes RIGHT")
+	default:
+		assert.Less(t, prev.HunkRanges[0].Start, next.HunkRanges[0].Start,
+			"inside one file and one side, units ascend by line")
+	}
 }
