@@ -2,6 +2,7 @@ package profile
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -21,10 +22,10 @@ const fileExt = ".json"
 //   - nothing matched, with Tied empty and Selected false.
 //
 // The tie is reported rather than broken here. §2.4.2 forbids picking one of
-// the tied profiles, and the abort it requires — exit code 3 naming them — is a
-// decision the cli layer makes, so this package hands it the names and stops.
-// The same holds for the empty outcome: §2.4.4's report and axis disabling
-// belong to the caller, not to the matcher.
+// the tied profiles, so Select stops and Err turns the names into the abort
+// that rule requires, which the cli layer maps onto exit code 3. The empty
+// outcome stays entirely the caller's: §2.4.4's report and axis disabling
+// belong to it, not to the matcher.
 type Selection struct {
 	// Profile is the selected profile, meaningful only when Selected is true.
 	Profile Profile
@@ -35,6 +36,42 @@ type Selection struct {
 	// matched marker count when more than one did. It is empty in every
 	// other state and never nil.
 	Tied []string
+}
+
+// Err returns the abort §2.4.2 requires of a tie, and nil in every other state.
+// It is the second half of that rule: cr names the tied profiles and stops
+// rather than picking one, and routing the tie through an error is what keeps
+// Profile out of reach of a caller that never looked at Tied.
+//
+// A selection that matched nothing is not an error here. §2.4.4 answers that
+// state with a report and every axis needing a profile disabled, which is a run
+// that continues, so Selected stays the caller's own check.
+func (s Selection) Err() error {
+	if len(s.Tied) == 0 {
+		return nil
+	}
+	return &TieError{Profiles: s.Tied}
+}
+
+// TieError reports the tie §2.4.2 forbids resolving: two or more profiles
+// matched the same greatest number of marker files. It is deliberately not a
+// *MalformedError. Every tied profile was read, parsed, and validated, so there
+// is no file to open and no field to correct; what is ambiguous is their
+// combination against this one repository, and the fix is naming a `profile` in
+// the per-repository config, which the message says. The cli layer maps it onto
+// the exit code 3 §2.4.2 requires.
+type TieError struct {
+	// Profiles names the tied profiles, in the ascending id order
+	// Selection.Tied reports them in.
+	Profiles []string
+}
+
+func (e *TieError) Error() string {
+	return fmt.Sprintf(
+		"profiles %s match the same number of marker files, and §2.4.2 forbids picking one of them; "+
+			"set `profile` in the per-repository config to the one this repository is",
+		strings.Join(e.Profiles, ", "),
+	)
 }
 
 // Select resolves the profile for the repository rooted at repoRoot, reading
