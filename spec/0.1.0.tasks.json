@@ -2713,7 +2713,7 @@
     {
       "id": "edge-case-role-guidance",
       "title": "Move edge-case guidance into role instructions",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "ship-default-roles",
@@ -2724,7 +2724,8 @@
       "source_sections": [
         "### 4.4 Test adequacy"
       ],
-      "started_at": null,
+      "started_at": "2026-08-30T16:42:25.882284Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
