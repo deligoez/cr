@@ -140,5 +140,17 @@ anything larger than restating an existing rule in its own section to the user.
   summed, with no match of the failed pattern meaning zero. One field added,
   one field's meaning changed. `speccheck.py` clean.
 
+- **§11 row 1 versus §2.5.2, at `role-eject-command`. Open, not repaired.**
+  §11's table row for `cr init` reads "Create `~/.cr`, write default profiles and
+  roles", while the next row gives `--eject-roles` the job of writing the roles.
+  Read literally, row 1 makes the flag a no-op and §2.5.4's built-in resolution
+  layer unreachable after any `init`, since the global layer would always hold a
+  copy. The implementation takes the flag-gated reading — the only one under
+  which §2.5.2 and §2.5.4 both have effect — and pins it with
+  `TestInitWritesNoRoleWithoutTheEjectFlag`. Nothing was changed in the spec:
+  the criterion is satisfiable without a normative change, and §11's rows are
+  one-line summaries of the clauses that own the behaviour. Carried here so the
+  audit re-tests the reading rather than inheriting it silently.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.
