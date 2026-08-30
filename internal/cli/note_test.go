@@ -56,3 +56,29 @@ func TestNoteCommandRecordsAgainstTheIssueKey(t *testing.T) {
 	assert.Contains(t, string(stored), `"id":"CR-1#n1"`)
 }
 
+// The round-11 finding unspecified-flag-requiredness: §3.6.1 shows `--source`
+// in its synopsis and never says it is required, so cr says it. An absent value
+// and one outside §3.6.3's set are both the invocation being wrong rather than
+// data in a file being wrong, which §11.2 codes 2 and not 1 — and an unmapped
+// error is already exactly that in exitCodeFor, so neither needs a mapping of
+// its own. `--pr` goes the same way: §3.6.1 has the note record the pull
+// request it came from, and cr forms no opinion about which one that was.
+func TestNoteRefusesAnAbsentOrUnlistedSourceWithTheUsageCode(t *testing.T) {
+	for name, args := range map[string][]string{
+		"no source at all":  {"CR-1", "hearsay", "--pr", "42"},
+		"an empty source":   {"CR-1", "hearsay", "--source", "", "--pr", "42"},
+		"an unlisted value": {"CR-1", "hearsay", "--source", "gossip", "--pr", "42"},
+		"no pull request":   {"CR-1", "hearsay", "--source", "chat"},
+		"no text":           {"CR-1", "--source", "chat", "--pr", "42"},
+		"no issue key":      {"--source", "chat", "--pr", "42"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, out, err := runNote(t, args...)
+			require.Error(t, err)
+			assert.Equal(t, ExitUsage, exitCodeFor(err),
+				"§11.2 codes a malformed invocation 2")
+			assert.Empty(t, out, "a refused run prints no note")
+			assert.NoFileExists(t, state.New(root).ContextFile("CR-1"))
+		})
+	}
+}
