@@ -764,12 +764,17 @@ func leafCommands(t *testing.T) []string {
 // never reaches the code that could write, so a run that exits 2 would prove
 // nothing about the command it named.
 //
-// `cr record` reads an NDJSON file the agent names on the command line, so its
-// argv carries a path and the table is built rather than written out. The file
-// is prepared outside the repository under review: a fixture written inside it
-// would be a write, and this guard cannot tell one the test made from one cr
-// made.
-func repoRuns(merged string) map[string][]string {
+// `cr record` and `cr claims record` each read an NDJSON file the agent names
+// on the command line, and the latter also reads the issue text §3.1.4 puts in
+// a file, so the argv carries paths and the table is built rather than written
+// out. All three files are prepared outside the repository under review: a
+// fixture written inside it would be a write, and this guard cannot tell one
+// the test made from one cr made.
+//
+// `cr claims record` is given `--intent-file` for a second reason. Without it
+// §3.1's default `intent.cmd` would start `jira`, and this guard would then be
+// measuring whether a tracker CLI nobody installed writes into the repository.
+func repoRuns(merged, claims, issue string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -777,6 +782,10 @@ func repoRuns(merged string) map[string][]string {
 		"answer":  {"answer", fixturePR, "f1", "the retry is deliberate", "--source", "thread", "--repo", fixtureSlug},
 		"context": {"context", fixtureIssue},
 		"record":  {"record", fixturePR, merged, "--repo", fixtureSlug},
+		"claims record": {
+			"claims", "record", fixturePR, claims,
+			"--repo", fixtureSlug, "--intent-file", issue,
+		},
 	}
 }
 
@@ -829,6 +838,17 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 		`"summary":"The returned error is dropped.",`+
 		`"evidence":"The call's second result is assigned to the blank identifier."}`+"\n"), 0o600))
 
+	// The two files `cr claims record` reads, outside the repository under
+	// review for the same reason. The claim's span is a substring of the
+	// issue text, so §3.3.1's occurrence check has something to find.
+	issue := filepath.Join(home, "issue.txt")
+	require.NoError(t, os.WriteFile(issue,
+		[]byte("The retry must back off exponentially.\n"), 0o600))
+	claims := filepath.Join(home, "claims.ndjson")
+	require.NoError(t, os.WriteFile(claims, []byte(`{"id":"`+fixtureIssue+`#c1",`+
+		`"text":"The retry backs off exponentially.","source":"acceptance",`+
+		`"span":"back off exponentially"}`+"\n"), 0o600))
+
 	env := []string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + home,
@@ -848,7 +868,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	runs := repoRuns(merged)
+	runs := repoRuns(merged, claims, issue)
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
