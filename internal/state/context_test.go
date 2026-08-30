@@ -101,6 +101,28 @@ func TestReadingTheContextStoreCreatesNothing(t *testing.T) {
 	assert.Empty(t, entries, "the read left something in §2.2's context directory")
 }
 
+// The lock-free read builds the same path the locked write does, so it is held
+// to the same rule: §2.2 stores the notes at context/<ISSUE-KEY>.ndjson and the
+// key arrives as a positional argument, and a key that is not one name would
+// read a file outside §2.2's tree entirely.
+//
+// The bait is a real file with real records in it, placed exactly where
+// `../../escaped` resolves to, so a refusal that only looked like one — an
+// empty result from a path that happens to hold nothing — cannot pass.
+func TestReadingRefusesAnIssueKeyThatIsNotOneName(t *testing.T) {
+	l := contextRoot(t)
+	bait := filepath.Join(filepath.Dir(l.Root()), "escaped.ndjson")
+	require.NoError(t, os.WriteFile(bait, []byte("{\"n\":9}\n"), 0o600))
+
+	for _, key := range []string{"", ".", "..", "a/b", `a\b`, "../../escaped"} {
+		t.Run("refuses "+key, func(t *testing.T) {
+			records, err := ReadContextRecords[numbered](l, key)
+			require.Error(t, err)
+			assert.Nil(t, records, "a refused key returned records, so something outside §2.2 was read")
+		})
+	}
+}
+
 // The context store is keyed by issue and not by pull request, so §2.3.1's lock
 // cannot serialise it: two runs against one key from two pull requests would
 // take two different PR locks. §3.6.1's id is a counter over the records
