@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T22:07:08.623574Z",
+  "updated_at": "2026-08-30T22:23:46.186333Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2105,7 +2105,7 @@
     {
       "id": "unit-id-total-ordering",
       "title": "Order unit ids with side tiebreak",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "unit-record-fields"
@@ -2115,11 +2115,25 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T22:07:13.642725Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T22:23:46.153617Z",
+      "closed_reason": "- internal/unit/unit.go's Units numbers the units u1 upwards in §3.4.6's assignment order, computed by order and compareClusters. The ids are round-scoped by construction: they are derived from the round's own clusters and read from nowhere, so carrying one across rounds is something this package cannot do rather than something it refrains from doing, and internal/cli's roundUnitIDs already filters units.ndjson by the round on the §2.3.3 stamp.\n- Round 8's non-total-ordering is fixed as the finding words it: ascending first file path, then side with LEFT before RIGHT, then ascending first changed line. The side sits between the two keys §3.4.6 names because this is the one comparison in §3.4 ranging over both sides at once; everywhere else §3.4.4's partition has already fixed which file version a number is read in. LEFT before RIGHT is taken from §8.3.3 rather than invented, so cr sorts by side in one direction wherever it sorts by side.\n- Without it two units of one file can tie on a number that means two different lines, and the winner is whichever clustering happened to hand over first, which §2.1.1 does not allow because that is not a property of the inputs. Measured, not argued: deleting the side comparison and re-running TestUnitIdsOrderLeftBeforeRightAtTheSameLineNumber turns the side sequence LEFT LEFT RIGHT RIGHT into RIGHT LEFT RIGHT LEFT, and the comparison is stable-sorted so a pair no key separates still keeps the order the diff fixed.\n- Round 8's vacuous-multi-file-unit is pinned by the type: Unit.Path is one string, because every branch of §3.4.4 says same file before it says anything else. §3.4.6's per-file hash ordering is that rule for a set of one and §6.2.1's path-membership test is an equality, and a []string would advertise a shape no diff produces while giving every reader a loop, an ordering rule and an empty case for a second path that never arrives.\n- The no-two-paths assertion is more than a spot check in two ways. Structurally, sided.cluster is the only place a Cluster is built and it takes the path from the partition rather than from the hunks, so a unit spanning two files is not a value the package can construct. Empirically, TestNoDiffPutsTwoFilesInOneUnit enumerates a closed space rather than a fixture: two files, each with two positions, each holding an addition, a removal or nothing, which is all eighty-one combinations and so every arrangement of files and sides the clustering can be handed, and every one is checked for hunks of a foreign file, for the id order, and for equality with a second run.\n- TestUnitIdsOrderLeftBeforeRightAtTheSameLineNumber builds the file the finding describes. A twelve-line removal pulls the head numbers eleven behind the base, so a later addition lands on head 53 while an earlier deletion removed merge-base 53, and the fixture asserts the collision before asserting the order; the leading addition puts the RIGHT clusters ahead of the LEFT ones on the way in, so an ordering leaning on the order it was handed would keep them there. The whole unit list is asserted to be identical on a second run.\n- gremlins unleash --timeout-coefficient 30 ./internal reports Killed 645, Lived 13, Not covered 41, Timed out 6, efficacy 98.02 percent, up from 624 and 97.96. internal/unit alone is Killed 37, Lived 0, Not covered 0. The run first surfaced two new survivors, both the \"is a unit open?\" boundaries in split.go, and both were real: a cluster that is only an oversized hunk has nothing open on either side of it, and a split closing a unit it never opened would emit a hunkless unit there and nowhere else. TestAHunkOverTheCapAloneIsOneOversizedUnit gained that cluster and both are killed. The thirteen remaining Lived and the forty-one Not covered are the pre-existing set, unchanged.\nOut of scope: §6.2.1's containment predicate, unit-to-claim mapping, §10.1.1's coverage report, and writing units.ndjson from cr brief are each their own task.",
+      "gate_passed_at": "2026-08-30T22:23:46.153617Z",
+      "commit_sha": "a6fe0e8",
+      "commit_shas": [
+        "a6fe0e8",
+        "6203c8e",
+        "0a24f76",
+        "31d046f",
+        "e7ad0b5"
+      ],
+      "commit_files": [
+        "internal/unit/order_test.go",
+        "internal/unit/split_test.go",
+        "internal/unit/unit.go",
+        "internal/unit/unit_test.go"
+      ]
     },
     {
       "id": "thread-ingestion",
