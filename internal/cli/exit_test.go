@@ -100,6 +100,21 @@ func TestAMalformedIntentCmdExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("reading the issue: %w", err)))
 }
 
+// §3.1.4's file stands in for the tracker command, so it exits the way the
+// command it replaced would have. §11.2 puts the file and the external command
+// in one row, and the code must survive the wrapping a command adds on the way
+// out.
+//
+// The error is raised here rather than constructed, because the mapping is
+// only worth anything if the type the filesystem failure actually arrives as
+// is the type internal/cli matches on.
+func TestAnUnreadableIntentFileExitsWithTheFileCode(t *testing.T) {
+	_, err := intent.Read(intent.Source{File: filepath.Join(t.TempDir(), "issue.txt")}, "CR-1")
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("reading the issue: %w", err)))
+}
+
 // §6.1 rejects a class that is not kebab-case. The record's file was read and
 // parsed, so nothing about it failed as a file; what is wrong is the agent's
 // data inside it, which §11.2 codes 1. The code must survive the wrapping a
