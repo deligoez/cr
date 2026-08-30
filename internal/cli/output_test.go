@@ -322,7 +322,7 @@ func TestATypeThatSerialisesItselfKeepsItsOwnNull(t *testing.T) {
 // which is the set §12.3 has to hold for. It is proven complete below rather
 // than trusted: a payload nobody listed here is a payload nobody checked, and
 // a list somebody has to remember to extend is the failure §12.3 keeps having.
-var outputStructs = []result{initResult{}, configResult(nil), &noteResult{}}
+var outputStructs = []result{initResult{}, configResult(nil), &noteResult{}, &answerResult{}}
 
 // payloadName is a payload's own type name, whether the value listed is the
 // type or a pointer to it, so it can be matched against the receiver its Text
