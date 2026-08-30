@@ -512,6 +512,10 @@ const (
 	fixturePR       = "7"
 	fixturePRNumber = 7
 	fixtureIssue    = "CR-7"
+	// fixtureHead is the head its §2.3 state was recorded against. It is a
+	// value rather than the fixture's own HEAD because nothing compares the
+	// two yet, and a record is stamped with whatever meta.json holds.
+	fixtureHead = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"
 )
 
 // worktreeRegistration is §5.1.1's exception, spelled as a repository-relative
@@ -759,12 +763,21 @@ func leafCommands(t *testing.T) []string {
 // Every one of them is required to succeed. A command refused at its arguments
 // never reaches the code that could write, so a run that exits 2 would prove
 // nothing about the command it named.
-var repoRuns = map[string][]string{
-	"init":    {"init"},
-	"config":  {"config", "--repo", fixtureSlug},
-	"note":    {"note", fixtureIssue, "the retry is deliberate", "--source", "chat", "--pr", fixturePR},
-	"answer":  {"answer", fixturePR, "f1", "the retry is deliberate", "--source", "thread", "--repo", fixtureSlug},
-	"context": {"context", fixtureIssue},
+//
+// `cr record` reads an NDJSON file the agent names on the command line, so its
+// argv carries a path and the table is built rather than written out. The file
+// is prepared outside the repository under review: a fixture written inside it
+// would be a write, and this guard cannot tell one the test made from one cr
+// made.
+func repoRuns(merged string) map[string][]string {
+	return map[string][]string{
+		"init":    {"init"},
+		"config":  {"config", "--repo", fixtureSlug},
+		"note":    {"note", fixtureIssue, "the retry is deliberate", "--source", "chat", "--pr", fixturePR},
+		"answer":  {"answer", fixturePR, "f1", "the retry is deliberate", "--source", "thread", "--repo", fixtureSlug},
+		"context": {"context", fixtureIssue},
+		"record":  {"record", fixturePR, merged, "--repo", fixtureSlug},
+	}
 }
 
 // No command in the tree writes inside the repository it is run in.
@@ -796,9 +809,25 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
 	require.NoError(t, held.WriteMeta(&state.Meta{
-		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber, IssueKey: fixtureIssue,
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, Round: 1, Head: fixtureHead,
 	}))
+	// `cr record` checks every record's unit against the units of the round
+	// (§6.1.3), so the round has one. It is written as bytes rather than
+	// through a unit type because §3.4.6's record does not exist yet, and
+	// the id is the whole of what this command reads.
+	require.NoError(t, held.Write(state.FileUnits,
+		[]byte(`{"id":"u1","head":"`+fixtureHead+`","round":1}`+"\n")))
 	require.NoError(t, held.Unlock())
+
+	// The file `cr record` is pointed at, outside the repository under
+	// review for the reason repoRuns gives.
+	merged := filepath.Join(home, "merged.ndjson")
+	require.NoError(t, os.WriteFile(merged, []byte(`{"id":"f1","kind":"finding",`+
+		`"role":"correctness","class":"unchecked-error","severity":"high","unit":"u1",`+
+		`"anchor":{"path":"README.md","side":"RIGHT","start_line":1,"line":1,"content_hash":"0123456789abcdef"},`+
+		`"summary":"The returned error is dropped.",`+
+		`"evidence":"The call's second result is assigned to the blank identifier."}`+"\n"), 0o600))
 
 	env := []string{
 		"PATH=" + os.Getenv("PATH"),
@@ -819,17 +848,18 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
+	runs := repoRuns(merged)
 	commands := leafCommands(t)
-	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(repoRuns)),
+	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
 
 	before := fingerprintOf(t, fixture)
 
 	run("--version")
 	run("--help")
-	for _, name := range slices.Sorted(maps.Keys(repoRuns)) {
+	for _, name := range slices.Sorted(maps.Keys(runs)) {
 		run(append(strings.Fields(name), "--help")...)
-		run(repoRuns[name]...)
+		run(runs[name]...)
 	}
 
 	after := fingerprintOf(t, fixture)
