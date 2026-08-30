@@ -162,3 +162,34 @@ func everyFieldExported(typ reflect.Type) bool {
 	}
 	return true
 }
+
+// The three fields of the key that are not the hash each bound what a waiver
+// reaches, and each is tested with the other three held fixed — including the
+// content hash, so every case below is one waiver meeting code that reads
+// identically somewhere else. That is the only interesting shape: two records
+// over texts that already differ key differently on the hash alone, whatever
+// these three say.
+//
+// `anchor.side` is round 8's finding side-omitted-from-identity-keys, and the
+// case is the sharpest of the three. §6.1.2 resolves the two sides against
+// different trees, so a line removed from the merge base and the line that
+// replaced it in the head hash the same whenever the edit moved the text rather
+// than rewriting it — and a waiver over the deletion would then silence a
+// finding about the addition, in a file the reviewer never waived anything in.
+func TestAWaiverReachesOneClassInOneFileInOneTree(t *testing.T) {
+	waived, _ := theSameDefectAtTheSameCode(t)
+	key := WaiverKeyOf(&waived)
+
+	for name, elsewhere := range map[string]func(*Finding){
+		"another file":   func(record *Finding) { record.Anchor.Path = "app/Models/Invoice.php" },
+		"another class":  func(record *Finding) { record.Class = "unhandled-error" },
+		"the other tree": func(record *Finding) { record.Anchor.Side = git.Left },
+	} {
+		t.Run(name, func(t *testing.T) {
+			other, _ := theSameDefectAtTheSameCode(t)
+			elsewhere(&other)
+			assert.NotEqual(t, key, WaiverKeyOf(&other),
+				"§7.4.2: a waiver suppresses the same class at the same code in the same file, and nothing further")
+		})
+	}
+}
