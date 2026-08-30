@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T09:45:04.881982Z",
+  "updated_at": "2026-08-30T09:55:05.257354Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5055,7 +5055,7 @@
     {
       "id": "goreleaser-release",
       "title": "Release archives through GoReleaser on tags",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "single-binary-dependencies"
@@ -5065,11 +5065,27 @@
       "source_sections": [
         "## 14. Distribution"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T09:45:41.715478Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T09:55:05.220488Z",
+      "closed_reason": "- .github/workflows/release.yml fires on a push of a v* tag and nothing else, and its goreleaser-action step runs release --clean, so a tag is the only thing that publishes. .goreleaser.yml's one build matrix is now darwin and linux across amd64 and arm64 exactly, the windows entry the pre-spec scaffolding carried having gone with the zip format_overrides that existed only for it. TestAVersionTagIsWhatTriggersARelease pins the trigger and the release verb, and TestTheBuildMatrixIsExactlyTheFourTheSpecNames asserts both sets by ElementsMatch rather than by containment, so adding a platform fails as loudly as losing one, verified by putting windows back and watching it fail. The before-hooks were raised from go test ./... to the gate verbatim, with the release runner installing golangci-lint and deadcode, because a tag is the one moment a mistake cannot be taken back.\n- Section 14.4's install path resolves to the module path plus the package directory, and TestTheReleaseBinaryIsTheOneGoInstallNames asserts every half of it, that go.mod declares module github.com/deligoez/cr, that the build's main is ./cmd/cr, and that its binary is cr, so the package go install fetches at a tag and the package GoReleaser builds at that tag are the same one. The version half is asserted where this task can reach it, that the ldflags carry -X github.com/deligoez/cr/internal/cli.version={{.Version}}, the variable root.go prints. go version -m on the archived darwin/arm64 binary confirms both, path github.com/deligoez/cr/cmd/cr and the -X flag applied, and the extracted binary printed cr version 0.0.0-SNAPSHOT-befaac8.\n- goreleaser release --snapshot --clean --skip=publish --skip=announce produced exactly four archives and no others, macOS_x86_64.tar.gz, macOS_arm64.tar.gz, linux_x86_64.tar.gz and linux_arm64.tar.gz, down from the six the same command produced before the change. The strengthened before-hooks ran inside that run, all three gate steps passing, and TestEveryGateStepRunsInCIAndAtRelease now derives those steps from the tasks.json quality_gate string rather than restating them, so a future gate change fails until the hooks and the CI workflow both carry it. Mutation testing held at the baseline, Killed 305, Lived 5, efficacy 98.39 percent, unchanged because this unit adds no branching Go code.\n\nOut of scope: section 14.3's Homebrew formula belongs to homebrew-formula, and goreleaser check reports the existing brews block as deprecated in favour of homebrew_casks, which that task should settle. Section 14.5's manifest belongs to skill-marketplace-manifest. Section 14.6 belongs to version-injection, which also owns a real gap this task could only measure, that go install applies no ldflags, so an installed binary prints cr version dev unless root.go falls back to runtime/debug.ReadBuildInfo, whose main module version does carry the tag.",
+      "gate_passed_at": "2026-08-30T09:55:05.220488Z",
+      "commit_sha": "b27e3c8",
+      "commit_shas": [
+        "b27e3c8",
+        "311961a",
+        "419c381",
+        "7e8b128",
+        "5fc0c06"
+      ],
+      "commit_files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        ".goreleaser.yml",
+        "go.mod",
+        "internal/cli/gate_test.go",
+        "internal/cli/release_test.go"
+      ]
     },
     {
       "id": "homebrew-formula",
