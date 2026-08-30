@@ -52,3 +52,28 @@ func TestTheClaimHashesAreTheTwoPreImagesSection33Names(t *testing.T) {
 	assert.Equal(t, claims[0].SpanHash, whitespace[0].SpanHash,
 		"§1.4 collapses runs, strips trailing whitespace, and folds CRLF before the digest")
 }
+
+// §1.4 step 1 makes text that does not decode as UTF-8 fail with exit code 1,
+// and a hash function that fell back to the raw bytes would turn that refusal
+// into a value indistinguishable from every other sixteen-character hash.
+// Neither pre-image is exempt, and each names what the user has to re-encode:
+// the issue text is one text for the whole extraction, while a span belongs to
+// one claim, so the refusal names that claim's id.
+func TestTextThatDoesNotDecodeNeverBecomesAClaimHash(t *testing.T) {
+	undecodable := "a" + string([]byte{0xFF}) + "b"
+
+	claims := []*Claim{{ID: "CR-1#c1", Span: "a span that decodes"}}
+	err := ComputeClaimHashes(claims, undecodable)
+	var invalid *text.InvalidUTF8Error
+	require.ErrorAs(t, err, &invalid)
+	assert.Contains(t, err.Error(), "hashing the issue text")
+	assert.Empty(t, claims[0].IssueHash, "nothing is stamped from a text cr could not read")
+	assert.Empty(t, claims[0].SpanHash)
+
+	spans := []*Claim{{ID: "CR-1#c4", Span: undecodable}}
+	err = ComputeClaimHashes(spans, "an issue that decodes")
+	require.ErrorAs(t, err, &invalid)
+	assert.Contains(t, err.Error(), "hashing the span of CR-1#c4",
+		"a span belongs to one claim, so the refusal names it")
+	assert.Empty(t, spans[0].SpanHash)
+}
