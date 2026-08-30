@@ -135,6 +135,12 @@ type checker struct {
 //
 // Required fields are walked in §6.1's table order, so a record missing several
 // is always reported by the same one.
+//
+// The anchor is handed to ValidateAnchor whole rather than picked apart here.
+// §9.2 owns the anchor's field set, §6.1's table owns the row that holds it, and
+// a door that checked half of §9.2 itself would be a second reading of the same
+// section — the shape §6.1.3's required-field walk already avoids by reading
+// fields.go's table instead of restating it.
 func (c checker) check(line int, supplied map[string]json.RawMessage, record *Finding) error {
 	if err := c.computed(line, supplied); err != nil {
 		return err
@@ -147,11 +153,8 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 			}
 		}
 	}
-	if record.Anchor.Path == "" {
-		return &RejectedRecordError{
-			File: c.file, Line: line, Field: "anchor",
-			Problem: "names no path, so this is an item with no code location and never becomes a record (§6.1.2, §4.1.3)",
-		}
+	if err := ValidateAnchor(c.file, line, &record.Anchor); err != nil {
+		return err
 	}
 	if !slices.Contains(c.units, record.Unit) {
 		return &RejectedRecordError{
