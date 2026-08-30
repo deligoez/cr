@@ -46,3 +46,34 @@ func TestAFileIsReadFromTheCommitAndNotFromTheWorktree(t *testing.T) {
 		"§2.1.1: the same head must give the same lines, whatever the checkout has become since")
 }
 
+// A line number resolves against the file's lines, so what counts as a line
+// decides whether §6.2.3 calls a citation out of range.
+//
+// The final newline is a terminator rather than a separator: a file ending in
+// one does not gain an empty last line, and a file holding nothing has no lines
+// at all rather than one empty one. Both are off-by-one boundaries at the end of
+// every file cr will ever read.
+func TestTheLastLineIsCountedWhateverTheFinalNewline(t *testing.T) {
+	for name, held := range map[string]struct {
+		body  string
+		lines []string
+	}{
+		"an empty file holds no line":              {"", nil},
+		"a terminated line is one line":            {"only\n", []string{"only"}},
+		"an unterminated line is one line as well": {"only", []string{"only"}},
+		"a trailing blank line is a line":          {"only\n\n", []string{"only", ""}},
+		"a file of one newline is one empty line":  {"\n", []string{""}},
+		"two lines are two":                        {"first\nsecond\n", []string{"first", "second"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := committed(t, map[string]string{"held.txt": held.body})
+
+			lines, exists, err := FileAtRevision(dir, "HEAD", "held.txt")
+
+			require.NoError(t, err)
+			assert.True(t, exists)
+			assert.Equal(t, held.lines, lines)
+		})
+	}
+}
+
