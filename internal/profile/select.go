@@ -46,7 +46,7 @@ type Selection struct {
 // A selection that matched nothing is not an error here. §2.4.4 answers that
 // state with a report and every axis needing a profile disabled, which is a run
 // that continues, so Selected stays the caller's own check.
-func (s Selection) Err() error {
+func (s *Selection) Err() error {
 	if len(s.Tied) == 0 {
 		return nil
 	}
