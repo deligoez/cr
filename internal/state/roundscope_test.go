@@ -68,3 +68,33 @@ func TestClearStampedEmptiesOneRoundAndNotTheFile(t *testing.T) {
 	assert.Equal(t, "{\"id\":\"r1\",\"head\":\"0f1e2d3\",\"round\":1}\n", string(body),
 		"round 1's line is carried through byte for byte, and round 2's is gone")
 }
+
+// A round-scoped write reads the file it is about to rewrite, so a line it
+// cannot parse stops the write and names the line.
+//
+// Refusing is the only safe answer. The round is what decides whether a line
+// survives, and a line whose round cannot be read has no answer: keeping it
+// would leave this round's records in a file documented as replaced, and
+// dropping it would delete a record §9.3.5 calls history on the strength of a
+// parse failure. The write is refused whole instead, and the file is left
+// exactly as it was for the user to open at the line named.
+func TestARoundScopedWriteRefusesAStoreItCannotRead(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, held.Unlock()) }()
+
+	corrupt := "{\"id\":\"r1\",\"head\":\"0f1e2d3\",\"round\":1}\n\n{\"id\":\"r2\",\n"
+	require.NoError(t, held.Write(FileClaims, []byte(corrupt)))
+
+	at := Stamp{Head: "9a8b7c6", Round: 2}
+	err = ReplaceStamped(held, FileClaims, at, []*stampedRecord{{ID: "c9"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), FileClaims, "the refusal names the file")
+	assert.Contains(t, err.Error(), "line 3",
+		"and the one-based line, counting the blank one, so the number opens the line")
+
+	body, err := l.ReadPR("acme", "web", 42, FileClaims)
+	require.NoError(t, err)
+	assert.Equal(t, corrupt, string(body), "and nothing was written over it")
+}
