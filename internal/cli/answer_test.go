@@ -89,3 +89,20 @@ func TestAnswerRecordsAgainstThePullRequestsIssueKey(t *testing.T) {
 	assert.Contains(t, string(stored), `"record":"f3"`)
 }
 
+// §12.1's other shape for this command. A terminal reader gets the id, the
+// record answered, and the source: §3.6.6 makes the note revocable by id,
+// §3.6.2 makes the record the thing this note is about, and §8.1.6 will
+// disclose the source in every posted body resting on it.
+func TestATerminalAnswerNamesTheIdTheRecordAndTheSource(t *testing.T) {
+	briefedHome(t, "CR-7")
+
+	out := throughATerminal(t,
+		"answer", answeredPR, "f3", "the retry is deliberate", "--source", "thread", "--repo", answeredSlug)
+
+	assert.Contains(t, out, "recorded ")
+	assert.Contains(t, out, "\x1b[36mCR-7#n1\x1b[0m",
+		"the id is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, "answering f3")
+	assert.Contains(t, out, " from thread")
+}
+
