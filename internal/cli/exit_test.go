@@ -251,6 +251,44 @@ func TestAnUnknownNoteExitsWithTheValidationCode(t *testing.T) {
 	assert.Contains(t, unknown.Error(), "cr context CR-1", "§12.4: the error names the next step")
 }
 
+// §9.1 makes its transition table exhaustive and codes everything outside it 4,
+// naming the record and its current state. It is the only §11.2 code no error
+// reached until now, and without this mapping every illegal transition would
+// have reported 2 — a malformed invocation — telling the user to retype a
+// command line that was correct about a record that was well-formed.
+//
+// The sample is chosen for the ways the table can be misread rather than for
+// coverage; the exhaustive half is
+// TestEveryTransitionIsTheTableAndNothingElse, over the whole cross product.
+// Two of these are the reason §9.1's third column is part of the key: the
+// states are a listed pair and only the actor is wrong, so a decision that read
+// (from, to) alone would allow both.
+func TestAnUnlistedTransitionExitsWithTheStateCode(t *testing.T) {
+	for name, refused := range map[string]error{
+		"a posted record asked back into the queue": finding.MayTransition(
+			"f1", finding.Existing(finding.StatePosted), finding.StateQueued, finding.ActorDraft),
+		"a queued record asked back into draft": finding.MayTransition(
+			"f2", finding.Existing(finding.StateQueued), finding.StateDraft, finding.ActorRecord),
+		"a reconcile discarding rather than adopting": finding.MayTransition(
+			"f3", finding.Existing(finding.StateQueued), finding.StateDiscarded, finding.ActorPostReconcile),
+		"a draft posted without being queued": finding.MayTransition(
+			"f4", finding.Existing(finding.StateDraft), finding.StatePosted, finding.ActorPostConfirm),
+		"a record created by anything but cr record": finding.MayTransition(
+			"f5", finding.Creation, finding.StateDraft, finding.ActorBrief),
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Error(t, refused)
+			assert.Equal(t, ExitState, exitCodeFor(refused))
+			assert.Equal(t, ExitState, exitCodeFor(fmt.Errorf("posting the review: %w", refused)))
+		})
+	}
+
+	require.NoError(t,
+		finding.MayTransition("f3", finding.Existing(finding.StateQueued), finding.StatePosted,
+			finding.ActorPostReconcile),
+		"the same actor and the same state post on adopt, which is the row §9.1 does list")
+}
+
 // Found by context-command: a §3.6 store cr read and could not parse exited 2,
 // a malformed invocation, when nothing about the invocation was wrong and no
 // retyping of it could help. §11.2 codes a file failure 3.
