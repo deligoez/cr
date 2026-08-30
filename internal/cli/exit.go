@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -52,6 +53,15 @@ func exitCodeFor(err error) int {
 		// abort with exit code 3 naming them, rather than one of them
 		// being picked. It is not a malformed file — each tied profile
 		// is valid on its own — but §2.4.2 fixes the same code.
+		return ExitFile
+	}
+	var malformedRole *role.MalformedError
+	if errors.As(err, &malformedRole) {
+		// §2.5 item 3 names the role file alongside the profile one, on
+		// the same code. It covers a key outside §2.5's table too: a
+		// role file cr cannot read as written is unusable whether the
+		// fault is a missing field or an invented one, and the invented
+		// one is the case §2.5's division of labour turns on.
 		return ExitFile
 	}
 	var protectedName *config.ProtectedError
