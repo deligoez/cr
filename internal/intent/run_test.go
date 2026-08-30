@@ -1,7 +1,9 @@
 package intent
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,4 +102,36 @@ func TestAnIntentCmdThatCannotCarryAKeyIsRefusedBeforeAnythingStarts(t *testing.
 			assert.NoFileExists(t, ran, "a misconfigured intent.cmd must cost a process, not produce one")
 		})
 	}
+}
+
+// §3.1.3: a non-zero exit fails, and the command's stderr reaches the user
+// whole.
+//
+// Whole is the part worth asserting. cr knows nothing about the program it
+// just started — not its flags, not its configuration, not why it declined —
+// so its stderr is the entire diagnostic there is, and a summary of it would
+// be cr guessing at a tool it has never heard of. Both lines survive here,
+// including the one that says what to do next.
+func TestAFailedTrackerCommandSurfacesItsStderr(t *testing.T) {
+	tracker := stubTracker(t, "echo 'ERROR unable to authenticate: 401 Unauthorized' >&2\n"+
+		"echo 'run jira init to configure a token' >&2\nexit 2")
+
+	out, err := Read([]string{tracker, "issue", "view", Placeholder, "--plain"}, "CR-1")
+
+	var refused *CommandError
+	require.ErrorAs(t, err, &refused)
+	assert.Empty(t, out)
+	assert.Equal(t, "ERROR unable to authenticate: 401 Unauthorized\n"+
+		"run jira init to configure a token", refused.Stderr)
+	assert.Contains(t, refused.Error(), tracker+" issue view CR-1 --plain")
+	assert.Contains(t, refused.Error(), refused.Stderr)
+
+	// The exec failure stays reachable, so a caller can tell a tracker
+	// command that ran and refused from one that never started at all.
+	var exited *exec.ExitError
+	require.ErrorAs(t, err, &exited)
+	assert.Equal(t, 2, exited.ExitCode())
+
+	silent := &CommandError{Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2")}
+	assert.Equal(t, "jira issue view CR-1: exit status 2", silent.Error())
 }
