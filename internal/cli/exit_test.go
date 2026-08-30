@@ -115,6 +115,21 @@ func TestAnUnreadableIntentFileExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("reading the issue: %w", err)))
 }
 
+// §3.2 leaves an uncompilable intent.key_pattern undefined; cr answers it the
+// way §2.6.1.2 answers the same fault in a rule's detect.pattern, and §11.2
+// codes that 3. It is a configuration failure rather than a usage one — no
+// invocation can be corrected into a compiling pattern — and the code must
+// survive the wrapping a command adds on the way out.
+//
+// The error is raised here rather than constructed, so the mapping is checked
+// against the type the resolver actually returns.
+func TestAnUncompilableKeyPatternExitsWithTheFileCode(t *testing.T) {
+	_, err := intent.ResolveKey(intent.KeySources{Branch: "feature/CR-1-x"}, `[A-Z`)
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("resolving the issue key: %w", err)))
+}
+
 // §6.1 rejects a class that is not kebab-case. The record's file was read and
 // parsed, so nothing about it failed as a file; what is wrong is the agent's
 // data inside it, which §11.2 codes 1. The code must survive the wrapping a
