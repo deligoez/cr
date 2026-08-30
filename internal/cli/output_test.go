@@ -521,3 +521,38 @@ func zeroPayload(structure reflect.Type, open int, seen map[reflect.Type]bool) r
 		return reflect.Zero(structure)
 	}
 }
+
+// postingPayload stands in for the result `cr post` will hand over: a payload
+// carrying §12.6's boolean and rendering it. The gate itself belongs to
+// dry-run-posting and confirm-flag-required, so what is exercised here is the
+// seam, which is both halves of what §12.6 asks to be distinguishable — the
+// field in the document and the line in the terminal.
+type postingPayload struct {
+	posting
+}
+
+func (p postingPayload) Text(w *writer) string { return p.line(w) }
+
+// §12.6 and §8.5.1: a dry run and a write that happened are told apart in JSON
+// and in a terminal alike.
+//
+// The two shapes are asserted separately because they fail separately. A
+// payload can carry the field faithfully and still render a line that reads
+// the same whichever way the run went, and §12.6 names the terminal as well as
+// the document.
+func TestADryRunAndAConfirmedPostAreDistinguishable(t *testing.T) {
+	rendered := func(mode Mode, sent bool) string {
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: mode}
+		require.NoError(t, out.emit(postingPayload{posting{Posted: sent}}))
+		return printed.String()
+	}
+
+	assert.Contains(t, rendered(ModeJSON, false), `"posted": false`)
+	assert.Contains(t, rendered(ModeJSON, true), `"posted": true`)
+
+	dry, sent := rendered(ModeText, false), rendered(ModeText, true)
+	assert.Contains(t, dry, "not posted: nothing was sent to GitHub")
+	assert.Contains(t, sent, "posted: the review was sent to GitHub")
+	assert.NotContains(t, sent, "not posted")
+}
