@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T16:42:25.882285Z",
+  "updated_at": "2026-08-30T16:49:29.230982Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2713,7 +2713,7 @@
     {
       "id": "edge-case-role-guidance",
       "title": "Move edge-case guidance into role instructions",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "ship-default-roles",
@@ -2726,10 +2726,18 @@
       ],
       "started_at": "2026-08-30T16:42:25.882284Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-30T16:49:29.215688Z",
+      "closed_reason": "- Verified in the tree rather than assumed: spec/0.1.0.md contains no occurrence of test.max_edge_cases and no edge-case enumeration obligation, the string survives only in the spec/.tp-review snapshots of rounds 4 and 5 and in the round-10 finding record, the orphaned 'A missing edge case SHOULD be escalated to a probe' clause is absent, and nothing under internal/ names the key; no spec edit was therefore needed and none was made.\n- Section 4.4 Test adequacy at spec/0.1.0.md lines 544 to 552 holds exactly two numbered items, the attach-and-classify obligation and the experiment-only grading rule, with nothing after them before section 4.5.\n- internal/role/builtin/test-adequacy.json now carries edge-case reasoning in its instructions while internal/config/config.go's settings table still has no test.max_edge_cases entry, which is the whole trade: the heuristic sits in the role that reads it and nowhere in the tool, so cr forms no opinion about how many edge cases are enough.\n- The new third instructions paragraph states that edge cases are the agent's to reason about and not cr's to count, that a bound on how many to name would be an opinion cr has no standing to hold and a checklist met is not coverage shown, and that every answer is treated the way the lens treats any other gap; it names no path, file, identifier or command, so the division guard TestTheShippedRolesGiveALensAndNeverAStandard still passes.\n- TestEdgeCaseReasoningIsRoleGuidanceAndNotASetting in internal/role/edgecase_test.go resolves a configuration in which all four layers above the defaults name the key at once, nested in both the global and the per-repository file, as CR_TEST_MAX_EDGE_CASES in the environment, and as a flag entry, then asserts Resolve succeeds while Map carries no such key and Int returns zero, and asserts the shipped test-adequacy instructions mention edge cases; the negative was confirmed to bite by temporarily adding the key to the settings table, which failed both assertions before the line was reverted.",
+      "gate_passed_at": "2026-08-30T16:49:29.215688Z",
+      "commit_sha": "46e6c16",
+      "commit_shas": [
+        "46e6c16",
+        "b28732d"
+      ],
+      "commit_files": [
+        "internal/role/builtin/test-adequacy.json",
+        "internal/role/edgecase_test.go"
+      ]
     },
     {
       "id": "test-finding-needs-experiment",
