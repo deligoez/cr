@@ -142,3 +142,45 @@ func TestEveryTransitionIsTheTableAndNothingElse(t *testing.T) {
 	assert.Equal(t, len(specTransitions), permitted, "a listed cell was never reached by the product")
 }
 
+// §9.1 fixes what the refusal says as tightly as it fixes that there is one:
+// naming the record and its current state. The record id cannot be derived
+// from the states, and a message that named neither would leave a user with a
+// refusal and no way to find what was refused.
+//
+// The hint is §12.4's: every error names the next actionable step, and the step
+// out of an illegal transition is whichever of §9.1's rows does apply to the
+// state the record is actually in. A terminal record has none, and saying so is
+// the actionable answer — v0.1 ends at posting per §9, so there is nothing to
+// go and do.
+func TestARefusalNamesTheRecordAndItsCurrentState(t *testing.T) {
+	queued := MayTransition("f7", Existing(StateQueued), StateDraft, ActorRecord)
+	require.Error(t, queued)
+	assert.Contains(t, queued.Error(), "f7", "the refusal names the record")
+	assert.Contains(t, queued.Error(), "queued", "and its current state")
+	assert.Contains(t, queued.Error(), "cr record", "and who asked")
+	assert.Contains(t, queued.Error(), "posted by cr post --confirm", "§12.4: what may be done instead")
+
+	posted := MayTransition("f7", Existing(StatePosted), StateQueued, ActorDraft)
+	require.Error(t, posted)
+	assert.Contains(t, posted.Error(), "f7 is posted")
+	assert.Contains(t, posted.Error(), "§9.1 lists no move out of it",
+		"v0.1 ends at posting, so the honest next step is that there is none")
+
+	fresh := MayTransition("f7", Creation, StateQueued, ActorDraft)
+	require.Error(t, fresh)
+	assert.Contains(t, fresh.Error(), "f7 is a new record",
+		"§9.1's first row has no state to name, so the refusal says what the record is instead")
+
+	unstamped := MayTransition("f7", From{}, StateQueued, ActorDraft)
+	require.Error(t, unstamped)
+	assert.Contains(t, unstamped.Error(), "f7 is in no §9.1 state",
+		"the zero From is not Creation: a record whose state did not read is not a new record")
+
+	var illegal *IllegalTransitionError
+	require.ErrorAs(t, queued, &illegal)
+	assert.Equal(t, "f7", illegal.Record, "the id reaches a caller as a field, not only as text")
+	assert.Equal(t, Existing(StateQueued), illegal.From)
+	assert.Equal(t, StateDraft, illegal.To)
+	assert.Equal(t, ActorRecord, illegal.Actor)
+}
+
