@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T11:10:42.550384Z",
+  "updated_at": "2026-08-30T11:26:29.602363Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1463,7 +1463,7 @@
     {
       "id": "intent-command-invocation",
       "title": "Read intent through a configured command",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "config-layer-resolution"
@@ -1473,11 +1473,33 @@
       "source_sections": [
         "### 3.1 Intent source"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T11:11:15.551339Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T11:26:29.503983Z",
+      "closed_reason": "- internal/intent/run.go reads the issue through intent.cmd as argv: expand substitutes the {key} placeholder into every element that carries it, per element and with no quoting or splitting, and run hands exec.Command the whole array, so a key with a space and a shell metacharacter stays one argument instead of becoming a second command. An argv that is empty, or that carries no placeholder and would therefore read the same issue for every key, is refused as a MalformedCommandError before anything is started. TestTheDefaultTrackerCommandIsTheArgvTheSpecNames pins the resolved default to the five elements of 3.1.2 and expands it, tying the config table entry to the reader that runs it, and TestTheKeyIsSubstitutedIntoEveryElementThatCarriesIt puts a key reading CR-1; rm -rf / through a stub that prints its own argv.\n- A non-zero exit fails with exit code 3 and surfaces the command's stderr whole: internal/cli/exit.go maps intent.CommandError and intent.MalformedCommandError onto ExitFile, asserted through the wrapping a command adds by TestAFailedTrackerCommandExitsWithTheFileCode and TestAMalformedIntentCmdExitsWithTheFileCode, and TestAFailedTrackerCommandSurfacesItsStderr asserts both lines of a two-line refusal survive untrimmed and reach Error() alongside the pasteable argv. Nothing summarises the stderr, because cr knows nothing about the program it started and a summary would be cr guessing at a tool it has never heard of.\n- cr carries no tracker authentication code: the command authenticates itself, and to make that possible the tracker runner hands it the ambient environment whole, which is where this runner deliberately departs from internal/git and internal/gh. Those pin an allowlist because they are cr's own tools and cr knows which of their variables redirect a read; here the credentials live in variables cr cannot enumerate for a tool it has never heard of, and an allowlist would strip the first one that matters. TestTheTrackerCommandKeepsTheEnvironmentItAuthenticatesWith asserts JIRA_API_TOKEN and JIRA_AUTH_TYPE reach the command. The cost is 2.1.1: a run is reproducible given the same environment rather than the state directory alone, and 3.1.4's --intent-file is where a run needing the stronger guarantee goes.\n- The tracker is read only through this command: internal/intent/run.go is the third and last file allowed to start a process, added to the runners list nowrite_test.go confines os/exec to, and the guard over what those files start was extended rather than relaxed. TestTheRunnersStartGitGhAndTheConfiguredTracker now accepts two forms, a plain string literal for git and gh and wholeArgv for the tracker: exec.Command(argv[0], argv[1:]...) where argv is a []string parameter of the enclosing function, with no argument after it. Everything the literal rule rejected it still rejects, and it now also rejects an appended argument and a program taken from a package-level variable rather than from the caller; both were tried against internal/intent/run.go and both failed the guard, which is what keeps a fourth dependency from being smuggled into a runner. Tests need no jira installed: each writes a /bin/sh stub and configures its absolute path as argv[0], which is an ordinary intent.cmd value and touches no PATH.",
+      "gate_passed_at": "2026-08-30T11:26:29.503983Z",
+      "commit_sha": "444ed06",
+      "commit_shas": [
+        "444ed06",
+        "1cfcc37",
+        "76ff11b",
+        "67bc798",
+        "f4ad3f7",
+        "fab81b1",
+        "1ce8253",
+        "105e40a",
+        "189d073",
+        "d11568e",
+        "fea19b2"
+      ],
+      "commit_files": [
+        "internal/cli/dependencies_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/nowrite_test.go",
+        "internal/intent/run.go",
+        "internal/intent/run_test.go"
+      ]
     },
     {
       "id": "intent-file-bypass",
