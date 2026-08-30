@@ -102,7 +102,14 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			round, err := layout.ReadMeta(owner, repo, pr)
+			// Briefed rather than ReadMeta: §6.1.3 checks every
+			// record's unit against the units of the round, and
+			// units.ndjson is `cr brief`'s to write per §3.7. A
+			// pull request no round has been opened on has an
+			// empty one, so every record would be refused for
+			// naming an unknown unit rather than for the reason
+			// it was actually refused. §11.2 codes that 4.
+			round, err := layout.Briefed(owner, repo, pr)
 			if err != nil {
 				return err
 			}
