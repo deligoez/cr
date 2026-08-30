@@ -37,3 +37,22 @@ func TestAnIDCrDidNotWriteIsNotCounted(t *testing.T) {
 	}
 	assert.Equal(t, "f10", NextID([]Finding{{ID: "f9"}, {ID: "u99"}}))
 }
+
+// The same reading, asked of an id that came from a person rather than from
+// findings.ndjson. §3.6.2's `cr answer` names a record inside a note without
+// resolving one, so the spelling is the whole of what it can check, and it
+// reads §6.1's spelling here rather than restating it.
+//
+// The two directions matter equally. Accepting f09 or f-9 would let a note
+// reference an id cr could never have allocated, and rejecting f10 would refuse
+// an answer to the tenth record of a pull request.
+func TestOnlyTheSpellingSixOneGivesARecordIsValid(t *testing.T) {
+	for _, id := range []string{"f1", "f2", "f9", "f10", "f4096"} {
+		assert.True(t, ValidID(id), "%q", id)
+	}
+	for _, id := range []string{
+		"", "9", "u9", "F9", "f", "f0", "f-9", "f+9", "f09", "f9x", "fnine", " f9", "f9 ", "CR-1#n1",
+	} {
+		assert.False(t, ValidID(id), "%q", id)
+	}
+}
