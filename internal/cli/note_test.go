@@ -56,6 +56,20 @@ func TestNoteCommandRecordsAgainstTheIssueKey(t *testing.T) {
 	assert.Contains(t, string(stored), `"id":"CR-1#n1"`)
 }
 
+// §12.1's other shape for this command. A terminal reader gets the id and the
+// source, not the document: §3.6.6 makes a note revocable by id, so the id is
+// the one thing the run produced that the user does not already have, and
+// §8.1.6 will disclose the source in every posted body resting on the note.
+func TestATerminalNoteNamesTheIdAndTheSource(t *testing.T) {
+	crHome(t)
+
+	out := throughATerminal(t, "note", "CR-1", "the deadline moved", "--source", "chat", "--pr", "42")
+
+	assert.Contains(t, out, "recorded ")
+	assert.Contains(t, out, "\x1b[36mCR-1#n1\x1b[0m", "the id is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, " from chat")
+}
+
 // The round-11 finding unspecified-flag-requiredness: §3.6.1 shows `--source`
 // in its synopsis and never says it is required, so cr says it. An absent value
 // and one outside §3.6.3's set are both the invocation being wrong rather than
