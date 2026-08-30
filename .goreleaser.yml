@@ -15,7 +15,6 @@ builds:
     goos:
       - darwin
       - linux
-      - windows
     goarch:
       - amd64
       - arm64
@@ -32,10 +31,6 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
     formats:
       - tar.gz
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
 
 checksum:
   name_template: checksums.txt
