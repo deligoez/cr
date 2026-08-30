@@ -99,8 +99,11 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			// rather than re-run here, for the reason note.Answer
 			// reads it there: that is the key the round actually
 			// resolved under, and §3.3 forms every claim id from
-			// it.
-			recorded, err := layout.ReadMeta(owner, repo, pr)
+			// it. It is asked of Briefed rather than of ReadMeta
+			// so a pull request no round has been opened on is
+			// refused here, per §3.7 and §11.2's code 4, instead
+			// of recording claims against round 0.
+			recorded, err := layout.Briefed(owner, repo, pr)
 			if err != nil {
 				return err
 			}
