@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T11:58:35.042487Z",
+  "updated_at": "2026-08-30T12:20:46.061932Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2049,7 +2049,7 @@
     {
       "id": "note-command",
       "title": "Append a note against an issue",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "state-directory-layout",
@@ -2060,11 +2060,45 @@
       "source_sections": [
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T11:59:35.084294Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T12:20:45.935089Z",
+      "closed_reason": "- cr note \u003cISSUE-KEY\u003e \"\u003ctext\u003e\" --source \u003csource\u003e --pr \u003cn\u003e appends the note §3.6.1 requires to ~/.cr/context/\u003cISSUE-KEY\u003e.ndjson, carrying an id of the form \u003cISSUE-KEY\u003e#n\u003cn\u003e allocated by internal/note/note.go's NextID as a counter over every note the store already holds, a UTC timestamp, the pull request it came from and the source, all written by internal/note/store.go's Append — TestAppendRecordsTheFieldsTheSpecNames reads all four fields back off disk, TestNextIDCountsOverTheNotesTheStoreHolds pins the n \u003c 1 and non-canonical id boundaries the way finding.NextID does, and the built binary recorded CR-1#n1 and CR-1#n2 against a real CR_HOME.\n- Valid sources are §3.6.3's chat, jira, thread, meeting and other, in the order the section names them, exported through internal/note/note.go's Sources as a copy so no caller can widen or reorder the set, and TestTheSourcesAreTheClosedSetTheSpecNames accepts each of the five and pins that order.\n- Any other value is rejected by ParseSource, which internal/note/store.go's Append re-runs because Source is a string type any caller can spell, so an unlisted source cannot reach the file by a second route — TestTheSourcesAreTheClosedSetTheSpecNames refuses gossip, Chat, a trailing space and the empty value, and TestAppendRefusesWhatCannotBecomeANote proves a refused note adds nothing to the store and spends no id.\n- The context store holds facts true about the issue but absent from the tracker, so it is keyed by issue and never by pull request — internal/state/context.go's LockContext takes an advisory lock named after the issue key rather than §2.3.1's per-PR lock, because §3.6.4 loads the file on every later round and every later pull request resolving to the same key and §9.3.5 exempts it from round scoping, and it publishes by rename so a lock-free reader never sees half a document, with TestNotesAccumulateAgainstTheKeyAndNotThePullRequest recording from two pull requests into one store, TestConcurrentContextWritersSerialise proving eight concurrent writers never allocate one number twice, and TestAnIssueKeyCannotReachOutOfTheContextDirectory keeping Invariant 2 by refusing a key that is not a single name.\n- Round 11 finding unspecified-flag-requiredness: §3.6.1 shows --source in its synopsis and never says it is required, and cr requires it, because a note whose provenance is unknown cannot carry the §8.1.6 disclosure every record resting on it must reach the reader with.\n- An absent or unlisted --source exits 2 rather than 1, because §11.2 codes 2 a usage error and a flag is part of the invocation rather than data inside a file, and exitCodeFor already returns ExitUsage for any unmapped error so InvalidSourceError needs no mapping of its own — TestNoteRefusesAnAbsentOrUnlistedSourceWithTheUsageCode asserts ExitUsage for a missing flag, an empty value and gossip, and that no store is created.",
+      "gate_passed_at": "2026-08-30T12:20:45.935089Z",
+      "commit_sha": "2a3090a",
+      "commit_shas": [
+        "2a3090a",
+        "ac0c4bf",
+        "d8ae0e4",
+        "ca4918e",
+        "dd19974",
+        "3834f69",
+        "9968ade",
+        "0638942",
+        "c918e3f",
+        "fe9d286",
+        "85c7b04",
+        "825d82f",
+        "089cc11",
+        "354a313",
+        "6443bdb",
+        "db962c4",
+        "a88774b",
+        "ed1316f"
+      ],
+      "commit_files": [
+        "internal/cli/note.go",
+        "internal/cli/note_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/note/note.go",
+        "internal/note/note_test.go",
+        "internal/note/store.go",
+        "internal/note/store_test.go",
+        "internal/state/context.go",
+        "internal/state/context_test.go",
+        "internal/state/records.go"
+      ]
     },
     {
       "id": "answer-command",
