@@ -87,6 +87,19 @@ func TestAFailedTrackerCommandExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("reading the issue: %w", err)))
 }
 
+// An intent.cmd §3.1.1 does not describe never becomes a command failure,
+// because nothing is started, but §11.2 codes it 3 all the same: a bad
+// configuration file and a refusing external command share the row. It is not
+// a usage error either — no invocation can be corrected into a usable
+// intent.cmd — and the code must survive the wrapping a command adds on the
+// way out.
+func TestAMalformedIntentCmdExitsWithTheFileCode(t *testing.T) {
+	_, err := intent.Read([]string{"jira", "issue", "view"}, "CR-1")
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("reading the issue: %w", err)))
+}
+
 // §6.1 rejects a class that is not kebab-case. The record's file was read and
 // parsed, so nothing about it failed as a file; what is wrong is the agent's
 // data inside it, which §11.2 codes 1. The code must survive the wrapping a
