@@ -106,3 +106,34 @@ func TestATerminalAnswerNamesTheIdTheRecordAndTheSource(t *testing.T) {
 	assert.Contains(t, out, " from thread")
 }
 
+// §3.6.2's negative, observed rather than argued: the record the answer names
+// is byte-identical before and after.
+//
+// v0.1 ends at posting per §9, and whether an answer settles a question is a
+// judgement v0.2 makes, so an answer moves no record out of `posted` and edits
+// nothing else about it either. The whole file is compared rather than the one
+// record's state field, because §9.1's state is not the only thing a run could
+// have disturbed.
+func TestAnAnswerLeavesTheAnsweredRecordByteIdentical(t *testing.T) {
+	layout := briefedHome(t, "CR-7")
+
+	findings := layout.PRFile(answeredOwner, answeredRepo, answeredPRNum, state.FileFindings)
+	before := []byte(`{"id":"f3","kind":"question","summary":"why is the retry unbounded?",` +
+		`"state":"posted","thread_id":"PRRT_1","head":"0f1e2d3","round":1}` + "\n")
+	require.NoError(t, os.WriteFile(findings, before, 0o600))
+
+	_, err := runAnswer(t,
+		answeredPR, "f3", "the retry is deliberate", "--source", "thread", "--repo", answeredSlug)
+	require.NoError(t, err)
+
+	after, err := os.ReadFile(findings)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "§3.6.2: an answer must not change the record's state")
+
+	// The run really did record the answer, so the assertion above is about
+	// a command that ran rather than one that refused early.
+	recorded, err := os.ReadFile(layout.ContextFile("CR-7"))
+	require.NoError(t, err)
+	assert.Contains(t, string(recorded), `"record":"f3"`)
+}
+
