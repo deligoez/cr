@@ -84,14 +84,43 @@ func (k *ContextLock) Unlock() error {
 // file is created by the first note appended to it, and a key nobody has
 // recorded against holds exactly as many notes as an empty file does.
 func ContextRecords[T any](k *ContextLock) ([]T, error) {
-	body, err := os.ReadFile(k.path)
+	return contextRecords[T](k.path)
+}
+
+// ReadContextRecords decodes one issue's context store without taking the lock,
+// per §2.3.2. It is the read `cr context` makes (§3.6.5).
+//
+// A lock-free read of this file is safe for the reason §2.3.2 gives for the
+// per-PR ones: WriteContextRecords publishes by rename, so a reader arriving
+// mid-append sees the whole of one version rather than half of two.
+//
+// Taking the lock to read would be worse than merely slower. LockContext
+// creates the directories it will write in, so a read-only command would write
+// inside ~/.cr in order to answer a question, and a reader would then block
+// behind every writer for a file the rename already made safe to read.
+//
+// The key is checked here for the reason checkIssueKey gives: it arrives as a
+// positional argument and becomes a path segment, and a read is where a key
+// naming a path would read a file outside §2.2's tree.
+func ReadContextRecords[T any](l Layout, issueKey string) ([]T, error) {
+	if err := checkIssueKey(issueKey); err != nil {
+		return nil, err
+	}
+	return contextRecords[T](l.ContextFile(issueKey))
+}
+
+// contextRecords decodes one context store, whether or not its caller holds the
+// lock. Both readers share it so a note is decoded the same way by the command
+// that appends one and the command that prints them.
+func contextRecords[T any](path string) ([]T, error) {
+	body, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return make([]T, 0), nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", k.path, err)
+		return nil, fmt.Errorf("cannot read %s: %w", path, err)
 	}
-	return decodeRecords[T](k.path, body)
+	return decodeRecords[T](path, body)
 }
 
 // WriteContextRecords publishes the locked issue's context store, replacing it
