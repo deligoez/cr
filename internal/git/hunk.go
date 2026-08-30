@@ -27,6 +27,26 @@ const (
 	Left Side = "LEFT"
 )
 
+// ParseSide reads one of §9.2's two side names, reporting whether the value is
+// one of them.
+//
+// The set is closed here, beside the two constants, because Side is a defined
+// string rather than a fenced type: every spelling the outside world produces
+// is assignable to it. Two readers take one from outside — a `side` on an
+// agent's NDJSON line per §9.2, and GitHub's `diffSide` on an ingested thread
+// per §3.5.1 — and both have to close the same set, or the set is closed twice
+// and can drift.
+//
+// A third value is not a harmless unknown. §6.1.2 resolves RIGHT against the
+// head and LEFT against the merge base, so a side that is neither names a tree
+// cr resolves nothing against; and §3.4.4 partitions a file's hunks by side, so
+// it also matches no hunk — which is a thread that quietly attaches to no unit
+// rather than an error anybody sees.
+func ParseSide(value string) (Side, bool) {
+	side := Side(value)
+	return side, side == Right || side == Left
+}
+
 // ChangedLine is one line §3.4.1 counts as changed.
 type ChangedLine struct {
 	// Side is the file version Line is numbered in.
