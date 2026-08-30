@@ -2,7 +2,6 @@ package finding
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/deligoez/cr/internal/git"
@@ -18,19 +17,6 @@ import (
 // that a v0.2 migration has it for the rounds v0.1 produced. A window written
 // wider than the bound is therefore a fault no v0.1 command could ever notice.
 const contextWindow = 3
-
-// anchorSides is §9.2's closed vocabulary for `side`, in the order §9.2.1 takes
-// them: RIGHT anchors a line in the head, LEFT a removed line in the merge base.
-//
-// They are git.Side, the type internal/git already gives a hunk and internal/gh
-// an ingested thread, so §3.5.3's proximity comparison and §6.2.1's containment
-// predicate weigh an anchor's side against a hunk's without a conversion that
-// could invert it. That type is a defined string rather than a fenced one, so it
-// is this list and ValidateAnchor's check against it that close the set for an
-// anchor — and an anchor is where the set has to be closed, because its side
-// arrives on an agent's NDJSON line, and a third value would name a tree §6.1.2
-// resolves nothing against.
-var anchorSides = []git.Side{git.Right, git.Left}
 
 // AnchorContentHash is §9.2's content hash: the normalised hash per §1.4 of the
 // lines from `start_line` to `line` inclusive, taken as one text.
@@ -104,7 +90,12 @@ func ValidateAnchor(file string, line int, anchor *Anchor) error {
 	if anchor.Path == "" {
 		return reject("names no path, so this is an item with no code location and never becomes a record (§6.1.2, §4.1.3)")
 	}
-	if !slices.Contains(anchorSides, anchor.Side) {
+	// §9.2's vocabulary is closed on the way in, where the value arrives
+	// from outside: a side is written on an agent's NDJSON line, and
+	// git.Side is a defined string that any spelling reaches. The set
+	// itself is git.ParseSide's, so this reading of it and internal/gh's
+	// cannot come apart.
+	if _, known := git.ParseSide(string(anchor.Side)); !known {
 		return reject(fmt.Sprintf(
 			"names side %q; §9.2's values are %s, which anchors a line in the head, and %s, which anchors a removed line",
 			anchor.Side, git.Right, git.Left,
