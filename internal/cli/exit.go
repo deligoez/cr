@@ -205,6 +205,20 @@ func exitCodeFor(err error) int {
 		// edit to the input can change.
 		return ExitState
 	}
+	var notBriefed *state.NotBriefedError
+	if errors.As(err, &notBriefed) {
+		// §3.7 makes `cr brief` the writer of meta.json,
+		// units.ndjson and threads.ndjson, and §4.1.6, §4.5.6,
+		// §9.3.1 and §3.5.3 all read them as authoritative. A
+		// command that found no round is therefore not looking at a
+		// file it could be pointed at differently: the command line
+		// is right and every file it named was read. What refuses is
+		// where the pull request stands, which §11.2 codes 4
+		// alongside the illegal transition above — and the refusal
+		// names `cr brief`, because recomputing the units instead
+		// would answer §4.1.6 against a set no round recorded.
+		return ExitState
+	}
 	var noPRState *note.NoStateError
 	if errors.As(err, &noPRState) {
 		// §2.2's state directory is opened by `cr brief`, and §3.6.2's
