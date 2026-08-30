@@ -132,3 +132,30 @@ func TestSelectingGenericByConfigurationTakesOutExactlyTwoLenses(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, lensesTheProfileTakesOut(&laravel))
 }
+
+// §2.4.3 and §2.4.2 are one mechanism seen from the tie side. generic's empty
+// `match.files` has to count as zero matches rather than as a match on
+// everything, and the tie path is where the difference first becomes an abort:
+// read as universal, generic would draw with laravel-pest in a Laravel
+// repository and with itself-at-zero in every other, so cr would exit 3 naming
+// the shipped pair exactly where §2.4.4 requires it to report and carry on. The
+// two repositories below are the two shapes that abort under that reading.
+func TestTheShippedGenericProfileNeverJoinsATie(t *testing.T) {
+	dir := shippedProfilesDir(t)
+
+	for _, tc := range []struct {
+		name  string
+		files []string
+	}{
+		{"a repository the other shipped profile matches", []string{"artisan", "composer.json"}},
+		{"a repository neither shipped profile matches", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			selection, err := Select(dir, repoWith(t, tc.files...), "")
+			require.NoError(t, err)
+
+			assert.Empty(t, selection.Tied)
+			assert.NoError(t, selection.Err())
+		})
+	}
+}
