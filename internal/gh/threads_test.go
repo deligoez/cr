@@ -361,3 +361,62 @@ func TestThreadsAreStoredInThreadsNdjson(t *testing.T) {
 	assert.Len(t, strings.Split(strings.TrimSuffix(string(body), "\n"), "\n"), 2)
 	assert.Contains(t, string(body), `"replies":[]`)
 }
+
+// oneThread is a page holding a single thread with the diffSide given, spelled
+// into the payload exactly as it stands so an unquotable value arrives here as
+// an unreadable answer rather than as something Go tidied up on the way.
+func oneThread(side string) string {
+	return `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+		"pageInfo":{"hasNextPage":false},"nodes":[
+		{"id":"PRRT_1","path":"web/app.go","line":9,"diffSide":"` + side + `",
+		"comments":{"pageInfo":{"hasNextPage":false},
+		"nodes":[{"id":"c1","author":{"__typename":"User","login":"babakks"}}]}}]}}}}}`
+}
+
+// GitHub's diffSide is the one field of an ingested thread that has to mean the
+// same thing as §9.2's side, because §3.5.3 compares the two: a thread is
+// attached to a unit whose hunks its anchor falls inside, and §3.4.4 partitions
+// those hunks by side.
+//
+// A value that is neither RIGHT nor LEFT therefore matches no hunk of any unit,
+// and the cost lands where cr can least afford it. The thread would be
+// ingested, attached to nothing, and §3.5.4 would suppress nothing against it —
+// so cr would raise a concern a colleague has already raised, on a pull request
+// where the answer is sitting in a thread nobody joined it to. Nothing in the
+// run would report it.
+//
+// So ingestion refuses, and refuses loudly. Dropping the thread leaves exactly
+// the same silence and hides the fault as well, and §3.5.1 admits no exception
+// in any case: every existing thread is ingested. A refusal costs one failed
+// command and names what to look at.
+func TestAThreadWhoseDiffSideNamesNeitherTreeIsRefused(t *testing.T) {
+	// The empty value is the one a payload missing the field decodes to, and
+	// the rest are the spellings a neighbouring API or a hand-written
+	// fixture produces.
+	for _, side := range []string{"", "right", "Right", "RIGHT ", "MIDDLE", "BOTH"} {
+		threads, err := WithRunner(func(...string) (string, error) {
+			return oneThread(side), nil
+		}).Threads("acme", "web", 42)
+
+		require.Errorf(t, err, "diffSide %q names no tree", side)
+		assert.Nilf(t, threads, "a refused ingest hands back no threads, so no caller reads half a set: %q", side)
+		assert.Contains(t, err.Error(), "PRRT_1", "the thread is named")
+		assert.Contains(t, err.Error(), string(git.Right))
+		assert.Contains(t, err.Error(), string(git.Left))
+	}
+
+	// The two values §9.2 does define are ingested exactly as before: the
+	// check refuses an answer cr cannot place and decides nothing else.
+	for _, side := range []git.Side{git.Right, git.Left} {
+		threads, err := WithRunner(func(...string) (string, error) {
+			return oneThread(string(side)), nil
+		}).Threads("acme", "web", 42)
+
+		require.NoError(t, err)
+		require.Len(t, threads, 1)
+		assert.Equal(t, Anchor{
+			Path: "web/app.go", Side: side, StartLine: 9, Line: 9,
+		}, threads[0].Anchor)
+		assert.Equal(t, "babakks", threads[0].Comment.Author)
+	}
+}
