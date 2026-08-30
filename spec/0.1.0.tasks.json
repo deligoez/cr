@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T22:25:13.892518Z",
+  "updated_at": "2026-08-30T23:23:50.334037Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1813,7 +1813,7 @@
     {
       "id": "claims-record-command",
       "title": "Store claims replacing the round file",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "claim-schema",
@@ -1826,15 +1826,45 @@
       ],
       "started_at": "2026-08-30T21:24:37.401202Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-30T22:43:21.638458Z",
+      "closed_reason": "- `cr claims record \u003cpr\u003e \u003cfile.ndjson\u003e` exists and validates: internal/cli/claims.go decodes the file through intent.DecodeClaims, the one door that holds every line to §3.3's table, and refuses the whole file on the first fault so a rejection never half-stores a round (TestARefusedClaimLeavesTheRoundExactlyAsItWas asserts claims.ndjson and mapping.ndjson are byte-identical after a refusal on line 2 of 3).\n- It stores by replacing claims.ndjson for the current round and clearing mapping.ndjson, both under one hold of the §2.3.1 lock in storeClaims, because §3.3.1 states the two as one act and a reader arriving between two separately locked writes would see a mapping pointing at claim ids that no longer exist.\n- `cr` computes span_hash and issue_hash itself: intent.ComputeClaimHashes runs after the decode and before the write, and TestClaimsRecordStoresTheHashesCrComputes asserts each stored claim's span_hash against text.NormalisedHash of that claim's own span and its issue_hash against the hash of the whole issue text, rather than against a literal that a command hashing the file or the spans would also match.\n- The two computed rows stay cr's alone on the way in: a claim supplying either is refused with exit code 1 naming the line and the field, which the dogfooding run confirmed against the real binary (`issue_hash is written by cr and must not be supplied`, exit 1).\n- Clearing the mapping is scoped to the current round: state.ClearStamped drops only the named round's lines, and state.ReplaceStamped does the same before appending, both carrying every other round's bytes through untouched rather than decoding and re-encoding them.\n- Earlier rounds stay intact per §9.3.5: TestClaimsRecordReplacesThisRoundAndLeavesTheOneBefore runs the command twice against a fixture holding a round-1 claim and a round-1 mapping entry, and asserts the round-2 claims are replaced rather than appended while the round-1 mapping line comes back byte for byte; TestReplaceStampedRewritesOneRoundAndLeavesTheOthers proves the same on a file whose replaced round sits between two others.\n- The issue text reaches the command through §3.1's two sources, `--intent-file` first and without consulting configuration at all, so §3.1.4's promise that the loop works with no tracker access holds even when `intent.cmd` is malformed; a pull request that resolved no issue key is refused with intent.NoIssueKeyError rather than running the tracker command with `{key}` substituted to nothing.",
+      "gate_passed_at": "2026-08-30T22:43:21.638458Z",
+      "commit_sha": "7767aac",
+      "commit_shas": [
+        "7767aac",
+        "45a29f6",
+        "7f568f3",
+        "547a0ec",
+        "2476a4f",
+        "616fe7b",
+        "488186a",
+        "1306c94",
+        "841d3f2",
+        "7accf71",
+        "f270900",
+        "eecd7b9",
+        "b610ddf",
+        "0a348e3",
+        "1713f7e",
+        "8e8eb34"
+      ],
+      "commit_files": [
+        "internal/cli/claims.go",
+        "internal/cli/claims_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/intent/nokey.go",
+        "internal/state/records.go",
+        "internal/state/roundscope.go",
+        "internal/state/roundscope_test.go"
+      ]
     },
     {
       "id": "claim-span-validation",
       "title": "Validate claim spans against their source",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "claims-record-command"
@@ -1844,16 +1874,35 @@
       "source_sections": [
         "### 3.3 Claim extraction"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T22:43:24.45357Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T22:52:09.51693Z",
+      "closed_reason": "- For a claim whose source is not note, cr rejects with exit code 1 any claim whose span does not occur in the issue text: claimChecker.span runs inside DecodeStamped's loop, so the rejection names the file, the true one-based line and the field `span`, and the dogfooding run against the real binary refused a fabricated span with exit 1.\n- A claim sourced from the context store carries source: note and a note_id, and is validated against the named note rather than the issue text: claimChecker.against reads note.Find on the store loaded for the issue key, and returns that note's body as the one text the span must occur in.\n- Each claim is checked against exactly one source and the two rules never collide, structurally rather than by convention: the choice of text is made in one function out of the claim's source alone and is returned as an opaque spanSource holding the chosen text and the name a rejection calls it by, so no other line of the package can reach either text; the branch is `source is note or it is not`, which is the partition §3.3.1 itself writes, and is therefore total by construction with no claim left without a text and none handed two.\n- A note_id naming a note the store does not hold is refused on `note_id` rather than falling through to the issue text, because falling through is exactly the collision §3.3.2 rules out and accepting would admit a span nothing checked.\n- Such a claim is included in coverage exactly like a tracker claim: TestANoteSourcedClaimIsStoredLikeAnyOther records a note-sourced claim beside a tracker claim and asserts the stored records agree on issue_hash, head and round, differing only in the two fields that are the claim's own.\n- Its weaker provenance reaches §8.1.6: the `note` source and the `note_id` survive the write intact, which are the only things §8.1.6's provenance region can name, and the same test asserts the tracker claim beside it carries no note_id.\n- A test covers all four cases the criterion names, over two deliberately disjoint texts so a claim checked against the wrong one always fails: a valid tracker span, an invalid tracker span, a valid note span, and a note span checked against the wrong source — the last written in both directions, a tracker span that occurs only in the note and a note span that occurs only in the issue text, each asserting which text the refusal named.\n- §3.3.1 and §3.3.3 share one occurrence predicate, SpanOccursIn, so the rule that records a claim and the rule that will report it stale cannot come to different readings of \"occurs\"; the comparison is literal because §3.3's table calls a span the verbatim substring of its source.",
+      "gate_passed_at": "2026-08-30T22:52:09.51693Z",
+      "commit_sha": "d0960b0",
+      "commit_shas": [
+        "d0960b0",
+        "ca8559a",
+        "0cbbb46",
+        "035f34d",
+        "254a7b7",
+        "163c0d1"
+      ],
+      "commit_files": [
+        "internal/cli/claims.go",
+        "internal/cli/claims_test.go",
+        "internal/cli/exit_test.go",
+        "internal/intent/claimspan.go",
+        "internal/intent/claimspan_test.go",
+        "internal/intent/claimvalidate.go",
+        "internal/intent/claimvalidate_test.go",
+        "internal/note/note.go"
+      ]
     },
     {
       "id": "issue-drift-detection",
       "title": "Detect issue text drift per round",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "claim-span-validation"
@@ -1863,11 +1912,29 @@
       "source_sections": [
         "### 3.3 Claim extraction"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T22:52:11.971601Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T23:23:49.965039Z",
+      "closed_reason": "- Drift is detected by re-reading the issue text and comparing its normalised hash to the stored issue_hash: intent.DetectDrift hashes the text it is handed through text.NormalisedHash, which runs §1.4's six steps itself, and compares that against the issue_hash each claim was stored with.\n- The comparison is per claim rather than against one hash picked from among them: ComputeClaimHashes writes one issue_hash across an extraction so a well-formed round answers the same everywhere, and where the store does not, the report says what each claim actually holds instead of choosing a winner.\n- When they differ, cr reports for each claim whether its span still occurs in the new issue text: every claim gets a ClaimDrift entry carrying its id, the issue_hash it was extracted against, and SpanOccurs, in the order claims.ndjson holds them, so no claim is left out of the report.\n- The occurrence test is SpanOccursIn, the same literal predicate §3.3.1 rejects a claim by, so the rule that records a claim and the rule that reports it stale cannot come to different readings of \"occurs\".\n- SpanOccurs is asked of every claim rather than only the drifted ones, and TestASpanCanGoWhileTheHashStandsStill shows why: §1.4 step 4 collapses whitespace runs before hashing while a span is verbatim, so doubling a space leaves the hash equal and still takes a span away.\n- cr never re-extracts, and the function is built so it cannot: it is given no *state.Lock, which §2.3.1 makes the only door to per-PR state, so it cannot write claims.ndjson at all; it takes an iter.Seq[Claim] rather than a slice, so it receives copies and cannot alter a claim in the caller's own hands; and it returns ClaimDrift, an id, a hash and a boolean, so there is nothing in a report a caller could mistake for an extraction and store.\n- TestDriftDetectionCannotReachThePerPRState reads that off the source: drift.go imports no internal/state, checked through the file's import list rather than its text, because an import is what a call needs and cannot be spelled around.\n- Re-extraction happens only through a new cr claims record, which is a different function in a different file that takes the lock and is handed a file by an agent.\n- A test mutates the issue text between rounds and asserts the per-claim report without any claim changing: TestDriftReportsEachClaimAndChangesNone rewords one of two acceptance lines so one span survives and one does not, asserts the fresh hash, the drift flag and both per-claim entries, and asserts the claims marshal byte for byte to what they were before the comparison ran.\n- Mutation testing found and closed a real gap in the round before this one: negating the error check in storeClaims skips the mapping clearing entirely and survived the whole suite, because the shared fixture carried no mapping entry for the round being recorded; TestRecordingClaimsClearsThisRoundsMappingEntries writes one and kills it.",
+      "gate_passed_at": "2026-08-30T23:23:49.965039Z",
+      "commit_sha": "5e6d20d",
+      "commit_shas": [
+        "5e6d20d",
+        "6b1436d",
+        "d0ac07d",
+        "9ab444d",
+        "0439f04",
+        "8d8948b",
+        "bdefcf4",
+        "c0be735",
+        "4b953f7"
+      ],
+      "commit_files": [
+        "internal/cli/claims_test.go",
+        "internal/intent/drift.go",
+        "internal/intent/drift_test.go",
+        "internal/state/roundscope_test.go"
+      ]
     },
     {
       "id": "diff-against-merge-base",
