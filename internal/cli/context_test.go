@@ -169,3 +169,23 @@ func TestANoteRecordedAgainstOnePullRequestLoadsForAnother(t *testing.T) {
 	assert.Equal(t, 1, printed.Notes[0].PR, "the pull request is provenance, and it survives the read")
 	assert.Equal(t, 2, printed.Notes[1].PR)
 }
+
+// An issue key nobody has recorded against holds no notes, and asking for them
+// is not a failure. §3.6's store is created by the first note appended to it, so
+// a key whose notes are still to come and a key mistyped at the command line are
+// the same absent file: cr has nothing to tell them apart with, and reports what
+// it found rather than guessing which one this was.
+//
+// §12.3 is the other half — an empty collection prints as [] and never as null,
+// which is what the agent reading the pipe parses.
+func TestContextOnAKeyNobodyRecordedAgainstIsNoNotes(t *testing.T) {
+	crHome(t)
+
+	out, err := runContext(t, "CR-404")
+	require.NoError(t, err)
+	assert.Contains(t, out, `"issue_key": "CR-404"`)
+	assert.Contains(t, out, `"notes": []`, "§12.3: an empty collection is [] and never null")
+
+	assert.Contains(t, throughATerminal(t, "context", "CR-404"),
+		"no notes recorded against \x1b[36mCR-404\x1b[0m")
+}
