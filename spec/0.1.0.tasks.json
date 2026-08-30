@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T15:34:02.787649Z",
+  "updated_at": "2026-08-30T15:51:13.190164Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4805,7 +4805,7 @@
     {
       "id": "render-lang-domain",
       "title": "Enumerate the render language domain",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "config-layer-resolution"
@@ -4815,11 +4815,39 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T15:35:04.122254Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T15:51:13.123786Z",
+      "closed_reason": "- §8.1.1's language is the setting internal/config resolves as render.lang, defaulting to tr: the built-in table now takes both the key and the default from render.Setting and render.LangTR, so the table cannot drift from the domain, and TestRenderLangDefaultsToTurkishAndRejectsAnUnknownLanguage asserts the resolved default is tr.\n- Round 8's render-lang-domain-unbounded: internal/render/lang.go enumerates exactly tr and en as Lang struct{code string} values, constructible nowhere outside the package and reachable from a string only through ParseLang — the same fence finding.State uses — and TestV01RendersInExactlyTurkishAndEnglish asserts the set whole and in order, so a third language cannot be added without the label table it then has to satisfy.\n- Any other value aborts with exit code 3 naming the setting: config.Resolve parses render.lang once every layer has settled, internal/cli exitCodeFor maps a render.UnknownLangError onto ExitFile per §11.2's file-or-configuration row, and the freshly built binary exits 3 on CR_RENDER_LANG=de with a message naming render.lang, the rejected value, and the two it may hold.\n- The built-in label text is fixed in the implementation rather than left to whatever renders it: internal/render/label.go writes out all six language-by-grade lines as literals, QuestionLabel is a lookup with no format string and nothing a profile, role, or rule can reach, and the exact Turkish and English lines are asserted rather than only their shape.\n- Findings are stored in English: TestNoStoredRecordCarriesReaderFacingProse reads §6.1's field table out of finding.Fields and finding.CitationFields and shows no row could hold a body, a label, a language, or a translation — a record keeps summary and evidence, and the stored English grade word is what the Turkish line carries into the reader's view rather than the reverse.\n- Reader-facing prose is produced at draft time: TestNoRenderingDecisionCanReachStoredState proves the separation structurally in both directions — no file of internal/render imports the filesystem, an encoder, or internal/state, and none of state, finding, note, intent, unit or testadequacy imports internal/render — so a rendering decision cannot reach disk and a stored value cannot be chosen by a language.\n- A test asserts render.lang: de aborts with exit code 3 and that both enumerated languages carry a label: TestAnUnknownRenderLanguageExitsWithTheFileCode maps the error and runs cr config with CR_RENDER_LANG=de, asserting ExitFile, the setting named, the value quoted, and nothing printed; TestEveryLanguageCarriesABuiltInQuestionLabelForEveryGrade holds the table total over Langs times §6.2's three grades, with no line shared and none carrying a newline.\n- Round 12's unspecified-render-language: §8.4.3's review body carries §4.5.4's disclosure to the author, so it is author-facing and is rendered in render.lang like the comment body of §8.1.1; internal/render/body.go makes that a closed set rather than a sentence — BodyComment and BodyReview — and TestTheReviewBodyIsAnAuthorFacingBodyLikeTheComment asserts it where the later review-body renderer will read it.\n- Gate green: go test -race ./... and golangci-lint run and ./scripts/deadcode.sh all pass; gremlins unleash --timeout-coefficient 30 ./internal reports Killed 471, Lived 10, efficacy 97.92 percent against the 466/10/97.90 baseline, with the same three known TIMED OUT and no new survivor — all four mutants inside internal/render are killed.",
+      "gate_passed_at": "2026-08-30T15:51:13.123786Z",
+      "commit_sha": "e4d1609",
+      "commit_shas": [
+        "e4d1609",
+        "2abd7ed",
+        "9951d76",
+        "1e23d9a",
+        "8a7d4ad",
+        "3039ad8",
+        "484fcdd",
+        "4553c1c",
+        "f35c824",
+        "40525e2",
+        "601016b",
+        "4062d1f"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/config/config.go",
+        "internal/config/config_test.go",
+        "internal/render/body.go",
+        "internal/render/body_test.go",
+        "internal/render/label.go",
+        "internal/render/label_test.go",
+        "internal/render/lang.go",
+        "internal/render/lang_test.go",
+        "internal/render/separation_test.go"
+      ]
     },
     {
       "id": "initial-body-composition",
