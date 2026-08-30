@@ -69,3 +69,35 @@ func TestTheKeyIsSubstitutedIntoEveryElementThatCarriesIt(t *testing.T) {
 		"--plain",
 	}, strings.Split(strings.TrimSuffix(out, "\n"), "\n"))
 }
+
+// §3.1.1 describes an argv array carrying a {key} placeholder, and an
+// intent.cmd that is neither is refused before anything is started.
+//
+// The refusal has to come first, because the alternative is worse than a
+// failure. An argv with no placeholder runs perfectly well and reads the same
+// issue for every key it is given, so the run that follows would map claims
+// from one issue onto the units of another — a coverage report built on the
+// wrong specification, with nothing in it saying so.
+func TestAnIntentCmdThatCannotCarryAKeyIsRefusedBeforeAnythingStarts(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	tracker := stubTracker(t, "touch "+ran)
+
+	for name, malformed := range map[string]struct {
+		argv []string
+		says string
+	}{
+		"an empty argv":               {argv: nil, says: "empty"},
+		"an argv with no placeholder": {argv: []string{tracker, "issue", "view", "CR-1"}, says: Placeholder},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out, err := Read(malformed.argv, "CR-1")
+
+			var refused *MalformedCommandError
+			require.ErrorAs(t, err, &refused)
+			assert.Empty(t, out)
+			assert.Contains(t, refused.Error(), "intent.cmd")
+			assert.Contains(t, refused.Error(), malformed.says)
+			assert.NoFileExists(t, ran, "a misconfigured intent.cmd must cost a process, not produce one")
+		})
+	}
+}
