@@ -2,6 +2,7 @@ package intent
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -234,4 +235,40 @@ func TestAnIntentFileNeedsNoTrackerCommandThatCouldEverRun(t *testing.T) {
 			assert.Equal(t, issue, text)
 		})
 	}
+}
+
+// A file cr cannot read fails the run, and fails it as a file.
+//
+// Failing is the decision worth pinning. §3.2 already has a path where no
+// issue key is found and cr continues with an empty intent, and a mistyped
+// --intent-file quietly taking that path would produce a coverage report
+// claiming the issue asked for nothing — every unit unmapped, every question
+// raised against a specification that was on disk the whole time. §3.1.4 makes
+// the file the tracker command's replacement, so it fails the way the command
+// it replaced would have: §11.2 codes the file and the external command in one
+// row, and internal/cli maps this type onto it.
+func TestAnUnreadableIntentFileFailsAsAFileFailure(t *testing.T) {
+	directory := t.TempDir()
+	missing := filepath.Join(directory, "issue.txt")
+
+	text, err := Read(Source{
+		File: missing,
+		Cmd:  []string{"jira", "issue", "view", Placeholder, "--plain"},
+	}, "CR-3")
+
+	var unreadable *FileError
+	require.ErrorAs(t, err, &unreadable)
+	assert.Empty(t, text)
+	assert.Equal(t, missing, unreadable.Path)
+	assert.Contains(t, unreadable.Error(), "--intent-file "+missing)
+	assert.ErrorIs(t, err, fs.ErrNotExist,
+		"the filesystem's own failure stays reachable, so a caller can tell absent from unreadable")
+
+	// A path that exists and still yields no issue text fails the same way,
+	// so the check is the read failing rather than a special case for a
+	// file that is not there.
+	_, err = Read(Source{File: directory}, "CR-3")
+	require.ErrorAs(t, err, &unreadable)
+	assert.Equal(t, directory, unreadable.Path)
+	assert.NotErrorIs(t, err, fs.ErrNotExist)
 }
