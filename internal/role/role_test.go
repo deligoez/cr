@@ -150,3 +150,49 @@ func TestAnAxisOutsideTheClosedSetIsRejected(t *testing.T) {
 	assert.Equal(t, "axis", invalid.Field)
 	assert.Equal(t, "security", invalid.Value)
 }
+
+// A role file cr cannot read or decode has no field to blame, and its message
+// must not leave a gap where one would go. A type error is the case in between:
+// the decoder knows which field it choked on, so the abort names it like every
+// other fault instead of falling back to the whole file.
+//
+// Both spellings of the message are pinned, because nothing else distinguishes
+// them and nothing else notices if they merge.
+func TestAFileCrCannotReadOrDecodeSaysWhatItCan(t *testing.T) {
+	t.Run("unreadable", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "correctness.json")
+
+		_, err := Load(path)
+
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Equal(t, path, malformed.File)
+		assert.Empty(t, malformed.Field)
+		assert.Contains(t, err.Error(), "cannot be read")
+		assert.Equal(t, path+": "+malformed.Problem, malformed.Error())
+	})
+
+	t.Run("not JSON at all", func(t *testing.T) {
+		path := write(t, "correctness", "instructions: judge the diff")
+
+		_, err := Load(path)
+
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Empty(t, malformed.Field)
+		assert.Contains(t, err.Error(), "is not valid JSON")
+		assert.Equal(t, path+": "+malformed.Problem, malformed.Error())
+	})
+
+	t.Run("a focus question written as one string", func(t *testing.T) {
+		path := roleFile(t, "correctness", map[string]any{"focus": "Which branch is unexercised?"})
+
+		_, err := Load(path)
+
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Equal(t, "focus", malformed.Field)
+		assert.Contains(t, err.Error(), path)
+		assert.Equal(t, path+": focus "+malformed.Problem, malformed.Error())
+	})
+}
