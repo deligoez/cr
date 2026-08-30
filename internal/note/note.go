@@ -184,6 +184,26 @@ func indexOf(notes []Note, id string) int {
 	return slices.IndexFunc(notes, func(n Note) bool { return n.ID == id })
 }
 
+// Find returns the note bearing id, and whether the store holds one.
+//
+// It is StandingOf's other half: a citation of a note needs the standing to
+// decide what may be asserted on it and the note itself to read what it says,
+// and §3.3.2's claim needs the second — the span of a note-sourced claim is
+// that note's body, so validating one means reading it.
+//
+// notes MUST be every note the store holds, for the reason StandingOf's must:
+// a slice narrowed by round or by pull request would report a note somebody
+// recorded as one the store does not hold. The returned pointer is into notes,
+// so a caller reads the store's own record rather than a copy that could drift
+// from it.
+func Find(notes []Note, id string) (*Note, bool) {
+	at := indexOf(notes, id)
+	if at < 0 {
+		return nil, false
+	}
+	return &notes[at], true
+}
+
 // UnknownNoteError reports a `--remove` naming a note the store does not hold.
 //
 // The id is spelled the way §3.6.1 spells one and the store read and parsed
