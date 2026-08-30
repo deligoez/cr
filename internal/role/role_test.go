@@ -70,3 +70,41 @@ func TestRoleCarriesExactlyTheSpecFields(t *testing.T) {
 	assert.Equal(t, specFields, fields,
 		"§2.5's table is the allowlist; a key missing from it is a key cr would silently ignore")
 }
+
+// §2.5 fixes the id twice over: kebab-case, and equal to the file stem. The
+// second is what makes it unspoofable, the way §4.6.2's output paths are — the
+// stem already names the role, so a file stating a different id is a
+// contradiction with no correct resolution, and cr refuses it rather than
+// preferring one half over the other. Kebab-case then constrains the filename
+// as much as the field, because the two are the same string.
+func TestTheIDMustBeTheKebabCaseFileStem(t *testing.T) {
+	t.Run("a well-formed file takes its id from the stem", func(t *testing.T) {
+		r, err := Load(roleFile(t, "test-adequacy", nil))
+		require.NoError(t, err)
+		assert.Equal(t, "test-adequacy", r.ID)
+	})
+
+	for _, c := range []struct {
+		name, stem string
+		id         any
+		says       string
+	}{
+		{"absent", "correctness", nil, "is required"},
+		{"naming another role", "correctness", "convention", `"convention"`},
+		{"capitalised", "Correctness", "Correctness", "kebab-case"},
+		{"hyphen-terminated", "correctness-", "correctness-", "kebab-case"},
+		{"underscored", "test_adequacy", "test_adequacy", "kebab-case"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			path := roleFile(t, c.stem, map[string]any{"id": c.id})
+
+			_, err := Load(path)
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, "id", malformed.Field)
+			assert.Contains(t, err.Error(), path)
+			assert.Contains(t, err.Error(), c.says)
+		})
+	}
+}
