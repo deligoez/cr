@@ -1,6 +1,7 @@
 package finding
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -306,4 +307,40 @@ func TestNotWorthSayingHereSilencesNothingBeyondItsPullRequest(t *testing.T) {
 	require.NotZero(t, scopeType.NumField())
 	assert.False(t, everyFieldExported(scopeType),
 		"§7.4.3 is a fence only while Scope is the one thing that can produce a WaiverScope")
+}
+
+// §7.4.5 makes the disposition part of the waiver rather than a detail of the
+// moment it was written, and §7.3.4 is why: `discarded-wrong` goes into the
+// demotion numerator and `not-here` is excluded from it in as many words. A
+// waiver that recorded only that something had been silenced would leave §7.3
+// unable to tell a false positive from a deliberate silence, and a class that is
+// always right and merely never worth saying would be demoted as imprecise.
+//
+// The round trip is the part that matters. §7.4.4 puts waivers in a file and
+// §7.4.7 reads them back, so a disposition held only in memory would satisfy the
+// letter of §7.4.5 and none of its purpose.
+func TestAWaiverRecordsTheDispositionItWasWrittenFor(t *testing.T) {
+	for _, disposition := range []Disposition{DispositionWrong, DispositionNotHere} {
+		t.Run(string(disposition), func(t *testing.T) {
+			discarded, _ := theSameDefectAtTheSameCode(t)
+			discarded.Disposition = disposition
+
+			waiver, err := WaiverFor(&discarded)
+			require.NoError(t, err)
+			assert.Equal(t, disposition, waiver.Disposition,
+				"§7.4.5: the waiver records the disposition §7.2 set on the record it was written for")
+			assert.Equal(t, WaiverKeyOf(&discarded), waiver.WaiverKey,
+				"§7.4.1: and it covers that record, so the reason and the key describe one discard")
+
+			written, err := json.Marshal(waiver)
+			require.NoError(t, err)
+			assert.Contains(t, string(written), `"disposition":"`+string(disposition)+`"`,
+				"§7.3 reads the disposition off the stored waiver, so it has to be on the wire under that name")
+
+			var read Waiver
+			require.NoError(t, json.Unmarshal(written, &read))
+			assert.Equal(t, waiver, read,
+				"§7.4.4 stores the waiver in a file and §7.4.7 lists it back; nothing may be lost on the way")
+		})
+	}
 }
