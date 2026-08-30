@@ -1,8 +1,7 @@
 package cli
 
 import (
-	"go/parser"
-	"go/token"
+	"go/ast"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -74,43 +73,21 @@ var runners = map[string]bool{
 // call needs and cannot be spelled around: a package cannot be reached by
 // aliasing it, by building the name at run time, or by any of the ways a
 // substring search over source can be defeated.
+//
+// The surface is eachSourceFile's, which is the same surface this walk used to
+// define for itself. Both guards fence what cr ships, so a file the one reads
+// and the other does not would be a hole in whichever missed it.
 func crSource(t *testing.T, visit func(rel string, imports []string)) {
 	t.Helper()
-	root := moduleRoot(t)
-
-	scanned := 0
-	require.NoError(t, filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if path != root && strings.HasPrefix(d.Name(), ".") {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-		require.NoError(t, err)
-
-		imports := make([]string, 0, len(parsed.Imports))
-		for _, spec := range parsed.Imports {
+	eachSourceFile(t, func(rel string, file *ast.File) {
+		imports := make([]string, 0, len(file.Imports))
+		for _, spec := range file.Imports {
 			name, err := strconv.Unquote(spec.Path.Value)
 			require.NoError(t, err)
 			imports = append(imports, name)
 		}
-		rel, err := filepath.Rel(root, path)
-		require.NoError(t, err)
-
-		scanned++
 		visit(rel, imports)
-		return nil
-	}))
-
-	// A walk that found nothing would pass and would mean nothing.
-	require.Greater(t, scanned, 10, "only %d files were scanned, so this guard proved nothing", scanned)
+	})
 }
 
 // Every outbound call goes through one of two runners, and there is no way out
