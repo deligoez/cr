@@ -1,6 +1,7 @@
 package finding
 
 import (
+	"errors"
 	"go/ast"
 	"testing"
 
@@ -215,4 +216,25 @@ func TestACitationTheHeadCannotOpenIsRejected(t *testing.T) {
 			assert.Equal(t, 4, rejected.Line)
 		})
 	}
+}
+
+// A head that cannot be read at all is not the record's fault.
+//
+// §6.2.3's rejection is about a citation pointing where the head holds nothing,
+// which §11.2 codes 1. A git that refused is §3.1.3's failure and §11.2 codes it
+// 3, so the error is passed through rather than turned into a record rejection:
+// the two blame different people, and only one of them can fix it.
+func TestAHeadThatCannotBeReadIsNotTheRecordsFault(t *testing.T) {
+	refused := errors.New("git ls-tree: exit status 128")
+
+	err := ResolveCitations(
+		func(string) ([]string, bool, error) { return nil, false, refused },
+		"review-security.ndjson", 4,
+		[]Citation{{Path: "app/Models/Order.php", Line: 1}},
+	)
+
+	require.ErrorIs(t, err, refused)
+	var rejected *RejectedRecordError
+	assert.False(t, errors.As(err, &rejected),
+		"§11.2 codes a refusing git 3; only the record's own content is a validation failure")
 }
