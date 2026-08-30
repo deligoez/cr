@@ -198,3 +198,52 @@ func TestClaimsRecordReplacesThisRoundAndLeavesTheOneBefore(t *testing.T) {
 		string(mapping),
 		"§3.3.1 clears the mapping, and §9.3.5 scopes the clearing to this round")
 }
+
+// §3.3.1's rejection through the command: a refused line takes the whole file
+// with it, and neither claims.ndjson nor mapping.ndjson moves.
+//
+// The fault is put on the second line of three, so a command that wrote as it
+// validated would already have stored the line above it and a command that
+// carried on would have stored the one below. Neither may reach the file: the
+// agent is about to correct the input and hand the whole of it in again.
+//
+// The mapping is asserted on as well as the claims, and that is the half a
+// replace-then-clear can get wrong on its own. §3.3.1 states the two as one
+// act, so a run that clears the mapping and then refuses the claims has thrown
+// away a mapping for an extraction that never happened.
+func TestARefusedClaimLeavesTheRoundExactlyAsItWas(t *testing.T) {
+	layout := claimedHome(t)
+	claims := layout.PRFile(claimsOwner, claimsRepo, claimsPRNum, state.FileClaims)
+	mapping := layout.PRFile(claimsOwner, claimsRepo, claimsPRNum, state.FileMapping)
+	claimsBefore, err := os.ReadFile(claims)
+	require.NoError(t, err)
+	mappingBefore, err := os.ReadFile(mapping)
+	require.NoError(t, err)
+
+	file := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+		`{"id":"`+claimsIssue+`#c2","text":"Give up.","source":"acceptance",`+
+			`"span":"abandoned after five attempts","span_hash":"0123456789abcdef"}`,
+		`{"id":"`+claimsIssue+`#c3","text":"Retry a 5xx.","source":"description",`+
+			`"span":"Retry the upload"}`,
+	)
+
+	_, err = runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t, issueText))
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err), "§3.3 rejects with exit code 1")
+	assert.Contains(t, err.Error(), file, "the refusal names the file")
+	assert.Contains(t, err.Error(), "line 2", "and the one-based line the claim sits on")
+	assert.Contains(t, err.Error(), "span_hash", "and the field at fault")
+
+	claimsAfter, err := os.ReadFile(claims)
+	require.NoError(t, err)
+	assert.Equal(t, string(claimsBefore), string(claimsAfter),
+		"§3.3.1 refuses the file, so the round's previous extraction stands")
+	mappingAfter, err := os.ReadFile(mapping)
+	require.NoError(t, err)
+	assert.Equal(t, string(mappingBefore), string(mappingAfter),
+		"and the mapping it would have cleared stands with it")
+}
+
