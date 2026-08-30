@@ -92,6 +92,14 @@ func exitCodeFor(err error) int {
 		// can be corrected, so it is not a usage error.
 		return ExitFile
 	}
+	var unreadableIntentFile *intent.FileError
+	if errors.As(err, &unreadableIntentFile) {
+		// §3.1.4's file stands in for the tracker command, so a file cr
+		// cannot read fails the way the command it replaced would have:
+		// §11.2's code 3 covers the file and the external command in one
+		// row, and the run reaches no issue text either way.
+		return ExitFile
+	}
 	var invalidClass *finding.InvalidClassError
 	if errors.As(err, &invalidClass) {
 		// §6.1 rejects a class that is not kebab-case. Like a supplied
