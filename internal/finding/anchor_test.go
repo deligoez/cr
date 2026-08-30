@@ -201,3 +201,37 @@ func TestAnAnchorNamesOneOfSection92sTwoSides(t *testing.T) {
 			"the value is quoted back, because the faults that reach here are invisible otherwise")
 	}
 }
+
+// §9.2 bounds the context window at three lines on each side, and §9.2.3 gives
+// the bound its purpose: the window is recorded so that a v0.2 migration has
+// what it needs from the rounds v0.1 produced. v0.1 reads none of it back, so a
+// window written wider than the bound is a fault no command in this version
+// could notice on its own — which is exactly why it is refused at the record
+// rather than left to a reader that does not exist yet.
+//
+// Three is the bound rather than the first value past it, and the two sides are
+// two fields: a full window on one side and an over-full one on the other is the
+// case a check reading only one of them passes.
+func TestAnAnchorRecordsAtMostThreeLinesOfContextOnEachSide(t *testing.T) {
+	full := anAnchor()
+	full.ContextBefore, full.ContextAfter = make([]string, 3), make([]string, 3)
+	assert.NoError(t, ValidateAnchor(state.FileFindings, 7, &full),
+		"three a side is the bound §9.2 writes, not the first value past it")
+
+	none := anAnchor()
+	assert.NoError(t, ValidateAnchor(state.FileFindings, 7, &none),
+		"§9.2 says up to three, and a range at the top of a file has nothing above it")
+
+	for name, window := range map[string][2]int{
+		"a fourth line before the range": {4, 3},
+		"a fourth line after it":         {3, 4},
+		"a fourth line on both sides":    {4, 4},
+	} {
+		t.Run(name, func(t *testing.T) {
+			anchor := anAnchor()
+			anchor.ContextBefore = make([]string, window[0])
+			anchor.ContextAfter = make([]string, window[1])
+			assert.Contains(t, rejectsAnchor(t, &anchor).Error(), "up to 3 on each side")
+		})
+	}
+}
