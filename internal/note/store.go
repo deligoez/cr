@@ -19,6 +19,74 @@ func Append(l state.Layout, issueKey, text string, source Source, pr int, at tim
 	return appendNote(l, issueKey, &Note{Text: text, Source: source, PR: pr}, at)
 }
 
+// Retract marks one note as retracted and returns it as it now stands
+// (§3.6.6).
+//
+// It takes no issue key because §3.6.1's id already carries one, which is what
+// §11's `cr note --remove <note-id>` row says: the id names its own store.
+//
+// **It marks; it does not delete.** Two things turn on that. §3.6.1 allocates
+// an id by counting over the notes the store holds, so removing a line would
+// let the next note take the retracted one's number, and §3.3.2's claims and
+// §8.1.6's provenance both cite a note by id — a reused id points a claim at a
+// fact nobody ever recorded under it. And §3.6.6 asks for a retracted note's
+// dependents to be *reported* rather than silently retained, which needs the
+// retraction itself to be readable: a note that was deleted and a note that was
+// never written are the same file.
+//
+// The cost is paid in the store. A note retracted precisely because it turned
+// out to be wrong keeps its text on disk and keeps printing from `cr context`,
+// under its retraction. §3.6.6 makes a note revocable, not erasable, and cr
+// keeps the hearsay so the decision stays auditable rather than becoming a gap
+// nobody can account for.
+//
+// Retracting a note that is already retracted is the state the caller asked
+// for, so it succeeds and keeps the first retraction's timestamp. A second run
+// reports when the decision was actually made instead of overwriting it.
+func Retract(l state.Layout, noteID string, at time.Time) (Note, error) {
+	issueKey, ok := SplitID(noteID)
+	if !ok {
+		return Note{}, fmt.Errorf(
+			"note id %q: §3.6.1 forms one as <ISSUE-KEY>#n<n>, e.g. CR-1#n2", noteID,
+		)
+	}
+	lock, err := l.LockContext(issueKey)
+	if err != nil {
+		return Note{}, err
+	}
+	retracted, err := retractLocked(lock, issueKey, noteID, at)
+	// Joined rather than branched, for the reason appendNote gives.
+	return retracted, errors.Join(err, lock.Unlock())
+}
+
+// retractLocked is Retract's critical section.
+//
+// The read, the decision, and the write are one for the reason appendLocked's
+// are: both rewrite the whole file, so a retraction computed outside the lock
+// would be published over a note a concurrent `cr note` had just appended.
+func retractLocked(k *state.ContextLock, issueKey, noteID string, at time.Time) (Note, error) {
+	notes, err := state.ContextRecords[Note](k)
+	if err != nil {
+		return Note{}, err
+	}
+	at = at.UTC()
+	found := indexOf(notes, noteID)
+	switch StandingOf(notes, noteID) {
+	case StandingDangling:
+		return Note{}, &UnknownNoteError{ID: noteID, IssueKey: issueKey}
+	case StandingRetracted:
+		return notes[found], nil
+	}
+	// UTC above and not at the call site, for the reason appendLocked
+	// stamps in UTC: a retraction is ordered against the notes around it,
+	// and an offset would make that order depend on where cr was run.
+	notes[found].RetractedAt = &at
+	if err := state.WriteContextRecords(k, notes); err != nil {
+		return Note{}, err
+	}
+	return notes[found], nil
+}
+
 // Load returns every note recorded against issueKey, in the order they were
 // recorded. It is what §3.6.4 means by loading the notes for an issue key, and
 // what §3.6.5 prints.
