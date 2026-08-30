@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 )
 
@@ -69,6 +70,47 @@ func WriteStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error 
 		record.setStamp(at)
 	}
 	return writeRecords(k, name, records)
+}
+
+// AppendStamped adds records to the end of one of the eight §2.3.3 files,
+// stamping head and round onto every record it adds and leaving what the file
+// already holds byte for byte. It refuses a file §2.3.3 does not list, as
+// WriteStamped does.
+//
+// findings.ndjson is what it exists for. §2.3 has that file hold all findings
+// and questions in all states, so a round adds its records to it rather than
+// replacing it, and §9.3.5 leaves earlier rounds intact.
+//
+// WriteStamped cannot do that job, and the reason is the property that makes it
+// worth having: it stamps every record it is handed. Reading the file's
+// existing records back and passing them through it would restamp each one with
+// the round now being written, and the history §9.3.5 protects would be rewritten
+// by the write that was meant to extend it. Carrying the previous bytes through
+// untouched is the only form of the append that cannot do that — and it also
+// keeps a record a later version wrote exactly as that version wrote it, rather
+// than re-encoding it through this one's struct.
+//
+// The read is unlocked-safe because the caller holds the §2.3.1 lock: no other
+// writer can be between this read and the Write that follows it.
+func AppendStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error {
+	if !slices.Contains(stampedFiles, name) {
+		return fmt.Errorf("%s: §2.3.3 does not list it, so its records carry no head or round", name)
+	}
+	for _, record := range records {
+		record.setStamp(at)
+	}
+	added, err := encodeRecords(name, records)
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(k.dir, name)
+	// A file that is not there yet holds as many records as an empty one,
+	// which is the reading storeRecords already gives an absent store.
+	held, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	return k.Write(name, append(held, added...))
 }
 
 // ReservedFieldError reports a record that supplied a field cr writes itself.
