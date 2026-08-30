@@ -74,3 +74,14 @@ func TestAProfileWithNoTestGlobsRecognisesNoTestFile(t *testing.T) {
 	assert.False(t, p.IsTestFile("app/Models/Order.php"))
 }
 
+// A glob path.Match cannot compile has no matches rather than a panic or a
+// silent match on everything. §2.4 states no syntax rule for `tests.globs`, so
+// the matcher does not invent a rejection — but the two ways it could go wrong
+// both end with cr attaching files it never established are tests, which is the
+// assertion worth pinning.
+func TestAnUncompilableGlobMatchesNothing(t *testing.T) {
+	p := Profile{Tests: Tests{Globs: []string{"tests/[Order"}}}
+
+	assert.False(t, p.IsTestFile("tests/[Order"))
+	assert.False(t, p.IsTestFile("tests/OrderTest.php"))
+}
