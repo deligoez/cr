@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T18:31:47.822849Z",
+  "updated_at": "2026-08-30T18:50:43.15403Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4687,7 +4687,7 @@
     {
       "id": "anchor-schema",
       "title": "Define the anchor field set",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "normalised-hash"
@@ -4697,11 +4697,27 @@
       "source_sections": [
         "### 9.2 Anchors"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T18:32:27.668488Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T18:50:43.066327Z",
+      "closed_reason": "- internal/finding/anchor.go holds §9.2 anchor rules beside the Anchor struct internal/finding/finding.go already carries, with path, side, start_line, line, content_hash and the two context windows, and ValidateAnchor bounds each window at contextWindow, three lines a side, with TestAnAnchorRecordsAtMostThreeLinesOfContextOnEachSide asserting that three passes and a fourth on either side does not.\n- AnchorContentHash joins the anchored lines with a single LF and hands the whole text to text.NormalisedHash, so §1.4 runs once over the range and there is no branch on the line count at all — TestTheContentHashBranchesOnNothing reads that off anchor.go own source and proves the walker fires by asserting ValidateAnchor next door does branch.\n- ValidateAnchor closes side against anchorSides, git.Right and git.Left, because git.Side is a defined string any untyped constant reaches, and TestAnAnchorNamesOneOfSection92sTwoSides accepts the two and refuses the empty value, right, Right, \"RIGHT \", MIDDLE and BOTH with the offending value quoted back.\n- TestAOneLineAndAThreeLineAnchorHashByTheSameFunction asserts the properties a special-cased one-line path would break rather than restating strings.Join — §1.4 normalisation reaches both sizes, a three-line anchor hashes as the one-line anchor carrying the same LFs, and neither the first line alone nor the reversed order reaches that digest.\n- Round 12 unordered-range-fields is answered where §9.2 leaves the two numbers unordered, ValidateAnchor being the single place the pair is read as a range before §6.2.2 containment and §8.3.3 payload ordering rely on it, wired into checker.check in internal/finding/validate.go and proven on every door by TestAnAnchorRunningBackwardsNeverBecomesARecord.\n- ValidateAnchor rejects line \u003c start_line as inverted and start_line \u003c 1 as the empty range that names no line of any file, an inclusive range making start_line == line a legal one-line anchor rather than an empty one and §9.2 required start_line ruling out GitHub optional one, with TestAnAnchorRangeRunsForwardsFromALineOfTheFile pinning both boundaries.",
+      "gate_passed_at": "2026-08-30T18:50:43.066327Z",
+      "commit_sha": "616b6ae",
+      "commit_shas": [
+        "616b6ae",
+        "097c991",
+        "aa136f2",
+        "9639ec4",
+        "b2aa4e6",
+        "d4bd5a7",
+        "b4d6a0d",
+        "acc22f5"
+      ],
+      "commit_files": [
+        "internal/finding/anchor.go",
+        "internal/finding/anchor_test.go",
+        "internal/finding/validate.go"
+      ]
     },
     {
       "id": "anchor-side-semantics",
