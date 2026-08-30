@@ -235,3 +235,31 @@ func TestAnAnchorRecordsAtMostThreeLinesOfContextOnEachSide(t *testing.T) {
 		})
 	}
 }
+
+// A validator nothing calls is a rule cr states and does not keep, and §9.2's
+// range rule is stated where the agent cannot see it: nothing in the fan-out
+// prompt of §4.6 tells a role which way round to write the two numbers. So the
+// question here is not whether ValidateAnchor refuses — the cases above settle
+// that — but whether the refusal sits on the record's way in, on every door.
+//
+// The doors are anchored_test.go's, read out of the package's own source, so a
+// second way to obtain a record fails there before it can quietly bypass this.
+func TestAnAnchorRunningBackwardsNeverBecomesARecord(t *testing.T) {
+	for name, calls := range doors {
+		t.Run(name, func(t *testing.T) {
+			for _, call := range calls {
+				item := aRecord()
+				item["anchor"] = map[string]any{
+					"path": "app/Models/User.php", "side": "RIGHT",
+					"start_line": 14, "line": 12,
+				}
+				_, err := call(t, item)
+
+				var rejected *RejectedRecordError
+				require.ErrorAs(t, err, &rejected)
+				assert.Equal(t, "anchor", rejected.Field)
+				assert.Contains(t, rejected.Error(), "runs from line 14 back to line 12")
+			}
+		})
+	}
+}
