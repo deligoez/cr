@@ -245,3 +245,32 @@ var stateWriters = []string{
 	"LockPR", "WriteStamped", "WriteRecords", "WriteMeta", "FileFindings", "FileTransitions",
 }
 
+// §3.6.2 forbids an answer to change the record's state, and the way that is
+// kept is structural: `cr answer` has no route to a record's state at all.
+//
+// TestAnAnswerLeavesTheAnsweredRecordByteIdentical is the observation, and this
+// is the reason it will keep holding. A run that happens not to write today
+// could start writing tomorrow with nothing failing; a path that cannot take
+// the per-PR lock cannot write any of §2.3's files whatever it later does. The
+// two record files are named as well, so even a read of them — the step towards
+// resolving the id that §9.3.5 argues against — has to be a deliberate change
+// here rather than something a call site does by existing.
+func TestAnswerHasNoRouteToARecordsState(t *testing.T) {
+	root := moduleRoot(t)
+
+	var found []string
+	for _, path := range answerSource(t) {
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		rel, err := filepath.Rel(root, path)
+		require.NoError(t, err)
+		for _, writer := range stateWriters {
+			if strings.Contains(string(raw), writer) {
+				found = append(found, rel+" names "+writer)
+			}
+		}
+	}
+
+	assert.Empty(t, found,
+		"§3.6.2: an answer may not change a record's state, so its path never reaches one")
+}
