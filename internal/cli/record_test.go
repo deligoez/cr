@@ -153,3 +153,46 @@ func TestRecordStoresEveryRecordOfAnAcceptedFile(t *testing.T) {
 	assert.Contains(t, printed, `"state": "draft"`,
 		"the stored records are handed back, carrying what cr wrote onto them")
 }
+
+// §6.1.3 through the command: a refused line takes the whole file with it, and
+// the refusal names the file, the one-based line, and the field.
+//
+// The fault is put on the third line of four on purpose. Two well-formed
+// records precede it, so a command that wrote as it validated would already
+// have stored them, and one follows it, so a command that carried on would have
+// stored that too. Neither may reach the file: the agent is about to correct
+// the input and hand the whole of it in again, and a half-stored round would
+// duplicate every line above the fault.
+//
+// A round is recorded first, so "nothing is written" is asserted against a file
+// that already holds something. findings.ndjson is appended to (§2.3), and an
+// append that failed by publishing a truncated file would pass a check that
+// only counted the new records.
+func TestARefusedLineLeavesFindingsExactlyAsItWas(t *testing.T) {
+	layout := recordedHome(t)
+	accepted := writeRecordFile(t, "first.ndjson", aRecord("f1", "u1"))
+	_, err := runRecord(t, recordPR, accepted, "--repo", recordSlug)
+	require.NoError(t, err)
+
+	stored := layout.PRFile(recordOwner, recordRepo, recordPRNum, state.FileFindings)
+	before, err := os.ReadFile(stored)
+	require.NoError(t, err)
+	require.NotEmpty(t, before, "the fixture round has to have reached the file")
+
+	faulty := aRecord("f4", "u1")
+	delete(faulty, "evidence")
+	refused := writeRecordFile(t, "second.ndjson",
+		aRecord("f2", "u1"), aRecord("f3", "u2"), faulty, aRecord("f5", "u2"))
+
+	_, err = runRecord(t, recordPR, refused, "--repo", recordSlug)
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err), "§6.1.3 rejects with exit code 1")
+	assert.Contains(t, err.Error(), refused, "the refusal names the file")
+	assert.Contains(t, err.Error(), "line 3", "and the one-based line the record sits on")
+	assert.Contains(t, err.Error(), "evidence", "and the field at fault")
+
+	after, err := os.ReadFile(stored)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after),
+		"§6.1.3 refuses the file, so neither the lines above the fault nor the line below it are stored")
+}
