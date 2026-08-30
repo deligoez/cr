@@ -230,6 +230,31 @@ func NextID(issueKey string, existing []Note) string {
 	return issueKey + idInfix + strconv.Itoa(highest+1)
 }
 
+// SplitID reads the issue key out of a note id.
+//
+// §3.6.1 forms every id as `<ISSUE-KEY>#n<n>`, so an id already names the store
+// it belongs to. That is why §11's row is `cr note --remove <note-id>` and
+// takes no issue key: there is no second place for the two to disagree, and no
+// way to retract a note out of a store it was never in.
+//
+// The split is at the *last* infix, because §2.2 only forbids an issue key to
+// hold a path separator — one may contain `#n` — while the number after the
+// last one is fixed. What comes out is then checked by parseID, so only the
+// canonical spelling splits at all.
+func SplitID(id string) (issueKey string, ok bool) {
+	// Both faults at once: -1 is an id with no infix, and 0 is one whose
+	// key is empty, which §2.2 has no file for.
+	at := strings.LastIndex(id, idInfix)
+	if at < 1 {
+		return "", false
+	}
+	issueKey = id[:at]
+	if _, canonical := parseID(issueKey, id); !canonical {
+		return "", false
+	}
+	return issueKey, true
+}
+
 // parseID reads the n of a `<issueKey>#n<n>` id.
 //
 // It accepts only the canonical spelling: CR-1#n7 is an id, CR-1#n+7, CR-1#n07
