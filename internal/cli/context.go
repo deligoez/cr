@@ -42,6 +42,9 @@ func (r *contextResult) Text(w *writer) string {
 	if len(r.Notes) == 0 {
 		return "no notes recorded against " + w.accent(r.IssueKey)
 	}
+	// A capacity hint and nothing more: two lines per note plus the
+	// heading. Any other number would append to the same slice and print
+	// the same text, so no test can tell one from another.
 	lines := make([]string, 0, 2*len(r.Notes)+1)
 	lines = append(lines, w.accent(r.IssueKey)+": "+strconv.Itoa(len(r.Notes))+" note(s)")
 	for i := range r.Notes {
