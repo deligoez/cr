@@ -65,3 +65,27 @@ func TestAnIntentFileDoesNotStandInForAMissingKey(t *testing.T) {
 	_, marked := intent.Unavailability()
 	assert.True(t, marked, "§4.5.3 turns on the key, and no tracker access was needed to find there is none")
 }
+
+// The fallback is only worth anything if the ordinary path is untouched, and
+// this is the half that a condition inverted anywhere in Resolve or
+// Unavailability would break silently: a review reporting the intent axis
+// unavailable on a perfectly well-keyed pull request would drop §4.1 entirely
+// and still come back complete, because §4.5.4 would have disclosed it and
+// §4.6.6 would have excused every cell it did not fill.
+func TestAResolvedKeyLeavesTheIntentAxisAvailable(t *testing.T) {
+	tracker := stubTracker(t, `printf 'Add a thing to the thing.\n'`)
+
+	intent, err := Resolve(
+		KeySources{Branch: "feature/CR-123-add-a-thing"},
+		specDefaultPattern,
+		Source{Cmd: []string{tracker, "issue", "view", Placeholder}},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "CR-123", Origin: KeyFromBranch}, intent.Key)
+	assert.Equal(t, "Add a thing to the thing.\n", intent.Text, "the issue text is read for the key that resolved")
+
+	unavailable, marked := intent.Unavailability()
+	assert.False(t, marked, "the axis ran, so §4.5.4 has nothing to report about it")
+	assert.Equal(t, Unavailable{}, unavailable, "and no entry to hand a caller that ignores the bool")
+}
