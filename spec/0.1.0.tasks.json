@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T16:29:32.448213Z",
+  "updated_at": "2026-08-30T16:41:22.096231Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1138,7 +1138,7 @@
     {
       "id": "ship-default-roles",
       "title": "Ship four default axis roles",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "role-schema"
@@ -1148,11 +1148,26 @@
       "source_sections": [
         "### 2.5 Roles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T16:30:10.959392Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T16:41:22.0588Z",
+      "closed_reason": "- internal/role/builtin holds the four roles §2.5.1 requires v0.1 to ship, one per axis: intent-coverage on intent, correctness on correctness, convention on convention, and test-adequacy on test, each embedded with go:embed and returned by Builtins() in internal/role/builtin.go keyed by role id, the shape profile.Builtins() already ships the §2.4.5 profiles in.\n- Each file carries its own lens and no other: intent-coverage measures the diff against the claims in both directions, correctness judges a unit against the claims mapped to it, convention weighs a resembling symbol and the rules attached to the unit, and test-adequacy classifies coverage and asks for an experiment before it asserts, with focus questions phrased for that axis alone and §6.2 and §6.3's register visible in all four.\n- No role names a project standard, because §4.3.5 leaves those to the rule corpus of §2.6 and the convention role points its reader at the attached rules rather than listing any, and TestTheShippedRolesGiveALensAndNeverAStandard in internal/role/division_test.go refuses role prose carrying a path, a file name, a code identifier, or a command, which is the shape a standard arrives in.\n- TestTheShippedRolesCoverEveryAxisExactlyOnce in internal/role/builtin_test.go parses every shipped file through the same Parse a user's own role goes through, asserts axis.Valid on each axis it names, and fails both when two roles serve one axis and when any of §1.5's four is left unserved.",
+      "gate_passed_at": "2026-08-30T16:41:22.0588Z",
+      "commit_sha": "4a38cb8",
+      "commit_shas": [
+        "4a38cb8",
+        "b560b57",
+        "b4b8b0d"
+      ],
+      "commit_files": [
+        "internal/role/builtin.go",
+        "internal/role/builtin/convention.json",
+        "internal/role/builtin/correctness.json",
+        "internal/role/builtin/intent-coverage.json",
+        "internal/role/builtin/test-adequacy.json",
+        "internal/role/builtin_test.go",
+        "internal/role/division_test.go"
+      ]
     },
     {
       "id": "role-eject-command",
