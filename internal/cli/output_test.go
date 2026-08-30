@@ -838,3 +838,44 @@ func TestTheOmissionTableRefusesAFoundingField(t *testing.T) {
 		"§12.5 refuses two fields, not the table they are kept out of")
 	require.NotEmpty(t, compactOmits, "the refusal is worth nothing if the table it guards is empty")
 }
+
+// jsonName is the key a field prints under, with the options after it dropped.
+func jsonName(field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	return name
+}
+
+// §12.5's "ingested thread bodies" are §3.5.1's, and gh.Thread is where that
+// ingestion lands.
+//
+// The omission is written as a key and a field name, so it is worth exactly as
+// much as those two remaining what gh prints. Both are read out of the type
+// here rather than restated: a thread that grew a third place to keep a comment
+// — a quoted body, a review summary — would fail here rather than post one
+// under `--compact`, and so would a renamed tag.
+func TestEveryPlaceAnIngestedThreadKeepsABodyIsOmitted(t *testing.T) {
+	comment := reflect.TypeFor[gh.Comment]()
+	body, carried := comment.FieldByName("Body")
+	require.True(t, carried, "§3.5.1 ingests a thread's body, and gh.Comment is what holds it")
+	require.Equal(t, "body", jsonName(body), "the omission names the key gh.Comment prints under")
+
+	thread := reflect.TypeFor[gh.Thread]()
+	holders := make([]string, 0, 2)
+	for i := range thread.NumField() {
+		field := thread.Field(i)
+		held := field.Type
+		if held.Kind() == reflect.Slice {
+			held = held.Elem()
+		}
+		if held != comment {
+			continue
+		}
+		under := jsonName(field)
+		holders = append(holders, under)
+		assert.True(t, compactOmits[under+"."+jsonName(body)],
+			"§12.5: a thread keeps a body under %q, and --compact does not omit it", under)
+	}
+
+	require.ElementsMatch(t, []string{"comment", "replies"}, holders,
+		"a thread's comments are the whole of where its bodies are; a walk finding none proves nothing")
+}
