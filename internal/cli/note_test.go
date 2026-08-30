@@ -162,3 +162,23 @@ func TestRetractingANoteMidRoundStopsTheRecordRestingOnIt(t *testing.T) {
 	assert.Equal(t, "CR-9#n2", note.NextID("CR-9", after),
 		"and the id stays spent, so no later note can answer this record's citation")
 }
+
+// §12.1's other shape for the retraction, and §3.6.6's report reaching the one
+// person who is certain to be reading: whoever just retracted the note. The
+// consequence is named rather than left to be inferred from a timestamp, since
+// the reviewer retracting a note is the reviewer who has to know that whatever
+// rested on it is now unfounded.
+func TestATerminalRetractionSaysWhatNeedsReevaluation(t *testing.T) {
+	crHome(t)
+
+	_, err := runIn(t, "note", "CR-9", "the retry limit is three", "--source", "chat", "--pr", "5")
+	require.NoError(t, err)
+
+	out := throughATerminal(t, "note", "--remove", "CR-9#n1")
+
+	assert.Contains(t, out, "retracted ")
+	assert.Contains(t, out, "\x1b[36mCR-9#n1\x1b[0m",
+		"the id is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, "needs re-evaluation")
+	assert.Contains(t, out, "none may assert on it")
+}
