@@ -88,3 +88,18 @@ func TestTheKeyPatternDefaultIsTheOneTheSpecNames(t *testing.T) {
 	assert.Equal(t, Key{Value: "CR-123", Origin: KeyFromBranch}, key)
 }
 
+// §3.2 makes the pattern overridable, which is worth nothing unless the
+// override replaces the default rather than joining it. The title carries a key
+// of the default shape and the body one of the overriding shape, so a
+// resolution still consulting the default would answer CR-9 from the earlier
+// source and never reach the body at all.
+func TestAnOverridingKeyPatternReplacesTheDefaultShape(t *testing.T) {
+	key, err := ResolveKey(KeySources{
+		Title: "CR-9: port the tracker",
+		Body:  "Fixes #42.",
+	}, `#[0-9]+`)
+
+	require.NoError(t, err)
+	assert.Equal(t, Key{Value: "#42", Origin: KeyFromBody}, key)
+}
+
