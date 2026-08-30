@@ -89,3 +89,39 @@ func TestNormalisedHashAgreesExactlyWithNormalisation(t *testing.T) {
 	require.True(t, sawEqual, "the corpus held no pair that normalises alike, so half the property went untested")
 	require.True(t, sawDiffer, "the corpus held no pair that normalises differently, so the other half did")
 }
+
+// §1.4 step 1 makes undecodable input fail with exit code 1, and the hash is
+// where that refusal is easiest to lose: a digest happily consumes any byte
+// slice, so an implementation that reached for sha256 before Normalise would
+// return a perfectly ordinary sixteen-character value for text §1.4 says must
+// not produce one at all. The value would then be stored as a unit hash or a
+// waiver key and would never be questioned again.
+//
+// The error is required to be the same one Normalise raises, offset and all,
+// because the cli layer maps InvalidUTF8Error onto exit code 1 and a hash that
+// wrapped it in something else would land on a different code.
+func TestNormalisedHashRefusesWhateverStep1Refuses(t *testing.T) {
+	for name, tc := range map[string]struct {
+		in     string
+		offset int
+	}{
+		"a byte that begins no sequence":          {string([]byte{0xFF}), 0},
+		"a continuation byte with nothing before": {"ab" + string([]byte{0x80}), 2},
+		"a bad byte behind text that normalises":  {"  a  \n\n" + string([]byte{0xFE}), 7},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := NormalisedHash(tc.in)
+			require.Error(t, err)
+			assert.Empty(t, got, "a refused text has no hash at all, not a hash of nothing")
+
+			var invalid *InvalidUTF8Error
+			require.ErrorAs(t, err, &invalid, "§11.2 maps this error, and only this one, onto exit code 1")
+			assert.Equal(t, tc.offset, invalid.Offset, "the refusal still names the byte to look at")
+		})
+	}
+
+	empty, err := NormalisedHash("")
+	require.NoError(t, err, "the empty text decodes, so it has a hash like any other")
+	assert.Equal(t, "e3b0c44298fc1c14", empty,
+		"and it is SHA-256's value for the empty string, not a sentinel the code invented")
+}
