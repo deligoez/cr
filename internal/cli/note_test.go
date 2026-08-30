@@ -182,3 +182,27 @@ func TestATerminalRetractionSaysWhatNeedsReevaluation(t *testing.T) {
 	assert.Contains(t, out, "needs re-evaluation")
 	assert.Contains(t, out, "none may assert on it")
 }
+
+// §11 gives `cr note` two rows, and they do not mix. The retraction takes no
+// positional at all — §3.6.1 forms an id as `<ISSUE-KEY>#n<n>`, so the id names
+// its own store — and neither of the append's flags means anything to it, so
+// giving one is refused rather than quietly ignored. §11.2 codes every one of
+// these 2: each is the invocation being wrong.
+func TestTheTwoRowsOfTheNoteCommandDoNotMix(t *testing.T) {
+	for name, args := range map[string][]string{
+		"an issue key as well":   {"CR-9", "--remove", "CR-9#n1"},
+		"a text as well":         {"CR-9", "hearsay", "--remove", "CR-9#n1"},
+		"a source as well":       {"--remove", "CR-9#n1", "--source", "chat"},
+		"a pull request as well": {"--remove", "CR-9#n1", "--pr", "5"},
+		"an id that is not one":  {"--remove", "CR-9"},
+		"an empty id":            {"--remove", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root, out, err := runNote(t, args...)
+			require.Error(t, err)
+			assert.Equal(t, ExitUsage, exitCodeFor(err), "§11.2 codes a malformed invocation 2")
+			assert.Empty(t, out, "a refused run retracts nothing")
+			assert.NoFileExists(t, state.New(root).ContextFile("CR-9"))
+		})
+	}
+}
