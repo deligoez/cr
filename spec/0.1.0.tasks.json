@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T17:23:58.478562Z",
+  "updated_at": "2026-08-30T17:39:20.23862Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1241,7 +1241,7 @@
     {
       "id": "role-corpus-order",
       "title": "Order the role corpus deterministically",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "role-resolution-order"
@@ -1251,11 +1251,22 @@
       "source_sections": [
         "### 2.5 Roles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T17:24:59.232423Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T17:39:20.217036Z",
+      "closed_reason": "- Corpus order is resolution layer first then ascending lexicographic role id per §2.5.5: internal/role/corpus.go's Resolve appends RepoLayer, GlobalLayer and BuiltinLayer in that sequence and sortByID orders each layer by role id rather than by file name, which was already in place from role-resolution-order and is verified intact rather than rewritten.\n- The ordering is exposed as one function so §6.4.2 cannot reimplement it: role.Order(corpus) returns a cmp-shaped func(a, b string) int over role ids, reading positions out of the corpus Resolve produced rather than re-deriving layer and id, with an id no layer resolved sorting behind every resolved one instead of at rank zero, and TestNothingOutsideThisPackageCanNameTheLayerARoleResolvedFrom walks every non-test Go file in the module and fails when any file outside internal/role names Layer, RepoLayer, GlobalLayer or BuiltinLayer, so no other package can see the layer §2.5.5 orders by. The fence was probed both ways and reverted: a role.Resolved layer comparison planted in internal/cli failed it, and a fifth name added to the fenced list failed the staleness floor that requires each name to still be spelled that way inside internal/role.\n- A test fixes the order for a corpus spanning all three layers with colliding ids: TestCorpusOrderIsLayerThenAscendingRoleID pins a, a-b, correctness, zz, convention, intent-coverage, test-adequacy with correctness shadowing the built-in from the global layer, and TestOrderComparesRoleIDsByTheirPlaceInTheCorpus sorts the reversed ids through Order and requires the corpus back.",
+      "gate_passed_at": "2026-08-30T17:39:20.217036Z",
+      "commit_sha": "ccb7c32",
+      "commit_shas": [
+        "ccb7c32",
+        "90278ff",
+        "48262c6"
+      ],
+      "commit_files": [
+        "internal/role/corpus.go",
+        "internal/role/corpus_test.go",
+        "internal/role/orderfence_test.go"
+      ]
     },
     {
       "id": "rule-schema",
