@@ -117,6 +117,11 @@ func States() []State {
 // open — §10.2.4's completeness check is the first — reads the same answer
 // Open gives one record, and cannot restate it as a list of its own that a
 // later state would leave behind.
+//
+// Two mutants survive in the capacity hint and are left deliberately, for the
+// reason reservedFields already gives: the arithmetic changes only how much is
+// allocated up front, and a test written to kill it would assert an
+// implementation detail.
 func OpenStates() []State {
 	open := make([]State, 0, len(states)-len(terminal))
 	for _, candidate := range states {
