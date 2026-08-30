@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T19:07:11.23588Z",
+  "updated_at": "2026-08-30T19:28:04.507755Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4309,7 +4309,7 @@
     {
       "id": "waiver-scopes",
       "title": "Scope waivers by their disposition",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "waiver-key"
@@ -4319,11 +4319,24 @@
       "source_sections": [
         "### 7.4 Waivers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T19:07:56.749239Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T19:28:04.443684Z",
+      "closed_reason": "- internal/finding/waiver.go's Waiver.Scope is the one binding between §7.2's dispositions and §7.4.1's two scopes: DispositionWrong returns ScopeRepository and DispositionNotHere returns ScopePullRequest, and TestAWaiverScopeFollowsItsDisposition asserts both directions over one record that differs in the disposition alone.\n- ScopeRepository names ~/.cr/waivers/\u003cowner\u003e/\u003crepo\u003e.ndjson, the file a wrong disposition writes, so the fact about the class generalises across the repository, and the same test asserts its name because §7.4.7 prints it and §7.4.4 selects a file by it.\n- ScopePullRequest never becomes the repository scope: WaiverScope is a struct around an unexported name so nothing outside waiver.go can compose one, and Waiver carries no scope field that could contradict its disposition, both asserted by reflection in TestNotWorthSayingHereSilencesNothingBeyondItsPullRequest, and WaiverFor refuses a record carrying neither of §7.2's two values rather than defaulting to the wider file, which TestARecordIsNotWaivedWithoutOneOfTheTwoDispositions covers for the empty and the unrecognised value.\n- Waiver.Disposition is recorded per §7.4.5 and survives the JSON round trip that §7.4.4's files and §7.4.7's listing depend on, asserted by TestAWaiverRecordsTheDispositionItWasWrittenFor for wrong and for not-here.\n- §7.4.6 in spec/0.1.0.md carries no path-prefix widening and none was built: matching stays == over the four fields of the key, and TestAWaiverNeverWidensAlongThePath asserts a waiver over app/Models/Order.php matches none of six prefix- or extension-shaped paths while still matching its own path.\n- Nothing added here can write a widened waiver because no command writes a waiver file yet, §7.4.1's key shape is unchanged from waiver-key, and the legacy-area case the widening existed for stays with a rule's exempt field per §2.6, which the widening test's comment records as the decision it stands in for.",
+      "gate_passed_at": "2026-08-30T19:28:04.443684Z",
+      "commit_sha": "e1d1dab",
+      "commit_shas": [
+        "e1d1dab",
+        "bc3d0b6",
+        "5f3e39c",
+        "049501b",
+        "38f0b13",
+        "68edd63"
+      ],
+      "commit_files": [
+        "internal/finding/waiver.go",
+        "internal/finding/waiver_test.go"
+      ]
     },
     {
       "id": "waiver-storage",
