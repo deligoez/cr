@@ -133,6 +133,24 @@ func exitCodeFor(err error) int {
 		// same rule, so the third configured expression does too.
 		return ExitFile
 	}
+	var rejectedClaim *intent.RejectedClaimError
+	if errors.As(err, &rejectedClaim) {
+		// §3.3.1 rejects a claim with exit code 1. The file was found,
+		// read, and parsed, so nothing about it failed as a file; what
+		// is wrong is the agent's data inside it, exactly as it is for
+		// the record rejection below.
+		return ExitValidation
+	}
+	var unknownClaimSource *intent.UnknownClaimSourceError
+	if errors.As(err, &unknownClaimSource) {
+		// §3.3 closes the `source` row at four values, and a claim
+		// naming a fifth is refused while its line is being decoded
+		// rather than after. It is the same file and the same fault as
+		// the rejection above, so it takes the same code; without this
+		// branch a claim file with one mistyped source would report 2,
+		// telling the user to retype a correct command line.
+		return ExitValidation
+	}
 	var invalidClass *finding.InvalidClassError
 	if errors.As(err, &invalidClass) {
 		// §6.1 rejects a class that is not kebab-case. Like a supplied
