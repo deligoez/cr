@@ -203,6 +203,20 @@ func (l Layout) EnsureProfile(id, content string) error {
 	return touchFile(l.Profile(id), content)
 }
 
+// EnsureRole writes one shipped role file into the roles directory, leaving an
+// existing file exactly as it was. §2.5.2 ejects the defaults as editable
+// files, so a second eject must complete a tree and never revert an edit: the
+// file is the user's once it is written, and cr overwriting it would spend a
+// user's work to restore a default they still have in the binary. Init creates
+// the directory, and this method creates it too so the caller need not order
+// them.
+func (l Layout) EnsureRole(id, content string) error {
+	if err := makeDirs([]string{l.RolesDir()}); err != nil {
+		return err
+	}
+	return touchFile(l.Role(id), content)
+}
+
 // EnsureRepo creates the repository-scoped paths of §2.2 for one repository.
 // The owner and repository are only known once a command names them, so they
 // are created here rather than by Init.
