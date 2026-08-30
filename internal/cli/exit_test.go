@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -248,4 +249,37 @@ func TestAnUnknownNoteExitsWithTheValidationCode(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(unknown))
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("retracting: %w", unknown)))
 	assert.Contains(t, unknown.Error(), "cr context CR-1", "§12.4: the error names the next step")
+}
+
+// Found by context-command: a §3.6 store cr read and could not parse exited 2,
+// a malformed invocation, when nothing about the invocation was wrong and no
+// retyping of it could help. §11.2 codes a file failure 3.
+//
+// All three commands that reach the store are exercised, because the fault was
+// shared by all three and a mapping proven through one of them says nothing
+// about the other two. Each is given a store that is on disk, is found, and
+// holds a line that is not JSON — which is the state a half-written file or a
+// hand-edit leaves behind — and the run is expected to name the file and the
+// line, since that is the only thing the user can act on.
+func TestACorruptContextStoreExitsWithTheFileCode(t *testing.T) {
+	for name, args := range map[string][]string{
+		"cr note":    {"note", "CR-7", "hearsay", "--source", "chat", "--pr", "9"},
+		"cr answer":  {"answer", answeredPR, "f3", "answered", "--source", "chat", "--repo", answeredSlug},
+		"cr context": {"context", "CR-7"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			layout := briefedHome(t, "CR-7")
+			require.NoError(t, layout.EnsureContext("CR-7"))
+			store := layout.ContextFile("CR-7")
+			require.NoError(t, os.WriteFile(store,
+				[]byte(`{"id":"CR-7#n1","text":"fine"}`+"\n"+`{"id": not json`+"\n"), 0o600))
+
+			out, err := runIn(t, args...)
+			require.Error(t, err)
+			assert.Equal(t, ExitFile, exitCodeFor(err), "§11.2 codes a file failure 3")
+			assert.Contains(t, err.Error(), store, "the error names the file to open")
+			assert.Contains(t, err.Error(), "line 2", "and the line to open it at")
+			assert.Empty(t, out, "a refused run prints no notes")
+		})
+	}
 }
