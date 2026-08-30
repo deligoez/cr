@@ -1,6 +1,7 @@
 package text
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -222,4 +223,60 @@ func TestNormalisationDoesNotReorderLines(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "c\nb\na", reversed, "descending order is left descending")
 	assert.NotEqual(t, sortedAlready, reversed, "and never sorted into agreement with its reverse")
+}
+
+// normalisationCorpus is the shared sample the property assertions run over.
+// It is deliberately made of shapes the six steps disagree about — endings,
+// indentation, blank runs, whitespace-only lines, non-ASCII — rather than of
+// realistic prose, because a property only earns its keep on inputs that could
+// break it.
+var normalisationCorpus = []string{
+	"",
+	"a",
+	"a\n",
+	"\n\n\n",
+	"a\r\nb\rc\n",
+	"\t\tindented\t\t\n\t\tagain\t\t",
+	"a\n\n\n\n\nb\n\n\n\n\nc",
+	"  \t  \n  x  \n  \t  ",
+	"şey\tböyle\r\n\r\n  öteki  ",
+	"if (x != nil) { return -1; } // guard, always.",
+	"lock()\nread()\nunlock()",
+	nbsp + "a" + nbsp + nbsp + "b" + nbsp,
+	"a" + replacementChar + "b",
+}
+
+// Idempotence is a real property of the six steps rather than a nice-to-have:
+// §3.3 hashes a claim's span and §9.2 an anchor's content, and both are
+// re-derived round after round from text that has often already been through
+// the transform once. If a second pass could move the value, a record would
+// stop matching itself between rounds and every waiver keyed on it would miss.
+//
+// The output form is asserted alongside, because idempotence alone is satisfied
+// by doing nothing. Together they say the transform reaches a fixed point and
+// that the fixed point is the one §1.4 describes.
+func TestNormalisationIsIdempotentAndReachesTheFormSection14Describes(t *testing.T) {
+	for _, in := range normalisationCorpus {
+		once, err := Normalise(in)
+		require.NoError(t, err)
+		twice, err := Normalise(once)
+		require.NoError(t, err)
+		assert.Equal(t, once, twice, "a second pass over %q moves nothing", in)
+		assertNormalForm(t, once)
+	}
+}
+
+// assertNormalForm holds a result to the shape the six steps leave behind. Each
+// assertion is the negation of one step, so a step that stopped running is named
+// by the failure rather than left to be guessed at from a diff of two strings.
+func assertNormalForm(t *testing.T, got string) {
+	t.Helper()
+	assert.NotContains(t, got, "\r", "step 2 leaves no carriage return")
+	assert.NotContains(t, got, "\t", "step 4 leaves no tab")
+	assert.NotContains(t, got, "  ", "step 4 leaves no run of two spaces")
+	assert.NotContains(t, got, " \n", "step 3 leaves no line ending in a space")
+	assert.NotContains(t, got, "\n\n\n", "step 5 leaves no run of two blank lines")
+	assert.False(t, strings.HasPrefix(got, "\n"), "step 5 leaves no leading blank line")
+	assert.False(t, strings.HasSuffix(got, "\n"), "step 6 leaves no trailing LF")
+	assert.False(t, strings.HasSuffix(got, " "), "step 3 leaves no trailing space")
 }
