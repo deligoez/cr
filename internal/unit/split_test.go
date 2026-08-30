@@ -56,16 +56,16 @@ func addedHunk(start, count int) git.Hunk {
 // of two, and one that split by hunk count or by line span rather than by
 // changed lines leaves a different two.
 func TestASplittableClusterOpensAUnitAtTheHunkThatWouldNotFit(t *testing.T) {
-	max := defaultMaxLines(t)
+	maxLines := defaultMaxLines(t)
 	fifty, thirty, one := addedHunk(100, 50), addedHunk(200, 30), addedHunk(300, 1)
-	require.Equal(t, max, len(fifty.Changed)+len(thirty.Changed),
+	require.Equal(t, maxLines, len(fifty.Changed)+len(thirty.Changed),
 		"the first two hunks are the cap exactly, which is what must not split")
 
 	cluster := Cluster{
 		Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
 		Hunks: []git.Hunk{fifty, thirty, one},
 	}
-	units := Split([]Cluster{cluster}, max)
+	units := Split([]Cluster{cluster}, maxLines)
 
 	require.Len(t, units, 2)
 	assert.Equal(t, Cluster{
@@ -94,9 +94,9 @@ func TestASplittableClusterOpensAUnitAtTheHunkThatWouldNotFit(t *testing.T) {
 // implementation flagging at "reaches the limit" would call oversized, and it
 // is the same boundary from the other side: a hunk at the cap is a plain unit.
 func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
-	max := defaultMaxLines(t)
-	before, over, after := addedHunk(100, 10), addedHunk(200, max+1), addedHunk(400, 10)
-	atCap := addedHunk(600, max)
+	maxLines := defaultMaxLines(t)
+	before, over, after := addedHunk(100, 10), addedHunk(200, maxLines+1), addedHunk(400, 10)
+	atCap := addedHunk(600, maxLines)
 
 	units := Split([]Cluster{
 		{
@@ -107,7 +107,7 @@ func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
 			Path: moneyPath, Side: git.Right, Formation: BySymbol,
 			Hunks: []git.Hunk{atCap},
 		},
-	}, max)
+	}, maxLines)
 
 	require.Len(t, units, 4)
 	assert.Equal(t, Cluster{
