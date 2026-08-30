@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T17:04:07.979624Z",
+  "updated_at": "2026-08-30T17:23:58.478562Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1205,7 +1205,7 @@
     {
       "id": "role-resolution-order",
       "title": "Resolve roles across three layers",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "role-eject-command"
@@ -1215,11 +1215,28 @@
       "source_sections": [
         "### 2.5 Roles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T17:05:40.547882Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T17:23:58.397104Z",
+      "closed_reason": "- internal/role/corpus.go resolves per-repository, then global, then built-in per §2.5.4, and corpus.add is what makes the per-repository copy win whole rather than merge: a parsed Role enters entire or is discarded entire, and no field of any role is read anywhere in resolution, so an override omitting `focus` has none. TestThePerRepositoryRoleWinsWholeAcrossAllThreeLayers and TestTheGlobalRoleWinsOverTheBuiltinOne cover the two pairs of the order, and TestAMalformedRoleAbortsResolutionWhicheverLayerHoldsIt shows a malformed file at either on-disk layer aborting per §2.5.3 rather than resolving to the layer below.\n- The corpus is a list and never a lookup keyed by axis, so §2.5.5's more than one role may serve the same axis holds. TestMoreThanOneRoleMayServeTheSameAxis places two correctness roles at different layers and asserts both survive beside the shipped correctness role, and TestCorpusOrderIsLayerThenAscendingRoleID pins the order §6.4.2 reads: resolution layer first, then ascending lexicographic role id, sorted by id and not by file name, with a shadowed id appearing once at its winning layer's position.\n- TestThePerRepositoryRoleWinsWholeAcrossAllThreeLayers puts the id correctness at all three layers, the built-in one being shipped, and asserts the resolved entry equals the parsed per-repository file exactly, with the global copy's focus and profiles absent and even the axis taken from the winning file.",
+      "gate_passed_at": "2026-08-30T17:23:58.397104Z",
+      "commit_sha": "55cb2b5",
+      "commit_shas": [
+        "55cb2b5",
+        "35102b1",
+        "d7de0bd",
+        "bc02754",
+        "a6f9e72",
+        "c609c5c",
+        "27409f9",
+        "aa8bba2",
+        "8420252",
+        "0d9fb64"
+      ],
+      "commit_files": [
+        "internal/role/corpus.go",
+        "internal/role/corpus_test.go"
+      ]
     },
     {
       "id": "role-corpus-order",
