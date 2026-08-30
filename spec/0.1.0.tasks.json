@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T10:39:33.880414Z",
+  "updated_at": "2026-08-30T10:54:01.255744Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1743,7 +1743,7 @@
     {
       "id": "hunk-clustering",
       "title": "Cluster hunks by symbol then adjacency",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "symbol-detectability-fallthrough"
@@ -1753,11 +1753,30 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T10:40:00.242039Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T10:54:01.135948Z",
+      "closed_reason": "- internal/unit/cluster.go partitions a file's hunks by side before any branch runs, per §3.4.1 and §3.4.4: partition keys on path and side together, sided holds one path and one side, and every branch reads its hunks out of one partition, so adjacency and everything §3.4.5 and §3.4.6 build on it compare line numbers only within one side.\n- A unit never mixes sides structurally rather than by accident. sided.cluster is the only place a Cluster is built and it takes Path and Side from the partition rather than from the hunks, so a cluster spanning two sides is not a value this package can construct, and TestNoClusterMixesSides asserts it directly on a file whose LEFT deletion sits nine head lines from its RIGHT addition, inside the default gap, with an index naming a symbol over both numbers.\n- The symbol branch runs first, over the RIGHT partition of a file §3.4.3 makes detectable, grouping hunks whose changed lines all sit inside one enclosing symbol. internal/unit/symbols.go gains SymbolIndex.Enclosing as the lookup §4.3.1's head index will implement, and it is asked about head lines only, because a LEFT number names a line of the merge base and a symbol read out of the wrong file version would gather hunks under the name of code that does not contain them.\n- Hunks the symbol branch cannot place fall to adjacency, which is the previous unit's Adjacency over the same partition at cluster.gap_lines, so the gap between the last changed line of one hunk and the first changed line of the next has one implementation and clustering only decides which hunks reach it.\n- cluster.gap_lines is registered in internal/config/config.go's §2.7 settings table with its default of 12, the only place the number lives. internal/unit's tests read it through config.Resolve, the local constant the previous unit left in adjacency_test.go is gone, and TestTheGapLinesDefaultComesFromTheSettingsTable pins both the default and that a layer above it reaches the key, which an unregistered name could not.\n- The third branch is one cluster per hunk for a hunk adjacency has nothing to measure, which is a hunk with no changed line. A hunk adjacent to nothing is already its own cluster under the second branch, formed by a gap that was measured and rejected, and placement in cluster.go tells the two apart so §3.4.6 records which. Reported rather than papered over: through ParseHunks the branch is unreachable, because §3.4.1 leaves a hunk that adds nothing described by its removals, so it fires only for a hunk built outside the parser.\n- TestClusteringTakesTheThreeBranchesInOrder covers all three in one diff, each doing work no other could - two hunks twenty-nine lines apart joined by their shared symbol, two hunks eight lines apart inside no symbol joined by the gap, and a changed-line-free hunk placed alone - and TestAHunkStraddlingTwoSymbolsHasNoEnclosingSymbol and TestClustersNeverSpanTwoFiles cover the remaining edges. gremlins unleash --timeout-coefficient 30 ./internal reports Killed 321, Lived 5, efficacy 98.47%, up from 318 and 98.45%, with every mutant in cluster.go and symbols.go killed and no new survivor.\n",
+      "gate_passed_at": "2026-08-30T10:54:01.135948Z",
+      "commit_sha": "e83c46b",
+      "commit_shas": [
+        "e83c46b",
+        "df94d2f",
+        "ef41177",
+        "b26bb4d",
+        "ee3b222",
+        "b782950",
+        "4ef0b36",
+        "ff40a26"
+      ],
+      "commit_files": [
+        "internal/config/config.go",
+        "internal/unit/adjacency_test.go",
+        "internal/unit/cluster.go",
+        "internal/unit/cluster_test.go",
+        "internal/unit/symbols.go",
+        "internal/unit/symbols_test.go"
+      ]
     },
     {
       "id": "oversized-unit-split",
