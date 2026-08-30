@@ -11,6 +11,11 @@
 // only channels carrying the register, the disclosure, and the checkability to
 // the author, so a name that would address any of them is rejected here rather
 // than by a caller, and no later code path is in a position to honour it.
+//
+// One setting has a closed domain rather than a free-form value: §8.1.1's
+// render.lang, whose enumeration and built-in question labels live in
+// internal/render. It is checked once every layer has settled, so a language cr
+// has no label for is refused at resolution and not at the post that needed it.
 package config
 
 import (
@@ -26,6 +31,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -50,7 +56,10 @@ var settings = []setting{
 	{"probe.lock_timeout_seconds", 300},
 	{"probe.max_per_round", 10},
 	{"profile", ""},
-	{"render.lang", "tr"},
+	// §8.1.1's language. Its key and its default both come from the domain
+	// that owns them, so this table cannot drift from the enumeration the
+	// value is checked against in Resolve.
+	{render.Setting, render.LangTR.String()},
 	{"rules.dead_after", 20},
 	{"rules.harvest_min", 3},
 }
@@ -224,7 +233,18 @@ func Resolve(src Sources) (Config, error) {
 	if err := apply(values, src.Flags, "command line"); err != nil {
 		return Config{}, err
 	}
-	return Config{values: values}, nil
+	resolved := Config{values: values}
+	// §8.1.1's language is the one setting with a closed domain, and it is
+	// checked here rather than wherever a body is rendered. §8.1.4 builds
+	// the question label in per language, so a language cr has no label for
+	// leaves §6.3's forcing with nothing to reach the reader through — and
+	// the run that would discover it is the run that is about to post. Every
+	// layer has settled by this point, so the value checked is the value a
+	// command would read.
+	if _, err := render.ParseLang(resolved.String(render.Setting)); err != nil {
+		return Config{}, err
+	}
+	return resolved, nil
 }
 
 // apply writes the overrides naming a known setting, coercing each value to the
