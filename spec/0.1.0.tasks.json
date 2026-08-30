@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T12:45:04.889955Z",
+  "updated_at": "2026-08-30T13:00:02.388934Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2156,7 +2156,7 @@
     {
       "id": "context-command",
       "title": "Print accumulated notes with provenance",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "answer-command"
@@ -2166,11 +2166,36 @@
       "source_sections": [
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T12:45:12.845579Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T13:00:02.316507Z",
+      "closed_reason": "- `cr context \u003cISSUE-KEY\u003e` prints every note the issue's store holds with its provenance per §3.6.5: internal/cli/context.go emits the whole stored record — the id §3.3.2 cites and §3.6.6 retracts by, the text, the source §8.1.6 discloses, the pull request the fact came from, the timestamp, and §3.6.2's answered record — through internal/cli/output.go's shared writer, so a pipe gets the notes as JSON and a terminal gets a line of provenance plus a line of text for each, and TestContextPrintsEveryFieldTheStoreHolds compares the printed document against note.Load's own read of the store rather than against a list written in the test, TestATerminalContextNamesEachNotesProvenance pins §12.1's other shape, and TestContextOnAKeyNobodyRecordedAgainstIsNoNotes fixes §12.3's empty [] for a key nobody recorded against.\n- Notes for the issue key load on every subsequent round and every subsequent pull request resolving to the same key because the store is keyed by the issue and by nothing else: internal/note/store.go's Load takes an issue key with no pull request and no round, internal/state/context.go's ReadContextRecords reads context/\u003cISSUE-KEY\u003e.ndjson lock-free per §2.3.2 while §9.3.5 exempts the store from round scoping, TestContextIsAddressedByTheIssueKeyAlone fences that surface by asserting the command declares no flag of its own so a later --pr, --round or --since fails whatever it is called, and TestReadingTheContextStoreCreatesNothing plus TestTheContextStoreIsReadWhileAWriterHoldsTheLock prove the read neither blocks behind a writer nor writes inside ~/.cr — the round half of §3.6.4 has no round machinery to drive yet and is left to notes-auto-loaded.\n- TestANoteRecordedAgainstOnePullRequestLoadsForAnother briefs pull requests 1 and 2 under CR-7, records the fact from #1 alone, and reads it back twice from #2's side: `cr answer 2` allocates CR-7#n2, which §3.6.1's counter over the notes the store already holds could only produce having loaded #1's note, and `cr context CR-7` then prints both with #1's pull request still on its note, which is the other half of the claim because the PR field is provenance and is never read as a scope.",
+      "gate_passed_at": "2026-08-30T13:00:02.316507Z",
+      "commit_sha": "6ba634b",
+      "commit_shas": [
+        "6ba634b",
+        "09d5d5b",
+        "caf26c9",
+        "56ca352",
+        "a2919cf",
+        "cb05657",
+        "906ec85",
+        "38f164f",
+        "072b859",
+        "1a4fa2b",
+        "e933da1",
+        "807ea31",
+        "bc0f0e4"
+      ],
+      "commit_files": [
+        "internal/cli/context.go",
+        "internal/cli/context_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/note/store.go",
+        "internal/state/context.go",
+        "internal/state/context_test.go"
+      ]
     },
     {
       "id": "note-retraction",
