@@ -178,9 +178,11 @@ func TestALeftAnchorPointingAtAHeadOnlyLineIsRefused(t *testing.T) {
 		"the user is told which tree was read and how far it goes")
 
 	resolves(t, trees, "app/money.go", git.Left, 5, 5)
-	refusesToResolve(t, trees, &Anchor{
-		Path: "app/money.go", Side: git.Left, StartLine: 6, Line: 6,
-	})
+	assert.Contains(t,
+		refusesToResolve(t, trees, &Anchor{
+			Path: "app/money.go", Side: git.Left, StartLine: 6, Line: 6,
+		}).Error(),
+		"runs to line 6")
 
 	// The same two ranges on the side §9.2.1 gives the head resolve, so what
 	// the assertions above measure is the tree and not the range.
