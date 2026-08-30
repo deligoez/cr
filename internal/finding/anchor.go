@@ -121,3 +121,93 @@ func ValidateAnchor(file string, line int, anchor *Anchor) error {
 	}
 	return nil
 }
+
+// The two trees §6.1.2 resolves an anchor against, as the user is told them.
+const (
+	headTree      = "the head under review"
+	mergeBaseTree = "the merge base"
+)
+
+// Trees are those two revisions, each as a reader of one path.
+//
+// §9.2.1 gives the two sides different subject matter — RIGHT anchors a line in
+// the head, LEFT a removed line — and §6.1.2 turns that difference into two
+// lookups: a RIGHT anchor resolves against the head, a LEFT one against the
+// merge base. A removed line is not in the head to be found, and a line the
+// change added is not in the merge base, so one tree cannot answer for both
+// without calling half the anchors cr will ever write unresolvable.
+//
+// They are two readers rather than one reader taking a revision, so that which
+// commit is the head and which the merge base stays where §3.4.1 decides it,
+// with internal/git, and is never something a record's own fields could move.
+type Trees struct {
+	// Head reads a path as the head under review holds it. A RIGHT anchor
+	// resolves here.
+	Head HeadFile
+	// MergeBase reads it as the merge base holds it. A LEFT anchor
+	// resolves here.
+	MergeBase HeadFile
+}
+
+// tree returns the reader §6.1.2 binds to one side, together with the name the
+// user is told when the lookup fails, and whether the side names a tree at all.
+func (t Trees) tree(side git.Side) (read HeadFile, named string, known bool) {
+	if side == git.Right {
+		return t.Head, headTree, true
+	}
+	if side == git.Left {
+		return t.MergeBase, mergeBaseTree, true
+	}
+	return nil, "", false
+}
+
+// ResolveAnchor resolves one record's anchor against the tree its side names,
+// per §6.1.2: the head for RIGHT, the merge base for LEFT.
+//
+// It reports through RejectedRecordError, the shape §6.1.3 gives every record
+// rejection, naming the field `anchor` for the reason ValidateAnchor gives: the
+// anchor is one object, and naming it is what lets the user find it on the line
+// the error points at. §11.2 codes it 1 — the file was read and parsed, and
+// what is wrong is the record's own content — while a git that refuses is
+// returned unchanged and stays exit code 3, exactly as ResolveCitations leaves
+// it.
+//
+// Only the last line of the range is measured against the file. That the range
+// runs forwards from line 1 or higher is §9.2's shape rule and ValidateAnchor's
+// to keep, so the whole range lies in the file as soon as its last line does,
+// and re-deciding the shape here would be a second reading of the section that
+// could come to a different answer.
+//
+// §9.2.1 also has a LEFT anchor used only for records about deletions, and that
+// half is not enforced here. Whether a record is about a deletion is a
+// judgement about what it says, which §2.1 leaves to the agent; what cr can
+// establish is the location, and this is it. A line the change added is not in
+// the merge base, so a LEFT anchor reaching for one either falls outside the
+// file or names other code entirely — and §6.2.2 keeps such a record out of the
+// probed grade in any case, because a probe target is always RIGHT.
+func ResolveAnchor(trees Trees, file string, line int, anchor *Anchor) error {
+	reject := func(problem string) error {
+		return &RejectedRecordError{File: file, Line: line, Field: "anchor", Problem: problem}
+	}
+	read, named, known := trees.tree(anchor.Side)
+	if !known {
+		return reject(fmt.Sprintf(
+			"names side %q, which is neither %s nor %s and so names no tree to resolve against",
+			anchor.Side, git.Right, git.Left,
+		))
+	}
+	lines, exists, err := read(anchor.Path)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return reject(fmt.Sprintf("names %q, which %s does not hold as a file", anchor.Path, named))
+	}
+	if anchor.Line > len(lines) {
+		return reject(fmt.Sprintf(
+			"runs to line %d of %q, which holds %d lines at %s",
+			anchor.Line, anchor.Path, len(lines), named,
+		))
+	}
+	return nil
+}
