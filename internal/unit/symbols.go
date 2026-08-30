@@ -3,22 +3,34 @@ package unit
 
 import "github.com/deligoez/cr/internal/profile"
 
-// SymbolIndex reports which files cr has a symbol index for.
+// SymbolIndex is what §3.4's symbol handling reads: which files cr has a
+// symbol index for, and which symbol encloses a line of one of them.
 //
-// §4.3.1's head symbol index is what will implement this, and the task that
-// builds it gives the type the lookup §3.4.4's symbol branch needs. §3.4.3
-// asks a narrower question — whether there is an index for a file at all — so
-// that question is the whole of the interface today, and the later index slots
-// in behind it without a caller of Detectable changing.
+// §4.3.1's head symbol index is what will implement this. §3.4.3 asks the
+// narrower of the two questions — whether there is an index for a file at all
+// — and §3.4.4's symbol branch asks the other, so the later index slots in
+// behind both without a caller of Detectable or Clusters changing.
 //
 // Indexed returns a bool and not a (bool, error). §3.4.3 requires clustering
 // to fall through "without reporting an error", and the way to keep an error
 // out of the fallthrough is to leave it nowhere to come from. A file cr cannot
 // parse, a language cr has no parser for, and a file that holds no symbols are
 // one answer here, because clustering does the same thing with all three.
+//
+// Enclosing is asked only about head-side lines, because §4.3.1 builds the
+// index over the head. A LEFT number is a line of the merge base, where the
+// same number names a different line, and a symbol read out of the wrong file
+// version would gather hunks under the name of code that does not contain
+// them. §3.4.4 partitions by side before it clusters, and that partition is
+// what makes the restriction expressible at all: the LEFT side has no index in
+// its coordinate space, so it is not detectable there and falls through to
+// adjacency per §3.4.3.
 type SymbolIndex interface {
 	// Indexed reports whether cr could build a symbol index for path.
 	Indexed(path string) bool
+	// Enclosing names the symbol enclosing the head-side line at path, and
+	// reports false when no symbol encloses it.
+	Enclosing(path string, line int) (string, bool)
 }
 
 // Detectable answers §3.4.3 for one file: an enclosing symbol is detectable

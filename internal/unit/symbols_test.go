@@ -25,6 +25,11 @@ type indexOf []string
 
 func (i indexOf) Indexed(path string) bool { return slices.Contains(i, path) }
 
+// Enclosing answers §3.4.4's symbol branch. indexOf covers files and not the
+// symbols inside them, so it names none; cluster_test.go's index is the one
+// that does.
+func (i indexOf) Enclosing(string, int) (string, bool) { return "", false }
+
 // §3.4.3 makes an enclosing symbol detectable only when the profile declares
 // symbols.lang and cr can build a symbol index for the file. Each half is
 // asserted missing on its own as well as present together, because either
