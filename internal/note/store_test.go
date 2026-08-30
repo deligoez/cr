@@ -177,3 +177,29 @@ func TestRetractMarksTheNoteAndKeepsItInTheStore(t *testing.T) {
 	assert.Equal(t, "CR-1#n3", NextID("CR-1", held),
 		"§3.6.1's counter never hands a retracted note's number to another note")
 }
+
+// Retracting a note that is already retracted is the state the caller asked
+// for, so it succeeds — and the first retraction's timestamp is the one that
+// survives. The retraction is a decision somebody made at a moment, and a
+// second run reporting the moment it was repeated would lose when it was made.
+func TestRetractingTwiceKeepsTheFirstDecision(t *testing.T) {
+	l := storeRoot(t)
+	at := time.Date(2026, 8, 30, 9, 15, 0, 0, time.UTC)
+
+	_, err := Append(l, "CR-1", "the deadline moved to Friday", SourceChat, 42, at)
+	require.NoError(t, err)
+
+	first := at.Add(time.Hour)
+	_, err = Retract(l, "CR-1#n1", first)
+	require.NoError(t, err)
+
+	again, err := Retract(l, "CR-1#n1", first.Add(24*time.Hour))
+	require.NoError(t, err, "the store is already in the state that was asked for")
+	require.NotNil(t, again.RetractedAt)
+	assert.Equal(t, first, again.RetractedAt.UTC())
+
+	held := stored(t, l, "CR-1")
+	require.Len(t, held, 1)
+	require.NotNil(t, held[0].RetractedAt)
+	assert.Equal(t, first, held[0].RetractedAt.UTC(), "the second run did not restamp the file")
+}
