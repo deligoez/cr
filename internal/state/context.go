@@ -3,8 +3,6 @@ package state
 import (
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -137,14 +135,7 @@ func (e *ContextStoreError) Unwrap() error { return e.Err }
 // lock. Both readers share it so a note is decoded the same way by the command
 // that appends one and the command that prints them.
 func contextRecords[T any](path string) ([]T, error) {
-	body, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return make([]T, 0), nil
-	}
-	if err != nil {
-		return nil, &ContextStoreError{Err: fmt.Errorf("cannot read %s: %w", path, err)}
-	}
-	records, err := decodeRecords[T](path, body)
+	records, err := storeRecords[T](path)
 	if err != nil {
 		return nil, &ContextStoreError{Err: err}
 	}

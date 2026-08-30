@@ -3,7 +3,10 @@ package state
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"slices"
 )
 
@@ -187,6 +190,27 @@ func ReadRecords[T any](l Layout, owner, repo string, pr int, name string) ([]T,
 		return nil, err
 	}
 	return decodeRecords[T](l.PRFile(owner, repo, pr, name), body)
+}
+
+// storeRecords decodes one NDJSON store that lives outside a pull request's
+// state directory, treating an absent file as no records.
+//
+// §3.6's context store and §7.4.4's repository-wide waiver file are the two.
+// Each is created by the first record appended to it, so a file that is not
+// there yet holds exactly as many records as an empty one does — and both
+// readers share this so the two stores cannot come to disagree about what an
+// absent file means. A read that failed for any other reason is reported with
+// the path, and an undecodable line with its number, for the reason
+// decodeRecords gives.
+func storeRecords[T any](path string) ([]T, error) {
+	body, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return make([]T, 0), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	return decodeRecords[T](path, body)
 }
 
 // decodeRecords decodes an NDJSON body into its record type, naming path in
