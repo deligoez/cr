@@ -277,3 +277,15 @@ func TestClustersNeverSpanTwoFiles(t *testing.T) {
 	assertNoClusterMixesSides(t, clusters)
 }
 
+// §3.4.4's default for `cluster.gap_lines` is 12, and §2.7 makes the built-in
+// defaults the lowest layer rather than a constant somewhere in the clustering
+// code. Both halves are asserted: the number, and that a layer above the
+// default can actually reach the key — which a name absent from the settings
+// table could not, since an unknown key configures nothing.
+func TestTheGapLinesDefaultComesFromTheSettingsTable(t *testing.T) {
+	assert.Equal(t, 12, defaultGapLines(t))
+
+	cfg, err := config.Resolve(config.Sources{Flags: map[string]any{"cluster.gap_lines": 30}})
+	require.NoError(t, err)
+	assert.Equal(t, 30, cfg.Int("cluster.gap_lines"))
+}
