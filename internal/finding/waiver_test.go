@@ -270,3 +270,40 @@ func TestAWaiverScopeFollowsItsDisposition(t *testing.T) {
 	assert.NotEqual(t, ScopeRepository, ScopePullRequest,
 		"§7.2: the two dispositions are deliberately distinct, and collapsing their scopes collapses them")
 }
+
+// §7.4.3 is the asymmetric half of the rule, and the expensive one to get
+// wrong. "This is wrong" generalises across the repository; "not worth saying
+// here" is a fact about one pull request and MUST NOT silence the finding
+// anywhere else. A `not-here` that reached the repository file would suppress a
+// true finding in every later pull request, and the silence would be invisible:
+// nothing is raised, so nothing is there to look at.
+//
+// Asserting that WaiverFor returns the narrow scope proves only that today's
+// mapping is right. What keeps it right is that a scope cannot come from
+// anywhere else, so this asserts the shape that makes that true: a waiver holds
+// no scope of its own that could contradict its disposition, and WaiverScope
+// keeps its only field to itself, so no composite literal outside the package
+// can name a scope into existence the way `var s WaiverScope = "repository"`
+// would if it were a defined string type.
+func TestNotWorthSayingHereSilencesNothingBeyondItsPullRequest(t *testing.T) {
+	discarded, _ := theSameDefectAtTheSameCode(t)
+	discarded.Disposition = DispositionNotHere
+
+	waiver, err := WaiverFor(&discarded)
+	require.NoError(t, err)
+	scope, err := waiver.Scope()
+	require.NoError(t, err)
+	assert.NotEqual(t, ScopeRepository, scope,
+		"§7.4.3: not worth saying here must not silence the finding anywhere else")
+
+	scopeType := reflect.TypeOf(WaiverScope{})
+	waiverType := reflect.TypeOf(Waiver{})
+	for i := range waiverType.NumField() {
+		assert.NotEqual(t, scopeType, waiverType.Field(i).Type,
+			"a waiver carrying a scope of its own could hold one that disagrees with its disposition")
+	}
+
+	require.NotZero(t, scopeType.NumField())
+	assert.False(t, everyFieldExported(scopeType),
+		"§7.4.3 is a fence only while Scope is the one thing that can produce a WaiverScope")
+}
