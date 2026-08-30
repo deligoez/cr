@@ -194,3 +194,28 @@ func layersOf(roles []Resolved) []Layer {
 	return out
 }
 
+// §2.5.5 says more than one role MAY serve the same axis, so resolution
+// produces a corpus rather than a lookup: keying by axis anywhere in it would
+// silently drop one of these two, and the review would read as though both
+// lenses had looked. They are placed at different layers on purpose — the
+// second is the one a keyed resolver loses first.
+func TestMoreThanOneRoleMayServeTheSameAxis(t *testing.T) {
+	repo := layerDir(t, map[string]string{
+		"security": roleJSON(t, "security", map[string]any{"axis": axis.Correctness}),
+	})
+	global := layerDir(t, map[string]string{
+		"concurrency": roleJSON(t, "concurrency", map[string]any{"axis": axis.Correctness}),
+	})
+
+	got, err := Resolve(repo, global)
+	require.NoError(t, err)
+
+	serving := make([]string, 0, len(got))
+	for _, r := range got {
+		if r.Role.Axis == axis.Correctness {
+			serving = append(serving, r.Role.ID)
+		}
+	}
+	assert.Equal(t, []string{"security", "concurrency", "correctness"}, serving)
+}
+
