@@ -81,3 +81,49 @@ func TestASplittableClusterOpensAUnitAtTheHunkThatWouldNotFit(t *testing.T) {
 		assert.False(t, formed.Oversized, "no single hunk here exceeds the cap")
 	}
 }
+
+// §3.4.5 names one case where the cap does not bind: "a single hunk that alone
+// exceeds the limit MUST become one unit, MUST be flagged `oversized`". There
+// is nothing below a hunk to split, and a unit cut at a line the diff never
+// marked would carry a hunk range no hunk has.
+//
+// The flag is on that case and on nothing else, so the fixture puts an
+// ordinary hunk on either side of the oversized one — each of which the cap
+// does bind, and neither of which is flagged — and adds a second cluster whose
+// one hunk sits at exactly the cap. That last hunk is the case an
+// implementation flagging at "reaches the limit" would call oversized, and it
+// is the same boundary from the other side: a hunk at the cap is a plain unit.
+func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
+	max := defaultMaxLines(t)
+	before, over, after := addedHunk(100, 10), addedHunk(200, max+1), addedHunk(400, 10)
+	atCap := addedHunk(600, max)
+
+	units := Split([]Cluster{
+		{
+			Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
+			Hunks: []git.Hunk{before, over, after},
+		},
+		{
+			Path: moneyPath, Side: git.Right, Formation: BySymbol,
+			Hunks: []git.Hunk{atCap},
+		},
+	}, max)
+
+	require.Len(t, units, 4)
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
+		Hunks: []git.Hunk{before},
+	}, units[0], "the hunk before it is closed by the one that would not fit")
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
+		Hunks: []git.Hunk{over}, Oversized: true,
+	}, units[1], "the hunk the cap cannot bind is one unit, flagged")
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
+		Hunks: []git.Hunk{after},
+	}, units[2], "what follows it starts a unit of its own")
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Right, Formation: BySymbol,
+		Hunks: []git.Hunk{atCap},
+	}, units[3], "a hunk at exactly the cap is inside it, and the formation survives the split")
+}
