@@ -42,6 +42,7 @@ type setting struct {
 
 // settings holds every key the spec gives a default, and that default.
 var settings = []setting{
+	{"cluster.gap_lines", 12},
 	{"ignore.globs", []string{}},
 	{"intent.cmd", []string{"jira", "issue", "view", "{key}", "--plain"}},
 	{"intent.key_pattern", `[A-Z][A-Z0-9]+-[0-9]+`},
