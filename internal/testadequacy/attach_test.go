@@ -191,3 +191,29 @@ func TestTheSymbolHalfIsMarkedUnavailableRatherThanLeftEmpty(t *testing.T) {
 	})
 }
 
+// §11.1 exempts every lens of §4.5.4 that did not run from `--quiet`, and the
+// exemption belongs to the writer rather than to each call site, so the report
+// has to arrive there as a disclosure. Implementing finding.HonestyDisclosure is
+// what makes that possible before the writer exists — the same contract
+// profile.MissingProfile already satisfies for §4.3.1's half, so §4.5.4 collects
+// both through one interface instead of two shapes.
+//
+// The text is asserted against the fields rather than against a literal, because
+// the two must not be able to drift: a half counted as out in the data and left
+// out of the printed report would be honest to a caller reading JSON and silent
+// to the human reading a terminal.
+func TestAnUnavailableHalfIsAnHonestyDisclosure(t *testing.T) {
+	var _ finding.HonestyDisclosure = Unavailable{}
+
+	p := laravelPest(t)
+	attached := Attach(&p, nil, hunks(t))
+	require.Len(t, attached.Unavailable, 1)
+
+	disclosure := attached.Unavailable[0].Disclosure()
+	assert.Contains(t, disclosure, attached.Unavailable[0].Lens)
+	assert.Contains(t, disclosure, attached.Unavailable[0].Reason)
+	// §4.5 spends `disabled` and `unavailable` on two different states, and
+	// this half is the second: the test axis is on, and one of its inputs
+	// could not be produced.
+	assert.Contains(t, disclosure, "unavailable")
+}
