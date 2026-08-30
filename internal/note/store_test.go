@@ -133,3 +133,47 @@ func TestNotesAccumulateAgainstTheKeyAndNotThePullRequest(t *testing.T) {
 	require.Len(t, other, 1)
 	assert.Equal(t, "CR-2#n1", other[0].ID, "another key numbers from one")
 }
+
+// §3.6.6: a note is unverified hearsay and stays revocable. What retracting one
+// does to the store is the whole question this task had to settle, and it is
+// settled by marking the note rather than deleting its line.
+//
+// Both halves are asserted off disk. The note is still there, still carrying
+// its text and its number, in the position it was written in — that is what
+// keeps §3.3.2's claims and §8.1.6's provenance able to name it, and what stops
+// §3.6.1's counter from handing its number to the next note. And it now carries
+// the retraction, in UTC, which is what tells a later reader that a citation of
+// it may no longer be built on.
+func TestRetractMarksTheNoteAndKeepsItInTheStore(t *testing.T) {
+	l := storeRoot(t)
+	at := time.Date(2026, 8, 30, 9, 15, 0, 0, time.UTC)
+
+	_, err := Append(l, "CR-1", "the deadline moved to Friday", SourceChat, 42, at)
+	require.NoError(t, err)
+	_, err = Append(l, "CR-1", "the retry limit is three", SourceMeeting, 42, at)
+	require.NoError(t, err)
+
+	pulled := at.Add(time.Hour)
+	back, err := Retract(l, "CR-1#n1", pulled.In(time.FixedZone("UTC+3", 3*60*60)))
+	require.NoError(t, err)
+	assert.Equal(t, "CR-1#n1", back.ID)
+
+	held := stored(t, l, "CR-1")
+	require.Len(t, held, 2, "§3.6.6 revokes a note; it does not erase one")
+	assert.Equal(t, "CR-1#n1", held[0].ID, "the id is spent for the life of the issue")
+	assert.Equal(t, "the deadline moved to Friday", held[0].Text,
+		"the text is kept, so the records that rested on it can still be recognised")
+	assert.Equal(t, SourceChat, held[0].Source)
+	require.NotNil(t, held[0].RetractedAt)
+	assert.Equal(t, pulled, held[0].RetractedAt.UTC())
+	assert.Equal(t, time.UTC, held[0].RetractedAt.Location(),
+		"stamped in UTC, so two machines order one store the same way")
+
+	assert.Nil(t, held[1].RetractedAt, "retracting one note retracts one note")
+	assert.Equal(t, "the retry limit is three", held[1].Text)
+
+	assert.Equal(t, StandingRetracted, StandingOf(held, "CR-1#n1"))
+	assert.Equal(t, StandingStands, StandingOf(held, "CR-1#n2"))
+	assert.Equal(t, "CR-1#n3", NextID("CR-1", held),
+		"§3.6.1's counter never hands a retracted note's number to another note")
+}
