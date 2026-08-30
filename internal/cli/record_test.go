@@ -196,3 +196,44 @@ func TestARefusedLineLeavesFindingsExactlyAsItWas(t *testing.T) {
 	assert.Equal(t, string(before), string(after),
 		"§6.1.3 refuses the file, so neither the lines above the fault nor the line below it are stored")
 }
+
+// §6.1.3's three refusals reach the command, each naming the field at fault.
+//
+// The point is not that three faults are caught. It is that the command adds no
+// reading of §6.1 of its own: finding.Decode already holds every line to the
+// section, and all three refusals arrive here as the RejectedRecordError it
+// raises, carrying the file, the line and the field it named. A command that
+// validated for itself would answer some of these and not others, or answer
+// them in a shape internal/cli does not map onto §11.2's code 1.
+//
+// The unknown unit is the round before's rather than an invented id, so the
+// refusal proves the scoping as well as the membership: §3.4.6 makes a unit id
+// round-scoped, and a set drawn from the whole of units.ndjson would accept it.
+func TestRecordRefusesTheThreeFaultsSection613Names(t *testing.T) {
+	recordedHome(t)
+
+	refuse := func(t *testing.T, name string, record map[string]any) string {
+		t.Helper()
+		file := writeRecordFile(t, name, record)
+		_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+		require.Error(t, err)
+		assert.Equal(t, ExitValidation, exitCodeFor(err), "§6.1.3 rejects with exit code 1")
+
+		var rejected *finding.RejectedRecordError
+		require.ErrorAs(t, err, &rejected, "the command raises no rejection of its own")
+		assert.Equal(t, file, rejected.File)
+		assert.Equal(t, 1, rejected.Line)
+		return rejected.Field
+	}
+
+	missing := aRecord("f1", "u1")
+	delete(missing, "summary")
+	assert.Equal(t, "summary", refuse(t, "missing.ndjson", missing),
+		"a record missing a field §6.1 requires is refused by that field's name")
+
+	assert.Equal(t, "unit", refuse(t, "stale-unit.ndjson", aRecord("f1", staleUnit)),
+		"§3.4.6 scopes a unit id to its round, so the round before formed no unit of this one")
+
+	assert.Equal(t, "role", refuse(t, finding.FanOutFile("test"), aRecord("f1", "u1")),
+		"§6.1.3 binds a record's role to the role whose §4.6.2 output file it arrived in")
+}
