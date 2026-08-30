@@ -116,7 +116,7 @@ func TestATerminalContextNamesEachNotesProvenance(t *testing.T) {
 // brief writes the §2.3 metadata `cr brief` leaves behind for one pull request,
 // so a later command can resolve the issue key it belongs to. Two pull requests
 // briefed under one key is the arrangement §3.6.4's second half is about.
-func brief(t *testing.T, layout state.Layout, pr int, issueKey string) {
+func briefedPR(t *testing.T, layout state.Layout, pr int, issueKey string) {
 	t.Helper()
 	require.NoError(t, layout.EnsurePR(answeredOwner, answeredRepo, pr))
 
@@ -146,8 +146,8 @@ func brief(t *testing.T, layout state.Layout, pr int, issueKey string) {
 func TestANoteRecordedAgainstOnePullRequestLoadsForAnother(t *testing.T) {
 	layout := state.New(crHome(t))
 	require.NoError(t, layout.Init())
-	brief(t, layout, 1, "CR-7")
-	brief(t, layout, 2, "CR-7")
+	briefedPR(t, layout, 1, "CR-7")
+	briefedPR(t, layout, 2, "CR-7")
 
 	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "1")
 	require.NoError(t, err)
