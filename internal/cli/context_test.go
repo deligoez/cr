@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -219,4 +220,45 @@ func TestContextIsAddressedByTheIssueKeyAlone(t *testing.T) {
 			assert.Empty(t, out, "a refused run prints no notes")
 		})
 	}
+}
+
+// §3.6.5 prints the notes *with provenance*, and §3.6.6's retraction is the
+// most consequential provenance a note can carry: it is the fact that nothing
+// may be asserted on this one. A store that printed a retracted note exactly
+// as it prints a standing one would leave a reader weighing hearsay somebody
+// has already withdrawn, and the retraction is what tells them not to.
+//
+// The retained note is the other half. §3.6.6 revokes rather than erases, so
+// the withdrawn fact is still readable — which is how the reader recognises the
+// records that rested on it — and it is still numbered, so no later note can
+// take its id and answer a citation that was never about it.
+func TestContextNamesARetractionInTheProvenance(t *testing.T) {
+	briefedHome(t, "CR-7")
+
+	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "9")
+	require.NoError(t, err)
+	_, err = runIn(t, "note", "CR-7", "the retry limit is three", "--source", "meeting", "--pr", "9")
+	require.NoError(t, err)
+	_, err = runIn(t, "note", "--remove", "CR-7#n1")
+	require.NoError(t, err)
+
+	out, err := runContext(t, "CR-7")
+	require.NoError(t, err)
+
+	var printed struct {
+		Notes []note.Note `json:"notes"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &printed))
+	require.Len(t, printed.Notes, 2, "§3.6.6 revokes a note; it does not erase one")
+	assert.Equal(t, "the deadline moved to Friday", printed.Notes[0].Text)
+	require.NotNil(t, printed.Notes[0].RetractedAt)
+	assert.Nil(t, printed.Notes[1].RetractedAt, "retracting one note retracts one note")
+
+	terminal := throughATerminal(t, "context", "CR-7")
+	assert.Contains(t, terminal, "\x1b[36mCR-7#n1\x1b[0m from chat on pr 9 at ")
+	assert.Contains(t, terminal, ", retracted at ")
+	assert.Contains(t, terminal, "\n    the deadline moved to Friday\n",
+		"the withdrawn fact is still readable, which is how its records are recognised")
+	assert.Equal(t, 1, strings.Count(terminal, "retracted at "),
+		"the note that still stands says nothing about a retraction")
 }
