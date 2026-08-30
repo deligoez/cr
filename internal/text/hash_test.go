@@ -47,3 +47,45 @@ func TestNormalisedHashIsTheValueSection14Pins(t *testing.T) {
 	assert.NotEqual(t, "0e8cce8b6619337f", got,
 		"and not over the raw bytes, whose own §1.4-shaped hash is this and is wrong")
 }
+
+// The hash is only useful because of what it lets a caller conclude from an
+// equality, and every section that names it concludes something: §6.4 suppresses
+// a duplicate finding, §7.4.1 matches a waiver against unchanged code, §3.3
+// decides an issue has drifted, §9.2 identifies an anchor's content. All four
+// read equal hashes as "the same text" and unequal ones as "different text", so
+// the property worth asserting is the biconditional and not either half.
+//
+// It runs over the corpus the six-step tests share, which is built of the
+// shapes the steps disagree about, so the pairs it forms are exactly the ones
+// where an implementation that hashed too early or too late would part company
+// with Normalise.
+func TestNormalisedHashAgreesExactlyWithNormalisation(t *testing.T) {
+	forms := make([]string, len(normalisationCorpus))
+	hashes := make([]string, len(normalisationCorpus))
+	for i, in := range normalisationCorpus {
+		form, err := Normalise(in)
+		require.NoError(t, err)
+		hash, err := NormalisedHash(in)
+		require.NoError(t, err)
+		forms[i], hashes[i] = form, hash
+	}
+
+	sawEqual, sawDiffer := false, false
+	for i := range normalisationCorpus {
+		for j := i + 1; j < len(normalisationCorpus); j++ {
+			if forms[i] == forms[j] {
+				sawEqual = true
+				assert.Equal(t, hashes[i], hashes[j],
+					"%q and %q normalise alike, so nothing downstream may tell them apart",
+					normalisationCorpus[i], normalisationCorpus[j])
+				continue
+			}
+			sawDiffer = true
+			assert.NotEqual(t, hashes[i], hashes[j],
+				"%q and %q normalise differently, so nothing downstream may treat them as one",
+				normalisationCorpus[i], normalisationCorpus[j])
+		}
+	}
+	require.True(t, sawEqual, "the corpus held no pair that normalises alike, so half the property went untested")
+	require.True(t, sawDiffer, "the corpus held no pair that normalises differently, so the other half did")
+}
