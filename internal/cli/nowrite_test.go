@@ -52,11 +52,19 @@ func TestAWriteFromOutsideTheGateIsRefused(t *testing.T) {
 	}
 }
 
-// runners are the files allowed to start an external process. Every other file
-// reaches git and gh through one of them.
+// runners are the files allowed to start an external process, one to each of
+// §14.1's three runtime dependencies. Every other file reaches git, gh, and
+// the tracker through one of them.
+//
+// The tracker runner starts a program the user names, so a user who configures
+// intent.cmd to reach GitHub reaches GitHub. That is the user writing their own
+// command line, not cr routing around §2.1.2, and cr could not police it in any
+// case: every tracker CLI talks to a network. What this list keeps true is that
+// cr itself has three doors and no fourth.
 var runners = map[string]bool{
-	filepath.Join("internal", "gh", "run.go"):  true,
-	filepath.Join("internal", "git", "run.go"): true,
+	filepath.Join("internal", "gh", "run.go"):     true,
+	filepath.Join("internal", "git", "run.go"):    true,
+	filepath.Join("internal", "intent", "run.go"): true,
 }
 
 // crSource walks the Go files cr ships — its own source, tests excluded — and
