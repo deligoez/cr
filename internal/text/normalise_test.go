@@ -149,3 +149,28 @@ func TestInvalidUTF8IsRefusedBeforeAnyStepRuns(t *testing.T) {
 	require.NoError(t, err, "a text that decodes is not refused for looking unusual")
 	assert.Equal(t, "aé"+replacementChar+"b", valid)
 }
+
+// §1.4's closing sentence forbids case-folding, and the prohibition is not
+// stylistic. Everything downstream of the transform is a comparison: §6.4
+// suppresses a duplicate finding, §7.4 matches a waiver, §9.2 identifies an
+// anchor. Fold case and two texts that differ collapse onto one value, so the
+// duplicate suppression drops a finding nobody raised twice and the waiver
+// silences a line nobody waived.
+//
+// The assertion is therefore a difference rather than a shape: two texts that
+// differ only in case must still differ afterwards, which no amount of
+// incidental spacing can hide.
+func TestNormalisationDoesNotCaseFold(t *testing.T) {
+	upper, err := Normalise("The Guard Has No Test")
+	require.NoError(t, err)
+	lower, err := Normalise("the guard has no test")
+	require.NoError(t, err)
+
+	assert.Equal(t, "The Guard Has No Test", upper, "every letter survives as it was written")
+	assert.NotEqual(t, upper, lower, "two texts differing only in case still differ")
+
+	turkish, err := Normalise("İSTANBUL istanbul")
+	require.NoError(t, err)
+	assert.Equal(t, "İSTANBUL istanbul", turkish,
+		"including where a locale-aware fold would not even round-trip")
+}
