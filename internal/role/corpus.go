@@ -1,6 +1,7 @@
 package role
 
 import (
+	"cmp"
 	"errors"
 	"io/fs"
 	"maps"
@@ -82,6 +83,46 @@ func Resolve(repoRolesDir, globalRolesDir string) ([]Resolved, error) {
 	c.add(GlobalLayer, global)
 	c.add(BuiltinLayer, builtin)
 	return c.roles, nil
+}
+
+// Order returns §2.5.5's corpus order as a comparison over role ids, which is
+// what §6.4.2 reads to pick a duplicate group's representative: "the earliest
+// role in corpus order". The shape is cmp's, so slices.MinFunc, slices.SortFunc
+// and cmp.Or take it as it stands.
+//
+// It reads the positions out of the corpus Resolve produced rather than sorting
+// by layer and then by id a second time. So there is one definition of §2.5.5's
+// order in cr — the sequence add appends — and a comparison derived from it
+// cannot drift from it. The other half is
+// TestNothingOutsideThisPackageCanNameTheLayerARoleResolvedFrom: outside this
+// package the layer a role resolved from cannot be named, so no caller can
+// rebuild the order instead of asking for it.
+//
+// A role id no layer resolved sorts after every resolved one, ties broken by
+// id. Unknown is deliberately not rank zero: a bare map of positions read with
+// the zero value would make an id nobody resolved the earliest role of every
+// group, and §6.4.2 would hand the representative to a role that never looked
+// at the code.
+func Order(corpus []Resolved) func(a, b string) int {
+	rank := make(map[string]int, len(corpus))
+	for at, resolved := range corpus {
+		rank[resolved.Role.ID] = at
+	}
+	// One past the last resolved role, so an unresolved id sits behind the
+	// whole corpus and beside the other unresolved ones.
+	unresolved := len(corpus)
+	rankOf := func(id string) int {
+		if at, known := rank[id]; known {
+			return at
+		}
+		return unresolved
+	}
+	return func(a, b string) int {
+		if order := cmp.Compare(rankOf(a), rankOf(b)); order != 0 {
+			return order
+		}
+		return strings.Compare(a, b)
+	}
 }
 
 // corpus accumulates the resolved roles in §2.5.5's order.
