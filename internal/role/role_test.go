@@ -196,3 +196,26 @@ func TestAFileCrCannotReadOrDecodeSaysWhatItCan(t *testing.T) {
 		assert.Equal(t, path+": focus "+malformed.Problem, malformed.Error())
 	})
 }
+
+// §12.3 makes every slice serialise as [] rather than null, and §2.5 makes both
+// of a role's lists optional, so the two meet on every role that omits them.
+// §4.6.1 carries `focus` into the prompt and §4.5.1 reads `profiles` when it
+// decides whether the role is active; neither should have to know which fields
+// the file happened to set.
+func TestParseNormalisesTheOptionalListsAndKeepsWhatWasSet(t *testing.T) {
+	omitted, err := Load(roleFile(t, "test-adequacy", nil))
+	require.NoError(t, err)
+	assert.Equal(t, []string{}, omitted.Focus)
+	assert.Equal(t, []string{}, omitted.Profiles)
+
+	set, err := Load(roleFile(t, "test-adequacy", map[string]any{
+		"focus":    []string{"Which changed branch is unexercised?"},
+		"profiles": []string{"laravel-pest"},
+	}))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Which changed branch is unexercised?"}, set.Focus)
+	assert.Equal(t, []string{"laravel-pest"}, set.Profiles)
+	assert.Equal(t, "Test adequacy", set.Title)
+	assert.Equal(t, axis.Test, set.Axis)
+	assert.Equal(t, "Judge whether the changed behaviour is exercised.", set.Instructions)
+}
