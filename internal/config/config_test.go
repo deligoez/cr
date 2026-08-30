@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -212,4 +213,49 @@ func writeConfig(t *testing.T, key string) string {
 	path := filepath.Join(t.TempDir(), "config.json")
 	require.NoError(t, os.WriteFile(path, fmt.Appendf(nil, "{%q: true}", key), 0o600))
 	return path
+}
+
+// §8.1.1 defaults render.lang to tr, and round 8's finding
+// render-lang-domain-unbounded closes its domain at the two languages §8.1.4
+// builds a question label in. A layer supplying anything else is refused at
+// resolution, naming the setting: a language cr has no label for leaves §6.3's
+// forcing with nothing to reach the reader through, and the run that would find
+// that out is the run that is about to post.
+//
+// Every layer that can supply the value is exercised, because the check runs
+// once after they have all settled, and a refusal proved through one of them
+// says nothing about the other three.
+func TestRenderLangDefaultsToTurkishAndRejectsAnUnknownLanguage(t *testing.T) {
+	defaults, err := Resolve(Sources{})
+	require.NoError(t, err)
+	assert.Equal(t, render.LangTR.String(), defaults.String(render.Setting),
+		"§8.1.1 defaults render.lang to tr")
+
+	for _, lang := range render.Langs() {
+		cfg, err := Resolve(Sources{Environ: []string{"CR_RENDER_LANG=" + lang.String()}})
+		require.NoErrorf(t, err, "%s is enumerated and must resolve", lang)
+		assert.Equal(t, lang.String(), cfg.String(render.Setting))
+	}
+
+	dir := t.TempDir()
+	global := filepath.Join(dir, "config.json")
+	repo := filepath.Join(dir, "repo-config.json")
+	body := []byte(`{"render": {"lang": "de"}}`)
+	require.NoError(t, os.WriteFile(global, body, 0o600))
+	require.NoError(t, os.WriteFile(repo, body, 0o600))
+
+	for layer, sources := range map[string]Sources{
+		"command-line flags":    {Flags: map[string]any{render.Setting: "de"}},
+		"environment variables": {Environ: []string{"CR_RENDER_LANG=de"}},
+		"per-repository config": {RepoConfig: repo},
+		"global config":         {GlobalConfig: global},
+	} {
+		t.Run(layer, func(t *testing.T) {
+			_, err := Resolve(sources)
+			var unknown *render.UnknownLangError
+			require.ErrorAs(t, err, &unknown)
+			assert.Equal(t, "de", unknown.Value)
+			assert.Contains(t, err.Error(), render.Setting, "the refusal names the setting to edit")
+		})
+	}
 }
