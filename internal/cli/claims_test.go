@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/text"
 )
@@ -267,4 +269,52 @@ func TestATerminalClaimsRecordNamesTheCountAndTheRound(t *testing.T) {
 	assert.Contains(t, out, "\x1b[36m1\x1b[0m",
 		"the count is accented, as every terminal rendering accents its answer")
 	assert.Contains(t, out, " claim(s) in round 2; mapping cleared")
+}
+
+// §3.3.2's note-sourced claim, end to end: it is recorded against the note it
+// names rather than against the issue text, and it lands in claims.ndjson
+// exactly as a tracker claim does.
+//
+// Both halves matter and they pull in opposite directions. §3.3.2 says such a
+// claim "MUST be included in coverage exactly like a tracker claim", so the
+// stored record may differ from its neighbours in nothing but its own two
+// fields — a command that filed it apart, or dropped it for resting on
+// hearsay, would take it out of the coverage §4.1 measures. And it says the
+// claim "rests on weaker provenance", which §8.1.6 has to disclose, so the
+// `note_id` and the `note` source have to survive the write: they are the only
+// things the provenance region can be built from.
+//
+// The note's body is a sentence that occurs nowhere in the issue text, so the
+// claim can only have been accepted by being checked against the note.
+func TestANoteSourcedClaimIsStoredLikeAnyOther(t *testing.T) {
+	layout := claimedHome(t)
+	recorded, err := note.Append(layout, claimsIssue,
+		"Legal confirmed a 30-day retention window in chat.",
+		note.SourceChat, claimsPRNum, time.Now())
+	require.NoError(t, err)
+
+	file := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+		`{"id":"`+claimsIssue+`#c2","text":"Retain for thirty days.","source":"note",`+
+			`"span":"a 30-day retention window","note_id":"`+recorded.ID+`"}`,
+	)
+	require.NoError(t, runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t)))
+
+	stored, err := state.ReadRecords[intent.Claim](
+		layout, claimsOwner, claimsRepo, claimsPRNum, state.FileClaims,
+	)
+	require.NoError(t, err)
+	require.Len(t, stored, 3, "the round before's claim, and this round's two")
+
+	tracker, fromNote := stored[1], stored[2]
+	assert.Equal(t, intent.ClaimFromNote, fromNote.Source)
+	assert.Equal(t, recorded.ID, fromNote.NoteID,
+		"§8.1.6 names the note in the posted body, so the claim keeps naming it")
+	assert.Equal(t, tracker.IssueHash, fromNote.IssueHash,
+		"§3.3's issue_hash is the issue text's whatever the claim was drawn from")
+	assert.Equal(t, tracker.Head, fromNote.Head, "§2.3.3 stamps it like any other claim")
+	assert.Equal(t, tracker.Round, fromNote.Round)
+	assert.Empty(t, tracker.NoteID, "and a tracker claim beside it names no note")
 }
