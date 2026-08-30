@@ -103,3 +103,30 @@ func TestAppendRefusesWhatCannotBecomeANote(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(filepath.Dir(l.Root()), "escaped.ndjson"))
 }
 
+// §3.6.4 loads a key's notes on every subsequent round and every subsequent
+// pull request that resolves to the same key, and §9.3.5 exempts the store from
+// round scoping outright. So the pull request is provenance on the record and
+// never a scope on the file: a note recorded from one pull request is in the
+// same store as a note recorded from another, and a second issue key is a
+// second store that numbers from one.
+func TestNotesAccumulateAgainstTheKeyAndNotThePullRequest(t *testing.T) {
+	l := storeRoot(t)
+	at := time.Now()
+
+	_, err := Append(l, "CR-1", "from the first PR", SourceChat, 7, at)
+	require.NoError(t, err)
+	_, err = Append(l, "CR-1", "from the second PR", SourceThread, 8, at)
+	require.NoError(t, err)
+	_, err = Append(l, "CR-2", "another issue entirely", SourceJira, 8, at)
+	require.NoError(t, err)
+
+	shared := stored(t, l, "CR-1")
+	require.Len(t, shared, 2, "one key, one store, whatever pull request each note came from")
+	assert.Equal(t, []string{"CR-1#n1", "CR-1#n2"}, []string{shared[0].ID, shared[1].ID})
+	assert.Equal(t, []int{7, 8}, []int{shared[0].PR, shared[1].PR},
+		"the pull request is recorded on the note, not folded into the file it lives in")
+
+	other := stored(t, l, "CR-2")
+	require.Len(t, other, 1)
+	assert.Equal(t, "CR-2#n1", other[0].ID, "another key numbers from one")
+}
