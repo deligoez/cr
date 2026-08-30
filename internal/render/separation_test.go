@@ -96,3 +96,34 @@ func TestNoRenderingDecisionCanReachStoredState(t *testing.T) {
 // language, or a translation of any of them.
 var prose = []string{"body", "label", "comment", "lang", "prose", "translat", "rendered"}
 
+// The second half of the separation: no stored record carries reader-facing
+// prose.
+//
+// §6.1's field table is the whole of what `findings.ndjson` holds, and §8.1.2
+// says what the two text rows it does have are for — `summary` and `evidence`
+// are English, and cr renders a block's *initial* body from them. The prose the
+// author reads is written over that body in `draft.md` and kept in
+// `rounds/<n>/rendered.json` per §7.1.5, which is a round's artefact and not a
+// record: a record never holds a line in render.lang, so nothing stored has to
+// be re-rendered when the setting changes.
+func TestNoStoredRecordCarriesReaderFacingProse(t *testing.T) {
+	rows := append(finding.Fields(), finding.CitationFields()...)
+	require.NotEmpty(t, rows)
+	for _, row := range rows {
+		for _, name := range prose {
+			assert.NotContainsf(t, row.Name, name,
+				"§6.1's %q row would hold reader-facing prose in a stored record", row.Name)
+		}
+	}
+
+	// The one thing a label and a record do share is the grade, and they
+	// share it in the record's direction: the stored English word is carried
+	// into the Turkish line, rather than a Turkish word being carried into
+	// the record.
+	for _, grade := range grades {
+		line, ok := QuestionLabel(LangTR, grade)
+		require.True(t, ok)
+		assert.Contains(t, line, string(grade),
+			"the reader is shown the word the record stores, so they can find the record")
+	}
+}
