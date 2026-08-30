@@ -163,3 +163,30 @@ func TestATieSelectsNothingAndNamesTheTiedProfiles(t *testing.T) {
 	assert.Empty(t, selection.Profile.ID)
 	assert.Equal(t, []string{"laravel-pest", "symfony"}, selection.Tied)
 }
+
+// §2.4.2's second half. Two profiles matching the same single marker file leave
+// cr with no ground to prefer either, so the tie becomes an abort that names
+// both. The type is its own rather than a *MalformedError: every profile here
+// parsed and validated, so there is no file to open and no field to correct,
+// and an abort that pointed at one would send the user to a file that is fine.
+// The message therefore has to carry the only exit §2.4.1 leaves — naming a
+// profile in configuration — or the user is told to stop with nowhere to go.
+func TestATieBecomesAnAbortNamingTheTiedProfiles(t *testing.T) {
+	dir := profilesDir(t, map[string][]string{
+		"laravel-pest": {"artisan"},
+		"symfony":      {"artisan"},
+	})
+
+	selection, err := Select(dir, repoWith(t, "artisan"), "")
+	require.NoError(t, err)
+
+	var tie *TieError
+	require.ErrorAs(t, selection.Err(), &tie)
+	assert.Equal(t, []string{"laravel-pest", "symfony"}, tie.Profiles)
+	assert.Contains(t, tie.Error(), "laravel-pest")
+	assert.Contains(t, tie.Error(), "symfony")
+	assert.Contains(t, tie.Error(), "`profile`", "the abort names the next step")
+
+	var malformed *MalformedError
+	assert.NotErrorAs(t, selection.Err(), &malformed)
+}
