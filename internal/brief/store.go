@@ -24,6 +24,15 @@ import (
 // mapping.ndjson §4.1.6's; clearing either is §9.3.4's business on a round
 // increment, which this does not perform.
 func persist(src *Sources, assembled *Brief) error {
+	// The whole §2.3 table is created first, and not only the three files
+	// written below. Every one of the thirteen is a file some later command
+	// reads, an absent one reads as a failure rather than as no records,
+	// and `cr brief` is the command §3.7 makes responsible for the pull
+	// request's state directory existing at all. EnsurePR leaves an
+	// existing file exactly as it is, so this discards no recorded round.
+	if err := src.Layout.EnsurePR(src.Owner, src.Repo, src.PR); err != nil {
+		return err
+	}
 	held, err := src.Layout.LockPR(src.Owner, src.Repo, src.PR)
 	if err != nil {
 		return err
