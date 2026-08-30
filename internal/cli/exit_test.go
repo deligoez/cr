@@ -15,6 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,18 @@ func TestMalformedProfileExitsWithTheFileCode(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("loading profiles: %w", err)))
+}
+
+// §2.5 item 3 names the role file beside the profile one, on the same code, and
+// the abort must survive the wrapping a command adds on the way out. The file
+// here is malformed by carrying a key §2.5's table does not have, which is the
+// fault that division of labour exists to catch: a role does not get to say
+// where cr writes.
+func TestAMalformedRoleExitsWithTheFileCode(t *testing.T) {
+	_, err := role.Parse("roles/correctness.json", []byte(`{"output_path": "mine.ndjson"}`))
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("loading roles: %w", err)))
 }
 
 // §2.7 lets no layer supply the confirmation gate, the argued forcing, the
