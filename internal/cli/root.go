@@ -53,6 +53,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newAnswerCmd(out))
 	root.AddCommand(newContextCmd(out))
 	root.AddCommand(newRecordCmd(out))
+	root.AddCommand(newClaimsCmd(out))
 
 	return root
 }
