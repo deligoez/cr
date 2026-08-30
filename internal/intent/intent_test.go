@@ -130,3 +130,26 @@ func TestTheUnavailableIntentAxisIsAnHonestyDisclosure(t *testing.T) {
 	// first, or the pattern that would have recognised what is already there.
 	assert.Contains(t, disclosure, "--issue")
 }
+
+// §3.2's fallback is for finding no key, and nothing else. Two failures pass
+// through the same function and neither is one: a `intent.key_pattern` that will
+// not compile searched nothing, and a tracker that refused was asked about a key
+// that does exist. Swallowing either into the empty intent would turn a
+// configuration fault the user can fix into an intent axis silently marked
+// unavailable — §4.5.4 would disclose it, honestly and about the wrong thing,
+// and the round would carry on with no claims.
+func TestResolveSurfacesTheFailuresOfTheStepsItComposes(t *testing.T) {
+	_, err := Resolve(KeySources{Branch: "feature/CR-1-add-a-thing"}, `[A-Z`, Source{})
+	var pattern *KeyPatternError
+	require.ErrorAs(t, err, &pattern, "an uncompilable pattern is a configuration fault, not a missing key")
+
+	refusing := stubTracker(t, `echo 'no such issue' >&2; exit 1`)
+	_, err = Resolve(
+		KeySources{Branch: "feature/CR-1-add-a-thing"},
+		specDefaultPattern,
+		Source{Cmd: []string{refusing, "issue", "view", Placeholder}},
+	)
+	var command *CommandError
+	require.ErrorAs(t, err, &command, "§3.1.3 fails on a non-zero exit; the key was found and the issue was not")
+	assert.Contains(t, command.Stderr, "no such issue")
+}
