@@ -161,6 +161,13 @@ func TestAFirstBriefOpensRoundOneAndRecordsTheDerivedInputs(t *testing.T) {
 	assert.Equal(t, head, stored[0].Head, "§2.3.3 stamps head onto every unit")
 	assert.Equal(t, 1, stored[0].Round, "§2.3.3 stamps round onto every unit")
 
+	// Every file of the §2.3 table exists, not only the three this command
+	// fills: an absent one reads as a failure to the command that opens it
+	// next, and §3.7 is where the state directory comes into being.
+	for _, name := range state.PRFiles() {
+		assert.FileExists(t, src.Layout.PRFile(testOwner, testRepo, testPR, name))
+	}
+
 	ingested, err := gh.ReadThreads(src.Layout, testOwner, testRepo, testPR)
 	require.NoError(t, err)
 	require.Len(t, ingested, 1, "§3.5.1 ingests every existing thread")
