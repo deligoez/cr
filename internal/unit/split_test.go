@@ -90,13 +90,22 @@ func TestASplittableClusterOpensAUnitAtTheHunkThatWouldNotFit(t *testing.T) {
 // The flag is on that case and on nothing else, so the fixture puts an
 // ordinary hunk on either side of the oversized one — each of which the cap
 // does bind, and neither of which is flagged — and adds a second cluster whose
-// one hunk sits at exactly the cap. That last hunk is the case an
-// implementation flagging at "reaches the limit" would call oversized, and it
-// is the same boundary from the other side: a hunk at the cap is a plain unit.
+// one hunk sits at exactly the cap. That hunk is the case an implementation
+// flagging at "reaches the limit" would call oversized, and it is the same
+// boundary from the other side: a hunk at the cap is a plain unit.
+//
+// The third cluster is a lone oversized hunk, and it is the one arrangement
+// where the split has nothing open on either side of the exception: no unit is
+// waiting to be closed when it arrives, and none is left waiting when it
+// leaves. Both of the split's "is a unit open?" tests are only tests here —
+// everywhere else the answer is implied by a count — so a split that closed a
+// unit it had never opened would emit a hunkless unit at exactly this point and
+// nowhere else. Mutation testing is what named it: both boundaries survived
+// until this cluster existed.
 func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
 	maxLines := defaultMaxLines(t)
 	before, over, after := addedHunk(100, 10), addedHunk(200, maxLines+1), addedHunk(400, 10)
-	atCap := addedHunk(600, maxLines)
+	atCap, alone := addedHunk(600, maxLines), addedHunk(800, maxLines+1)
 
 	units := Split([]Cluster{
 		{
@@ -107,9 +116,13 @@ func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
 			Path: moneyPath, Side: git.Right, Formation: BySymbol,
 			Hunks: []git.Hunk{atCap},
 		},
+		{
+			Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
+			Hunks: []git.Hunk{alone},
+		},
 	}, maxLines)
 
-	require.Len(t, units, 4)
+	require.Len(t, units, 5)
 	assert.Equal(t, Cluster{
 		Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
 		Hunks: []git.Hunk{before},
@@ -126,6 +139,10 @@ func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
 		Path: moneyPath, Side: git.Right, Formation: BySymbol,
 		Hunks: []git.Hunk{atCap},
 	}, units[3], "a hunk at exactly the cap is inside it, and the formation survives the split")
+	assert.Equal(t, Cluster{
+		Path: moneyPath, Side: git.Right, Formation: ByAdjacency,
+		Hunks: []git.Hunk{alone}, Oversized: true,
+	}, units[4], "a cluster that is only an oversized hunk is that one unit and no other")
 }
 
 // §3.4.5's default for `cluster.max_lines` is 80, and §2.7 makes the built-in
