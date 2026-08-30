@@ -848,3 +848,83 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			"§5.1.1 gives the exception to the sandbox, and no sandbox command exists yet")
 	}
 }
+
+// The fingerprint sees every change §2.2 names, including the ones `git status`
+// alone would report as nothing.
+//
+// The guard above is an assertion that two readings match, and such an
+// assertion is worth exactly what the reading is worth: a fingerprint blind to
+// what it is watching for would pass forever. So each of §2.2's five is
+// disturbed here on a fixture of its own and the fingerprint is required to
+// notice.
+//
+// Two of them are the reason the reading is more than the criterion's literal
+// words. `git status` reports the working tree against HEAD, so it says the
+// same thing before and after a branch is created off the current commit, and
+// the same thing before and after HEAD is pointed at an identical commit — a
+// force-push, a rebase onto the same tree, or a checkout cr had no business
+// doing would all pass a comparison of `git status` alone. Those two cases are
+// asserted from both sides: status unchanged, fingerprint changed.
+func TestTheFingerprintSeesWhatGitStatusAloneWouldMiss(t *testing.T) {
+	for name, disturbance := range map[string]struct {
+		change    func(t *testing.T, dir string)
+		seenByGit bool
+		assertion string
+	}{
+		"a tracked file edited": {
+			change: func(t *testing.T, dir string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "app.go"), []byte("package app\n"), 0o600))
+			},
+			seenByGit: true,
+			assertion: "§2.2: a tracked file",
+		},
+		"the index moved": {
+			change: func(t *testing.T, dir string) {
+				t.Helper()
+				mustGit(t, dir, "add", "scratch.txt")
+			},
+			seenByGit: true,
+			assertion: "§2.2: the index",
+		},
+		"the stash pushed to": {
+			change: func(t *testing.T, dir string) {
+				t.Helper()
+				mustGit(t, dir, "stash", "push", "--quiet", "-m", "a second entry", "--", "app.go")
+			},
+			seenByGit: true,
+			assertion: "§2.2: the stash",
+		},
+		"a branch created off the current commit": {
+			change: func(t *testing.T, dir string) {
+				t.Helper()
+				mustGit(t, dir, "branch", "another")
+			},
+			seenByGit: false,
+			assertion: "§2.2: any branch",
+		},
+		"HEAD pointed at an identical commit": {
+			change: func(t *testing.T, dir string) {
+				t.Helper()
+				mustGit(t, dir, "symbolic-ref", "HEAD", "refs/heads/spare")
+			},
+			seenByGit: false,
+			assertion: "§2.2: HEAD",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := fixtureRepository(t)
+			before := fingerprintOf(t, dir)
+			disturbance.change(t, dir)
+			after := fingerprintOf(t, dir)
+
+			assert.NotEqual(t, before, after,
+				"%s went unnoticed, so %s is not really guarded", name, disturbance.assertion)
+			if !disturbance.seenByGit {
+				assert.Equal(t, before.status, after.status,
+					"%s is invisible to git status, which is why the fingerprint reads more than it", name)
+			}
+		})
+	}
+}
