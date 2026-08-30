@@ -297,3 +297,17 @@ func TestResolutionIgnoresWhatIsNotARoleFile(t *testing.T) {
 		corpusIDs(got))
 }
 
+// Neither on-disk layer is created before a repository has been seen, and a
+// user who has customised nothing has neither. That is the ordinary state of a
+// fresh install, not a fault: the built-ins §2.5.1 ships are the whole corpus,
+// in ascending id order.
+func TestAbsentLayersLeaveTheBuiltinsAsTheWholeCorpus(t *testing.T) {
+	got, err := Resolve(absentDir(t), absentDir(t))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"convention", "correctness", "intent-coverage", "test-adequacy"}, corpusIDs(got))
+	for _, r := range got {
+		assert.Equal(t, BuiltinLayer, r.Layer)
+	}
+}
+
