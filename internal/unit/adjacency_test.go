@@ -91,3 +91,14 @@ func TestAdjacencyMeasuresTheGapBetweenChangedLines(t *testing.T) {
 		Adjacency([]git.Hunk{hunks[0], contextOnly, hunks[1]}, gap),
 	)
 }
+
+// A file the diff leaves alone has no hunks, and no hunks is no cluster rather
+// than one empty one. The distinction is not cosmetic: §3.4.5 splits a cluster
+// by its changed line count and §3.4.6 gives every unit an id and a hash of
+// its changed lines, so an empty cluster reaching either would be a unit with
+// nothing in it — an entry in the coverage report asking a role to review a
+// change nobody made.
+func TestAdjacencyGroupsNothingOutOfNoHunks(t *testing.T) {
+	assert.Empty(t, Adjacency(nil, defaultGapLines))
+	assert.Empty(t, Adjacency([]git.Hunk{}, defaultGapLines))
+}
