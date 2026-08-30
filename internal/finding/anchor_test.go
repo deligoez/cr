@@ -67,12 +67,9 @@ func hashOf(t *testing.T, lines []string) string {
 // special case reachable from one of the three is the drift §6.2.3 says a v0.2
 // migration would be reading.
 func TestTheContentHashBranchesOnNothing(t *testing.T) {
-	parsed, err := parser.ParseFile(token.NewFileSet(), "anchor.go", nil, parser.SkipObjectResolution)
-	require.NoError(t, err)
-
-	assert.False(t, branches(bodyOf(t, parsed, "AnchorContentHash")),
+	assert.False(t, branches(bodyOf(t, "anchor.go", "AnchorContentHash")),
 		"§9.2 gives a one-line and a multi-line anchor one rule, and a branch is where the second one starts")
-	assert.True(t, branches(bodyOf(t, parsed, "ValidateAnchor")),
+	assert.True(t, branches(bodyOf(t, "anchor.go", "ValidateAnchor")),
 		"the neighbour that is all branches: without this the fence above would pass on a walker that matches nothing")
 }
 
@@ -90,17 +87,19 @@ func branches(body *ast.BlockStmt) bool {
 	return found
 }
 
-// bodyOf returns the body of one function of a parsed file, and fails when the
-// file declares no such name — a fence that lost its subject to a rename has
-// stopped fencing, and would otherwise pass by inspecting nothing.
-func bodyOf(t *testing.T, file *ast.File, name string) *ast.BlockStmt {
+// bodyOf returns the body of one function of a source file of this package, and
+// fails when the file declares no such name — a fence that lost its subject to
+// a rename has stopped fencing, and would otherwise pass by inspecting nothing.
+func bodyOf(t *testing.T, file, name string) *ast.BlockStmt {
 	t.Helper()
-	for _, decl := range file.Decls {
+	parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.SkipObjectResolution)
+	require.NoError(t, err)
+	for _, decl := range parsed.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == name {
 			return fn.Body
 		}
 	}
-	require.FailNowf(t, "the fenced function is gone", "anchor.go declares no %s", name)
+	require.FailNowf(t, "the fenced function is gone", "%s declares no %s", file, name)
 	return nil
 }
 
