@@ -187,3 +187,34 @@ func TestALeftAnchorPointingAtAHeadOnlyLineIsRefused(t *testing.T) {
 	resolves(t, trees, "app/money.go", git.Right, 7, 9)
 	resolves(t, trees, "app/money.go", git.Right, 6, 6)
 }
+
+// A side §9.2 does not define names no tree, so ResolveAnchor opens nothing.
+//
+// ValidateAnchor already closes the vocabulary on every door a record comes in
+// through, which is what makes this worth asserting rather than assuming:
+// ResolveAnchor is exported and answers on its own account, and a function that
+// trusted an upstream check would reach for a nil reader the day it is called
+// anywhere else. Refusing is also the only honest answer available — §6.1.2
+// names one tree per side, so a third side has none, and picking one would be
+// cr guessing which tree a record it cannot read meant.
+//
+// The readers fail the test if they are called at all, because "refused" and
+// "read the head anyway and happened not to find it" are the same error to a
+// caller and different faults.
+func TestASideNamingNeitherTreeResolvesAgainstNothing(t *testing.T) {
+	unread := func(path string) ([]string, bool, error) {
+		require.FailNow(t, "no tree is opened for a side §9.2 does not define", "read %q", path)
+		return nil, false, nil
+	}
+	trees := Trees{Head: unread, MergeBase: unread}
+
+	for _, side := range []git.Side{"", "right", "Right", "RIGHT ", "MIDDLE", "BOTH"} {
+		anchor := anAnchor()
+		anchor.Side = side
+		rejected := refusesToResolve(t, trees, &anchor)
+		assert.Contains(t, rejected.Error(), string(git.Right))
+		assert.Contains(t, rejected.Error(), string(git.Left))
+		assert.Contains(t, rejected.Error(), string(side),
+			"the value is quoted back, because a side that is nearly right is invisible otherwise")
+	}
+}
