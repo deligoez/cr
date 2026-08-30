@@ -258,13 +258,13 @@ func TestEveryIngestedThreadIsTaggedHumanOrBot(t *testing.T) {
 func TestOnlyGitHubsOwnBotTypeIsTaggedBot(t *testing.T) {
 	const authors = `{"data":{"repository":{"pullRequest":{"reviewThreads":{
 		"pageInfo":{"hasNextPage":false},"nodes":[
-		{"id":"PRRT_1","comments":{"pageInfo":{"hasNextPage":false},
+		{"id":"PRRT_1","diffSide":"RIGHT","comments":{"pageInfo":{"hasNextPage":false},
 			"nodes":[{"id":"c1","author":{"__typename":"User","login":"dependabot[bot]"}}]}},
-		{"id":"PRRT_2","comments":{"pageInfo":{"hasNextPage":false},
+		{"id":"PRRT_2","diffSide":"RIGHT","comments":{"pageInfo":{"hasNextPage":false},
 			"nodes":[{"id":"c2","author":{"__typename":"Mannequin","login":"imported"}}]}},
-		{"id":"PRRT_3","comments":{"pageInfo":{"hasNextPage":false},
+		{"id":"PRRT_3","diffSide":"RIGHT","comments":{"pageInfo":{"hasNextPage":false},
 			"nodes":[{"id":"c3","author":null}]}},
-		{"id":"PRRT_4","comments":{"pageInfo":{"hasNextPage":false},
+		{"id":"PRRT_4","diffSide":"RIGHT","comments":{"pageInfo":{"hasNextPage":false},
 			"nodes":[{"id":"c4","author":{"__typename":"Bot","login":"copilot"}}]}}
 		]}}}}}`
 
