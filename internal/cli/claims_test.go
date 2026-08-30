@@ -318,3 +318,39 @@ func TestANoteSourcedClaimIsStoredLikeAnyOther(t *testing.T) {
 	assert.Equal(t, tracker.Round, fromNote.Round)
 	assert.Empty(t, tracker.NoteID, "and a tracker claim beside it names no note")
 }
+
+// §3.3.1's second half on its own: this round's mapping entries go.
+//
+// It is a test of its own because the fixture the other cases share carries no
+// mapping entry for the round being recorded, so the clearing is a no-op there
+// and a command that never cleared at all would satisfy them. Mutation testing
+// found exactly that: negating the error check in storeClaims, which skips the
+// clearing entirely, survived the whole suite. The entry written here is the
+// one thing that makes the clearing observable.
+//
+// §4.1.6 is why it has to happen. A mapping binds a claim id to a unit, and
+// this command has just replaced the claim ids; a mapping left standing would
+// bind units to claims that no longer exist.
+func TestRecordingClaimsClearsThisRoundsMappingEntries(t *testing.T) {
+	layout := claimedHome(t)
+	held, err := layout.LockPR(claimsOwner, claimsRepo, claimsPRNum)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileMapping, []byte(
+		`{"claim":"`+claimsIssue+`#c9","unit":"u4","head":"1f2e3d4c","round":1}`+"\n"+
+			`{"claim":"`+claimsIssue+`#c1","unit":"u1","head":"`+claimsHead+`","round":2}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	file := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+	)
+	require.NoError(t, runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t)))
+
+	mapping, err := layout.ReadPR(claimsOwner, claimsRepo, claimsPRNum, state.FileMapping)
+	require.NoError(t, err)
+	assert.Equal(t,
+		`{"claim":"`+claimsIssue+`#c9","unit":"u4","head":"1f2e3d4c","round":1}`+"\n",
+		string(mapping),
+		"§3.3.1 clears this round's entry, and §9.3.5 leaves the round before's alone")
+}
