@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -56,7 +57,12 @@ type Unit struct {
 }
 
 // Units records §3.4.6's fields for the units §3.4.5 left, numbering them `u1`
-// upwards in the order they arrive.
+// upwards in §3.4.6's assignment order.
+//
+// The ids are round-scoped: they are computed here from the round's own
+// clusters and read from nowhere, so §3.4.6's "MUST NOT be carried across
+// rounds" is a thing this package cannot do rather than a thing it refrains
+// from doing.
 //
 // The error is §1.4 step 1's, reached when a changed line is not valid UTF-8.
 // It is returned rather than swallowed for the reason text.NormalisedHash
@@ -64,14 +70,80 @@ type Unit struct {
 // would turn that refusal into a value indistinguishable from a real one.
 func Units(clusters []Cluster) ([]Unit, error) {
 	units := make([]Unit, 0, len(clusters))
-	for i := range clusters {
-		formed, err := clusters[i].record(len(units) + 1)
+	for _, cluster := range order(clusters) {
+		formed, err := cluster.record(len(units) + 1)
 		if err != nil {
 			return nil, err
 		}
 		units = append(units, formed)
 	}
 	return units, nil
+}
+
+// order puts §3.4.5's clusters into the order §3.4.6 assigns ids in: ascending
+// first file path, then side with `LEFT` before `RIGHT`, then ascending first
+// changed line.
+//
+// The side sits between the two keys §3.4.6 names because this is the one
+// comparison in §3.4 that ranges over both sides at once. Everywhere else
+// §3.4.4's partition has already separated them, and a line number is read in
+// the one coordinate space its partition fixes. Here two units of one file can
+// meet whose first changed lines are the same number in different file
+// versions — a `LEFT` number naming a merge-base line and a `RIGHT` one naming
+// a head line — and comparing them leaves the two units tied. A tie is not a
+// harmless arbitrary choice: §2.1.1 requires the same inputs to give the same
+// result, and an order that has to break a tie by whatever the input order
+// happened to be is not an order at all. `LEFT` before `RIGHT` is §8.3.3's
+// convention, taken from there rather than invented so cr sorts by side in one
+// direction wherever it sorts by side.
+//
+// It sorts pointers into a copy of the slice header rather than the clusters
+// themselves, so the caller's slice comes back in the order it was given.
+func order(clusters []Cluster) []*Cluster {
+	ordered := make([]*Cluster, len(clusters))
+	for i := range clusters {
+		ordered[i] = &clusters[i]
+	}
+	slices.SortStableFunc(ordered, compareClusters)
+	return ordered
+}
+
+// compareClusters is order's comparison. It is stable-sorted rather than
+// sorted, so two clusters no key separates keep the order §3.4.4 formed them
+// in, which is itself fixed by the diff. Nothing a diff produces reaches that
+// case — two clusters of one file and one side always differ in their first
+// changed line — but a total order that leans on "nothing reaches it" is one
+// assertion away from not being total.
+func compareClusters(a, b *Cluster) int {
+	if by := strings.Compare(a.Path, b.Path); by != 0 {
+		return by
+	}
+	if by := sideRank(a.Side) - sideRank(b.Side); by != 0 {
+		return by
+	}
+	return firstChangedLine(a) - firstChangedLine(b)
+}
+
+// sideRank is §8.3.3's ordering of the two sides §9.2 allows: `LEFT` before
+// `RIGHT`.
+func sideRank(side git.Side) int {
+	if side == git.Left {
+		return 0
+	}
+	return 1
+}
+
+// firstChangedLine is the cluster's first changed line, numbered on its own
+// side, and 0 for a cluster whose hunks changed no line — the fallback branch
+// of §3.4.4, which has no line to be ordered by and is ordered by the stable
+// sort instead.
+func firstChangedLine(c *Cluster) int {
+	for i := range c.Hunks {
+		if first, _, ok := changedSpan(&c.Hunks[i]); ok {
+			return first
+		}
+	}
+	return 0
 }
 
 // record writes one cluster down as §3.4.6's unit, numbered n.
