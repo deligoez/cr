@@ -1,6 +1,7 @@
 package finding
 
 import (
+	"go/ast"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,4 +56,60 @@ func stamped(t *testing.T, content string) string {
 	citation := Citation{Path: "app/Models/Order.php", Line: 42}
 	require.NoError(t, citation.StampContentHash(content))
 	return citation.ContentHash
+}
+
+// theseLines are the shapes a citation hash and a one-line anchor hash could
+// part company over if they were computed by two rules: indentation, trailing
+// whitespace, whitespace that §1.4 leaves alone, an empty line, and a line that
+// is nothing but whitespace and so normalises to the empty text.
+var theseLines = []string{
+	citedLine,
+	"return $this->total;",
+	"\treturn $this->total;",
+	"return $this->total;  ",
+	"return $this->total; ",
+	"",
+	"   \t ",
+}
+
+// §6.2.3 records the citation hash so a v0.2 migration can detect drift, and a
+// drift check compares stored values: the citation's against the anchor's. That
+// only means anything while both are the same rule, and round 8's finding is
+// that nothing in the document said so.
+//
+// The values are asserted first, over the shapes two rules would disagree
+// about. But a second rule that agrees today passes that and stops agreeing the
+// moment either half is touched, and no assertion about values can tell the two
+// apart — what separates them is only that a second rule exists at all, which
+// nothing but the source can say. So the fence is read off the source as well:
+// the stamp reaches a digest through AnchorContentHash and through nothing else.
+func TestACitationHashesItsLineAsAOneLineAnchor(t *testing.T) {
+	for _, line := range theseLines {
+		assert.Equal(t, hashOf(t, []string{line}), stamped(t, line),
+			"a citation names one line, so its hash is §9.2's rule over a range of one: %q", line)
+	}
+
+	assert.Equal(t, []string{"AnchorContentHash"}, calls(bodyOf(t, "citation.go", "StampContentHash")),
+		"§9.2's rule is reached by calling it; a second call here is where the second rule starts")
+}
+
+// calls returns the name of every function a body calls, in source order, a
+// selector spelled by its own last name so a package-qualified call is named as
+// it is written.
+func calls(body *ast.BlockStmt) []string {
+	names := make([]string, 0, 1)
+	ast.Inspect(body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		switch fn := call.Fun.(type) {
+		case *ast.Ident:
+			names = append(names, fn.Name)
+		case *ast.SelectorExpr:
+			names = append(names, fn.Sel.Name)
+		}
+		return true
+	})
+	return names
 }
