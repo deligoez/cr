@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/unit"
 )
 
 // The two seams `cr brief` reaches the outside world through.
@@ -41,16 +44,196 @@ var (
 // which §3.7 wrote this command to stop it doing.
 type briefResult struct {
 	*brief.Brief
+	// Honesty is §4.5.4's report, rendered as the sentences §11.1 exempts
+	// from `--quiet`. It is a field on the payload rather than a second
+	// stream, so the reader of the JSON document and the reader of the
+	// terminal are told the same thing by the same values.
+	Honesty []string `json:"honesty"`
 }
 
-// Text names what the run recorded: the pull request, the round it stands in,
-// and the head that round is oriented on.
+// newBriefResult renders §3.7's payload for printing, and with it §4.5.4's
+// report of every lens that did not run.
+//
+// The disclosures are asked of the payload rather than assembled here.
+// activation.Activation and profile.MissingProfile each own the sentence they
+// are reported in, and a wording built at the call site would be a second
+// answer that can disagree with the data beside it.
+func newBriefResult(assembled *brief.Brief) *briefResult {
+	disclosed := assembled.Disclosures()
+	honesty := make([]string, 0, len(disclosed))
+	for _, entry := range disclosed {
+		honesty = append(honesty, entry.Disclosure())
+	}
+	return &briefResult{Brief: assembled, Honesty: honesty}
+}
+
+// Text renders §3.7's six items in the order §3.7 numbers them.
+//
+// Nothing here ranks, scores, weighs, or summarises. Every line is a value cr
+// fetched or computed — an identity, a hash, a range, a reason some other
+// section already fixed — because §3.7 has the brief print "without judgement"
+// and invariant 1 leaves cr no way to form one. The rendering's only decisions
+// are order and indentation.
 func (r *briefResult) Text(w *writer) string {
-	return "briefed " + w.accent(r.Owner+"/"+r.Repo+"#"+strconv.Itoa(r.PR)) +
-		" in round " + strconv.Itoa(r.Round) +
-		" at head " + r.Head +
-		": " + strconv.Itoa(len(r.Units)) + " unit(s), " +
-		strconv.Itoa(len(r.Threads)) + " thread(s)"
+	var out strings.Builder
+	r.identity(w, &out)
+	r.issue(w, &out)
+	r.claims(w, &out)
+	r.units(w, &out)
+	r.threadsAndNotes(w, &out)
+	r.axes(w, &out)
+	return strings.TrimRight(out.String(), "\n")
+}
+
+// identity is §3.7.1: the pull request, its head, its merge base, and the
+// resolved profile together with the layer that selected it.
+func (r *briefResult) identity(w *writer, out *strings.Builder) {
+	fmt.Fprintf(out, "%s %s round %d\n",
+		w.accent("pull request"), r.Owner+"/"+r.Repo+"#"+strconv.Itoa(r.PR), r.Round)
+	fmt.Fprintf(out, "  head       %s\n", r.Head)
+	fmt.Fprintf(out, "  merge base %s\n", r.MergeBase)
+	if r.Profile.Selected {
+		fmt.Fprintf(out, "  profile    %s, selected by %s\n",
+			r.Profile.ID, r.Profile.SelectionLayer)
+		return
+	}
+	fmt.Fprintf(out, "  profile    none, %s\n", r.Profile.SelectionLayer)
+}
+
+// issue is §3.7.2: the key and the source it was resolved from, with the issue
+// text, or the reason no key was found.
+//
+// The text is printed whole rather than trimmed to a first line. §3.3 has the
+// agent draw every claim out of it as a verbatim span, and a preview would be
+// text no span could be checked against.
+func (r *briefResult) issue(w *writer, out *strings.Builder) {
+	if r.Issue.Key == "" {
+		fmt.Fprintf(out, "\n%s none: %s\n", w.accent("issue"), r.Issue.Reason)
+		return
+	}
+	fmt.Fprintf(out, "\n%s %s, from the %s\n", w.accent("issue"), r.Issue.Key, r.Issue.Origin)
+	for _, line := range strings.Split(strings.TrimRight(r.Issue.Text, "\n"), "\n") {
+		fmt.Fprintf(out, "  | %s\n", line)
+	}
+}
+
+// claims is §3.7.3: the claims of §3.3, and whether the issue text has drifted
+// per §3.3.3.
+//
+// Drift is reported per claim as well as in one line, because the two answer
+// different questions: the hashes say the issue text moved, and `span present`
+// says whether this claim's own span survived it. §1.4 normalises before
+// hashing, so a whitespace-only edit leaves the hashes equal and can still take
+// a span away.
+func (r *briefResult) claims(w *writer, out *strings.Builder) {
+	drifted := "issue text unchanged since extraction"
+	if r.Drift.Drifted {
+		drifted = "issue text has drifted since extraction, per §3.3.3"
+	}
+	fmt.Fprintf(out, "\n%s %d recorded; %s\n",
+		w.accent("claims"), len(r.Claims), drifted)
+	for i := range r.Claims {
+		fmt.Fprintf(out, "  %s  %s\n", r.Claims[i].ID, r.Claims[i].Text)
+	}
+	for i := range r.Drift.Claims {
+		fmt.Fprintf(out, "  %s  span %s\n",
+			r.Drift.Claims[i].ID, spanState(r.Drift.Claims[i].SpanOccurs))
+	}
+}
+
+// spanState words §3.3.3's per-claim answer.
+func spanState(occurs bool) string {
+	if occurs {
+		return "still occurs in the issue text"
+	}
+	return "no longer occurs in the issue text"
+}
+
+// units is §3.7.4: the units of §3.4 with their file paths, hunk ranges, and
+// unit hashes.
+func (r *briefResult) units(w *writer, out *strings.Builder) {
+	fmt.Fprintf(out, "\n%s %d\n", w.accent("units"), len(r.Units))
+	for i := range r.Units {
+		formed := &r.Units[i]
+		fmt.Fprintf(out, "  %s  %s %s  %s  %s  by %s%s\n",
+			formed.ID, formed.Path, formed.Side,
+			ranges(formed.HunkRanges), formed.Hash, formed.Formation,
+			oversized(formed.Oversized))
+	}
+}
+
+// ranges renders a unit's hunk ranges, both ends inclusive and head-side, in
+// the order §3.4.6 records them.
+func ranges(hunks []unit.Range) string {
+	spans := make([]string, 0, len(hunks))
+	for _, span := range hunks {
+		spans = append(spans, strconv.Itoa(span.Start)+"-"+strconv.Itoa(span.End))
+	}
+	return strings.Join(spans, ",")
+}
+
+// oversized names §3.4.5's one exception, and nothing at all otherwise: a flag
+// printed on every unit would be noise on all but the rare one it is about.
+func oversized(flagged bool) string {
+	if flagged {
+		return ", oversized per §3.4.5"
+	}
+	return ""
+}
+
+// threadsAndNotes is §3.7.5: the ingested threads of §3.5 and the notes of
+// §3.6 for the issue key.
+//
+// A thread is printed with its author type and its anchor and with no class:
+// §3.5.3 forbids cr to assign one or to decide suppression, so what is shown is
+// where the thread hangs and who wrote it, and the agent decides the rest.
+func (r *briefResult) threadsAndNotes(w *writer, out *strings.Builder) {
+	fmt.Fprintf(out, "\n%s %d\n", w.accent("threads"), len(r.Threads))
+	for i := range r.Threads {
+		thread := &r.Threads[i]
+		fmt.Fprintf(out, "  %s  %s:%d %s  by %s (%s)%s\n",
+			thread.ID, thread.Anchor.Path, thread.Anchor.Line, thread.Anchor.Side,
+			thread.Comment.Author, thread.AuthorType, resolvedState(thread.Resolved))
+	}
+	fmt.Fprintf(out, "\n%s %d\n", w.accent("notes"), len(r.Notes))
+	for i := range r.Notes {
+		fmt.Fprintf(out, "  %s  %s\n", r.Notes[i].ID, provenanceOf(&r.Notes[i]))
+		fmt.Fprintf(out, "    %s\n", r.Notes[i].Text)
+	}
+}
+
+// resolvedState names §3.5.1's resolution state, which is recorded and never
+// used to drop a thread.
+func resolvedState(resolved bool) string {
+	if resolved {
+		return ", resolved"
+	}
+	return ""
+}
+
+// axes is §3.7.6: the active, disabled, and unavailable axes with their reasons
+// per §4.5.
+//
+// The reasons are the disclosures of §4.5.4, printed whole. §11.1 exempts them
+// from `--quiet`, and a reader told an axis is off without being told why has
+// been told the count and not the fact.
+func (r *briefResult) axes(w *writer, out *strings.Builder) {
+	fmt.Fprintf(out, "\n%s active: %s\n", w.accent("axes"), listed(r.Axes.Active))
+	for _, entry := range r.Honesty {
+		fmt.Fprintf(out, "  %s\n", entry)
+	}
+	if len(r.Honesty) == 0 {
+		fmt.Fprintf(out, "  every axis of §1.5 ran; nothing was disabled or unavailable\n")
+	}
+}
+
+// listed renders a set of ids, and says so when there are none rather than
+// printing an empty line a reader would have to interpret.
+func listed(ids []string) string {
+	if len(ids) == 0 {
+		return "none"
+	}
+	return strings.Join(ids, ", ")
 }
 
 // newBriefCmd assembles and prints the orientation payload of §3.7, and records
@@ -113,7 +296,7 @@ func newBriefCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return out.emit(&briefResult{Brief: assembled})
+			return out.emit(newBriefResult(assembled))
 		},
 	}
 	cmd.Flags().StringVar(&issue, "issue", "",
