@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // runIn runs one cr command against whatever CR_HOME already points at, and
@@ -109,4 +110,62 @@ func TestATerminalContextNamesEachNotesProvenance(t *testing.T) {
 	assert.Contains(t, out, ", answering f3")
 	assert.Contains(t, out, "\n    the retry is deliberate\n")
 	assert.NotContains(t, out, "answering\n", "a note answering no record names none")
+}
+
+// brief writes the §2.3 metadata `cr brief` leaves behind for one pull request,
+// so a later command can resolve the issue key it belongs to. Two pull requests
+// briefed under one key is the arrangement §3.6.4's second half is about.
+func brief(t *testing.T, layout state.Layout, pr int, issueKey string) {
+	t.Helper()
+	require.NoError(t, layout.EnsurePR(answeredOwner, answeredRepo, pr))
+
+	held, err := layout.LockPR(answeredOwner, answeredRepo, pr)
+	require.NoError(t, err)
+	recorded := state.Meta{Owner: answeredOwner, Repo: answeredRepo, PR: pr, IssueKey: issueKey}
+	require.NoError(t, held.WriteMeta(&recorded))
+	require.NoError(t, held.Unlock())
+}
+
+// §3.6.4's second half: a note recorded against one pull request is loaded for
+// every subsequent pull request that resolves to the same issue key.
+//
+// Two pull requests are briefed under CR-7. The fact is recorded from #1 and
+// never from #2, and it is then read back twice from #2's side. `cr answer 2`
+// allocates CR-7#n2, which it could only have done having loaded #1's note —
+// §3.6.1 numbers a note by counting the ones the store already holds, so a
+// store scoped to the pull request would have given it CR-7#n1 and overwritten
+// nothing anybody could see. `cr context` then prints both, and #1's note is
+// still there carrying the pull request it came from, which is the other half
+// of the claim: the PR field is provenance and is not read as a scope.
+//
+// §9.3.5 exempts this store from round scoping outright, so neither read is
+// narrowed by a round either. The round half of §3.6.4 has no round machinery
+// to drive yet and belongs to notes-auto-loaded; what is fixed here is the
+// store's shape, which is what that task will load through.
+func TestANoteRecordedAgainstOnePullRequestLoadsForAnother(t *testing.T) {
+	layout := state.New(crHome(t))
+	require.NoError(t, layout.Init())
+	brief(t, layout, 1, "CR-7")
+	brief(t, layout, 2, "CR-7")
+
+	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "1")
+	require.NoError(t, err)
+
+	answered, err := runIn(t, "answer", "2", "f3", "the retry is deliberate",
+		"--source", "thread", "--repo", answeredSlug)
+	require.NoError(t, err)
+	assert.Contains(t, answered, `"id": "CR-7#n2"`,
+		"§3.6.4: the answer on #2 numbered over #1's note, so the store loaded across pull requests")
+
+	out, err := runContext(t, "CR-7")
+	require.NoError(t, err)
+
+	var printed struct {
+		Notes []note.Note `json:"notes"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &printed))
+	require.Len(t, printed.Notes, 2, "§3.6.4: a note is not scoped to the pull request it came from")
+	assert.Equal(t, "the deadline moved to Friday", printed.Notes[0].Text)
+	assert.Equal(t, 1, printed.Notes[0].PR, "the pull request is provenance, and it survives the read")
+	assert.Equal(t, 2, printed.Notes[1].PR)
 }
