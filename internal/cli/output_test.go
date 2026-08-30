@@ -840,8 +840,10 @@ func TestTheOmissionTableRefusesAFoundingField(t *testing.T) {
 }
 
 // jsonName is the key a field prints under, with the options after it dropped.
-func jsonName(field reflect.StructField) string {
-	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+// It takes the tag rather than the field, which is a hundred bytes of reflect
+// metadata this has no use for.
+func jsonName(tag reflect.StructTag) string {
+	name, _, _ := strings.Cut(tag.Get("json"), ",")
 	return name
 }
 
@@ -857,7 +859,7 @@ func TestEveryPlaceAnIngestedThreadKeepsABodyIsOmitted(t *testing.T) {
 	comment := reflect.TypeFor[gh.Comment]()
 	body, carried := comment.FieldByName("Body")
 	require.True(t, carried, "§3.5.1 ingests a thread's body, and gh.Comment is what holds it")
-	require.Equal(t, "body", jsonName(body), "the omission names the key gh.Comment prints under")
+	require.Equal(t, "body", jsonName(body.Tag), "the omission names the key gh.Comment prints under")
 
 	thread := reflect.TypeFor[gh.Thread]()
 	holders := make([]string, 0, 2)
@@ -870,9 +872,9 @@ func TestEveryPlaceAnIngestedThreadKeepsABodyIsOmitted(t *testing.T) {
 		if held != comment {
 			continue
 		}
-		under := jsonName(field)
+		under := jsonName(field.Tag)
 		holders = append(holders, under)
-		assert.True(t, compactOmits[under+"."+jsonName(body)],
+		assert.True(t, compactOmits[under+"."+jsonName(body.Tag)],
 			"§12.5: a thread keeps a body under %q, and --compact does not omit it", under)
 	}
 
