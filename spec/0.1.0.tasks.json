@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T19:59:02.815915Z",
+  "updated_at": "2026-08-30T20:09:34.613186Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3839,7 +3839,7 @@
     {
       "id": "citation-content-hash",
       "title": "Define the citation content hash preimage",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-computed-field-rejection",
@@ -3850,11 +3850,23 @@
       "source_sections": [
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T19:59:50.745371Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T20:09:34.587205Z",
+      "closed_reason": "- Round 8's finding undefined-hash-preimage is answered in internal/finding/citation.go: (*Citation).StampContentHash computes a citation's content_hash as AnchorContentHash over a slice of one line, which is §9.2's rule per §1.4 applied to the single line the citation names, reached by reference exactly as §6.2.3 reaches it (recorded per §9.2.3).\n- The pre-image is named once rather than twice: the value is the anchor function's own, so a citation's hash and a one-line anchor's over the same text are one value by construction and cannot drift apart.\n- That comparability is what §6.2.3 says a v0.2 drift check depends on, and TestACitationHashesItsLineAsAOneLineAnchor holds it two ways: the stored hash equals AnchorContentHash over the same line across seven shapes two rules would disagree about (indentation, trailing whitespace, whitespace §1.4 leaves alone, the empty line, a whitespace-only line), and the source fence asserts StampContentHash's body calls AnchorContentHash and nothing else, so a second rule cannot be added without the test failing.\n- cr computes the hash and stores it at record time: stamping is a method on the citation and the only exported way the field is filled, and the field is left untouched when §1.4 step 1 refuses the line, so an undecodable line has no hash rather than the hash of nothing.\n- The agent never supplies it: §6.1's table already marks citations[].content_hash Computed and checker.computedCitations rejects a record arriving with one through every door, which TestSuppliedComputedFieldsAreRejected covers; nothing was rebuilt there.\n- TestTheStoredCitationHashIsFixedAndFollowsTheLine fixes the value for a known cited line: the tab-indented, double-spaced, trailing-space line normalises to ' if ($total \u003e 0) {' and pins 0d6c58b99de69ac1 as a literal, and asserts it is not 65abc82d59be1121, the equally well-formed value a stamp that skipped Normalise would store.\n- The same test asserts the hash changes when the line changes (\u003e becomes \u003e=) and does not change when only the line's whitespace changes, which is the half a raw-bytes hash would break while passing every shape assertion.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh. Mutation testing: Killed 559 (+1), Lived 13, Not covered 39, Timed out 6, efficacy 97.73% — no new survivor.",
+      "gate_passed_at": "2026-08-30T20:09:34.587205Z",
+      "commit_sha": "0bafce5",
+      "commit_shas": [
+        "0bafce5",
+        "b6e3d74",
+        "d280fb3",
+        "7fe6439"
+      ],
+      "commit_files": [
+        "internal/finding/anchor_test.go",
+        "internal/finding/citation.go",
+        "internal/finding/citation_test.go"
+      ]
     },
     {
       "id": "grade-computation",
