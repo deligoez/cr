@@ -143,6 +143,17 @@ func exitCodeFor(err error) int {
 		// the block lands whether or not --confirm was given.
 		return ExitValidation
 	}
+	var illegalTransition *finding.IllegalTransitionError
+	if errors.As(err, &illegalTransition) {
+		// §9.1: a transition its table does not list MUST be rejected
+		// with exit code 4, naming the record and its current state. It
+		// is the first thing mapped onto ExitState, and it is a state
+		// conflict rather than bad input: the file parsed, the record
+		// is well-formed, and the command line is right. What refuses
+		// is where the record already stands, which no retyping and no
+		// edit to the input can change.
+		return ExitState
+	}
 	var noPRState *note.NoStateError
 	if errors.As(err, &noPRState) {
 		// §2.2's state directory is opened by `cr brief`, and §3.6.2's
