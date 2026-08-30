@@ -125,3 +125,33 @@ func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T)
 	}
 }
 
+// The three commands brief-creates-state names are guarded here or named as not
+// yet built, and neither state is assumed.
+//
+// The criterion asks for a test that runs `cr review`, `cr cells record` and
+// `cr map record` against a pull request that was never briefed. None of the
+// three exists in v0.1 yet, and a test written against a command that is not
+// there would assert nothing while looking like it asserted everything. So the
+// absence is the assertion: the moment one of them is registered it drops out
+// of the list below and this test fails until it has an invocation in briefRuns
+// — where the guard above then runs it and requires exit 4.
+func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
+	claims, issue, merged := unbriefedInputs(t)
+	guarded := briefRuns(claims, issue, merged)
+
+	var absent []string
+	for _, path := range section37Obliges {
+		name := strings.Join(path, " ")
+		found, _, err := newRootCmd().Find(path)
+		if err != nil || found.Name() != path[len(path)-1] {
+			absent = append(absent, name)
+			continue
+		}
+		assert.Containsf(t, guarded, name,
+			"%s is registered and reads units.ndjson, so it needs an invocation in briefRuns", name)
+	}
+	slices.Sort(absent)
+
+	assert.Equal(t, []string{"cells record", "map record", "review"}, absent,
+		"a command §3.7 obliges has been built or renamed: give it an invocation in briefRuns")
+}
