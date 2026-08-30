@@ -99,12 +99,6 @@ const (
 	DispositionNotHere Disposition = "not-here"
 )
 
-// State is the record's state in the §9.1 table. The set of states and the
-// exhaustive transition table that governs it are §9.1's own and are defined
-// with them; §6.1 only records that the field exists, is computed, and is
-// written by no command outside §9.1.
-type State string
-
 // Citation is one entry of §6.1's citations array: a location in the code that
 // a human can open.
 //
@@ -219,8 +213,11 @@ type Finding struct {
 	Suggestion string `json:"suggestion,omitempty"`
 	// SuggestionOrigin says what produced them.
 	SuggestionOrigin Origin `json:"suggestion_origin,omitempty"`
-	// State is computed, written only by the commands of §9.1.
-	State State `json:"state,omitempty"`
+	// State is computed, written only by the commands of §9.1, and holds
+	// one of state.go's seven. omitzero rather than omitempty because a
+	// State is a struct: a record that has been through no §9.1 transition
+	// carries no state, and the key is left off rather than written empty.
+	State State `json:"state,omitzero"`
 	// Disposition is set once the record is discarded (§7.2).
 	Disposition Disposition `json:"disposition,omitempty"`
 	// DuplicateOf names the representative when §6.4.3 suppressed this
