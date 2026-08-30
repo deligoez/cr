@@ -237,3 +237,19 @@ func TestRecordRefusesTheThreeFaultsSection613Names(t *testing.T) {
 	assert.Equal(t, "role", refuse(t, finding.FanOutFile("test"), aRecord("f1", "u1")),
 		"§6.1.3 binds a record's role to the role whose §4.6.2 output file it arrived in")
 }
+
+// §12.1's other shape for this command. A terminal reader gets the count and
+// the state, not the documents: the records came out of the caller's own file,
+// so the one thing the run produced that they do not already have is what §9.1
+// made of them.
+func TestATerminalRecordNamesTheCountAndTheState(t *testing.T) {
+	recordedHome(t)
+	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), aRecord("f2", "u2"))
+
+	out := throughATerminal(t, "record", recordPR, file, "--repo", recordSlug)
+
+	assert.Contains(t, out, "recorded ")
+	assert.Contains(t, out, "\x1b[36m2\x1b[0m",
+		"the count is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, " in state draft")
+}
