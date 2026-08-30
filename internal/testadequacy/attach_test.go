@@ -100,3 +100,25 @@ func TestTheAttachmentIsExactlyTheRoundsChangedTestFiles(t *testing.T) {
 	assert.Equal(t, changedTests, attached.Paths)
 }
 
+// §4.4.1 attaches to *every* unit, and every unit gets the same attachment.
+//
+// The sameness is the rule, not an implementation shortcut. Narrowing one unit's
+// test files to the ones that bear on it is precisely the coverage judgement
+// §2.1.3 reserves for the agent, and cr making it one step early — while calling
+// the result an attachment — would be the tool forming the opinion P5 forbids,
+// in the one place nobody would look for it. So the units decide the count here
+// and nothing else, and the assertion is that no unit is shown a different set.
+func TestEveryUnitIsAttachedTheSameTestFiles(t *testing.T) {
+	p := laravelPest(t)
+	clusters := unit.Clusters(hunks(t), &p, nil, 10)
+	require.Greater(t, len(clusters), 1, "the patch has to form more than one unit for this to say anything")
+
+	attached := Attach(&p, index{}, hunks(t))
+	per := PerUnit(clusters, attached)
+
+	require.Len(t, per, len(clusters))
+	for i, one := range per {
+		assert.Equal(t, attached, one, "unit %d was shown a different attachment", i)
+	}
+}
+
