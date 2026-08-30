@@ -7,9 +7,11 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -351,7 +353,7 @@ func TestNoOutputStructPrintsANullArray(t *testing.T) {
 	for _, payload := range outputStructs {
 		listed = append(listed, payloadName(payload))
 	}
-	require.ElementsMatch(t, emittablePayloads(t), listed,
+	require.ElementsMatch(t, slices.Collect(maps.Keys(emittablePayloads(t))), listed,
 		"a payload cr can print is a place a null array can appear: walk it here too")
 
 	for _, payload := range outputStructs {
@@ -372,19 +374,19 @@ func TestNoOutputStructPrintsANullArray(t *testing.T) {
 }
 
 // emittablePayloads reads out of internal/cli's own source the name of every
-// type a command can emit: one whose Text method takes the writer, which is
-// what the result interface asks for.
+// type a command can emit — one whose Text method takes the writer, which is
+// what the result interface asks for — against the file that declares it.
 //
 // Nothing outside this package can implement it — writer is unexported — so
 // the package's source is the whole list, and a payload written years from now
 // by someone who never read §12.3 is on it whether or not they remember this
 // test exists.
-func emittablePayloads(t *testing.T) []string {
+func emittablePayloads(t *testing.T) map[string]string {
 	t.Helper()
 	sources, err := os.ReadDir(".")
 	require.NoError(t, err)
 
-	names := make([]string, 0, len(outputStructs))
+	names := make(map[string]string, len(outputStructs))
 	for _, source := range sources {
 		name := source.Name()
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -394,7 +396,7 @@ func emittablePayloads(t *testing.T) []string {
 		require.NoError(t, err)
 		for _, decl := range parsed.Decls {
 			if method, ok := decl.(*ast.FuncDecl); ok && rendersForTheWriter(method) {
-				names = append(names, receiverName(method))
+				names[receiverName(method)] = name
 			}
 		}
 	}
