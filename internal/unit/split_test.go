@@ -127,3 +127,17 @@ func TestAHunkOverTheCapAloneIsOneOversizedUnit(t *testing.T) {
 		Hunks: []git.Hunk{atCap},
 	}, units[3], "a hunk at exactly the cap is inside it, and the formation survives the split")
 }
+
+// §3.4.5's default for `cluster.max_lines` is 80, and §2.7 makes the built-in
+// defaults the lowest layer rather than a constant somewhere in the splitting
+// code. Both halves are asserted, as they are for the gap: the number, and
+// that a layer above the default can actually reach the key — which a name
+// absent from the settings table could not, since an unknown key configures
+// nothing.
+func TestTheMaxLinesDefaultComesFromTheSettingsTable(t *testing.T) {
+	assert.Equal(t, 80, defaultMaxLines(t))
+
+	cfg, err := config.Resolve(config.Sources{Flags: map[string]any{"cluster.max_lines": 40}})
+	require.NoError(t, err)
+	assert.Equal(t, 40, cfg.Int("cluster.max_lines"))
+}
