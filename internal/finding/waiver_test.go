@@ -193,3 +193,42 @@ func TestAWaiverReachesOneClassInOneFileInOneTree(t *testing.T) {
 		})
 	}
 }
+
+// §7.4.2 is the trust-economy argument for a narrow key, and it is a claim in
+// two directions. A key too wide silences a finding the author never waived; a
+// key too narrow makes the author dismiss the same thing every round, which
+// costs the reviewer's standing just as surely.
+//
+// The key answers both by carrying the anchored code itself where §6.4.1's
+// dedup key carries the line number. Code that moved down the file is the same
+// code, so the waiver still holds — the two line numbers are deliberately not in
+// the key, and this is what that buys — and §1.4 normalises before the digest,
+// so re-indenting the body of the branch is not a change to it either. Code that
+// was edited is not the same code, so the waiver stops: §7.4.2 says that is
+// exactly when the judgement behind it should be revisited, and a waiver
+// outliving the code it was written over is a silence nobody chose.
+func TestAWaiverStopsMatchingOnceTheAnchoredLinesChange(t *testing.T) {
+	waived, _ := theSameDefectAtTheSameCode(t)
+	key := WaiverKeyOf(&waived)
+
+	for name, unchanged := range map[string]func(*Finding){
+		"the same code further down the file": func(record *Finding) {
+			record.Anchor.StartLine, record.Anchor.Line = 61, 63
+		},
+		"the same code re-indented": func(record *Finding) {
+			record.Anchor.ContentHash = hashOf(t, []string{"if ($discount) {", "\t$total -= $discount;", "}  "})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			later, _ := theSameDefectAtTheSameCode(t)
+			unchanged(&later)
+			assert.Equal(t, key, WaiverKeyOf(&later),
+				"§7.4.2: the waiver holds over the same unchanged code, or the author re-dismisses it every round")
+		})
+	}
+
+	edited, _ := theSameDefectAtTheSameCode(t)
+	edited.Anchor.ContentHash = hashOf(t, []string{"if ($discount && $total > 0) {", "    $total -= $discount;", "}"})
+	assert.NotEqual(t, key, WaiverKeyOf(&edited),
+		"§7.4.2: the waiver stops once that code changes, which is when the judgement behind it is worth revisiting")
+}
