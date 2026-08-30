@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T23:23:50.334037Z",
+  "updated_at": "2026-08-30T23:26:59.844227Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2584,7 +2584,7 @@
         "missing-issue-key-fallback"
       ],
       "estimate_minutes": 15,
-      "acceptance": "- cr brief assembles and prints, without judgement, all six items of §3.7: PR identity, head SHA, merge base, and the resolved profile with the layer that selected it; the issue key and the source it resolved from, with the issue text or the reason no key was found; the claims of §3.3 and whether the issue text has drifted; the units of §3.4 with file paths, hunk ranges, and unit hashes; the ingested threads of §3.5 and the notes of §3.6; the active, disabled, and unavailable axes with their reasons per §4.5.\n- A test asserts all six sections appear in both the text and JSON renderings.",
+      "acceptance": "- cr brief assembles and prints, without judgement, all six items of §3.7: PR identity, head SHA, merge base, and the resolved profile with the layer that selected it; the issue key and the source it resolved from, with the issue text or the reason no key was found; the claims of §3.3 and whether the issue text has drifted; the units of §3.4 with file paths, hunk ranges, and unit hashes; the ingested threads of §3.5 and the notes of §3.6; the active, disabled, and unavailable axes with their reasons per §4.5.\n- A test asserts all six sections appear in both the text and JSON renderings.\n- Carried from the claims chain: six intent functions are test-only on deadcode ./... waiting for this task — ClaimFields, ClaimSources, Unavailable.Disclosure, Intent.Unavailability, Resolve, ResolveKey — plus DetectDrift and ClaimDrift.Drifted. If any is still listed after this closes, the wiring did not happen.",
       "source_sections": [
         "### 3.7 Orientation"
       ],
