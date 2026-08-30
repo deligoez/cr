@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -195,6 +196,127 @@ func TestQuietLeavesACommandsResultAlone(t *testing.T) {
 
 	terminal := throughATerminal(t, "config", "--quiet")
 	assert.Contains(t, terminal, "\x1b[36mpost.max_comments\x1b[0m = 20")
+}
+
+// quietFlag is §11.1's flag name. pflag offers no way to reach a registered
+// flag but by naming it, so the literal is what a walk over the source can look
+// for.
+const quietFlag = "quiet"
+
+// disclosureContract is the interface a report implements to become one of the
+// seven §11.1 exempts from `--quiet`.
+const disclosureContract = "HonestyDisclosure"
+
+// namesTheQuietFlag reports whether call passes the flag's name as a literal.
+func namesTheQuietFlag(call *ast.CallExpr) bool {
+	for _, arg := range call.Args {
+		literal, ok := arg.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			continue
+		}
+		if name, err := strconv.Unquote(literal.Value); err == nil && name == quietFlag {
+			return true
+		}
+	}
+	return false
+}
+
+// registersTheFlag reports whether call declares a flag rather than reads one:
+// `PersistentFlags().Bool(...)`, which is the whole of what §11.1's table costs
+// and the one mention of the name that suppresses nothing.
+func registersTheFlag(call *ast.CallExpr) bool {
+	declared, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || declared.Sel.Name != "Bool" {
+		return false
+	}
+	on, ok := declared.X.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	flags, ok := on.Fun.(*ast.SelectorExpr)
+	return ok && flags.Sel.Name == "PersistentFlags"
+}
+
+// namesTheDisclosureContract reports whether any of shipped under the given
+// directory names disclosureContract in code.
+//
+// A comment does not count, and that is the point. internal/cli/output.go has
+// said since output-mode-switching that the exemption belongs to the writer,
+// and saying so is not having it.
+func namesTheDisclosureContract(t *testing.T, root string, shipped []string, under string) bool {
+	t.Helper()
+	found := false
+	for _, rel := range shipped {
+		if !strings.HasPrefix(rel, under+string(filepath.Separator)) {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
+		require.NoError(t, err)
+		ast.Inspect(parsed, func(node ast.Node) bool {
+			if ident, isIdent := node.(*ast.Ident); isIdent && ident.Name == disclosureContract {
+				found = true
+			}
+			return !found
+		})
+	}
+	return found
+}
+
+// §11.1 gives `--quiet` a suppression and then seven reports it may never
+// suppress, and cr today has the second half and not the first: the flag is
+// registered, nothing reads it, and nothing is suppressed.
+//
+// This is what keeps that from being undone by halves. The failure §11.1 exists
+// to prevent is a suppression shipped ahead of its exemption — a `--quiet` that
+// silences the lenses of §4.5.4, the probe cap of §5.6.4, the forcing counts of
+// §6.3.2, the waiver and duplicate counts of §10.1.6, the sandbox notice of
+// §5.1.6, the stale round of §9.3.2, or the comment cap of §1.6.2 — and that
+// failure has a shape a walk can see: a file that reads the flag while no
+// writer under internal/cli consumes finding.HonestyDisclosure. The first is
+// the suppression, the second is the exemption, and the first without the
+// second fails here.
+//
+// It is coarse deliberately. It cannot tell a correct routing from a wrong one;
+// what it can do is make the exemption impossible to postpone, which is the
+// half that gets left for later. quiet-honesty-exemptions is the task that
+// supplies it, and the day it does, this test goes quiet and stays true.
+func TestNoSuppressionUnderQuietArrivesBeforeItsExemption(t *testing.T) {
+	root := moduleRoot(t)
+
+	shipped := make([]string, 0)
+	crSource(t, func(rel string, _ []string) { shipped = append(shipped, rel) })
+
+	registrations := 0
+	suppressors := make([]string, 0)
+	for _, rel := range shipped {
+		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, rel), nil, 0)
+		require.NoError(t, err)
+		ast.Inspect(parsed, func(node ast.Node) bool {
+			call, isCall := node.(*ast.CallExpr)
+			if !isCall || !namesTheQuietFlag(call) {
+				return true
+			}
+			if registersTheFlag(call) {
+				registrations++
+				return true
+			}
+			suppressors = append(suppressors, rel)
+			return true
+		})
+	}
+	require.Equal(t, 1, registrations,
+		"§11.1 registers --quiet once, and a walk that cannot see it proves nothing")
+
+	// The exemption is looked for where it is declared as well, so a false
+	// below is an absence in internal/cli and not a walk that reads no Go.
+	require.True(t, namesTheDisclosureContract(t, root, shipped, filepath.Join("internal", "finding")),
+		"the walk misses %s where it is declared", disclosureContract)
+	exempt := namesTheDisclosureContract(t, root, shipped, filepath.Join("internal", "cli"))
+
+	assert.True(t, len(suppressors) == 0 || exempt,
+		"§11.1: %v read --quiet while no writer under internal/cli consumes finding.%s, "+
+			"so the seven disclosures go out with the informational messages",
+		suppressors, disclosureContract)
 }
 
 // §12.2: the JSON is pretty-printed with two-space indentation.
