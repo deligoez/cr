@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T21:50:30.853565Z",
+  "updated_at": "2026-08-30T21:52:01.245583Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5839,6 +5839,44 @@
       "acceptance": "- cr derives owner/repo from the repository under review, so §11.1's --repo is an override rather than the only source, and every PR-scoped command works without it.\n- The remote is read through internal/git's pinned runner, never a second exec path, and a repository with no remote, several remotes, or a non-GitHub remote is refused with a named next step rather than a guess.\n- A test covers detection from an ssh remote and an https remote, the --repo override winning over both, and each refusal.",
       "source_sections": [
         "### 11.1 Global flags"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "class-form-validation",
+      "title": "Reject a class that is not kebab-case",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "record-command"
+      ],
+      "estimate_minutes": 10,
+      "acceptance": "- Found by record-command's dogfood run: finding.ValidateClass exists but Decode never calls it, so cr record stores a class like \"Not Kebab\" without complaint.\n- Every door that admits a record rejects a class outside [a-z0-9-]+ with exit code 1, naming the file, the one-based line and the field.\n- §6.4's dedup key is built from the class, so a non-canonical class silently splits one group in two; the guard belongs at the door, not at the key.",
+      "source_sections": [
+        "### 6.1 Finding record"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "unreadable-input-exit-code",
+      "title": "Exit 3 on input a command cannot read",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "record-command"
+      ],
+      "estimate_minutes": 10,
+      "acceptance": "- Found by record-command's dogfood run: a missing input file, or a pull request with no state directory, exits 2 rather than §11.2's 3, because os.ReadFile and state.ReadPR return bare errors that exitCodeFor does not map.\n- A shared unreadable-input error type carries the path and maps to ExitFile, so every command that reads a caller-named file answers the same way.\n- Exit 2 stays what §11.2 says it is: the command line was wrong, not the file.",
+      "source_sections": [
+        "### 11.2 Exit codes"
       ],
       "started_at": null,
       "closed_at": null,
