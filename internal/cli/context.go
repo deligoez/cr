@@ -71,6 +71,13 @@ func provenanceOf(n *note.Note) string {
 	if n.Record != "" {
 		provenance += ", answering " + n.Record
 	}
+	// §3.6.6's retraction is provenance too, and the most consequential
+	// kind: a retracted note is one nothing may be asserted on. A store
+	// that printed it the same as a standing note would be a reader
+	// weighing hearsay somebody has already withdrawn.
+	if n.Retracted() {
+		provenance += ", retracted at " + n.RetractedAt.Format(time.RFC3339)
+	}
 	return provenance
 }
 
