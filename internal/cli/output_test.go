@@ -17,6 +17,8 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -673,4 +675,136 @@ func TestThePostedFieldIsDeclaredInOnePlace(t *testing.T) {
 		"only %d files were scanned, so this guard proved nothing", scanned)
 	assert.Empty(t, found,
 		"§12.6: posting declares the field, so a payload carries it by embedding posting")
+}
+
+// The five fields §12.5 decides about, each given a value nothing else in the
+// payload spells, so an assertion about the document is an assertion about
+// that field and not about a word that happens to appear twice.
+const (
+	probeInput   = "@@ -1 +1 @@ -if ready { +if !ready {"
+	probeTail    = "ok  github.com/example/pkg  0.412s"
+	openingBody  = "this looks like it drops the last element"
+	replyBody    = "it does; the loop bound is wrong"
+	recordReason = "the head-side range excludes the final line"
+	citedPath    = "internal/example/loop.go"
+)
+
+// bulkyProbe stands in for §5.5's probe record, which has no Go type in this
+// repository yet — probe-record-schema is a later task. Its two fields are
+// declared under the names §5.5's table gives them, which is the whole of what
+// §12.5 keys on: the rule is stated over field names, so a stand-in carrying
+// the right names is the same payload to it as the record will be.
+type bulkyProbe struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	Input      string `json:"input"`
+	Result     string `json:"result"`
+	OutputTail string `json:"output_tail"`
+}
+
+// bulkyPayload carries all five of §12.5's fields at once.
+//
+// Three of them are the real types' own. §6.1's record is finding.Finding and
+// §3.5.1's ingestion lands in gh.Thread, so `evidence`, `citations` and the two
+// bodies are named here by the types that will print them rather than by names
+// this test chose for itself, and a rename in either is a failure here.
+type bulkyPayload struct {
+	Probe    bulkyProbe        `json:"probe"`
+	Findings []finding.Finding `json:"findings"`
+	Threads  []gh.Thread       `json:"threads"`
+}
+
+func (bulkyPayload) Text(*writer) string { return "a payload for §12's JSON rules" }
+
+// bulky builds that payload: one probe record, one finding, and one ingested
+// thread with a reply, which is every place §12.5 names.
+func bulky() bulkyPayload {
+	comment := func(id, body string) gh.Comment {
+		return gh.Comment{
+			ID:             id,
+			Author:         "some-author",
+			AuthorTypename: "User",
+			Body:           body,
+			CreatedAt:      "2026-08-30T09:00:00Z",
+			URL:            "https://example.invalid/" + id,
+		}
+	}
+	return bulkyPayload{
+		Probe: bulkyProbe{
+			ID:         "p1",
+			Kind:       "mutation",
+			Input:      probeInput,
+			Result:     "no-test-failed",
+			OutputTail: probeTail,
+		},
+		Findings: []finding.Finding{{
+			ID:        "f1",
+			Kind:      finding.KindFinding,
+			Severity:  finding.SeverityMedium,
+			Summary:   "the loop drops its last element",
+			Evidence:  recordReason,
+			Citations: []finding.Citation{{Path: citedPath, Line: 42}},
+		}},
+		Threads: []gh.Thread{{
+			ID:         "t1",
+			Comment:    comment("c1", openingBody),
+			AuthorType: gh.AuthorHuman,
+			Replies:    []gh.Comment{comment("c2", replyBody)},
+		}},
+	}
+}
+
+// emitted prints a payload through the real writer, with the flags settled off
+// the real root command.
+//
+// The flags matter more than the writer does. A test that set w.compact itself
+// would pass whatever `--compact` is called in root.go, or whether settle reads
+// it at all; parsing against newRootCmd()'s own flag set means the registration
+// and the reading are both on the path being measured.
+func emitted(t *testing.T, payload result, args ...string) string {
+	t.Helper()
+	var printed bytes.Buffer
+	root := newRootCmd()
+	root.SetOut(&printed)
+	require.NoError(t, root.ParseFlags(args))
+
+	out := &writer{}
+	require.NoError(t, out.settle(root))
+	require.Equal(t, ModeJSON, out.mode, "a buffer is not a terminal, so §12.1 gives it JSON")
+	require.NoError(t, out.emit(payload))
+	return printed.String()
+}
+
+// §12.5: `--compact` omits `output_tail`, `input`, and ingested thread bodies,
+// and it leaves `evidence` and `citations` exactly where they were.
+//
+// One payload carries all five, because the rule is a division and not two
+// lists: a compaction that stripped everything bulky would satisfy a test that
+// only looked at what went, and one that stripped nothing would satisfy a test
+// that only looked at what stayed. The same payload is printed without the flag
+// first, so each absence below is the flag's doing rather than a field the
+// payload never had.
+func TestCompactDropsTheBulkAndKeepsWhatAPostedBodyRestsOn(t *testing.T) {
+	full := emitted(t, bulky())
+	compact := emitted(t, bulky(), "--compact")
+
+	for _, gone := range []string{`"output_tail"`, probeTail, `"input"`, probeInput, openingBody, replyBody} {
+		assert.Contains(t, full, gone, "the payload has to carry %q for its absence to mean anything", gone)
+		assert.NotContains(t, compact, gone, "§12.5: --compact left %q in the document", gone)
+	}
+
+	for _, kept := range []string{`"evidence"`, recordReason, `"citations"`, citedPath} {
+		assert.Contains(t, compact, kept,
+			"§12.5: the agent composes every posted body from %q, so --compact may not drop it", kept)
+	}
+
+	// A thread loses its bodies and not itself: §3.5.4 suppresses a finding
+	// by naming the thread that already covers it, which needs the id and
+	// the anchor that a wholesale removal would take with them.
+	assert.Contains(t, compact, `"id": "t1"`)
+	assert.Contains(t, compact, `"author": "some-author"`)
+
+	// §12.2 does not except a compacted document.
+	assert.True(t, json.Valid([]byte(compact)), "--compact printed %q", compact)
+	assert.Contains(t, compact, "\n  \"findings\": [")
 }
