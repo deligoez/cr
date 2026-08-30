@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T16:49:29.230982Z",
+  "updated_at": "2026-08-30T17:04:07.979624Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1172,7 +1172,7 @@
     {
       "id": "role-eject-command",
       "title": "Eject built-in roles as files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "ship-default-roles"
@@ -1182,11 +1182,25 @@
       "source_sections": [
         "### 2.5 Roles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-30T16:49:59.098546Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-30T17:04:07.939276Z",
+      "closed_reason": "- cr init --eject-roles writes the four shipped roles into ~/.cr/roles/ byte-identical to internal/role/builtin/\u003cid\u003e.json, routed through the new state.Layout.EnsureRole so every write stays inside internal/state per invariant 2, and gated on the flag because §2.5.4 reads an unejected role from the built-in layer.\n- TestEjectRolesWritesTheBuiltinsByteForByte in internal/cli/init_test.go ejects through the real command tree and compares every written file against role.Builtins() byte for byte, and TestInitWritesNoRoleWithoutTheEjectFlag pins that a plain cr init leaves the roles directory empty.\n- The same test ejects a second time over a role edited to {\"id\": \"correctness\"} and asserts the edit survives while the other three stay byte-identical, because §2.5.2 makes the ejected file the user's and cr still holds the default in the binary.\n- TestBuiltinsReturnsTheFilesOnDisk in internal/role/builtin_test.go reads internal/role/builtin/\u003cid\u003e.json off disk, at a path relative to the package directory go test runs in, and asserts Builtins() returns those bytes and that the directory holds no file Builtins() does not embed, so a Builtins() that marshalled a struct would fail here rather than pass by moving with the eject.",
+      "gate_passed_at": "2026-08-30T17:04:07.939276Z",
+      "commit_sha": "9794db4",
+      "commit_shas": [
+        "9794db4",
+        "a6809f5",
+        "7bfa65e",
+        "57933a3",
+        "cf94b76"
+      ],
+      "commit_files": [
+        "internal/cli/init.go",
+        "internal/cli/init_test.go",
+        "internal/role/builtin_test.go",
+        "internal/state/layout.go"
+      ]
     },
     {
       "id": "role-resolution-order",
