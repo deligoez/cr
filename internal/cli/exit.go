@@ -133,6 +133,16 @@ func exitCodeFor(err error) int {
 		// same rule, so the third configured expression does too.
 		return ExitFile
 	}
+	var noIntentKey *intent.NoIssueKeyError
+	if errors.As(err, &noIntentKey) {
+		// §3.2 leaves the key empty when none of its four sources
+		// yields one and has the run continue, so this is recorded
+		// state rather than an unusable file or a mistyped command
+		// line. What fails is the claim recording itself: §3.3 forms
+		// every claim id out of the key, which §11.2 codes 1 alongside
+		// note.NoIssueKeyError, the same fault reached from §3.6.2.
+		return ExitValidation
+	}
 	var rejectedClaim *intent.RejectedClaimError
 	if errors.As(err, &rejectedClaim) {
 		// §3.3.1 rejects a claim with exit code 1. The file was found,
