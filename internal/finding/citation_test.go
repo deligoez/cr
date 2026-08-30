@@ -161,3 +161,58 @@ func TestEveryCitationIsResolvedAndStampedFromTheHead(t *testing.T) {
 	assert.Equal(t, hashOf(t, []string{"final class Money"}), citations[2].ContentHash,
 		"the first line of a second file resolves too, so no entry is passed over")
 }
+
+// §6.2.3 rejects with exit code 1 an entry whose path does not exist or whose
+// line is out of range.
+//
+// Exit code 1 is §11.2's validation failure, and RejectedRecordError is the
+// shape internal/cli maps onto it — the same shape §6.1.3's missing-field
+// rejection takes, because the fault is the same kind: a file that read and
+// parsed, carrying a record whose own content is wrong.
+//
+// The entry is named by its index. A record may carry several citations, and a
+// rejection that named only the record would leave the author of the file to
+// find which of them the head cannot open.
+//
+// Line 0 is a case of its own rather than a smaller version of line 4. Both
+// trees number their lines from 1, so an entry that omits `line` decodes to
+// zero and points at nothing, and a check written as a bound on the file's
+// length alone would let it through.
+func TestACitationTheHeadCannotOpenIsRejected(t *testing.T) {
+	for name, unopenable := range map[string]struct {
+		citations []Citation
+		field     string
+	}{
+		"a path the head does not hold": {
+			citations: []Citation{
+				{Path: "app/Models/Order.php", Line: 1},
+				{Path: "app/Models/Deleted.php", Line: 1},
+			},
+			field: "citations[1].path",
+		},
+		"a directory, which holds no line": {
+			citations: []Citation{{Path: "app/Models", Line: 1}},
+			field:     "citations[0].path",
+		},
+		"a line past the end of the file": {
+			citations: []Citation{{Path: "app/Models/Order.php", Line: 4}},
+			field:     "citations[0].line",
+		},
+		"a line before the first": {
+			citations: []Citation{{Path: "app/Models/Order.php", Line: 0}},
+			field:     "citations[0].line",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := ResolveCitations(headHolding(orderModel), "review-security.ndjson", 4, unopenable.citations)
+
+			var rejected *RejectedRecordError
+			require.ErrorAs(t, err, &rejected,
+				"§6.2.3 rejects this entry, and §11.2 codes the rejection 1")
+			assert.Equal(t, unopenable.field, rejected.Field,
+				"a record carrying several citations must point at the one at fault")
+			assert.Equal(t, "review-security.ndjson", rejected.File)
+			assert.Equal(t, 4, rejected.Line)
+		})
+	}
+}
