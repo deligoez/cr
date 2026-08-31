@@ -145,7 +145,7 @@ func gapProbeOf(probes []probe.Record, id string) *probe.Record {
 // read off it would be grading — it would refuse a record on the strength of an
 // experiment performed against other code.
 func gradingGap(gap *probe.Record, meta *state.Meta) *probe.Record {
-	if gap.Head != meta.Head {
+	if !gap.Grades(meta.Head) {
 		return nil
 	}
 	return gap
@@ -185,7 +185,7 @@ func answerGapSupport(
 		Record: record.ID, Probe: gap.ID, Result: string(gap.Result),
 	}
 	switch {
-	case gap.Head != meta.Head:
+	case !gap.Grades(meta.Head):
 		answered.Reason = fmt.Sprintf(
 			"the probe ran at %s and this round's head is %s; §5.5.3 keeps a probe from "+
 				"another head out of the current round's grading",
