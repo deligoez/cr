@@ -63,6 +63,25 @@ func TestCopyIntoSandboxReproducesFilesDirectoriesAndLinks(t *testing.T) {
 
 	pointsAt, err := os.Readlink(filepath.Join(sandbox, "vendor", "pest-link"))
 	require.NoError(t, err)
+
+// A `sandbox.copy` path the checkout does not hold is reported, not refused.
+//
+// The laravel-pest profile lists `vendor`, and a fresh clone has none: it is
+// what §5.1.3's `composer install` is there to create. A copy that failed on
+// the absent path would stop the run one step before the step that fixes it,
+// so what comes back is the answer rather than an error — and nothing is
+// created for a path that was never there, which is the half that would
+// otherwise leave an empty directory standing in for a missing tree.
+func TestCopyIntoSandboxReportsAPathTheCheckoutDoesNotHold(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+
+	copied, err := l.CopyIntoSandbox("acme", "web", 42, t.TempDir(), "vendor")
+
+	require.NoError(t, err)
+	assert.False(t, copied)
+	assert.NoFileExists(t, filepath.Join(l.Sandbox("acme", "web", 42), "vendor"))
+	assert.NoDirExists(t, filepath.Join(l.Sandbox("acme", "web", 42), "vendor"))
+}
 	assert.Equal(t, filepath.Join("..", "bin", "pest"), pointsAt,
 		"§5.1.2 copies the path, and a link followed instead of copied is a different tree")
 }
