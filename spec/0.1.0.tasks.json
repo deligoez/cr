@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T05:11:33.279584Z",
+  "updated_at": "2026-08-31T05:24:23.15272Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3780,7 +3780,7 @@
     {
       "id": "baseline-recording",
       "title": "Record baselines scoped to mutation filters",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "run-passed-predicate"
@@ -3790,11 +3790,33 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T05:17:38.017347Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T05:24:23.094245Z",
+      "closed_reason": "- internal/probe/baseline.go's Required always returns the unfiltered baseline first and Missing answers \"once per head\" out of runs.ndjson itself rather than out of a memo beside it, because §2.3.3 already stamps head on every run record, so a moved head invalidates every baseline for free and §5.5.3's records from earlier heads can never be mistaken for this head's.\n- Referenced reads the filter argument only for Mutation and ignores it for Gap, which makes the round 8 repair structural rather than checked, since no call at all can produce a filtered gap baseline.\n- Required derives from Referenced, so a gap probe's baseline is §5.5's unfiltered run, and TestOnlyAFilteredMutationProbeAddsASecondBaseline pins that for a filtered gap probe and an unfiltered one alike.\n- The not-yet-created test file §5.4.2 places for the probe run alone can therefore never be what a baseline selects, which is the run that would have left tests_run at 0 and passed permanently false while §5.2.6 re-performed a baseline it could never resolve.\n- TestOnlyAFilteredMutationProbeAddsASecondBaseline asserts a filtered gap probe records only the unfiltered baseline while a filtered mutation probe records that one and its filtered companion, over all four combinations of kind and filter.\n- run.Record.Contaminated closes round 12's baseline-contamination as a field §5.2.4's list has no slot for in the way it has none for TimedOut, read by Verdict as a fourth clause so that no path into runs.ndjson stores passed true for a run whose sandbox drifted from the head under it, and read by Spec.stands so that such a run is no candidate baseline either.\n- cr test now calls sandbox.Unclean after the run as well as sandbox.Ensure before it, which is the same §5.1.6 check §5.1.7 applies to a probe, and TestATestRunItsSandboxContaminatedIsNoBaseline drives a runner that exits 0 with four tests run and none failed and then dirties a tracked file, asserting the stored record carries contaminated true and passed false while all three of §5.2.5's own clauses held.\n",
+      "gate_passed_at": "2026-08-31T05:24:23.094245Z",
+      "commit_sha": "2700c8a",
+      "commit_shas": [
+        "2700c8a",
+        "7c3231e",
+        "fa8ad50",
+        "90c4dd8",
+        "9204038",
+        "58ebb51",
+        "8e6e43e",
+        "720eaed",
+        "7baa0b9",
+        "d57b9fa"
+      ],
+      "commit_files": [
+        "internal/cli/test.go",
+        "internal/cli/test_test.go",
+        "internal/probe/baseline.go",
+        "internal/probe/baseline_test.go",
+        "internal/run/run.go",
+        "internal/run/run_test.go",
+        "internal/sandbox/clean.go"
+      ]
     },
     {
       "id": "baseline-resolution",
