@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T00:51:45.022828Z",
+  "updated_at": "2026-08-31T00:53:47.311551Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3216,7 +3216,7 @@
         "review-prompt-emission"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- Every prompt names the NDJSON path the role writes to, and states the record schema of §6.1 together with the fields the agent may not write per §6.1.4, per §4.6.2.\n- cr review never writes to findings.ndjson, per §4.6.3.\n- A test asserts findings.ndjson is untouched by a review fan-out.",
+      "acceptance": "- Every prompt names the NDJSON path the role writes to, and states the record schema of §6.1 together with the fields the agent may not write per §6.1.4, per §4.6.2.\n- cr review never writes to findings.ndjson, per §4.6.3.\n- A test asserts findings.ndjson is untouched by a review fan-out.\n- Carried from brief-payload, where it was wrongly assigned: intent.ClaimFields and intent.ClaimSources are test-only on deadcode ./... and §3.7 gives them nowhere to land, because it closes its payload at six items. Their real consumer is §4.6.2's obligation to state the record schema together with the fields the agent may not write. If either is still listed after this closes, the wiring did not happen.",
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
