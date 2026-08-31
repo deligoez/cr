@@ -30,6 +30,12 @@ func TestTheNextProbeIDIsAllocatedAboveEveryOneOnFile(t *testing.T) {
 			existing: []Record{{ID: "p4"}},
 			want:     "p5",
 		},
+		// The first id is the boundary of what counts as one at all:
+		// a reader that refused p1 would allocate p1 a second time.
+		"the first id is an id": {
+			existing: []Record{{ID: "p1"}},
+			want:     "p2",
+		},
 		"an id cr did not write contributes nothing": {
 			existing: []Record{{ID: "r2"}, {ID: "p"}, {ID: "p0"}, {ID: "p-1"}, {ID: "p01"}, {ID: ""}},
 			want:     "p1",
