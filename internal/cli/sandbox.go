@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -20,11 +24,26 @@ type sandboxCreateResult struct {
 	Path string `json:"path"`
 	// Head is the pull request head it was checked out at.
 	Head string `json:"head"`
+	// Copied are the `sandbox.copy` paths §5.1.2 brought in.
+	Copied []string `json:"copied"`
+	// Absent are the `sandbox.copy` paths the checkout did not hold. A
+	// sandbox missing something the profile asked for is a suite that
+	// fails for a reason nothing else in the output would explain.
+	Absent []string `json:"absent"`
+	// Setup are the `sandbox.setup` commands §5.1.3 ran, in order.
+	Setup []string `json:"setup"`
 }
 
-// Text names the worktree and the revision in it.
+// Text names the worktree and the revision in it, and then what was done
+// inside it. The three lists are printed rather than counted: a reader told
+// that two paths were copied still cannot tell which one was not.
 func (r *sandboxCreateResult) Text(w *writer) string {
-	return "created " + w.accent(r.Path) + " at " + r.Head
+	var out strings.Builder
+	fmt.Fprintf(&out, "created %s at %s\n", w.accent(r.Path), r.Head)
+	fmt.Fprintf(&out, "  copied %s\n", listed(r.Copied))
+	fmt.Fprintf(&out, "  absent %s\n", listed(r.Absent))
+	fmt.Fprintf(&out, "  setup  %s", listed(r.Setup))
+	return out.String()
 }
 
 // newSandboxCmd groups the sandbox commands of §11. It runs nothing itself, so
@@ -81,18 +100,55 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §5.1.2's paths and §5.1.3's commands come from the
+			// profile the round resolved, which §3.7 has `cr brief`
+			// record. Re-selecting one here could disagree with it,
+			// and the sandbox would then be prepared for a profile
+			// no role in this round was briefed against.
+			steps, file, err := sandboxSteps(layout, round.ProfileID)
+			if err != nil {
+				return err
+			}
 			created, err := sandbox.Create(&sandbox.Sources{
-				Layout:  layout,
-				Owner:   owner,
-				Repo:    repo,
-				PR:      pr,
-				Head:    round.Head,
-				RepoDir: dir,
+				Layout:      layout,
+				Owner:       owner,
+				Repo:        repo,
+				PR:          pr,
+				Head:        round.Head,
+				RepoDir:     dir,
+				Copy:        steps.Copy,
+				Setup:       steps.Setup,
+				ProfileFile: file,
 			})
 			if err != nil {
 				return err
 			}
-			return out.emit(&sandboxCreateResult{Path: created.Path, Head: created.Head})
+			return out.emit(&sandboxCreateResult{
+				Path:   created.Path,
+				Head:   created.Head,
+				Copied: created.Copied,
+				Absent: created.Absent,
+				Setup:  created.Setup,
+			})
 		},
 	}
+}
+
+// sandboxSteps reads §5.1.2's copy list and §5.1.3's setup commands out of the
+// profile the round resolved, and returns the file they came from beside them.
+//
+// An empty id is §2.4.4's outcome: no profile matched, so there is nothing to
+// copy and nothing to run. The sandbox is still created, because §5.1.1's
+// worktree is what every probe and test run of §5 happens in and none of that
+// depends on a profile having been found.
+func sandboxSteps(l state.Layout, id string) (profile.Sandbox, string, error) {
+	if id == "" {
+		return profile.Sandbox{}, "", nil
+	}
+	file := l.Profile(id)
+	resolved, err := profile.Load(file)
+	if err != nil {
+		return profile.Sandbox{}, "", err
+	}
+	return resolved.Sandbox, file, nil
 }
