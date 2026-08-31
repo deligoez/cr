@@ -1,0 +1,336 @@
+// Package coverage models the coverage cell of spec/0.1.0.md §4.5.5.
+//
+// A cell is §1.3's "intersection of one unit and one active role", and it is
+// what P6 rests on: coverage is proven when every unit times every active role
+// is a filled cell, so a cell is the unit of evidence that a lens looked at a
+// piece of code. §10.2.2 counts them and §10.1.1 reports the ones that are
+// missing.
+//
+// Cells are the agent's judgement. §4.5.6 has them reach cr through
+// `cr cells record` exactly as findings reach it through `cr record`, and
+// invariant 1 leaves cr no way to form one: this package decodes, validates,
+// and refuses, and nothing here fills in a verdict.
+//
+// That is why the type has no constructor. state.DecodeStamped allocates the
+// only Cell values cr ever holds, out of a line an agent wrote, and
+// TestNothingBuildsACoverageCellOutsideItsDecoder fences it — §4.5.6 forbids cr
+// to invent a cell for a unit no role reported on, and a structure with no
+// other way to be built cannot be invented.
+package coverage
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/state"
+)
+
+// The four values §4.5.5 closes a cell's verdict at.
+//
+// They are the whole of what a role may say about a unit, and the set is closed
+// for the reason §1.5 closes the axis ids: §10.1.1 counts cells by what they
+// say, and a fifth value would be counted by nothing.
+const (
+	// ResultPass is a role that looked and found nothing to raise.
+	ResultPass = "pass"
+	// ResultFinding is a role that raised a finding on the unit.
+	ResultFinding = "finding"
+	// ResultQuestion is a role that raised a question on it.
+	ResultQuestion = "question"
+	// ResultNA is a role that had nothing to say about this unit, which
+	// §4.5.5 requires a reason for.
+	ResultNA = "na"
+)
+
+// results is the closed set, in the order §4.5.5 names them, so a rejection
+// always lists them the same way.
+var results = []string{ResultPass, ResultFinding, ResultQuestion, ResultNA}
+
+// The three classifications §4.4.1 closes the test axis's own answer at.
+const (
+	// Covered is a unit the changed tests exercise.
+	Covered = "covered"
+	// PartiallyCovered is a unit they exercise in part.
+	PartiallyCovered = "partially-covered"
+	// Uncovered is a unit no changed test reaches.
+	Uncovered = "uncovered"
+)
+
+// classifications is that closed set, in §4.4.1's order.
+var classifications = []string{Covered, PartiallyCovered, Uncovered}
+
+// TestCoverage is §4.5.5's `coverage` object: §4.4.1's classification together
+// with the test paths it rested on.
+//
+// The paths are carried rather than recomputed because §4.4.1 says the
+// classification rests on them. A reader handed "partially covered" with
+// nothing named has been handed a verdict; the same word with the two files it
+// was read off is a claim they can check, which is the whole of the difference
+// §1.6's trust economy turns on.
+type TestCoverage struct {
+	// Classification is one of the three values above.
+	Classification string `json:"classification"`
+	// TestPaths are the changed or added test files the classification
+	// rested on, empty for a unit no test reaches.
+	TestPaths []string `json:"test_paths"`
+}
+
+// Cell is one line of coverage.ndjson: §4.5.5's fields, and the head and round
+// §2.3.3 stamps onto every record of that file.
+//
+// The head is not a field of its own here because §2.3.3 already owns it: "the
+// head it was filled against" is the embedded Stamp's, written by the writer
+// and refused when an agent supplies it. `unit_hash` sits beside it because
+// §10.2.2 compares a cell against "that unit's current unit hash", which is a
+// different question from which commit the round is on — a unit can be
+// re-clustered under an unchanged head.
+type Cell struct {
+	// Unit is the unit id of §3.4.6 this cell sits at.
+	Unit string `json:"unit"`
+	// Role is the active role of §4.5.1 that filled it.
+	Role string `json:"role"`
+	// Result is one of the four values above.
+	Result string `json:"result"`
+	// Reason completes an `na`, and §4.5.5 requires it there and nowhere
+	// else.
+	Reason string `json:"reason,omitempty"`
+	// UnitHash is the §3.4.6 hash the cell was filled for, which §10.2.2
+	// compares against the unit's current one. cr writes it.
+	UnitHash string `json:"unit_hash"`
+	// NoteID is the note that explained an unmapped unit, which §4.1.5 has
+	// the cell cite so a suppressed question rests on something.
+	NoteID string `json:"note_id,omitempty"`
+	// Coverage is §4.4.1's classification, carried by a cell a role on the
+	// `test` axis filled and by no other.
+	Coverage *TestCoverage `json:"coverage,omitempty"`
+	state.Stamp
+}
+
+// RejectedCellError reports a cell §4.5 refuses.
+//
+// It takes the shape §3.3.1 and §6.1.3 already give a refused line: name the
+// line so the user can open it, and name the field so they know what to fix.
+// The cli layer maps it onto §11.2's code 1 — the file was found, read, and
+// parsed, and what is wrong is the agent's data inside it.
+type RejectedCellError struct {
+	// File is the NDJSON file the agent handed the command.
+	File string
+	// Line is the one-based line the cell sits on, counting blank lines.
+	Line int
+	// Field is the field at fault, named by its JSON key.
+	Field string
+	// Problem is what is wrong with that field.
+	Problem string
+}
+
+func (e *RejectedCellError) Error() string {
+	return fmt.Sprintf("%s line %d: %s %s", e.File, e.Line, e.Field, e.Problem)
+}
+
+// Decode reads the cells an agent hands `cr cells record`, holding every line
+// to §4.5.5's fields and to §4.5.6's rejection of an inactive role.
+//
+// active is the round's active roles of §4.5.1, each carrying the axis it sits
+// on. One argument answers both questions the decoder asks, and that is
+// deliberate: §4.5.6 rejects a cell naming an inactive role, and §4.5.5 asks
+// for `coverage` when the role is on the `test` axis, so a decoder given the
+// role ids alone could enforce one and not the other — and one given a second,
+// separate list of test roles could be handed two lists that disagree.
+//
+// The checks run inside the decode rather than after it because
+// state.DecodeStamped is the one place that counts lines, blank ones included,
+// and every refusal here has to name the line the user must open.
+func Decode(file string, body []byte, active []role.Role) ([]*Cell, error) {
+	against := cellChecker{file: file, active: active}
+	return state.DecodeStamped[Cell](file, body, against.check)
+}
+
+// cellChecker holds what one file's cells are checked against: the file they
+// arrived in, and the active roles of the round.
+type cellChecker struct {
+	file   string
+	active []role.Role
+}
+
+// check holds one line to §4.5.5 and to §4.5.6's role half.
+//
+// The order is the order a reader can act on. `role` is settled early because
+// every later question is asked of the role it names: an inactive role has no
+// axis, so there is no rule under which to decide whether `coverage` belongs on
+// the line. `result` follows, because `reason` is conditional on it. Presence is
+// read off the wire rather than off the decoded cell, for the reason
+// state.DecodeStamped gives about head and round — `""` is a value the agent
+// chose exactly as much as a sentence is.
+func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+	if !written(supplied["unit"]) {
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "unit",
+			Problem: "is required by §4.5.5, which has every cell name the unit it sits at",
+		}
+	}
+	filled, err := c.role(line, supplied, cell)
+	if err != nil {
+		return err
+	}
+	if err := c.result(line, supplied, cell); err != nil {
+		return err
+	}
+	return c.coverage(line, &filled, cell)
+}
+
+// role holds one cell to §4.5.6's second rejection and returns the role it
+// named.
+//
+// §4.5.6 refuses "a cell naming an unknown unit id or an inactive role", and
+// the two halves are one sentence for one reason: §10.2.2 counts a complete row
+// of cells for every active role, so a cell filled by a role outside that set
+// is evidence about a lens the completeness check will never ask after. It
+// would raise the number of filled cells without raising the number of proven
+// ones, which is P6 read backwards.
+func (c cellChecker) role(
+	line int, supplied map[string]json.RawMessage, cell *Cell,
+) (role.Role, error) {
+	if !written(supplied["role"]) {
+		return role.Role{}, &RejectedCellError{
+			File: c.file, Line: line, Field: "role",
+			Problem: "is required by §4.5.5, which has every cell name the role it sits at",
+		}
+	}
+	at := slices.IndexFunc(c.active, func(r role.Role) bool { return r.ID == cell.Role })
+	if at < 0 {
+		return role.Role{}, &RejectedCellError{
+			File: c.file, Line: line, Field: "role",
+			Problem: fmt.Sprintf(
+				"names %q, which is not an active role of this round; §4.5.6 rejects a cell "+
+					"an inactive role filled, and §4.5.1 makes the active set %s",
+				cell.Role, listed(activeIDs(c.active)),
+			),
+		}
+	}
+	return c.active[at], nil
+}
+
+// result holds one cell to §4.5.5's verdict and to the reason an `na` owes.
+//
+// Both directions are checked. An `na` with no reason is the case §4.5.5 states
+// outright, and it is the one that matters: `na` is the only verdict that takes
+// a cell out of what §10.2.2 can read as a lens having looked, so a bare `na`
+// would shrink the proven coverage while looking exactly like a filled cell. A
+// reason on any other verdict is the same fault mirrored — it is the word
+// §4.5.5 attaches to `na` alone, and a `pass` carrying one reads as a qualified
+// pass that nothing downstream qualifies.
+func (c cellChecker) result(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+	switch {
+	case !written(supplied["result"]):
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "result",
+			Problem: "is required by §4.5.5, which closes it at " + listed(results),
+		}
+	case !slices.Contains(results, cell.Result):
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "result",
+			Problem: fmt.Sprintf("is %q; §4.5.5 closes it at %s", cell.Result, listed(results)),
+		}
+	}
+	held := written(supplied["reason"])
+	switch {
+	case cell.Result == ResultNA && !held:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "reason",
+			Problem: "is required by §4.5.5 when result is " + ResultNA +
+				", because an unexplained na is a lens that did not look",
+		}
+	case cell.Result != ResultNA && held:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "reason",
+			Problem: fmt.Sprintf(
+				"is the explanation §4.5.5 attaches to %s alone, and this cell is a %s",
+				ResultNA, cell.Result),
+		}
+	}
+	return nil
+}
+
+// coverage holds one cell to §4.5.5's conditional `coverage` object.
+//
+// §4.5.5 asks for it "when the role is on the `test` axis per §4.4.1", so the
+// condition is the role's axis and not anything the line itself says. Both
+// directions are checked for the reason §3.3's `note_id` is: a test-axis cell
+// with no classification leaves §4.4.1's whole answer unrecorded, and a cell on
+// another axis carrying one asserts a coverage judgement no role on that axis
+// was asked to make and no probe backs.
+func (c cellChecker) coverage(line int, filled *role.Role, cell *Cell) error {
+	onTestAxis := filled.Axis == axis.Test
+	switch {
+	case onTestAxis && cell.Coverage == nil:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage",
+			Problem: fmt.Sprintf(
+				"is required by §4.5.5 when the role is on the %s axis, and %q is; "+
+					"§4.4.1 has the classification recorded with the test paths it rested on",
+				axis.Test, filled.ID),
+		}
+	case !onTestAxis && cell.Coverage != nil:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage",
+			Problem: fmt.Sprintf(
+				"is §4.4.1's answer for the %s axis, and %q is on the %s axis",
+				axis.Test, filled.ID, filled.Axis),
+		}
+	case !onTestAxis:
+		return nil
+	}
+	if !slices.Contains(classifications, cell.Coverage.Classification) {
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage.classification",
+			Problem: fmt.Sprintf("is %q; §4.4.1 closes it at %s",
+				cell.Coverage.Classification, listed(classifications)),
+		}
+	}
+	// §12.3: the paths serialise as [] and never as null, which is the
+	// ordinary state of an `uncovered` unit rather than a fault.
+	cell.Coverage.TestPaths = append(
+		make([]string, 0, len(cell.Coverage.TestPaths)), cell.Coverage.TestPaths...)
+	return nil
+}
+
+// activeIDs names the active roles, so a rejection tells the user which ones
+// this round would have accepted.
+func activeIDs(active []role.Role) []string {
+	out := make([]string, 0, len(active))
+	for i := range active {
+		out = append(out, active[i].ID)
+	}
+	return out
+}
+
+// listed renders a closed set for a message, and says so when it is empty
+// rather than trailing off after "at".
+func listed(values []string) string {
+	if len(values) == 0 {
+		return "empty"
+	}
+	return strings.Join(values, ", ")
+}
+
+// The two values a JSON object can hold under a key and still supply nothing.
+var (
+	nullLiteral = []byte("null")
+	emptyString = []byte(`""`)
+)
+
+// written reports whether a wire line supplied a field, reading null and the
+// empty string as absent for the reason internal/intent's own written does: a
+// cell whose `reason` is `""` explains nothing, and §4.5.5's requirement is
+// about the explanation and not about the key.
+func written(value json.RawMessage) bool {
+	value = bytes.TrimSpace(value)
+	return len(value) > 0 &&
+		!bytes.Equal(value, nullLiteral) &&
+		!bytes.Equal(value, emptyString)
+}
