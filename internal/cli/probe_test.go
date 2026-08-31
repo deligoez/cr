@@ -632,10 +632,11 @@ func TestWhatEachGapResultIsReportedToEstablish(t *testing.T) {
 // carrying the value §5.4.3's ladder produced for a suite that ran the supplied
 // test and reported no failure.
 //
-// `establishes` is `undecided` rather than an answer. §5.4.4 makes a gap
-// probe's support conditional on the finding's own `claim` field, and no
-// finding exists at the moment the experiment runs, so cr says so instead of
-// picking one of the two answers it cannot yet have.
+// `establishes` is `behaviour`, which is §5.4.5's own reading of this run: the
+// supplied test passed, so the behaviour it asserts is present. It is not
+// `gap` — §5.4.5 says only §5.3's `no-test-failed` establishes a missing test —
+// and it is not `undecided` either, because §5.4.4's conditional support is
+// read off a `failed` result and this run did not produce one.
 func TestAGapProbePlacesRunsRemovesAndRecords(t *testing.T) {
 	prepared, _, sandboxPath, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
 	supplied := writeProbeTest(t)
@@ -647,8 +648,8 @@ func TestAGapProbePlacesRunsRemovesAndRecords(t *testing.T) {
 	assert.Equal(t, "gap", reported["kind"])
 	assert.Equal(t, "passed", reported["result"],
 		"§5.4.3's fifth rung: the supplied test ran and nothing failed")
-	assert.Equal(t, "undecided", reported["establishes"],
-		"§5.4.4 reads its condition off a finding, which does not exist yet")
+	assert.Equal(t, "behaviour", reported["establishes"],
+		"§5.4.5: the behaviour is present, and that is not a missing test")
 	assert.Equal(t, "app.go:3", reported["target"], "§5.5 takes a gap probe's target from --target")
 	assert.Equal(t, "r1", reported["baseline"])
 	assert.Equal(t, "r2", reported["run"])
