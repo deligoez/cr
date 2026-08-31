@@ -90,12 +90,10 @@ type Record struct {
 	// baseline, and §5.3.5 and §5.4.4 require that baseline to have
 	// passed before a probe may support a `probed` grade.
 	//
-	// The predicate itself is not computed here. §5.2.5 makes the verdict
-	// a function of the counts, and every count is undetermined until
-	// §5.2.1's extraction is implemented — which §5.2.5 answers on its
-	// own terms: "A run whose counts are underivable never passes". So
-	// the zero value is the right value for every run cr can record
-	// today, and deriving the other branch is run-passed-predicate's.
+	// The field is not set by whoever builds the record. Verdict computes
+	// it from the record's own fields at the moment of the write, beside
+	// the id allocation, so no path into runs.ndjson can store a `true`
+	// the counts do not support.
 	Passed bool `json:"passed"`
 	// Probe is the id of the probe record whose mutated or
 	// probe-injected code this run measured, absent for a run on
@@ -199,6 +197,32 @@ func checkRecordFields() bool {
 			declared, fields))
 	}
 	return true
+}
+
+// Verdict is §5.2.5's predicate over a run: `passed` is true when the exit
+// code is 0, the executed count is derivable and greater than zero, and the
+// failed count is 0; otherwise false.
+//
+// All four clauses are conjoined and none of them is redundant. An exit code
+// of 0 is not enough on its own — a runner that selected nothing and reported
+// success is the shape §5.3.4 rung 4 and §5.4.3 rung 3 exist to catch — and
+// neither is a failed count of zero, which an unmatched `tests.failed_pattern`
+// produces for a run that never got as far as executing a test.
+//
+// An undetermined count is not a passing one, in either position. §5.2.5 says
+// so directly — "A run whose counts are underivable never passes, so it cannot
+// serve as a baseline" — and §5.3.5 and §5.4.4 are what make it matter: a
+// probe may support a `probed` grade only when its baseline passed, and a
+// baseline that passed on counts nobody could read would attribute the
+// repository's pre-existing failures to the probe.
+//
+// This is a method on the record rather than a computation at the call site
+// because there is one truthful answer per record and the caller must not be
+// able to supply a different one.
+func (r *Record) Verdict() bool {
+	return r.ExitCode == 0 &&
+		r.TestsRun != nil && *r.TestsRun > 0 &&
+		r.TestsFailed != nil && *r.TestsFailed == 0
 }
 
 // idPrefix is the letter §5.2.4 gives a run record id.
