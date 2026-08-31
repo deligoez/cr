@@ -10,6 +10,7 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
@@ -193,6 +194,15 @@ func exitCodeFor(err error) int {
 		// well-formed, so what fails is the payload as a whole, and
 		// §11.2 runs that validation before the confirmation gate:
 		// the block lands whether or not --confirm was given.
+		return ExitValidation
+	}
+	var rejectedPair *mapping.RejectedPairError
+	if errors.As(err, &rejectedPair) {
+		// §4.1.6 rejects a pair naming an unknown claim or unit id with
+		// exit code 1. The file was found, read, and parsed, so nothing
+		// about it failed as a file; what is wrong is the agent's
+		// judgement inside it, exactly as it is for the cell rejection
+		// below.
 		return ExitValidation
 	}
 	var rejectedCell *coverage.RejectedCellError
