@@ -41,6 +41,7 @@ func TestARunRecordCarriesExactlyTheFieldsSection524Names(t *testing.T) {
 		"filter":       "retries twice",
 		"exit_code":    float64(1),
 		"timed_out":    true,
+		"contaminated": false,
 		"duration_ms":  float64(1420),
 		"tests_run":    float64(4),
 		"tests_failed": float64(1),
