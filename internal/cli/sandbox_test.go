@@ -3,10 +3,13 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/state"
 )
 
 // The sandbox a rendering is asked to print. The head is a full revision and
@@ -52,4 +55,48 @@ func TestTheSandboxCreationNamesTheWorktreeAndItsHead(t *testing.T) {
 		assert.Contains(t, printed, renderedSandboxPath)
 		assert.Contains(t, printed, renderedSandboxHead)
 	})
+}
+
+// §5.1.1: the worktree is checked out at the *pull request* head, which is the
+// one meta.json recorded and not the one the checkout happens to be on.
+//
+// The fixture's own HEAD is a different commit, and that is the whole design of
+// this test: a command that ran `git worktree add` against the current checkout
+// would produce a sandbox that looks perfectly healthy and holds code no
+// finding of this round was written against. §5.1.6 would then fail the head
+// check on the sandbox's first use, after §5.1.3's setup had already run.
+func TestTheSandboxIsCheckedOutAtTheRoundsRecordedHead(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+	require.NotEqual(t, head, strings.TrimSpace(mustGit(t, fixture, "rev-parse", "HEAD")),
+		"the fixture must be sitting on some other commit, or this test cannot tell the two apart")
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	// The repository under review is the directory cr was run from, and
+	// this suite runs from internal/cli. The seam is the same one
+	// `cr brief` reaches the checkout through.
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	var printed map[string]any
+	require.NoError(t, json.Unmarshal(
+		[]byte(throughAPipe(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)), &printed))
+
+	assert.Equal(t, prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber), printed["path"])
+	assert.Equal(t, head, printed["head"])
+	created, ok := printed["path"].(string)
+	require.True(t, ok)
+	assert.Equal(t, head, strings.TrimSpace(mustGit(t, created, "rev-parse", "HEAD")))
 }
