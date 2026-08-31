@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T08:09:10.976781Z",
+  "updated_at": "2026-08-31T08:45:16.479968Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3946,7 +3946,7 @@
     {
       "id": "mutation-result-ladder",
       "title": "Decide mutation result by rung ladder",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mutation-revert-guarantee"
@@ -3956,16 +3956,24 @@
       "source_sections": [
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T08:17:42.574275Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T08:19:54.183471Z",
+      "closed_reason": "- probe.Ladder returns the first matching rung's result, and internal/probe/mutation_test.go restates the seven rungs as standalone predicates over the whole Measured value so totality is checked rather than sampled: a patch that did not apply gives error, and the CLI reaches that rung with no run record at all because no tests were run.\n- A run killed for exceeding tests.timeout_seconds gives timeout, and the table drives one that also died on a signal so the rung above error is the one that answers it.\n- An unstarted runner and a runner that exited on a signal both give error, driven as two separate table rows.\n- A known executed count of zero gives no-tests-selected, driven both with a zero failed count beside it and with none.\n- An undetermined executed or failed count gives inconclusive, driven with neither count derivable, with only the executed count, and with only a failed count of zero.\n- A failed count of zero beside a known non-zero executed count gives no-test-failed, which is the one rung §5.3.5 lets prove a gap.\n- Any other run gives failed, driven by twelve tests of which one caught the mutation.\n- The table exercises all seven rungs and asserts exactly one fires for each input, and a cross-product sweep of 216 runs repeats that assertion over every combination the ladder reads, with the counts spanning no count, a known zero, and a known non-zero.\n",
+      "gate_passed_at": "2026-08-31T08:19:54.183471Z",
+      "commit_sha": "99af7b2",
+      "commit_shas": [
+        "99af7b2"
+      ],
+      "commit_files": [
+        "internal/probe/mutation.go",
+        "internal/probe/mutation_test.go"
+      ]
     },
     {
       "id": "mutation-proof-conditions",
       "title": "Restrict proof to no-test-failed results",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mutation-result-ladder"
@@ -3975,16 +3983,26 @@
       "source_sections": [
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T08:20:33.073116Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T08:28:31.340986Z",
+      "closed_reason": "- probe.Proves is the only route to §5.3.5's answer and returns true on one path alone: the outcome's result is no-test-failed and the resolved baseline's §5.2.5 verdict is true. Both arguments are unforgeable, since Decide is Outcome's only constructor and Spec.Resolve is Baseline's, so the passing baseline is the record the resolution chose rather than one a caller had in hand.\n- timeout, error, no-tests-selected and inconclusive reach no path to a probed grade, which internal/probe/proof_test.go asserts by driving every value §5.3.4's ladder can produce against both a passing and a failing baseline, and cr probe run reports establishes: nothing for each, so an empty selection, an unparseable runner and a run that never finished cannot manufacture evidence.\n- probe.Disproves is §5.3.7's other direction and answers true for the failed result alone, asking nothing of the baseline because there is no assertion on that side.\n- cr records the failed result as it always did and now reports establishes: no-gap beside it, in the JSON payload and in the terminal clause, so the agent is told not to raise the finding rather than left to re-derive it.\n- proof_test.go asserts no-test-failed against a baseline whose passed is false does not prove the gap, and a companion test asserts a probe §5.1.7 voided proves and disproves nothing in either direction.\n",
+      "gate_passed_at": "2026-08-31T08:28:31.340986Z",
+      "commit_sha": "795f59a",
+      "commit_shas": [
+        "795f59a"
+      ],
+      "commit_files": [
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/probe/mutation.go",
+        "internal/probe/proof_test.go"
+      ]
     },
     {
       "id": "mutation-filter-scoping",
       "title": "Carry the filter into evidence region",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mutation-proof-conditions"
@@ -3994,11 +4012,19 @@
       "source_sections": [
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T08:28:36.166295Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T08:45:16.469365Z",
+      "closed_reason": "- The scope of a filtered run is stated as the run's own and never as the suite's: cr probe run's terminal clause for a proven gap says the tests this run selected did not notice the mutation, and render.ProbeEvidence names the filter rather than describing what it covers.\n- Nothing cr writes says a filter selects the tests which would have caught the mutation, and the golden assertion in internal/render/evidence_test.go is what holds that: it compares the whole region rather than the filter row, so any sentence added beside the rows breaks the test.\n- render.ProbeEvidence carries the filter into §8.1.7's region beside the kind, target, result and output tail, each under §5.5's own field name, and states no guarantee at all - so §5.3.5's cannot be stated more widely than the empty selection it catches, and the row is absent for an unfiltered run rather than carrying a value cr invented.\n- A table drives seven filter spellings a real runner takes, including an alternation, a quoted expression and a backtick, and asserts each reaches the rendered region byte for byte, because an author checks the comment by re-running the filter cr names.\n",
+      "gate_passed_at": "2026-08-31T08:45:16.469365Z",
+      "commit_sha": "b1fa242",
+      "commit_shas": [
+        "b1fa242"
+      ],
+      "commit_files": [
+        "internal/render/evidence.go",
+        "internal/render/evidence_test.go"
+      ]
     },
     {
       "id": "gap-probe-placement",
