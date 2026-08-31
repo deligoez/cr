@@ -876,7 +876,7 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue, cells, pairs string) map[string][]string {
+func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -920,7 +920,47 @@ func repoRuns(merged, claims, issue, cells, pairs string) map[string][]string {
 		// the checkout cr was invoked from. It sorts after `sandbox
 		// create`, so there is a sandbox to run in.
 		"test": {"test", fixturePR, "--repo", fixtureSlug},
+		// `cr probe run` is the first command in cr that edits a file
+		// inside a checkout, so it is the one this guard was widened
+		// for from the sharpest direction: §5.3.2 applies a mutation
+		// and §5.3.3 reverts it, and the checkout it does that in must
+		// be the sandbox under `~/.cr` rather than the repository the
+		// command was run from. The patch is prepared outside the
+		// repository under review, like every other input here.
+		"probe run": {
+			"probe", "run", fixturePR, "--repo", fixtureSlug,
+			"--kind", "mutation", "--patch", mutation,
+		},
 	}
+}
+
+// runOrder is the sequence the runs are performed in: alphabetical, but with
+// `cr sandbox create` hoisted to just behind `cr brief`.
+//
+// The two hoists are each forced by a section. `cr brief` writes the head every
+// later command reads (§3.7), and a worktree cannot be checked out at a head no
+// round has recorded. `cr sandbox create` refuses to build over a sandbox that
+// is already there (§5.1.1), while §5.1.6 has `cr probe run` and `cr test`
+// build one when they find none — so the one command that has to meet a pull
+// request with no sandbox runs before either of them.
+//
+// Everything after is alphabetical, which still leaves `sandbox destroy`
+// between the probe and `cr test`: the rebuild path this guard most wants
+// covered, since a removal that left a stale registration behind would make the
+// rebuild fail on the path it had just freed.
+func runOrder(t *testing.T, runs map[string][]string) []string {
+	t.Helper()
+	hoisted := []string{"brief", "sandbox create"}
+	for _, name := range hoisted {
+		require.Contains(t, runs, name, "the hoisted %s has no invocation to run", name)
+	}
+	order := slices.Clone(hoisted)
+	for _, name := range slices.Sorted(maps.Keys(runs)) {
+		if !slices.Contains(hoisted, name) {
+			order = append(order, name)
+		}
+	}
+	return order
 }
 
 // No command in the tree writes inside the repository it is run in.
@@ -1014,6 +1054,15 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	pairs := filepath.Join(home, "mapping.ndjson")
 	require.NoError(t, os.WriteFile(pairs, nil, 0o600))
 
+	// The unified diff `cr probe run` applies, outside the repository under
+	// review for the same reason. It breaks the function the pull request's
+	// head branch introduced, which is the shape §5.3.1 describes: a
+	// mutation of production code the suite is expected to notice.
+	mutation := filepath.Join(home, "mutation.diff")
+	require.NoError(t, os.WriteFile(mutation, []byte(
+		"--- a/app.go\n+++ b/app.go\n@@ -1,3 +1,3 @@\n package app\n \n"+
+			"-func Retry() { backoff() }\n+func Retry() {}\n"), 0o600))
+
 	claims := filepath.Join(home, "claims.ndjson")
 	require.NoError(t, os.WriteFile(claims, []byte(`{"id":"`+fixtureIssue+`#c1",`+
 		`"text":"The retry backs off exponentially.","source":"acceptance",`+
@@ -1044,7 +1093,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	runs := repoRuns(merged, claims, issue, cells, pairs)
+	runs := repoRuns(merged, claims, issue, cells, pairs, mutation)
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
@@ -1053,7 +1102,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 
 	run("--version")
 	run("--help")
-	for _, name := range slices.Sorted(maps.Keys(runs)) {
+	for _, name := range runOrder(t, runs) {
 		run(append(strings.Fields(name), "--help")...)
 		run(runs[name]...)
 	}
