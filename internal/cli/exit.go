@@ -347,6 +347,19 @@ func exitCodeFor(err error) int {
 		// file cr cannot use as a file gets.
 		return ExitValidation
 	}
+	var outsideSandbox *state.OutsideSandboxError
+	if errors.As(err, &outsideSandbox) {
+		// §5.3.1's patch is written by an agent, and a path in it that
+		// resolves outside the sandbox would have cr write into the
+		// repository under review — which §5.1.4 and invariant 2 both
+		// forbid. The file was found, read, and parsed, so nothing
+		// about it failed as a file; what is wrong is the data inside
+		// it, which §11.2 codes 1 alongside the record rejections
+		// above. It is deliberately not §5.3.4's first rung: a patch
+		// aimed out of the tree did not fail to apply, it was refused
+		// before anything could be applied at all.
+		return ExitValidation
+	}
 	var reservedField *state.ReservedFieldError
 	if errors.As(err, &reservedField) {
 		// §6.1.4: a record supplying a field cr writes itself is
