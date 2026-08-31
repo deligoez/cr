@@ -121,3 +121,62 @@ func TestCreateRefusesASandboxThatIsAlreadyThere(t *testing.T) {
 	require.NoError(t, err, "the refusal must leave the existing sandbox alone")
 	assert.Equal(t, "a run in progress\n", string(body))
 }
+
+// script writes an executable shell script under dir and returns its path, so a
+// `sandbox.setup` entry can name a real program.
+//
+// A script rather than an inline command line: §5.1.3's entries are split on
+// whitespace and started directly, with no shell to quote for, so anything
+// worth observing has to live in a file.
+func script(t *testing.T, dir, name, body string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o700))
+	return path
+}
+
+// §5.1.2 and §5.1.3: every copy lands before the first setup command runs, and
+// the commands run once each, in order, in the sandbox root.
+//
+// The ordering is observed rather than asserted about the code. The first setup
+// command reads the two copied paths and appends what it found to a log outside
+// the sandbox, and the second appends after it — so the log is a recording of
+// what was true when each command ran. A copy that happened after setup would
+// leave the first two lines as the shell's own "No such file" complaints; a
+// command that ran twice would repeat a line; a pair that ran in the other
+// order would swap them. Only the sequence §5.1 describes produces this file.
+//
+// `ran-here.txt` is the sandbox root half. It is written to a relative path, so
+// where it lands is where the command's working directory was.
+func TestEveryCopyLandsBeforeTheFirstSetupCommandRuns(t *testing.T) {
+	dir, head := repository(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("APP_ENV=testing\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor"), 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "vendor", "marker.txt"), []byte("the vendor tree\n"), 0o600))
+
+	scripts := t.TempDir()
+	log := filepath.Join(scripts, "observed.log")
+	first := script(t, scripts, "first.sh",
+		"{ cat .env; cat vendor/marker.txt; echo first; } >> "+log+" 2>&1\n"+
+			"echo ran > ran-here.txt\n")
+	second := script(t, scripts, "second.sh", "echo second >> "+log+"\n")
+
+	src := sources(t, dir, head)
+	src.Copy = []string{".env", "vendor"}
+	src.Setup = []string{first, second}
+
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	observed, err := os.ReadFile(log)
+	require.NoError(t, err)
+	assert.Equal(t, "APP_ENV=testing\nthe vendor tree\nfirst\nsecond\n", string(observed),
+		"§5.1.2 completes before §5.1.3 starts, and the commands run once each in order")
+
+	assert.FileExists(t, filepath.Join(created.Path, "ran-here.txt"),
+		"§5.1.3: the commands run in the sandbox root")
+	assert.Equal(t, []string{".env", "vendor"}, created.Copied)
+	assert.Empty(t, created.Absent)
+	assert.Equal(t, []string{first, second}, created.Setup)
+}
