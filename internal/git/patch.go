@@ -65,7 +65,23 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 		baseLeft, headLeft int
 	)
 
+	// finish ends the open hunk and files it under the file it belongs to.
+	finish := func() {
+		last := len(files) - 1
+		files[last].Hunks = append(files[last].Hunks, current)
+		open = false
+	}
+
 	for n, line := range strings.Split(strings.TrimSuffix(patch, "\n"), "\n") {
+		// A hunk whose counts are spent stays open for one more line,
+		// because `\ No newline at end of file` follows the line it
+		// annotates and is often that last line's neighbour. Closing on
+		// the count alone would drop the marker into the file-header
+		// scan, and Apply would then put back a final newline the patch
+		// says the file does not end with.
+		if open && baseLeft <= 0 && headLeft <= 0 && !endOfFileMarker(line) {
+			finish()
+		}
 		if open {
 			if line == "" {
 				return nil, fmt.Errorf(
@@ -79,18 +95,13 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 			case '-':
 				baseLeft--
 			case '\\':
-				// "\ No newline at end of file" annotates the
-				// line above it and belongs to neither
-				// version, so it consumes nothing.
+				// The marker annotates the line above it and
+				// belongs to neither version, so it consumes
+				// nothing.
 			default:
 				return nil, fmt.Errorf("patch line %d: %q is not a hunk line", n+1, line)
 			}
 			current.Body = append(current.Body, line)
-			if baseLeft <= 0 && headLeft <= 0 {
-				last := len(files) - 1
-				files[last].Hunks = append(files[last].Hunks, current)
-				open = false
-			}
 			continue
 		}
 
@@ -135,9 +146,20 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 		}
 	}
 	if open {
-		return nil, fmt.Errorf("the patch ends inside a hunk")
+		if baseLeft > 0 || headLeft > 0 {
+			return nil, fmt.Errorf("the patch ends inside a hunk")
+		}
+		// The patch ended on the hunk's last line, which is the
+		// ordinary shape: a diff of one hunk stops there.
+		finish()
 	}
 	return files, nil
+}
+
+// endOfFileMarker reports the `\ No newline at end of file` line, which is the
+// one hunk line that follows a hunk's last counted line rather than being one.
+func endOfFileMarker(line string) bool {
+	return line != "" && line[0] == '\\'
 }
 
 // ApplyError reports a hunk that does not match the file it addresses, which is
