@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"go/ast"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -167,4 +168,63 @@ func TestAMapPairNamingAnUnknownIDExitsOneAndKeepsTheMapping(t *testing.T) {
 				"the good line above the bad one is not written either")
 		})
 	}
+}
+
+// joinFields are the two JSON keys that together make a claim-to-unit join.
+// A struct carrying both is a second opinion about which claim covers which
+// unit, whatever it is called.
+var joinFields = []string{"claim", "unit"}
+
+// joinsClaimToUnit reports the structs in one file that carry both keys.
+func joinsClaimToUnit(file *ast.File) int {
+	joins := 0
+	ast.Inspect(file, func(n ast.Node) bool {
+		structure, declared := n.(*ast.StructType)
+		if !declared {
+			return true
+		}
+		held := make(map[string]bool, len(joinFields))
+		for _, field := range structure.Fields.List {
+			if field.Tag == nil {
+				continue
+			}
+			for _, key := range joinFields {
+				if strings.Contains(field.Tag.Value, `json:"`+key+`"`) {
+					held[key] = true
+				}
+			}
+		}
+		if held["claim"] && held["unit"] {
+			joins++
+		}
+		return true
+	})
+	return joins
+}
+
+// mapping.ndjson is the only claim-to-unit join in cr.
+//
+// §4.1.6 ends with the sentence this guard is: "every rule in §4.1 through §4.4
+// that speaks of the claims a unit is mapped to reads this file". §4.1.2 turns
+// an unmapped unit into a question, §4.1.3 turns an unmapped claim into an
+// intent gap, §4.2.1 evaluates a unit against the claims it is mapped to, and
+// §4.4.1 attaches tests to the same units — four rules, all reading one join.
+// A second structure carrying both ids is how they would come to disagree: the
+// mapping the agent recorded and a mapping something else derived, with nothing
+// in the run saying which one a report was built from.
+//
+// The claim is checked as "no other struct carries both keys", which is what a
+// second join has to look like on disk. `claims` in the plural is a different
+// field and a different rule — §6.1's record cites the claim it violates rather
+// than joining anything — so the tag is matched exactly.
+func TestTheMappingFileIsTheOnlyClaimToUnitJoin(t *testing.T) {
+	joins := map[string]int{}
+	eachSourceFile(t, func(rel string, file *ast.File) {
+		if found := joinsClaimToUnit(file); found > 0 {
+			joins[rel] = found
+		}
+	})
+
+	assert.Equal(t, map[string]int{filepath.Join("internal", "mapping", "mapping.go"): 1}, joins,
+		"§4.1.6: every rule in §4.1 through §4.4 reads one mapping, so cr holds one")
 }
