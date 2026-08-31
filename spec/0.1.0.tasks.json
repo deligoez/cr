@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T03:53:41.589133Z",
+  "updated_at": "2026-08-31T04:20:50.703484Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4089,7 +4089,7 @@
     {
       "id": "probe-advisory-lock",
       "title": "Lock probe runs by repository profile",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "test-command",
@@ -4100,11 +4100,29 @@
       "source_sections": [
         "### 5.6 Isolation and budget"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T03:53:49.75608Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T04:20:50.664258Z",
+      "closed_reason": "- state.LockProbe takes §5.6.1's advisory lock and state.ProbeLockFile names it after the absolute path of the repository under review together with the profile id: `cr test` resolves the checkout it was run in through filepath.Abs and takes the profile from meta.json, so a run invoked from a relative path cannot name a second lock for the same repository. Both halves are load-bearing — a lock keyed on the pull request would let two pull requests of one repository run the suite at once against the one test database the profile configures, and one keyed on the repository alone would make unrelated checkouts wait for nothing. The path is laid out as a directory tree under `~/.cr/locks/probe/`, not digested: §1.4 defines cr's one hash and internal/text fences the ingredient, and a repository path is already a sequence of legal path components. Dogfooded against deligoez/cr-qa PR #1, where the lock landed at `locks/probe/tmp/cr-qa-clone/laravel-pest.lock`.\n- §5.6.2's wait is `probe.lock_timeout_seconds`, resolved through config.Resolve with its default of 300, spent by flock's TryLockContext, and ended by ProbeLockedError, which internal/cli/exit.go maps to exit code 4 — the code §11.2's table gives a lock timeout by name. TestAHeldProbeLockIsWaitedOnAndThenRefused asserts the whole of the timeout is spent before the refusal and that the error names the repository, the profile and the setting to raise; TestAHeldProbeLockExitsWithTheStateCode pins the code through a wrapping. Dogfooded by holding the lock file from another process with `CR_PROBE_LOCK_TIMEOUT_SECONDS=2`: `cr test` waited 2.0s and exited 4 with that message.\n- §5.6.3's sentence is a warning and not an enforcement, because there is nothing here to enforce: a `pest` the developer started in another terminal takes no lock of cr's and cr cannot see it. ProbeLock.CollisionWarning derives it from the lock's own halves and `cr test` prints it on every run, in a `warnings` field kept apart from `honesty` because §11.1's list of what survives `--quiet` is closed and this is not on it. TestTheTestCommandWarnsThatTheProbeLockCoversOnlyItsOwnRuns checks both renderings.\n- TestProbeRunsSerialisePerRepositoryAndProfile holds the lock for one repository and profile, then shows a second repository and a second profile each taking their own lock while it is held, and a second run of the same pair waiting — the wait not ending early, and ending exactly when the holder releases. The exclusion is asserted through the lock rather than through its file name, since the name is not what §5.6.1 promises.\n",
+      "gate_passed_at": "2026-08-31T04:20:50.664258Z",
+      "commit_sha": "8528cac",
+      "commit_shas": [
+        "8528cac",
+        "518028b",
+        "141acef",
+        "08f2235",
+        "c4aa9c9",
+        "bef9841"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/test.go",
+        "internal/cli/test_test.go",
+        "internal/state/layout.go",
+        "internal/state/probelock.go",
+        "internal/state/probelock_test.go"
+      ]
     },
     {
       "id": "probe-round-cap",
