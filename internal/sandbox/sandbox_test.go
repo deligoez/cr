@@ -209,6 +209,8 @@ func TestASetupCommandThatFailsStopsTheRun(t *testing.T) {
 	assert.Equal(t, []string{refusing}, failed.Args)
 	assert.Equal(t, "the tool refused", failed.Stderr)
 	assert.Contains(t, err.Error(), "sandbox.setup")
+	assert.Contains(t, err.Error(), "the tool refused",
+		"§3.1.3: the command's stderr is the only diagnostic there is, so it has to be in the message")
 	assert.NoFileExists(t, log, "§5.1.3 runs the commands in order, so the next one does not start")
 }
 
