@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T05:28:19.882086Z",
+  "updated_at": "2026-08-31T05:53:58.115204Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3617,7 +3617,7 @@
     {
       "id": "sandbox-failure-overrides-ladder",
       "title": "Override probe result on unclean sandbox",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-cleanliness-check"
@@ -3627,11 +3627,24 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T05:28:24.045695Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T05:53:58.088816Z",
+      "closed_reason": "- internal/probe/outcome.go's Decide takes §5.3.4's or §5.4.3's ladder outcome together with what §5.1.6's post-run check found and returns ResultError whenever the check found anything, while internal/sandbox's ForceRecreation drops the post-setup baseline so §5.1.6 reads the sandbox as one to recreate before the next run, and Outcome.Voided is the single fact the record value, the refusal to grade and the forced recreation all follow from.\n- Round 9's probe-result-override is made structural by Outcome, whose fields are unexported and whose only constructor is Decide, so no probe result can be reached that the cleanliness check has not already had its say about, and the check therefore always runs before the record is written.\n- Exactly one value is ever persisted, so §5.3.4's and §5.4.3's totality claims never collide with §5.5.1's immutability, because there is no already-written record left for an override to have to amend.\n- TestAProbeWhoseSandboxFailedItsCheckIsRecordedErrorAndForcesRecreation leaves a real probe artefact in a real sandbox worktree, drives Unclean into Decide with a ladder outcome of no-test-failed, asserts one value was recorded and that it is error, then calls ForceRecreation and asserts the next Ensure recreates the sandbox naming the missing baseline as its reason and that both the artefact and the sentinel are gone.\n- ResultError replaces the ladder value rather than sitting beside it, so §5.3.7's suppression cannot be read from a voided probe at all, because the failed it keys on is not the value that reached the record, and TestAnUncleanSandboxOverridesEveryLadderOutcome drives every value both ladders can produce through the override to show that no-test-failed and failed alike are discarded.\n- §5.4.5 needs no special case for a voided gap probe, since error is a result it already names among those that may not support a probed grade and whose severity is capped at medium, so the ceiling binds through the ordinary handling of a value the section was already written for.\n",
+      "gate_passed_at": "2026-08-31T05:53:58.088816Z",
+      "commit_sha": "7effc17",
+      "commit_shas": [
+        "7effc17",
+        "14aa59f",
+        "3689c0b",
+        "14623ba"
+      ],
+      "commit_files": [
+        "internal/probe/outcome.go",
+        "internal/probe/outcome_test.go",
+        "internal/sandbox/baseline.go",
+        "internal/sandbox/override_test.go"
+      ]
     },
     {
       "id": "test-command",
