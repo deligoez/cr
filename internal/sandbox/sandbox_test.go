@@ -91,3 +91,33 @@ func TestCreateMakesTheWorktreeAtTheHead(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "under review\n", string(body))
 }
+
+// A sandbox that is already there is reported, and left exactly as it was.
+//
+// §5.1.1 creates the worktree and §5.1.5 removes it, so creating over one would
+// be cr deleting a checkout it did not just make — possibly mid-run, possibly
+// carrying the mutation §5.3.3 is about to revert. The sentinel is what proves
+// the refusal is more than a message: a run that reported the conflict and had
+// already emptied the directory would pass an assertion on the error alone.
+func TestCreateRefusesASandboxThatIsAlreadyThere(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+
+	path := src.Layout.Sandbox(fixtureOwner, fixtureRepo, fixturePR)
+	require.NoError(t, os.MkdirAll(path, 0o700))
+	sentinel := filepath.Join(path, "mid-run.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("a run in progress\n"), 0o600))
+
+	created, err := Create(src)
+
+	assert.Nil(t, created)
+	var exists *ExistsError
+	require.ErrorAs(t, err, &exists)
+	assert.Equal(t, path, exists.Path)
+	assert.Contains(t, err.Error(), "cr sandbox destroy 42 --repo acme/web",
+		"§12.4: the error names the next actionable step")
+
+	body, err := os.ReadFile(sentinel)
+	require.NoError(t, err, "the refusal must leave the existing sandbox alone")
+	assert.Equal(t, "a run in progress\n", string(body))
+}
