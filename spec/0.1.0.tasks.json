@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T08:47:32.993916Z",
+  "updated_at": "2026-08-31T09:07:19.530634Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4029,7 +4029,7 @@
     {
       "id": "gap-probe-placement",
       "title": "Place the gap test at template",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "baseline-resolution",
@@ -4041,11 +4041,31 @@
       "source_sections": [
         "### 5.4 Gap probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T08:53:36.976947Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T09:07:19.482732Z",
+      "closed_reason": "- A gap probe now runs as its own kind: `cr probe run --kind gap` no longer refuses, and `internal/probe/gap.go` answers the run with §5.4.3's ladder rather than §5.3.4's, so the two kinds never share a result vocabulary.\n- §5.4.1's supplied test file arrives through `--test`, is read whole, and is stored as §5.5's `input`; `gapInput` refuses `--patch` for this kind and requires both `--test` and `--target`, so an experiment cr would never carry out is named at the flag rather than after a baseline suite has run.\n- §5.4.2's cycle is `runGapProbe`: `profile.ProbePath` resolves the sandbox path from `tests.probe_path_template`, `state.UnderSandboxTestFile` places the file, the suite runs, the file and any directory the placement had to create are removed, and §5.5's record is written with kind `gap`, the supplied target and the unfiltered baseline §5.2.6 resolved.\n- `TestAGapProbePlacesRunsRemovesAndRecords` asserts all four steps from evidence the command could not fake: the runner printed the supplied test's content, the baseline that ran first printed that no such file was there, the sandbox holds neither the file nor its directory afterwards, and the stored record carries every §5.5 row.\n- The template stays fixed per profile: the path is resolved from the profile alone and the probe id is allocated before the placement, so §5.1.6's leftover glob — the same template with `\u003cprobe-id\u003e` replaced by `*` — recognises an artefact a killed run left behind, and the file keeps the suffix the profile's `tests.globs` imply so the runner's own discovery finds it.\n- `probe.IDTakenError` closes the window that reservation opens: the id is read outside §2.3.1's lock and checked against the allocation under it, so §5.5.2's reference can never be ambiguous, and nothing is written when it refuses.\n- An existing file at the probe path aborts with exit code 4: `state.FreeInSandbox` is the writer's own resolution, asked before §5.2.6 performs a baseline, and `internal/cli/exit.go` codes `state.ProbeFileExistsError` as ExitState.\n- `TestAGapProbeRefusesAnExistingFileAtTheProbePath` drives that through the command with a `sandbox.setup` that occupies the path, asserting exit 4, that no suite ran, and that the occupying file is byte-for-byte untouched — which is the point, since §5.1.6's leftover scan is scoped to untracked files and cannot catch this case.\n- `TestAProbePathThatIsTakenOrLeavesTheSandboxIsRefused` holds the placement inside the sandbox as invariant 2 requires: a `..` path, an absolute path, an empty path and a directory symlinked out of the tree are all refused before anything runs.\n- `profile.ProbePath` is no longer test-only: `deadcode ./...` falls from 91 to 90.\n",
+      "gate_passed_at": "2026-08-31T09:07:19.482732Z",
+      "commit_sha": "313ec4b",
+      "commit_shas": [
+        "313ec4b",
+        "f5339c6",
+        "63fdb36",
+        "8feb999",
+        "f121c9b",
+        "8bc76b5",
+        "983f42c",
+        "38fd1fa"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/probe/gap.go",
+        "internal/probe/record.go",
+        "internal/state/probefile.go",
+        "internal/state/probefile_test.go"
+      ]
     },
     {
       "id": "gap-probe-removal",
