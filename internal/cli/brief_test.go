@@ -183,3 +183,38 @@ func TestTheBriefPrintsAllSixItemsOfSection37(t *testing.T) {
 		assert.Contains(t, printed, "axis intent unavailable, per §4.5.3")
 	})
 }
+
+// A round where every axis of §1.5 ran says so, rather than printing an active
+// list and nothing after it.
+//
+// §4.5.4 is a report about the lenses that did not run, and the empty report is
+// the one a reader cannot check: an active list of four and silence beneath it
+// reads the same whether cr found nothing to disclose or forgot to print what
+// it found. Saying it in words is what makes the two distinguishable, and this
+// is the case the payload above cannot cover, because it carries two
+// disclosures on purpose.
+func TestARoundWithNothingDisabledSaysSoInBothRenderings(t *testing.T) {
+	complete := briefedPayload()
+	complete.Axes = activation.Activation{
+		Active:      axis.IDs(),
+		Disabled:    []activation.Disabled{},
+		Unavailable: []intent.Unavailable{},
+	}
+
+	render := func(mode Mode) string {
+		t.Helper()
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: mode}
+		require.NoError(t, out.emit(newBriefResult(complete)))
+		return printed.String()
+	}
+
+	var document map[string]any
+	require.NoError(t, json.Unmarshal([]byte(render(ModeJSON)), &document))
+	assert.Equal(t, []any{}, document["honesty"],
+		"§12.3: an empty report serialises as [], never as null")
+
+	printed := render(ModeText)
+	assert.Contains(t, printed, "axes active: intent, correctness, convention, test")
+	assert.Contains(t, printed, "every axis of §1.5 ran; nothing was disabled or unavailable")
+}
