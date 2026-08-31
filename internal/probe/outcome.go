@@ -5,7 +5,7 @@ package probe
 // The per-kind vocabularies of §5.5's second table are not declared here, and
 // deliberately: §5.5 says the vocabulary "is per kind and MUST NOT be shared",
 // so which values a `mutation` may carry and which a `gap` may carry is one
-// statement that belongs in one place. What is here is the one value §5.1.7
+// statement, made once in vocabulary.go. What is here is the one value §5.1.7
 // reaches for, which both vocabularies already name.
 type Result string
 

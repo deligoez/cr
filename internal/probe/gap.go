@@ -4,8 +4,8 @@ package probe
 // rungs answer with values mutation.go already spells, and they are spelled
 // once for the reason they are spelled at all: §5.5 fixes a closed vocabulary
 // per kind and says it "MUST NOT be shared", so the set a kind may carry is one
-// statement that belongs in one place, and what is here is only what the rungs
-// name.
+// statement, made once in vocabulary.go, and what is here is only what the
+// rungs name.
 const resultPassed Result = "passed"
 
 // GapMeasured is what one gap probe run produced, as §5.4.3 needs to read it.

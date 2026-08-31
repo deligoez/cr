@@ -5,9 +5,9 @@ package probe
 //
 // They are unexported on purpose. §5.5 fixes a closed vocabulary per kind and
 // says it "MUST NOT be shared", and closing that set — and refusing a record
-// carrying a value outside its kind's — is one statement that belongs in one
-// place. What is here is only what §5.3.4's rungs name, spelled once so the
-// ladder reads as the section reads.
+// carrying a value outside its kind's — is one statement, made once in
+// vocabulary.go. What is here is only what §5.3.4's rungs name, spelled once so
+// the ladder reads as the section reads.
 const (
 	resultTimeout         Result = "timeout"
 	resultNoTestsSelected Result = "no-tests-selected"
