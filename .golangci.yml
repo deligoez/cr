@@ -67,10 +67,17 @@ run:
 
 issues:
   # No truncation. golangci-lint defaults these to 50 and 3, and the gate
-  # requires zero issues, so a cap can never let a run pass that would
-  # otherwise fail -- it can only hide from the person how much work is
+  # requires zero issues, so neither cap can ever let a run pass that would
+  # otherwise fail -- all they can do is hide from the person how much work is
   # actually there. Lowering a threshold or enabling a linter is exactly when
   # the count matters, and exactly when the default would understate it.
+  #
+  # They are not the same mechanism, and only one of them bites here. Measured
+  # with funlen on this tree: 21 findings uncapped, 21 with max-same-issues at
+  # 3, and 10 with max-issues-per-linter at 10. max-same-issues groups by
+  # identical message text, and a per-function linter names the function in
+  # every message, so no two are ever identical. It is off for the linters
+  # that do repeat a message verbatim, not for these.
   max-issues-per-linter: 0
   max-same-issues: 0
   # Defaults to true, which reports at most one issue per line. `gocognit` and
