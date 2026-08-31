@@ -28,6 +28,23 @@ const (
 	FileCoverage    = "coverage.ndjson"
 	FileTransitions = "transitions.ndjson"
 	FileWaivers     = "waivers.ndjson"
+	// FileSandboxBaseline is §5.1.6's post-setup baseline, and it is a
+	// row of this table rather than a file in the sandbox because of
+	// where the sandbox is. Round 8's unhomed-state finding is the
+	// argument: the baseline is durable state one `cr` invocation writes
+	// and a later one reads, and the only other place to keep it would be
+	// the worktree it describes — which is a worktree of the repository
+	// under review, where §2.2 permits cr no write but §5.1.1's
+	// registration. So it lives beside the rest of one pull request's
+	// state, under the state root every other row is under.
+	//
+	// It is not in prFiles, for the reason the rounds/<n>/ artefacts are
+	// not: it is created on demand, by `cr sandbox create`. The two
+	// absences mean different things — an NDJSON file that is there and
+	// empty holds no records, while a baseline that is not there is a
+	// pull request no sandbox has been prepared for, which is what
+	// §5.1.6's check has to be able to tell.
+	FileSandboxBaseline = "sandbox-baseline.json"
 )
 
 // prFiles is the §2.3 table in table order.

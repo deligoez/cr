@@ -121,6 +121,12 @@ func Create(src *Sources) (*Result, error) {
 	if err := src.steps(); err != nil {
 		return nil, err
 	}
+	// §5.1.6's baseline describes a sandbox, so the previous one stops
+	// being true the moment this sandbox starts existing, and is dropped
+	// before rather than after: see invalidateBaseline.
+	if err := src.invalidateBaseline(); err != nil {
+		return nil, err
+	}
 	if err := git.AddWorktree(src.RepoDir, path, src.Head); err != nil {
 		return nil, err
 	}
@@ -148,6 +154,12 @@ func Create(src *Sources) (*Result, error) {
 			return nil, err
 		}
 		created.Setup = append(created.Setup, command)
+	}
+	// "After §5.1.2 and §5.1.3 complete", which is here: every copy is in
+	// and every setup command has run, so what the sandbox now holds is
+	// the state every later cleanliness check is measured against.
+	if err := src.recordBaseline(path); err != nil {
+		return nil, err
 	}
 	return created, nil
 }

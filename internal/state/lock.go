@@ -1,7 +1,9 @@
 package state
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -41,6 +43,23 @@ func (l Layout) LockPR(owner, repo string, pr int) (*Lock, error) {
 // Write publishes one file of the locked pull request's state.
 func (k *Lock) Write(name string, data []byte) error {
 	return writeAtomic(filepath.Join(k.dir, name), data)
+}
+
+// Remove deletes one file of the locked pull request's state, and reports a
+// file that was not there as success.
+//
+// It exists for §5.1.6's baseline, which is invalidated rather than rewritten
+// when the sandbox it describes is recreated: the new sandbox's baseline is
+// not known until §5.1.3's setup has finished, and between the two moments the
+// honest answer is that there is none. An absent file is success because that
+// is the state the caller asked for, and a first creation would otherwise have
+// to know whether it was a first.
+func (k *Lock) Remove(name string) error {
+	path := filepath.Join(k.dir, name)
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("cannot remove %s: %w", path, err)
+	}
+	return nil
 }
 
 // Unlock releases the lock and deliberately leaves its file on disk.
