@@ -163,5 +163,18 @@ anything larger than restating an existing rule in its own section to the user.
   `duplicate_of` and will be believed. Whether §11 wants a flag is a decision for
   the user, not the implementation.
 
+- **§2.3's table names no sandbox baseline, at `sandbox-baseline-record`. Open,
+  not repaired.** Round 8's `unhomed-state` requires the post-setup baseline to
+  have a named row in §2.3's per-PR state table and to live outside the
+  worktree, because the sandbox is a worktree of the repository §2.2 forbids
+  writing into. The second half is satisfiable; the first is not, because the
+  normative table has no such row. The implementation added it where the table
+  is expressed in code — the constant block in `internal/state/prfiles.go` that
+  `WriteStamped` routes against — and deliberately left it out of `prFiles`,
+  which `EnsurePR` creates: an empty NDJSON file means "no records", while an
+  absent baseline means "no sandbox has been prepared", which §5.1.6 must be
+  able to tell apart. Carried here so the audit re-tests the reading rather
+  than inheriting it silently.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.
