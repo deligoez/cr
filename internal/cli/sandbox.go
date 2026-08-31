@@ -12,13 +12,14 @@ import (
 )
 
 // sandboxCreateResult is what `cr sandbox create` has to report: where the
-// worktree landed and what it is checked out at.
+// worktree landed, what it is checked out at, and what §5.1.2 and §5.1.3 did
+// inside it.
 //
-// Both are printed rather than confirmed. The path is where every later probe
-// and test run happens and is not a path the caller chose, and the head is the
-// value §5.1.6 checks the sandbox against before every run — so a reader who is
-// told neither cannot tell a sandbox at the round's head from one left over
-// from a head that has moved.
+// The first two are printed rather than confirmed. The path is where every
+// later probe and test run happens and is not a path the caller chose, and the
+// head is the value §5.1.6 checks the sandbox against before every run — so a
+// reader who is told neither cannot tell a sandbox at the round's head from one
+// left over from a head that has moved.
 type sandboxCreateResult struct {
 	// Path is the sandbox worktree of §5.1.1.
 	Path string `json:"path"`
