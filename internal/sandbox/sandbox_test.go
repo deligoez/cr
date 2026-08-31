@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -211,6 +212,12 @@ func TestASetupCommandThatFailsStopsTheRun(t *testing.T) {
 	assert.Contains(t, err.Error(), "sandbox.setup")
 	assert.Contains(t, err.Error(), "the tool refused",
 		"§3.1.3: the command's stderr is the only diagnostic there is, so it has to be in the message")
+
+	// The exec failure is reachable through the error, which is what tells
+	// a command that ran and refused from one that never started at all.
+	var exit *exec.ExitError
+	require.ErrorAs(t, errors.Unwrap(failed), &exit)
+	assert.Equal(t, 3, exit.ExitCode())
 	assert.NoFileExists(t, log, "§5.1.3 runs the commands in order, so the next one does not start")
 }
 
