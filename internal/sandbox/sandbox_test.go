@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -209,4 +210,47 @@ func TestASetupCommandThatFailsStopsTheRun(t *testing.T) {
 	assert.Equal(t, "the tool refused", failed.Stderr)
 	assert.Contains(t, err.Error(), "sandbox.setup")
 	assert.NoFileExists(t, log, "§5.1.3 runs the commands in order, so the next one does not start")
+}
+
+// A profile whose steps cannot be carried out is refused before anything is
+// created.
+//
+// `sandbox.copy` and `sandbox.setup` are data the user writes, and each of
+// these three entries would do something other than what §5.1 describes: a path
+// out of the checkout writes outside the sandbox, which invariant 2 permits
+// nowhere; an empty path addresses the whole checkout; and an entry with no
+// command in it names no program. §2.5 item 3 gives such a field exit code 3
+// with the file and the field named, which is what MalformedError carries.
+//
+// The absent sandbox is the second half. Refusing after the worktree was added
+// would leave a checkout behind that §5.1.1 then refuses to create over, so a
+// user who fixed the profile could not simply run the command again.
+func TestAProfileStepThatCannotBeCarriedOutIsRefused(t *testing.T) {
+	for name, step := range map[string]func(src *Sources){
+		"a copy path that leaves the checkout": func(src *Sources) {
+			src.Copy = []string{filepath.Join("..", "..", "elsewhere")}
+		},
+		"an empty copy path": func(src *Sources) { src.Copy = []string{""} },
+		"a setup entry with no command in it": func(src *Sources) {
+			src.Setup = []string{"   "}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, head := repository(t)
+			src := sources(t, dir, head)
+			src.ProfileFile = filepath.Join("home", ".cr", "profiles", "laravel-pest.json")
+			step(src)
+
+			created, err := Create(src)
+
+			assert.Nil(t, created)
+			var malformed *profile.MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, src.ProfileFile, malformed.File,
+				"§2.5 item 3: the abort names the file the user has to open")
+			assert.Contains(t, malformed.Field, "sandbox.")
+			assert.NoDirExists(t, src.Layout.Sandbox(fixtureOwner, fixtureRepo, fixturePR),
+				"the refusal must leave no sandbox behind for §5.1.1 to refuse over")
+		})
+	}
 }
