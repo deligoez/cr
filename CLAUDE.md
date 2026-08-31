@@ -79,6 +79,19 @@ go build -ldflags="-s -w" -o cr ./cmd/cr
 `.golangci.yml` enables `gofmt` explicitly. Without it a gofmt-dirty file passes
 the gate silently.
 
+**The linter at the gate is pinned, and the pin has three conditions, not one.**
+It must be a fixed version, it must be the version the gate was measured
+against locally, and it must be compatible with the Go version CI resolves. All
+three, or the gate becomes a function of the tool rather than of the code. The
+third is the one that bites silently: `go-version: stable` moved to Go 1.27, and
+`golangci-lint` v2.12.2 — the version measured here — panics inside staticcheck
+while lowering Go 1.27's own `internal/poll` to IR, reporting `package "poll"`
+as if the fault were in this repository. v2.13.0 added Go 1.27 support, so both
+workflows pin v2.13.2. **"It passes locally" is a version-dependent claim for a
+static analyser** in a way it is not for `go test` or `-race`: what the analyser
+sees depends on the standard library, and that depends on the toolchain. Verify
+a new pin locally before writing it into a workflow.
+
 `golangci-lint`'s `unused` skips exported identifiers by design, so an exported
 function nothing calls passes it. `scripts/deadcode.sh` closes that: it fails
 when a function is reachable from no main package **and** no test. The gate
