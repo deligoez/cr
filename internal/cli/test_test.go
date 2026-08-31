@@ -303,6 +303,12 @@ func TestTheStoredCountsAreSummedOverTheWholeMergedStream(t *testing.T) {
 		"§5.2.1: a failed pattern that never matches is zero, not undetermined")
 	assert.Equal(t, "ests:  3 passed\n", stored["output_tail"],
 		"the tail is still the bounded one, so the count came from elsewhere")
+	// §5.2.5 through the command, on the only shape that can satisfy it:
+	// the runner exited 0, five tests ran and none failed. This is the run
+	// §5.2.6 may offer as a baseline, and the verdict is computed at the
+	// write rather than supplied by the caller.
+	assert.Equal(t, true, stored["passed"],
+		"§5.2.5: exit 0, a derivable executed count above zero, and no failures")
 }
 
 // §5.2.3 through the command: the budget the run is bounded by is the
