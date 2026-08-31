@@ -221,3 +221,24 @@ func parseID(id string) (int, bool) {
 	}
 	return n, true
 }
+
+// Grades reports whether this probe record may be used to grade a finding in a
+// round whose head is head, per §5.5.3.
+//
+// One condition, and it is the section's whole sentence: the probe's head is
+// the round's. An experiment performed against other code establishes nothing
+// about this one, and §5.5.3 does not soften that for any result — a
+// `no-test-failed` from the previous head is not weaker evidence, it is
+// evidence about a tree that is no longer under review.
+//
+// Records from earlier heads stay on disk, which is why this exists at all.
+// §5.5.1 makes them immutable and NextID allocates above every id the file has
+// ever held, so a finding stored in an earlier round still names the probe it
+// rested on; what §5.5.3 removes is not the record but its standing in this
+// round.
+//
+// It is one predicate rather than a comparison written at each reader, because
+// §6.2's grade computation, §5.4.4's support conditions and §5.4.5's severity
+// bounds all ask the same question, and three spellings of it could answer
+// three ways.
+func (r *Record) Grades(head string) bool { return r.Head == head }
