@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -376,10 +377,11 @@ func TestTheTestCommandRunsInTheSandboxAndNeverTheCheckout(t *testing.T) {
 	runner := script(t, scripts, "runner.sh", "pwd > "+log+"\necho the suite ran\nexit 3\n")
 
 	var printed strings.Builder
-	code, err := Run([]string{runner}, created.Path, &printed)
+	code, timedOut, err := Run([]string{runner}, created.Path, &printed, time.Minute)
 	require.NoError(t, err)
 
 	assert.Equal(t, 3, code, "§5.2.1 reports the runner's exit status rather than raising it")
+	assert.False(t, timedOut, "§5.2.3: a run that finished inside its budget was not killed")
 	assert.Contains(t, printed.String(), "the suite ran",
 		"the runner's output reaches the reader as it is produced")
 
@@ -411,9 +413,12 @@ func TestARunnerThatCannotBeStartedIsAFailure(t *testing.T) {
 	created, err := Create(src)
 	require.NoError(t, err)
 
-	code, err := Run([]string{filepath.Join(created.Path, "no-such-runner")}, created.Path, io.Discard)
+	code, timedOut, err := Run(
+		[]string{filepath.Join(created.Path, "no-such-runner")},
+		created.Path, io.Discard, time.Minute)
 
 	assert.Zero(t, code)
+	assert.False(t, timedOut)
 	var failed *RunError
 	require.ErrorAs(t, err, &failed)
 	assert.Contains(t, err.Error(), "no-such-runner")
