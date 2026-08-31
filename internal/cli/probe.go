@@ -425,6 +425,14 @@ func gapInput(request *probeRequest, patchFile, testFile, target string) error {
 				"required row and takes it from this flag, because a supplied test file " +
 				"names no line of the code under review")
 	}
+	// §5.5's shape, asked before any file is opened and any state is
+	// touched: a `--target` that is not a `path:line` names nowhere at all,
+	// and the record's row is required whatever the head turns out to hold.
+	// Whether the head holds the location is asked later, where the round's
+	// head is resolved.
+	if _, _, err := probe.ParseTarget(target); err != nil {
+		return err
+	}
 	body, err := os.ReadFile(testFile)
 	if err != nil {
 		return err
@@ -607,6 +615,17 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 	setup, err := prepareProbe(cmd, request)
 	if err != nil {
+		return err
+	}
+	// §5.5: a gap probe's target is supplied and validated as §6.2.3
+	// validates a citation, against the head this round was briefed at.
+	// It is asked here, before §5.2.6 performs a baseline suite and before
+	// the lock is taken, because a record whose `target` names a location
+	// nobody can open is one §6.2.2 could never grade a finding from — and
+	// the experiment would have been performed for nothing.
+	if err := probe.CheckTarget(func(path string) ([]string, bool, error) {
+		return git.FileAtRevision(setup.dir, setup.round.Head, path)
+	}, request.target); err != nil {
 		return err
 	}
 	stored, err := state.ReadRecords[probe.Record](
