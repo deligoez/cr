@@ -225,6 +225,11 @@ func (r *briefResult) axes(w *writer, out *strings.Builder) {
 	if len(r.Honesty) == 0 {
 		fmt.Fprintf(out, "  every axis of §1.5 ran; nothing was disabled or unavailable\n")
 	}
+	// §4.5.1's role half, settled by the same two facts and read by §4.5.6
+	// as the set a cell's role must sit in. It is printed here rather than
+	// left to the JSON payload alone: a reader of the terminal is
+	// otherwise told which lenses can look and not which reviewers do.
+	fmt.Fprintf(out, "  roles active: %s\n", listed(r.ActiveRoles))
 }
 
 // listed renders a set of ids, and says so when there are none rather than
