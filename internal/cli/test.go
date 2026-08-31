@@ -47,6 +47,16 @@ type testRunResult struct {
 	// interpreted: a failing suite is an ordinary outcome, and §5.2.5 and
 	// §5.3.4 are what read the number.
 	ExitCode int `json:"exit_code"`
+	// TimedOut says the run was killed for exceeding
+	// `tests.timeout_seconds` (§5.2.3).
+	//
+	// It is reported beside the exit code rather than left to the run
+	// record, because the exit code alone cannot carry it: a process cr
+	// killed reports what the platform reports for a killed process, which
+	// is the same shape of number a runner that decided to fail produces.
+	// A reader told only `exit -1` would have to guess which happened, and
+	// §5.3.4 puts the two on different rungs.
+	TimedOut bool `json:"timed_out"`
 	// Warnings carries §5.6.3's collision warning: the probe lock covers
 	// cr's own runs and can cover nothing else.
 	//
@@ -71,6 +81,12 @@ func (r *testRunResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "  command %s\n", strings.Join(r.Command, " "))
 	fmt.Fprintf(&out, "  filter  %s\n", listedOrNone(r.Filter))
 	fmt.Fprintf(&out, "  exit    %d\n", r.ExitCode)
+	if r.TimedOut {
+		// §5.2.3's outcome, said in words, because the exit code
+		// beside it is the platform's number for a killed process and
+		// reads as an ordinary failure.
+		fmt.Fprintf(&out, "  %s\n", w.accent("killed for exceeding tests.timeout_seconds"))
+	}
 	fmt.Fprintf(&out, "  run     %s", r.Run)
 	for _, warned := range r.Warnings {
 		fmt.Fprintf(&out, "\n%s", warned)
@@ -210,6 +226,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				Command:  argv,
 				Filter:   filter,
 				ExitCode: code,
+				TimedOut: timedOut,
 				Warnings: []string{probe.CollisionWarning()},
 				Honesty:  recreationNotice(ready),
 			})
