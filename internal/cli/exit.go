@@ -391,6 +391,16 @@ func exitCodeFor(err error) int {
 		// alongside the record rejections above.
 		return ExitValidation
 	}
+	var outsideVocabulary *probe.OutsideVocabularyError
+	if errors.As(err, &outsideVocabulary) {
+		// §5.5 fixes the result vocabulary per kind and says it must
+		// not be shared, and the check refuses a record on the way
+		// into probes.ndjson. Nothing about the invocation can be
+		// retyped to fix it, and no file failed as a file; what is
+		// refused is a record, which §11.2 codes 1 alongside the
+		// record rejections above.
+		return ExitValidation
+	}
 	var invalidTarget *probe.InvalidTargetError
 	if errors.As(err, &invalidTarget) {
 		// §5.5 takes a gap probe's target from `--target` and has it
