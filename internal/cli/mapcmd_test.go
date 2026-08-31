@@ -123,3 +123,48 @@ func TestMapRecordReplacesTheRoundsMappingWithThePairsItNames(t *testing.T) {
 	}, storedMapping(t, layout),
 		"§4.1.6: the round's mapping is replaced by the file, and earlier rounds stay intact")
 }
+
+// §4.1.6 rejects an unknown claim or unit id with exit code 1, and the round's
+// mapping is left exactly as it was.
+//
+// The two ids fail for the same reason from opposite sides. A pair naming a
+// claim the round does not hold would have §4.1.3 report an unimplemented claim
+// that something is mapped to; one naming a unit the round never formed would
+// have §4.1.2 read a unit as mapped that §3.4 never produced. Either way the
+// join points at a row that does not exist, and every rule in §4.1 through §4.4
+// that speaks of the claims a unit is mapped to reads this file.
+//
+// The untouched mapping is the ordering the other recording commands already
+// fix: the whole file is validated before anything is written, so a bad line
+// among good ones does not cost the agent the mapping it had.
+func TestAMapPairNamingAnUnknownIDExitsOneAndKeepsTheMapping(t *testing.T) {
+	layout := briefedForMapping(t)
+	require.NoError(t, recordMapping(t, `{"claim":"`+mapIssue+`#c1","unit":"u1"}`))
+	standing := storedMapping(t, layout)
+
+	for _, tc := range []struct {
+		name  string
+		line  string
+		field string
+	}{
+		{"a claim no round recorded", `{"claim":"` + mapIssue + `#c9","unit":"u1"}`, "claim"},
+		{"a claim of another issue", `{"claim":"CR-99#c1","unit":"u1"}`, "claim"},
+		{"a unit no round formed", `{"claim":"` + mapIssue + `#c1","unit":"u9"}`, "unit"},
+		{"no claim at all", `{"unit":"u1"}`, "claim"},
+		{"no unit at all", `{"claim":"` + mapIssue + `#c1"}`, "unit"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := recordMapping(t, `{"claim":"`+mapIssue+`#c2","unit":"u2"}`, tc.line)
+
+			var rejected *mapping.RejectedPairError
+			require.ErrorAs(t, err, &rejected)
+			assert.Equal(t, ExitValidation, exitCodeFor(err),
+				"§4.1.6 and §11.2 code an unknown id 1")
+			assert.Equal(t, tc.field, rejected.Field)
+			assert.Equal(t, 2, rejected.Line,
+				"the refusal names the line the user has to open")
+			assert.Equal(t, standing, storedMapping(t, layout),
+				"the good line above the bad one is not written either")
+		})
+	}
+}
