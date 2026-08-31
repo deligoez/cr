@@ -98,3 +98,64 @@ func TestARoundScopedWriteRefusesAStoreItCannotRead(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, corrupt, string(body), "and nothing was written over it")
 }
+
+// keyedRecord is a §2.3.3 record keyed by more than its round: coverage.ndjson
+// holds one cell per (unit, role), which is the shape ReplaceStampedKeys was
+// written for.
+type keyedRecord struct {
+	Stamp
+	Unit   string `json:"unit"`
+	Role   string `json:"role"`
+	Result string `json:"result"`
+}
+
+// cellsRecorded writes one line per (unit, role) into name, as bytes, so a
+// keyed write has cells of this round and of another to leave alone.
+func cellsRecorded(t *testing.T, k *Lock, name string, at ...keyedRecord) {
+	t.Helper()
+	var body []byte
+	for _, cell := range at {
+		body = fmt.Appendf(body,
+			"{\"head\":\"0f1e2d3\",\"round\":%d,\"unit\":%q,\"role\":%q,\"result\":%q}\n",
+			cell.Round, cell.Unit, cell.Role, cell.Result)
+	}
+	require.NoError(t, k.Write(name, body))
+}
+
+// §4.5.6 replaces the current round's cell for each (unit, role) the file names
+// and leaves every other cell untouched.
+//
+// The fixture is built so that each half of that sentence can fail on its own.
+// One cell of this round is named and replaced; a second cell of this round at
+// the same unit under another role is not named, and a third at the same role
+// under another unit is not either — so a writer keyed on the unit alone or on
+// the role alone deletes one of them. A cell of another round sits alongside,
+// which is §9.3.5's half: a keyed write is still round-scoped, and a stored
+// cell at a named key in an earlier round is history rather than a cell to
+// replace.
+func TestReplaceStampedKeysRewritesTheNamedKeysAndNoOthers(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	cellsRecorded(t, held, FileCoverage,
+		keyedRecord{Stamp: Stamp{Round: 1}, Unit: "u1", Role: "correctness", Result: "pass"},
+		keyedRecord{Stamp: Stamp{Round: 2}, Unit: "u1", Role: "correctness", Result: "pass"},
+		keyedRecord{Stamp: Stamp{Round: 2}, Unit: "u1", Role: "convention", Result: "pass"},
+		keyedRecord{Stamp: Stamp{Round: 2}, Unit: "u2", Role: "correctness", Result: "pass"},
+	)
+
+	at := Stamp{Head: "9a8b7c6", Round: 2}
+	require.NoError(t, ReplaceStampedKeys(held, FileCoverage, at,
+		[]*keyedRecord{{Unit: "u1", Role: "correctness", Result: "finding"}},
+		[]string{"unit", "role"}))
+	require.NoError(t, held.Unlock())
+
+	got, err := ReadRecords[keyedRecord](l, "acme", "web", 42, FileCoverage)
+	require.NoError(t, err)
+	assert.Equal(t, []keyedRecord{
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 1}, Unit: "u1", Role: "correctness", Result: "pass"},
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, Unit: "u1", Role: "convention", Result: "pass"},
+		{Stamp: Stamp{Head: "0f1e2d3", Round: 2}, Unit: "u2", Role: "correctness", Result: "pass"},
+		{Stamp: at, Unit: "u1", Role: "correctness", Result: "finding"},
+	}, got, "§4.5.6: only the named (unit, role) of the current round is replaced")
+}
