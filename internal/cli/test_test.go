@@ -246,3 +246,61 @@ func TestTheTestRenderingNamesTheFilterOrSaysThereWasNone(t *testing.T) {
 	assert.Contains(t, render(t, "retries twice"), "filter  retries twice")
 	assert.NotContains(t, render(t, "retries twice"), "none")
 }
+
+// §5.2.1's extraction through the command: the counts are summed over every
+// match of each pattern, taken from the runner's stdout and stderr merged in
+// the order they were written, and read from the whole of that stream rather
+// than from the tail the record retains.
+//
+// The runner prints one status to each stream and the profile retains sixteen
+// bytes, so the three assertions separate. A reader of one stream sees 2 or 3
+// and never 5. A reader of the tail sees the last line alone, so it too sees 3
+// — which is the failure mode that matters, because a truncated view produces
+// a wrong count rather than an undetermined one, and §5.2.5 would hand it on
+// as a baseline. And nothing in the output says the word failed, which is the
+// all-passing case §5.2.1 makes zero rather than undetermined: Pest prints no
+// status whose count is zero.
+func TestTheStoredCountsAreSummedOverTheWholeMergedStream(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	runner := filepath.Join(t.TempDir(), "runner.sh")
+	require.NoError(t, os.WriteFile(runner, []byte(
+		"#!/bin/sh\necho 'Tests:  2 passed'\necho 'Tests:  3 passed' >&2\n"), 0o700))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
+		`"match":{"files":[],"globs":[]},"axes":{"test":true},`+
+		`"tests":{"cmd":["`+runner+`"],"globs":["*_test.txt"],"output_tail_bytes":16,`+
+		`"count_pattern":"Tests:\\s+(\\d+)\\s+(?:failed|passed)\\b",`+
+		`"failed_pattern":"Tests:\\s+(\\d+)\\s+failed\\b"}}`))
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, ProfileID: "qa", Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+
+	body, err := os.ReadFile(prepared.PRFile(
+		fixtureOwner, fixtureProject, fixturePRNumber, state.FileRuns))
+	require.NoError(t, err)
+	var stored map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(string(body))), &stored))
+
+	assert.Equal(t, float64(5), stored["tests_run"],
+		"§5.2.1: both matches are summed, from both streams and from beyond the tail")
+	assert.Equal(t, float64(0), stored["tests_failed"],
+		"§5.2.1: a failed pattern that never matches is zero, not undetermined")
+	assert.Equal(t, "ests:  3 passed\n", stored["output_tail"],
+		"the tail is still the bounded one, so the count came from elsewhere")
+}
