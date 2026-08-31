@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T09:44:18.434891Z",
+  "updated_at": "2026-08-31T10:47:42.222389Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4135,7 +4135,7 @@
     {
       "id": "gap-failed-support-conditions",
       "title": "Support a finding only with baseline",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "gap-result-ladder"
@@ -4145,16 +4145,38 @@
       "source_sections": [
         "### 5.4 Gap probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T09:53:19.198636Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T10:11:51.282185Z",
+      "closed_reason": "- probe.Reproduces in internal/probe/support.go is §5.4.4's first half: a gap probe whose result is `failed` says the supplied test failed and nothing more, because cr cannot distinguish a wrong behaviour from a wrong test.\n- The result is recorded exactly as the run produced it, the record keeps the runner's output_tail, and render.ProbeEvidence prints kind, target, filter, result and output_tail verbatim, so the output reaches the author as a reproduction rather than as a conclusion cr composed.\n- probe.Supports is the whole of §5.4.4's condition and is one boolean expression: Reproduces(record) and baseline.Passed() and the mapping's own answer.\n- The two facts an agent could otherwise talk cr into are types with one constructor each, the way probe.Proves already reads §5.3.5: a Baseline exists only where a stored run record §5.2.6 admits was resolved, and a ClaimMapping exists only where MapClaim asked §4.1.6's stored pairs.\n- Record.ResolveBaseline resolves the run §5.5's baseline column names by id and still applies §5.2.6's fence, so a run carrying a probe, a contaminated one, or one at another head cannot become the verdict §5.4.4 reads.\n- Otherwise the probe supports no probed grade, which leaves the record argued under §6.2 and a question under §6.3, and the reason printed says which of the two conditions decided.\n- MapClaim is the mechanical check of §5.4.4's second condition against mapping.ndjson, scoped to the round because §3.4.6 makes a unit id round-scoped.\n- TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim drives a mismatched claim field through cr record and asserts the probe supports nothing, alongside a red baseline, an absent claim field, and a probe from another head.\n- TestAFailedGapProbeSupportsAFindingOnlyOnAPassingBaselineAndAMappedClaim drives the same six conditions at the probe package, including a pair belonging to an earlier round.\n- Round 12's axis-availability-coupling is held by probe.GapUnmappable, which satisfies finding.HonestyDisclosure and reaches the reader through the channel §11.1 exempts from --quiet whenever the empty mapping of §4.6.6 is what decided a failed gap probe.\n- Round 12's unearned-probed-grade is held in the opposite direction: the reported verb is supports rather than proves, the sentence says the probe establishes no more than that the supplied test failed and names target as the one the probe was given, and the tests assert the words prove, verif and confirm never appear.\n- Dogfooded against deligoez/cr-qa PR 1 under an isolated CR_HOME: a failed gap probe p1 on a mapped claim reports supports true, the same probe on a record naming a claim mapped to another unit reports supports false, and a second CR_HOME whose key pattern matches nothing reports the coupling through honesty; the repository under review stayed clean, per invariant 2.\n",
+      "gate_passed_at": "2026-08-31T10:11:51.282185Z",
+      "commit_sha": "f13d3c9",
+      "commit_shas": [
+        "f13d3c9",
+        "0a68507",
+        "baa17f8",
+        "ee22782",
+        "1366ebc",
+        "a9b89c7",
+        "d10334b",
+        "19d4732",
+        "5785d7d",
+        "740dc65"
+      ],
+      "commit_files": [
+        "internal/cli/gapsupport.go",
+        "internal/cli/gapsupport_test.go",
+        "internal/cli/record.go",
+        "internal/probe/disclosure_test.go",
+        "internal/probe/resolve.go",
+        "internal/probe/support.go",
+        "internal/probe/support_test.go"
+      ]
     },
     {
       "id": "gap-passed-limits",
       "title": "Deny probed grade to passed gaps",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "gap-failed-support-conditions"
@@ -4164,16 +4186,34 @@
       "source_sections": [
         "### 5.4 Gap probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T10:12:19.195971Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T10:17:58.690823Z",
+      "closed_reason": "- probe.Present is §5.4.5's first sentence: a passed gap probe establishes that the behaviour the supplied test asserts is present.\n- It is kept apart from the missing test only §5.3's no-test-failed establishes, in the type's own documentation and in every sentence cr prints about it.\n- probe.Supports refuses a probed grade to passed, timeout, error, no-tests-selected and inconclusive by construction, because Reproduces names the one result that is not among them.\n- A record resting on any of the five therefore falls to argued under §6.2 and is asked as a question under §6.3, and cr record says so in the reason it prints for that record.\n- TestNoGapResultOtherThanFailedSupportsAFinding drives all five at the probe package with §5.4.4's two conditions met in full, so the result is the only thing refusing support.\n- TestEachResultSection545NamesLeavesTheRecordArgued drives the same five through cr record and asserts each reason names §5.4.5 and says where the record lands.\n- cr probe run no longer reports undecided for every gap probe: gapEstablishedBy leaves only failed undecided, answers passed with §5.4.5's own reading, and answers the other four with nothing.\n- TestWhatEachGapResultIsReportedToEstablish covers all six values of §5.4.3's vocabulary and asserts every token carries a clause naming the section that decided.\n- Dogfooded against deligoez/cr-qa PR 1: a supplied test asserting shipping is 0.0 at exactly 50.00 recorded passed and reported establishes behaviour, the same test under a filter matching nothing recorded inconclusive and reported establishes nothing, and cr record refused both a probed grade with a reason naming §5.4.5.\n",
+      "gate_passed_at": "2026-08-31T10:17:58.690823Z",
+      "commit_sha": "6799ee7",
+      "commit_shas": [
+        "6799ee7",
+        "1fa0570",
+        "5e2f433",
+        "6e0899f",
+        "ccfc1b3",
+        "97c87f4",
+        "df290a4"
+      ],
+      "commit_files": [
+        "internal/cli/gapsupport.go",
+        "internal/cli/gapsupport_test.go",
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/probe/support.go",
+        "internal/probe/support_test.go"
+      ]
     },
     {
       "id": "gap-severity-enforcement",
       "title": "Enforce the gap probe severity bounds",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "gap-passed-limits"
@@ -4183,11 +4223,29 @@
       "source_sections": [
         "### 5.4 Gap probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T10:18:50.41422Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T10:47:42.143426Z",
+      "closed_reason": "- finding.GapAtLeastHigh is §5.4.4's floor: a record a failed gap probe supports carries severity high or critical, and the section's \"only when\" limits when the floor applies rather than which way it points.\n- Nothing lowers it once it applies, and nothing raises a record that no probe supports, so a crashed runner cannot reach the floor at all: a signalled process is error on §5.4.3's second rung and never failed.\n- finding.GapAtMostMedium is §5.4.5's ceiling: a record resting on a gap probe that supports no probed grade carries medium or low.\n- The ceiling is read over all five results §5.4.5 names rather than passed alone, because the capping sentence has no subject of its own and the nearest one is the paragraph's, \"a record resting on one\" of the five; the task's acceptance names only the passed case, and the broader reading is the one implemented.\n- finding.CheckGapSeverity is the single named enforcer both bounds bind through, and it takes the moment as an Actor argument so the record-time refusal and the post-time re-check cannot be two readings of §5.4 that disagree.\n- cr record calls it before it writes anything and rejects with exit code 1, naming the record, the probe, the result, the bound's section and the severities the record must carry instead.\n- internal/cli/exit.go maps finding.GapSeverityError onto §11.2's code 1, and gradingGap passes no probe when §5.5.3 keeps one from another head out of this round's grading, so a stale experiment refuses nothing.\n- Without a named enforcer both MUSTs bind nobody, since severity is agent-written and §6.1.3 checks presence alone.\n- The cost of leaving it unenforced is a misdirected human: severity is what the reviewer triages on under §1.6.2's blocking cap, so a probe that showed the behaviour working could present its record as the loudest item in the draft.\n- TestBothGapSeverityBoundsAreEnforced drives every severity of §6.1 against every result of §5.4.3, including the unsupported failed probe that has no bound and the error result round 9's ladder finding is about.\n- TestTheSameBoundIsCheckedAtRecordTimeAndAtPostTime asserts the same record and probe are refused for cr record, cr post --confirm and cr post --reconcile, each refusal naming the moment it came from; §7.2.2's re-check is therefore a call to this function, and wiring that call is the post command's own task, which v0.1 has not built yet.\n- TestRecordRefusesASeverityEitherGapBoundForbids drives both bounds through the command, asserting exit code 1, the named record, probe and result, and that findings.ndjson is untouched.\n- TestAnUnrecognisedSeverityMeetsNeitherBound holds the membership test open: a value §6.1 does not name satisfies neither bound, so it is refused wherever a bound applies rather than ranked into whichever half a comparison chose.\n- gremlins over ./internal reported three surviving mutants in this cycle's code, all documented contracts with no boundary test, and all three are now killed: the coupling's len(unmapped) \u003e 0, namedClaim's empty-claim branch, and the refusal's list of the severities the bound leaves.\n- Each kill was verified by applying the mutation and reverting it, so the assertion is known to bite rather than assumed to.\n- Dogfooded against deligoez/cr-qa PR 1: a record on the supported failed probe p1 at medium was refused with §5.4.4 named, a record on the passed probe p2 at critical was refused with §5.4.5 named, both exited 1, and nothing reached findings.ndjson.\n",
+      "gate_passed_at": "2026-08-31T10:47:42.143426Z",
+      "commit_sha": "d722fd8",
+      "commit_shas": [
+        "d722fd8",
+        "864d07b",
+        "7577a71",
+        "d52c601",
+        "78eea93",
+        "7e88a87",
+        "8e94a24",
+        "62a910b"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/gapsupport.go",
+        "internal/cli/gapsupport_test.go",
+        "internal/finding/gapbound.go",
+        "internal/finding/gapbound_test.go"
+      ]
     },
     {
       "id": "probe-record-schema",
