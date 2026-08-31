@@ -100,3 +100,43 @@ func TestTheSandboxIsCheckedOutAtTheRoundsRecordedHead(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, head, strings.TrimSpace(mustGit(t, created, "rev-parse", "HEAD")))
 }
+
+// Both renderings say what §5.1.2 copied, what it could not, and what §5.1.3
+// ran.
+//
+// The absent list is the one that has to be printed rather than counted. A
+// `sandbox.copy` path the checkout does not hold is not an error — a fresh
+// clone has no `vendor` — but it is the reason a suite later fails to start,
+// and a reader told only that one path of two was copied cannot tell which.
+func TestTheSandboxReportsWhatWasCopiedAndWhatWasRun(t *testing.T) {
+	prepared := &sandboxCreateResult{
+		Path: renderedSandboxPath, Head: renderedSandboxHead,
+		Copied: []string{".env"},
+		Absent: []string{"vendor"},
+		Setup:  []string{"composer install --no-interaction"},
+	}
+	render := func(t *testing.T, mode Mode) string {
+		t.Helper()
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: mode}
+		require.NoError(t, out.emit(prepared))
+		return printed.String()
+	}
+
+	t.Run("json", func(t *testing.T) {
+		var printed map[string]any
+		require.NoError(t, json.Unmarshal([]byte(render(t, ModeJSON)), &printed))
+
+		assert.Equal(t, []any{".env"}, printed["copied"])
+		assert.Equal(t, []any{"vendor"}, printed["absent"])
+		assert.Equal(t, []any{"composer install --no-interaction"}, printed["setup"])
+	})
+
+	t.Run("terminal", func(t *testing.T) {
+		printed := render(t, ModeText)
+
+		assert.Contains(t, printed, "copied .env")
+		assert.Contains(t, printed, "absent vendor")
+		assert.Contains(t, printed, "setup  composer install --no-interaction")
+	})
+}
