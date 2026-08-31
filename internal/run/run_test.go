@@ -232,6 +232,45 @@ func TestTheOutputTailDoesNotEndAHalfRuneAtTheFrontOfTheOutput(t *testing.T) {
 	assert.LessOrEqual(t, len(held), 10, "§5.2.4's bound is in bytes and still holds")
 }
 
+// §5.2.5's predicate: `passed` is true only when the exit code is 0, the
+// executed count is derivable and greater than zero, and the failed count is
+// 0 — and false as soon as any one of those stops holding.
+//
+// Each case starts from a record that passes and breaks exactly one clause, so
+// a passing verdict that had quietly stopped depending on a clause fails the
+// case for that clause alone rather than being masked by the others. The two
+// undetermined cases are the ones with consequences beyond this function: a
+// run whose counts are underivable never passes, so §5.2.6 cannot offer it as
+// a baseline and §5.3.5 and §5.4.4 cannot let a probe resting on it support a
+// `probed` grade. A baseline that passed on counts nobody could read would
+// hand the repository's pre-existing failures to the probe.
+func TestARunPassesOnlyWhileEveryClauseOfTheVerdictHolds(t *testing.T) {
+	passing := func() *Record {
+		return &Record{ID: "r1", ExitCode: 0, TestsRun: count(4), TestsFailed: count(0)}
+	}
+	require.True(t, passing().Verdict(), "the starting point has to be a run that passes")
+
+	broken := map[string]func(*Record){
+		"a non-zero exit code": func(r *Record) { r.ExitCode = 1 },
+		// §5.2.3's outcome reaches the verdict through the exit code
+		// the platform reports for a killed process.
+		"a run killed for exceeding its budget": func(r *Record) {
+			r.ExitCode, r.TimedOut = -1, true
+		},
+		"an undetermined executed count": func(r *Record) { r.TestsRun = nil },
+		"an executed count of zero":      func(r *Record) { r.TestsRun = count(0) },
+		"a non-zero failed count":        func(r *Record) { r.TestsFailed = count(1) },
+		"an undetermined failed count":   func(r *Record) { r.TestsFailed = nil },
+	}
+	for name, breaks := range broken {
+		t.Run(name, func(t *testing.T) {
+			record := passing()
+			breaks(record)
+			assert.False(t, record.Verdict())
+		})
+	}
+}
+
 // count is the address of one derived test count, which is what §5.2.4's
 // "when derivable" needs a literal to be able to express.
 func count(n int) *int { return &n }
