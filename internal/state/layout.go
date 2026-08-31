@@ -160,9 +160,9 @@ func (l Layout) WaiversFile(owner, repo string) string {
 func (l Layout) LocksDir() string { return filepath.Join(l.root, "locks") }
 
 // PRLockFile is the advisory lock guarding one pull request's state (§2.3.1).
-// It is nested by owner and repository, so its name can never collide with the
-// probe lock of §5.6, which is named after a repository path and a profile id
-// and lives directly in the same directory.
+// It is nested by owner and repository, and the probe lock of §5.6 — which is
+// named after a repository path and a profile id — is nested under
+// DirProbeLocks, so the two trees share the locks directory and no name.
 func (l Layout) PRLockFile(owner, repo string, pr int) string {
 	return filepath.Join(l.LocksDir(), owner, repo, "pr-"+strconv.Itoa(pr)+".lock")
 }

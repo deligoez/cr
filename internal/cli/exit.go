@@ -292,6 +292,16 @@ func exitCodeFor(err error) int {
 		// alongside the illegal transition and the unbriefed round.
 		return ExitState
 	}
+	var probeLocked *state.ProbeLockedError
+	if errors.As(err, &probeLocked) {
+		// §5.6.2 codes the lock timeout itself: cr waits up to
+		// `probe.lock_timeout_seconds` and then fails with exit code 4,
+		// which §11.2's table names in as many words — "state conflict,
+		// including lock timeout". Nothing about the invocation is
+		// wrong and no file failed; what refuses is that another cr run
+		// is already inside the same repository and profile.
+		return ExitState
+	}
 	var noPRState *note.NoStateError
 	if errors.As(err, &noPRState) {
 		// §2.2's state directory is opened by `cr brief`, and §3.6.2's

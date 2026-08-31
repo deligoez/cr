@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
@@ -43,6 +47,14 @@ type testRunResult struct {
 	// interpreted: a failing suite is an ordinary outcome, and §5.2.5 and
 	// §5.3.4 are what read the number.
 	ExitCode int `json:"exit_code"`
+	// Warnings carries §5.6.3's collision warning: the probe lock covers
+	// cr's own runs and can cover nothing else.
+	//
+	// It is a field of its own rather than another entry in Honesty,
+	// because §11.1's list of what survives `--quiet` is closed and this
+	// is not on it. Folding the two together would quietly widen that
+	// exemption the moment the suppression is implemented.
+	Warnings []string `json:"warnings"`
 	// Honesty carries §5.1.6's recreation notice when the sandbox had to
 	// be rebuilt before the run. It is a field on the payload rather than
 	// a second stream, so the reader of the JSON document and the reader
@@ -60,6 +72,9 @@ func (r *testRunResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "  filter  %s\n", listedOrNone(r.Filter))
 	fmt.Fprintf(&out, "  exit    %d\n", r.ExitCode)
 	fmt.Fprintf(&out, "  run     %s", r.Run)
+	for _, warned := range r.Warnings {
+		fmt.Fprintf(&out, "\n%s", warned)
+	}
 	for _, disclosed := range r.Honesty {
 		fmt.Fprintf(&out, "\n%s", disclosed)
 	}
@@ -143,10 +158,21 @@ func newTestCmd(out *writer) *cobra.Command {
 			// person watching the command saw.
 			tail := run.NewTail(resolved.Tests.OutputTailBytes)
 			log := io.MultiWriter(cmd.ErrOrStderr(), tail)
+			// §5.6.1's lock, taken around the run itself and
+			// nothing else. What it protects is the resource the
+			// suite touches — the test database the profile
+			// configures — so it is held for exactly as long as
+			// something is running against it.
+			probe, err := lockProbe(layout, owner, repo, dir, round.ProfileID)
+			if err != nil {
+				return err
+			}
 			started := time.Now()
 			code, err := sandbox.Run(argv, ready.Path, log)
 			took := time.Since(started)
-			if err != nil {
+			// Joined rather than branched, as every other release
+			// in cr is: the lock goes whether or not the run did.
+			if err := errors.Join(err, probe.Unlock()); err != nil {
 				return err
 			}
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
@@ -165,6 +191,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				Command:  argv,
 				Filter:   filter,
 				ExitCode: code,
+				Warnings: []string{probe.CollisionWarning()},
 				Honesty:  recreationNotice(ready),
 			})
 		},
@@ -185,6 +212,35 @@ func recreationNotice(ready *sandbox.Ready) []string {
 		return []string{}
 	}
 	return []string{ready.Recreated.Disclosure()}
+}
+
+// lockProbe takes §5.6.1's advisory lock for the repository under review and
+// the round's profile, waiting up to `probe.lock_timeout_seconds`.
+//
+// repoDir is the checkout cr was run in, resolved to an absolute path. §5.6.1
+// names the lock after that path, and a relative one would name a different
+// lock for every directory the command happened to be invoked from — which is
+// the same repository sharing a test database with itself under two names.
+//
+// The profile id comes from meta.json, for the reason the test command and
+// `cr sandbox create` both read it there: §3.7 makes `cr brief` its one writer,
+// and a run that re-selected a profile could take a different lock than the run
+// it is racing.
+func lockProbe(l state.Layout, owner, repo, repoDir, profileID string) (*state.ProbeLock, error) {
+	absolute, err := filepath.Abs(repoDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve %s: %w", repoDir, err)
+	}
+	resolved, err := config.Resolve(config.Sources{
+		Environ:      os.Environ(),
+		GlobalConfig: l.Config(),
+		RepoConfig:   l.RepoConfig(owner, repo),
+	})
+	if err != nil {
+		return nil, err
+	}
+	wait := time.Duration(resolved.Int("probe.lock_timeout_seconds")) * time.Second
+	return l.LockProbe(absolute, profileID, wait)
 }
 
 // recordRun stores §5.2.4's run record and returns the id it was given.
