@@ -180,3 +180,33 @@ func TestEveryCopyLandsBeforeTheFirstSetupCommandRuns(t *testing.T) {
 	assert.Empty(t, created.Absent)
 	assert.Equal(t, []string{first, second}, created.Setup)
 }
+
+// A setup command that refuses stops the run, and what it wrote reaches the
+// user.
+//
+// §3.1.3 fixes that shape for the external commands cr drives, and a setup
+// command is one: cr has never heard of the tool, so its stderr is the only
+// diagnostic there is. The second command is the other half — §5.1.3 runs the
+// commands in order, and an order means the next one does not start when the
+// one before it failed, since it would be running against a sandbox the failed
+// step never finished preparing.
+func TestASetupCommandThatFailsStopsTheRun(t *testing.T) {
+	dir, head := repository(t)
+	scripts := t.TempDir()
+	log := filepath.Join(scripts, "observed.log")
+	refusing := script(t, scripts, "refuse.sh", "echo the tool refused >&2\nexit 3\n")
+	after := script(t, scripts, "after.sh", "echo after >> "+log+"\n")
+
+	src := sources(t, dir, head)
+	src.Setup = []string{refusing, after}
+
+	created, err := Create(src)
+
+	assert.Nil(t, created)
+	var failed *SetupError
+	require.ErrorAs(t, err, &failed)
+	assert.Equal(t, []string{refusing}, failed.Args)
+	assert.Equal(t, "the tool refused", failed.Stderr)
+	assert.Contains(t, err.Error(), "sandbox.setup")
+	assert.NoFileExists(t, log, "§5.1.3 runs the commands in order, so the next one does not start")
+}
