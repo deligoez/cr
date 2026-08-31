@@ -85,3 +85,40 @@ func TestCopyIntoSandboxReportsAPathTheCheckoutDoesNotHold(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(l.Sandbox("acme", "web", 42), "vendor"))
 	assert.NoDirExists(t, filepath.Join(l.Sandbox("acme", "web", 42), "vendor"))
 }
+
+// A copy replaces what the sandbox already holds at that path.
+//
+// The sandbox is a checkout of the head, so a `sandbox.copy` entry naming a
+// path the repository also tracks arrives on top of a file git just wrote —
+// and a symlink is the case that cannot simply be overwritten, since one
+// cannot be created over an existing name. §5.1.2 copies the checkout's
+// version, so what stands there afterwards is the checkout's and not a mixture
+// of the two.
+func TestCopyIntoSandboxReplacesWhatTheSandboxAlreadyHolds(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	checkout := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(checkout, "vendor"), 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(checkout, "vendor", "autoload.php"), []byte("the checkout's\n"), 0o600))
+	require.NoError(t, os.Symlink("autoload.php", filepath.Join(checkout, "vendor", "link")))
+
+	// What the worktree checkout left standing: a file with other
+	// contents, and a link pointing somewhere else entirely.
+	sandbox := l.Sandbox("acme", "web", 42)
+	require.NoError(t, os.MkdirAll(filepath.Join(sandbox, "vendor"), 0o700))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(sandbox, "vendor", "autoload.php"), []byte("the worktree's\n"), 0o600))
+	require.NoError(t, os.Symlink("somewhere-else", filepath.Join(sandbox, "vendor", "link")))
+
+	copied, err := l.CopyIntoSandbox("acme", "web", 42, checkout, "vendor")
+	require.NoError(t, err)
+	assert.True(t, copied)
+
+	body, err := os.ReadFile(filepath.Join(sandbox, "vendor", "autoload.php"))
+	require.NoError(t, err)
+	assert.Equal(t, "the checkout's\n", string(body))
+
+	pointsAt, err := os.Readlink(filepath.Join(sandbox, "vendor", "link"))
+	require.NoError(t, err)
+	assert.Equal(t, "autoload.php", pointsAt)
+}
