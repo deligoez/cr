@@ -312,3 +312,37 @@ func TestTheBaselineIsRecordedOutsideTheWorktreeAfterSetup(t *testing.T) {
 	assert.Contains(t, baseline.Diff, "touched-by-setup",
 		"§5.1.3 legitimately modifies tracked files, so the baseline is what they became")
 }
+
+// The baseline is invalidated when the sandbox it describes is recreated.
+//
+// It is dropped before the new worktree is added rather than overwritten after
+// setup, and the gap between those two moments is what this covers. The second
+// creation dies inside §5.1.3, so no new baseline is ever taken — and what must
+// be on disk afterwards is nothing at all. Leaving the first sandbox's record in
+// place would have §5.1.6 measure a half-prepared checkout against a baseline
+// taken from a checkout that no longer exists, and a match there is a sandbox
+// declared clean on the strength of a coincidence.
+func TestTheBaselineIsInvalidatedWhenTheSandboxIsRecreated(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+
+	created, err := Create(src)
+	require.NoError(t, err)
+	recorded := src.Layout.PRFile(fixtureOwner, fixtureRepo, fixturePR, state.FileSandboxBaseline)
+	require.FileExists(t, recorded)
+
+	// §5.1.5's removal, which is what precedes any recreation.
+	runGit(t, dir, "worktree", "remove", "--force", created.Path)
+	require.NoDirExists(t, created.Path)
+
+	scripts := t.TempDir()
+	src.Setup = []string{script(t, scripts, "refuse.sh", "echo the tool refused >&2\nexit 3\n")}
+
+	again, err := Create(src)
+
+	assert.Nil(t, again)
+	var failed *SetupError
+	require.ErrorAs(t, err, &failed)
+	assert.NoFileExists(t, recorded,
+		"the previous sandbox's baseline outlived the sandbox it described")
+}
