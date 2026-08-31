@@ -136,20 +136,23 @@ func stringSliceParam(fn *ast.FuncDecl, name string) bool {
 }
 
 // §14.1 gives cr three runtime dependencies, and all three are programs cr
-// starts itself.
+// starts itself. §5.1.3's setup commands are the fourth invocation and not a
+// fourth dependency: the profile names the program, exactly as §3.1.1's
+// intent.cmd does.
 //
 // TestCrReachesTheNetworkThroughOneRunnerAndNoOtherWay already fixes where a
 // process may be started: os/exec is imported by the files in runners and by
 // nothing else. This fixes what those files start, which is a different claim
 // that the first does not imply — an import scan reads exec.Command(helper,
-// ...) exactly as it reads exec.Command("git", ...), so a fourth dependency
-// introduced inside a runner passes it untouched.
+// ...) exactly as it reads exec.Command("git", ...), so a dependency of cr's
+// own introduced inside a runner passes it untouched.
 //
 // git and gh name a literal, which costs them nothing: each runner exists to
-// drive exactly one command. The tracker cannot, because §3.1.1 makes its argv
-// the user's to write, so it is held to wholeArgv instead — one program per
-// invocation, taken whole out of the array it was handed. The result below
-// says so: three runners, three invocations, one program each.
+// drive exactly one command. The tracker and the setup commands cannot, because
+// §3.1.1 and §2.4 make their argv the user's to write, so both are held to
+// wholeArgv instead — one program per invocation, taken whole out of the array
+// it was handed, with no argument appended and no element chosen. The result
+// below says so: four runners, four invocations, one program each.
 func TestTheRunnersStartGitGhAndTheConfiguredTracker(t *testing.T) {
 	root := moduleRoot(t)
 
@@ -182,7 +185,8 @@ func TestTheRunnersStartGitGhAndTheConfiguredTracker(t *testing.T) {
 		filepath.Join("internal", "gh", "run.go") + " starts gh",
 		filepath.Join("internal", "git", "run.go") + " starts git",
 		filepath.Join("internal", "intent", "run.go") + " starts the whole of its argv argument",
-	}, found, "§14.1: git, gh, and the configured tracker are the only programs cr starts, one to each runner")
+		filepath.Join("internal", "sandbox", "run.go") + " starts the whole of its argv argument",
+	}, found, "§14.1: git, gh, the configured tracker and §5.1.3's setup commands are the only programs cr starts, one to each runner")
 }
 
 // crBinary builds cr and returns the path to the binary it produced.
