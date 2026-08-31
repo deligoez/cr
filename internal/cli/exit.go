@@ -391,6 +391,16 @@ func exitCodeFor(err error) int {
 		// alongside the record rejections above.
 		return ExitValidation
 	}
+	var capReached *probe.RoundCapReachedError
+	if errors.As(err, &capReached) {
+		// §5.6.4 caps probe executions per round and §11.2 gives the
+		// refusal the code §1.6.2's comment cap already takes: the
+		// invocation is right and every file named was read, and what
+		// refuses is the round's budget. Raising probe.max_per_round
+		// is the user's decision through §2.7, as triaging down to
+		// post.max_comments is.
+		return ExitValidation
+	}
 	var outsideVocabulary *probe.OutsideVocabularyError
 	if errors.As(err, &outsideVocabulary) {
 		// §5.5 fixes the result vocabulary per kind and says it must
