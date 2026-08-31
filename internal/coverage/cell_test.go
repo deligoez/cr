@@ -188,6 +188,38 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 	})
 }
 
+// A test-axis role can record an `na` cell, and it records a reason rather than
+// a classification.
+//
+// Dogfooding found this against the real fixture: the test-adequacy role's cell
+// for the unit that *is* the test file has nothing to classify, and requiring
+// §4.4.1's object there made `na` unreachable on the whole test axis. §4.5.5
+// gives `na` to every role without qualification, and its classification is the
+// answer a role reached — so a role that reached none must be able to say so,
+// and the reason §4.5.5 already demands stands where the object would.
+//
+// The converse is refused rather than tolerated: a classification beside a
+// verdict that says no judgement was reached is a judgement with nothing behind
+// it, which is exactly the assertion §1.6's trust economy prices highest.
+func TestATestAxisRoleCanRecordAnNaCell(t *testing.T) {
+	cells, err := Decode(cellsFile,
+		[]byte(`{"unit":"u1","role":"test-adequacy","result":"na",`+
+			`"reason":"the unit is the test file itself"}`+"\n"), units(), active())
+	require.NoError(t, err, "§4.5.5 gives na to every role, the test axis included")
+	require.Len(t, cells, 1)
+	assert.Nil(t, cells[0].Coverage, "an na reached no classification to record")
+	assert.Equal(t, "the unit is the test file itself", cells[0].Reason)
+
+	_, err = Decode(cellsFile,
+		[]byte(`{"unit":"u1","role":"test-adequacy","result":"na","reason":"nothing to judge",`+
+			`"coverage":{"classification":"uncovered","test_paths":[]}}`+"\n"), units(), active())
+
+	var rejected *RejectedCellError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, "coverage", rejected.Field)
+	assert.Contains(t, rejected.Problem, "this cell is an na")
+}
+
 // A cell names the unit and the role it sits at, and says one of §4.5.5's four
 // things about them.
 //
