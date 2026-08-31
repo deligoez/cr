@@ -240,6 +240,12 @@ func TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts(t *testing.T) {
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
+			assert.Empty(t, cells, "a refused file stores nothing at all")
+			assert.Equal(t, tc.field, rejected.Field)
+			assert.Contains(t, rejected.Problem, tc.says)
+		})
+	}
+}
 
 // §4.5.6's two rejections: a cell naming an unknown unit id, and a cell naming
 // an inactive role.
@@ -299,10 +305,4 @@ func TestACellNamingAnUnknownUnitOrAnInactiveRoleIsRejected(t *testing.T) {
 		assert.Contains(t, err.Error(), "correctness, test-adequacy",
 			"§12.4: and the round's active roles")
 	})
-}
-			assert.Empty(t, cells, "a refused file stores nothing at all")
-			assert.Equal(t, tc.field, rejected.Field)
-			assert.Contains(t, rejected.Problem, tc.says)
-		})
-	}
 }
