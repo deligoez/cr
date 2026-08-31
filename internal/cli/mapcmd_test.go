@@ -269,3 +269,21 @@ func TestMapRecordEmitsWhatItStored(t *testing.T) {
 		"§2.3.3's pair is cr's, so the caller learns it from here")
 	assert.Equal(t, 2, payload.Recorded[0].Round)
 }
+
+// §12.1's other shape for this command. A terminal reader gets the count and
+// the round — not the pairs, which came out of the caller's own file.
+func TestATerminalMapRecordNamesTheCountAndTheRound(t *testing.T) {
+	briefedForMapping(t)
+	path := filepath.Join(t.TempDir(), "mapping.ndjson")
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"claim":"`+mapIssue+`#c1","unit":"u1"}`+"\n"+
+			`{"claim":"`+mapIssue+`#c2","unit":"u2"}`+"\n"+
+			`{"claim":"`+mapIssue+`#c3","unit":"u3"}`+"\n"), 0o600))
+
+	out := throughATerminal(t, "map", "record", strconv.Itoa(mapPR), path, "--repo", mapSlug)
+
+	assert.Contains(t, out, "recorded ")
+	assert.Contains(t, out, "\x1b[36m3\x1b[0m",
+		"the count is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, " mapping(s) in round 2")
+}
