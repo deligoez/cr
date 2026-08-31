@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -21,14 +23,57 @@ import (
 type recordResult struct {
 	// Recorded are the records as they were written, in file order.
 	Recorded []*finding.Finding `json:"recorded"`
+	// Probes is §5.4's answer for every record resting on a gap probe:
+	// whether that probe supports it, and which condition decided. It is
+	// empty, and never nil, when no record names one.
+	Probes []gapSupport `json:"probes"`
+	// Honesty carries §4.5.4's disclosure when the intent axis being
+	// unavailable is what kept a gap probe from supporting a finding,
+	// rendered as the sentences §11.1 exempts from `--quiet`.
+	Honesty []string `json:"honesty"`
 }
 
-// Text names how many records were stored and the state §9.1 brought them into.
-// The records themselves came from the caller's own file, so printing them into
-// a terminal would repeat what the caller already has.
+// Text names how many records were stored and the state §9.1 brought them into,
+// then what §5.4 made of every gap probe they rest on. The records themselves
+// came from the caller's own file, so printing them into a terminal would repeat
+// what the caller already has; what §5.4 answered is not in that file.
 func (r *recordResult) Text(w *writer) string {
-	return "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
-		" in state " + finding.StateDraft.String()
+	var out strings.Builder
+	out.WriteString("recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
+		" in state " + finding.StateDraft.String())
+	for _, answered := range r.Probes {
+		fmt.Fprintf(&out, "\n  %s %s %s (%s): %s",
+			answered.Record, w.accent(answered.Probe), supported[answered.Supports],
+			answered.Result, answered.Reason)
+	}
+	for _, disclosed := range r.Honesty {
+		fmt.Fprintf(&out, "\n%s", disclosed)
+	}
+	return out.String()
+}
+
+// newRecordResult renders what was stored together with what §5.4 made of the
+// gap probes those records rest on.
+//
+// The disclosures are asked of the entry that owns them rather than assembled
+// here, as `cr brief` asks its own: probe.GapUnmappable holds the sentence the
+// coupling is reported in, so a wording built at the call site cannot come to
+// disagree with the data beside it.
+func newRecordResult(records []*finding.Finding, found *gapEvidence) *recordResult {
+	honesty := make([]string, 0, len(found.unmappable))
+	for _, entry := range found.unmappable {
+		honesty = append(honesty, entry.Disclosure())
+	}
+	return &recordResult{Recorded: records, Probes: found.support, Honesty: honesty}
+}
+
+// supported is how §5.4.4's answer is said, in the section's own verb. It is
+// deliberately not "proves" or "confirms": §5.4.4 lets a supported probe be what
+// a `probed` grade rests on and says nothing stronger, and §6.2.4 already
+// forbids cr to describe evidence it merely validated as verified or proven.
+var supported = map[bool]string{
+	true:  "supports the finding",
+	false: "supports no probed grade",
 }
 
 // roundUnit is one line of units.ndjson: §3.4.6's unit record, and the head and
@@ -156,6 +201,16 @@ func newRecordCmd(out *writer) *cobra.Command {
 				}
 				record.State = finding.StateDraft
 			}
+			// §5.4.4 and §5.4.5, read before the write and off
+			// files no lock is needed for (§2.3.2). It is asked of
+			// the records rather than of the probes because the
+			// question is about a finding: a gap probe's support is
+			// conditional on the record's own `claim`, which is why
+			// `cr probe run` cannot answer it at the experiment.
+			found, err := resolveGapSupport(layout, owner, repo, pr, &round, records)
+			if err != nil {
+				return err
+			}
 			held, err := layout.LockPR(owner, repo, pr)
 			if err != nil {
 				return err
@@ -171,7 +226,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := held.Unlock(); err != nil {
 				return err
 			}
-			return out.emit(&recordResult{Recorded: records})
+			return out.emit(newRecordResult(records, found))
 		},
 	}
 }
