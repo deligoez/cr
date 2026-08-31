@@ -850,6 +850,13 @@ func repoRuns(merged, claims, issue, cells, pairs string) map[string][]string {
 			"brief", fixturePR,
 			"--repo", fixtureSlug, "--issue", fixtureIssue, "--intent-file", issue,
 		},
+		// `cr sandbox create` is the one command that writes inside
+		// the repository under review at all, and §5.1.1 permits it
+		// exactly the registration under `.git/worktrees/`. It runs
+		// after `cr brief` — the run order below is alphabetical, and
+		// `sandbox` sorts after `brief` — which is what gives it a
+		// recorded head to check the worktree out at.
+		"sandbox create": {"sandbox", "create", fixturePR, "--repo", fixtureSlug},
 	}
 }
 
