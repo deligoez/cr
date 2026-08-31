@@ -304,3 +304,78 @@ func TestTheStoredCountsAreSummedOverTheWholeMergedStream(t *testing.T) {
 	assert.Equal(t, "ests:  3 passed\n", stored["output_tail"],
 		"the tail is still the bounded one, so the count came from elsewhere")
 }
+
+// §5.2.3 through the command: the budget the run is bounded by is the
+// profile's `tests.timeout_seconds`, and a run that exceeds it is killed and
+// recorded as a timeout.
+//
+// The profile sets one second and the runner sleeps for two minutes, so the
+// wiring is what is under test rather than the killing: a command that reached
+// for §2.4's 900-second default, or for no budget at all, would sit here until
+// the suite's own deadline. `timed_out` is asserted in the stored record
+// because §5.2.4 has no other slot for the outcome — a process cr killed
+// reports the platform's number for a killed process, which is the same shape
+// a runner that decided to fail produces.
+func TestARunThatExceedsTheProfilesTimeoutIsRecordedAsATimeout(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	runner := filepath.Join(t.TempDir(), "runner.sh")
+	require.NoError(t, os.WriteFile(runner, []byte("#!/bin/sh\nsleep 120\n"), 0o700))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
+		`"match":{"files":[],"globs":[]},"axes":{"test":true},`+
+		`"tests":{"cmd":["`+runner+`"],"globs":["*_test.txt"],"timeout_seconds":1}}`))
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, ProfileID: "qa", Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal(
+		[]byte(throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)), &reported))
+	assert.Equal(t, true, reported["timed_out"],
+		"§5.2.3: the reader is told the run was killed, not left to read exit -1")
+
+	body, err := os.ReadFile(prepared.PRFile(
+		fixtureOwner, fixtureProject, fixturePRNumber, state.FileRuns))
+	require.NoError(t, err)
+	var stored map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(string(body))), &stored))
+	assert.Equal(t, true, stored["timed_out"], "§5.2.4 stores the outcome §5.2.3 mandates")
+}
+
+// The terminal rendering says when a run was killed for exceeding its budget.
+//
+// The exit code printed beside it cannot say so: it is the platform's number
+// for a killed process, and a reader who sees only a non-zero exit reads a
+// suite that ran and failed. §5.3.4 puts the two on different rungs, and the
+// one that never finished supports no grade at all.
+func TestTheTestRenderingSaysWhenARunWasKilledForTimingOut(t *testing.T) {
+	render := func(t *testing.T, timedOut bool) string {
+		t.Helper()
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: ModeText}
+		require.NoError(t, out.emit(&testRunResult{
+			Run: "r1", Sandbox: "/tmp/sandbox", Command: []string{"pest"},
+			ExitCode: -1, TimedOut: timedOut,
+			Warnings: []string{}, Honesty: []string{},
+		}))
+		return printed.String()
+	}
+
+	assert.Contains(t, render(t, true), "killed for exceeding tests.timeout_seconds")
+	assert.NotContains(t, render(t, false), "killed",
+		"a run that finished says nothing about a budget it stayed inside")
+}
