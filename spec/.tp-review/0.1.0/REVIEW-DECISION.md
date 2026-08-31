@@ -229,5 +229,17 @@ anything larger than restating an existing rule in its own section to the user.
   path is narrower than §5.4.2 alone suggests. Recorded so the audit tests the
   reachable case rather than assuming the wider one.
 
+- **§5.4.5's severity ceiling applies to all five results, not to `passed`
+  alone. Implemented on the wider reading, no spec change.** The capping
+  sentence carries no subject of its own; the nearest one is the paragraph's —
+  a record resting on **one** of `passed`, `timeout`, `error`,
+  `no-tests-selected` or `inconclusive`. `gap-severity-enforcement`'s acceptance
+  had narrowed it to `passed`, which would have left a record resting on a
+  timed-out or errored gap probe free to carry any severity at all. The wider
+  reading is both what the spec says and the one the trust economy wants: the
+  four results that establish nothing are precisely the ones that must not
+  license a loud claim. The acceptance was the narrow party, so it was the one
+  corrected.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.

@@ -431,6 +431,11 @@ export CR=/tmp/cr-qa/cr
 #    a key the run marks the intent axis unavailable and extracts no claim, so
 #    the recipe would exercise none of what it is here to exercise.
 $CR brief 1 --repo <owner>/<scratch> --issue CR-1 --intent-file issue.txt
+
+# 4. `cr claims record` re-reads the issue, so it needs its own --intent-file.
+#    Without one it shells out to the configured tracker command and fails with
+#    a 404. The flag is not inherited from the brief that opened the round.
+$CR claims record 1 --repo <owner>/<scratch> --intent-file issue.txt claims.ndjson
 ```
 
 The scratch PR is the regression fixture. When a bug is found in a real review,
