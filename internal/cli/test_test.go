@@ -386,3 +386,64 @@ func TestTheTestRenderingSaysWhenARunWasKilledForTimingOut(t *testing.T) {
 	assert.NotContains(t, render(t, false), "killed",
 		"a run that finished says nothing about a budget it stayed inside")
 }
+
+// Round 12's baseline-contamination finding: §5.1.7 voids a probe whose
+// post-run cleanliness check fails, and nothing voided a plain `cr test` run —
+// so a suite that dirtied a tracked file under itself could be stored
+// `passed: true` and later resolved as the baseline a probe is graded against.
+//
+// The runner here passes on every one of §5.2.5's three clauses: it exits 0,
+// four tests ran, and none failed. What denies it the verdict is the fourth
+// thing, and only that, so the record proves the void rather than the counts.
+func TestATestRunItsSandboxContaminatedIsNoBaseline(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	// The runner reports a clean pass and then edits a tracked file of the
+	// sandbox it is standing in, which is exactly the shape §5.1.6 calls
+	// unclean and the shape a suite with a careless fixture really has.
+	runner := filepath.Join(t.TempDir(), "runner.sh")
+	require.NoError(t, os.WriteFile(runner, []byte(
+		"#!/bin/sh\necho 'Tests:  4 passed'\necho 'dirtied' >> app.go\nexit 0\n"), 0o700))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
+		`"match":{"files":[],"globs":[]},"axes":{"test":true},`+
+		`"tests":{"cmd":["`+runner+`"],"globs":["*_test.txt"],`+
+		`"count_pattern":"Tests:  ([0-9]+) passed","failed_pattern":"([0-9]+) failed"}}`))
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, ProfileID: "qa", Round: 2, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	shown := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal(
+		[]byte(strings.TrimPrefix(shown, "Tests:  4 passed\n")), &reported))
+	contaminated, ok := reported["contaminated"].(string)
+	require.True(t, ok, "§5.1.6's check names what it found: %v", reported)
+	assert.Contains(t, contaminated, "app.go",
+		"§5.1.6: the check names the tracked file that differs")
+
+	body, err := os.ReadFile(prepared.PRFile(
+		fixtureOwner, fixtureProject, fixturePRNumber, state.FileRuns))
+	require.NoError(t, err)
+	var stored map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(string(body))), &stored))
+	assert.InDelta(t, 0, stored["exit_code"], 0, "the runner itself reported success")
+	assert.InDelta(t, 4, stored["tests_run"], 0, "§5.2.5's second clause held")
+	assert.InDelta(t, 0, stored["tests_failed"], 0, "§5.2.5's third clause held")
+	assert.Equal(t, true, stored["contaminated"], "§5.1.6's check failed after the run")
+	assert.Equal(t, false, stored["passed"],
+		"a run of a sandbox that drifted from the head is nobody's baseline")
+}
