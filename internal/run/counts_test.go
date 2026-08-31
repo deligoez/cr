@@ -89,6 +89,16 @@ func TestEveryMatchOfEachPatternIsSummedRatherThanTheLastOneWinning(t *testing.T
 			executed: "undetermined",
 			failed:   "undetermined",
 		},
+		// The boundary itself, which is the largest count rather than
+		// the first refused one: a total landing exactly on it has not
+		// outgrown anything, and refusing it would throw away a
+		// measurement the run really made. gremlins found this branch
+		// unpinned.
+		"a sum exactly at the largest count": {
+			output:   "Tests:  2147483646 passed\nTests:  1 passed\n",
+			executed: "2147483647",
+			failed:   "0",
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
