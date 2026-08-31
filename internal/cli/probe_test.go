@@ -994,3 +994,65 @@ func TestEachProbeKindRefusesTheFlagsItDoesNotTake(t *testing.T) {
 		})
 	}
 }
+
+// §5.5: a gap probe's target is "supplied and validated as §6.2.3 validates a
+// citation", against the head the round was briefed at.
+//
+// It is the row that decides whether the record can ever grade anything.
+// §6.2.2 lets a `probed` finding rest on a probe only when the probe's target
+// falls inside that finding's anchor range on the same path, so a target naming
+// a file the head does not hold, or a line past the end of one it does, is a
+// `path:line` cr would have written into a record and never opened. The
+// experiment would have run, the sandbox would have been used, and the evidence
+// chain would end at a location nobody can follow.
+//
+// Every case asserts the log is absent, which is the half a check placed after
+// the run would fail: §5.2.6 performs a baseline suite before the probe, so a
+// target validated at the write would already have cost two runs.
+func TestAGapProbeRefusesATargetTheHeadDoesNotHold(t *testing.T) {
+	for name, tc := range map[string]struct {
+		target string
+		says   string
+	}{
+		"a path the head does not hold": {
+			target: "gone.go:1",
+			says:   `names "gone.go", which the head under review does not hold as a file`,
+		},
+		"a line past the end of the file": {
+			target: "app.go:9",
+			says:   `names line 9 of "app.go", which holds 3 lines at the head under review`,
+		},
+		"a directory is not a file": {
+			target: "tests:1",
+			says:   "does not hold as a file",
+		},
+		"a path outside the repository": {
+			target: "../../etc/passwd:1",
+			says:   "does not hold as a file",
+		},
+		"not a path:line at all": {
+			target: "app.go",
+			says:   "is not a path:line",
+		},
+		"a line number cr would not have written": {
+			target: "app.go:03",
+			says:   `names line "03", which is not a line number`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, _, log := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+			supplied := writeProbeTest(t)
+
+			err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+				"--kind", "gap", "--test", supplied, "--target", tc.target)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.says)
+			assert.Contains(t, err.Error(), "§6.2.3",
+				"§5.5 sends the reader to the rule the target is validated by")
+			assert.Equal(t, ExitValidation, exitCodeFor(err),
+				"§6.2.3 codes a location the head cannot resolve 1, as it does a citation's")
+			assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+		})
+	}
+}
