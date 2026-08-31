@@ -103,12 +103,6 @@ func (l Layout) UnderSandboxMutation(
 func (l Layout) applySandboxMutation(
 	owner, repo string, pr int, mutations []SandboxMutation,
 ) (func() error, error) {
-	sandbox := l.Sandbox(owner, repo, pr)
-	root, err := filepath.EvalSymlinks(sandbox)
-	if err != nil {
-		return nil, fmt.Errorf("cannot resolve the sandbox at %s: %w", sandbox, err)
-	}
-
 	type restorable struct {
 		path    string
 		content []byte
@@ -127,7 +121,7 @@ func (l Layout) applySandboxMutation(
 	}
 
 	for _, mutation := range mutations {
-		target, mode, err := insideSandbox(root, sandbox, mutation.Path)
+		target, mode, err := l.insideSandbox(owner, repo, pr, mutation.Path)
 		if err != nil {
 			return nil, errors.Join(err, undo())
 		}
@@ -147,6 +141,20 @@ func (l Layout) applySandboxMutation(
 	return undo, nil
 }
 
+// InSandbox resolves one sandbox-relative path and refuses one that does not
+// land inside the sandbox.
+//
+// It is exported so a caller can refuse a patch before running anything with
+// it, which is what round 12's unbounded-patch-target finding asks for: a diff
+// aimed out of the tree is rejected as the input it is, rather than after
+// §5.2.6 has performed a baseline suite for it. It is the same function the
+// writer calls, so the answer a caller gets ahead of the run and the answer the
+// write is held to cannot come apart.
+func (l Layout) InSandbox(owner, repo string, pr int, rel string) (string, error) {
+	path, _, err := l.insideSandbox(owner, repo, pr, rel)
+	return path, err
+}
+
 // insideSandbox resolves one sandbox-relative path and holds it inside the
 // sandbox, returning the mode the file is to be written back with.
 //
@@ -156,7 +164,10 @@ func (l Layout) applySandboxMutation(
 // The file has to exist already, because the mutation §5.3.1 describes breaks
 // production code that is there — and because a file cr created would have no
 // original to put back.
-func insideSandbox(root, sandbox, rel string) (path string, mode os.FileMode, err error) {
+func (l Layout) insideSandbox(
+	owner, repo string, pr int, rel string,
+) (path string, mode os.FileMode, err error) {
+	sandbox := l.Sandbox(owner, repo, pr)
 	refuse := func(problem string) (string, os.FileMode, error) {
 		return "", 0, &OutsideSandboxError{Path: rel, Sandbox: sandbox, Problem: problem}
 	}
@@ -169,6 +180,10 @@ func insideSandbox(root, sandbox, rel string) (path string, mode os.FileMode, er
 		return refuse("it leaves the tree it applies to")
 	}
 
+	root, err := filepath.EvalSymlinks(sandbox)
+	if err != nil {
+		return "", 0, fmt.Errorf("cannot resolve the sandbox at %s: %w", sandbox, err)
+	}
 	target := filepath.Join(root, filepath.FromSlash(rel))
 	resolved, err := filepath.EvalSymlinks(target)
 	if err != nil {
