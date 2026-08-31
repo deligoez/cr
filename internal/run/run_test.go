@@ -75,6 +75,31 @@ func TestEveryFieldOfARunRecordIsWrittenByCR(t *testing.T) {
 	assert.True(t, stampable, "state.WriteStamped is the one writer of head and round")
 }
 
+// Round 12's unstorable-value finding, which is what `timed_out` is for.
+// §5.2.3 requires a run cr killed to be recorded as timeout, and the exit
+// status is no place to keep that: a killed process and a runner that decided
+// to fail report the same kind of number, and §5.3.4's ladder puts the two on
+// different rungs — `timeout` above `error`, and both above every reading of
+// the counts. So the two records below agree on everything the runner reported
+// and disagree on the one field that says which happened.
+func TestAKilledRunIsDistinguishableFromARunnerThatExitedNonZero(t *testing.T) {
+	killed := &Record{ID: "r1", ExitCode: 1, TimedOut: true}
+	refused := &Record{ID: "r2", ExitCode: 1, TimedOut: false}
+
+	assert.Equal(t, killed.ExitCode, refused.ExitCode,
+		"the exit code alone cannot tell the two apart, which is why the field exists")
+
+	var stored [2]map[string]any
+	for i, record := range []*Record{killed, refused} {
+		line, err := json.Marshal(record)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(line, &stored[i]))
+	}
+	assert.Equal(t, true, stored[0]["timed_out"], "§5.2.3: the kill is recorded")
+	assert.Equal(t, false, stored[1]["timed_out"],
+		"a run that finished carries the field too, so its absence is never the answer")
+}
+
 // count is the address of one derived test count, which is what §5.2.4's
 // "when derivable" needs a literal to be able to express.
 func count(n int) *int { return &n }
