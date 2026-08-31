@@ -68,3 +68,42 @@ A narrower alternative, if the layering is meant to stand: have `tp set
 --workflow --project` warn whenever the value it just wrote is shadowed by a
 higher layer, for any field. The same trap exists for every field the task file
 happens to set.
+
+---
+
+## 2. `tp done`: `\bdeferred\b` refuses a closure reason that uses the Go keyword
+
+**Observed** at tp v0.34.0, closing `mutation-probe-run`.
+
+The closure reason described the revert as running "from a deferred call", which
+is what the code does — `defer` is the Go statement the invariant rests on. `tp
+done` refused it:
+
+```
+{"error":"closure verification failed: deferral is forbidden. Leave the task
+ open or complete it","code":1}
+```
+
+`internal/engine/closure.go`'s `patDeferred` is `(?i)\bdeferred\b`, matched over
+the whole reason with no context, so every use of the word is read as a promise
+to do the work another time.
+
+**Cost.** Small in minutes and larger in what it does to the evidence. The
+refusal names no offending phrase, so the first response is to rewrite the whole
+reason rather than one word; and the word is unavoidable in exactly the tasks
+where it matters most — anything about cleanup, rollback, or resource release in
+Go is described with `defer`. The reason that finally passed says "from a defer
+it owns", which is worse English for the same fact, so the check made the record
+less clear about the thing it was verifying.
+
+**Proposed fix.** Two cheap ones, either alone would have avoided this.
+
+Name the match in the error: "the reason says `deferred`, which reads as a
+promise to finish the work another time" lets the author correct one word instead
+of guessing. Every other forbidden-pattern refusal has the same gap.
+
+Then narrow the pattern to the deferral sense — `\bdeferred (to|until|for)\b`,
+or `\bdeferred\b` only when no code-ish neighbour (`defer`, backticks, a
+`.go:`/`func` reference) sits near it. `will be done later` is already spelled as
+a phrase for this reason; `deferred` is the one bare word in the list, and it is
+also a common technical term.
