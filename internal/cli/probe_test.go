@@ -538,8 +538,14 @@ func TestTheProbeRenderingSaysWhenTheCheckVoidedTheResult(t *testing.T) {
 // harness gives the command one file for both streams.
 func runProbe(t *testing.T, patch string) map[string]any {
 	t.Helper()
-	shown := throughAPipe(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
-		"--kind", "mutation", "--patch", patch)
+	return probeDocument(t, throughAPipe(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", patch))
+}
+
+// probeDocument separates the command's own document from the runner output
+// printed ahead of it, and returns the document.
+func probeDocument(t *testing.T, shown string) map[string]any {
+	t.Helper()
 	document := strings.Index(shown, "{\n")
 	require.GreaterOrEqual(t, document, 0, "the command printed no document: %q", shown)
 
