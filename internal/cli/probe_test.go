@@ -375,6 +375,32 @@ func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
 		"§5.1.6: the recreated sandbox holds what the head holds")
 }
 
+// A `--patch` that holds no hunk is refused, and the refusal names the flag
+// that produces one.
+//
+// This is not a hypothetical malformed file. A machine whose owner has set
+// `diff.external` — one of this project's own does — answers `git diff` with
+// that tool's output, which is not a unified diff at all, and an agent handing
+// cr the result has done nothing wrong. cr's own reads pin `--no-ext-diff` and
+// the agent writing the patch is outside that fence, so the refusal is where
+// the flag has to be named. §12.4 asks every error for the next actionable
+// step, and "this is not a diff" is not one.
+func TestAPatchHoldingNoHunkNamesTheFlagThatWritesOne(t *testing.T) {
+	_, _, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	// What `git diff` writes when diff.external is configured: a report
+	// about the file, with no hunk header anywhere in it.
+	patch := writePatch(t, "src/Order.php --- PHP\n34   return 0.0;   34   return 999.0;\n")
+
+	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", patch)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "holds no hunk")
+	assert.Contains(t, err.Error(), "--no-ext-diff")
+	assert.Contains(t, err.Error(), "diff.external")
+	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+}
+
 // §5.3.4's first rung through the command: a patch that does not apply cleanly
 // records `error`, runs no tests, and leaves the sandbox as it found it.
 //
