@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-30T23:56:09.024041Z",
+  "updated_at": "2026-08-31T00:51:45.022828Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2617,7 +2617,7 @@
     {
       "id": "brief-payload",
       "title": "Print the six-part orientation payload",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "brief-creates-state",
@@ -2632,10 +2632,21 @@
       ],
       "started_at": "2026-08-30T23:56:09.02404Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-08-31T00:51:44.954303Z",
+      "closed_reason": "- internal/cli/brief.go's briefResult.Text prints §3.7.1 as one block: the pull request as owner/repo#n with its round, the head SHA, the merge base git.DiffAgainstMergeBase actually diffed against, and the resolved profile with brief.ProfileReport.SelectionLayer naming which of §2.4.1's two mechanisms chose it.\n- §3.7.2 prints the issue key and the KeyOrigin §3.2 resolved it from with the issue text quoted whole, and when no key resolved it prints §4.5.3's own reason string rather than a second wording of it.\n- §3.7.3 prints the claims of §3.3 recorded for the round and intent.DetectDrift's §3.3.3 comparison, one line saying whether the issue text moved and one line per claim saying whether its span still occurs.\n- §3.7.4 prints every unit of §3.4 with its id, file path, side, hunk ranges, unit hash, and the §3.4.4 branch that formed it, flagging §3.4.5's oversized exception where it applies.\n- §3.7.5 prints the ingested threads of §3.5 with anchor, author and author type and no class of cr's own, and the notes of §3.6 for the issue key with their provenance.\n- §3.7.6 prints the active axes and then §4.5.4's disclosures whole, taken from activation.Activation.Disclosures and profile.MissingProfile rather than composed at the call site, and says in words when every axis ran.\n- TestTheBriefPrintsAllSixItemsOfSection37 emits one payload carrying all six items through the shared writer in both ModeJSON and ModeText, decoding the document and looking each item up by key on one side and searching for the rendered values on the other; TestARoundWithNothingDisabledSaysSoInBothRenderings covers the empty-disclosure case the first payload cannot.\n- Six of the eight named functions came off deadcode ./... — Resolve and ResolveKey through intent.Resolve, Intent.Unavailability and Unavailable.Disclosure through activation.Activate and the printed disclosures, and DetectDrift with ClaimDrift.Drifted through the §3.3.3 comparison; the whole list fell from 201 entries to 107.\n- ClaimFields and ClaimSources are the exception and are reported rather than faked: both are still listed, because §3.7 closes its payload at six items and a claim-schema section is none of them.\n- The wiring for those two did not happen here and belongs to §4.6.2's prompt contract, which is the still-open review-prompt-contract task; inventing a seventh brief section to take them off the list would have added payload the spec does not ask for.",
+      "gate_passed_at": "2026-08-31T00:51:44.954303Z",
+      "commit_sha": "8b8e057",
+      "commit_shas": [
+        "8b8e057",
+        "7762817",
+        "a8308bd",
+        "0582331"
+      ],
+      "commit_files": [
+        "internal/brief/brief_test.go",
+        "internal/cli/brief.go",
+        "internal/cli/brief_test.go"
+      ]
     },
     {
       "id": "brief-no-judgement",
