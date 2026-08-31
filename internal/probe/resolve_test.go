@@ -67,3 +67,37 @@ func recordingPerformer(head string, into *[]Spec) Performer {
 		return performed, nil
 	}
 }
+
+// §5.2.6: "When more than one matches, the most recent MUST be used."
+//
+// The two candidates here disagree about §5.2.5's verdict, so the assertion
+// says which record was chosen rather than only which id came back. A resolver
+// that took the first match would hand §5.3.5 a `passed: false` it could refuse
+// the probe on, from a run the head had already superseded.
+func TestTwoBaselineCandidatesResolveToTheMostRecent(t *testing.T) {
+	const head = "0a1b2c3"
+
+	superseded := baselineRun(head, "")
+	superseded.ID = "r1"
+	superseded.Passed = false
+	newest := baselineRun(head, "")
+	newest.ID = "r4"
+	newest.Passed = true
+
+	resolved, err := Ensure(
+		[]run.Record{superseded, newest}, head, Gap, "", neverPerformed(t))
+	require.NoError(t, err)
+	assert.Equal(t, "r4", resolved.ID(), "§5.2.6: the most recent match is used")
+	assert.True(t, resolved.Passed(), "the verdict is the chosen record's own")
+}
+
+// neverPerformed is a performer that fails the test if it is called, which is
+// how "a matching run exists at the current head" is asserted: §5.2.6 performs
+// a baseline only when none does.
+func neverPerformed(t *testing.T) Performer {
+	t.Helper()
+	return func(spec Spec) (run.Record, error) {
+		t.Errorf("§5.2.6 performed a baseline for %+v that was already on file", spec)
+		return run.Record{}, nil
+	}
+}
