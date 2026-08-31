@@ -208,5 +208,26 @@ anything larger than restating an existing rule in its own section to the user.
   a zero. Carried here rather than repaired — the audit should decide whether
   §5.2.1 or §5.3.4 owes that sentence.
 
+- **A gap probe's id is reserved outside the lock it is written under, at
+  `gap-probe-placement`. Accepted, no spec change.** §2.4 puts `<probe-id>` in
+  `tests.probe_path_template`, so a gap probe must know its id *before* it runs,
+  while §2.3.1 has the record written under the per-PR lock. The reservation is
+  therefore read outside the lock it is later honoured under. The implementation
+  adds `probe.IDTakenError`: the append re-checks the reserved id against the
+  allocation and refuses with exit 4 rather than writing a duplicate §5.5.2
+  reference. One error type and one exit mapping beyond the literal criterion,
+  accepted because a silently ambiguous probe id is worse than a loud refusal —
+  §5.5.2 has findings cite probes by id, so two records sharing one id make a
+  citation point at two experiments.
+
+- **§5.4.2's occupied-probe-path refusal is only reachable from a *tracked*
+  file.** Round 12 scoped §5.1.6's leftover-artefact scan to untracked files, so
+  an untracked file planted at the probe path is wiped by the recreation before
+  the placement check ever runs. The refusal is therefore reachable only from a
+  tracked file, or one `sandbox.copy`/`sandbox.setup` puts back. Both rules are
+  right; the interaction is unstated, and its practical effect is that the exit-4
+  path is narrower than §5.4.2 alone suggests. Recorded so the audit tests the
+  reachable case rather than assuming the wider one.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.
