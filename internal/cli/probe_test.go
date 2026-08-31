@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/probe"
+	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -1054,5 +1055,89 @@ func TestAGapProbeRefusesATargetTheHeadDoesNotHold(t *testing.T) {
 				"§6.2.3 codes a location the head cannot resolve 1, as it does a citation's")
 			assert.NoFileExists(t, log, "the refusal comes before any suite is run")
 		})
+	}
+}
+
+// §5.5's per-kind vocabulary at the boundary where a record is stored: a probe
+// record whose result its kind does not admit never reaches probes.ndjson.
+//
+// The two crossed values are the whole reason §5.5 says the vocabulary "MUST
+// NOT be shared". `passed` on a mutation probe reads as a suite that ran and
+// noticed nothing, which is what §5.3.5 lets a `probed` grade rest on;
+// `no-test-failed` on a gap probe reads as the missing test §5.4.5 says a gap
+// probe never establishes. Either crossing over turns a question a colleague
+// can answer into an assertion cr cannot support.
+//
+// The run record is what makes this a boundary test rather than a repeat of the
+// package's own. A probe's own run carries the probe's id (§5.2.6), so the two
+// records are written under one hold of §2.3.1's lock — and a check placed
+// after the run's append would leave a run on disk naming a probe that was
+// refused, which §5.2.6 would then have to read as a baseline it must not use.
+func TestAProbeResultOutsideItsKindsVocabularyIsNeverStored(t *testing.T) {
+	for name, tc := range map[string]struct {
+		kind   probe.Kind
+		result probe.Result
+		says   string
+	}{
+		"passed is not a mutation result": {
+			kind: probe.Mutation, result: "passed",
+			says: `result "passed" is not one a mutation probe may carry`,
+		},
+		"no-test-failed is not a gap result": {
+			kind: probe.Gap, result: "no-test-failed",
+			says: `result "no-test-failed" is not one a gap probe may carry`,
+		},
+		"a kind §5.5 does not name has no vocabulary": {
+			kind: "coverage", result: "failed",
+			says: `probe kind "coverage" has no result vocabulary`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			prepared, _, _, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+			at := state.Stamp{Head: "be7e2c7", Round: 2}
+			measured := &run.Record{Filter: "Retry", OutputTail: "Tests:  1 passed\n"}
+
+			_, _, err := recordProbe(
+				prepared, fixtureOwner, fixtureProject, fixturePRNumber, at, measured,
+				&probe.Record{
+					Kind: tc.kind, Result: tc.result, Target: "app.go:3", Baseline: "r1",
+				})
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.says)
+			assert.Contains(t, err.Error(), "§5.5")
+			assert.Equal(t, ExitValidation, exitCodeFor(err),
+				"§11.2 codes a record cr refuses to store 1")
+
+			assert.Empty(t, storedRecords(t, prepared, state.FileProbes),
+				"§5.5: the refused record never reached probes.ndjson")
+			assert.Empty(t, storedRecords(t, prepared, state.FileRuns),
+				"§5.2.6: nor did the run that would have named it")
+		})
+	}
+}
+
+// Every result its kind admits still reaches probes.ndjson, which is the half a
+// check that refused everything would also pass.
+func TestEveryResultItsKindAdmitsIsStored(t *testing.T) {
+	for _, kind := range []probe.Kind{probe.Mutation, probe.Gap} {
+		for _, result := range probe.Results(kind) {
+			t.Run(string(kind)+"/"+string(result), func(t *testing.T) {
+				prepared, _, _, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+
+				_, id, err := recordProbe(
+					prepared, fixtureOwner, fixtureProject, fixturePRNumber,
+					state.Stamp{Head: "be7e2c7", Round: 2}, nil,
+					&probe.Record{
+						Kind: kind, Result: result, Target: "app.go:3", Baseline: "r1",
+					})
+
+				require.NoError(t, err)
+				assert.Equal(t, "p1", id)
+				stored := storedRecords(t, prepared, state.FileProbes)
+				require.Len(t, stored, 1)
+				assert.Equal(t, string(result), stored[0]["result"])
+			})
+		}
 	}
 }
