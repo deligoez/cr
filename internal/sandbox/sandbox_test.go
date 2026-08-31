@@ -233,6 +233,9 @@ func TestAProfileStepThatCannotBeCarriedOutIsRefused(t *testing.T) {
 			src.Copy = []string{filepath.Join("..", "..", "elsewhere")}
 		},
 		"an empty copy path": func(src *Sources) { src.Copy = []string{""} },
+		"an absolute copy path": func(src *Sources) {
+			src.Copy = []string{filepath.Join(string(filepath.Separator), "etc", "passwd")}
+		},
 		"a setup entry with no command in it": func(src *Sources) {
 			src.Setup = []string{"   "}
 		},
