@@ -336,3 +336,21 @@ func TestCellsRecordEmitsWhatItStored(t *testing.T) {
 	assert.Equal(t, cellsHead, payload.Recorded[0].Head)
 	assert.Equal(t, 1, payload.Recorded[0].Round)
 }
+
+// §12.1's other shape for this command. A terminal reader gets the count and
+// the round — not the cells, which came out of the caller's own file.
+func TestATerminalCellsRecordNamesTheCountAndTheRound(t *testing.T) {
+	briefedForCells(t)
+	path := filepath.Join(t.TempDir(), "cells.ndjson")
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"+
+			`{"unit":"u2","role":"convention","result":"pass"}`+"\n"), 0o600))
+
+	out := throughATerminal(t, "cells", "record", strconv.Itoa(cellsPR), path,
+		"--repo", cellsSlug)
+
+	assert.Contains(t, out, "recorded ")
+	assert.Contains(t, out, "\x1b[36m2\x1b[0m",
+		"the count is accented, as every terminal rendering accents its answer")
+	assert.Contains(t, out, " cell(s) in round 1")
+}
