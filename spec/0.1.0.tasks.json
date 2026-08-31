@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T04:49:02.752762Z",
+  "updated_at": "2026-08-31T05:09:16.232056Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3753,7 +3753,7 @@
     {
       "id": "run-passed-predicate",
       "title": "Decide whether a run passed",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "count-pattern-extraction",
@@ -3764,11 +3764,18 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T04:49:06.162737Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T05:09:16.220884Z",
+      "closed_reason": "- Record.Verdict is §5.2.5's predicate and conjoins exactly its four clauses: the exit code is 0, TestsRun is derivable, that count is greater than zero, and TestsFailed is 0. Anything else is false.\n- The verdict is computed where the record is written rather than where it is built: internal/cli/test.go's appendRun sets record.Passed = record.Verdict() beside record.ID = run.NextID(stored), so both derived fields are cr's and no caller can hand runs.ndjson a `passed` its own counts do not support.\n- A run whose counts are underivable never passes, because an absent count is nil in both positions and neither `*TestsRun \u003e 0` nor `*TestsFailed == 0` can be read off nil. That is what keeps it out of §5.2.6's baseline pool, and §5.3.5 and §5.4.4 out of a `probed` grade resting on it: a baseline that passed on counts nobody could read would attribute the repository's pre-existing failures to the probe.\n- TestARunPassesOnlyWhileEveryClauseOfTheVerdictHolds isolates each failing condition separately, starting from a record that passes and breaking exactly one clause per case, so a clause the predicate had quietly stopped depending on fails its own case rather than being masked by another.\n- The four the criterion names are a non-zero exit code, an undetermined executed count, an executed count of zero and a non-zero failed count; two more are covered beside them, an undetermined failed count and a run killed for exceeding its budget, which reaches the verdict as the platform's exit code for a killed process.\n- TestTheStoredCountsAreSummedOverTheWholeMergedStream now asserts `\"passed\":true` on the one shape that can satisfy the predicate end to end — exit 0, five executed, none failed — while TestTheTestCommandStoresARunRecordForEveryRun still asserts false for a run with no count pattern configured, so both branches of the verdict are pinned through the command.\n- Dogfooded against deligoez/cr-qa PR 1, all four shapes with the built binary: r6 `exit_code 0, tests_run 4, tests_failed 0, passed true` on the all-passing Pest suite — the determined branch, reachable for the first time; r7 `exit_code 1, tests_run 4, tests_failed 2, passed false`, determined counts and a failure; r8 `--filter \"no such test exists\"`, both counts absent, `passed false`; r4 `timed_out true, exit_code -1`, `passed false`.\n- Mutation testing: gremlins unleash --timeout-coefficient 30 ./internal reports Killed 962, Lived 19, Not covered 85, Timed out 7, efficacy 98.06%, against the 940/18/83/4 baseline. One new survivor, CONDITIONALS_BOUNDARY at run/counts.go:130:12, was a real undocumented boundary rather than an equivalent: the sum guard's `\u003e` reads maxCount as the largest count still allowed, and `\u003e=` would refuse a total landing exactly on it. It is now pinned by a case summing 2147483646 and 1, verified to bite by applying the mutant by hand and watching the case fail.\n- The three new TIMED OUT mutants are all in the timeout path and are detections rather than survivors: negating `timeout \u003e 0` and either mutation of `-group` make the suite hang instead of failing an assertion, which is exactly the hang the parent-only kill produced when it was tried by hand.\n- The two new Not covered entries are both at run/counts.go:17:27, the `maxCount = 1\u003c\u003ccountBits - 1` constant expression, which has no executable statement for coverage to reach; the NOT COVERED at sandbox/run.go:163:12 is a switch-case-expression artifact, since `go test -coverprofile` reports the block at 163.19 as covered.\n- deadcode ./... is 89, unchanged, with nothing from this batch listed.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run (0 issues) \u0026\u0026 ./scripts/deadcode.sh.\nOut of scope: §5.2.2's baseline-per-head rule and §5.2.6's baseline resolution are baseline-recording and baseline-resolution, still open; nothing reads Record.Passed back yet, and §5.3 and §5.4's probe ladders, probe-record-schema and probe-round-cap are untouched.\n",
+      "gate_passed_at": "2026-08-31T05:09:16.220884Z",
+      "commit_sha": "d1f9c5f",
+      "commit_shas": [
+        "d1f9c5f"
+      ],
+      "commit_files": [
+        "internal/run/run.go"
+      ]
     },
     {
       "id": "baseline-recording",
