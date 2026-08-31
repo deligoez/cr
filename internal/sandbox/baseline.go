@@ -68,6 +68,17 @@ func encodeBaseline(b *Baseline) ([]byte, error) {
 	return append(body, '\n'), nil
 }
 
+// decodeBaseline reads one baseline file back, naming the file when it cannot.
+// A baseline cr wrote and cannot now parse is a file something else has been in,
+// and §12.4 asks the error to name what to look at.
+func decodeBaseline(body []byte, file string) (*Baseline, error) {
+	var recorded Baseline
+	if err := json.Unmarshal(body, &recorded); err != nil {
+		return nil, fmt.Errorf("cannot read %s: %w", file, err)
+	}
+	return &recorded, nil
+}
+
 // recordBaseline publishes the sandbox's post-setup baseline.
 //
 // The write takes the pull request's exclusive advisory lock, because §2.3.1

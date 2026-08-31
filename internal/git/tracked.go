@@ -71,6 +71,52 @@ func TrackedState(dir string) (Tracked, error) {
 	return Tracked{Patch: patch, Paths: splitNUL(listing)}, nil
 }
 
+// Head is the revision the worktree at dir is checked out at.
+//
+// §5.1.6 compares it against the round's head before every probe or test run,
+// because a sandbox at some other revision is a sandbox whose results belong to
+// code no finding of this round was written against. `--end-of-options` is left
+// off deliberately: rev-parse echoes an argument it does not recognise back on
+// standard output, so the guard other reads carry would become a second line of
+// output here. The revision is the literal HEAD and comes from no caller.
+func Head(dir string) (string, error) {
+	out, err := run(dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// TrackedAmong returns which of paths the worktree at dir tracks.
+//
+// §5.1.6's leftover-artefact scan is evaluated over untracked files only, and
+// this is the half that decides which those are. Round 12's
+// artefact-glob-not-scoped-to-untracked finding is why it is asked at all: a
+// `tests.probe_path_template` whose glob also matches a tracked test file would
+// otherwise make every sandbox permanently unclean, and §5.1.6's mandated
+// recreation unbounded.
+//
+// The paths are handed over as `:(literal)` pathspecs, so a name holding a `*`
+// or a `[` is matched as itself rather than as a pattern of git's own.
+func TrackedAmong(dir string, paths []string) (map[string]bool, error) {
+	if len(paths) == 0 {
+		return map[string]bool{}, nil
+	}
+	args := []string{"ls-files", "-z", "--full-name", "--"}
+	for _, path := range paths {
+		args = append(args, ":(literal)"+path)
+	}
+	listing, err := run(dir, args...)
+	if err != nil {
+		return nil, err
+	}
+	tracked := make(map[string]bool, len(paths))
+	for _, path := range splitNUL(listing) {
+		tracked[path] = true
+	}
+	return tracked, nil
+}
+
 // splitNUL cuts a NUL-terminated git listing into its records. The final NUL is
 // a terminator rather than a separator, so an empty listing is no records and
 // not one empty one.
