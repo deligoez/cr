@@ -1,6 +1,7 @@
 package state
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -68,4 +69,61 @@ func TestProbeRunsSerialisePerRepositoryAndProfile(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		t.Error("the second run never took the lock the first had released")
 	}
+}
+
+// §5.6.2: a held lock is waited on for up to `probe.lock_timeout_seconds` and
+// then the run fails, rather than proceeding beside the holder.
+//
+// The wait is bounded here at a tenth of a second so the test costs nothing;
+// the value is the caller's, and internal/cli resolves it from the setting.
+// What is asserted is that the whole of it was spent — a refusal that gave up
+// at once would pass a test that only looked at the error — and that the
+// failure names the pair the lock is over, since a file name under ~/.cr is
+// not what the reader has to do something about.
+func TestAHeldProbeLockIsWaitedOnAndThenRefused(t *testing.T) {
+	l := probeLocks(t)
+	const (
+		repository = "/src/acme/web"
+		profile    = "laravel-pest"
+		wait       = 100 * time.Millisecond
+	)
+
+	held, err := l.LockProbe(repository, profile, time.Second)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, held.Unlock()) })
+
+	started := time.Now()
+	second, err := l.LockProbe(repository, profile, wait)
+	spent := time.Since(started)
+
+	assert.Nil(t, second)
+	var locked *ProbeLockedError
+	require.ErrorAs(t, err, &locked, "§5.6.2: the wait ends in a refusal")
+	assert.Equal(t, repository, locked.RepoPath)
+	assert.Equal(t, profile, locked.ProfileID)
+	assert.Equal(t, wait, locked.Waited)
+	assert.Contains(t, locked.Error(), "probe.lock_timeout_seconds",
+		"the refusal names the setting the reader would raise")
+	assert.GreaterOrEqual(t, spent, wait,
+		"§5.6.2 waits for the timeout; a refusal that gave up at once never waited")
+}
+
+// An advisory lock binds to an inode, so the released file is kept for the
+// reason Lock.Unlock keeps its own: unlinking it would let the next waiter open
+// the same path, receive a fresh inode, and run beside the holder while every
+// call reported success.
+func TestReleasingTheProbeLockKeepsItsFile(t *testing.T) {
+	l := probeLocks(t)
+
+	held, err := l.LockProbe("/src/acme/web", "laravel-pest", time.Second)
+	require.NoError(t, err)
+	require.NoError(t, held.Unlock())
+
+	info, err := os.Stat(l.ProbeLockFile("/src/acme/web", "laravel-pest"))
+	require.NoError(t, err, "the released lock file must survive: it is the inode the next waiter locks")
+	assert.False(t, info.IsDir())
+	assert.Equal(t,
+		filepath.Join(l.LocksDir(), DirProbeLocks, "src", "acme", "web", "laravel-pest.lock"),
+		l.ProbeLockFile("/src/acme/web", "laravel-pest"),
+		"§2.2: the lock lives under the state root, never beside the repository it names")
 }
