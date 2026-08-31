@@ -1,11 +1,37 @@
 package probe
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/deligoez/cr/internal/state"
 )
+
+// IDTakenError reports a probe id reserved before a run and allocated by
+// another run before this one's record could be written.
+//
+// §5.4.2 has a gap probe know its id before it runs, because §2.4's
+// `tests.probe_path_template` puts the id in the path the test file is placed
+// at. The reservation is read outside §2.3.1's lock and the record is written
+// under it, so the two can be separated by another `cr probe run` — and §5.5.2
+// has a finding reference a probe by this id, which two records sharing one
+// would make ambiguous. Nothing is written when this refuses, and the probe
+// file has already been removed, so the experiment can simply be repeated.
+type IDTakenError struct {
+	// Reserved is the id the placement was named for.
+	Reserved string
+	// Next is the id the allocation now hands out.
+	Next string
+}
+
+func (e *IDTakenError) Error() string {
+	return fmt.Sprintf(
+		"probe id %s was taken while this probe ran, and the next free id is %s: "+
+			"§5.4.2 fixes a gap probe's id before the run because §2.4's template puts it "+
+			"in the path; nothing was recorded, so run the probe again",
+		e.Reserved, e.Next)
+}
 
 // Record is one line of probes.ndjson: §5.5's probe record, with the head and
 // round §2.3.3 stamps onto every record of that file.
