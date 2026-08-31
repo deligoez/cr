@@ -45,8 +45,7 @@ type roundUnit struct {
 	state.Stamp
 }
 
-// roundUnitIDs is the set §6.1.3 checks a record's `unit` against: the ids of
-// the units of the round this pull request is in.
+// roundUnitsOf reads the units of one round out of units.ndjson.
 //
 // The round is part of the question rather than context around it. §3.4.6 makes
 // a unit id round-scoped and forbids carrying it across rounds, so `u1` of round
@@ -54,18 +53,32 @@ type roundUnit struct {
 // file would accept a record anchored in a unit this round never formed. §9.3.5
 // says the same from the other side: a command reads only the current round's
 // records.
-func roundUnitIDs(l state.Layout, owner, repo string, pr, round int) ([]string, error) {
-	units, err := state.ReadRecords[roundUnit](l, owner, repo, pr, state.FileUnits)
+//
+// It is one reader for both commands that ask after the round's units — §6.1.3
+// wants their ids and §4.5.5 wants their hashes as well — so `cr record` and
+// `cr cells record` cannot come to disagree about which units a round formed.
+func roundUnitsOf(l state.Layout, owner, repo string, pr, round int) ([]roundUnit, error) {
+	stored, err := state.ReadRecords[roundUnit](l, owner, repo, pr, state.FileUnits)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]string, 0, len(units))
-	for i := range units {
-		if units[i].Round == round {
-			ids = append(ids, units[i].ID)
+	units := make([]roundUnit, 0, len(stored))
+	for i := range stored {
+		if stored[i].Round == round {
+			units = append(units, stored[i])
 		}
 	}
-	return ids, nil
+	return units, nil
+}
+
+// roundUnitIDs is the set §6.1.3 checks a record's `unit` against: the ids of
+// the units of the round this pull request is in.
+func roundUnitIDs(units []roundUnit) []string {
+	ids := make([]string, 0, len(units))
+	for i := range units {
+		ids = append(ids, units[i].ID)
+	}
+	return ids
 }
 
 // newRecordCmd records a round's merged findings (§11, §6.1.3, §9.1).
@@ -113,10 +126,11 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			units, err := roundUnitIDs(layout, owner, repo, pr, round.Round)
+			formed, err := roundUnitsOf(layout, owner, repo, pr, round.Round)
 			if err != nil {
 				return err
 			}
+			units := roundUnitIDs(formed)
 			body, err := os.ReadFile(args[1])
 			if err != nil {
 				return err
