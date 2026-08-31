@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/mapping"
@@ -90,7 +91,11 @@ func resolveGapSupport(
 		}
 		answered := answerGapSupport(gap, meta, runs, pairs, record)
 		found.support = append(found.support, answered)
-		if answered.unmapped {
+		// Deduplicated, because §5.5.2 has a finding reference a probe
+		// and not the other way round: two records may rest on the same
+		// experiment, and a disclosure naming it twice would read as two
+		// experiments that both went nowhere.
+		if answered.unmapped && !slices.Contains(unmapped, gap.ID) {
 			unmapped = append(unmapped, gap.ID)
 		}
 	}
