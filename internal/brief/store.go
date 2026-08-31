@@ -59,14 +59,23 @@ func write(src *Sources, held *state.Lock, assembled *Brief) error {
 }
 
 // metaOf is the meta.json this round leaves behind: the identity, §3.2's key,
-// §2.4's profile, and §9.3's round and head.
+// §2.4's profile, §4.5.1's active roles, and §9.3's round and head.
 //
-// Whatever the file already carried in the two fields no part of §3.7 decides —
-// `active_roles`, which §4.5.1 settles and §4.6 reads, and `post_unresolved`,
-// which §8.4.4 sets and only a reconciliation clears — is read back and carried
-// through. Writing the document from the fields this package computes would
-// clear a post whose outcome cr never learned, and `cr brief` is the command a
-// user runs after exactly that.
+// `active_roles` is written here, and this is the only place in cr that writes
+// it. §4.5.1 settles the field out of the axis decision of §4.5.1 to §4.5.3 and
+// the resolved profile of §2.4, and `cr brief` is the command that establishes
+// both — §3.7.6 has it print the axes and §3.7.1 the profile. The alternative
+// would be `cr review`, and that is round 8's `circular-definition` finding:
+// §4.5.6 rejects a cell naming an inactive role and §10.2.2 counts a complete
+// row of cells per active role, so the set has to stand whether or not a
+// fan-out has ever run. One writer is what keeps `cr cells record` and
+// `cr status` reading the same answer.
+//
+// `post_unresolved` is the field §3.7 decides nothing about: §8.4.4 sets it,
+// only a reconciliation clears it, so whatever the file already carried is read
+// back and carried through. Writing the document from the fields this package
+// computes would clear a post whose outcome cr never learned, and `cr brief` is
+// the command a user runs after exactly that.
 func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -78,7 +87,7 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 		PR:             src.PR,
 		IssueKey:       assembled.Issue.Key,
 		ProfileID:      assembled.Profile.ID,
-		ActiveRoles:    recorded.ActiveRoles,
+		ActiveRoles:    assembled.ActiveRoles,
 		Round:          assembled.Round,
 		Head:           assembled.Head,
 		PostUnresolved: recorded.PostUnresolved,

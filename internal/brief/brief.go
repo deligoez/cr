@@ -35,6 +35,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -119,6 +120,11 @@ type Brief struct {
 	// §3.7.6: the active, disabled, and unavailable axes with their
 	// reasons.
 	Axes activation.Activation `json:"axes"`
+	// ActiveRoles is §4.5.1's role half over the corpus of §2.5.5, and
+	// the value meta.json's `active_roles` carries. It sits beside Axes
+	// because §4.5.1 defines the two together and one run must answer both
+	// from the same axis decision and the same resolved profile.
+	ActiveRoles []string `json:"active_roles"`
 }
 
 // Disclosures collects §3.7.6's report as the disclosure contract §11.1 exempts
@@ -238,21 +244,33 @@ func assemble(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
+	// §2.5.5's corpus, resolved from the two on-disk layers of §2.2 and
+	// the built-ins. It is read here rather than by whatever consumes the
+	// active set, so §4.5.1's two inputs — the axis decision above and the
+	// resolved profile — meet the roles in one place and one round cannot
+	// answer the question twice.
+	corpus, err := role.Resolve(
+		src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
+	if err != nil {
+		return nil, err
+	}
+	axes := axesOf(&selection, resolved)
 	return &Brief{
-		Owner:     src.Owner,
-		Repo:      src.Repo,
-		PR:        src.PR,
-		Round:     round,
-		Head:      pr.Head,
-		MergeBase: mergeBase,
-		Profile:   profileReport(&selection, src.Config.String("profile")),
-		Issue:     issueReport(resolved),
-		Claims:    claims,
-		Drift:     drift,
-		Units:     units,
-		Threads:   threads,
-		Notes:     notes,
-		Axes:      axesOf(&selection, resolved),
+		Owner:       src.Owner,
+		Repo:        src.Repo,
+		PR:          src.PR,
+		Round:       round,
+		Head:        pr.Head,
+		MergeBase:   mergeBase,
+		Profile:     profileReport(&selection, src.Config.String("profile")),
+		Issue:       issueReport(resolved),
+		Claims:      claims,
+		Drift:       drift,
+		Units:       units,
+		Threads:     threads,
+		Notes:       notes,
+		Axes:        axes,
+		ActiveRoles: axes.ActiveRoles(corpus, selection.Profile.ID),
 	}, nil
 }
 
