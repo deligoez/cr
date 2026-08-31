@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T04:34:47.322551Z",
+  "updated_at": "2026-08-31T04:49:02.752762Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3727,7 +3727,7 @@
     {
       "id": "run-timeout-handling",
       "title": "Kill runs exceeding the configured timeout",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "run-record-schema"
@@ -3737,11 +3737,18 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T04:34:54.515702Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T04:49:02.7406Z",
+      "closed_reason": "- sandbox.Run now takes a timeout and returns whether the run was killed for exceeding it: the runner is started rather than run to completion, cmd.Wait moves to a goroutine, and a select between it and a time.Timer decides the outcome, so a run that outlives its budget is killed and reported as a timeout instead of as an ordinary failure.\n- The outcome reaches storage where §5.2.3 needs it: internal/cli/test.go passes `time.Duration(resolved.Tests.TimeoutSeconds) * time.Second` and sets Record.TimedOut, so runs.ndjson carries `\"timed_out\":true` beside the platform's exit code for a killed process — the slot run-record-schema opened for exactly this, because §5.3.4 rung 2 must be readable without guessing at an exit code.\n- The reader is told too, which the exit code cannot do on its own: testRunResult gains `timed_out` and the text rendering prints \"killed for exceeding tests.timeout_seconds\", because -1 beside no explanation reads as a suite that ran and failed.\n- The default is 900 seconds per §2.4 and it is the profile's number that bounds the run, not a constant in the command: profile.DefaultTimeoutSeconds is 900 and TestParseAppliesTheDocumentedDefaults already pins an omitting profile to it, while TestARunThatExceedsTheProfilesTimeoutIsRecordedAsATimeout sets tests.timeout_seconds to 1 against a runner that sleeps for two minutes — a command reaching for the 900-second default instead would hang the suite rather than fail an assertion.\n- What is killed is the process group and not the parent: the child is started with SysProcAttr{Setpgid: true}, so its process group id equals its own pid, and the timeout path signals the negative pid with SIGKILL, which reaches the runner and everything it started.\n- TestARunOutlivingItsBudgetIsKilledWithEverythingItStarted proves the group kill in two independent ways. The runner starts a `sh -c 'while :; do sleep 0.2; done'` child that never exits on its own and inherits the output pipe, then sleeps for 120 seconds; the test reads the child's pid out of a file the runner wrote and asserts with `syscall.Kill(child, 0)` that the pid answers ESRCH within ten seconds, and separately asserts that Run returned at all inside thirty seconds.\n- The test was proven to bite rather than assumed to: replacing `syscall.Kill(-group, ...)` with `syscall.Kill(group, ...)` was run and the test did not merely fail an assertion — it hung and was killed by the 25-second test deadline, with the goroutine dump showing cmd.Wait blocked in awaitGoroutines on the io.Copy from the pipe the surviving grandchild still held. That is the orphan §5.6's lock exists to prevent, seen directly.\n- SIGKILL rather than SIGTERM, and a timeout of zero or less is no budget rather than an expired one; TestARunGivenNoBudgetIsNotKilled pins the second direction, since reading zero as a deadline already passed would kill every run of a caller that forgot to pass one.\n- Closed-task code touched, and its claim is not weakened: TestOnlyTheStatePackageWritesToTheFilesystem banned `syscall` outside internal/state, and the process-group kill cannot be spelled without it. The guard now exempts one named file for exactly three names — SysProcAttr, Kill and SIGKILL — and gained a scan that fails on any other `syscall.X` in that same file. It was proven to bite by adding `syscall.Getpid()` to run.go and observing \"internal/sandbox/run.go uses syscall.Getpid\", then reverting. The sentence the guard makes is unchanged: no filesystem write can be spelled outside internal/state.\n- Dogfooded against deligoez/cr-qa PR 1 with a temporary tests.cmd of `sh -c 'sleep 300 \u0026 echo $! \u003e /tmp/cr-qa-child.pid; sleep 300'` and tests.timeout_seconds 2: run r4 recorded `\"exit_code\":-1,\"timed_out\":true,\"duration_ms\":2003`, the payload printed `timed_out: true`, and the pid the runner's background child wrote answered \"no such process\" afterwards. The profile file was restored byte-for-byte identical to internal/profile/builtin/laravel-pest.json.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run (0 issues) \u0026\u0026 ./scripts/deadcode.sh.\nOut of scope: §5.2.5's passed predicate is the next task, and §5.3.4's `timeout` rung, §5.2.2's baseline-per-head rule and §5.5's baseline resolution belong to the probe and baseline tasks; nothing here reads Record.TimedOut back.\n",
+      "gate_passed_at": "2026-08-31T04:49:02.7406Z",
+      "commit_sha": "235baad",
+      "commit_shas": [
+        "235baad"
+      ],
+      "commit_files": [
+        "internal/sandbox/run.go"
+      ]
     },
     {
       "id": "run-passed-predicate",
