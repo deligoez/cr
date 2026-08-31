@@ -137,6 +137,10 @@ func unclean(src *Sources, path, leftoverGlob string) (string, error) {
 // reported instead, rather than an empty list saying that something, somewhere,
 // differs.
 func differing(current, recorded []string) []string {
+	// gremlins reports the `+` here as a surviving ARITHMETIC_BASE mutant,
+	// the equivalent activation.Disclosures and profile.MissingProfile.
+	// Disclosure already carry: the sum is a capacity hint, and a wrong one
+	// changes how often append reallocates and nothing a test can observe.
 	changed := make([]string, 0, len(current)+len(recorded))
 	for _, path := range current {
 		if !slices.Contains(recorded, path) {
