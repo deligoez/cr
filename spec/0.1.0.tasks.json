@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T05:24:23.15272Z",
+  "updated_at": "2026-08-31T05:28:19.882086Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3821,7 +3821,7 @@
     {
       "id": "baseline-resolution",
       "title": "Resolve a probe baseline before running",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "baseline-recording"
@@ -3831,11 +3831,24 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T05:25:12.346218Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T05:28:19.848183Z",
+      "closed_reason": "- internal/probe/resolve.go's Ensure performs, through the caller's Performer, every baseline Missing reports the head has no run for, and only then resolves the one §5.5's baseline column names for the kind and filter it was given, so the performing always precedes the probe as §5.2.6 requires.\n- Spec.Resolve walks the stored runs backwards and stops at the first match, which is the most recent, because runs.ndjson is appended to and never rewritten under §2.3 while run.NextID allocates above every id on file, making file order, id order and chronological order the same order.\n- TestAnAbsentBaselineIsPerformedBeforeTheProbe drives Ensure with nothing on file and asserts which specs were performed and in which order for both kinds, and TestTwoBaselineCandidatesResolveToTheMostRecent gives two matches that disagree about §5.2.5's verdict and asserts both the id and the verdict come from the newer one, with a performer that fails the test if §5.2.6 performs anything.\n- §5.2.6's fence is made structural by the Baseline type, whose fields are unexported and whose only constructor is Spec.Resolve, which never builds one out of a record carrying a probe, so a probe's own mutated or probe-injected run cannot be handed to §5.3.5 or §5.4.4 as the record that licenses a probed grade even though it can still be read and printed like any other run.\n- TestAProbesOwnRunNeverBecomesTheNextProbesBaseline asserts a probe-carrying run at the current head is passed over and a fresh baseline performed, that a first probe at a head nothing has been run at still obtains one because the run §5.2.6 performs is on un-probed code by construction, and that a performed run which is itself inadmissible leaves Ensure with an error naming the head rather than a baseline nothing stands behind.\n",
+      "gate_passed_at": "2026-08-31T05:28:19.848183Z",
+      "commit_sha": "ff33b38",
+      "commit_shas": [
+        "ff33b38",
+        "0aa8332",
+        "c2a6a2e",
+        "8985784",
+        "409201f"
+      ],
+      "commit_files": [
+        "internal/probe/baseline.go",
+        "internal/probe/resolve.go",
+        "internal/probe/resolve_test.go"
+      ]
     },
     {
       "id": "mutation-probe-run",
