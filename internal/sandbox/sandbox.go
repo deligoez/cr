@@ -97,7 +97,6 @@ type Result struct {
 	Setup []string
 }
 
-// Create makes the sandbox worktree of §5.1.1.
 // Create makes the sandbox worktree of §5.1.1, fills it with §5.1.2's copied
 // paths, and then runs §5.1.3's setup commands in it.
 //
