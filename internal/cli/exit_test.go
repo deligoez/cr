@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/text"
 	"github.com/stretchr/testify/assert"
@@ -414,4 +415,21 @@ func TestARejectedClaimExitsWithTheValidationCode(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("recording claims: %w", err)))
 	assert.Contains(t, err.Error(), "description, acceptance, comment, note",
 		"§12.4: the refusal names what the user may choose from")
+}
+
+// §5.1.1 creates the sandbox worktree and §5.1.5 removes it, so a sandbox that
+// is already there is neither a bad file nor a bad command line: the pull
+// request is briefed, every path resolved, and what refuses is a checkout cr
+// did not just make standing where §5.1.1 puts one. §11.2 codes that 4, and
+// without the mapping the refusal would report 2 and send the user to correct
+// an invocation that was right.
+func TestAnExistingSandboxExitsWithTheStateCode(t *testing.T) {
+	exists := &sandbox.ExistsError{
+		Owner: "acme", Repo: "web", PR: 42,
+		Path: filepath.Join("home", ".cr", "state", "acme", "web", "pr-42", "sandbox"),
+	}
+	assert.Equal(t, ExitState, exitCodeFor(exists))
+	assert.Equal(t, ExitState, exitCodeFor(fmt.Errorf("creating the sandbox: %w", exists)))
+	assert.Contains(t, exists.Error(), "cr sandbox destroy 42 --repo acme/web",
+		"§12.4: the error names the next actionable step")
 }
