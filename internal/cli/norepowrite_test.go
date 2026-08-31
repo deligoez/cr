@@ -158,6 +158,44 @@ var lowLevelPackages = map[string]bool{
 	"golang.org/x/sys/windows": true,
 }
 
+// processControlFile is the one file outside internal/state that may import
+// `syscall`, and processControl is every name it may use out of it.
+//
+// §5.2.3 has cr kill a run that outlives `tests.timeout_seconds`, and what has
+// to die is the process group: a runner that started `php` or `composer`
+// leaves them holding the test database §5.6's lock serialises access to, and
+// holding the pipe the run's output travels through. Neither the group a child
+// is put in nor a signal to that group can be spelled without `syscall`.
+//
+// The exemption is by name rather than by file, so the guard keeps saying what
+// it said before. Every identifier below controls a process and addresses no
+// path, and anything else out of `syscall` — Open, Unlink, Mkdir, Rename —
+// fails this test in the file that is exempt exactly as it would anywhere
+// else. What is widened is not "this file may reach the filesystem" but "these
+// three names are not the filesystem".
+var processControlFile = filepath.Join("internal", "sandbox", "run.go")
+
+var processControl = map[string]bool{
+	"SysProcAttr": true,
+	"Kill":        true,
+	"SIGKILL":     true,
+}
+
+// syscallUse reports the syscall identifier an expression names, if it names
+// one. The package qualifier is matched as text, which is as strong as the
+// import guard beside it: an aliased import is refused outright above.
+func syscallUse(n ast.Node) (string, bool) {
+	sel, ok := n.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	if !ok || pkg.Name != "syscall" {
+		return "", false
+	}
+	return sel.Sel.Name, true
+}
+
 // Nothing outside internal/state writes to the filesystem at all.
 //
 // This is invariant 2's first half — cr never writes inside the repository
@@ -170,6 +208,11 @@ var lowLevelPackages = map[string]bool{
 // Two ways around a call scan are closed alongside it. An aliased import of os
 // would make every write invisible here, and a package that reaches the
 // filesystem beneath os would never mention os at all.
+//
+// The one exemption is named rather than general: §5.2.3's process-group kill
+// needs `syscall`, and the file that performs it may use exactly the three
+// process-control names processControl lists. Every other identifier out of
+// that package fails here, in the exempt file as much as anywhere else.
 func TestOnlyTheStatePackageWritesToTheFilesystem(t *testing.T) {
 	var found []string
 	eachSourceFile(t, func(rel string, file *ast.File) {
@@ -182,11 +225,15 @@ func TestOnlyTheStatePackageWritesToTheFilesystem(t *testing.T) {
 			if path == "os" && spec.Name != nil {
 				found = append(found, rel+" imports os as "+spec.Name.Name)
 			}
-			if lowLevelPackages[path] {
+			exempt := path == "syscall" && rel == processControlFile
+			if lowLevelPackages[path] && !exempt {
 				found = append(found, rel+" imports "+path)
 			}
 		}
 		ast.Inspect(file, func(n ast.Node) bool {
+			if name, uses := syscallUse(n); uses && !processControl[name] {
+				found = append(found, rel+" uses syscall."+name)
+			}
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
