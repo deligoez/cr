@@ -138,3 +138,22 @@ func TestPruneWorktreesClearsARegistrationWhoseDirectoryIsGone(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(repo, ".git", "worktrees", filepath.Base(path)))
 	assert.NoError(t, AddWorktree(repo, path, head))
 }
+
+// A removal that failed is reported, and does not become a prune that
+// succeeded.
+//
+// The two steps are sequential rather than joined for exactly this reason.
+// Pruning after a failed removal would hand back the prune's own result, so a
+// worktree that is still there — held open, or at a path that is not a worktree
+// at all — would be reported as removed, and §5.1.6's recreation would then
+// fail at `worktree add` with a message about a path already registered, one
+// step away from the thing that actually went wrong.
+func TestARemovalThatFailedIsNotReportedAsSuccess(t *testing.T) {
+	repo, _, path := sandboxFixture(t)
+
+	err := RemoveWorktree(repo, path)
+
+	var failed *CommandError
+	require.ErrorAs(t, err, &failed, "nothing was registered at that path, so the removal cannot have worked")
+	assert.Contains(t, failed.Args, "remove")
+}
