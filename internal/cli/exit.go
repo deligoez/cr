@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
@@ -345,6 +346,16 @@ func exitCodeFor(err error) int {
 		// the file was found and read whole, and what is unusable is
 		// the bytes in it, which §11.2 codes 1 rather than the 3 a
 		// file cr cannot use as a file gets.
+		return ExitValidation
+	}
+	var noTarget *probe.TargetError
+	if errors.As(err, &noTarget) {
+		// §5.3.2 derives a mutation probe's target from the patch, and
+		// §5.5 makes it a required row of the record. A patch no
+		// target follows from is therefore input cr cannot run, and
+		// the fault is the agent's data inside a file that was found,
+		// read, and parsed without trouble — which §11.2 codes 1
+		// alongside the record rejections above.
 		return ExitValidation
 	}
 	var outsideSandbox *state.OutsideSandboxError
