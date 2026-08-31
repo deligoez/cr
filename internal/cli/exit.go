@@ -201,6 +201,15 @@ func exitCodeFor(err error) int {
 		// parsed; the fault is the agent's data inside it.
 		return ExitValidation
 	}
+	var gapSeverity *finding.GapSeverityError
+	if errors.As(err, &gapSeverity) {
+		// §5.4.4's floor and §5.4.5's ceiling, refused by `cr record`
+		// before anything is stored and by `cr post` before the payload
+		// is built. The record parsed and every field §6.1 requires is
+		// there; what is wrong is the severity the agent chose beside
+		// the experiment it rests on, which §11.2 codes 1.
+		return ExitValidation
+	}
 	var unattributable *finding.UnattributableFileError
 	if errors.As(err, &unattributable) {
 		// The same clause, one level up: an input cr merge cannot bind
