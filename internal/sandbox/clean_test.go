@@ -111,3 +111,54 @@ func TestAnUncleanSandboxIsRecreatedAndTheRecreationIsReported(t *testing.T) {
 		})
 	}
 }
+
+// §5.1.6's leftover-artefact scan is evaluated over untracked files only, and
+// every other untracked file is ignored.
+//
+// Round 12's artefact-glob-not-scoped-to-untracked finding is the first half,
+// and the glob here is deliberately one that matches a file the repository
+// tracks. §2.4 requires each profile's `tests.probe_path_template` to resolve
+// where its own `tests.globs` point, so a template whose glob also catches a
+// committed test file is not a misconfiguration to be refused — it is the
+// ordinary case. A scan that counted the tracked match would find a leftover
+// artefact in every sandbox on every run, and §5.1.6's mandated recreation
+// would never converge: rebuilding restores the very file it objected to.
+//
+// The second half is the sentence after it. `sandbox.copy` and `sandbox.setup`
+// create untracked files by design, so an untracked file outside the glob is
+// not evidence of anything.
+//
+// The mixed case is what makes the scoping observable rather than merely
+// asserted: one glob, two matches, and only the untracked one may be named.
+func TestOnlyAnUntrackedFileUnderTheGlobIsALeftoverArtefact(t *testing.T) {
+	// Matches app.txt, which the fixture repository tracks.
+	const overlapping = "app*.txt"
+
+	t.Run("a tracked match and a benign untracked file", func(t *testing.T) {
+		src, path, sentinel := sandboxed(t)
+		require.FileExists(t, filepath.Join(path, "app.txt"),
+			"the glob has to match something tracked, or this proves nothing")
+
+		ready, err := Ensure(src, overlapping)
+		require.NoError(t, err)
+
+		assert.Nil(t, ready.Recreated,
+			"a tracked file under the glob made the sandbox permanently unclean")
+		assert.FileExists(t, sentinel,
+			"§5.1.6 ignores the untracked files sandbox.copy and sandbox.setup create")
+	})
+
+	t.Run("a tracked match beside an untracked one", func(t *testing.T) {
+		src, path, _ := sandboxed(t)
+		require.NoError(t, os.WriteFile(
+			filepath.Join(path, "app-probe.txt"), []byte("a gap probe's test\n"), 0o600))
+
+		ready, err := Ensure(src, overlapping)
+		require.NoError(t, err)
+
+		require.NotNil(t, ready.Recreated)
+		assert.Contains(t, ready.Recreated.Reason, "app-probe.txt")
+		assert.NotContains(t, ready.Recreated.Reason, " app.txt",
+			"the tracked match is not a leftover artefact and must not be named as one")
+	})
+}
