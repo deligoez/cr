@@ -8,6 +8,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/testadequacy"
 )
 
 // cellsFile is the name a decode is told it is reading, which every rejection
@@ -64,8 +65,8 @@ func TestACellCarriesEveryFieldSection455Names(t *testing.T) {
 
 	// §4.4.1: the classification and the test paths it rested on.
 	require.NotNil(t, cells[3].Coverage)
-	assert.Equal(t, PartiallyCovered, cells[3].Coverage.Classification)
-	assert.Equal(t, []string{"tests/OrderTest.php"}, cells[3].Coverage.TestPaths)
+	assert.Equal(t, testadequacy.PartiallyCovered, cells[3].Coverage.Classification())
+	assert.Equal(t, []string{"tests/OrderTest.php"}, cells[3].Coverage.TestPaths())
 
 	// §2.3.3's pair has one author and it is never the agent, so it is
 	// unset here and stamped by the writer.
@@ -155,13 +156,6 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 			field: "coverage",
 			says:  `is §4.4.1's answer for the test axis, and "correctness" is on the correctness axis`,
 		},
-		{
-			name: "a classification outside §4.4.1's three",
-			line: `{"unit":"u1","role":"test-adequacy","result":"pass",` +
-				`"coverage":{"classification":"mostly","test_paths":[]}}`,
-			field: "coverage.classification",
-			says:  `is "mostly"; §4.4.1 closes it at covered, partially-covered, uncovered`,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
@@ -173,6 +167,25 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		})
 	}
 
+	// §4.4.1's closed set is testadequacy.Coverage's own, refused inside
+	// its UnmarshalJSON, so the refusal arrives as that package's error
+	// rather than as this one's. That is the point of the type: the three
+	// words are read in one place, and a cell cannot be decoded carrying a
+	// fourth. The line is still named, because state.DecodeStamped wraps
+	// whatever the decode refused with the line it was on.
+	t.Run("a classification outside §4.4.1's three", func(t *testing.T) {
+		_, err := Decode(cellsFile,
+			[]byte(`{"unit":"u1","role":"test-adequacy","result":"pass",`+
+				`"coverage":{"classification":"mostly","test_paths":[]}}`+"\n"),
+			units(), active())
+
+		var invalid *testadequacy.InvalidClassificationError
+		require.ErrorAs(t, err, &invalid)
+		assert.Equal(t, "mostly", invalid.Value)
+		assert.Contains(t, err.Error(), "cells.ndjson line 1")
+		assert.Contains(t, err.Error(), "covered, partially-covered, uncovered")
+	})
+
 	// An uncovered unit rests on no test path, and §12.3 has the empty list
 	// serialise as [] rather than null.
 	t.Run("an uncovered unit names no test path", func(t *testing.T) {
@@ -183,8 +196,8 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		require.Len(t, cells, 1)
 
 		require.NotNil(t, cells[0].Coverage)
-		assert.Equal(t, Uncovered, cells[0].Coverage.Classification)
-		assert.Equal(t, []string{}, cells[0].Coverage.TestPaths)
+		assert.Equal(t, testadequacy.Uncovered, cells[0].Coverage.Classification())
+		assert.Equal(t, []string{}, cells[0].Coverage.TestPaths())
 	})
 }
 
