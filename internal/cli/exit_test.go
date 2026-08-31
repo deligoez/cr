@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
@@ -449,4 +450,19 @@ func TestAFailedSetupCommandExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("preparing the sandbox: %w", failed)))
 	assert.Contains(t, failed.Error(), "Your requirements could not be resolved.",
 		"§3.1.3: the command's stderr reaches the user")
+}
+
+// §5.6.2 codes its own outcome: cr waits up to `probe.lock_timeout_seconds`
+// for the probe lock and then fails with exit code 4, which §11.2's table
+// names in as many words — "state conflict, including lock timeout". Without
+// the mapping a run that lost the race would report 2 and send the user to
+// correct a command line that was right.
+func TestAHeldProbeLockExitsWithTheStateCode(t *testing.T) {
+	locked := &state.ProbeLockedError{
+		RepoPath: "/src/acme/web", ProfileID: "laravel-pest", Waited: 300 * time.Second,
+	}
+	assert.Equal(t, ExitState, exitCodeFor(locked))
+	assert.Equal(t, ExitState, exitCodeFor(fmt.Errorf("running the suite: %w", locked)))
+	assert.Contains(t, locked.Error(), "probe.lock_timeout_seconds",
+		"§12.4: the error names the setting the user can raise")
 }
