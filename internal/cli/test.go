@@ -57,6 +57,17 @@ type testRunResult struct {
 	// A reader told only `exit -1` would have to guess which happened, and
 	// §5.3.4 puts the two on different rungs.
 	TimedOut bool `json:"timed_out"`
+	// Contaminated is why §5.1.6's check failed after the run, and empty
+	// when it passed. A run it names measured a sandbox that had drifted
+	// from the head under it, so §5.2.5's verdict on it is `false`
+	// whatever the counts said and no probe can be graded against it.
+	//
+	// It is an ordinary field rather than an entry in Honesty because
+	// §11.1's list of what survives `--quiet` is closed and this is not on
+	// it. §5.1.6's recreation notice is, and a reader running with
+	// `--quiet` is told about this run on the next one, when the sandbox
+	// this contamination condemns is rebuilt.
+	Contaminated string `json:"contaminated,omitempty"`
 	// Warnings carries §5.6.3's collision warning: the probe lock covers
 	// cr's own runs and can cover nothing else.
 	//
@@ -86,6 +97,11 @@ func (r *testRunResult) Text(w *writer) string {
 		// beside it is the platform's number for a killed process and
 		// reads as an ordinary failure.
 		fmt.Fprintf(&out, "  %s\n", w.accent("killed for exceeding tests.timeout_seconds"))
+	}
+	if r.Contaminated != "" {
+		// Said before the run id, because it is what the run id
+		// means: a record nothing may be graded against.
+		fmt.Fprintf(&out, "  %s\n", w.accent("contaminated, per §5.1.6: "+r.Contaminated))
 	}
 	fmt.Fprintf(&out, "  run     %s", r.Run)
 	for _, warned := range r.Warnings {
@@ -152,7 +168,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ready, err := sandbox.Ensure(&sandbox.Sources{
+			src := &sandbox.Sources{
 				Layout:      layout,
 				Owner:       owner,
 				Repo:        repo,
@@ -162,7 +178,8 @@ func newTestCmd(out *writer) *cobra.Command {
 				Copy:        resolved.Sandbox.Copy,
 				Setup:       resolved.Sandbox.Setup,
 				ProfileFile: file,
-			}, resolved.LeftoverGlob())
+			}
+			ready, err := sandbox.Ensure(src, resolved.LeftoverGlob())
 			if err != nil {
 				return err
 			}
@@ -206,29 +223,44 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err := errors.Join(err, probe.Unlock()); err != nil {
 				return err
 			}
+			// §5.1.6's check again, now that the suite has finished
+			// with the sandbox. Round 12's baseline-contamination
+			// finding is what puts it here: §5.1.7 voids a probe
+			// whose post-run check fails, and a `cr test` run that
+			// dirtied a tracked file under itself was voided by
+			// nothing at all — so it could be stored `passed: true`
+			// and later resolved as the baseline a probe is graded
+			// against. The check is the same check; what differs is
+			// only that this one runs after.
+			contaminated, err := sandbox.Unclean(src, resolved.LeftoverGlob())
+			if err != nil {
+				return err
+			}
 			executed, failed := counter.Counts()
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
 			recorded, err := recordRun(layout, owner, repo, pr, stamp, &run.Record{
-				Filter:      filter,
-				ExitCode:    code,
-				TimedOut:    timedOut,
-				DurationMS:  took.Milliseconds(),
-				TestsRun:    executed,
-				TestsFailed: failed,
-				OutputTail:  tail.String(),
+				Filter:       filter,
+				ExitCode:     code,
+				TimedOut:     timedOut,
+				DurationMS:   took.Milliseconds(),
+				TestsRun:     executed,
+				TestsFailed:  failed,
+				OutputTail:   tail.String(),
+				Contaminated: contaminated != "",
 			})
 			if err != nil {
 				return err
 			}
 			return out.emit(&testRunResult{
-				Run:      recorded,
-				Sandbox:  ready.Path,
-				Command:  argv,
-				Filter:   filter,
-				ExitCode: code,
-				TimedOut: timedOut,
-				Warnings: []string{probe.CollisionWarning()},
-				Honesty:  recreationNotice(ready),
+				Run:          recorded,
+				Sandbox:      ready.Path,
+				Command:      argv,
+				Filter:       filter,
+				ExitCode:     code,
+				TimedOut:     timedOut,
+				Contaminated: contaminated,
+				Warnings:     []string{probe.CollisionWarning()},
+				Honesty:      recreationNotice(ready),
 			})
 		},
 	}
