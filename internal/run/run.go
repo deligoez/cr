@@ -66,6 +66,22 @@ type Record struct {
 	// reading of the counts, so the distinction has to survive into
 	// storage rather than being inferred from it.
 	TimedOut bool `json:"timed_out"`
+	// Contaminated says §5.1.6's cleanliness check failed after the run,
+	// so the sandbox the suite executed in was not the pull request head.
+	//
+	// Round 12's baseline-contamination finding is why the field exists.
+	// §5.1.7 voids a probe whose post-run check fails, overriding the
+	// ladder outcome with `error`, but nothing voided a plain `cr test`
+	// run — so a suite that dirtied a tracked file under itself could be
+	// stored `passed: true` and later resolved as the baseline a probe is
+	// graded against. That is the most expensive shape of wrong cr has:
+	// a pre-existing failure attributed to the probe, asserted to a
+	// colleague on an experiment that measured something else.
+	//
+	// §5.2.4's list has no slot for it, for the reason it has none for
+	// TimedOut: the outcome another section mandates has to survive into
+	// storage rather than be inferred from a number that cannot carry it.
+	Contaminated bool `json:"contaminated"`
 	// DurationMS is the wall-clock duration of the run in milliseconds.
 	DurationMS int64 `json:"duration_ms"`
 	// TestsRun is §5.2.1's executed test count, absent when undetermined.
@@ -139,6 +155,7 @@ var fields = []field{
 	{Name: "filter", Author: measured},
 	{Name: "exit_code", Author: measured},
 	{Name: "timed_out", Author: measured},
+	{Name: "contaminated", Author: measured},
 	{Name: "duration_ms", Author: measured},
 	{Name: "tests_run", Author: measured},
 	{Name: "tests_failed", Author: measured},
@@ -216,11 +233,22 @@ func checkRecordFields() bool {
 // baseline that passed on counts nobody could read would attribute the
 // repository's pre-existing failures to the probe.
 //
+// Contamination is the fourth clause, and it is not one of §5.2.5's three.
+// §5.2.5 describes a run of the pull request head's code, and round 12's
+// baseline-contamination finding is about a run that was not one: §5.1.6's
+// check failed after it, so the suite measured a sandbox that had drifted from
+// the head under it. §5.1.7 already gives that situation its answer for a probe
+// — the cleanliness failure overrides the ladder outcome, which §5.3.4 declares
+// total over every run — and the same failure is given the same standing here,
+// so a contaminated run cannot be stored `passed: true` and later resolved as
+// somebody's baseline.
+//
 // This is a method on the record rather than a computation at the call site
 // because there is one truthful answer per record and the caller must not be
 // able to supply a different one.
 func (r *Record) Verdict() bool {
-	return r.ExitCode == 0 &&
+	return !r.Contaminated &&
+		r.ExitCode == 0 &&
 		r.TestsRun != nil && *r.TestsRun > 0 &&
 		r.TestsFailed != nil && *r.TestsFailed == 0
 }
