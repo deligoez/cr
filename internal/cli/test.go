@@ -178,8 +178,12 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §5.2.3's budget, which §2.4 defaults to 900 seconds
+			// and refuses to leave unset, so the run is always
+			// bounded by a number the profile chose.
+			budget := time.Duration(resolved.Tests.TimeoutSeconds) * time.Second
 			started := time.Now()
-			code, err := sandbox.Run(argv, ready.Path, log)
+			code, timedOut, err := sandbox.Run(argv, ready.Path, log, budget)
 			took := time.Since(started)
 			// Joined rather than branched, as every other release
 			// in cr is: the lock goes whether or not the run did.
@@ -191,6 +195,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			recorded, err := recordRun(layout, owner, repo, pr, stamp, &run.Record{
 				Filter:      filter,
 				ExitCode:    code,
+				TimedOut:    timedOut,
 				DurationMS:  took.Milliseconds(),
 				TestsRun:    executed,
 				TestsFailed: failed,
