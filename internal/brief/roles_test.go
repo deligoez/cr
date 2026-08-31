@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/activation"
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/role"
@@ -86,4 +87,50 @@ func TestTheActiveRoleSetIsStoredWithoutAnyFanOut(t *testing.T) {
 		"§4.5.1: meta.json carries the active set the definition yields")
 	assert.Equal(t, expected, assembled.ActiveRoles,
 		"the payload and the file agree, so neither is a second answer")
+}
+
+// §3.7.1 reports the profile together with the layer that selected it, and the
+// two layers are told apart.
+//
+// §2.4.1 gives a profile two ways in: automatic selection by `match.files`, and
+// the per-repository `profile` setting that overrides it. §3.7.1 has the brief
+// print which one applied, and the difference is what a reader acts on — a
+// profile they did not expect is a marker file they did not know about under
+// one layer, and a configuration line they can edit under the other.
+//
+// Mutation testing is why this test exists. Negating the condition swapped the
+// two labels, and nothing failed: the layer was asserted only off a hand-built
+// payload, never off a real selection, so no test had ever watched cr choose.
+func TestTheBriefNamesWhichLayerSelectedTheProfile(t *testing.T) {
+	dir, head, base := profiled(t)
+
+	t.Run("selected by a marker file", func(t *testing.T) {
+		src := sources(t, dir, answering(head, base, noThreads))
+		shipped(t, src.Layout)
+
+		assembled, err := Run(src)
+		require.NoError(t, err)
+
+		assert.Equal(t, "laravel-pest", assembled.Profile.ID)
+		assert.Equal(t, LayerMarkerFiles, assembled.Profile.SelectionLayer,
+			"§2.4.1: composer.json is the marker, and nothing configured a profile")
+	})
+
+	t.Run("overridden by configuration", func(t *testing.T) {
+		src := sources(t, dir, answering(head, base, noThreads))
+		shipped(t, src.Layout)
+		resolved, err := config.Resolve(config.Sources{
+			Flags: map[string]any{"profile": "generic"},
+		})
+		require.NoError(t, err)
+		src.Config = resolved
+
+		assembled, err := Run(src)
+		require.NoError(t, err)
+
+		assert.Equal(t, "generic", assembled.Profile.ID,
+			"§2.4.1: the configured profile overrides the marker file")
+		assert.Equal(t, LayerConfigured, assembled.Profile.SelectionLayer,
+			"and the brief says which layer it came from")
+	})
 }
