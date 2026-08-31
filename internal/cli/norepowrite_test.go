@@ -994,14 +994,39 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	assert.Equal(t, before.files, after.files,
 		"§2.2: cr must not write inside the repository under review")
 
-	// §5.1.1's exception, left open and unexercised. `.git/worktrees/` is
-	// held out of the manifest, so the worktree registration `cr sandbox
-	// create` will leave behind passes here while anything wider still
-	// fails. No sandbox command exists yet, so until one does the exception
-	// must stay empty — and that is asserted rather than assumed.
+	// §5.1.1's exception, now exercised. `.git/worktrees/` is held out of
+	// the manifest above, so the registration `cr sandbox create` leaves
+	// behind passes the three comparisons while anything wider still fails
+	// them. What is asserted here is the exception itself, and it is
+	// asserted from both ends: nothing was in it before the run, so every
+	// entry after the run is cr's; and every one of those entries sits
+	// under the single registration directory the sandbox's own name gives
+	// it. A second registration, a file dropped beside them, or a write
+	// anywhere else under `.git/worktrees/` fails here.
 	if !slices.ContainsFunc(commands, func(name string) bool { return strings.HasPrefix(name, "sandbox") }) {
 		assert.Empty(t, after.permitted,
-			"§5.1.1 gives the exception to the sandbox, and no sandbox command exists yet")
+			"§5.1.1 gives the exception to the sandbox, and no sandbox command exists")
+		return
+	}
+	assert.Empty(t, before.permitted,
+		"the fixture must start with no registration, or what is in it afterwards is not cr's")
+	require.NotEmpty(t, after.permitted,
+		"§5.1.1's exception went unused, so this guard measured nothing about the one write §2.2 permits")
+
+	// The registration git names after the sandbox directory, which is the
+	// directory internal/state derives. Reading the name from there rather
+	// than spelling it keeps the two from drifting apart.
+	registration := worktreeRegistration + "/" + state.DirSandbox
+	for _, entry := range after.permitted {
+		// A manifest entry is a kind and a repository-relative path,
+		// whitespace-separated; the path is the second field of each
+		// of fileManifest's three shapes.
+		written := strings.Fields(entry)[1]
+		assert.True(t,
+			written == worktreeRegistration ||
+				written == registration ||
+				strings.HasPrefix(written, registration+"/"),
+			"§2.2 permits the worktree registration and nothing else, and cr wrote %s", written)
 	}
 }
 
