@@ -140,3 +140,50 @@ func TestTheNextProbeIDIsAllocatedAboveEveryOneOnFile(t *testing.T) {
 		})
 	}
 }
+
+// §5.5.3: a probe record whose head differs from the current head is never used
+// to grade a finding in the current round.
+//
+// The result is varied across the cases on purpose. §5.5.3 admits no exception
+// for a result that would otherwise have proved something: `no-test-failed` is
+// the one value §5.3.5 lets a `probed` grade rest on, and from another head it
+// is evidence about a tree that is no longer under review rather than weaker
+// evidence about this one. The head is compared whole, so a prefix of the
+// round's head is another head — cr stores full SHAs and an abbreviation is a
+// value cr did not write.
+func TestAProbeGradesOnlyAtTheHeadItRanAgainst(t *testing.T) {
+	const head = "9f2c1abf3d4e5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+	for name, tc := range map[string]struct {
+		record Record
+		grades bool
+	}{
+		"the round's own head": {
+			record: Record{Kind: Mutation, Result: resultNoTestFailed,
+				Stamp: state.Stamp{Head: head}},
+			grades: true,
+		},
+		"a gap probe at the round's head": {
+			record: Record{Kind: Gap, Result: resultFailed, Stamp: state.Stamp{Head: head}},
+			grades: true,
+		},
+		"an earlier head, whatever the result proved": {
+			record: Record{Kind: Mutation, Result: resultNoTestFailed,
+				Stamp: state.Stamp{Head: "be7e2c7d1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c"}},
+		},
+		"an earlier head on a gap probe": {
+			record: Record{Kind: Gap, Result: resultFailed,
+				Stamp: state.Stamp{Head: "be7e2c7d1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c"}},
+		},
+		"an abbreviation of the round's head is another head": {
+			record: Record{Kind: Mutation, Result: resultNoTestFailed,
+				Stamp: state.Stamp{Head: head[:7]}},
+		},
+		"a record with no head grades nothing": {
+			record: Record{Kind: Mutation, Result: resultNoTestFailed},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.grades, tc.record.Grades(head))
+		})
+	}
+}
