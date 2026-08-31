@@ -193,7 +193,7 @@ func newProbeCmd(out *writer) *cobra.Command {
 // stays on disk that cr is still alive to prevent, and a revert written after
 // the run would be one `return err` away from being skipped.
 func newProbeRunCmd(out *writer) *cobra.Command {
-	var kind, patchFile, filter string
+	var kind, patchFile, filter, target string
 	cmd := &cobra.Command{
 		Use:   "run " + prPlaceholder,
 		Short: "Execute and record a probe",
@@ -211,6 +211,19 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 				return fmt.Errorf(
 					"--kind %q: cr runs §5.3's mutation probe; §5.4's gap probe is not implemented yet",
 					kind)
+			}
+			// §5.3.2 rejects `--target` for this kind, and the
+			// refusal is the point rather than a tidiness: the
+			// target is what §6.2.2 has a `probed` record's
+			// evidence point at, so a supplied one would let the
+			// agent aim the assertion at a line the experiment
+			// never touched. Accepting and ignoring it would be
+			// worse than either — the agent would have named a
+			// line and been told nothing.
+			if target != "" {
+				return errors.New(
+					"--target is rejected for a mutation probe: §5.3.2 derives it from the patch, " +
+						"so the evidence chain runs on what cr executed rather than on a flag")
 			}
 			if patchFile == "" {
 				return errors.New(
@@ -241,6 +254,8 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 		"the unified diff to apply, per §5.3.1")
 	cmd.Flags().StringVar(&filter, "filter", "",
 		"narrow the run to a subset, passed as the profile's tests.filter_flag")
+	cmd.Flags().StringVar(&target, "target", "",
+		"the path:line the probe addresses; rejected for a mutation probe, which derives it (§5.3.2)")
 	return cmd
 }
 
