@@ -1,6 +1,7 @@
 package state
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,6 +45,54 @@ func TestAProbeTestFileIsPlacedWhereTheTemplateSaysAndRemovedAfter(t *testing.T)
 	assert.NoFileExists(t, placed, "§5.4.2: the test is removed after the run")
 	assert.NoDirExists(t, filepath.Join(box, "tests"),
 		"the directories the placement made go with the file it made them for")
+}
+
+// §5.4.2 and invariant 6: the test file is removed when the run fails.
+//
+// A failing run is §5.4.3's last rung and the outcome §5.4.4 is written about,
+// so it is where an agent most often arrives — and the one where a removal
+// written after the run would be skipped by the error return above it. The
+// run's own failure still reaches the caller, because a removal that swallowed
+// it would leave the ladder reading a run nobody was told had gone wrong.
+func TestAProbeTestFileIsRemovedAfterAFailingRun(t *testing.T) {
+	layout, _ := mutableSandbox(t)
+	box := layout.Sandbox(mutateOwner, mutateRepo, mutatePR)
+	refused := errors.New("the suite refused to start")
+
+	err := layout.UnderSandboxTestFile(mutateOwner, mutateRepo, mutatePR,
+		probeRel, probeBody, func() error {
+			require.FileExists(t, filepath.Join(box, filepath.FromSlash(probeRel)),
+				"§5.4.2: the test is in the sandbox while it runs")
+			return refused
+		})
+
+	require.ErrorIs(t, err, refused, "the run's own failure reaches the caller")
+	assert.NoFileExists(t, filepath.Join(box, filepath.FromSlash(probeRel)),
+		"§5.4.2: the removal happens even when the run fails")
+	assert.NoDirExists(t, filepath.Join(box, "tests"))
+}
+
+// §5.4.2 and invariant 6: the test file is removed when the run comes apart,
+// and the panic still propagates.
+//
+// This is the case a removal written after the run cannot answer at all, and it
+// is not hypothetical: a probe run walks an agent-supplied file, a runner's
+// output, and a profile's regular expressions, and every one of those is a
+// place a nil dereference has come from before. Both halves are asserted — a
+// wrapper that swallowed the panic to do its cleanup would leave the caller
+// believing a probe finished that never did.
+func TestAProbeTestFileIsRemovedWhenTheRunPanics(t *testing.T) {
+	layout, _ := mutableSandbox(t)
+	box := layout.Sandbox(mutateOwner, mutateRepo, mutatePR)
+
+	assert.PanicsWithValue(t, "the runner came apart", func() {
+		_ = layout.UnderSandboxTestFile(mutateOwner, mutateRepo, mutatePR,
+			probeRel, probeBody, func() error { panic("the runner came apart") })
+	}, "the panic still reaches the caller")
+
+	assert.NoFileExists(t, filepath.Join(box, filepath.FromSlash(probeRel)),
+		"§5.4.2: the removal happens even when the run comes apart")
+	assert.NoDirExists(t, filepath.Join(box, "tests"))
 }
 
 // §5.4.2's abort, and §5.1.4's boundary around the path it aborts on.
