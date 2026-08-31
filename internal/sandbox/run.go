@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // SetupError reports a `sandbox.setup` command that failed.
@@ -87,21 +89,97 @@ func (e *RunError) Unwrap() error { return e.Err }
 // The environment is inherited whole, for the reason runSetup inherits it: the
 // runner is a tool the user names and cr has never heard of, and an allowlist
 // here would be a list of names cr cannot know.
-func Run(argv []string, dir string, log io.Writer) (int, error) {
+// Run runs the profile's test command inside the sandbox and returns the
+// runner's own exit status and whether the run was killed for exceeding
+// timeout (§5.2.1, §5.2.3).
+//
+// dir is the sandbox, and it is the whole point of the function. A suite run in
+// the main checkout would be measuring the user's working tree — mid-edit,
+// possibly on another branch — and reporting the answer as if it came from the
+// pull request head, while §2.2 forbids cr to have put the probe there in the
+// first place. So the directory is pinned here and comes from state.Layout by
+// way of §5.1.6's check, never from a caller's own join.
+//
+// The output goes to log as it is produced rather than being returned.
+// §5.2.1 also asks for the exit code, the duration and a bounded tail of the
+// output to be *recorded*, and that record is §5.2.4's; what a person watching
+// the command wants meanwhile is to see the suite run.
+//
+// A non-zero exit is returned as a value, not as an error. A failing suite is an
+// ordinary and often intended outcome — §5.3.4's whole ladder is built on
+// reading one — so the number is reported and its meaning is left to the section
+// that owns it. So is the timeout: §5.2.3 has the run recorded as `timeout`,
+// and §5.3.4 puts that on a rung of its own above `error`, because a suite that
+// never finished said nothing about the code while one that failed did.
+//
+// A run that outlives timeout is killed by process *group*, which is what
+// Setpgid buys. A test runner starts children — `composer`, `php`, a database
+// client — and signalling the parent alone leaves them running: they hold the
+// test database §5.6's lock exists to serialise access to, and they hold the
+// pipe this function's output travels through, so cmd.Wait would go on
+// blocking until they chose to exit. The child is therefore put in a group of
+// its own and the negative pid signals every process in it. SIGKILL rather
+// than SIGTERM: the run has already been given the whole budget the profile
+// set, and a runner that ignores a request to stop would take a second budget
+// to discover.
+//
+// A timeout of zero or less is no timeout at all rather than an immediate
+// kill. §2.4 gives `tests.timeout_seconds` a default of 900 and refuses a
+// non-positive value, so no loaded profile reaches here without a budget; a
+// caller that passes none has declined to bound the run, and killing it before
+// it started would fail every run instead.
+//
+// The environment is inherited whole, for the reason runSetup inherits it: the
+// runner is a tool the user names and cr has never heard of, and an allowlist
+// here would be a list of names cr cannot know.
+func Run(
+	argv []string, dir string, log io.Writer, timeout time.Duration,
+) (code int, timedOut bool, err error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
 	cmd.Stdout = log
 	cmd.Stderr = log
-	err := cmd.Run()
-	var exit *exec.ExitError
-	switch {
-	case err == nil:
-		return 0, nil
-	case errors.As(err, &exit):
-		return exit.ExitCode(), nil
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return 0, false, &RunError{Args: slices.Clone(argv), Err: err}
 	}
-	return 0, &RunError{Args: slices.Clone(argv), Err: err}
+	// Read before the waiting goroutine exists, so the pid the kill uses is
+	// never read beside a concurrent Wait.
+	group := cmd.Process.Pid
+	finished := make(chan error, 1)
+	go func() { finished <- cmd.Wait() }()
+
+	var expired <-chan time.Time
+	if timeout > 0 {
+		budget := time.NewTimer(timeout)
+		defer budget.Stop()
+		expired = budget.C
+	}
+	select {
+	case err := <-finished:
+		var exit *exec.ExitError
+		switch {
+		case err == nil:
+			return 0, false, nil
+		case errors.As(err, &exit):
+			return exit.ExitCode(), false, nil
+		}
+		return 0, false, &RunError{Args: slices.Clone(argv), Err: err}
+	case <-expired:
+		// The error is discarded because there is nothing left to do
+		// about it: a group that has already exited answers ESRCH,
+		// and the run is being reported as a timeout either way.
+		_ = syscall.Kill(-group, syscall.SIGKILL)
+		// Reaped before returning. The killed group is what closes the
+		// output pipe, so this waits for the copy to finish rather
+		// than on a grandchild that outlived its parent.
+		var exit *exec.ExitError
+		if errors.As(<-finished, &exit) {
+			return exit.ExitCode(), true, nil
+		}
+		return 0, true, nil
+	}
 }
 
 // setupArgv splits one `sandbox.setup` entry into the argv it runs as.
