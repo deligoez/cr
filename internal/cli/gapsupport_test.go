@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/run"
@@ -320,6 +321,65 @@ func TestTheCouplingDisclosureNamesOneExperimentOnce(t *testing.T) {
 	require.Len(t, payload.Honesty, 1, "one coupling, one disclosure")
 	assert.Equal(t, 1, strings.Count(payload.Honesty[0], "p1"),
 		"the probe both records rest on is named once")
+}
+
+// §5.4.4's floor and §5.4.5's ceiling through the command: `cr record` is the
+// enforcer, it exits 1, and it names the record, the probe and the result.
+//
+// Round 8's unenforced-severity-bound finding is what this closes. Severity is
+// agent-written and §6.1.3 checks its presence alone, so until a command
+// refuses on them both MUSTs bind nobody — and the cost is a misdirected human:
+// severity is what the reviewer triages on under §1.6.2's blocking cap, so a
+// probe that showed the behaviour working could put its record at the top of
+// the draft, and a probe that supports a real finding could hide it at the
+// bottom.
+//
+// Nothing is stored either. The refusal happens before the write, as §6.1.3's
+// do, because the agent is about to correct the file and hand the whole of it
+// in again.
+func TestRecordRefusesASeverityEitherGapBoundForbids(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		fixture  gapFixture
+		severity string
+		bound    string
+	}{
+		{
+			name:     "a supported failed gap probe below §5.4.4's floor",
+			fixture:  gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue},
+			severity: "medium",
+			bound:    "§5.4.4",
+		},
+		{
+			name:     "a passed gap probe above §5.4.5's ceiling",
+			fixture:  gapFixture{result: "passed", passed: true, mapped: true, issue: gapIssue},
+			severity: "critical",
+			bound:    "§5.4.5",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layout := probedHome(t, tc.fixture)
+			record := aProbedRecord(gapClaim)
+			record["severity"] = tc.severity
+			file := writeRecordFile(t, "merged.ndjson", record)
+
+			_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+
+			require.Error(t, err)
+			assert.Equal(t, ExitValidation, exitCodeFor(err), "§11.2 codes a refused record 1")
+			var refused *finding.GapSeverityError
+			require.ErrorAs(t, err, &refused, "cr record raises no refusal of its own")
+			assert.Equal(t, "f1", refused.Record)
+			assert.Equal(t, "p1", refused.Probe)
+			assert.Equal(t, string(tc.fixture.result), refused.Result)
+			assert.Contains(t, err.Error(), tc.bound, "the refusal names the section it comes from")
+
+			stored, readErr := state.ReadRecords[finding.Finding](
+				layout, recordOwner, recordRepo, recordPRNum, state.FileFindings)
+			require.NoError(t, readErr)
+			assert.Empty(t, stored, "the refusal lands before anything is written")
+		})
+	}
 }
 
 // §12.1's other shape: the terminal reader is told the same answer the JSON
