@@ -303,6 +303,25 @@ func exitCodeFor(err error) int {
 		// is already inside the same repository and profile.
 		return ExitState
 	}
+	var probeFileTaken *state.ProbeFileExistsError
+	if errors.As(err, &probeFileTaken) {
+		// §5.4.2: an existing file where a gap probe's test would go
+		// aborts. Nothing about the invocation is wrong and every file
+		// named was read; what refuses is that the one path §2.4's
+		// template resolves to is occupied, and cr would destroy the
+		// file there and then delete it. §11.2 codes that 4 alongside
+		// the sandbox that is already standing.
+		return ExitState
+	}
+	var probeIDTaken *probe.IDTakenError
+	if errors.As(err, &probeIDTaken) {
+		// §5.4.2 fixes a gap probe's id before the run and §5.5.2 has
+		// a finding reference a probe by it, so an id another run
+		// allocated in between is a conflict between two cr runs
+		// rather than bad input. §11.2 codes that 4, as it does the
+		// lock timeout the same collision usually shows up as.
+		return ExitState
+	}
 	var noPRState *note.NoStateError
 	if errors.As(err, &noPRState) {
 		// §2.2's state directory is opened by `cr brief`, and §3.6.2's
