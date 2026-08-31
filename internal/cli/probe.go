@@ -108,13 +108,21 @@ const (
 	establishesGap = "gap"
 	// establishesNoGap is §5.3.7's disproof: a test caught the mutation.
 	establishesNoGap = "no-gap"
-	// establishesNothing is every other mutation result, which §5.3.5
-	// refuses a `probed` grade and §5.3.7 reads no suppression from.
+	// establishesNothing is every result neither section lets a `probed`
+	// grade rest on: §5.3.5's four, which §5.3.7 also reads no suppression
+	// from, and the same four on §5.4.5's side.
 	establishesNothing = "nothing"
-	// establishesUndecided is every gap probe result. §5.4.4 makes the
-	// support conditional on the finding's own `claim` field, and no
-	// finding exists at the moment the experiment runs, so the question
-	// cannot honestly be answered here in either direction.
+	// establishesBehaviour is §5.4.5's own reading of a `passed` gap
+	// probe. It is not `nothing`: the run did establish something, which
+	// is that the behaviour the supplied test asserts is present — and it
+	// is not `gap` either, because §5.4.5 is explicit that only §5.3's
+	// `no-test-failed` establishes a missing test.
+	establishesBehaviour = "behaviour"
+	// establishesUndecided is a `failed` gap probe, and only that. §5.4.4
+	// makes the support conditional on the finding's own `claim` field,
+	// and no finding exists at the moment the experiment runs, so the
+	// question cannot honestly be answered here in either direction.
+	// §5.4.5 settles every other gap result at the run itself.
 	establishesUndecided = "undecided"
 )
 
@@ -136,6 +144,26 @@ func establishedBy(outcome probe.Outcome, baseline probe.Baseline) string {
 	return establishesNothing
 }
 
+// gapEstablishedBy reads §5.4.4 and §5.4.5 off the gap probe that has just run.
+//
+// Only `failed` is left open. §5.4.5 settles the other five at the run itself —
+// four of them establish nothing a `probed` grade can rest on, and `passed`
+// establishes a fact of its own that is not the one §5.3.5 licenses — while
+// §5.4.4's conditions are read off a finding that does not exist yet.
+//
+// It asks the probe package rather than comparing result strings here, as
+// establishedBy does: §5.5 fixes the vocabulary per kind and the values are
+// spelled once, where the ladder that produces them is.
+func gapEstablishedBy(record *probe.Record) string {
+	switch {
+	case probe.Reproduces(record):
+		return establishesUndecided
+	case probe.Present(record):
+		return establishesBehaviour
+	}
+	return establishesNothing
+}
+
 // establishedClause says what each token means for the finding the agent is
 // deciding whether to write, spelled out where the reader is rather than left
 // to a section number they would have to open.
@@ -148,10 +176,15 @@ var establishedClause = map[string]string{
 	establishesGap: "a test gap: the tests this run selected did not notice the mutation " +
 		"and the baseline passed, so §5.3.5 lets a finding here be graded probed",
 	establishesNoGap: "none: a test caught the mutation, so §5.3.7 has the finding not raised",
-	establishesNothing: "none: §5.3.5 lets this result support no probed grade, so a record " +
-		"resting on it stays argued (§6.2) and is asked as a question (§6.3)",
-	establishesUndecided: "not settled by the run: §5.4.4 and §5.4.5 fix when a gap probe supports " +
-		"a finding, and §5.4.4's condition is read off the finding's own claim field",
+	establishesNothing: "none: neither §5.3.5 nor §5.4.5 lets this result support a probed " +
+		"grade, so a record resting on it stays argued (§6.2) and is asked as a question (§6.3)",
+	establishesBehaviour: "that the behaviour the supplied test asserts is present, and not " +
+		"that the suite lacks a test — §5.4.5 leaves that to §5.3's no-test-failed; it supports " +
+		"no probed grade, so a record resting on it stays argued (§6.2), is asked as a question " +
+		"(§6.3), and carries severity at most medium",
+	establishesUndecided: "not settled by the run: §5.4.4 lets a failed gap probe support a " +
+		"finding only on a passing baseline and a claim mapped to the finding's unit, and the " +
+		"claim field is the finding's own",
 }
 
 // suite is everything one run of the profile's test command inside the sandbox
@@ -631,7 +664,7 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 		OutputTail:  performed.outputTail,
 	}
 	return finishProbe(out, setup, request, performed, record, outcome, unclean,
-		establishesUndecided, locked.CollisionWarning())
+		gapEstablishedBy(record), locked.CollisionWarning())
 }
 
 // finishProbe writes §5.5's record, applies §5.1.7's third consequence, and
