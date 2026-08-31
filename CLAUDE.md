@@ -112,6 +112,17 @@ Two rules that make the phase-boundary run worth doing:
    documented contract with no boundary test. Only the last is worth acting on,
    and say which ones are being left and why. `gremlins` is load-sensitive — a
    run full of `TIMED OUT` is not a result.
+3. **Read `NOT COVERED` and `TIMED OUT` as their own categories, never as
+   survivors.** A mutant on a tagless `switch`'s **case expression** is reported
+   `NOT COVERED` however well the branch is tested: Go's cover tool starts each
+   case block *after* the expression, so the mutant falls outside every covered
+   block and gremlins can neither kill it nor call it a survivor. Measured on
+   §5.3.4's seven-rung ladder — the coverage profile shows count 1 on every case
+   body and the four mutants stay `NOT COVERED` regardless. A `TIMED OUT` is
+   often a **detection**: breaking the process-group kill or a `flock` check
+   makes the suite hang rather than fail, and the timeout coefficient then buys
+   that answer at thirty times the suite's runtime. Both are why a run takes
+   15–30 minutes and why the efficacy number understates detection.
 
 **`-race` is in the gate**, added by `state-write-locking`: §2.3.1 puts an
 advisory lock on every per-PR write and §2.3.2 makes reads lock-free, so the
