@@ -213,19 +213,8 @@ func leftoverArtefacts(path, leftoverGlob string) ([]string, error) {
 // and this is the one place that decision is taken deliberately rather than
 // inherited.
 func recreate(src *Sources, path string) error {
-	switch _, err := os.Stat(path); {
-	case err == nil:
-		if err := git.RemoveWorktree(src.RepoDir, path); err != nil {
-			return err
-		}
-	case errors.Is(err, fs.ErrNotExist):
-		// No directory to remove, but possibly a registration naming
-		// one, which `worktree add` would refuse the path over.
-		if err := git.PruneWorktrees(src.RepoDir); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("cannot inspect %s: %w", path, err)
+	if _, err := removeSandbox(src, path); err != nil {
+		return err
 	}
 	_, err := Create(src)
 	return err

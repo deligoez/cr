@@ -59,7 +59,7 @@ func newSandboxCmd(out *writer) *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(newSandboxCreateCmd(out))
+	cmd.AddCommand(newSandboxCreateCmd(out), newSandboxDestroyCmd(out))
 	return cmd
 }
 
@@ -130,6 +130,82 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 				Copied: created.Copied,
 				Absent: created.Absent,
 				Setup:  created.Setup,
+			})
+		},
+	}
+}
+
+// sandboxDestroyResult is what `cr sandbox destroy` reports: which worktree is
+// gone, and whether there was one.
+//
+// The path is printed for the reason `cr sandbox create` prints it: it is not a
+// path the caller chose, and a reader told only that a sandbox was destroyed
+// cannot tell which pull request's state directory was reached into.
+type sandboxDestroyResult struct {
+	// Path is the sandbox worktree of §5.1.1, which is no longer there.
+	Path string `json:"path"`
+	// Removed says whether a worktree was found at that path. A pull
+	// request that had none is not a failure — §5.1.5 asks for the
+	// worktree and its registration to be gone, and they are — but a
+	// reader who destroyed it a moment ago and a reader who mistyped the
+	// number would otherwise be told the same thing.
+	Removed bool `json:"removed"`
+}
+
+// Text names the worktree, and says plainly when there was nothing at it.
+func (r *sandboxDestroyResult) Text(w *writer) string {
+	if !r.Removed {
+		return fmt.Sprintf("no sandbox at %s\n  registrations pruned", w.accent(r.Path))
+	}
+	return fmt.Sprintf("destroyed %s\n  registration removed", w.accent(r.Path))
+}
+
+// newSandboxDestroyCmd removes the probe worktree and its registration
+// (§11, §5.1.5).
+//
+// It needs neither the round's head nor its profile, and asks for neither.
+// §5.1.5 is about a directory and a registration, and a destruction that
+// refused because meta.json named a profile that has since been deleted would
+// leave the user with a worktree they cannot remove through cr and a
+// registration that makes `cr sandbox create` refuse the path.
+func newSandboxDestroyCmd(out *writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "destroy " + prPlaceholder,
+		Short: "Remove the probe worktree and its registration",
+		Args:  prArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pr, err := parsePR(args[0])
+			if err != nil {
+				return err
+			}
+			owner, repo, err := repoOf(cmd)
+			if err != nil {
+				return err
+			}
+			layout, err := state.Default()
+			if err != nil {
+				return err
+			}
+			// The repository the worktree is registered in, which is
+			// the directory cr was run from, as it is for
+			// `cr sandbox create`.
+			dir, err := repoDir()
+			if err != nil {
+				return err
+			}
+			removed, err := sandbox.Destroy(&sandbox.Sources{
+				Layout:  layout,
+				Owner:   owner,
+				Repo:    repo,
+				PR:      pr,
+				RepoDir: dir,
+			})
+			if err != nil {
+				return err
+			}
+			return out.emit(&sandboxDestroyResult{
+				Path:    removed.Path,
+				Removed: removed.Existed,
 			})
 		},
 	}
