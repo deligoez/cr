@@ -143,13 +143,28 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 // worktree is what every probe and test run of §5 happens in and none of that
 // depends on a profile having been found.
 func sandboxSteps(l state.Layout, id string) (profile.Sandbox, string, error) {
-	if id == "" {
-		return profile.Sandbox{}, "", nil
-	}
-	file := l.Profile(id)
-	resolved, err := profile.Load(file)
+	resolved, file, err := roundProfile(l, id)
 	if err != nil {
 		return profile.Sandbox{}, "", err
 	}
 	return resolved.Sandbox, file, nil
+}
+
+// roundProfile loads the profile the round resolved and returns the file it
+// came from beside it, so a refusal can name what to open.
+//
+// An empty id is §2.4.4's outcome: no profile matched. It resolves to the zero
+// profile rather than to an error, because what that means differs by caller —
+// §5.1.1's worktree is created regardless, while §5.2.1 has no command to run —
+// and the empty file name is what says there is nothing to open.
+func roundProfile(l state.Layout, id string) (profile.Profile, string, error) {
+	if id == "" {
+		return profile.Profile{}, "", nil
+	}
+	file := l.Profile(id)
+	resolved, err := profile.Load(file)
+	if err != nil {
+		return profile.Profile{}, "", err
+	}
+	return resolved, file, nil
 }

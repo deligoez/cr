@@ -58,6 +58,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newMapCmd(out))
 	root.AddCommand(newBriefCmd(out))
 	root.AddCommand(newSandboxCmd(out))
+	root.AddCommand(newTestCmd(out))
 
 	return root
 }

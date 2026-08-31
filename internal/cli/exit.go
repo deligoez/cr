@@ -52,6 +52,25 @@ func exitCodeFor(err error) int {
 		// code 3, naming the file and the offending field.
 		return ExitFile
 	}
+	var unavailableField *profile.UnavailableError
+	if errors.As(err, &unavailableField) {
+		// A §2.4 field the command needs and the profile does not set —
+		// `tests.cmd` for §5.2.1's run, `tests.filter_flag` for its
+		// `--filter` — or §2.4.4's no profile at all. Nothing is
+		// malformed and the invocation is right; what refuses is the
+		// configuration, which §11.2 codes 3 alongside the malformed
+		// file above.
+		return ExitFile
+	}
+	var runnerFailed *sandbox.RunError
+	if errors.As(err, &runnerFailed) {
+		// §5.2.1 runs the command the profile names, and cr has never
+		// heard of it. A runner that could not be started is the
+		// external command failure §3.1.3 fixes the shape of — and not a
+		// test result: a suite that ran and failed returns its exit code
+		// as a value, because §5.3.4's ladder is built on reading one.
+		return ExitFile
+	}
 	var profileTie *profile.TieError
 	if errors.As(err, &profileTie) {
 		// §2.4.2: profiles matching the same number of marker files

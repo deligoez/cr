@@ -2,7 +2,9 @@ package sandbox
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"slices"
@@ -40,6 +42,67 @@ func (e *SetupError) Error() string {
 // Unwrap exposes the underlying exec failure, so a caller can tell a command
 // that ran and refused from one that never started.
 func (e *SetupError) Unwrap() error { return e.Err }
+
+// RunError reports a test runner that could not be started at all.
+//
+// It is the failure that is not a test result. A runner that ran and exited
+// non-zero has said something about the code — §5.2.4 records that exit code and
+// §5.3.4's ladder reads it — while a runner that never started has said nothing,
+// and §3.1.3 gives that the shape every external command cr drives fails in:
+// exit code 3, with what the attempt reported.
+type RunError struct {
+	// Args is the command as it was to have run, program included.
+	Args []string
+	// Err is what os/exec reported.
+	Err error
+}
+
+func (e *RunError) Error() string {
+	return fmt.Sprintf("cannot run %s: %v", strings.Join(e.Args, " "), e.Err)
+}
+
+// Unwrap exposes the underlying failure.
+func (e *RunError) Unwrap() error { return e.Err }
+
+// Run runs the profile's test command inside the sandbox and returns the
+// runner's own exit status (§5.2.1).
+//
+// dir is the sandbox, and it is the whole point of the function. A suite run in
+// the main checkout would be measuring the user's working tree — mid-edit,
+// possibly on another branch — and reporting the answer as if it came from the
+// pull request head, while §2.2 forbids cr to have put the probe there in the
+// first place. So the directory is pinned here and comes from state.Layout by
+// way of §5.1.6's check, never from a caller's own join.
+//
+// The output goes to log as it is produced rather than being returned.
+// §5.2.1 also asks for the exit code, the duration and a bounded tail of the
+// output to be *recorded*, and that record is §5.2.4's; what a person watching
+// the command wants meanwhile is to see the suite run.
+//
+// A non-zero exit is returned as a value, not as an error. A failing suite is an
+// ordinary and often intended outcome — §5.3.4's whole ladder is built on
+// reading one — so the number is reported and its meaning is left to the section
+// that owns it.
+//
+// The environment is inherited whole, for the reason runSetup inherits it: the
+// runner is a tool the user names and cr has never heard of, and an allowlist
+// here would be a list of names cr cannot know.
+func Run(argv []string, dir string, log io.Writer) (int, error) {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = dir
+	cmd.Env = os.Environ()
+	cmd.Stdout = log
+	cmd.Stderr = log
+	err := cmd.Run()
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return 0, nil
+	case errors.As(err, &exit):
+		return exit.ExitCode(), nil
+	}
+	return 0, &RunError{Args: slices.Clone(argv), Err: err}
+}
 
 // setupArgv splits one `sandbox.setup` entry into the argv it runs as.
 //
