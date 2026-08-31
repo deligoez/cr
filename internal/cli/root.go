@@ -55,6 +55,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newRecordCmd(out))
 	root.AddCommand(newClaimsCmd(out))
 	root.AddCommand(newCellsCmd(out))
+	root.AddCommand(newMapCmd(out))
 	root.AddCommand(newBriefCmd(out))
 
 	return root
