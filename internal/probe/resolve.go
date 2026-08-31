@@ -61,6 +61,33 @@ func (s Spec) Resolve(stored []run.Record, head string) (Baseline, bool) {
 	return Baseline{}, false
 }
 
+// ResolveBaseline returns the run record §5.5's `baseline` column has this
+// probe point at, as the Baseline §5.3.5 and §5.4.4 read §5.2.5's verdict off,
+// and reports whether that record is there.
+//
+// It is by id rather than by re-resolution, and the two are not the same
+// question. Resolve answers "which run stands as this baseline now", which is
+// what a probe about to run needs; §5.4.4 asks after "the probe's `baseline`
+// run record", which is the run this experiment was actually measured against.
+// A later `cr test` at the same head would change the first answer and must not
+// change the second, or a probe would be graded against a run that happened
+// after it.
+//
+// §5.2.6's fence is applied to the named record all the same. The id is read
+// out of a record cr wrote, so it cannot have been chosen by an agent — but a
+// run carrying a `probe`, or one §5.1.6 found the sandbox unclean after, is not
+// a baseline whatever names it, and stands is the one place that says so.
+func (r *Record) ResolveBaseline(stored []run.Record) (Baseline, bool) {
+	spec := Referenced(r.Kind, r.Filter)
+	for i := range stored {
+		if candidate := &stored[i]; candidate.ID == r.Baseline &&
+			spec.stands(candidate, r.Head) {
+			return Baseline{id: candidate.ID, passed: candidate.Passed}, true
+		}
+	}
+	return Baseline{}, false
+}
+
 // Performer runs one baseline of §5.2.2 and returns the run record that was
 // stored for it.
 //
