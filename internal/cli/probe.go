@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
@@ -485,6 +486,11 @@ type probeSetup struct {
 	tests *suite
 	// stamp is §2.3.3's head and round, written onto every record.
 	stamp state.Stamp
+	// capped is §5.6.4's budget as it stood before this run, kept so the
+	// run that fills it can say so. It is measured in prepareProbe rather
+	// than at the write, because the refusal has to land before anything
+	// is done in the sandbox.
+	capped probe.RoundCap
 }
 
 // prepareProbe resolves the round, the profile, and the sandbox a probe runs
@@ -493,6 +499,11 @@ type probeSetup struct {
 // The profile is the round's resolved one, for the reason `cr test` reads the
 // same field: §3.7 makes `cr brief` its one writer, and a probe that
 // re-selected one could measure a suite this round was never briefed against.
+//
+// §5.6.4's cap is asked here, and before the sandbox is ensured rather than
+// after. A refused run must execute nothing in the sandbox, and `sandbox.Ensure`
+// is already execution: §5.1.3 runs the profile's setup commands, and a
+// recreation would run them for a probe cr was never going to perform.
 func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error) {
 	layout, err := state.Default()
 	if err != nil {
@@ -503,6 +514,10 @@ func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error
 		return nil, err
 	}
 	dir, err := repoDir()
+	if err != nil {
+		return nil, err
+	}
+	capped, err := probeBudget(layout, request.owner, request.repo, request.pr, round.Round)
 	if err != nil {
 		return nil, err
 	}
@@ -536,8 +551,35 @@ func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error
 		tests: &suite{
 			profile: resolved, file: file, path: ready.Path, log: cmd.ErrOrStderr(),
 		},
-		stamp: state.Stamp{Head: round.Head, Round: round.Round},
+		stamp:  state.Stamp{Head: round.Head, Round: round.Round},
+		capped: capped,
 	}, nil
+}
+
+// probeBudget measures §5.6.4's cap over the round and refuses a run that would
+// exceed it.
+//
+// The count comes from probes.ndjson itself rather than from a counter kept
+// beside it: §2.3.3 stamps `round` on every record, so the file answers the
+// question, and a separate tally would be a second answer that could drift from
+// the records it claims to summarise. The read is lock-free per §2.3.2.
+func probeBudget(
+	l state.Layout, owner, repo string, pr, round int,
+) (probe.RoundCap, error) {
+	resolved, err := config.Resolve(config.Sources{
+		Environ:      os.Environ(),
+		GlobalConfig: l.Config(),
+		RepoConfig:   l.RepoConfig(owner, repo),
+	})
+	if err != nil {
+		return probe.RoundCap{}, err
+	}
+	stored, err := state.ReadRecords[probe.Record](l, owner, repo, pr, state.FileProbes)
+	if err != nil {
+		return probe.RoundCap{}, err
+	}
+	capped := probe.RoundCapFor(stored, round, resolved.Int("probe.max_per_round"))
+	return capped, capped.Err()
 }
 
 // runMutationProbe performs §5.3.2's cycle and records what it produced.
