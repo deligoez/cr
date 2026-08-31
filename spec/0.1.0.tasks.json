@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T03:30:52.522518Z",
+  "updated_at": "2026-08-31T03:49:31.597149Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3649,7 +3649,7 @@
     {
       "id": "run-record-schema",
       "title": "Define the test run record",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "test-command",
@@ -3660,11 +3660,28 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T03:37:07.280348Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T03:49:31.550761Z",
+      "closed_reason": "- internal/run/run.go holds §5.2.4's run record and `cr test` stores one for every run: recordRun in internal/cli/test.go allocates run.NextID's `r\u003cn\u003e` under the §2.3.1 lock and appends through state.AppendStamped, so the line in runs.ndjson carries id, head, round, filter when one was given, exit_code, duration_ms, tests_run and tests_failed when derivable, output_tail and passed. TestARunRecordCarriesExactlyTheFieldsSection524Names pins the wire shape and TestTheTestCommandStoresARunRecordForEveryRun asserts the stored line end to end, including that a second run is added rather than written over the first.\n- The id space is the one a probe's `baseline` references: NextID allocates above every id runs.ndjson already holds rather than at the record count, because §5.5.3 keeps probe records from earlier heads on disk and reusing an id would silently repoint a stored probe at a different measurement. TestNextIDAllocatesAboveEveryRunTheFileHolds covers an empty file, a gap left by an earlier round, records out of order, and spellings cr never wrote.\n- output_tail is the last `tests.output_tail_bytes` of output: run.Tail is an io.Writer teed off the same merged stream the reader watches, so what is stored is what was shown, and it holds the bound across however many writes the runner makes. TestTheOutputTailKeepsTheLastBytesOfEverythingWritten covers a write larger than the whole budget and several writes over it together, and TestTheOutputTailDoesNotEndAHalfRuneAtTheFrontOfTheOutput drops a rune the byte cut split rather than letting json.Marshal substitute U+FFFD for it.\n- `probe` is a field of the record, absent for a run on untouched code and carrying the probe id for a run on mutated or probe-injected code, which is the fence §5.2.6 reads when it admits only a run carrying no `probe` as a baseline.\n- It is stamped by cr: `probe` is set by the caller that performed the probe run and by nothing else, and head and round reach the record only through the embedded state.Stamp, which state.WriteStamped writes on the way out.\n- No agent submits a run record, so there is no Required or Optional row of the §6.1 kind here. checkRecordFields is the fence in the idiom internal/cli/output.go uses — it holds Record's JSON tags to §5.2.4's list at package initialisation and requires head and round to be promoted from state.Stamp — and TestEveryFieldOfARunRecordIsWrittenByCR reads every row back to cr or to that stamp and to nothing else.\n- Round 12's unstorable-value finding is answered by adding `timed_out` to §5.2.4's record, because §5.2.3 requires a killed run to be recorded as timeout and the section's field list has no slot for it.\n- The kill is recorded through that field rather than inferred from the exit status, because the exit status of a process cr killed is the same kind of number a runner that decided to fail produces, and §5.3.4's ladder puts `timeout` and `error` on different rungs and both above every reading of the counts. TestAKilledRunIsDistinguishableFromARunnerThatExitedNonZero holds two records that agree on exit_code and disagree only there.\n",
+      "gate_passed_at": "2026-08-31T03:49:31.550761Z",
+      "commit_sha": "fe521ec",
+      "commit_shas": [
+        "fe521ec",
+        "068beec",
+        "55ad1a1",
+        "af6bd35",
+        "f0bf518",
+        "6e1a6d1",
+        "6950471",
+        "6e0201e"
+      ],
+      "commit_files": [
+        "internal/cli/test.go",
+        "internal/cli/test_test.go",
+        "internal/run/run.go",
+        "internal/run/run_test.go"
+      ]
     },
     {
       "id": "count-pattern-extraction",
