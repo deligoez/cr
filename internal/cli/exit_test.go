@@ -433,3 +433,20 @@ func TestAnExistingSandboxExitsWithTheStateCode(t *testing.T) {
 	assert.Contains(t, exists.Error(), "cr sandbox destroy 42 --repo acme/web",
 		"§12.4: the error names the next actionable step")
 }
+
+// §5.1.3's setup commands are external commands cr drives on the profile's
+// instruction, exactly as §3.1.1's tracker is, so a refusal is §3.1.3's shape:
+// exit code 3 with the command's stderr surfaced. Without the mapping a failed
+// `composer install` would report 2 and tell the user to fix a command line
+// that was correct.
+func TestAFailedSetupCommandExitsWithTheFileCode(t *testing.T) {
+	failed := &sandbox.SetupError{
+		Args:   []string{"composer", "install"},
+		Stderr: "Your requirements could not be resolved.",
+		Err:    errors.New("exit status 2"),
+	}
+	assert.Equal(t, ExitFile, exitCodeFor(failed))
+	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("preparing the sandbox: %w", failed)))
+	assert.Contains(t, failed.Error(), "Your requirements could not be resolved.",
+		"§3.1.3: the command's stderr reaches the user")
+}
