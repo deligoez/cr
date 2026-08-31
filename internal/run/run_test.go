@@ -3,6 +3,7 @@ package run
 import (
 	"encoding/json"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,6 +172,64 @@ func TestNextIDAllocatesAboveEveryRunTheFileHolds(t *testing.T) {
 			assert.Equal(t, tc.want, NextID(tc.existing))
 		})
 	}
+}
+
+// §5.2.4's `output_tail` is the last `tests.output_tail_bytes` of the runner's
+// output, and the runner produces it in pieces. So the bound holds across
+// however many writes the suite makes, including one write larger than the
+// whole budget, and the end of the output is what survives — a suite says what
+// failed at the end, not at the beginning.
+func TestTheOutputTailKeepsTheLastBytesOfEverythingWritten(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		limit  int
+		writes []string
+		want   string
+	}{
+		{name: "output within the budget", limit: 16, writes: []string{"PASS\n"}, want: "PASS\n"},
+		{
+			name:   "one write over the budget",
+			limit:  4,
+			writes: []string{"abcdefgh"},
+			want:   "efgh",
+		},
+		{
+			name:   "several writes over the budget together",
+			limit:  6,
+			writes: []string{"abcd", "efgh", "ij"},
+			want:   "efghij",
+		},
+		{name: "nothing written at all", limit: 8, writes: nil, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tail := NewTail(tc.limit)
+			for _, piece := range tc.writes {
+				n, err := tail.Write([]byte(piece))
+				require.NoError(t, err)
+				assert.Equal(t, len(piece), n,
+					"truncation is the tail's business, not a short write")
+			}
+			assert.Equal(t, tc.want, tail.String())
+		})
+	}
+}
+
+// The bound is in bytes, so a cut can land inside a multi-byte rune. The
+// fragment it leaves is not a character, and json.Marshal would silently write
+// U+FFFD in its place — a replacement no reader could tell from output that
+// really held one. So it is dropped, and what is left is valid UTF-8 within
+// the byte bound.
+func TestTheOutputTailDoesNotEndAHalfRuneAtTheFrontOfTheOutput(t *testing.T) {
+	// Four runes of three bytes each, and a budget that cuts the second
+	// of them in half.
+	tail := NewTail(10)
+	_, err := tail.Write([]byte("日本語テ"))
+	require.NoError(t, err)
+
+	held := tail.String()
+	assert.True(t, utf8.ValidString(held), "a stored tail is valid UTF-8")
+	assert.Equal(t, "本語テ", held)
+	assert.LessOrEqual(t, len(held), 10, "§5.2.4's bound is in bytes and still holds")
 }
 
 // count is the address of one derived test count, which is what §5.2.4's
