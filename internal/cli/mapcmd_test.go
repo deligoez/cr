@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"go/ast"
 	"os"
 	"path/filepath"
@@ -227,4 +228,44 @@ func TestTheMappingFileIsTheOnlyClaimToUnitJoin(t *testing.T) {
 
 	assert.Equal(t, map[string]int{filepath.Join("internal", "mapping", "mapping.go"): 1}, joins,
 		"§4.1.6: every rule in §4.1 through §4.4 reads one mapping, so cr holds one")
+}
+
+// `cr map record` hands back what it stored, not what it was given.
+//
+// §2.3.3 stamps head and round onto every pair, so the line the agent wrote and
+// the line mapping.ndjson holds are not the same document, and the payload is
+// how a caller that does not read the state tree learns which round its
+// judgement landed in.
+//
+// Mutation testing is why this test exists, and the survivor it closes is the
+// same one `cr cells record` had: negating either write-path conditional makes
+// the command return before it emits, and every assertion about the stored
+// mapping still passed — the write had already happened, so the round looked
+// right and the caller was told nothing at all.
+func TestMapRecordEmitsWhatItStored(t *testing.T) {
+	briefedForMapping(t)
+	path := filepath.Join(t.TempDir(), "mapping.ndjson")
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"claim":"`+mapIssue+`#c1","unit":"u1"}`+"\n"), 0o600))
+
+	printed := throughAPipe(t, "map", "record", strconv.Itoa(mapPR), path, "--repo", mapSlug)
+
+	var payload struct {
+		Recorded []struct {
+			Claim string `json:"claim"`
+			Unit  string `json:"unit"`
+			Head  string `json:"head"`
+			Round int    `json:"round"`
+		} `json:"recorded"`
+		Round int `json:"round"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &payload),
+		"§12.1: a command whose stdout is a pipe emits JSON")
+	require.Len(t, payload.Recorded, 1)
+	assert.Equal(t, 2, payload.Round, "the round the mapping replaced")
+	assert.Equal(t, mapIssue+"#c1", payload.Recorded[0].Claim)
+	assert.Equal(t, "u1", payload.Recorded[0].Unit)
+	assert.Equal(t, mapHead, payload.Recorded[0].Head,
+		"§2.3.3's pair is cr's, so the caller learns it from here")
+	assert.Equal(t, 2, payload.Recorded[0].Round)
 }
