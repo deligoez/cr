@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -161,4 +162,33 @@ func TestOnlyAnUntrackedFileUnderTheGlobIsALeftoverArtefact(t *testing.T) {
 		assert.NotContains(t, ready.Recreated.Reason, " app.txt",
 			"the tracked match is not a leftover artefact and must not be named as one")
 	})
+}
+
+// §11.1 exempts the sandbox recreation notice of §5.1.6 from `--quiet`, and the
+// exemption belongs to the writer rather than to each call site, so the notice
+// has to arrive there as a disclosure.
+//
+// Implementing finding.HonestyDisclosure is what makes that possible before the
+// writer exists — the same contract activation.Disabled, intent.Unavailable,
+// testadequacy.Unavailable, profile.MissingProfile and finding.CommentCap
+// already satisfy. A notice that only knew how to print itself would be
+// silenced by the flag, and a sandbox quietly rebuilt is a run whose previous
+// probe left something behind or whose head moved underneath it.
+//
+// The text is asserted against the fields rather than against a literal, because
+// the two must not be able to drift: a recreation recorded in the data and left
+// out of the printed report would be honest to a caller reading JSON and silent
+// to the human reading a terminal.
+func TestTheRecreationNoticeIsAnHonestyDisclosure(t *testing.T) {
+	var _ finding.HonestyDisclosure = Recreated{}
+
+	notice := Recreated{
+		Path:   "/home/dev/.cr/state/acme/web/pr-42/sandbox",
+		Reason: "a probe artefact was left behind: tests/cr_probe_p1.php",
+	}
+
+	disclosed := notice.Disclosure()
+	assert.Contains(t, disclosed, notice.Path, "a reader told a sandbox was rebuilt wants to know which")
+	assert.Contains(t, disclosed, notice.Reason)
+	assert.Contains(t, disclosed, "§5.1.6")
 }
