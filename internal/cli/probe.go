@@ -325,6 +325,17 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	if err != nil {
 		return err
 	}
+	// Round 12's unbounded-patch-target: every path the patch addresses
+	// has to land inside the sandbox. It is asked here rather than left to
+	// the writer, so a diff aimed out of the tree is refused as the input
+	// it is instead of being met after a baseline suite has already run —
+	// and it is the writer's own function, so the two cannot disagree.
+	for i := range request.files {
+		if _, err := layout.InSandbox(
+			request.owner, request.repo, request.pr, request.files[i].Path); err != nil {
+			return err
+		}
+	}
 	tests := &suite{profile: resolved, file: file, path: ready.Path, log: cmd.ErrOrStderr()}
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
 
