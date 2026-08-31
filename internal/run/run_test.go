@@ -100,6 +100,44 @@ func TestAKilledRunIsDistinguishableFromARunnerThatExitedNonZero(t *testing.T) {
 		"a run that finished carries the field too, so its absence is never the answer")
 }
 
+// §5.2.4 stores the two counts "when derivable", and §5.2.1 makes an
+// undetermined count a different fact from a zero one: a `tests.failed_pattern`
+// that never matched yields zero, because Pest and its like print a failed line
+// only when something failed, while a `tests.count_pattern` that never matched
+// leaves both undetermined. §5.2.5 then reads the difference — an underivable
+// run never passes and so can never be a baseline — so the two states have to
+// survive the round trip through the file rather than collapsing into 0.
+func TestAnUndeterminedCountIsAbsentFromTheRecordAndAZeroOneIsNot(t *testing.T) {
+	passing := &Record{ID: "r1", TestsRun: count(4), TestsFailed: count(0)}
+	unreadable := &Record{ID: "r2"}
+
+	var stored [2]map[string]any
+	for i, record := range []*Record{passing, unreadable} {
+		line, err := json.Marshal(record)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(line, &stored[i]))
+	}
+	assert.Equal(t, float64(4), stored[0]["tests_run"])
+	assert.Equal(t, float64(0), stored[0]["tests_failed"],
+		"§5.2.1: no match of the failed pattern is zero failures, and zero is a measurement")
+	assert.NotContains(t, stored[1], "tests_run",
+		"§5.2.4: an underivable count is not stored as a number")
+	assert.NotContains(t, stored[1], "tests_failed")
+
+	read := make([]Record, 0, 2)
+	for i := range stored {
+		line, err := json.Marshal(stored[i])
+		require.NoError(t, err)
+		var back Record
+		require.NoError(t, json.Unmarshal(line, &back))
+		read = append(read, back)
+	}
+	require.NotNil(t, read[0].TestsFailed)
+	assert.Equal(t, 0, *read[0].TestsFailed)
+	assert.Nil(t, read[1].TestsRun, "an absent count reads back as no count, not as zero")
+	assert.Nil(t, read[1].TestsFailed)
+}
+
 // count is the address of one derived test count, which is what §5.2.4's
 // "when derivable" needs a literal to be able to express.
 func count(n int) *int { return &n }
