@@ -14,6 +14,12 @@ import (
 // has to name back.
 const cellsFile = "cells.ndjson"
 
+// units are the unit ids §3.4.6 formed for the round, which §4.5.6 checks a
+// cell's `unit` against.
+func units() []string {
+	return []string{"u1", "u2", "u3"}
+}
+
 // active is a round's active roles of §4.5.1: one off the test axis and one on
 // it, because §4.5.5's `coverage` row is conditional on exactly that difference
 // and a fixture holding one kind could not exercise it.
@@ -39,7 +45,7 @@ func TestACellCarriesEveryFieldSection455Names(t *testing.T) {
 		`{"unit":"u1","role":"test-adequacy","result":"finding",` +
 		`"coverage":{"classification":"partially-covered","test_paths":["tests/OrderTest.php"]}}` + "\n")
 
-	cells, err := Decode(cellsFile, body, active())
+	cells, err := Decode(cellsFile, body, units(), active())
 	require.NoError(t, err)
 	require.Len(t, cells, 4)
 
@@ -89,7 +95,7 @@ func TestAnNaCellWithoutAReasonIsRejected(t *testing.T) {
 		{"an empty reason", `{"unit":"u1","role":"correctness","result":"na","reason":""}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), active())
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
@@ -107,7 +113,7 @@ func TestAnNaCellWithoutAReasonIsRejected(t *testing.T) {
 	t.Run("a reason on a verdict that is not na", func(t *testing.T) {
 		_, err := Decode(cellsFile,
 			[]byte(`{"unit":"u1","role":"correctness","result":"pass","reason":"looked fine"}`+"\n"),
-			active())
+			units(), active())
 
 		var rejected *RejectedCellError
 		require.ErrorAs(t, err, &rejected)
@@ -158,7 +164,7 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Decode(cellsFile, []byte(tc.line+"\n"), active())
+			_, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
@@ -172,7 +178,7 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 	t.Run("an uncovered unit names no test path", func(t *testing.T) {
 		cells, err := Decode(cellsFile,
 			[]byte(`{"unit":"u1","role":"test-adequacy","result":"question",`+
-				`"coverage":{"classification":"uncovered"}}`+"\n"), active())
+				`"coverage":{"classification":"uncovered"}}`+"\n"), units(), active())
 		require.NoError(t, err)
 		require.Len(t, cells, 1)
 
@@ -230,7 +236,7 @@ func TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), active())
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
