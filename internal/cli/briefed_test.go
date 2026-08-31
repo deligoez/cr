@@ -35,13 +35,14 @@ const (
 // Every file each command reads is prepared, so a run reaches the state read
 // rather than stopping at its own arguments. A command refused at an argument
 // would exit 2 and prove nothing about the refusal being tested.
-func briefRuns(claims, issue, merged string) map[string][]string {
+func briefRuns(claims, issue, merged, cells string) map[string][]string {
 	return map[string][]string{
 		"record": {"record", unbriefedPR, merged, "--repo", unbriefedSlug},
 		"claims record": {
 			"claims", "record", unbriefedPR, claims,
 			"--repo", unbriefedSlug, "--intent-file", issue,
 		},
+		"cells record": {"cells", "record", unbriefedPR, cells, "--repo", unbriefedSlug},
 	}
 }
 
@@ -57,13 +58,18 @@ var section37Obliges = [][]string{
 	{"map", "record"},
 }
 
+// stillAbsent are the commands of that list §11 has not built yet, spelled the
+// way they are typed. A command drops out of here the moment it is registered,
+// and the guard below then requires it to have an invocation in briefRuns.
+var stillAbsent = []string{"map record", "review"}
+
 // unbriefedInputs writes the files the guarded commands are pointed at and
 // returns their paths, alongside a state root holding no round for the pull
 // request under test.
 //
 // Every file sits outside the state tree: they are the agent's own output, and
 // what is being tested is the refusal that happens before any of them is read.
-func unbriefedInputs(t *testing.T) (claims, issue, merged string) {
+func unbriefedInputs(t *testing.T) (claims, issue, merged, cells string) {
 	t.Helper()
 	root := crHome(t)
 	layout := state.New(root)
@@ -84,7 +90,9 @@ func unbriefedInputs(t *testing.T) (claims, issue, merged string) {
 		`"anchor":{"path":"app.go","side":"RIGHT","start_line":1,"line":1,`+
 		`"content_hash":"0123456789abcdef"},"summary":"The error is dropped.",`+
 		`"evidence":"The second result is assigned to the blank identifier."}`+"\n")
-	return claims, issue, merged
+	cells = write("cells.ndjson",
+		`{"unit":"u1","role":"correctness","result":"pass"}`+"\n")
+	return claims, issue, merged, cells
 }
 
 // runCLI runs one invocation against whatever CR_HOME points at and returns
@@ -108,9 +116,9 @@ func runCLI(t *testing.T, args ...string) error {
 // instead would answer §4.1.6 against a unit set no round ever recorded, and
 // nothing in the run would say so.
 func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T) {
-	claims, issue, merged := unbriefedInputs(t)
+	claims, issue, merged, cells := unbriefedInputs(t)
 
-	for name, argv := range briefRuns(claims, issue, merged) {
+	for name, argv := range briefRuns(claims, issue, merged, cells) {
 		t.Run(name, func(t *testing.T) {
 			err := runCLI(t, argv...)
 			require.Error(t, err)
@@ -136,8 +144,8 @@ func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T)
 // of the list below and this test fails until it has an invocation in briefRuns
 // — where the guard above then runs it and requires exit 4.
 func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
-	claims, issue, merged := unbriefedInputs(t)
-	guarded := briefRuns(claims, issue, merged)
+	claims, issue, merged, cells := unbriefedInputs(t)
+	guarded := briefRuns(claims, issue, merged, cells)
 
 	var absent []string
 	for _, path := range section37Obliges {
@@ -152,6 +160,6 @@ func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
 	}
 	slices.Sort(absent)
 
-	assert.Equal(t, []string{"cells record", "map record", "review"}, absent,
+	assert.Equal(t, stillAbsent, absent,
 		"a command §3.7 obliges has been built or renamed: give it an invocation in briefRuns")
 }
