@@ -192,3 +192,45 @@ func TestTheRecreationNoticeIsAnHonestyDisclosure(t *testing.T) {
 	assert.Contains(t, disclosed, notice.Reason)
 	assert.Contains(t, disclosed, "§5.1.6")
 }
+
+// A tracked file §5.1.3's setup already modified, modified again, is named.
+//
+// This is the case where the set of deviating paths says nothing. `sandbox.setup`
+// rewrote `app.txt`, so the baseline already lists it; something has now rewritten
+// it a second time, and the two path lists are identical — only the content of the
+// deviation differs. A report built from the difference between the lists would be
+// empty here, and the reader would be told that tracked files differ from the
+// baseline without being told which, on the one occasion where the file involved is
+// the least obvious.
+//
+// gremlins found this: the fallback in `differing` survived CONDITIONALS_NEGATION
+// because nothing reached it.
+func TestATrackedFileSetupAlreadyTouchedIsNamedWhenItChangesAgain(t *testing.T) {
+	dir, head := repository(t)
+	scripts := t.TempDir()
+	src := sources(t, dir, head)
+	src.Setup = []string{script(t, scripts, "setup.sh", "echo touched-by-setup > app.txt\n")}
+
+	created, err := Create(src)
+	require.NoError(t, err)
+	recorded, err := ReadBaseline(src.Layout, fixtureOwner, fixtureRepo, fixturePR)
+	require.NoError(t, err)
+	require.Equal(t, []string{"app.txt"}, recorded.Paths,
+		"the baseline has to already list the file, or this covers the other branch")
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(created.Path, "app.txt"), []byte("a mutation nobody reverted\n"), 0o600))
+
+	ready, err := Ensure(src, fixtureLeftoverGlob)
+	require.NoError(t, err)
+
+	require.NotNil(t, ready.Recreated)
+	assert.Contains(t, ready.Recreated.Reason, "app.txt",
+		"the one file involved was left out of the report that exists to name it")
+
+	// The rebuild ran setup again, so the sandbox is back at the baseline
+	// rather than at HEAD, and the next run has nothing to report.
+	again, err := Ensure(src, fixtureLeftoverGlob)
+	require.NoError(t, err)
+	assert.Nil(t, again.Recreated)
+}
