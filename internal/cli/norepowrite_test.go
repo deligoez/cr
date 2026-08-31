@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -825,7 +826,7 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue string) map[string][]string {
+func repoRuns(merged, claims, issue, cells string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -837,6 +838,7 @@ func repoRuns(merged, claims, issue string) map[string][]string {
 			"claims", "record", fixturePR, claims,
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
+		"cells record": {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
 		// `cr brief` is the one command that reads the repository, so
 		// it is the one this guard was widened for: §3.4.1 takes a
 		// diff and §2.4.1 stats marker files, both inside the checkout
@@ -874,6 +876,18 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	// to completion instead of refusing at its first read.
 	prepared := state.New(root)
 	require.NoError(t, prepared.Init())
+	// §2.4.5's profiles, and the per-repository `profile` §2.4.1 makes the
+	// override. `cr brief` runs before `cr cells record` here and settles
+	// meta.json's active roles from the resolved profile, and the fixture
+	// carries no marker file of its own — so without a profile every axis
+	// would be off, no role would be active, and §4.5.6 would refuse every
+	// cell before the command reached anything this guard measures.
+	for id, body := range profile.Builtins() {
+		require.NoError(t, prepared.EnsureProfile(id, body))
+	}
+	require.NoError(t, prepared.EnsureRepo(fixtureOwner, fixtureProject))
+	require.NoError(t, os.WriteFile(
+		prepared.RepoConfig(fixtureOwner, fixtureProject), []byte(`{"profile":"generic"}`), 0o600))
 	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
 	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
@@ -904,6 +918,13 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	issue := filepath.Join(home, "issue.txt")
 	require.NoError(t, os.WriteFile(issue,
 		[]byte("The retry must back off exponentially.\n"), 0o600))
+	// The file `cr cells record` is pointed at, outside the repository for
+	// the same reason. It names the round's one unit and its one active
+	// role, so §4.5.6 accepts it.
+	cells := filepath.Join(home, "cells.ndjson")
+	require.NoError(t, os.WriteFile(cells,
+		[]byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"), 0o600))
+
 	claims := filepath.Join(home, "claims.ndjson")
 	require.NoError(t, os.WriteFile(claims, []byte(`{"id":"`+fixtureIssue+`#c1",`+
 		`"text":"The retry backs off exponentially.","source":"acceptance",`+
@@ -934,7 +955,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	runs := repoRuns(merged, claims, issue)
+	runs := repoRuns(merged, claims, issue, cells)
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
