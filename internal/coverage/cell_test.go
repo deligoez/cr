@@ -240,6 +240,66 @@ func TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts(t *testing.T) {
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
+
+// §4.5.6's two rejections: a cell naming an unknown unit id, and a cell naming
+// an inactive role.
+//
+// They are one sentence in the spec and they defend the same thing from two
+// sides. §10.2.2 is complete when every unit has a row of cells for every
+// active role, so both coordinates of a cell are foreign keys into sets the
+// round already fixed — units.ndjson, which §3.7 has `cr brief` write, and
+// meta.json's active roles, which §4.5.1 settles. A cell outside either set
+// raises the number of filled cells without raising the number of proven ones,
+// and P6's "coverage is proven" turns into coverage asserted.
+//
+// Each refusal names what the round would have accepted, because §12.4 asks an
+// error for the next actionable step and "unknown unit" alone gives a caller
+// nothing to compare their file against.
+func TestACellNamingAnUnknownUnitOrAnInactiveRoleIsRejected(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		line  string
+		field string
+		says  string
+	}{
+		{
+			name:  "a unit no round formed",
+			line:  `{"unit":"u9","role":"correctness","result":"pass"}`,
+			field: "unit",
+			says:  `names "u9", which is not a unit of this round`,
+		},
+		{
+			name:  "a role the round did not activate",
+			line:  `{"unit":"u1","role":"security","result":"pass"}`,
+			field: "role",
+			says:  `names "security", which is not an active role of this round`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
+
+			var rejected *RejectedCellError
+			require.ErrorAs(t, err, &rejected)
+			assert.Empty(t, cells, "a refused file stores nothing at all")
+			assert.Equal(t, tc.field, rejected.Field)
+			assert.Contains(t, rejected.Problem, tc.says)
+			assert.Contains(t, rejected.Problem, "§4.5.6")
+		})
+	}
+
+	t.Run("the refusal names what the round would have accepted", func(t *testing.T) {
+		_, err := Decode(cellsFile,
+			[]byte(`{"unit":"u9","role":"security","result":"pass"}`+"\n"), units(), active())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "u1, u2, u3", "§12.4: the refusal names the round's units")
+
+		_, err = Decode(cellsFile,
+			[]byte(`{"unit":"u1","role":"security","result":"pass"}`+"\n"), units(), active())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "correctness, test-adequacy",
+			"§12.4: and the round's active roles")
+	})
+}
 			assert.Empty(t, cells, "a refused file stores nothing at all")
 			assert.Equal(t, tc.field, rejected.Field)
 			assert.Contains(t, rejected.Problem, tc.says)
