@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T02:36:07.390414Z",
+  "updated_at": "2026-08-31T03:30:52.522518Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3548,7 +3548,7 @@
     {
       "id": "sandbox-baseline-record",
       "title": "Record the post-setup baseline outside worktree",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-copy-setup",
@@ -3560,16 +3560,23 @@
         "### 5.1 Sandbox",
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T02:44:12.77015Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T02:50:45.093465Z",
+      "closed_reason": "- After §5.1.2 and §5.1.3 complete, sandbox.Create takes git's own diff of the sandbox working tree against its HEAD and records it as the post-setup baseline; the record is written last in Create, once every copy is in and every setup command has run.\n- Round 8 finding unhomed-state: the baseline is a named row of §2.3's per-PR table, state.FileSandboxBaseline = \"sandbox-baseline.json\", declared beside the other twelve names in internal/state/prfiles.go and written through the exclusive advisory lock §2.3.1 requires. It sits under ~/.cr/state/\u003cowner\u003e/\u003crepo\u003e/pr-\u003cn\u003e/, never in the sandbox, because the sandbox is a worktree of the repository under review and §2.2 permits cr no write there but §5.1.1's registration.\n- The baseline is invalidated whenever the sandbox is recreated: Create drops it through the new state.Lock.Remove before git.AddWorktree runs, so a creation that dies inside §5.1.3 leaves no record rather than a record of a sandbox that no longer exists.\n- TestTheBaselineIsRecordedOutsideTheWorktreeAfterSetup asserts the file exists at Layout.PRFile(..., state.FileSandboxBaseline), does not exist inside the sandbox, and resolves outside it by filepath.Rel; TestTheBaselineIsInvalidatedWhenTheSandboxIsRecreated asserts the previous baseline is gone after a recreation that fails in setup.\n- The state is kept whole rather than digested: §1.4 defines cr's one hash and internal/text fences the ingredient, and that hash normalises before digesting, so a mutation changing only whitespace would hash to the baseline's value and pass §5.1.6's check. git.TrackedState reads it with --binary, so a changed binary is not summarised away either.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run (0 issues) \u0026\u0026 ./scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-08-31T02:50:45.093465Z",
+      "commit_sha": "409bb81",
+      "commit_shas": [
+        "409bb81"
+      ],
+      "commit_files": [
+        "internal/sandbox/sandbox_test.go"
+      ]
     },
     {
       "id": "sandbox-cleanliness-check",
       "title": "Verify sandbox head with cleanliness check",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-baseline-record",
@@ -3580,11 +3587,18 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T02:52:07.540919Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T02:56:16.457527Z",
+      "closed_reason": "- sandbox.Ensure verifies, before a probe or test run, that the sandbox exists, that git.Head of the sandbox equals the round's head, and that it is clean; the test-run caller is wired in test-command, which depends on this task.\n- Clean means the tracked-file deviation from HEAD equals the recorded post-setup baseline byte for byte, not that the sandbox matches HEAD: §5.1.3's setup modifies tracked files by design, and a baseline taken at another head is itself a reason to recreate. The leftover-artefact scan takes tests.probe_path_template with its \u003cprobe-id\u003e replaced by * — profile.LeftoverGlob already produces it — matches it against the sandbox, and keeps only the matches git.TrackedAmong reports as untracked.\n- Every other untracked file is ignored: only paths under the glob are ever looked at, and the sentinel file the tests drop into the sandbox survives a clean check.\n- A sandbox failing any check is removed with git.RemoveWorktree and rebuilt by Create, and Ensure returns a sandbox.Recreated naming the path and the reason. Recreated implements finding.HonestyDisclosure, which is the shape §11.1's exemption consumes. It is returned rather than printed because internal/cli still has no disclosure-printing writer — that writer is the open quiet-honesty-exemptions task — so nothing suppresses it today and adopting it there is a call site rather than a rewrite.\n- Round 12 finding artefact-glob-not-scoped-to-untracked: the scan is scoped to untracked files by asking git which of the glob's matches are tracked. TestOnlyAnUntrackedFileUnderTheGlobIsALeftoverArtefact uses a glob that matches a tracked fixture file and asserts the sandbox stays clean, then adds an untracked match beside it and asserts only that one is named.\n- TestAnUncleanSandboxIsRecreatedAndTheRecreationIsReported covers a missing sandbox, a moved head, a dirtied tracked file, a leftover artefact and a missing baseline; each asserts the reason, the disclosure text, that an untracked sentinel is gone so the recreation was performed and not merely reported, and that a second Ensure reports nothing, so the mandated recreation converges.\n- git.RemoveWorktree and git.PruneWorktrees are added here because recreation needs removal; wiring them to `cr sandbox destroy` remains that task's work. gitReads gains rev-parse and ls-files, both reads.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run (0 issues) \u0026\u0026 ./scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-08-31T02:56:16.457527Z",
+      "commit_sha": "5dd0019",
+      "commit_shas": [
+        "5dd0019"
+      ],
+      "commit_files": [
+        "internal/sandbox/clean_test.go"
+      ]
     },
     {
       "id": "sandbox-failure-overrides-ladder",
@@ -3608,7 +3622,7 @@
     {
       "id": "test-command",
       "title": "Run the profile test command",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-cleanliness-check",
@@ -3619,11 +3633,18 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T02:56:43.208202Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T03:30:52.511226Z",
+      "closed_reason": "- `cr test \u003cpr\u003e [--filter \u003cexpr\u003e]` runs the profile's test command inside the sandbox per §5.2.1: it reads the round's profile from meta.json, verifies the sandbox through sandbox.Ensure (§5.1.6) and rebuilds it when the check fails, then starts the argv with sandbox.Run, whose cmd.Dir is the state-derived sandbox path. The runner's output goes to standard error as it is produced, because §12.1 keeps stdout for the command's own document; the exit status is reported as a value rather than interpreted, since a failing suite is an ordinary outcome and §5.3.4's ladder is built on reading one.\n- tests.filter_flag narrows the run: Profile.TestArgv appends the flag and the expression as two argv elements, there being no shell to quote for, and refuses a --filter against a profile that sets no flag rather than silently running the whole suite.\n- TestTheTestCommandRunsInTheSandboxAndNeverTheCheckout has the runner record its own working directory and asserts it equals the sandbox and differs from the repository under review; TestTheTestCommandRunsTheProfileRunnerInTheSandbox asserts the same end to end through the command, together with the argv the filter produced and §5.1.6's recreation notice in the payload's honesty field.\n- The recreation disclosure reaches the reader as `honesty` on the payload, the same shape `cr brief` uses, so §11.1's exemption holds today by there being nothing that suppresses it; quiet-honesty-exemptions still owns the writer that will consume finding.HonestyDisclosure directly.\n- Out of scope and left open: §5.2.4's run record and its output tail, §5.2.2's baseline-per-head rule, §5.2.3's timeout, §5.2.5's passed predicate, count_pattern/failed_pattern extraction, §5.3/§5.4's probes, and `cr sandbox destroy` — which now only needs to wire git.RemoveWorktree to a command.\n- Dogfooded against deligoez/cr-qa PR 1: `cr test` ran ./vendor/bin/pest in the sandbox (4 passed), `--filter cancelled` narrowed it to 1, an unreverted edit to src/Order.php and a leftover tests/Feature/cr_probe_p1Test.php each triggered a reported recreation, and the clone's `git status --porcelain` stayed empty with `.git/worktrees/sandbox` the only added path across a remove-and-re-add cycle.\n- gremlins: Killed 894, Lived 14, Not covered 80, Timed out 4, efficacy 98.46%. Two survivors appeared in this work and one was a real gap — the fallback in `differing` and the error check in git.RemoveWorktree, both now covered; the remaining one is the documented equivalent capacity hint. deadcode ./... 89, down one, with nothing of this work listed.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run (0 issues) \u0026\u0026 ./scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-08-31T03:30:52.511226Z",
+      "commit_sha": "4a4b333",
+      "commit_shas": [
+        "4a4b333"
+      ],
+      "commit_files": [
+        "internal/git/worktree_test.go"
+      ]
     },
     {
       "id": "run-record-schema",
