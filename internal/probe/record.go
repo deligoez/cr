@@ -2,6 +2,8 @@ package probe
 
 import (
 	"fmt"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -36,28 +38,33 @@ func (e *IDTakenError) Error() string {
 // Record is one line of probes.ndjson: §5.5's probe record, with the head and
 // round §2.3.3 stamps onto every record of that file.
 //
+// The declaration is in §5.5's own table order, with §2.3.3's `round` beside
+// the `head` it travels with, and checkRecordFields below holds it there: the
+// rows the section fixes have one home, and a field added to the struct has to
+// be added to the section's list too rather than reaching probes.ndjson
+// unannounced.
+//
 // The two counts are pointers for the reason run.Record's are: §5.5 asks for
 // them "when derivable", and §5.3.4's fifth rung turns on the difference
 // between a count of zero and no count at all. A pointer distinguishes them and
 // `omitempty` keeps an underivable count off the wire, so a reader cannot
 // mistake an absent count for a zero one.
 //
-// What is not here is §5.5's per-kind result vocabulary and the field-table
-// check that holds this struct to the section. Both belong to one place each —
-// §5.5 says the vocabulary "is per kind and MUST NOT be shared", and the gap
-// probe's half of the table does not exist yet — so they are left to the tasks
-// that own them rather than half-stated here.
+// What is not here is §5.5's per-kind result vocabulary. The section says it
+// "is per kind and MUST NOT be shared", so which values a `mutation` may carry
+// and which a `gap` may carry is one statement, and it belongs in the one place
+// that closes the set rather than half-stated on the field.
 type Record struct {
 	// ID is §5.5's `p<n>`. It is the id space §5.5.2 has a finding
 	// reference, so it is allocated against every probe the pull request
 	// has recorded and never reused.
 	ID string `json:"id"`
+	// Kind is §5.5's `kind`: the sort of probe §5.3 or §5.4 ran.
+	Kind Kind `json:"kind"`
 	// Stamp carries §5.5's `head` and §2.3.3's `round`. They are embedded
 	// rather than declared here because state.WriteStamped is their one
 	// author: a record cannot arrive carrying either.
 	state.Stamp
-	// Kind is §5.5's `kind`: the sort of probe §5.3 or §5.4 ran.
-	Kind Kind `json:"kind"`
 	// Input is the patch or test file content, kept whole. §12.5 has
 	// `--compact` omit it from a payload; the record keeps it, because it
 	// is what says which experiment was performed.
@@ -73,22 +80,105 @@ type Record struct {
 	TestsRun *int `json:"tests_run,omitempty"`
 	// TestsFailed is the failed test count, absent when undetermined.
 	TestsFailed *int `json:"tests_failed,omitempty"`
-	// Target is §5.5's `path:line`, always `side: RIGHT` because a probe
-	// runs against the sandbox at head. For a mutation probe it is
-	// derived from the patch per §5.3.2 and never supplied, which is what
-	// keeps the evidence chain running on the experiment cr performed
-	// rather than on a flag an agent typed.
-	Target string `json:"target"`
 	// Baseline is the id of the run record §5.2.6 admits as this probe's
 	// baseline. §5.3.5 and §5.4.4 read that record's `passed` before
 	// letting the probe support a `probed` grade, so a probe without one
 	// is a probe that can establish nothing.
 	Baseline string `json:"baseline"`
+	// Target is §5.5's `path:line`, always `side: RIGHT` because a probe
+	// runs against the sandbox at head. For a mutation probe it is
+	// derived from the patch per §5.3.2 and never supplied, which is what
+	// keeps the evidence chain running on the experiment cr performed
+	// rather than on a flag an agent typed; for a gap probe it is the
+	// `--target` the agent supplied, validated by CheckTarget as §6.2.3
+	// validates a citation.
+	Target string `json:"target"`
 	// DurationMS is the wall-clock duration of the probe's own run.
 	DurationMS int64 `json:"duration_ms"`
 	// OutputTail is the runner's output truncated to
 	// `tests.output_tail_bytes`, per §5.5. §12.5 has `--compact` omit it.
 	OutputTail string `json:"output_tail"`
+}
+
+// field is one row of §5.5's table, by the name it goes by on the wire.
+type field struct {
+	// Name is the JSON key.
+	Name string
+	// Stamped marks the two rows §2.3.3 takes out of every writer's
+	// hands. They reach the record through the embedded state.Stamp,
+	// which is the only type state.WriteStamped writes through, so a
+	// record cannot arrive carrying either.
+	Stamped bool
+}
+
+// fields is §5.5's table in its own order, with §2.3.3's `round` beside the
+// `head` it travels with.
+//
+// It is held as data for the reason internal/run and internal/finding hold
+// their sections' tables as data: so the shape the section fixes has one home,
+// and a row is added to the Go struct only by being added here too.
+var fields = []field{
+	{Name: "id"},
+	{Name: "kind"},
+	{Name: "head", Stamped: true},
+	{Name: "round", Stamped: true},
+	{Name: "input"},
+	{Name: "filter"},
+	{Name: "result"},
+	{Name: "tests_run"},
+	{Name: "tests_failed"},
+	{Name: "baseline"},
+	{Name: "target"},
+	{Name: "duration_ms"},
+	{Name: "output_tail"},
+}
+
+// The check runs at package initialisation, so a Record that has drifted from
+// §5.5 cannot reach a probe run: the binary refuses to start rather than
+// writing one line of a shape the section does not describe.
+var _ = checkRecordFields()
+
+// checkRecordFields holds Record to the fields table, and the table to §5.5.
+//
+// It is run.checkRecordFields aimed at §5.5's table, and it reads the JSON tags
+// for the same reason: the wire names are what the section fixes, and the wire
+// names are what a reader of probes.ndjson sees. A field added to the struct
+// without a row here is what it catches, and that is the way §5.5's table is
+// quietly outgrown — an ordinary-looking field, added beside the others,
+// carrying something the section never described.
+//
+// It also proves where `head` and `round` come from. A probe record that
+// declared them itself would encode identically and stamp nothing, so the check
+// requires that they arrive promoted from the embedded state.Stamp.
+func checkRecordFields() bool {
+	record := reflect.TypeOf(Record{})
+	stamp := reflect.TypeOf(state.Stamp{})
+	declared := make([]field, 0, len(fields))
+	for _, visible := range reflect.VisibleFields(record) {
+		// The embedded struct itself carries no JSON name; the fields
+		// it contributes follow it and are what the wire sees.
+		if visible.Anonymous {
+			continue
+		}
+		name, _, _ := strings.Cut(visible.Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			panic("§5.5: Record." + visible.Name + " reaches probes.ndjson under no name")
+		}
+		// Index[0] is the top-level field the value arrived through,
+		// which for a promoted field is the embedded struct and for a
+		// direct one is the field itself — and no direct field of
+		// Record is a state.Stamp, so the one test answers.
+		declared = append(declared, field{
+			Name:    name,
+			Stamped: record.Field(visible.Index[0]).Type == stamp,
+		})
+	}
+	if !slices.Equal(declared, fields) {
+		panic(fmt.Sprintf(
+			"§5.5: a probe record would be written as %v, and the section's rows are %v",
+			declared, fields))
+	}
+	return true
 }
 
 // idPrefix is the letter §5.5 gives a probe record id.
