@@ -22,8 +22,8 @@ const (
 // "total over every run — no run can match two rungs, and none can match none",
 // and totality is a property of the whole input. A caller that passed four
 // booleans in some order could leave one out; a caller that fills this in
-// cannot, and the zero value is a run that started, finished, exited 0, and
-// derived no counts — which rung 5 answers rather than falling off the end.
+// cannot, and the zero value is a run whose patch never applied — which rung 1
+// answers rather than falling off the end.
 type Measured struct {
 	// Applied says the mutation patch applied cleanly. When it is false
 	// no tests were run, which is rung 1.
