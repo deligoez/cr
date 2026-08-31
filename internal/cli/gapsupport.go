@@ -90,6 +90,14 @@ func resolveGapSupport(
 			continue
 		}
 		answered := answerGapSupport(gap, meta, runs, pairs, record)
+		// §5.4.4's floor and §5.4.5's ceiling, refused before anything
+		// is written, as §6.1.3's rejections are: the agent is about to
+		// correct the file and hand the whole of it in again.
+		if err := finding.CheckGapSeverity(
+			finding.ActorRecord, record, gradingGap(gap, meta), answered.Supports,
+		); err != nil {
+			return nil, err
+		}
 		found.support = append(found.support, answered)
 		// Deduplicated, because §5.5.2 has a finding reference a probe
 		// and not the other way round: two records may rest on the same
@@ -127,6 +135,20 @@ func gapProbeOf(probes []probe.Record, id string) *probe.Record {
 		}
 	}
 	return nil
+}
+
+// gradingGap is the probe §5.4's bounds may be read from, and nil when this one
+// grades nothing in the current round.
+//
+// §5.5.3 is the whole of it: a probe record whose head differs from the current
+// head must not be used to grade a finding in this round, and a severity bound
+// read off it would be grading — it would refuse a record on the strength of an
+// experiment performed against other code.
+func gradingGap(gap *probe.Record, meta *state.Meta) *probe.Record {
+	if gap.Head != meta.Head {
+		return nil
+	}
+	return gap
 }
 
 // namedClaim is how a record's `claim` field is said in a refusal: the id when
