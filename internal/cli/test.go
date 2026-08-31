@@ -321,6 +321,13 @@ func appendRun(
 		return "", err
 	}
 	record.ID = run.NextID(stored)
+	// §5.2.5's verdict, computed here rather than by the caller for the
+	// reason the id is: both are cr's to derive, and a `passed` a caller
+	// could set is one a caller could set wrongly. §5.3.5 and §5.4.4 let a
+	// probe support a `probed` grade only when its baseline passed, so
+	// this field is what stands between a measured run and a graded
+	// assertion.
+	record.Passed = record.Verdict()
 	if err := state.AppendStamped(held, state.FileRuns, at, []*run.Record{record}); err != nil {
 		return "", err
 	}
