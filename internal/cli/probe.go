@@ -40,6 +40,14 @@ type probeRunResult struct {
 	Filter string `json:"filter,omitempty"`
 	// Result is §5.5's `result`, after §5.1.7 has had its say.
 	Result string `json:"result"`
+	// Establishes is what §5.3.5 and §5.3.7 let this result be read for:
+	// `gap` when the probe proves one, `no-gap` when a test caught the
+	// mutation, and `nothing` otherwise. It is reported rather than left
+	// to be re-derived from the result, because the two sections point
+	// opposite ways — one lets a finding be graded `probed`, the other
+	// has the agent not raise the finding at all — and the difference is
+	// not something a reader should have to reconstruct.
+	Establishes string `json:"establishes"`
 	// Target is the `path:line` §5.3.2 derived from the patch. It is
 	// reported rather than left to the record, because it is what the agent
 	// would otherwise have to take on trust before writing the finding
@@ -77,6 +85,7 @@ func (r *probeRunResult) Text(w *writer) string {
 		fmt.Fprintf(&out, "  %s\n", w.accent("voided, per §5.1.7: "+r.Voided))
 	}
 	fmt.Fprintf(&out, "  result   %s\n", w.accent(r.Result))
+	fmt.Fprintf(&out, "  evidence %s\n", establishedClause[r.Establishes])
 	fmt.Fprintf(&out, "  probe    %s", r.Probe)
 	for _, warned := range r.Warnings {
 		fmt.Fprintf(&out, "\n%s", warned)
@@ -85,6 +94,52 @@ func (r *probeRunResult) Text(w *writer) string {
 		fmt.Fprintf(&out, "\n%s", disclosed)
 	}
 	return out.String()
+}
+
+// What §5.3.5 and §5.3.7 let a mutation probe's outcome be read for, as the
+// token probeRunResult.Establishes carries.
+const (
+	// establishesGap is §5.3.5's proof: `no-test-failed` against a
+	// baseline that passed.
+	establishesGap = "gap"
+	// establishesNoGap is §5.3.7's disproof: a test caught the mutation.
+	establishesNoGap = "no-gap"
+	// establishesNothing is every other result, which §5.3.5 refuses a
+	// `probed` grade and §5.3.7 reads no suppression from.
+	establishesNothing = "nothing"
+)
+
+// establishedBy reads §5.3.5 and §5.3.7 off the probe that has just run.
+//
+// It asks the probe package rather than comparing result strings here, because
+// the conditions are the section's and belong where the values are: Proves is
+// handed the resolved baseline as well as the outcome, so the passing baseline
+// §5.3.5 requires is one the runs actually recorded rather than one this
+// command believed in.
+func establishedBy(outcome probe.Outcome, baseline probe.Baseline) string {
+	switch {
+	case probe.Proves(outcome, baseline):
+		return establishesGap
+	case probe.Disproves(outcome):
+		return establishesNoGap
+	}
+	return establishesNothing
+}
+
+// establishedClause says what each token means for the finding the agent is
+// deciding whether to write, spelled out where the reader is rather than left
+// to a section number they would have to open.
+//
+// The `gap` clause names the tests this run selected and not the suite, per
+// §5.3.6: a filtered run proves the gap only for what the filter selected, and
+// cr cannot establish that a filter selects the tests which would have caught
+// the mutation, so it does not say so.
+var establishedClause = map[string]string{
+	establishesGap: "a test gap: the tests this run selected did not notice the mutation " +
+		"and the baseline passed, so §5.3.5 lets a finding here be graded probed",
+	establishesNoGap: "none: a test caught the mutation, so §5.3.7 has the finding not raised",
+	establishesNothing: "none: §5.3.5 lets this result support no probed grade, so a record " +
+		"resting on it stays argued (§6.2) and is asked as a question (§6.3)",
 }
 
 // suite is everything one run of the profile's test command inside the sandbox
@@ -371,6 +426,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 		return err
 	}
 	outcome := probe.Decide(probe.Ladder(performed.measured), unclean)
+	establishes := establishedBy(outcome, performed.baseline)
 
 	record := &probe.Record{
 		Kind:       probe.Mutation,
@@ -400,18 +456,19 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 		}
 	}
 	return out.emit(&probeRunResult{
-		Probe:    probeID,
-		Kind:     string(probe.Mutation),
-		Sandbox:  ready.Path,
-		Command:  performed.command,
-		Filter:   request.filter,
-		Result:   string(outcome.Result()),
-		Target:   aimed,
-		Baseline: performed.baseline.ID(),
-		Run:      runID,
-		Voided:   unclean,
-		Warnings: []string{locked.CollisionWarning()},
-		Honesty:  recreationNotice(ready),
+		Probe:       probeID,
+		Kind:        string(probe.Mutation),
+		Sandbox:     ready.Path,
+		Command:     performed.command,
+		Filter:      request.filter,
+		Result:      string(outcome.Result()),
+		Establishes: establishes,
+		Target:      aimed,
+		Baseline:    performed.baseline.ID(),
+		Run:         runID,
+		Voided:      unclean,
+		Warnings:    []string{locked.CollisionWarning()},
+		Honesty:     recreationNotice(ready),
 	})
 }
 

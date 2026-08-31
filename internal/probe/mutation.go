@@ -75,3 +75,47 @@ func Ladder(m Measured) Result {
 	}
 	return resultFailed
 }
+
+// Proves is §5.3.5: this probe proves the gap, and so may be what a record
+// graded `probed` rests on under §6.2.
+//
+// Two conditions and no others. The result has to be `no-test-failed` — the one
+// rung of §5.3.4's ladder on which the suite ran, selected tests, and noticed
+// nothing — and the baseline run has to have passed per §5.2.5, because a suite
+// already red at this head makes every mutation look survivable.
+//
+// The two arguments are what makes the refusal structural rather than
+// remembered. An Outcome exists only where Decide made one, so §5.1.7 has
+// already had its say and a voided probe arrives carrying `error`; a Baseline
+// exists only where Spec.Resolve built one out of a run record §5.2.6 admits,
+// so the verdict read here is §5.2.5's on the record the resolution actually
+// chose rather than on some other run the caller had in hand. Neither can be
+// assembled out of a value a caller preferred, so `timeout`, `error`,
+// `no-tests-selected` and `inconclusive` have no path to a `probed` grade at
+// all: an empty selection, an unparseable runner and a run that never finished
+// cannot manufacture evidence. A record resting on one of them is left `argued`
+// by §6.2 and posted as a question by §6.3.
+//
+// §5.4.4's conditions are a different question about a different ladder and
+// belong with the gap probe, which is why this reads the mutation vocabulary
+// alone.
+func Proves(outcome Outcome, baseline Baseline) bool {
+	return outcome.Result() == resultNoTestFailed && baseline.Passed()
+}
+
+// Disproves is §5.3.7: a test caught the mutation, so the gap is not there and
+// the agent does not raise the finding.
+//
+// It asks nothing of the baseline, and that is §5.3.7's own shape rather than
+// an omission here. §5.3.5's baseline condition guards an assertion cr would
+// otherwise make to a colleague; there is no assertion on this side, only a
+// finding cr declines to raise, and a suite that noticed the mutation noticed
+// it whatever else at this head is failing.
+//
+// A voided probe never reaches it. §5.1.7 says such a probe "establishes
+// nothing in either direction", and the outcome Decide handed back carries
+// `error` rather than the `failed` this keys on — so the suppression is not
+// read off a run whose sandbox had drifted under it.
+func Disproves(outcome Outcome) bool {
+	return outcome.Result() == resultFailed
+}

@@ -161,6 +161,8 @@ func TestAMutationProbeAppliesRunsRevertsAndRecords(t *testing.T) {
 	assert.Equal(t, "p1", reported["probe"])
 	assert.Equal(t, "mutation", reported["kind"])
 	assert.Equal(t, "no-test-failed", reported["result"])
+	assert.Equal(t, "gap", reported["establishes"],
+		"§5.3.5: the one result that proves a gap, against a baseline that passed")
 	assert.Equal(t, "r1", reported["baseline"])
 	assert.Equal(t, "r2", reported["run"])
 
@@ -275,6 +277,8 @@ func TestTheMutationIsRevertedAfterAFailingRun(t *testing.T) {
 	shown := runProbe(t, patch)
 	assert.Equal(t, "failed", shown["result"],
 		"§5.3.4's last rung: the suite noticed the mutation")
+	assert.Equal(t, "no-gap", shown["establishes"],
+		"§5.3.7: a failed result disproves the gap, and the agent does not raise the finding")
 	assert.Empty(t, shown["voided"], "§5.1.6's post-run check passed, so §5.1.7 overrode nothing")
 
 	restored, err := os.ReadFile(filepath.Join(sandboxPath, "app.go"))
@@ -302,6 +306,8 @@ func TestTheMutationIsRevertedAfterATimeout(t *testing.T) {
 	shown := runProbe(t, patch)
 	assert.Equal(t, "timeout", shown["result"],
 		"§5.3.4's second rung: a run that never finished said nothing about the code")
+	assert.Equal(t, "nothing", shown["establishes"],
+		"§5.3.5: a run that never finished cannot manufacture evidence")
 
 	restored, err := os.ReadFile(filepath.Join(sandboxPath, "app.go"))
 	require.NoError(t, err)
@@ -466,6 +472,8 @@ func TestAProbeWhoseSandboxFailedItsCheckIsVoidedAndForcesRecreation(t *testing.
 	shown := runProbe(t, patch)
 	assert.Equal(t, "error", shown["result"],
 		"§5.1.7: the check overrides what §5.3.4's ladder produced")
+	assert.Equal(t, "nothing", shown["establishes"],
+		"§5.1.7: such a probe establishes nothing in either direction")
 	voided, ok := shown["voided"].(string)
 	require.True(t, ok, "§5.1.7's reason reaches the reader: %v", shown)
 	assert.Contains(t, voided, ".gitignore", "the reason names the file that differs")
