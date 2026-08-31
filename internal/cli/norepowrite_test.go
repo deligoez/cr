@@ -277,10 +277,10 @@ func TestEveryPathTheStateLayoutHandsOutIsUnderItsRoot(t *testing.T) {
 // destroy, because the denylist is the one that goes stale in the unsafe
 // direction.
 //
-// §5.1.1's exception is not here. `cr sandbox create` will run `git worktree
-// add`, which is a write, and the sandbox-worktree task adds `worktree` to this
-// map with §5.1.1 as its reason. Widening the map is then a deliberate act with
-// a reviewer, which is the point — and the behavioural guard below independently
+// §5.1.1's exception is the map's one write, and it was added by hand: `cr
+// sandbox create` runs `git worktree add`, so `worktree` sits here with the
+// section that asks for it. Widening the map is a deliberate act with a
+// reviewer, which is the point — and the behavioural guard below independently
 // fixes how far that write may reach, so the map growing by one word cannot
 // quietly grant more than the one path §2.2 names.
 var gitReads = map[string]string{
@@ -288,6 +288,7 @@ var gitReads = map[string]string{
 	"merge-base": "§3.4.1's merge base",
 	"ls-tree":    "§6.2.3's question of whether the head holds a cited path at all",
 	"cat-file":   "§6.2.3's read of the cited line as the head holds it",
+	"worktree":   "§5.1.1's sandbox worktree, the one write §2.2 permits",
 }
 
 // gitSourceFiles parses internal/git's own source, tests excluded.
