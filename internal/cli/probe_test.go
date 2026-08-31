@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -861,6 +862,46 @@ func TestAKilledGapProbeLeavesAFileTheNextRunRecreates(t *testing.T) {
 
 	assert.NoFileExists(t, placed, "§5.1.6: the recreated sandbox holds what the head holds")
 	assert.NoDirExists(t, filepath.Join(sandboxPath, "tests"))
+}
+
+// §5.4.2's reservation and §5.5.2's id space: an id another run spent while
+// this probe was running is refused rather than shared.
+//
+// A gap probe has to know its id before it runs, because §2.4's template puts
+// that id in the path the test file is placed at — so the id is read outside
+// §2.3.1's lock and the record is written under it, and another `cr probe run`
+// can land in between. §5.5.2 has a finding reference a probe by this id, so two
+// records carrying one would make the reference ambiguous; the refusal is what
+// keeps that impossible. Nothing is written, and the probe file has already
+// been removed, so the experiment can simply be repeated.
+//
+// The mutation run of this task's gate is what asked for this test: nothing
+// constructed an IDTakenError, so the branch and its message were unexercised.
+func TestAReservedProbeIdAnotherRunTookIsRefused(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+	at := state.Stamp{Head: "be7e2c7", Round: 2}
+	spent := &probe.Record{Kind: probe.Gap, Result: "passed", Target: "app.go:3", Baseline: "r1"}
+
+	_, taken, err := recordProbe(
+		prepared, fixtureOwner, fixtureProject, fixturePRNumber, at, nil, spent)
+	require.NoError(t, err)
+	require.Equal(t, "p1", taken, "the run that got there first spends the id")
+
+	// The reservation this run made before its own placement, now stale.
+	reserved := &probe.Record{
+		ID: "p1", Kind: probe.Gap, Result: "failed", Target: "app.go:3", Baseline: "r1",
+	}
+	_, _, err = recordProbe(
+		prepared, fixtureOwner, fixtureProject, fixturePRNumber, at, nil, reserved)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "probe id p1 was taken")
+	assert.Contains(t, err.Error(), "the next free id is p2")
+	assert.Equal(t, ExitState, exitCodeFor(err),
+		"§11.2 codes a conflict between two cr runs 4, as it does the lock timeout")
+
+	assert.Len(t, storedRecords(t, prepared, state.FileProbes), 1,
+		"§5.5.2: nothing was written, so no two records carry the same id")
 }
 
 // Each kind takes the flags its own section names, and refuses the other's.
