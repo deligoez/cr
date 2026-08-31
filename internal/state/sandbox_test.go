@@ -63,6 +63,9 @@ func TestCopyIntoSandboxReproducesFilesDirectoriesAndLinks(t *testing.T) {
 
 	pointsAt, err := os.Readlink(filepath.Join(sandbox, "vendor", "pest-link"))
 	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("..", "bin", "pest"), pointsAt,
+		"§5.1.2 copies the path, and a link followed instead of copied is a different tree")
+}
 
 // A `sandbox.copy` path the checkout does not hold is reported, not refused.
 //
@@ -81,7 +84,4 @@ func TestCopyIntoSandboxReportsAPathTheCheckoutDoesNotHold(t *testing.T) {
 	assert.False(t, copied)
 	assert.NoFileExists(t, filepath.Join(l.Sandbox("acme", "web", 42), "vendor"))
 	assert.NoDirExists(t, filepath.Join(l.Sandbox("acme", "web", 42), "vendor"))
-}
-	assert.Equal(t, filepath.Join("..", "bin", "pest"), pointsAt,
-		"§5.1.2 copies the path, and a link followed instead of copied is a different tree")
 }
