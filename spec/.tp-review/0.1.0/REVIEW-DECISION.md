@@ -176,5 +176,24 @@ anything larger than restating an existing rule in its own section to the user.
   able to tell apart. Carried here so the audit re-tests the reading rather
   than inheriting it silently.
 
+- **§5.2.5 narrowed by a contaminated run, at `baseline-recording`. Accepted, no
+  spec edit.** Round 12's `baseline-contamination` requires a `cr test` run whose
+  sandbox was found dirty afterwards to be void as a baseline, and the only way
+  to stop `passed: true` is a fourth clause on the verdict — which narrows
+  §5.2.5's literal biconditional over three fields. Accepted because §5.1.7 sets
+  the precedent in the same chapter: a cleanliness failure overriding a computed
+  outcome another rule declares total. §5.2.5 describes a run of the head's code,
+  and a contaminated run is not one. If §5.2.5 should say so in its own words
+  that is a one-clause repair, deferred to the audit rather than taken now.
+
+- **`passed` is not a baseline-resolution filter, proven on real data.** My own
+  instruction to the unit said it was. §5.2.5's "so it cannot serve as a
+  baseline" is a consequence clause: making it a resolution filter would render
+  §5.3.5's and §5.4.4's explicit `passed: true` qualifiers vacuous, and would
+  never converge — on the QA fixture's own `runs.ndjson`, a filtered mutation
+  probe resolves to a run whose filter selected nothing and so did not pass, so
+  a `passed` filter would perform a fresh filtered run before every probe for
+  ever and resolve none. `Passed()` travels inside the resolved baseline instead.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.
