@@ -40,6 +40,11 @@ const (
 // lives here rather than in the package that raises the error, so a validator
 // below cli never has to name an exit code itself. An unmapped cause is a
 // malformed invocation.
+//
+// This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
+// refactoring, never by raising the limit and never by renumbering to shorten it.
+//
+//nolint:gocognit,funlen // measured 2026-08-31 at cognitive 40 over 121 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {

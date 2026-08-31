@@ -192,6 +192,8 @@ func Run(src *Sources) (*Brief, error) {
 }
 
 // assemble carries out §3.7's six items and writes nothing.
+//
+//nolint:funlen // measured 2026-08-31 at 68 lines; refactor to clear, never raise the limit
 func assemble(src *Sources) (*Brief, error) {
 	pr, err := src.GH.PullRequest(src.Owner, src.Repo, src.PR)
 	if err != nil {

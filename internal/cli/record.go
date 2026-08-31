@@ -142,6 +142,8 @@ func roundUnitIDs(units []roundUnit) []string {
 // field in what it refuses, and internal/cli maps that onto §11.2's code 1. A
 // second reading of the same section here would be a second thing to keep in
 // agreement with the spec.
+//
+//nolint:funlen // measured 2026-08-31 at 61 lines; refactor to clear, never raise the limit
 func newRecordCmd(out *writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "record " + prPlaceholder + " <file>",

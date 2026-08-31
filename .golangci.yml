@@ -11,6 +11,17 @@ linters:
     - misspell
     - unconvert
     - unparam
+    # Size and duplication. Every threshold below is golangci-lint's own
+    # default: the point is not a number this project picked but a line it
+    # cannot cross without saying so. The seven functions over the line today
+    # carry a `//nolint` naming their measured size, so `golangci-lint run`
+    # reports zero issues and the eighth violation fails the gate the moment
+    # it is written.
+    - gocognit
+    - funlen
+    - dupl
+    # Holds those suppressions to the shape above.
+    - nolintlint
 
   settings:
     gocritic:
@@ -25,6 +36,25 @@ linters:
         - os.RemoveAll
         - (*github.com/fatih/color.Color).Fprintf
         - (*github.com/fatih/color.Color).Fprintln
+    nolintlint:
+      # A bare `//nolint` hides which rule was waived and why, and one left
+      # behind after a refactor silently protects nothing. All three are what
+      # make a suppression readable as debt rather than as noise.
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+
+  exclusions:
+    rules:
+      # A table-driven test that names sixteen cases is long because it is
+      # thorough, and two tests that set up the same fixture differently are
+      # not a clone worth collapsing. Measured: 19 of funlen's 28 findings and
+      # both of dupl's were in _test.go, and none of them named a defect.
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+          - dupl
 
 # golangci-lint v2 only runs formatters listed here. Without this block a
 # gofmt-dirty file passes the quality gate silently.
@@ -38,3 +68,10 @@ run:
 issues:
   max-issues-per-linter: 50
   max-same-issues: 3
+  # Defaults to true, which reports at most one issue per line. `gocognit` and
+  # `funlen` both report on the function's declaration line, so with it on, a
+  # function over both limits shows only the gocognit finding and the funlen
+  # one is silently dropped — a repo can enable funlen, see nothing, and
+  # conclude it has no long functions. Measured on a single-function fixture:
+  # 1 issue with the default, 2 with it off, same file and same config.
+  uniq-by-line: false

@@ -128,6 +128,8 @@ func listedOrNone(value string) string {
 // sandbox that fails the check is rebuilt and the rebuild reported. That order
 // is the contract: a suite run in a sandbox still holding an unreverted mutation
 // measures the mutation, and reports the result under the head's name.
+//
+//nolint:funlen // measured 2026-08-31 at 102 lines; refactor to clear, never raise the limit
 func newTestCmd(out *writer) *cobra.Command {
 	var filter string
 	cmd := &cobra.Command{

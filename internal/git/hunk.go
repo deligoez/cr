@@ -124,6 +124,8 @@ var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@
 // A hunk ends where its header's counts run out and not where the following
 // lines stop looking like content, so a diff of a patch file — whose added
 // lines begin with +++, --- and @@ — is read as the content it is.
+//
+//nolint:funlen // measured 2026-08-31 at 46 statements; refactor to clear, never raise the limit
 func ParseHunks(patch string) ([]Hunk, error) {
 	hunks := make([]Hunk, 0)
 	var (

@@ -43,6 +43,13 @@ type Field struct {
 // data rather than restated at each call site, so §6.1.3's required-field
 // rejection and §6.1.4's computed-field rejection cannot come to different
 // conclusions about the same row, and a row added to the spec is added once.
+//
+// finding_test.go's specFields is a second transcription of the same table, and
+// the two being identical is the point rather than an oversight: the test reads
+// §6.1 independently and asserts this copy matches. Collapsing the duplication
+// would leave the table checked against itself.
+//
+//nolint:dupl // deliberate: the twin in finding_test.go is an independent transcription
 var fields = []Field{
 	{Name: "id", Requirement: Required},
 	{Name: "kind", Requirement: Required},

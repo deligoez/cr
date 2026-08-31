@@ -56,6 +56,11 @@ type PatchHunk struct {
 // refused rather than guessed at: §5.3.4's first rung already gives a patch
 // that does not apply cleanly its answer, and a parser that repaired one would
 // take that rung's decision away from it.
+//
+// It is cleared by refactoring, never by raising the limit and never by loosening what
+// the parser refuses.
+//
+//nolint:gocognit,funlen // measured 2026-08-31 at cognitive 34 over 51 statements
 func ParsePatch(patch string) ([]PatchedFile, error) {
 	files := make([]PatchedFile, 0)
 	var (
