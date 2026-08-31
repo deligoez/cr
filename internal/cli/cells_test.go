@@ -217,3 +217,44 @@ func TestRecordingTwoOfFourCellsLeavesTheOtherTwoUnfilled(t *testing.T) {
 	assert.Equal(t, []string{"u1/correctness", "u2/convention"}, filledCells(t, layout),
 		"§4.5.6: the two cells no role reported on are a coverage gap, not cr's to complete")
 }
+
+// A second recording replaces the cells it names and leaves the rest standing.
+//
+// §4.5.6 replaces "the current round's cell for each `(unit, role)` the file
+// names", which is the clause a round with several roles depends on: each role
+// hands in its own file, so a recording that replaced the round would end the
+// review holding whichever role reported last. The second file here re-answers
+// one cell and says nothing about the other, and both have to be there
+// afterwards — one with its new verdict, one exactly as the first recording
+// left it.
+func TestASecondRecordingReplacesOnlyTheCellsItNames(t *testing.T) {
+	layout := briefedForCells(t)
+
+	require.NoError(t, recordCells(t,
+		`{"unit":"u1","role":"correctness","result":"pass"}`,
+		`{"unit":"u2","role":"convention","result":"question"}`))
+	require.NoError(t, recordCells(t,
+		`{"unit":"u1","role":"correctness","result":"finding"}`))
+
+	stored, err := state.ReadRecords[coverage.Cell](
+		layout, cellsOwner, cellsRepo, cellsPR, state.FileCoverage)
+	require.NoError(t, err)
+	require.Len(t, stored, 2, "§4.5.6: the cell not named is untouched, not dropped")
+
+	assert.Equal(t, "u2", stored[0].Unit)
+	assert.Equal(t, coverage.ResultQuestion, stored[0].Result,
+		"the cell the second file said nothing about keeps its first answer")
+	assert.Equal(t, "u1", stored[1].Unit)
+	assert.Equal(t, coverage.ResultFinding, stored[1].Result,
+		"and the one it re-answered carries the new verdict")
+
+	// §4.5.5's `unit_hash` is cr's, taken from units.ndjson for the unit
+	// the cell sits at, so §10.2.2 has the value it compares and no cell
+	// carries the agent's word for it.
+	assert.Equal(t, "0a1b2c3d4e5f6071", stored[0].UnitHash)
+	assert.Equal(t, "38372bc96eb4010e", stored[1].UnitHash)
+	for i := range stored {
+		assert.Equal(t, cellsHead, stored[i].Head, "§2.3.3 stamps head onto every cell")
+		assert.Equal(t, 1, stored[i].Round, "§2.3.3 stamps round onto every cell")
+	}
+}
