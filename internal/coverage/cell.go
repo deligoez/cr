@@ -28,6 +28,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/testadequacy"
 )
 
 // The four values §4.5.5 closes a cell's verdict at.
@@ -50,35 +51,6 @@ const (
 // results is the closed set, in the order §4.5.5 names them, so a rejection
 // always lists them the same way.
 var results = []string{ResultPass, ResultFinding, ResultQuestion, ResultNA}
-
-// The three classifications §4.4.1 closes the test axis's own answer at.
-const (
-	// Covered is a unit the changed tests exercise.
-	Covered = "covered"
-	// PartiallyCovered is a unit they exercise in part.
-	PartiallyCovered = "partially-covered"
-	// Uncovered is a unit no changed test reaches.
-	Uncovered = "uncovered"
-)
-
-// classifications is that closed set, in §4.4.1's order.
-var classifications = []string{Covered, PartiallyCovered, Uncovered}
-
-// TestCoverage is §4.5.5's `coverage` object: §4.4.1's classification together
-// with the test paths it rested on.
-//
-// The paths are carried rather than recomputed because §4.4.1 says the
-// classification rests on them. A reader handed "partially covered" with
-// nothing named has been handed a verdict; the same word with the two files it
-// was read off is a claim they can check, which is the whole of the difference
-// §1.6's trust economy turns on.
-type TestCoverage struct {
-	// Classification is one of the three values above.
-	Classification string `json:"classification"`
-	// TestPaths are the changed or added test files the classification
-	// rested on, empty for a unit no test reaches.
-	TestPaths []string `json:"test_paths"`
-}
 
 // Cell is one line of coverage.ndjson: §4.5.5's fields, and the head and round
 // §2.3.3 stamps onto every record of that file.
@@ -107,7 +79,16 @@ type Cell struct {
 	NoteID string `json:"note_id,omitempty"`
 	// Coverage is §4.4.1's classification, carried by a cell a role on the
 	// `test` axis filled and by no other.
-	Coverage *TestCoverage `json:"coverage,omitempty"`
+	//
+	// It is internal/testadequacy's type rather than one of this package's,
+	// because that is where §4.4.1 already lives: Attach supplies the test
+	// files a classification rests on and Coverage records the verdict, and
+	// its classification field is unexported so no code outside a decoded
+	// agent line can put a value there. A second shape here would be a
+	// second answer to §2.1.3's "whether a unit is covered by tests is the
+	// agent's judgement", and this one would be the answer with the
+	// structural fence missing.
+	Coverage *testadequacy.Coverage `json:"coverage,omitempty"`
 	state.Stamp
 }
 
@@ -331,17 +312,11 @@ func (c cellChecker) coverage(line int, filled *role.Role, cell *Cell) error {
 	case !classifies:
 		return nil
 	}
-	if !slices.Contains(classifications, cell.Coverage.Classification) {
-		return &RejectedCellError{
-			File: c.file, Line: line, Field: "coverage.classification",
-			Problem: fmt.Sprintf("is %q; §4.4.1 closes it at %s",
-				cell.Coverage.Classification, listed(classifications)),
-		}
-	}
-	// §12.3: the paths serialise as [] and never as null, which is the
-	// ordinary state of an `uncovered` unit rather than a fault.
-	cell.Coverage.TestPaths = append(
-		make([]string, 0, len(cell.Coverage.TestPaths)), cell.Coverage.TestPaths...)
+	// The classification itself is not checked here. §4.4.1's closed set
+	// is testadequacy.Coverage's own, refused inside its UnmarshalJSON
+	// before this ever runs, and `test_paths` is normalised to [] there
+	// per §12.3. A second check would be a second reading of the same
+	// three words, and the two could disagree.
 	return nil
 }
 
