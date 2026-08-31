@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,5 +65,54 @@ func TestEveryGateStepRunsInCIAndAtRelease(t *testing.T) {
 		step = strings.TrimSpace(step)
 		assert.Contains(t, ci, step, "the CI workflow does not run this gate step")
 		assert.Contains(t, hooks, step, "the GoReleaser before-hooks do not run this gate step")
+	}
+}
+
+// A gate tool installed with `@latest` makes the gate a function of the tool
+// rather than of the code: a new minor can enable a linter, change a default,
+// or drop support for something, and CI turns red with nothing in this
+// repository having changed. Both workflows therefore pin every tool they
+// install, and this test is what keeps a later edit from quietly reverting to
+// `@latest` -- the failure it would otherwise cause is a red CI run on a pull
+// request that touched none of it.
+func TestEveryGateToolIsPinned(t *testing.T) {
+	for _, workflow := range []string{".github/workflows/ci.yml", ".github/workflows/release.yml"} {
+		for _, line := range strings.Split(string(repoFile(t, workflow)), "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "go install ") {
+				continue
+			}
+			assert.NotContains(t, line, "@latest", "%s installs a gate tool unpinned: %s", workflow, line)
+			assert.Regexp(t, `@v\d+\.\d+\.\d+$`, line, "%s installs a gate tool without an exact version: %s", workflow, line)
+		}
+	}
+}
+
+// pinReview is the date by which the pins above are to be looked at again. It
+// is duplicated in both workflows as prose; this is the copy that fails.
+const pinReview = "2026-11-30"
+
+// A pin is the version that worked on a date, not a version that is right, and
+// the failure mode is not the pin going stale -- it is nobody noticing. A
+// review condition written as a comment is a condition that never gets
+// checked: golangci-lint v2.13.0 shipped Go 1.27 support twelve days before
+// the pin here was still v2.12.2, and the comment saying when to revisit would
+// not have said a word about it.
+//
+// So the condition is a test. When this fails, the work is to install the
+// current tools, run the gate against this tree, update the pins to what was
+// measured, and move this date -- not to move the date alone.
+func TestThePinsHaveBeenReviewedRecently(t *testing.T) {
+	due, err := time.Parse(time.DateOnly, pinReview)
+	require.NoError(t, err)
+
+	assert.Falsef(t, time.Now().After(due),
+		"the gate tool pins were last reviewed before %s: install the current golangci-lint and "+
+			"deadcode, run the gate, pin what you measured, and move pinReview and the note in "+
+			"both workflows", pinReview)
+
+	for _, workflow := range []string{".github/workflows/ci.yml", ".github/workflows/release.yml"} {
+		assert.Contains(t, string(repoFile(t, workflow)), pinReview,
+			"%s no longer names the review date the pins are held to", workflow)
 	}
 }

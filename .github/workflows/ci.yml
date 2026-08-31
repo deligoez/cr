@@ -16,10 +16,14 @@ jobs:
         with:
           go-version: stable
 
+      # Both pins are the versions the gate was measured against locally, and
+      # both must stay compatible with the Go that `stable` above resolves to.
+      # A pin is the version that worked on a date, not a version that is right
+      # -- review these when the Go major moves, and no later than 2026-11-30.
       - name: Install the quality gate tools
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
-          go install golang.org/x/tools/cmd/deadcode@latest
+          go install golang.org/x/tools/cmd/deadcode@v0.48.0
 
       # The same gate tp runs at `tp done`, verbatim: a change that fails
       # locally cannot pass here.

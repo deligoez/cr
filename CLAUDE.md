@@ -92,6 +92,19 @@ static analyser** in a way it is not for `go test` or `-race`: what the analyser
 sees depends on the standard library, and that depends on the toolchain. Verify
 a new pin locally before writing it into a workflow.
 
+A fourth condition follows from the third: **a pin is the version that worked on
+a date, so it carries one, and the date is a test rather than a comment.** The
+failure mode is not the pin going stale — it is nobody noticing: v2.13.0 shipped
+Go 1.27 support twelve days before the pin here was still v2.12.2, and a comment
+saying when to revisit would have said nothing. `TestEveryGateToolIsPinned`
+refuses an `@latest` in either workflow, and `TestThePinsHaveBeenReviewedRecently`
+fails once `pinReview` passes. When it fails, install the current tools, run the
+gate, pin what you measured, and then move the date — never the date alone.
+Measured on a shared machine: `type -a golangci-lint` found two binaries with
+`~/go/bin` shadowing Homebrew's, so a version number alone does not identify what
+ran. Record **which binary** (`type -a` plus `go version -m`) beside a number
+that matters.
+
 `golangci-lint`'s `unused` skips exported identifiers by design, so an exported
 function nothing calls passes it. `scripts/deadcode.sh` closes that: it fails
 when a function is reachable from no main package **and** no test. The gate
