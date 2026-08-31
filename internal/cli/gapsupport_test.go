@@ -1,0 +1,260 @@
+package cli
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/probe"
+	"github.com/deligoez/cr/internal/run"
+	"github.com/deligoez/cr/internal/state"
+)
+
+// The claim the fixture's intent axis produced, and the unit the fixture's
+// mapping joins it to.
+const (
+	gapIssue = "CR-1"
+	gapClaim = gapIssue + "#c2"
+	gapUnit  = "u1"
+)
+
+// gapFixture is one state tree `cr record` reads §5.4 out of: a gap probe, the
+// run record §5.5 has it point at, and the round's mapping.
+//
+// Every field is one of §5.4's own conditions, so a test varies exactly the
+// condition it is about and the others stay as they were.
+type gapFixture struct {
+	// result is §5.5's `result` for the probe, as Decide wrote it.
+	result probe.Result
+	// head is the head the probe ran at, empty for the round's own.
+	head string
+	// passed is §5.2.5's verdict on the baseline run.
+	passed bool
+	// mapped says the round's mapping joins gapClaim to gapUnit.
+	mapped bool
+	// issue is the round's resolved issue key, empty for §4.5.3's
+	// unavailable intent axis.
+	issue string
+}
+
+// probedHome is recordedHome's pull request with the fixture's probe, baseline
+// and mapping written into it.
+//
+// The records are marshalled from their own types rather than spelled as lines,
+// which is the opposite of what unitLine does and for the opposite reason: the
+// unit fixture proves a line holding two fields is read correctly, while these
+// are read through the same structs cr writes them with, and a hand-spelled
+// probe record would be a second declaration of §5.5's shape.
+func probedHome(t *testing.T, f gapFixture) {
+	t.Helper()
+	layout := recordedHome(t)
+	head := f.head
+	if head == "" {
+		head = recordHead
+	}
+	stamp := state.Stamp{Head: recordHead, Round: recordRound}
+	pairs := []mapping.Pair{}
+	if f.mapped {
+		pairs = append(pairs, mapping.Pair{Claim: gapClaim, Unit: gapUnit, Stamp: stamp})
+	}
+
+	held, err := layout.LockPR(recordOwner, recordRepo, recordPRNum)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: recordOwner, Repo: recordRepo, PR: recordPRNum, IssueKey: f.issue,
+		Round: recordRound, Head: recordHead,
+	}))
+	require.NoError(t, held.Write(state.FileRuns, ndjson(t, run.Record{
+		ID: "r1", Stamp: stamp, Passed: f.passed, OutputTail: "OK",
+	})))
+	require.NoError(t, held.Write(state.FileProbes, ndjson(t, probe.Record{
+		ID: "p1", Stamp: state.Stamp{Head: head, Round: recordRound},
+		Kind: probe.Gap, Input: "it('cancels', ...)", Result: f.result,
+		Target: "src/Order.php:31", Baseline: "r1",
+		OutputTail: "FAILED  Tests\\OrderTest > cancels",
+	})))
+	require.NoError(t, held.Write(state.FileMapping, ndjson(t, pairs...)))
+	require.NoError(t, held.Unlock())
+}
+
+// ndjson renders records as the file cr writes, one JSON document per line.
+func ndjson[T any](t *testing.T, records ...T) []byte {
+	t.Helper()
+	var body strings.Builder
+	for _, record := range records {
+		line, err := json.Marshal(record)
+		require.NoError(t, err)
+		body.Write(line)
+		body.WriteByte('\n')
+	}
+	return []byte(body.String())
+}
+
+// aProbedRecord is aRecord resting on the fixture's gap probe, naming a claim.
+// The two fields are the agent's own: §6.1 marks `claim` and `probe` optional,
+// and neither is computed, which is what makes the claim condition of §5.4.4
+// worth checking against a file the agent does not write.
+func aProbedRecord(claim string) map[string]any {
+	record := aRecord("f1", gapUnit)
+	record["probe"] = "p1"
+	if claim != "" {
+		record["claim"] = claim
+	}
+	return record
+}
+
+// probeAnswer is the §5.4 answer `cr record` printed for one record, read back
+// out of the JSON payload.
+type probeAnswer struct {
+	Record   string `json:"record"`
+	Probe    string `json:"probe"`
+	Result   string `json:"result"`
+	Supports bool   `json:"supports"`
+	Reason   string `json:"reason"`
+}
+
+// recordedAnswers runs `cr record` over one record and returns what §5.4 made of
+// the probe it names, together with §4.5.4's disclosures.
+func recordedAnswers(
+	t *testing.T, f gapFixture, record map[string]any,
+) (answers []probeAnswer, honesty []string) {
+	t.Helper()
+	probedHome(t, f)
+	file := writeRecordFile(t, "merged.ndjson", record)
+
+	printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.NoError(t, err)
+
+	var payload struct {
+		Probes  []probeAnswer `json:"probes"`
+		Honesty []string      `json:"honesty"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &payload))
+	return payload.Probes, payload.Honesty
+}
+
+// §5.4.4 through the command: a failed gap probe supports the record only when
+// its baseline passed and its `claim` names a claim mapped to its unit.
+//
+// The rows are one condition each, and the mismatched claim is the one that
+// carries the most. It is the row an agent reaches by writing a single field —
+// `claim` is the agent's, the mapping is not — so the answer has to come from
+// mapping.ndjson rather than from the record's own account of itself. A cr that
+// read the record's word for it would grade an assertion to a colleague on the
+// strength of the assertion.
+//
+// A supported answer is also held to what §5.4.4 states and no more. §5.4.4 is
+// explicit that cr cannot distinguish a wrong behaviour from a wrong test, so a
+// report saying the probe proved, verified or confirmed anything would be cr
+// claiming the very thing the section says it cannot — round 12's
+// unearned-probed-grade finding, in the one sentence a reader actually sees.
+func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		fixture  gapFixture
+		claim    string
+		supports bool
+		reason   string
+	}{
+		{
+			name:     "a passing baseline and a claim mapped to the record's unit",
+			fixture:  gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue},
+			claim:    gapClaim,
+			supports: true,
+			reason:   "§5.4.4",
+		},
+		{
+			name:    "the same experiment on a suite that was already red",
+			fixture: gapFixture{result: "failed", mapped: true, issue: gapIssue},
+			claim:   gapClaim,
+			reason:  "§5.2.5",
+		},
+		{
+			name:    "a claim field the round's mapping does not join to the unit",
+			fixture: gapFixture{result: "failed", passed: true, issue: gapIssue},
+			claim:   gapClaim,
+			reason:  "mapping.ndjson",
+		},
+		{
+			name:    "a record naming no claim at all",
+			fixture: gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue},
+			reason:  "mapping.ndjson",
+		},
+		{
+			name: "a probe that ran at another head",
+			fixture: gapFixture{
+				result: "failed", head: "1f2e3d4c5b6a79880997a6b5c4d3e2f11f2e3d4c",
+				passed: true, mapped: true, issue: gapIssue,
+			},
+			claim:  gapClaim,
+			reason: "§5.5.3",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			answers, _ := recordedAnswers(t, tc.fixture, aProbedRecord(tc.claim))
+
+			require.Len(t, answers, 1, "the record names a gap probe, so §5.4 answers for it")
+			assert.Equal(t, "f1", answers[0].Record)
+			assert.Equal(t, "p1", answers[0].Probe)
+			assert.Equal(t, tc.supports, answers[0].Supports,
+				"§5.4.4: the baseline passed and the claim is mapped, or the probe supports nothing")
+			assert.Contains(t, answers[0].Reason, tc.reason,
+				"the reason names the condition that decided")
+
+			for _, overclaimed := range []string{"prove", "verif", "confirm"} {
+				assert.NotContains(t, answers[0].Reason, overclaimed,
+					"§5.4.4 and §6.2.4: cr does not describe what it recorded as proven")
+			}
+		})
+	}
+}
+
+// §4.5.4 and round 12's axis-availability-coupling: when the intent axis is
+// unavailable there is no mapping to meet §5.4.4's second condition with, and
+// the reader is told so.
+//
+// The failure this closes is a silent one. The experiment runs, the test fails,
+// the record is stored, and it comes out `argued` — which reads to the agent as
+// a judgement on its evidence, when in fact §4.5.3 marked the intent axis
+// unavailable, §4.6.6 left the mapping empty, and the condition was unreachable
+// before the probe started. §4.5.4 requires the lens that could not look to
+// appear with its reason, and this is the report.
+//
+// The second half of the test is what keeps the disclosure worth reading: the
+// same repository with a tracker says nothing, because there the mapping was
+// asked and answered.
+func TestTheUnavailableIntentAxisIsDisclosedWhenItIsWhatKeptAGapProbeOut(t *testing.T) {
+	unavailable := gapFixture{result: "failed", passed: true}
+
+	answers, honesty := recordedAnswers(t, unavailable, aProbedRecord(gapClaim))
+
+	require.Len(t, answers, 1)
+	assert.False(t, answers[0].Supports, "§5.4.4's second condition cannot be met")
+	require.Len(t, honesty, 1, "§4.5.4 owes the reader the reason it could not be met")
+	assert.Contains(t, honesty[0], "p1", "the disclosure names the experiment")
+	assert.Contains(t, honesty[0], "§4.6.6")
+	assert.Contains(t, honesty[0], "--issue", "and what would make the axis available")
+
+	tracked := unavailable
+	tracked.issue = gapIssue
+	_, quiet := recordedAnswers(t, tracked, aProbedRecord(gapClaim))
+	assert.Empty(t, quiet,
+		"with an issue key the mapping was asked and answered, so no lens was blocked")
+}
+
+// §12.1's other shape: the terminal reader is told the same answer the JSON
+// carries, in the same words, and the disclosure reaches them too.
+func TestATerminalRecordNamesWhatTheGapProbeSupports(t *testing.T) {
+	probedHome(t, gapFixture{result: "failed", passed: true})
+	file := writeRecordFile(t, "merged.ndjson", aProbedRecord(gapClaim))
+
+	out := throughATerminal(t, "record", recordPR, file, "--repo", recordSlug)
+
+	assert.Contains(t, out, "supports no probed grade")
+	assert.Contains(t, out, "gap probe support unavailable",
+		"§11.1 exempts the disclosure from every flag, so a terminal gets it as well")
+}
