@@ -553,3 +553,206 @@ func probeDocument(t *testing.T, shown string) map[string]any {
 	require.NoError(t, json.Unmarshal([]byte(shown[document:]), &reported))
 	return reported
 }
+
+// The gap probe fixture: where §2.4's template puts the file, the test file
+// §5.4.1 has the agent supply, and a runner that prints whether it could see
+// one.
+//
+// The template names a directory the sandbox does not hold, which is the case
+// worth fixing in the fixture rather than the easy one: §2.4 roots the default
+// at the first `tests.globs` entry, so a profile whose tests live in a
+// directory is the ordinary shape, and the placement has to make that directory
+// and the removal has to take it away again.
+const (
+	gapProbeTemplate = `"probe_path_template":"tests/cr_probe_<probe-id>.txt"`
+	gapProbePath     = "tests/cr_probe_p1.txt"
+	gapProbeTest     = "the supplied test, asserting the edge case\n"
+	gapProbeRunner   = "cat " + gapProbePath + " 2>/dev/null || echo 'the probe file is not there'\n" +
+		"echo 'Tests:  5 passed'\n"
+)
+
+// writeProbeTest stores §5.4.1's test file outside the repository under review
+// and returns its path.
+func writeProbeTest(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "edge_case_test.txt")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	return path
+}
+
+// §5.4.2 end to end: `cr probe run --kind gap --test <file> --target <path:line>`
+// places the test at the path `tests.probe_path_template` gives, runs it,
+// removes it, and records the result.
+//
+// All four steps are asserted, and each from something the command could not
+// have faked. The placement is read off the runner's own output — the suite
+// printed the supplied test's content, which it could only do by finding the
+// file — and the baseline that ran first printed that no such file was there,
+// which is what says the placement covered the probe run alone. The removal is
+// the sandbox afterwards, directory included. And the result is the record,
+// carrying the value §5.4.3's ladder produced for a suite that ran the supplied
+// test and reported no failure.
+//
+// `establishes` is `undecided` rather than an answer. §5.4.4 makes a gap
+// probe's support conditional on the finding's own `claim` field, and no
+// finding exists at the moment the experiment runs, so cr says so instead of
+// picking one of the two answers it cannot yet have.
+func TestAGapProbePlacesRunsRemovesAndRecords(t *testing.T) {
+	prepared, _, sandboxPath, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+	supplied := writeProbeTest(t, gapProbeTest)
+
+	reported := probeDocument(t, throughAPipe(t, "probe", "run", fixturePR,
+		"--repo", fixtureSlug, "--kind", "gap", "--test", supplied, "--target", "app.go:3"))
+
+	assert.Equal(t, "p1", reported["probe"])
+	assert.Equal(t, "gap", reported["kind"])
+	assert.Equal(t, "passed", reported["result"],
+		"§5.4.3's fifth rung: the supplied test ran and nothing failed")
+	assert.Equal(t, "undecided", reported["establishes"],
+		"§5.4.4 reads its condition off a finding, which does not exist yet")
+	assert.Equal(t, "app.go:3", reported["target"], "§5.5 takes a gap probe's target from --target")
+	assert.Equal(t, "r1", reported["baseline"])
+	assert.Equal(t, "r2", reported["run"])
+	assert.Empty(t, reported["voided"], "§5.1.6's post-run check passed, so §5.1.7 overrode nothing")
+
+	// §5.4.2: the file is off disk again when the command returns, and so
+	// is the directory the placement had to make for it. §5.1.6 would find
+	// either on the next run and condemn the sandbox for it.
+	assert.NoFileExists(t, filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath)),
+		"§5.4.2: the test is removed after the run")
+	assert.NoDirExists(t, filepath.Join(sandboxPath, "tests"),
+		"§5.4.2: the directory the placement created goes with the file")
+
+	runs := storedRecords(t, prepared, state.FileRuns)
+	require.Len(t, runs, 2, "§5.2.6 performs the baseline before the probe, and both are recorded")
+	assert.Equal(t, "r1", runs[0]["id"])
+	assert.NotContains(t, runs[0], "probe",
+		"§5.2.6: only a run carrying no probe may serve as a baseline")
+	assert.Equal(t, true, runs[0]["passed"], "§5.2.5's verdict on un-probed code")
+	assert.Contains(t, runs[0]["output_tail"], "the probe file is not there",
+		"§5.5: a gap probe's baseline is the unfiltered run, on which its test does not exist")
+	assert.Equal(t, "p1", runs[1]["probe"], "the probe's own run names the probe it measured")
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1, "§5.5: one probe record per probe run")
+	stored := probes[0]
+	duration, ok := stored["duration_ms"].(float64)
+	require.True(t, ok, "§5.5 stores the wall-clock duration")
+	assert.GreaterOrEqual(t, duration, float64(0))
+	delete(stored, "duration_ms")
+	assert.Equal(t, map[string]any{
+		"id":           "p1",
+		"head":         runs[0]["head"],
+		"round":        float64(2),
+		"kind":         "gap",
+		"input":        gapProbeTest,
+		"result":       "passed",
+		"target":       "app.go:3",
+		"tests_run":    float64(5),
+		"tests_failed": float64(0),
+		"baseline":     "r1",
+		"output_tail":  gapProbeTest + "Tests:  5 passed\n",
+	}, stored, "§5.5: the record says which experiment ran and what it was measured against")
+}
+
+// §5.4.2: an existing file at the probe path aborts with exit code 4, and the
+// file that was there is left exactly as it was.
+//
+// The refusal is not tidiness. §5.4.2 places the test and removes it again, so
+// writing over an occupied path would destroy the file and then delete it — and
+// the path is required to sit where the profile's `tests.globs` point, which is
+// where real tests live.
+//
+// §5.1.6 cannot catch this, which is what makes the check worth having. Its
+// leftover scan is scoped to untracked files (round 12's
+// artefact-glob-not-scoped-to-untracked), so a tracked test file at that path
+// passes the cleanliness check untouched — and so does one `sandbox.setup`
+// creates, which is what this fixture uses because a setup command runs again
+// on every recreation and therefore survives one.
+func TestAGapProbeRefusesAnExistingFileAtTheProbePath(t *testing.T) {
+	prepared, _, sandboxPath, log := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+	occupyProbePath(t, prepared)
+	supplied := writeProbeTest(t, gapProbeTest)
+
+	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "gap", "--test", supplied, "--target", "app.go:3")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), gapProbePath+" already exists")
+	assert.Contains(t, err.Error(), "§5.4.2")
+	assert.Equal(t, ExitState, exitCodeFor(err),
+		"§11.2 codes an occupied path the pull request already holds as a state conflict")
+	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+
+	held, err := os.ReadFile(filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath)))
+	require.NoError(t, err, "§5.4.2 aborts rather than removing the file it refused to write over")
+	assert.Equal(t, fixtureSource, string(held), "the file that was there is untouched")
+}
+
+// occupyProbePath gives the fixture's profile a `sandbox.setup` that puts a
+// file exactly where §2.4's template resolves.
+//
+// The profile is edited rather than rewritten, because the runner it names sits
+// in a temporary directory only probeFixture knows.
+func occupyProbePath(t *testing.T, prepared state.Layout) {
+	t.Helper()
+	const axes = `"axes":{"test":true},`
+	body, err := os.ReadFile(prepared.Profile("qa"))
+	require.NoError(t, err)
+	require.Contains(t, string(body), axes, "the fixture profile is not the shape this edit expects")
+	withSetup := strings.Replace(string(body), axes,
+		axes+`"sandbox":{"setup":["mkdir -p tests","cp app.go `+gapProbePath+`"]},`, 1)
+	require.NoError(t, os.WriteFile(prepared.Profile("qa"), []byte(withSetup), 0o600))
+}
+
+// Each kind takes the flags its own section names, and refuses the other's.
+//
+// Accepting and ignoring a flag would be the worse failure in every row here:
+// the agent would have supplied an experiment, or named a line, and been told
+// nothing about it. The absent runner log is what says the refusal came before
+// §5.2.6 performed a baseline suite for an invocation cr was never going to
+// carry out.
+func TestEachProbeKindRefusesTheFlagsItDoesNotTake(t *testing.T) {
+	supplied := writeProbeTest(t, gapProbeTest)
+	patch := writePatch(t, fixtureDiff)
+
+	for name, tc := range map[string]struct {
+		args []string
+		says string
+	}{
+		"a gap probe takes no patch": {
+			args: []string{"--kind", "gap", "--test", supplied, "--target", "app.go:3",
+				"--patch", patch},
+			says: "--patch is rejected for a gap probe",
+		},
+		"a gap probe needs a test file": {
+			args: []string{"--kind", "gap", "--target", "app.go:3"},
+			says: "--test is required",
+		},
+		"a gap probe needs a target": {
+			args: []string{"--kind", "gap", "--test", supplied},
+			says: "--target is required for a gap probe",
+		},
+		"a mutation probe places no test file": {
+			args: []string{"--kind", "mutation", "--patch", patch, "--test", supplied},
+			says: "--test is rejected for a mutation probe",
+		},
+		"there are two kinds and no third": {
+			args: []string{"--kind", "coverage", "--test", supplied},
+			says: "§5.5 names two kinds of probe",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, _, log := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+
+			err := runCLI(t, append([]string{"probe", "run", fixturePR,
+				"--repo", fixtureSlug}, tc.args...)...)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.says)
+			assert.Equal(t, ExitUsage, exitCodeFor(err),
+				"§11.2 codes a flag this kind does not take as a malformed invocation")
+			assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+		})
+	}
+}
