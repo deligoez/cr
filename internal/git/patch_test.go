@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,26 +95,39 @@ func TestParsePatchReportsTheSideAFileIsAbsentOn(t *testing.T) {
 // before it: a diff cr cannot even read is not an experiment cr can perform, and
 // guessing at one would put a mutation somewhere nobody wrote.
 func TestParsePatchRefusesWhatItCannotRead(t *testing.T) {
-	for name, broken := range map[string]struct{ patch, problem string }{
+	for name, broken := range map[string]struct {
+		patch   string
+		problem string
+		// line is the one-based line of the patch the refusal names,
+		// and zero for the one refusal that is about the patch as a
+		// whole. The number is asserted rather than the message alone,
+		// because it is what the reader opens their own patch at.
+		line int
+	}{
 		"a hunk before any file header": {
 			patch:   "@@ -1 +1 @@\n-one\n+ONE\n",
 			problem: "arrives before any --- and +++ file header",
+			line:    1,
 		},
 		"a hunk header that is not one": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ nonsense @@\n",
 			problem: "is not a hunk header",
+			line:    3,
 		},
 		"a header covering no line at all": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -0,0 +0,0 @@\n",
 			problem: "covers no line on either side",
+			line:    3,
 		},
 		"a body line with no marker": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\nno marker\n",
 			problem: "is not a hunk line",
+			line:    4,
 		},
 		"an empty line inside a hunk": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n one\n\n",
 			problem: "a hunk holds no empty line",
+			line:    5,
 		},
 		"a patch that stops mid-hunk": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n one\n",
@@ -125,6 +139,13 @@ func TestParsePatchRefusesWhatItCannotRead(t *testing.T) {
 			require.Error(t, err)
 			assert.Nil(t, files)
 			assert.Contains(t, err.Error(), broken.problem)
+			if broken.line == 0 {
+				assert.NotContains(t, err.Error(), "patch line",
+					"a refusal about the whole patch names no line in it")
+				return
+			}
+			assert.Contains(t, err.Error(), fmt.Sprintf("patch line %d:", broken.line),
+				"the refusal names the line the reader has to open")
 		})
 	}
 }
@@ -156,6 +177,13 @@ func TestApplyRewritesWhatThePatchNames(t *testing.T) {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1,0 +2 @@\n+ONE AND A HALF\n",
 			content: "one\ntwo\n",
 			want:    "one\nONE AND A HALF\ntwo\n",
+		},
+		// An append lands one past the last line, which is the one
+		// position that is both inside the patch and outside the file.
+		"an append at the end of the file": {
+			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -2,0 +3 @@\n+three\n",
+			content: "one\ntwo\n",
+			want:    "one\ntwo\nthree\n",
 		},
 		"a removal": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,2 @@\n one\n-two\n three\n",
@@ -204,6 +232,12 @@ func TestApplyCarriesTheFinalNewlineThePatchDescribes(t *testing.T) {
 			content: "one",
 			want:    "ONE\n",
 		},
+		"an appended line that ends the file without one": {
+			patch: "--- a/a.txt\n+++ b/a.txt\n@@ -1,0 +2 @@\n+two\n" +
+				"\\ No newline at end of file\n",
+			content: "one\n",
+			want:    "one\ntwo",
+		},
 		"a hunk that does not reach the end leaves it alone": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-one\n+ONE\n",
 			content: "one\ntwo",
@@ -241,7 +275,9 @@ func TestApplyRefusesAHunkThatDoesNotMatch(t *testing.T) {
 	assert.Equal(t, 2, refused.Line)
 	assert.Equal(t, "TWO", refused.Want)
 	assert.Equal(t, "two", refused.Found)
-	assert.Contains(t, refused.Error(), "the hunk does not match the file")
+	assert.Contains(t, refused.Error(), "a.txt line 2: the hunk does not match the file")
+	assert.Contains(t, refused.Error(), `expected "TWO" and the file holds "two"`,
+		"a stale patch and a drifted sandbox are opposite fixes, so both texts are named")
 }
 
 // A hunk aimed past the end of the file is refused too, and says so without a
@@ -251,18 +287,18 @@ func TestApplyRefusesAHunkTheFileIsTooShortFor(t *testing.T) {
 		"a hunk starting past the end": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -9,1 +9,1 @@\n-nine\n+NINE\n",
 			content: "one\n",
-			problem: "addresses a line the file does not hold",
+			problem: "the hunk at 9 addresses a line the file does not hold",
 		},
 		"a hunk running past the end": {
 			patch:   "--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n one\n-two\n+TWO\n three\n",
 			content: "one\ntwo\n",
-			problem: "reaches past the end of the file",
+			problem: "the hunk at 1 reaches past the end of the file",
 		},
 		"two hunks in descending order": {
 			patch: "--- a/a.txt\n+++ b/a.txt\n@@ -3 +3 @@\n-three\n+THREE\n" +
 				"@@ -1 +1 @@\n-one\n+ONE\n",
 			content: "one\ntwo\nthree\n",
-			problem: "addresses a line the file does not hold",
+			problem: "the hunk at 1 addresses a line the file does not hold",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -274,7 +310,8 @@ func TestApplyRefusesAHunkTheFileIsTooShortFor(t *testing.T) {
 			require.ErrorAs(t, err, &refused)
 			assert.Empty(t, applied)
 			assert.Zero(t, refused.Line, "there is no line to name")
-			assert.Contains(t, refused.Error(), tc.problem)
+			assert.Equal(t, "a.txt: "+tc.problem, refused.Error(),
+				"a refusal with no line to name says so by naming none")
 		})
 	}
 }
