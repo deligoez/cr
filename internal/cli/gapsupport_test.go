@@ -172,6 +172,7 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 		claim    string
 		supports bool
 		reason   string
+		names    string
 	}{
 		{
 			name:     "a passing baseline and a claim mapped to the record's unit",
@@ -179,23 +180,27 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 			claim:    gapClaim,
 			supports: true,
 			reason:   "§5.4.4",
+			names:    gapClaim,
 		},
 		{
 			name:    "the same experiment on a suite that was already red",
 			fixture: gapFixture{result: "failed", mapped: true, issue: gapIssue},
 			claim:   gapClaim,
 			reason:  "§5.2.5",
+			names:   "r1",
 		},
 		{
 			name:    "a claim field the round's mapping does not join to the unit",
 			fixture: gapFixture{result: "failed", passed: true, issue: gapIssue},
 			claim:   gapClaim,
 			reason:  "mapping.ndjson",
+			names:   "claim " + gapClaim,
 		},
 		{
 			name:    "a record naming no claim at all",
 			fixture: gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue},
 			reason:  "mapping.ndjson",
+			names:   "does not name",
 		},
 		{
 			name: "a probe that ran at another head",
@@ -205,6 +210,7 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 			},
 			claim:  gapClaim,
 			reason: "§5.5.3",
+			names:  recordHead,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -217,6 +223,8 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 				"§5.4.4: the baseline passed and the claim is mapped, or the probe supports nothing")
 			assert.Contains(t, answers[0].Reason, tc.reason,
 				"the reason names the condition that decided")
+			assert.Contains(t, answers[0].Reason, tc.names,
+				"and says which claim it was, or that the record named none")
 
 			for _, overclaimed := range []string{"prove", "verif", "confirm"} {
 				assert.NotContains(t, answers[0].Reason, overclaimed,
@@ -297,6 +305,14 @@ func TestTheUnavailableIntentAxisIsDisclosedWhenItIsWhatKeptAGapProbeOut(t *test
 	_, quiet := recordedAnswers(t, tracked, aProbedRecord(gapClaim))
 	assert.Empty(t, quiet,
 		"with an issue key the mapping was asked and answered, so no lens was blocked")
+
+	// And the other half of "only where it decided": a round with no gap
+	// probe at all is told nothing, however unavailable the intent axis is.
+	// §4.5.4 owes the reader a lens that could not look, not a standing
+	// notice about one nothing was asked of.
+	_, unasked := recordedAnswers(t, unavailable, aRecord("f1", gapUnit))
+	assert.Empty(t, unasked,
+		"no record rests on a gap probe, so the coupling decided nothing this round")
 }
 
 // §5.5.2 has a finding reference a probe rather than the other way round, so
