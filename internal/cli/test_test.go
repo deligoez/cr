@@ -447,3 +447,31 @@ func TestATestRunItsSandboxContaminatedIsNoBaseline(t *testing.T) {
 	assert.Equal(t, false, stored["passed"],
 		"a run of a sandbox that drifted from the head is nobody's baseline")
 }
+
+// The terminal half of round 12's baseline-contamination finding: a reader
+// watching the command has to be told why a run that exited 0 with four tests
+// passing was recorded `passed: false`.
+//
+// Asserted here rather than only in the JSON payload because the two are
+// separate renderings, and gremlins said so: negating the condition that prints
+// this line survived every test in the package, which means a run could have
+// been voided in silence on a terminal while the stored record said otherwise.
+func TestTheTestRenderingSaysWhenASandboxContaminatedARun(t *testing.T) {
+	render := func(t *testing.T, contaminated string) string {
+		t.Helper()
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: ModeText}
+		require.NoError(t, out.emit(&testRunResult{
+			Run: "r1", Sandbox: "/tmp/sandbox", Command: []string{"pest"},
+			Contaminated: contaminated,
+			Warnings:     []string{}, Honesty: []string{},
+		}))
+		return printed.String()
+	}
+
+	said := render(t, "tracked files differ from the post-setup baseline: app.go")
+	assert.Contains(t, said, "contaminated, per §5.1.6")
+	assert.Contains(t, said, "app.go", "the reason names the file, not just the fact")
+	assert.NotContains(t, render(t, ""), "contaminated",
+		"a run whose sandbox held says nothing about a check it passed")
+}
