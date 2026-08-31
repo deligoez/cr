@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -422,4 +424,81 @@ func TestARunnerThatCannotBeStartedIsAFailure(t *testing.T) {
 	var failed *RunError
 	require.ErrorAs(t, err, &failed)
 	assert.Contains(t, err.Error(), "no-such-runner")
+}
+
+// §5.2.3: a run that outlives `tests.timeout_seconds` is killed, and what is
+// killed is the process group rather than the runner alone.
+//
+// The criterion with teeth is the group, and the test is built so that a kill
+// aimed at the parent alone fails it twice over. The runner starts a child
+// that loops forever and never exits on its own, then sleeps far past the
+// budget. The child inherits the pipe the runner's output travels through, so
+// signalling only the parent would leave cmd.Wait blocked on a pipe nothing
+// ever closes — this function would not return at all, which is the first
+// failure. And the child would still be running afterwards, which the pid it
+// wrote down proves directly: it is gone within seconds of the kill, and the
+// only thing that could have ended it is the signal sent to the group.
+//
+// That is not a hypothetical shape. A Laravel suite starts `php` and
+// `composer` and a database client, and an orphan holding the test database is
+// exactly what §5.6's lock exists to prevent — a lock cr released while a
+// process it started still held the resource would serialise nothing.
+func TestARunOutlivingItsBudgetIsKilledWithEverythingItStarted(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	scripts := t.TempDir()
+	noted := filepath.Join(scripts, "child.pid")
+	runner := script(t, scripts, "runner.sh",
+		"sh -c 'while :; do sleep 0.2; done' &\necho $! > "+noted+"\nsleep 120\n")
+
+	var printed strings.Builder
+	started := time.Now()
+	code, timedOut, err := Run([]string{runner}, created.Path, &printed, 500*time.Millisecond)
+	took := time.Since(started)
+
+	require.NoError(t, err, "a killed run is an outcome, not a runner that could not be started")
+	assert.True(t, timedOut, "§5.2.3: the run exceeded its budget and was killed")
+	assert.NotEqual(t, 0, code, "a killed process did not exit cleanly")
+	assert.Less(t, took, 30*time.Second,
+		"the run returned rather than waiting on a pipe a survivor still held")
+
+	written, err := os.ReadFile(noted)
+	require.NoError(t, err, "the runner never got as far as starting a child")
+	child, err := strconv.Atoi(strings.TrimSpace(string(written)))
+	require.NoError(t, err)
+
+	// Signal 0 asks whether the process is still there, and ESRCH is the
+	// answer that it is not. Polled rather than read once, because the kill
+	// and the reaping are the kernel's to schedule.
+	assert.Eventually(t, func() bool {
+		return errors.Is(syscall.Kill(child, 0), syscall.ESRCH)
+	}, 10*time.Second, 20*time.Millisecond,
+		"the child the runner started outlived the kill, so only the parent was signalled")
+}
+
+// A timeout of zero or less is no budget rather than an expired one.
+//
+// §2.4 defaults `tests.timeout_seconds` to 900 and refuses a non-positive
+// value, so no loaded profile reaches Run without one; what this pins is the
+// direction of the fallback. Reading zero as a deadline already passed would
+// kill every run of a caller that forgot to pass a budget, and report the
+// suite as having exceeded a limit nobody set.
+func TestARunGivenNoBudgetIsNotKilled(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	runner := script(t, t.TempDir(), "runner.sh", "echo the suite ran\n")
+
+	var printed strings.Builder
+	code, timedOut, err := Run([]string{runner}, created.Path, &printed, 0)
+
+	require.NoError(t, err)
+	assert.Zero(t, code)
+	assert.False(t, timedOut, "§5.2.3 kills a run that exceeded a budget, and there was none")
+	assert.Contains(t, printed.String(), "the suite ran")
 }
