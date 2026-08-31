@@ -101,3 +101,61 @@ func neverPerformed(t *testing.T) Performer {
 		return run.Record{}, nil
 	}
 }
+
+// §5.2.6: "Only a run record carrying no `probe` may serve as a baseline."
+//
+// The fence is structural rather than checked — Resolve is Baseline's only
+// constructor and it never builds one out of a record carrying a probe — so
+// what is asserted here is the consequence: a probe's own mutated or
+// probe-injected run is passed over, and §5.2.6 performs a fresh one instead.
+// The second case is the one the fence would otherwise strand: a first probe at
+// a head nothing has been run at still obtains a baseline, because the run
+// §5.2.6 performs is on un-probed code by construction.
+func TestAProbesOwnRunNeverBecomesTheNextProbesBaseline(t *testing.T) {
+	const head = "0a1b2c3"
+
+	// Ids well clear of the one recordingPerformer allocates, so the
+	// assertion below names the run that was performed and not a record
+	// that merely shares its id.
+	mutated := baselineRun(head, "", probed)
+	mutated.ID = "r7"
+	mutated.Passed = true
+	atAnEarlierHead := baselineRun("9f8e7d6", "")
+	atAnEarlierHead.ID = "r8"
+	atAnEarlierHead.Passed = true
+
+	for _, tc := range []struct {
+		name   string
+		stored []run.Record
+	}{
+		{
+			name:   "a probe's own run at this head is passed over",
+			stored: []run.Record{mutated},
+		},
+		{
+			name:   "a first probe at a fresh head still obtains one",
+			stored: []run.Record{atAnEarlierHead, mutated},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var performed []Spec
+			resolved, err := Ensure(tc.stored, head, Gap, "",
+				recordingPerformer(head, &performed))
+			require.NoError(t, err)
+			assert.Equal(t, []Spec{{}}, performed,
+				"§5.2.6 performs the baseline no admissible run stands for")
+			assert.Equal(t, "r1", resolved.ID(),
+				"the baseline is the run just performed, not the probe's own")
+		})
+	}
+
+	t.Run("a performed run that is itself inadmissible resolves to nothing", func(t *testing.T) {
+		_, err := Ensure(nil, head, Gap, "", func(Spec) (run.Record, error) {
+			return baselineRun(head, "", probed), nil
+		})
+		require.Error(t, err,
+			"a probe graded against a baseline that does not stand is the "+
+				"pre-existing failure §5.2.2 exists to keep off a pull request")
+		assert.Contains(t, err.Error(), head)
+	})
+}
