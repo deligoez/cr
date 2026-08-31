@@ -3,12 +3,12 @@ package profile
 import (
 	"os"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/run"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,26 +99,30 @@ func TestTheLaravelPestProbePathSatisfiesItsTestGlobs(t *testing.T) {
 	assert.Equal(t, "tests/Feature/cr_probe_*Test.php", p.LeftoverGlob())
 }
 
-// §5.2.1 sums each pattern over every match and reads an unmatched
-// tests.failed_pattern as zero. sumPattern is that arithmetic, kept here
-// because running the patterns is §5.2.1's implementation and not this
-// package's: what the test proves is that the shipped patterns yield the right
-// numbers from output Pest really produced.
-func sumPattern(t *testing.T, pattern, output string) (int, bool) {
+// counted runs §5.2.1's extraction over output with the shipped patterns, and
+// renders one of its two counts so an undetermined one reads as the answer it
+// is rather than as a zero.
+//
+// The arithmetic is run.Counter's rather than this file's. It used to be
+// written out here, because summing the patterns was §5.2.1's implementation
+// and did not exist yet; a copy kept now would be a second implementation of
+// the rule that can agree with the spec while the one cr ships does not.
+func counted(t *testing.T, p *Profile, output string) (executed, failed string) {
 	t.Helper()
-	compiled, err := regexp.Compile(pattern)
+	counter, err := run.NewCounter(p.Tests.CountPattern, p.Tests.FailedPattern)
 	require.NoError(t, err)
-	matches := compiled.FindAllStringSubmatch(output, -1)
-	if len(matches) == 0 {
-		return 0, false
+	_, err = counter.Write([]byte(output))
+	require.NoError(t, err)
+	ran, broke := counter.Counts()
+	return shown(ran), shown(broke)
+}
+
+// shown renders one of §5.2.4's optional counts.
+func shown(n *int) string {
+	if n == nil {
+		return "undetermined"
 	}
-	total := 0
-	for _, match := range matches {
-		n, err := strconv.Atoi(match[1])
-		require.NoError(t, err)
-		total += n
-	}
-	return total, true
+	return strconv.Itoa(*n)
 }
 
 // The recap files under testdata/pest are the real output of Pest 4.7.8 on PHP
@@ -140,32 +144,33 @@ func TestTheLaravelPestPatternsCountCapturedPestOutput(t *testing.T) {
 
 	cases := map[string]struct {
 		file     string
-		executed int
-		known    bool
-		failed   int
+		executed string
+		failed   string
 	}{
-		"an all-passing run": {"all-passing.txt", 2, true, 0},
-		"a failing run":      {"some-failing.txt", 4, true, 1},
+		"an all-passing run": {"all-passing.txt", "2", "0"},
+		"a failing run":      {"some-failing.txt", "4", "1"},
 		// 2 failed and 4 passed ran; 1 todo and 1 skipped did not.
-		"every status at once": {"mixed-statuses.txt", 6, true, 2},
-		"nothing selected":     {"no-tests-found.txt", 0, false, 0},
-		"only skipped tests":   {"skipped-only.txt", 0, false, 0},
-		"only todo tests":      {"todo-only.txt", 0, false, 0},
+		"every status at once": {"mixed-statuses.txt", "6", "2"},
+		"nothing selected":     {"no-tests-found.txt", "undetermined", "undetermined"},
+		"only skipped tests":   {"skipped-only.txt", "undetermined", "undetermined"},
+		"only todo tests":      {"todo-only.txt", "undetermined", "undetermined"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			output, err := os.ReadFile("testdata/pest/" + tc.file)
 			require.NoError(t, err)
 
-			executed, known := sumPattern(t, p.Tests.CountPattern, string(output))
-			failed, matched := sumPattern(t, p.Tests.FailedPattern, string(output))
-
-			assert.Equal(t, tc.known, known, "executed count known")
-			assert.Equal(t, tc.executed, executed)
-			// An unmatched failed pattern is zero, so the count is
-			// read out whether or not it matched.
-			assert.Equal(t, tc.failed, failed)
-			assert.Equal(t, tc.failed > 0, matched, "failed pattern matched")
+			executed, failed := counted(t, &p, string(output))
+			assert.Equal(t, tc.executed, executed, "executed count")
+			assert.Equal(t, tc.failed, failed, "failed count")
 		})
 	}
+
+	// The all-passing case rests on the word never appearing, so the
+	// premise is asserted rather than assumed: its zero comes from no
+	// match at all, not from a line reading zero failures.
+	passing, err := os.ReadFile("testdata/pest/all-passing.txt")
+	require.NoError(t, err)
+	assert.NotContains(t, string(passing), "failed",
+		"§5.2.1: Pest prints no status whose count is zero")
 }
