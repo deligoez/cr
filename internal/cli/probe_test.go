@@ -177,3 +177,55 @@ func TestAMutationProbeAppliesRunsRevertsAndRecords(t *testing.T) {
 		"output_tail":  "Tests:  4 passed\n",
 	}, stored, "§5.5: the record says which experiment ran and what it was measured against")
 }
+
+// §5.3.2: cr rejects `--target` for a mutation probe, and nothing runs.
+//
+// The refusal is what keeps §5.3.2's last sentence true — "the evidence chain
+// from experiment to assertion then runs on the patch cr executed, not on a
+// flag the agent typed". A supplied target would be the one field of the record
+// that came from the agent's judgement rather than from the experiment, and
+// §6.2.2 has a `probed` finding's evidence point at exactly that field.
+//
+// Nothing having run is asserted as well as the exit code. Accepting the flag
+// and ignoring it would produce the same output document, and would be the
+// worse failure: the agent would have named a line and been told nothing.
+func TestAMutationProbeRefusesASuppliedTarget(t *testing.T) {
+	_, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	patch := writePatch(t, fixtureDiff)
+
+	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", patch, "--target", "app.go:3")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--target is rejected for a mutation probe")
+	assert.Contains(t, err.Error(), "§5.3.2")
+	assert.Equal(t, ExitUsage, exitCodeFor(err),
+		"§11.2 codes a flag this kind does not take as a malformed invocation")
+	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+}
+
+// Round 12's unbounded-patch-target finding: a patch whose paths resolve
+// outside the sandbox is refused, so §5.1.4's invariant is enforced rather than
+// assumed.
+//
+// The sandbox is a worktree of the repository under review, so one `..` in an
+// agent-written diff is all it takes to arrive in the checkout the reviewer is
+// working in — which invariant 2 permits cr no write into at all. The refusal
+// lands before anything is run, which the absent runner log is what proves:
+// §5.2.6 would otherwise perform a whole baseline suite for a patch cr was
+// never going to apply.
+func TestAPatchAimedOutOfTheSandboxIsRefused(t *testing.T) {
+	_, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	patch := writePatch(t,
+		"--- a/../../escaped.go\n+++ b/../../escaped.go\n@@ -1 +1 @@\n-one\n+two\n")
+
+	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", patch)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "§5.1.4")
+	assert.Contains(t, err.Error(), "it leaves the tree it applies to")
+	assert.Equal(t, ExitValidation, exitCodeFor(err),
+		"§11.2 codes the agent's data inside a file it could read as a validation failure")
+	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+}
