@@ -245,3 +245,149 @@ func TestAPatchAimedOutOfTheSandboxIsRefused(t *testing.T) {
 		"§11.2 codes the agent's data inside a file it could read as a validation failure")
 	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
 }
+
+// onlyWhenMutated is a runner that behaves one way against the head's own file
+// and another against the mutated one.
+//
+// §5.2.6 performs a baseline before the probe, through the same command, so a
+// runner that hung or failed unconditionally would do it twice — once on
+// un-probed code, where a failing baseline would deny the probe §5.3.5's
+// footing before the case under test was reached.
+func onlyWhenMutated(then string) string {
+	return "if grep -q 'func Retry() {}' app.go; then\n" + then + "fi\necho 'Tests:  4 passed'\n"
+}
+
+// §5.3.3 and invariant 6: the mutation is reverted when the run fails.
+//
+// A failing mutation run is §5.3.4's last rung and §5.3.7's disproof, so it is
+// the outcome an agent is most likely to reach on the way to deciding there is
+// no gap — and the one where a revert written after the run would be skipped by
+// the error return above it. The sandbox is asserted to be back at the head's
+// own file, and the record to carry the ladder's answer rather than §5.1.7's
+// override, which is what says §5.1.6's post-run check passed on a sandbox the
+// probe had put back.
+func TestTheMutationIsRevertedAfterAFailingRun(t *testing.T) {
+	prepared, _, sandboxPath, _ := probeFixture(t,
+		onlyWhenMutated("  echo 'Tests:  1 failed'\n  exit 1\n"))
+	patch := writePatch(t, fixtureDiff)
+
+	shown := runProbe(t, patch)
+	assert.Equal(t, "failed", shown["result"],
+		"§5.3.4's last rung: the suite noticed the mutation")
+	assert.Empty(t, shown["voided"], "§5.1.6's post-run check passed, so §5.1.7 overrode nothing")
+
+	restored, err := os.ReadFile(filepath.Join(sandboxPath, "app.go"))
+	require.NoError(t, err)
+	assert.Equal(t, fixtureSource, string(restored),
+		"§5.3.3: the mutation is reverted even when the run fails")
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1)
+	assert.Equal(t, "failed", probes[0]["result"])
+}
+
+// §5.3.3 and invariant 6: the mutation is reverted when the run times out.
+//
+// This is the case that most obviously escapes a revert placed after the run,
+// because the run does not end — cr kills it. §5.2.3's budget is one second and
+// the runner sleeps for two minutes against the mutated file, so what is
+// measured is the kill and the revert that follows it, not a suite that
+// happened to finish first.
+func TestTheMutationIsRevertedAfterATimeout(t *testing.T) {
+	prepared, _, sandboxPath, _ := probeFixture(t,
+		onlyWhenMutated("  sleep 120\n"), `"timeout_seconds":1`)
+	patch := writePatch(t, fixtureDiff)
+
+	shown := runProbe(t, patch)
+	assert.Equal(t, "timeout", shown["result"],
+		"§5.3.4's second rung: a run that never finished said nothing about the code")
+
+	restored, err := os.ReadFile(filepath.Join(sandboxPath, "app.go"))
+	require.NoError(t, err)
+	assert.Equal(t, fixtureSource, string(restored),
+		"§5.3.3: the mutation is reverted even when the run times out")
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1)
+	assert.Equal(t, "timeout", probes[0]["result"])
+}
+
+// §5.3.3's third case, and the one no code inside cr can answer: cr is killed
+// while the mutation is on disk, and §5.1.6's check on the next invocation
+// detects the unclean sandbox and recreates it before running anything.
+//
+// A real SIGKILL to a real `cr probe run`, because the failure being tested is
+// the process ceasing to exist: a deferred revert, a signal handler, and an
+// atexit hook are all equally absent afterwards, so nothing short of killing
+// the binary tests what §5.3.3's second sentence is for. The mutation is
+// asserted to be on disk after the kill — otherwise the recreation below would
+// be recreating a sandbox that was already clean, and the test would pass
+// meaning nothing.
+func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
+	prepared, fixture, sandboxPath, _ := probeFixture(t, onlyWhenMutated("  sleep 30\n"))
+	patch := writePatch(t, fixtureDiff)
+	mutated := filepath.Join(sandboxPath, "app.go")
+
+	probing := exec.Command(crBinary(t), "probe", "run", fixturePR,
+		"--repo", fixtureSlug, "--kind", "mutation", "--patch", patch)
+	probing.Dir = fixture
+	probing.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + t.TempDir(),
+		"TMPDIR=" + os.TempDir(),
+		state.HomeEnv + "=" + prepared.Root(),
+	}
+	require.NoError(t, probing.Start())
+	t.Cleanup(func() { _ = probing.Process.Kill() })
+
+	require.Eventually(t, func() bool {
+		held, err := os.ReadFile(mutated)
+		return err == nil && string(held) == fixtureMutated
+	}, 60*time.Second, 20*time.Millisecond, "the probe never applied its mutation")
+	require.NoError(t, probing.Process.Kill())
+	_ = probing.Wait()
+
+	held, err := os.ReadFile(mutated)
+	require.NoError(t, err)
+	require.Equal(t, fixtureMutated, string(held),
+		"the killed run left the mutation behind, which is what the next run has to find")
+
+	// The next invocation, which is what §5.3.3's second sentence hands the
+	// job to. `cr test` is used rather than a second probe because the
+	// check is §5.1.6's and belongs to every run: whichever command comes
+	// next has to rebuild the sandbox before it measures anything.
+	var reported map[string]any
+	shown := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, json.Unmarshal(
+		[]byte(strings.TrimPrefix(shown, "Tests:  4 passed\n")), &reported))
+
+	honesty, ok := reported["honesty"].([]any)
+	require.True(t, ok, "§11.1's disclosures are a field on the payload")
+	require.Len(t, honesty, 1, "§5.1.6: the sandbox was unclean, so it was recreated and said so")
+	assert.Contains(t, honesty[0], "§5.1.6")
+	assert.Contains(t, honesty[0], "app.go",
+		"the notice names the tracked file the killed probe left changed")
+
+	rebuilt, err := os.ReadFile(mutated)
+	require.NoError(t, err)
+	assert.Equal(t, fixtureSource, string(rebuilt),
+		"§5.1.6: the recreated sandbox holds what the head holds")
+}
+
+// runProbe runs one mutation probe through the command and returns the document
+// it printed, with the runner's own output separated off.
+//
+// The runner writes a recap for §5.2.6's baseline and, unless it was killed, one
+// for the probe as well; §12.1 keeps stdout for the document, and the test
+// harness gives the command one file for both streams.
+func runProbe(t *testing.T, patch string) map[string]any {
+	t.Helper()
+	shown := throughAPipe(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", patch)
+	document := strings.Index(shown, "{\n")
+	require.GreaterOrEqual(t, document, 0, "the command printed no document: %q", shown)
+
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal([]byte(shown[document:]), &reported))
+	return reported
+}
