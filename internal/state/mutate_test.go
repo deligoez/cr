@@ -68,6 +68,24 @@ func TestASandboxMutationIsRevertedAfterAFailingRun(t *testing.T) {
 		"§5.3.3: the mutation is reverted even when the run fails")
 }
 
+// A probe that ran without trouble reports no trouble.
+//
+// The restore's own failure is joined into what the caller is told, so the
+// success path is the one that says the join is empty when nothing failed. A
+// revert that reported a failure it did not have would turn every clean probe
+// into a command that exited non-zero, and gremlins found that the negated
+// condition inside the undo survived every other test in this package.
+func TestASandboxMutationThatRanCleanlyReportsNothing(t *testing.T) {
+	layout, path := mutableSandbox(t)
+
+	require.NoError(t, layout.UnderSandboxMutation(mutateOwner, mutateRepo, mutatePR,
+		[]SandboxMutation{{Path: mutableFile, Apply: broken}}, func() error { return nil }))
+
+	restored, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, mutableSource, string(restored))
+}
+
 // §5.3.3 and invariant 6: the mutation is reverted when the run panics, and the
 // panic still propagates.
 //
