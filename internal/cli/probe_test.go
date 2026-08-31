@@ -776,6 +776,37 @@ func TestTheGapProbeFileIsRemovedAfterATimeout(t *testing.T) {
 	assert.Equal(t, "timeout", probes[0]["result"])
 }
 
+// Round 9's probe-ladder-asymmetry through the command: a runner that exited on
+// a signal is §5.4.3's `error` rung, not its `failed` one.
+//
+// The runner prints a recap `tests.count_pattern` and `tests.failed_pattern`
+// both match and then segmentation-faults, which is the shape an out-of-memory
+// kill and a crashing extension really have. Read by the counts alone that run
+// is the ladder's last rung — and §5.4.4 makes a supported failed gap probe
+// carry severity at least `high`, so a crashed process would arrive as the
+// loudest item in the draft. The counts are asserted on the record beside the
+// result, because they are what the rung overrode.
+func TestAGapProbeWhoseRunnerExitedOnASignalIsAnError(t *testing.T) {
+	prepared, _, sandboxPath, _ := probeFixture(t,
+		onlyWithTheProbeFile("  echo 'Tests:  5 failed'\n  kill -SEGV $$\n"), gapProbeTemplate)
+	supplied := writeProbeTest(t)
+
+	shown := runGap(t, supplied)
+	assert.Equal(t, "error", shown["result"],
+		"§5.4.3's second rung: a runner that died on a signal said nothing about the code")
+	assert.Empty(t, shown["voided"],
+		"§5.1.6's check passed, so this is the ladder's answer and not §5.1.7's override")
+
+	assert.NoFileExists(t, filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath)),
+		"§5.4.2: the removal happens even when the runner comes apart")
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1)
+	assert.Equal(t, "error", probes[0]["result"])
+	assert.Equal(t, float64(5), probes[0]["tests_failed"],
+		"the counts the crashed runner printed are recorded, and are what the rung overrode")
+}
+
 // §5.4.2's last clause: the removal did not happen, and §5.1.6 catches it.
 //
 // cr is killed while the probe file is on disk, which is the failure no code
