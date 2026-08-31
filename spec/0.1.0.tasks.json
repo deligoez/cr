@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T00:53:47.311551Z",
+  "updated_at": "2026-08-31T01:54:03.772988Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2689,7 +2689,7 @@
     {
       "id": "map-record-command",
       "title": "Store the claim-to-unit mapping",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "brief-creates-state",
@@ -2700,11 +2700,35 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T00:54:55.659857Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T01:54:03.709307Z",
+      "closed_reason": "- The mapping is the agent's judgement and cr forms none of it: internal/mapping decodes, validates against ids the round already fixed, and refuses, and nothing in the package proposes a pair or matches text, which is the §4.1.5 prohibition read forward.\n- cr map record \u003cpr\u003e \u003cfile.ndjson\u003e is internal/cli/mapcmd.go, which replaces mapping.ndjson for the round through state.ReplaceStamped with one {claim, unit} pair per line; TestAMapPairNamingAnUnknownIDExitsOneAndKeepsTheMapping refuses an unknown claim id, a claim of another issue, an unknown unit id and either field missing, with internal/cli/exit.go mapping mapping.RejectedPairError onto ExitValidation and the previous mapping left standing.\n- TestTheMappingFileIsTheOnlyClaimToUnitJoin walks every shipped file's AST and fails any struct outside internal/mapping/mapping.go carrying both a json:\"claim\" and a json:\"unit\" field, so §4.1.2, §4.1.3, §4.2.1 and §4.4.1 cannot come to read two different mappings.\n- §4.1.1's zero or more is exercised in both directions in one round: TestMapRecordReplacesTheRoundsMappingWithThePairsItNames maps u1 to two claims and leaves u3 mapped to none, and the dogfooding run against deligoez/cr-qa#1 left CR-1#c4 mapped to no unit and u1 src/Money.php mapped to no claim.\n- Replacement is scoped to the current round: state.ReplaceStamped writes only the round in the stamp, and the same test records six pairs then one and asserts the round afterwards is the second file whole.\n- Earlier rounds stay intact per §9.3.5: briefedForMapping seeds a round-1 pair beside the round-2 claims and units, and both recordings assert that pair survives byte for byte.",
+      "gate_passed_at": "2026-08-31T01:54:03.709307Z",
+      "commit_sha": "a58b712",
+      "commit_shas": [
+        "a58b712",
+        "fa2796e",
+        "9fe33ed",
+        "7c78bbf",
+        "e2af0d0",
+        "ca433ab",
+        "fb999f1",
+        "49a7b10",
+        "13daf04",
+        "2ad651f",
+        "acdc468"
+      ],
+      "commit_files": [
+        "internal/cli/briefed_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/mapcmd_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/mapping/mapping.go"
+      ]
     },
     {
       "id": "unmapped-unit-question",
@@ -3068,7 +3092,7 @@
     {
       "id": "role-activation-definition",
       "title": "Define role activeness without circularity",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "axis-activation-rules",
@@ -3080,11 +3104,31 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T00:58:47.382165Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T01:05:13.51077Z",
+      "closed_reason": "- Activation.ActiveRoles in internal/activation/roles.go is the definition: a role is active when its axis is in the round's active set and its profiles list is empty or names the resolved profile, with TestRoleActivenessRestsOnTheAxisAndTheProfileAlone covering both halves of the profiles clause and both kinds of inactive axis.\n- §4.6.4 is not an input: the function takes an Activation and a corpus and nothing else, its doc comment records why treating the skip report as a third clause would define activeness in terms of an output of cr review, and TestTheActiveRoleSetIsStoredWithoutAnyFanOut computes and stores the set in a round where no fan-out has run or exists.\n- cr brief is the writer, in internal/brief/store.go's metaOf, which fills meta.json's active_roles from the axis decision and profile it already resolves for §3.7.6 and §3.7.1; TestOnlyBriefWritesTheActiveRoleList walks every shipped file's AST and fails any composite-literal key or selector assignment naming the field outside internal/brief and the declaration in internal/state/meta.go, plus a non-vacuity check that the writer still writes it.\n- TestTheActiveRoleSetIsStoredWithoutAnyFanOut runs a whole round with cr review never invoked and asserts meta.json's stored list equals the definition applied directly to the same profile and intent; the cr cells record and cr status halves land in cells-record-command and status-coverage-report, which read this stored field rather than deriving a set of their own.",
+      "gate_passed_at": "2026-08-31T01:05:13.51077Z",
+      "commit_sha": "699ffaa",
+      "commit_shas": [
+        "699ffaa",
+        "40df1cb",
+        "43349af",
+        "e95b4e4",
+        "9aac9a6",
+        "b7fb390",
+        "da331e9",
+        "e14f65a"
+      ],
+      "commit_files": [
+        "internal/activation/roles.go",
+        "internal/activation/roles_test.go",
+        "internal/brief/brief.go",
+        "internal/brief/roles_test.go",
+        "internal/brief/store.go",
+        "internal/cli/activeroles_test.go",
+        "internal/cli/brief.go"
+      ]
     },
     {
       "id": "lens-honesty-reporting",
@@ -3109,7 +3153,7 @@
     {
       "id": "coverage-cell-schema",
       "title": "Define the coverage cell fields",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "role-activation-definition",
@@ -3120,16 +3164,28 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T01:06:24.71057Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T01:10:54.978633Z",
+      "closed_reason": "- internal/coverage/cell.go declares Cell with unit, role, result closed at pass/finding/question/na, the embedded state.Stamp §2.3.3 fills with the head it was filled against, unit_hash for §10.2.2's comparison, and reason; TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts and TestACellCarriesEveryFieldSection455Names assert the whole row rather than a field at a time.\n- note_id is carried for §4.1.5's explained unmapped unit, and coverage carries §4.4.1's classification with its test_paths; TestTheCoverageObjectBelongsToTheTestAxisAlone requires the object on a test-axis cell, refuses it on any other axis, closes the classification at §4.4.1's three, and normalises absent test_paths to [] per §12.3.\n- TestAnNaCellWithoutAReasonIsRejected refuses an na cell whose reason is absent, null, or empty, with the file, the one-based line, and the field named, and refuses a reason on a verdict that is not na.",
+      "gate_passed_at": "2026-08-31T01:10:54.978633Z",
+      "commit_sha": "4d1aac4",
+      "commit_shas": [
+        "4d1aac4",
+        "b57e155",
+        "5a10a6f",
+        "91d31b1",
+        "92f910d"
+      ],
+      "commit_files": [
+        "internal/coverage/cell.go",
+        "internal/coverage/cell_test.go"
+      ]
     },
     {
       "id": "cells-record-command",
       "title": "Store cells replacing named unit rows",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "coverage-cell-schema"
@@ -3139,11 +3195,43 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T01:11:51.920542Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T01:25:34.311697Z",
+      "closed_reason": "- cr cells record \u003cpr\u003e \u003cfile.ndjson\u003e is internal/cli/cells.go, and it writes through the new state.ReplaceStampedKeys, which keys coverage.ndjson by (unit, role) and replaces only the current round's lines at the keys the file names; TestASecondRecordingReplacesOnlyTheCellsItNames records two cells, re-answers one, and asserts the untouched one keeps its first verdict, while TestReplaceStampedKeysRewritesTheNamedKeysAndNoOthers holds the same-unit, same-role, and other-round neighbours in place.\n- coverage.Decode rejects an unknown unit id against the round's units.ndjson and an inactive role against meta.json's §4.5.1 active set, each naming what the round would have accepted, and internal/cli/exit.go maps coverage.RejectedCellError onto ExitValidation; TestARefusedCellExitsOneAndLeavesTheRoundAsItWas asserts code 1 end to end and that the good line above the bad one is not written either.\n- cr has no expression anywhere that can construct a coverage cell: every Cell is allocated by state.DecodeStamped out of an agent's line, and TestNothingBuildsACoverageCellOutsideItsDecoder walks every shipped file's AST for a Cell composite literal, an elided literal inside a slice or map of cells, or new(Cell), with the detector first exercised against a file that does construct one so it cannot pass vacuously.\n- TestRecordingTwoOfFourCellsLeavesTheOtherTwoUnfilled briefs two units and two active roles, records two cells at different units and different roles, and asserts coverage.ndjson holds exactly those two — the other two stay a §10.1.1 coverage gap.",
+      "gate_passed_at": "2026-08-31T01:25:34.311697Z",
+      "commit_sha": "bb23e77",
+      "commit_shas": [
+        "bb23e77",
+        "1e078fc",
+        "3030256",
+        "942ab91",
+        "afab125",
+        "1722c60",
+        "15509be",
+        "51dadaf",
+        "5152af9",
+        "ab1c2cc",
+        "a1a4907",
+        "f832029",
+        "26a4005",
+        "223dfaf",
+        "5572540"
+      ],
+      "commit_files": [
+        "internal/cli/briefed_test.go",
+        "internal/cli/cells.go",
+        "internal/cli/cells_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/record.go",
+        "internal/cli/root.go",
+        "internal/coverage/cell.go",
+        "internal/coverage/cell_test.go",
+        "internal/state/roundscope.go",
+        "internal/state/roundscope_test.go"
+      ]
     },
     {
       "id": "cell-computed-fields",
