@@ -114,6 +114,24 @@ func (src *Sources) invalidateBaseline() error {
 	})
 }
 
+// ForceRecreation makes the next run rebuild the sandbox, whatever state it is
+// left in, which is what §5.1.7 requires of a probe whose post-run cleanliness
+// check failed.
+//
+// It works by dropping the post-setup baseline rather than by removing the
+// worktree, and both halves of that are deliberate. Dropping the baseline is
+// enough because §5.1.6 reads a missing one as a sandbox to recreate, and it is
+// what makes the forcing unconditional: relying on the sandbox still looking
+// dirty next time would be relying on the very check that has just proved
+// untrustworthy, and a probe that left an untracked file §5.1.6 ignores would
+// pass the next check while §5.1.7 was demanding a rebuild. Not removing the
+// worktree here is the other half — §5.1.7 forces the recreation "before the
+// next run", and a run that deleted the checkout on its way out would take the
+// probe's own output with it before anyone had read it.
+func ForceRecreation(src *Sources) error {
+	return src.invalidateBaseline()
+}
+
 // underLock runs one write against the pull request's state under the exclusive
 // advisory lock of §2.3.1, and releases it whether or not the write succeeded.
 func (src *Sources) underLock(write func(*state.Lock) error) error {
