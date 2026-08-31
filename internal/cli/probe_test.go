@@ -3,9 +3,11 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,16 +26,28 @@ const (
 )
 
 // probeFixture prepares a pull request `cr probe run` can be pointed at, and
-// returns the state layout, the sandbox path, and the log the runner writes to.
+// returns the state layout, the repository under review, the sandbox path, and
+// the log the runner writes to.
 //
 // The runner copies the file under mutation into that log before printing its
 // recap, which is the only way to see what the suite actually ran against: a
 // mutation that is applied and reverted leaves the sandbox exactly as it found
 // it, so a test that looked only at the disk afterwards could not tell a probe
 // that mutated nothing from one that mutated and put it back.
-func probeFixture(t *testing.T, runner string) (prepared state.Layout, sandboxPath, log string) {
+//
+// tests is spliced into the profile's `tests` object, so a case that needs a
+// different budget or a different pattern says so where it is written rather
+// than through a second fixture.
+//
+// The count pattern reads a failed recap as well as a passing one. §5.3.4's
+// fifth rung answers an undetermined count with `inconclusive`, so a profile
+// that could only count passes would give every failing mutation run that
+// answer and the ladder's last two rungs would be unreachable.
+func probeFixture(
+	t *testing.T, runner string, tests ...string,
+) (prepared state.Layout, fixture, sandboxPath, log string) {
 	t.Helper()
-	fixture := fixtureRepository(t)
+	fixture = fixtureRepository(t)
 	root := crHome(t)
 	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
 
@@ -48,7 +62,9 @@ func probeFixture(t *testing.T, runner string) (prepared state.Layout, sandboxPa
 	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
 		`"match":{"files":[],"globs":[]},"axes":{"test":true},`+
 		`"tests":{"cmd":["`+script+`"],"globs":["*_test.txt"],"filter_flag":"--only",`+
-		`"count_pattern":"Tests:  ([0-9]+) passed","failed_pattern":"([0-9]+) failed"}}`))
+		`"count_pattern":"Tests:  ([0-9]+) (?:failed|passed)",`+
+		`"failed_pattern":"Tests:  ([0-9]+) failed"`+
+		strings.Join(append([]string{""}, tests...), ",")+`}}`))
 	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
 	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
@@ -62,7 +78,7 @@ func probeFixture(t *testing.T, runner string) (prepared state.Layout, sandboxPa
 	repoDir = func() (string, error) { return fixture, nil }
 	t.Cleanup(func() { repoDir = restore })
 
-	return prepared, prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber), log
+	return prepared, fixture, prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber), log
 }
 
 // writePatch stores a unified diff outside the repository under review and
@@ -110,7 +126,7 @@ func storedRecords(t *testing.T, l state.Layout, name string) []map[string]any {
 // records are asserted together, and the mutated run is asserted to carry the
 // probe's id, which is the fence §5.2.6 puts around every later baseline.
 func TestAMutationProbeAppliesRunsRevertsAndRecords(t *testing.T) {
-	prepared, sandboxPath, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	prepared, _, sandboxPath, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
 	patch := writePatch(t, fixtureDiff)
 
 	// The runner's own output reaches the reader as it is produced, ahead
@@ -190,7 +206,7 @@ func TestAMutationProbeAppliesRunsRevertsAndRecords(t *testing.T) {
 // and ignoring it would produce the same output document, and would be the
 // worse failure: the agent would have named a line and been told nothing.
 func TestAMutationProbeRefusesASuppliedTarget(t *testing.T) {
-	_, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	_, _, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
 	patch := writePatch(t, fixtureDiff)
 
 	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
@@ -215,7 +231,7 @@ func TestAMutationProbeRefusesASuppliedTarget(t *testing.T) {
 // §5.2.6 would otherwise perform a whole baseline suite for a patch cr was
 // never going to apply.
 func TestAPatchAimedOutOfTheSandboxIsRefused(t *testing.T) {
-	_, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	_, _, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
 	patch := writePatch(t,
 		"--- a/../../escaped.go\n+++ b/../../escaped.go\n@@ -1 +1 @@\n-one\n+two\n")
 
