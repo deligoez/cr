@@ -70,6 +70,26 @@ func Reproduces(record *Record) bool {
 	return record.Kind == Gap && record.Result == resultFailed
 }
 
+// Present is §5.4.5's first sentence: this gap probe's supplied test passed, so
+// the behaviour that test asserts is present at this head.
+//
+// It is a fact about the code and not about the suite, and §5.4.5 draws the line
+// itself: a passing supplied test establishes the behaviour "not that the suite
+// lacks a test — only §5.3's `no-test-failed` establishes that". The two look
+// alike from a distance and are opposite in what they license, which is why the
+// gap ladder's last two rungs read the other way round from the mutation
+// ladder's.
+//
+// Supports asks nothing of this. §5.4.5 refuses a `probed` grade to `passed`
+// exactly as it refuses one to `timeout`, `error`, `no-tests-selected` and
+// `inconclusive`, and Reproduces already keeps all five out by naming the one
+// result that is not among them. What this exists for is the report: a run that
+// established something and a run that established nothing are different
+// answers to the agent holding them, and §5.4.5 states the difference.
+func Present(record *Record) bool {
+	return record.Kind == Gap && record.Result == resultPassed
+}
+
 // Supports is §5.4.4's condition: this gap probe may be what a record graded
 // `probed` rests on under §6.2.
 //
