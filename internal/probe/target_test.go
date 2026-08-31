@@ -42,15 +42,27 @@ func TestTheMutationTargetIsDerivedFromThePatchAlone(t *testing.T) {
 			want:  "app.go:41",
 		},
 		{
-			name: "the lowest pre-image start wins, whatever order the hunks are written in",
+			name: "the lowest pre-image start wins when the hunks descend",
 			patch: "--- a/app.go\n+++ b/app.go\n@@ -40 +40 @@\n-late\n+LATE\n" +
 				"@@ -8 +8 @@\n-early\n+EARLY\n",
 			want: "app.go:8",
 		},
 		{
-			name: "the lowest path wins, whatever order the files are written in",
+			name: "and when they ascend, which is the order git writes",
+			patch: "--- a/app.go\n+++ b/app.go\n@@ -8 +8 @@\n-early\n+EARLY\n" +
+				"@@ -40 +40 @@\n-late\n+LATE\n",
+			want: "app.go:8",
+		},
+		{
+			name: "the lowest path wins when the files descend",
 			patch: "--- a/z.go\n+++ b/z.go\n@@ -2 +2 @@\n-z\n+Z\n" +
 				"--- a/a.go\n+++ b/a.go\n@@ -90 +90 @@\n-a\n+A\n",
+			want: "a.go:90",
+		},
+		{
+			name: "and when they ascend, which is the order git writes",
+			patch: "--- a/a.go\n+++ b/a.go\n@@ -90 +90 @@\n-a\n+A\n" +
+				"--- a/z.go\n+++ b/z.go\n@@ -2 +2 @@\n-z\n+Z\n",
 			want: "a.go:90",
 		},
 		{
@@ -90,16 +102,23 @@ func TestAPatchNoTargetFollowsFromIsRefused(t *testing.T) {
 		name  string
 		patch string
 		want  string
+		// path is the file the refusal names, and empty for the one
+		// refusal that is about the patch rather than about a file in
+		// it. A reader who is told a path can open it; one who is told
+		// a path that means nothing is worse off than one told none.
+		path string
 	}{
 		{
 			name:  "a zero-context add-only first hunk",
 			patch: "--- a/app.go\n+++ b/app.go\n@@ -41,0 +42 @@\n+added\n",
 			want:  "covers no pre-image line",
+			path:  "app.go",
 		},
 		{
 			name:  "a patch that creates the file",
 			patch: "--- /dev/null\n+++ b/app.go\n@@ -0,0 +1 @@\n+added\n",
 			want:  "no pre-image line to name",
+			path:  "app.go",
 		},
 		{
 			name:  "a patch holding no hunk at all",
@@ -117,6 +136,14 @@ func TestAPatchNoTargetFollowsFromIsRefused(t *testing.T) {
 			assert.Empty(t, target)
 			assert.Contains(t, refused.Error(), tc.want)
 			assert.Contains(t, refused.Error(), "§5.3.2")
+			assert.Equal(t, tc.path, refused.Path)
+			if tc.path == "" {
+				assert.NotContains(t, refused.Error(), " at ",
+					"a refusal about the whole patch names no file")
+				return
+			}
+			assert.Contains(t, refused.Error(), " at "+tc.path,
+				"a refusal about one file names it, so the reader can open it")
 		})
 	}
 }
