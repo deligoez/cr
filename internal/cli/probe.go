@@ -30,7 +30,7 @@ type probeRunResult struct {
 	Probe string `json:"probe"`
 	// Kind is the sort of probe that ran (§5.5).
 	Kind string `json:"kind"`
-	// Sandbox is the worktree the mutation was applied in.
+	// Sandbox is the worktree the experiment was performed in.
 	Sandbox string `json:"sandbox"`
 	// Command is the argv the runner was started with, program included.
 	Command []string `json:"command"`
@@ -40,23 +40,27 @@ type probeRunResult struct {
 	Filter string `json:"filter,omitempty"`
 	// Result is §5.5's `result`, after §5.1.7 has had its say.
 	Result string `json:"result"`
-	// Establishes is what §5.3.5 and §5.3.7 let this result be read for:
-	// `gap` when the probe proves one, `no-gap` when a test caught the
-	// mutation, and `nothing` otherwise. It is reported rather than left
-	// to be re-derived from the result, because the two sections point
-	// opposite ways — one lets a finding be graded `probed`, the other
+	// Establishes is what the sections governing this kind let the result
+	// be read for: `gap` when a mutation probe proves one, `no-gap` when a
+	// test caught the mutation, `nothing` when neither, and `undecided`
+	// for a gap probe, whose support conditions §5.4.4 and §5.4.5 fix
+	// against a finding that does not exist yet. It is reported rather
+	// than left to be re-derived from the result, because the sections
+	// point opposite ways — one lets a finding be graded `probed`, another
 	// has the agent not raise the finding at all — and the difference is
 	// not something a reader should have to reconstruct.
 	Establishes string `json:"establishes"`
-	// Target is the `path:line` §5.3.2 derived from the patch. It is
-	// reported rather than left to the record, because it is what the agent
-	// would otherwise have to take on trust before writing the finding
-	// §6.2.2 anchors there.
+	// Target is the `path:line` the probe addresses: derived from the
+	// patch for a mutation probe (§5.3.2), supplied with `--target` for a
+	// gap probe (§5.5). It is reported rather than left to the record,
+	// because it is what the agent would otherwise have to take on trust
+	// before writing the finding §6.2.2 anchors there.
 	Target string `json:"target"`
 	// Baseline is the id of the run record §5.2.6 resolved.
 	Baseline string `json:"baseline"`
-	// Run is the id of the run record for the mutated run, and empty when
-	// §5.3.4's first rung fired: a patch that did not apply runs no tests.
+	// Run is the id of the run record for the probe's own run, and empty
+	// when §5.3.4's first rung fired: a patch that did not apply runs no
+	// tests.
 	Run string `json:"run,omitempty"`
 	// Voided is why §5.1.6's post-run check failed, and empty when it
 	// passed. A probe it names establishes nothing in either direction
@@ -71,7 +75,7 @@ type probeRunResult struct {
 }
 
 // Text names the experiment before its answer, because the answer means
-// nothing without the patch, the filter, and the baseline that framed it.
+// nothing without the input, the filter, and the baseline that framed it.
 func (r *probeRunResult) Text(w *writer) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "%s probe in %s\n", r.Kind, w.accent(r.Sandbox))
@@ -96,20 +100,26 @@ func (r *probeRunResult) Text(w *writer) string {
 	return out.String()
 }
 
-// What §5.3.5 and §5.3.7 let a mutation probe's outcome be read for, as the
-// token probeRunResult.Establishes carries.
+// What the sections governing a probe's kind let its outcome be read for, as
+// the token probeRunResult.Establishes carries.
 const (
 	// establishesGap is §5.3.5's proof: `no-test-failed` against a
 	// baseline that passed.
 	establishesGap = "gap"
 	// establishesNoGap is §5.3.7's disproof: a test caught the mutation.
 	establishesNoGap = "no-gap"
-	// establishesNothing is every other result, which §5.3.5 refuses a
-	// `probed` grade and §5.3.7 reads no suppression from.
+	// establishesNothing is every other mutation result, which §5.3.5
+	// refuses a `probed` grade and §5.3.7 reads no suppression from.
 	establishesNothing = "nothing"
+	// establishesUndecided is every gap probe result. §5.4.4 makes the
+	// support conditional on the finding's own `claim` field, and no
+	// finding exists at the moment the experiment runs, so the question
+	// cannot honestly be answered here in either direction.
+	establishesUndecided = "undecided"
 )
 
-// establishedBy reads §5.3.5 and §5.3.7 off the probe that has just run.
+// establishedBy reads §5.3.5 and §5.3.7 off the mutation probe that has just
+// run.
 //
 // It asks the probe package rather than comparing result strings here, because
 // the conditions are the section's and belong where the values are: Proves is
@@ -140,6 +150,8 @@ var establishedClause = map[string]string{
 	establishesNoGap: "none: a test caught the mutation, so §5.3.7 has the finding not raised",
 	establishesNothing: "none: §5.3.5 lets this result support no probed grade, so a record " +
 		"resting on it stays argued (§6.2) and is asked as a question (§6.3)",
+	establishesUndecided: "not settled by the run: §5.4.4 and §5.4.5 fix when a gap probe supports " +
+		"a finding, and §5.4.4's condition is read off the finding's own claim field",
 }
 
 // suite is everything one run of the profile's test command inside the sandbox
@@ -163,25 +175,27 @@ type suite struct {
 }
 
 // measuredRun is one execution of the suite, before §5.1.6's post-run check and
-// §5.3.4's ladder read it.
+// §5.3.4's or §5.4.3's ladder read it.
 type measuredRun struct {
 	// record is §5.2.4's run record, less the fields the writer owns and
 	// less `contaminated`, which the caller sets from a check it has to
 	// run at a moment only it knows.
 	record *run.Record
 	// unstarted says the runner could not be started at all, which
-	// §5.3.4's third rung answers rather than the command failing: a
-	// probe whose runner is missing has a result, and it is `error`.
+	// §5.3.4's third rung and §5.4.3's second answer rather than the
+	// command failing: a probe whose runner is missing has a result, and
+	// it is `error`.
 	unstarted bool
 }
 
 // perform runs the suite once, narrowed to filter.
 //
 // The cleanliness check is deliberately not here. §5.1.7 has the post-run check
-// decide what the record says, and for a mutation probe that check has to run
-// after the revert — before it, every probe would find its own mutation and
-// void itself. Where the check belongs is therefore the caller's to know, and
-// leaving it out is what keeps this one function honest for both runs.
+// decide what the record says, and for a probe that check has to run after the
+// mutation is reverted or the probe file removed — before it, every probe would
+// find its own artefact and void itself. Where the check belongs is therefore
+// the caller's to know, and leaving it out is what keeps this one function
+// honest for every run.
 func (s *suite) perform(filter string) (*measuredRun, error) {
 	argv, err := s.profile.TestArgv(s.file, filter)
 	if err != nil {
@@ -205,12 +219,13 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 		if !errors.As(err, &unrunnable) {
 			return nil, err
 		}
-		// §5.3.4's third rung: a runner that could not be started is a
-		// probe result rather than a command failure. `cr test` exits
-		// 3 on the same error, and rightly — it was asked to run a
-		// suite and could not — while a probe was asked what the suite
-		// says about a mutation, and "nothing, it would not start" is
-		// an answer §5.3.5 already refuses to grade on.
+		// §5.3.4's third rung and §5.4.3's second: a runner that
+		// could not be started is a probe result rather than a
+		// command failure. `cr test` exits 3 on the same error, and
+		// rightly — it was asked to run a suite and could not — while
+		// a probe was asked what the suite says, and "nothing, it
+		// would not start" is an answer §5.3.5 and §5.4.5 already
+		// refuse to grade on.
 		unstarted = true
 	}
 	executed, failed := counter.Counts()
@@ -244,17 +259,18 @@ func newProbeCmd(out *writer) *cobra.Command {
 	return cmd
 }
 
-// newProbeRunCmd applies a mutation, runs the tests, reverts the mutation, and
-// records the result (§11, §5.3.2).
+// newProbeRunCmd performs one probe of §5.3 or §5.4 and records the result
+// (§11).
 //
-// The order is §5.3.2's own sentence, and the revert is not the last step of it
-// but the frame around the middle two: state.UnderSandboxMutation writes the
-// mutation, calls the run, and restores the files whether the run returned,
-// failed, timed out, or panicked. §5.3.3 admits no path where the mutation
-// stays on disk that cr is still alive to prevent, and a revert written after
-// the run would be one `return err` away from being skipped.
+// Each kind's cycle is §5.3.2's or §5.4.2's own sentence, and in both the undo
+// is not the last step of it but the frame around the middle two:
+// state.UnderSandboxMutation and state.UnderSandboxTestFile write, call the
+// run, and put the sandbox back whether the run returned, failed, timed out, or
+// panicked. §5.3.3 and §5.4.2 admit no path where the artefact stays on disk
+// that cr is still alive to prevent, and an undo written after the run would be
+// one `return err` away from being skipped.
 func newProbeRunCmd(out *writer) *cobra.Command {
-	var kind, patchFile, filter, target string
+	var kind, patchFile, testFile, filter, target string
 	cmd := &cobra.Command{
 		Use:   "run " + prPlaceholder,
 		Short: "Execute and record a probe",
@@ -268,66 +284,120 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if kind != string(probe.Mutation) {
-				return fmt.Errorf(
-					"--kind %q: cr runs §5.3's mutation probe; §5.4's gap probe is not implemented yet",
-					kind)
-			}
-			// §5.3.2 rejects `--target` for this kind, and the
-			// refusal is the point rather than a tidiness: the
-			// target is what §6.2.2 has a `probed` record's
-			// evidence point at, so a supplied one would let the
-			// agent aim the assertion at a line the experiment
-			// never touched. Accepting and ignoring it would be
-			// worse than either — the agent would have named a
-			// line and been told nothing.
-			if target != "" {
-				return errors.New(
-					"--target is rejected for a mutation probe: §5.3.2 derives it from the patch, " +
-						"so the evidence chain runs on what cr executed rather than on a flag")
-			}
-			if patchFile == "" {
-				return errors.New(
-					"--patch is required: §5.3.1 has the agent supply the mutation as a unified diff")
-			}
-			body, err := os.ReadFile(patchFile)
-			if err != nil {
-				return err
-			}
-			files, err := git.ParsePatch(string(body))
-			if err != nil {
-				return err
-			}
-			if len(files) == 0 {
-				// The hint names the flag rather than the
-				// concept, because the way this is reached is
-				// a `git diff` on a machine whose owner has
-				// set `diff.external`: git then writes that
-				// tool's output, which is not a diff at all.
-				// cr's own reads pin `--no-ext-diff` for the
-				// same reason, and the agent writing the patch
-				// is outside that fence.
-				return fmt.Errorf(
-					"%s holds no hunk: §5.3.1's mutation is a unified diff against a sandbox file; "+
-						"if it came from `git diff`, re-run it with --no-ext-diff, "+
-						"which is what a configured diff.external replaces",
-					patchFile)
-			}
-			return runMutationProbe(cmd, out, &probeRequest{
+			request := &probeRequest{
 				owner: owner, repo: repo, pr: pr,
-				patch: string(body), files: files, filter: filter,
-			})
+				filter: filter, target: target,
+			}
+			switch probe.Kind(kind) {
+			case probe.Mutation:
+				if err := mutationInput(request, patchFile, testFile, target); err != nil {
+					return err
+				}
+				return runMutationProbe(cmd, out, request)
+			case probe.Gap:
+				if err := gapInput(request, patchFile, testFile, target); err != nil {
+					return err
+				}
+				return runGapProbe(cmd, out, request)
+			}
+			return fmt.Errorf(
+				"--kind %q: §5.5 names two kinds of probe, mutation (§5.3) and gap (§5.4)", kind)
 		},
 	}
 	cmd.Flags().StringVar(&kind, "kind", "",
-		"the probe to run: mutation (§5.3)")
+		"the probe to run: mutation (§5.3) or gap (§5.4)")
 	cmd.Flags().StringVar(&patchFile, "patch", "",
-		"the unified diff to apply, per §5.3.1")
+		"the unified diff to apply, per §5.3.1; a mutation probe only")
+	cmd.Flags().StringVar(&testFile, "test", "",
+		"the new test file to place and run, per §5.4.1; a gap probe only")
 	cmd.Flags().StringVar(&filter, "filter", "",
 		"narrow the run to a subset, passed as the profile's tests.filter_flag")
 	cmd.Flags().StringVar(&target, "target", "",
-		"the path:line the probe addresses; rejected for a mutation probe, which derives it (§5.3.2)")
+		"the path:line the probe addresses; required for a gap probe, "+
+			"rejected for a mutation probe, which derives it (§5.3.2)")
 	return cmd
+}
+
+// mutationInput holds §5.3's invocation to the flags that kind takes, and reads
+// the patch.
+//
+// §5.3.2 rejects `--target`, and the refusal is the point rather than a
+// tidiness: the target is what §6.2.2 has a `probed` record's evidence point
+// at, so a supplied one would let the agent aim the assertion at a line the
+// experiment never touched. Accepting and ignoring it would be worse than
+// either — the agent would have named a line and been told nothing. `--test` is
+// refused for the same reason in the other direction: a mutation probe places
+// no file, so a supplied one would never be run.
+func mutationInput(request *probeRequest, patchFile, testFile, target string) error {
+	switch {
+	case target != "":
+		return errors.New(
+			"--target is rejected for a mutation probe: §5.3.2 derives it from the patch, " +
+				"so the evidence chain runs on what cr executed rather than on a flag")
+	case testFile != "":
+		return errors.New(
+			"--test is rejected for a mutation probe: §5.3.1 supplies the experiment as a " +
+				"unified diff, and §5.4's gap probe is the kind that places a test file")
+	case patchFile == "":
+		return errors.New(
+			"--patch is required: §5.3.1 has the agent supply the mutation as a unified diff")
+	}
+	body, err := os.ReadFile(patchFile)
+	if err != nil {
+		return err
+	}
+	files, err := git.ParsePatch(string(body))
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		// The hint names the flag rather than the concept, because
+		// the way this is reached is a `git diff` on a machine whose
+		// owner has set `diff.external`: git then writes that tool's
+		// output, which is not a diff at all. cr's own reads pin
+		// `--no-ext-diff` for the same reason, and the agent writing
+		// the patch is outside that fence.
+		return fmt.Errorf(
+			"%s holds no hunk: §5.3.1's mutation is a unified diff against a sandbox file; "+
+				"if it came from `git diff`, re-run it with --no-ext-diff, "+
+				"which is what a configured diff.external replaces",
+			patchFile)
+	}
+	request.kind, request.patch, request.files = probe.Mutation, string(body), files
+	return nil
+}
+
+// gapInput holds §5.4's invocation to the flags that kind takes, and reads the
+// test file.
+//
+// `--target` is required rather than derived, and that is §5.5's own asymmetry:
+// a mutation probe's target follows from the patch, while a gap probe's test
+// file names no line of production code at all, so the line the finding is
+// anchored at is the agent's to supply. `--patch` is refused because §5.4.1
+// supplies the experiment as a test file, and a patch cr accepted and never
+// applied would be an experiment the agent believed it had asked for.
+func gapInput(request *probeRequest, patchFile, testFile, target string) error {
+	switch {
+	case patchFile != "":
+		return errors.New(
+			"--patch is rejected for a gap probe: §5.4.1 has the agent supply a new test file, " +
+				"and §5.3's mutation probe is the kind that applies a diff")
+	case testFile == "":
+		return errors.New(
+			"--test is required: §5.4.1 has the agent supply a new test file targeting the " +
+				"suspected edge case")
+	case target == "":
+		return errors.New(
+			"--target is required for a gap probe: §5.5 makes the probe record's target a " +
+				"required row and takes it from this flag, because a supplied test file " +
+				"names no line of the code under review")
+	}
+	body, err := os.ReadFile(testFile)
+	if err != nil {
+		return err
+	}
+	request.kind, request.test = probe.Gap, string(body)
+	return nil
 }
 
 // probeRequest is one `cr probe run` invocation, as the command line gave it.
@@ -335,44 +405,69 @@ type probeRequest struct {
 	owner string
 	repo  string
 	pr    int
-	// patch is the diff as it was handed over, which §5.5's `input` row
-	// stores whole: the record has to say which experiment was performed.
+	// kind is §5.5's `kind`: which of §5.3 and §5.4 is being performed.
+	kind probe.Kind
+	// patch is the mutation diff as it was handed over, which §5.5's
+	// `input` row stores whole: the record has to say which experiment
+	// was performed.
 	patch string
 	// files is the same diff, parsed for application.
 	files []git.PatchedFile
+	// test is the gap probe's test file content, which §5.5's `input` row
+	// stores whole for the same reason.
+	test string
+	// target is §5.5's `target` for a gap probe, supplied by the agent.
+	target string
 	// filter is what the run is narrowed to, empty for the whole suite.
 	filter string
 }
 
-// runMutationProbe performs §5.3.2's cycle and records what it produced.
-func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
-	// §5.3.2's target, derived from the patch before anything is run. A
-	// patch cr cannot place a target in is refused here rather than after
-	// §5.2.6 has performed a baseline suite for it, and §5.5 makes the
-	// target a required row of the record either way.
-	aimed, err := probe.Target(request.files)
-	if err != nil {
-		return err
-	}
+// probeSetup is the round, the profile, and the sandbox one probe run works
+// against, resolved once and the same way for both kinds.
+//
+// It is shared rather than duplicated because every field in it is something
+// the two kinds must agree about: the round's head, the profile `cr brief`
+// resolved, the sandbox §5.1.6 admitted, and the leftover glob that check reads.
+// Two copies of this resolution would be two answers that could drift.
+type probeSetup struct {
+	layout state.Layout
+	round  state.Meta
+	// dir is the repository under review, which §5.6.1 names the lock
+	// after.
+	dir string
+	// src and glob are §5.1.6's inputs, kept for the post-run check.
+	src  *sandbox.Sources
+	glob string
+	// ready is the sandbox the check admitted, with its recreation notice.
+	ready *sandbox.Ready
+	// tests is the runner, resolved once for every run the probe performs.
+	tests *suite
+	// stamp is §2.3.3's head and round, written onto every record.
+	stamp state.Stamp
+}
+
+// prepareProbe resolves the round, the profile, and the sandbox a probe runs
+// in.
+//
+// The profile is the round's resolved one, for the reason `cr test` reads the
+// same field: §3.7 makes `cr brief` its one writer, and a probe that
+// re-selected one could measure a suite this round was never briefed against.
+func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error) {
 	layout, err := state.Default()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	round, err := layout.Briefed(request.owner, request.repo, request.pr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	dir, err := repoDir()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// The profile the round resolved, for the reason `cr test` reads the
-	// same field: §3.7 makes `cr brief` its one writer, and a probe that
-	// re-selected one could measure a suite this round was never briefed
-	// against.
 	resolved, file, err := roundProfile(layout, round.ProfileID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	src := &sandbox.Sources{
 		Layout:      layout,
@@ -388,6 +483,34 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	glob := resolved.LeftoverGlob()
 	ready, err := sandbox.Ensure(src, glob)
 	if err != nil {
+		return nil, err
+	}
+	return &probeSetup{
+		layout: layout,
+		round:  round,
+		dir:    dir,
+		src:    src,
+		glob:   glob,
+		ready:  ready,
+		tests: &suite{
+			profile: resolved, file: file, path: ready.Path, log: cmd.ErrOrStderr(),
+		},
+		stamp: state.Stamp{Head: round.Head, Round: round.Round},
+	}, nil
+}
+
+// runMutationProbe performs §5.3.2's cycle and records what it produced.
+func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
+	// §5.3.2's target, derived from the patch before anything is run. A
+	// patch cr cannot place a target in is refused here rather than after
+	// §5.2.6 has performed a baseline suite for it, and §5.5 makes the
+	// target a required row of the record either way.
+	aimed, err := probe.Target(request.files)
+	if err != nil {
+		return err
+	}
+	setup, err := prepareProbe(cmd, request)
+	if err != nil {
 		return err
 	}
 	// Round 12's unbounded-patch-target: every path the patch addresses
@@ -396,24 +519,23 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	// it is instead of being met after a baseline suite has already run —
 	// and it is the writer's own function, so the two cannot disagree.
 	for i := range request.files {
-		if _, err := layout.InSandbox(
+		if _, err := setup.layout.InSandbox(
 			request.owner, request.repo, request.pr, request.files[i].Path); err != nil {
 			return err
 		}
 	}
-	tests := &suite{profile: resolved, file: file, path: ready.Path, log: cmd.ErrOrStderr()}
-	stamp := state.Stamp{Head: round.Head, Round: round.Round}
 
 	// §5.6.1's lock, taken once around every run this command performs.
 	// The baselines of §5.2.6 run the same suite against the same test
 	// database as the probe does, so a lock taken per run would either
 	// leave the gaps between them open or, taken twice over, wait on
 	// itself for the whole of `probe.lock_timeout_seconds`.
-	locked, err := lockProbe(layout, request.owner, request.repo, dir, round.ProfileID)
+	locked, err := lockProbe(
+		setup.layout, request.owner, request.repo, setup.dir, setup.round.ProfileID)
 	if err != nil {
 		return err
 	}
-	performed, err := probeRuns(layout, tests, src, glob, request, &round, stamp)
+	performed, measured, err := mutationRuns(setup, request)
 	if err := errors.Join(err, locked.Unlock()); err != nil {
 		return err
 	}
@@ -421,29 +543,115 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	// §5.1.6's check, now that the suite has finished and the mutation is
 	// off disk again. A check run before the revert would find every
 	// probe's own mutation and void every probe.
-	unclean, err := sandbox.Unclean(src, glob)
+	unclean, err := sandbox.Unclean(setup.src, setup.glob)
 	if err != nil {
 		return err
 	}
-	outcome := probe.Decide(probe.Ladder(performed.measured), unclean)
-	establishes := establishedBy(outcome, performed.baseline)
-
+	outcome := probe.Decide(probe.Ladder(measured), unclean)
 	record := &probe.Record{
-		Kind:       probe.Mutation,
-		Input:      request.patch,
-		Filter:     request.filter,
-		Result:     outcome.Result(),
-		Target:     aimed,
-		Baseline:   performed.baseline.ID(),
-		DurationMS: performed.durationMS,
-		OutputTail: performed.outputTail,
+		Kind:        probe.Mutation,
+		Input:       request.patch,
+		Filter:      request.filter,
+		Result:      outcome.Result(),
+		TestsRun:    measured.TestsRun,
+		TestsFailed: measured.TestsFailed,
+		Target:      aimed,
+		Baseline:    performed.baseline.ID(),
+		DurationMS:  performed.durationMS,
+		OutputTail:  performed.outputTail,
 	}
-	record.TestsRun, record.TestsFailed = performed.measured.TestsRun, performed.measured.TestsFailed
-	if performed.mutated != nil {
-		performed.mutated.Contaminated = unclean != ""
+	return finishProbe(out, setup, request, performed, record, outcome, unclean,
+		establishedBy(outcome, performed.baseline), locked.CollisionWarning())
+}
+
+// runGapProbe performs §5.4.2's cycle and records what it produced.
+//
+// The probe's id is allocated before the placement and not at the write, and
+// that is §5.4.2's template rather than a convenience: §2.4 puts `<probe-id>`
+// in the path, and §5.1.6 recognises a leftover artefact by replacing exactly
+// that position. A file named for an id no record carries would be an artefact
+// nothing accounts for.
+func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
+	setup, err := prepareProbe(cmd, request)
+	if err != nil {
+		return err
+	}
+	stored, err := state.ReadRecords[probe.Record](
+		setup.layout, request.owner, request.repo, request.pr, state.FileProbes)
+	if err != nil {
+		return err
+	}
+	reserved := probe.NextID(stored)
+	placement := setup.tests.profile.ProbePath(reserved)
+	if placement == "" {
+		return &profile.MalformedError{
+			File:  setup.tests.file,
+			Field: "tests.probe_path_template",
+			Problem: "resolves to no path, so §5.4.2 has nowhere to place a gap probe's test; " +
+				"set it, or set tests.globs for it to be defaulted from",
+		}
+	}
+	// §5.4.2's abort, asked before §5.2.6 performs a baseline suite for a
+	// probe that cannot be placed. It is the writer's own function, so the
+	// answer here and the answer the placement is held to cannot disagree.
+	if _, err := setup.layout.FreeInSandbox(
+		request.owner, request.repo, request.pr, placement); err != nil {
+		return err
+	}
+
+	locked, err := lockProbe(
+		setup.layout, request.owner, request.repo, setup.dir, setup.round.ProfileID)
+	if err != nil {
+		return err
+	}
+	performed, measured, err := gapRuns(setup, request, placement)
+	if err := errors.Join(err, locked.Unlock()); err != nil {
+		return err
+	}
+
+	// §5.1.6's check, now that the suite has finished and the probe file
+	// is off disk again. A check run before the removal would find every
+	// gap probe's own test file and void every gap probe.
+	unclean, err := sandbox.Unclean(setup.src, setup.glob)
+	if err != nil {
+		return err
+	}
+	outcome := probe.Decide(probe.GapLadder(measured), unclean)
+	record := &probe.Record{
+		ID:          reserved,
+		Kind:        probe.Gap,
+		Input:       request.test,
+		Filter:      request.filter,
+		Result:      outcome.Result(),
+		TestsRun:    measured.TestsRun,
+		TestsFailed: measured.TestsFailed,
+		Target:      request.target,
+		Baseline:    performed.baseline.ID(),
+		DurationMS:  performed.durationMS,
+		OutputTail:  performed.outputTail,
+	}
+	return finishProbe(out, setup, request, performed, record, outcome, unclean,
+		establishesUndecided, locked.CollisionWarning())
+}
+
+// finishProbe writes §5.5's record, applies §5.1.7's third consequence, and
+// reports.
+//
+// It is shared by both kinds because none of it differs between them: the
+// contamination flag, the ordering of the record against the recreation, and
+// the payload are the same acts on the same values. What differs — which ladder
+// read the run, and what the result may be read for — is settled by the caller
+// before it gets here.
+func finishProbe(
+	out *writer, setup *probeSetup, request *probeRequest, performed *performedProbe,
+	record *probe.Record, outcome probe.Outcome, unclean, establishes, warning string,
+) error {
+	if performed.underProbe != nil {
+		performed.underProbe.Contaminated = unclean != ""
 	}
 	runID, probeID, err := recordProbe(
-		layout, request.owner, request.repo, request.pr, stamp, performed.mutated, record)
+		setup.layout, request.owner, request.repo, request.pr,
+		setup.stamp, performed.underProbe, record)
 	if err != nil {
 		return err
 	}
@@ -451,24 +659,24 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	// happens after the record lands, so the evidence the check found is
 	// on disk before the sandbox it describes is rebuilt.
 	if outcome.Voided() {
-		if err := sandbox.ForceRecreation(src); err != nil {
+		if err := sandbox.ForceRecreation(setup.src); err != nil {
 			return err
 		}
 	}
 	return out.emit(&probeRunResult{
 		Probe:       probeID,
-		Kind:        string(probe.Mutation),
-		Sandbox:     ready.Path,
+		Kind:        string(record.Kind),
+		Sandbox:     setup.ready.Path,
 		Command:     performed.command,
 		Filter:      request.filter,
 		Result:      string(outcome.Result()),
 		Establishes: establishes,
-		Target:      aimed,
+		Target:      record.Target,
 		Baseline:    performed.baseline.ID(),
 		Run:         runID,
 		Voided:      unclean,
-		Warnings:    []string{locked.CollisionWarning()},
-		Honesty:     recreationNotice(ready),
+		Warnings:    []string{warning},
+		Honesty:     recreationNotice(setup.ready),
 	})
 }
 
@@ -477,47 +685,55 @@ type performedProbe struct {
 	// baseline is the run §5.2.6 resolved, performing it first when the
 	// head had none.
 	baseline probe.Baseline
-	// measured is what §5.3.4's ladder reads.
-	measured probe.Measured
-	// mutated is §5.2.4's record for the run on mutated code, and nil
-	// when the patch did not apply and no tests were run.
-	mutated *run.Record
-	// command is the argv the mutated run was to be started with, which
-	// is reported whether or not it ran.
+	// underProbe is §5.2.4's record for the run on mutated or
+	// probe-injected code, and nil when no such run happened — a mutation
+	// patch that did not apply runs no tests.
+	underProbe *run.Record
+	// command is the argv the probe's own run was to be started with,
+	// which is reported whether or not it ran.
 	command []string
 	// durationMS and outputTail are §5.5's rows for the probe's own run.
 	durationMS int64
 	outputTail string
 }
 
-// probeRuns performs §5.2.6's baselines and then the mutated run, all inside
-// §5.6.1's lock.
+// probeBaselines performs and records every baseline §5.2.2 requires that the
+// head has no run for yet (§5.2.6), before the probe itself runs.
 //
 // The baselines come first and never after, which is what keeps them un-probed:
 // they run against the sandbox as §5.1 prepared it, so the record §5.2.6 stores
 // is admissible by construction rather than by inspection.
-func probeRuns(
-	layout state.Layout, tests *suite, src *sandbox.Sources, glob string,
-	request *probeRequest, round *state.Meta, stamp state.Stamp,
-) (*performedProbe, error) {
-	command, err := tests.profile.TestArgv(tests.file, request.filter)
+func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, error) {
+	command, err := setup.tests.profile.TestArgv(setup.tests.file, request.filter)
 	if err != nil {
 		return nil, err
 	}
 	performed := &performedProbe{command: command}
 
 	stored, err := state.ReadRecords[run.Record](
-		layout, request.owner, request.repo, request.pr, state.FileRuns)
+		setup.layout, request.owner, request.repo, request.pr, state.FileRuns)
 	if err != nil {
 		return nil, err
 	}
 	performed.baseline, err = probe.Ensure(
-		stored, round.Head, probe.Mutation, request.filter,
+		stored, setup.round.Head, request.kind, request.filter,
 		func(spec probe.Spec) (run.Record, error) {
-			return baselineRun(layout, tests, src, glob, request, stamp, spec)
+			return baselineRun(setup, request, spec)
 		})
 	if err != nil {
 		return nil, err
+	}
+	return performed, nil
+}
+
+// mutationRuns performs §5.2.6's baselines and then the mutated run, all inside
+// §5.6.1's lock.
+func mutationRuns(
+	setup *probeSetup, request *probeRequest,
+) (*performedProbe, probe.Measured, error) {
+	performed, err := probeBaselines(setup, request)
+	if err != nil {
+		return nil, probe.Measured{}, err
 	}
 
 	mutations := make([]state.SandboxMutation, 0, len(request.files))
@@ -526,9 +742,9 @@ func probeRuns(
 		mutations = append(mutations, state.SandboxMutation{Path: file.Path, Apply: file.Apply})
 	}
 	var mutated *measuredRun
-	err = layout.UnderSandboxMutation(
+	err = setup.layout.UnderSandboxMutation(
 		request.owner, request.repo, request.pr, mutations, func() error {
-			ran, err := tests.perform(request.filter)
+			ran, err := setup.tests.perform(request.filter)
 			mutated = ran
 			return err
 		})
@@ -539,65 +755,100 @@ func probeRuns(
 		// tests were run and the ladder answers `error`. It is a
 		// result rather than a failure of the command — the agent
 		// asked what the suite says about this mutation, and cr can
-		// say that the mutation was never made.
-		return performed, nil
+		// say that the mutation was never made. The zero Measured is
+		// that run: Applied is false, which is the rung itself.
+		return performed, probe.Measured{}, nil
 	case err != nil:
-		return nil, err
+		return nil, probe.Measured{}, err
 	}
-	performed.mutated = mutated.record
+	performed.underProbe = mutated.record
 	performed.durationMS = mutated.record.DurationMS
 	performed.outputTail = mutated.record.OutputTail
-	performed.measured = probe.Measured{
+	return performed, probe.Measured{
 		Applied:     true,
 		TimedOut:    mutated.record.TimedOut,
 		Unstarted:   mutated.unstarted,
 		ExitCode:    mutated.record.ExitCode,
 		TestsRun:    mutated.record.TestsRun,
 		TestsFailed: mutated.record.TestsFailed,
+	}, nil
+}
+
+// gapRuns performs §5.2.6's baseline and then §5.4.2's placed run, all inside
+// §5.6.1's lock.
+//
+// The placement, the run, and the removal are one call, because §5.4.2's
+// removal "MUST happen even when the run fails or times out" and
+// state.UnderSandboxTestFile is the only door onto the write that arranges it.
+func gapRuns(
+	setup *probeSetup, request *probeRequest, placement string,
+) (*performedProbe, probe.GapMeasured, error) {
+	performed, err := probeBaselines(setup, request)
+	if err != nil {
+		return nil, probe.GapMeasured{}, err
 	}
-	return performed, nil
+
+	var placed *measuredRun
+	err = setup.layout.UnderSandboxTestFile(
+		request.owner, request.repo, request.pr, placement, request.test, func() error {
+			ran, err := setup.tests.perform(request.filter)
+			placed = ran
+			return err
+		})
+	if err != nil {
+		return nil, probe.GapMeasured{}, err
+	}
+	performed.underProbe = placed.record
+	performed.durationMS = placed.record.DurationMS
+	performed.outputTail = placed.record.OutputTail
+	return performed, probe.GapMeasured{
+		TimedOut:    placed.record.TimedOut,
+		Unstarted:   placed.unstarted,
+		TestsRun:    placed.record.TestsRun,
+		TestsFailed: placed.record.TestsFailed,
+	}, nil
 }
 
 // baselineRun performs one of §5.2.2's baselines and stores §5.2.4's record for
 // it, which is what probe.Ensure hands back to §5.5's `baseline` column.
 func baselineRun(
-	layout state.Layout, tests *suite, src *sandbox.Sources, glob string,
-	request *probeRequest, stamp state.Stamp, spec probe.Spec,
+	setup *probeSetup, request *probeRequest, spec probe.Spec,
 ) (run.Record, error) {
-	ran, err := tests.perform(spec.Filter)
+	ran, err := setup.tests.perform(spec.Filter)
 	if err != nil {
 		return run.Record{}, err
 	}
 	// §5.1.6's check after this run too, for round 12's
 	// baseline-contamination reason: a baseline whose sandbox drifted
 	// under it is nobody's baseline, and §5.2.5's verdict is what says so.
-	unclean, err := sandbox.Unclean(src, glob)
+	unclean, err := sandbox.Unclean(setup.src, setup.glob)
 	if err != nil {
 		return run.Record{}, err
 	}
 	ran.record.Contaminated = unclean != ""
 	if _, err := recordRun(
-		layout, request.owner, request.repo, request.pr, stamp, ran.record); err != nil {
+		setup.layout, request.owner, request.repo, request.pr,
+		setup.stamp, ran.record); err != nil {
 		return run.Record{}, err
 	}
 	return *ran.record, nil
 }
 
-// recordProbe stores §5.5's probe record and, when the mutation applied,
-// §5.2.4's record for the run it was measured by.
+// recordProbe stores §5.5's probe record and, when a run happened, §5.2.4's
+// record for the run it was measured by.
 //
 // Both writes happen under one hold of §2.3.1's lock, because the run record
 // carries the probe's id: allocating the id in one hold and referencing it in
 // another would let a second cr run allocate the same one in between.
 func recordProbe(
 	layout state.Layout, owner, repo string, pr int, at state.Stamp,
-	mutated *run.Record, record *probe.Record,
+	underProbe *run.Record, record *probe.Record,
 ) (runID, probeID string, err error) {
 	held, err := layout.LockPR(owner, repo, pr)
 	if err != nil {
 		return "", "", err
 	}
-	runID, probeID, err = appendProbe(layout, owner, repo, pr, held, at, mutated, record)
+	runID, probeID, err = appendProbe(layout, owner, repo, pr, held, at, underProbe, record)
 	if err != nil {
 		// The lock is released on the way out of every branch, and
 		// the write's own failure is what the caller is told about.
@@ -612,21 +863,32 @@ func recordProbe(
 
 // appendProbe is recordProbe's work, held apart so the lock is released on
 // every path out of it.
+//
+// A record arriving with an id already on it is a gap probe's, whose id §5.4.2
+// fixed before the placement. That id is checked against the allocation rather
+// than trusted: §5.5.2 has a finding reference a probe by id, so two records
+// sharing one would make the reference ambiguous, and the window is real
+// because the reservation is read outside §2.3.1's lock.
 func appendProbe(
 	layout state.Layout, owner, repo string, pr int,
-	held *state.Lock, at state.Stamp, mutated *run.Record, record *probe.Record,
+	held *state.Lock, at state.Stamp, underProbe *run.Record, record *probe.Record,
 ) (runID, probeID string, err error) {
 	stored, err := state.ReadRecords[probe.Record](layout, owner, repo, pr, state.FileProbes)
 	if err != nil {
 		return "", "", err
 	}
-	record.ID = probe.NextID(stored)
-	if mutated != nil {
+	switch next := probe.NextID(stored); {
+	case record.ID == "":
+		record.ID = next
+	case record.ID != next:
+		return "", "", &probe.IDTakenError{Reserved: record.ID, Next: next}
+	}
+	if underProbe != nil {
 		// §5.2.6's fence, set here and nowhere else: the probe's own
 		// run carries the probe's id, so it can never be resolved as
 		// the next probe's baseline.
-		mutated.Probe = record.ID
-		if runID, err = appendRun(layout, owner, repo, pr, held, at, mutated); err != nil {
+		underProbe.Probe = record.ID
+		if runID, err = appendRun(layout, owner, repo, pr, held, at, underProbe); err != nil {
 			return "", "", err
 		}
 	}
