@@ -6048,6 +6048,25 @@
       "closed_reason": null,
       "gate_passed_at": null,
       "commit_sha": null
+    },
+    {
+      "id": "issue-key-rewrite-refusal",
+      "title": "Refuse to blank a recorded issue key",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "brief-creates-state"
+      ],
+      "estimate_minutes": 10,
+      "acceptance": "- Found by brief-payload's dogfood run: a cr brief whose intent.key_pattern no longer matches silently rewrites meta.json's issue_key to empty, orphaning every claim already recorded under the old key, since §3.3 forms each claim id as \u003cISSUE-KEY\u003e#c\u003cn\u003e.\n- A brief that would replace a non-empty recorded issue key with a different one, or with none, refuses with exit code 4 and a hint, rather than writing.\n- A test records claims under one key, then briefs again with a pattern that matches nothing, and asserts meta.json and claims.ndjson are both untouched.",
+      "source_sections": [
+        "### 9.3 Rounds and staleness"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
