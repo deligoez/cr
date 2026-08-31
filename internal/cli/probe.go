@@ -770,8 +770,29 @@ func finishProbe(
 		Run:         runID,
 		Voided:      unclean,
 		Warnings:    []string{warning},
-		Honesty:     recreationNotice(setup.ready),
+		Honesty:     probeDisclosures(setup),
 	})
+}
+
+// probeDisclosures is what §11.1 exempts from `--quiet` on a probe run: §5.1.6's
+// recreation notice, and §5.6.4's cap when this run is the one that reached it.
+//
+// The cap is disclosed at the moment it is reached and not on every run, and
+// §5.6.4 is why in both directions. "The cap being hit MUST be reported" is the
+// obligation, so the run that hits it says so; "never silently applied" is what
+// that report is for, and a reader who is told after the tenth probe that the
+// round has no budget left learns it before the eleventh refuses rather than
+// from the refusal. A line on every run would say nothing new nine times over
+// and would push the one that matters into the noise.
+//
+// The count disclosed is the round's after this run, because the number the
+// reader needs is how many probes the round has now spent.
+func probeDisclosures(setup *probeSetup) []string {
+	disclosed := recreationNotice(setup.ready)
+	if spent := setup.capped.Ran(); spent.Reached() {
+		disclosed = append(disclosed, spent.Disclosure())
+	}
+	return disclosed
 }
 
 // performedProbe is everything the locked half of a probe produced.
