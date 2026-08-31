@@ -115,3 +115,69 @@ func TestAnNaCellWithoutAReasonIsRejected(t *testing.T) {
 		assert.Contains(t, rejected.Problem, "attaches to na alone")
 	})
 }
+
+// §4.5.5's `coverage` object belongs to a cell a test-axis role filled, and to
+// no other.
+//
+// Both directions matter and they fail differently. A test-axis cell with no
+// classification leaves §4.4.1's entire answer unrecorded — the role was asked
+// to call the unit covered, partially covered, or uncovered, and the round then
+// holds no record that it did. A cell on another axis carrying one is worse for
+// the trust economy: it puts a coverage verdict in coverage.ndjson that no role
+// on that axis was asked to reach and no probe of §5 backs, and §4.4.2 makes an
+// unbacked test-adequacy assertion a question rather than a claim.
+//
+// The classification set is closed with them, because §10 reads the word: a
+// fourth value would be a cell no report can count and no reader can act on.
+func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		line  string
+		field string
+		says  string
+	}{
+		{
+			name:  "a test-axis cell with no classification",
+			line:  `{"unit":"u1","role":"test-adequacy","result":"pass"}`,
+			field: "coverage",
+			says:  "is required by §4.5.5 when the role is on the test axis",
+		},
+		{
+			name: "a cell off the test axis carrying one",
+			line: `{"unit":"u1","role":"correctness","result":"pass",` +
+				`"coverage":{"classification":"covered","test_paths":[]}}`,
+			field: "coverage",
+			says:  `is §4.4.1's answer for the test axis, and "correctness" is on the correctness axis`,
+		},
+		{
+			name: "a classification outside §4.4.1's three",
+			line: `{"unit":"u1","role":"test-adequacy","result":"pass",` +
+				`"coverage":{"classification":"mostly","test_paths":[]}}`,
+			field: "coverage.classification",
+			says:  `is "mostly"; §4.4.1 closes it at covered, partially-covered, uncovered`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Decode(cellsFile, []byte(tc.line+"\n"), active())
+
+			var rejected *RejectedCellError
+			require.ErrorAs(t, err, &rejected)
+			assert.Equal(t, tc.field, rejected.Field)
+			assert.Contains(t, rejected.Problem, tc.says)
+		})
+	}
+
+	// An uncovered unit rests on no test path, and §12.3 has the empty list
+	// serialise as [] rather than null.
+	t.Run("an uncovered unit names no test path", func(t *testing.T) {
+		cells, err := Decode(cellsFile,
+			[]byte(`{"unit":"u1","role":"test-adequacy","result":"question",`+
+				`"coverage":{"classification":"uncovered"}}`+"\n"), active())
+		require.NoError(t, err)
+		require.Len(t, cells, 1)
+
+		require.NotNil(t, cells[0].Coverage)
+		assert.Equal(t, Uncovered, cells[0].Coverage.Classification)
+		assert.Equal(t, []string{}, cells[0].Coverage.TestPaths)
+	})
+}
