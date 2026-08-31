@@ -127,3 +127,24 @@ func TestReleasingTheProbeLockKeepsItsFile(t *testing.T) {
 		l.ProbeLockFile("/src/acme/web", "laravel-pest"),
 		"§2.2: the lock lives under the state root, never beside the repository it names")
 }
+
+// §5.6.3: the lock covers cr's own runs and the warning says so, naming the
+// repository whose other runs it cannot see.
+//
+// The sentence is derived from the lock's own halves rather than composed at
+// the call site, so what a reader is told and what the lock actually guards
+// cannot come apart — a warning naming some other checkout would be worse than
+// none, because it would read as a clearance for this one.
+func TestTheProbeLockSaysWhatItDoesNotCover(t *testing.T) {
+	l := probeLocks(t)
+
+	held, err := l.LockProbe("/src/acme/web", "laravel-pest", time.Second)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, held.Unlock()) })
+
+	warning := held.CollisionWarning()
+	assert.Contains(t, warning, "§5.6.3")
+	assert.Contains(t, warning, "/src/acme/web",
+		"the warning names the repository whose other runs the lock does not cover")
+	assert.Contains(t, warning, "cr's own runs only")
+}
