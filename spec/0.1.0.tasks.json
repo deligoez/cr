@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T03:49:31.597149Z",
+  "updated_at": "2026-08-31T03:53:41.589133Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3529,7 +3529,7 @@
     {
       "id": "sandbox-destroy",
       "title": "Remove the sandbox worktree with registration",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-copy-setup"
@@ -3539,11 +3539,25 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T03:49:41.647485Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T03:53:41.566256Z",
+      "closed_reason": "- `cr sandbox destroy \u003cpr\u003e` is wired in internal/cli/sandbox.go and calls sandbox.Destroy, which removes the worktree through git.RemoveWorktree and prunes the registration in both branches — a directory that is already gone still leaves an entry under `.git/worktrees/`, and `worktree add` refuses a path that is still registered, so a removal that skipped the prune would strand the one state §5.1.1 cannot recover from. §5.1.6's recreation now shares that helper instead of repeating it, and the post-setup baseline goes with the sandbox it described. Dogfooded against deligoez/cr-qa PR #1: after the destroy, `git worktree list` shows only the clone, `.git/worktrees/` is gone, `git status --porcelain` is empty, and sandbox-baseline.json has left the pull request's state directory.\n- TestDestroyingTheSandboxLeavesNoWorktreeRegistrationBehind creates a sandbox, asserts the registration directory holds exactly one entry, destroys it, and then reads `.git/worktrees/` off disk to assert it is empty or absent rather than trusting git's own report; it also counts `git worktree list --porcelain` down to the checkout itself and runs the command a second time, where a pull request with no sandbox is told so rather than refused. TestNoCommandTouchesTheRepositoryUnderReview now runs `sandbox destroy` between `sandbox create` and `test`, so the removal is followed by §5.1.6 rebuilding on the path it had just freed.\n",
+      "gate_passed_at": "2026-08-31T03:53:41.566256Z",
+      "commit_sha": "8be4723",
+      "commit_shas": [
+        "8be4723",
+        "43a9162",
+        "a49fc9e"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/sandbox_test.go",
+        "internal/sandbox/clean.go",
+        "internal/sandbox/destroy.go"
+      ]
     },
     {
       "id": "sandbox-baseline-record",
