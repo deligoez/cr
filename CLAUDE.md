@@ -149,13 +149,29 @@ Two rules that make the phase-boundary run worth doing:
    makes the suite hang rather than fail, and the timeout coefficient then buys
    that answer at thirty times the suite's runtime. Both are why a run takes
    15–30 minutes and why the efficacy number understates detection.
-4. **Fix `--workers`, because the default saturates the machine and manufactures
-   its own timeouts.** `gremlins unleash` takes `--workers` and `--test-cpu`, and
-   with neither set a run on this ten-core box drove the fifteen-minute load
-   average to 66 — more than six times the core count. A saturated box makes slow
-   mutants time out, so an unpinned run reports timeouts it caused itself, and
-   two runs of the same tree do not compare. Pin both, and record what you pinned
-   beside the numbers. There is also `-D, --diff <branch|commit>`, which scopes
+4. **Fix `--workers`. Never pass `--test-cpu`: it silently turns every run into a
+   100% pass.** With neither set, a run on this ten-core box drove the
+   fifteen-minute load average to 66 — more than six times the core count, and a
+   saturated box makes slow mutants time out, so an unpinned run reports timeouts
+   it caused itself. `--workers 4` fixes that and changes nothing else. But
+   `--test-cpu` corrupts the result outright. Measured on `./internal/finding`,
+   one package, one tree, one binary:
+
+   | invocation | result |
+   |---|---|
+   | no flags | 83 killed, **5 lived**, 3 timed out, 94.32% — 1m58s |
+   | `--workers 4` | 83 killed, **5 lived**, 3 timed out, 94.32% |
+   | `--test-cpu 2` | 91 killed, **0 lived**, 0 timed out, **100%** — 44s |
+
+   The tell is `Lived: 0` beside `100.00%`, and it is always a lie: `finding/id.go`'s
+   `n > highest` is a documented equivalent mutant — `>=` assigns the value already
+   held — and a `--test-cpu` run reports it KILLED. Applying that mutation by hand
+   leaves `go test ./internal/finding` green, so nothing killed it. **Treat a 100%
+   efficacy figure as a broken run, not a good one.** The same flag is what made
+   `./internal` finish in seven seconds claiming 1270 killed: `go test ./internal`
+   fails with "no Go files", every mutant's run exits non-zero, and every one is
+   counted killed. Without `--test-cpu`, `./internal` works and takes 15–30 minutes.
+   There is also `-D, --diff <branch|commit>`, which scopes
    mutation to changed code — untried here, and the obvious way to make this a
    per-task check rather than a release ritual. Note gremlins leaves
    `/var/folders/.../gremlins-*` behind even on a clean exit; a CI run needs a
