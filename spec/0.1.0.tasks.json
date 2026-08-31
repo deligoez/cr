@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T10:47:42.222389Z",
+  "updated_at": "2026-08-31T11:25:38.928774Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4250,7 +4250,7 @@
     {
       "id": "probe-record-schema",
       "title": "Define the probe record fields",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mutation-target-derivation",
@@ -4262,16 +4262,23 @@
       "source_sections": [
         "### 5.5 Probe record"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T11:03:05.479695Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-08-31T11:03:05.479891Z",
+      "closed_reason": "- internal/probe/record.go declares Record in §5.5's own table order and carries every row of it — id, kind, head, input, filter, result, tests_run, tests_failed, baseline, target, duration_ms, output_tail — with §2.3.3's round beside the head it travels with.\n- The table is held as data in a fields list and checkRecordFields runs at package initialisation, so a field added to the struct without a row in the section, or a row the struct drops, panics the binary rather than reaching probes.ndjson unannounced.\n- TestTheProbeFieldTableIsTheOneTheSpecWrites transcribes §5.5's rows from the spec and asserts the table equals them, so the table is checked against the section rather than against itself.\n- TestEveryRowOfTheTableReachesTheWire marshals a filled record and asserts the key set is exactly the table's, then asserts a record with no counts and no filter omits exactly the three rows §5.5's Required column answers no.\n- baseline is the id of the run record §5.2.6 admits at the same head on unmutated, un-probed code, and internal/probe/baseline.go's Referenced is the one place that answers which: Spec{Filter: filter} for a mutation probe and the unfiltered spec for a gap probe, whose test does not exist in the baseline.\n- Spec.stands admits only a run at the head carrying the same filter, no probe id, and no contamination, and TestTheBaselineOfAKindIsTheRunTheSectionNames covers both kinds; nothing there was rebuilt for this task.\n- target is a path:line, always side RIGHT because §5.1.6 admits the sandbox only at the round's head, and it is derived for a mutation probe by probe.Target from the patch per §5.3.2 while --target is refused for that kind.\n- For a gap probe the target is supplied, and probe.CheckTarget now validates it as §6.2.3 validates a citation: ParseTarget holds the value to a path and a canonically spelled line, then the path is resolved against the head under review and a path the head does not hold as a file and a line past the file's end are both refused.\n- The reader is git.FileAtRevision bound to the repository and the round's head, which is the same reader §6.2.3 resolves a citation through, so the two rules read one tree; internal/cli/exit.go maps InvalidTargetError onto ExitValidation, §11.2's code 1, which is the code §6.2.3 fixes.\n- The check runs in runGapProbe before §5.2.6 performs a baseline suite and before §5.6.1's lock is taken, and gapInput asks the shape before any file is opened, so a target naming nowhere costs no run at all.\n- TestAGapProbeTargetIsAPathAndALineNumber covers fifteen spellings including the last-colon separator, a padded line, a signed line and line zero; TestAGapProbeTargetIsResolvedAgainstTheHead covers both §6.2.3 refusals and both accepted boundaries; TestAnUnreadableHeadIsNotARejectedTarget asserts a reader failure is returned unchanged rather than reported as the agent's data.\n- TestAGapProbeRefusesATargetTheHeadDoesNotHold drives six of those through the command and asserts exit code 1 and an absent runner log, so the refusal is proven to come before any suite ran.\n- A finding references at most one probe and does so by id: internal/finding/finding.go declares Probe as a single optional string, and TestAFindingReferencesAtMostOneProbeByID asserts the field's kind is a string rather than a slice, asserts its wire name and omitempty, and asserts §6.1's table marks the row optional, which is §5.5.2's at most.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh, with gofmt -l internal empty.\nOut of scope and left to the tasks that own them: §5.5's per-kind result vocabulary belongs to probe-result-vocabularies, §5.5.1's immutability and §5.5.3's grading fence to probe-record-invariants, and §6.2.2's containment of a probe target inside a record's anchor to probed-grade-validation.\n",
+      "gate_passed_at": "2026-08-31T11:03:05.479891Z",
+      "commit_sha": "70add42",
+      "commit_shas": [
+        "70add42"
+      ],
+      "commit_files": [
+        "internal/probe/record.go"
+      ]
     },
     {
       "id": "probe-result-vocabularies",
       "title": "Keep per-kind result vocabularies disjoint",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "probe-record-schema"
@@ -4281,16 +4288,23 @@
       "source_sections": [
         "### 5.5 Probe record"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T11:08:04.050226Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-08-31T11:08:04.050374Z",
+      "closed_reason": "- internal/probe/vocabulary.go closes §5.5's second table per kind and shares neither row: a mutation probe carries one of no-test-failed, failed, no-tests-selected, inconclusive, error, timeout, and a gap probe one of passed, failed, no-tests-selected, inconclusive, error, timeout.\n- The sets live in one place rather than beside each ladder, which is what §5.5's \"MUST NOT be shared\" asks for; mutation.go, gap.go and outcome.go each said the closing belonged in one place and now name that place, and nothing else in them changed.\n- Results returns a kind's vocabulary in §5.5's order as a copy, and TestAKindsVocabularyCannotBeWidenedByItsReader writes through the returned slice and asserts the closed set is unchanged.\n- A record carrying a result outside its kind's vocabulary is rejected: probe.CheckResult refuses it and internal/cli/probe.go calls that at the top of appendProbe, which is the one door onto probes.ndjson.\n- The check sits ahead of the run record's own append, so a refused probe leaves neither a probe line nor the run line that would have named it, and §5.2.6 never has to read a run pointing at a probe that does not exist.\n- It is asked of the record rather than of the ladder, because a ladder answers only for runs that went through it: §5.1.7's override replaces whatever it produced, a record can be assembled from fields, and a kind the command did not recognise reaches no ladder at all.\n- A kind outside §5.5's two is refused on the same call, since its vocabulary is empty and the refusal says there is no third kind rather than showing an empty set.\n- internal/cli/exit.go maps OutsideVocabularyError onto ExitValidation, §11.2's code 1, alongside the other records cr refuses to store.\n- TestAResultOutsideItsKindsVocabularyIsRejected asserts passed on a mutation probe and no-test-failed on a gap probe are both rejected, and covers seven further spellings including the empty result, a capitalised one, a padded one, an unknown kind and the empty kind.\n- TestAProbeResultOutsideItsKindsVocabularyIsNeverStored drives the same two crossings plus an unknown kind through recordProbe with a run record attached, and asserts exit code 1 with probes.ndjson and runs.ndjson both still empty.\n- TestTheResultVocabularyIsTheOneTheSpecWritesPerKind transcribes §5.5's two rows as literal strings so a renamed constant both the ladder and the vocabulary followed would still fail.\n- TestEveryResultItsKindAdmitsIsAccepted and TestEveryResultItsKindAdmitsIsStored walk all twelve admitted values through the check and through the write, so a check that refused everything would fail too.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh, with gofmt -l internal empty.\nOut of scope: §5.5.1's immutability and §5.5.3's grading fence belong to probe-record-invariants, and §5.6.4's round cap to probe-round-cap.\n",
+      "gate_passed_at": "2026-08-31T11:08:04.050374Z",
+      "commit_sha": "d3844d2",
+      "commit_shas": [
+        "d3844d2"
+      ],
+      "commit_files": [
+        "internal/probe/vocabulary.go"
+      ]
     },
     {
       "id": "probe-record-invariants",
       "title": "Freeze probe records at their head",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "probe-result-vocabularies"
@@ -4300,11 +4314,18 @@
       "source_sections": [
         "### 5.5 Probe record"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T11:12:42.240897Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-08-31T11:12:42.241039Z",
+      "closed_reason": "- Probe records are immutable once written, per §5.5.1: appendProbe refuses a record whose id one already on file carries, and internal/cli/noproberewrite_test.go proves from the abstract syntax tree that probes.ndjson has exactly one writer in the whole tree and that it is state.AppendStamped in appendProbe.\n- AppendStamped is the only write that can satisfy §5.5.1, because it carries the bytes the file already holds through untouched; WriteStamped, the other door §2.3.3 opens onto a stamped file, restamps every record it is handed and would rewrite every earlier probe with the round now being written, so the guard fails any call naming the file that is neither the read nor that append.\n- The guard was proven to bite: a scratch file calling state.WriteStamped with state.FileProbes made it fail naming the offending function, and was then removed.\n- TestAStoredProbeRecordIsNeverRewritten stores a gap probe, attempts a second write under the id §5.4.2 fixed before the placement, and asserts the refusal plus probes.ndjson byte for byte unchanged; the assertion is on the bytes rather than the count, because a rewrite that replaced the line would satisfy a length check while repointing every finding that names the id.\n- Probe records whose head differs from the current head are never used to grade a finding in the current round, per §5.5.3: (*Record).Grades is the one predicate that answers it, and internal/cli/gapsupport.go's gradingGap and answerGapSupport now both read the head through it rather than through two spellings of the same comparison.\n- The predicate is a whole-string comparison, so an abbreviation of the round's head is another head; cr stores full SHAs and a prefix is a value cr did not write.\n- TestAProbeGradesOnlyAtTheHeadItRanAgainst covers six cases and varies the result across them, because §5.5.3 admits no exception for no-test-failed, the one value §5.3.5 lets a probed grade rest on.\n- TestAProbeFromAnEarlierHeadGradesNothing asserts a previous-head probe cannot grade through the reader that grades: a failed gap probe stored at an earlier head, read against the current round with a passing baseline, supports nothing and the reason names §5.5.3 and both heads.\n- failed is the result driven there because it is the one §5.4.4 would otherwise support, so a head check that did nothing would be invisible in the other five.\n- Nothing removes the record itself: §5.5.1 keeps it on disk exactly as written and NextID allocates above every id the file has ever held, so a finding stored in an earlier round still names the probe it rested on and only that probe's standing in this round is withdrawn.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh, with gofmt -l internal empty.\nOut of scope: §6.2.2's containment of a probe target inside a record's anchor, and the mutation half of grading, belong to probed-grade-validation.\n",
+      "gate_passed_at": "2026-08-31T11:12:42.241039Z",
+      "commit_sha": "be386da",
+      "commit_shas": [
+        "be386da"
+      ],
+      "commit_files": [
+        "internal/probe/record.go"
+      ]
     },
     {
       "id": "probe-advisory-lock",
@@ -4347,7 +4368,7 @@
     {
       "id": "probe-round-cap",
       "title": "Refuse probes exceeding the round cap",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "probe-advisory-lock",
@@ -4358,11 +4379,18 @@
       "source_sections": [
         "### 5.6 Isolation and budget"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T11:25:38.911657Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-08-31T11:25:38.911853Z",
+      "closed_reason": "- probe.max_per_round, whose §2.7 default is 10, caps probe executions per round: internal/probe/cap.go's RoundCapFor counts the probe records probes.ndjson holds at the round's own round number, and Reached makes the cap the last execution that fits, so a round runs ten probes and refuses the eleventh.\n- The count comes from probes.ndjson itself rather than from a tally kept beside it, because §2.3.3 stamps round on every record and a separate counter would be a second answer that could drift from the file it summarises.\n- Records from other rounds are not counted, which is §5.6.4's own word that the cap is per round; §5.5.1 keeps earlier rounds' probes on disk and counting them would let a third round refuse the first probe it asked for.\n- The cap being hit is reported and never silently applied: RoundCap.Disclosure names the count, the cap and the setting that would raise it, and internal/cli's probeDisclosures puts it in the payload's honesty field beside §5.1.6's recreation notice.\n- The disclosure is emitted by the run that reaches the cap rather than by every run, so the one report that matters is not buried under nine that say nothing new, and TestAProbeWithBudgetLeftIsToldNothingAboutTheCap asserts a round with budget left is told nothing about it.\n- A cr probe run that would exceed the cap refuses with exit code 1: RoundCap.Err returns a RoundCapReachedError and internal/cli/exit.go maps it onto ExitValidation, the code §11.2 already gives §1.6.2's comment cap, which §5.6.4 is the same rule about a different resource.\n- The refusal names the cap and the count of probes already run in this round, and names the run it refused as number eleven, so the reader can tell a budget from a bug.\n- It executes nothing in the sandbox: probeBudget is called in prepareProbe after the round is read and before sandbox.Ensure, which is already execution because §5.1.3 runs the profile's setup commands on a recreation.\n- TestTheEleventhProbeOfARoundIsRefusedHavingRunNothing runs eleven mutation probes at the built-in cap of ten and asserts the eleventh exits 1, the runner's own log is byte for byte what it was before the refused run, probes.ndjson still holds ten records, and the sandbox holds what the head holds.\n- The log is what proves nothing ran, rather than the absence of a record: a refusal placed after §5.2.6's baseline would leave the log longer while the record count still read as a clean refusal.\n- The same test reads the tenth run through --quiet and asserts the cap report is in the payload, which is §11.1's exemption; the flag suppresses nothing today by design, and the disclosure is carried as a payload field so the exempt writer quiet-honesty-exemptions owns has it to consume.\n- RoundCap implements the Disclosure method finding.HonestyDisclosure names, without internal/probe importing internal/finding, exactly as probe.GapUnmappable already does.\n- TestTheCapIsTheLastExecutionThatFits covers the boundary from both sides at the default and at caps of one and zero, and TestTheDisclosedCountIncludesTheRunBeingReported fixes that the number disclosed is the round's after this run.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh, with gofmt -l internal empty.\n- No mutation figure is claimed for this unit, because the tool is not measuring: gremlins reports finding/id.go:42's CONDITIONALS_BOUNDARY as killed while applying that exact mutation by hand leaves internal/finding green, so it is an equivalent mutant reported as killed and every efficacy number the tool prints today is unfounded.\n",
+      "gate_passed_at": "2026-08-31T11:25:38.911853Z",
+      "commit_sha": "25ccbe6",
+      "commit_shas": [
+        "25ccbe6"
+      ],
+      "commit_files": [
+        "internal/probe/cap.go"
+      ]
     },
     {
       "id": "finding-record-schema",
