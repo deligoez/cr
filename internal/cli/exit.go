@@ -252,6 +252,16 @@ func exitCodeFor(err error) int {
 		// would answer §4.1.6 against a set no round recorded.
 		return ExitState
 	}
+	var setupFailed *sandbox.SetupError
+	if errors.As(err, &setupFailed) {
+		// §5.1.3 runs the commands the profile names, and cr has never
+		// heard of any of them. A refusal is therefore the external
+		// command failure §3.1.3 fixes the shape of — exit code 3 with
+		// the command's stderr surfaced — and not a malformed
+		// invocation: the command line was right and what failed was
+		// the tool the profile asked for.
+		return ExitFile
+	}
 	var sandboxExists *sandbox.ExistsError
 	if errors.As(err, &sandboxExists) {
 		// §5.1.1 creates the sandbox worktree and §5.1.5 removes it,
