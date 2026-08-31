@@ -826,7 +826,7 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue, cells string) map[string][]string {
+func repoRuns(merged, claims, issue, cells, pairs string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -839,6 +839,7 @@ func repoRuns(merged, claims, issue, cells string) map[string][]string {
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
 		"cells record": {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
+		"map record":   {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
 		// `cr brief` is the one command that reads the repository, so
 		// it is the one this guard was widened for: §3.4.1 takes a
 		// diff and §2.4.1 stats marker files, both inside the checkout
@@ -925,6 +926,14 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	require.NoError(t, os.WriteFile(cells,
 		[]byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"), 0o600))
 
+	// The file `cr map record` is pointed at. It is empty rather than a
+	// pair, because §4.1.6 checks every claim id against the round's
+	// claims and `cr claims record` sorts after `cr map record` in the run
+	// order below — an empty mapping is a real §4.1.1 answer, since every
+	// unit may be mapped to zero claims.
+	pairs := filepath.Join(home, "mapping.ndjson")
+	require.NoError(t, os.WriteFile(pairs, nil, 0o600))
+
 	claims := filepath.Join(home, "claims.ndjson")
 	require.NoError(t, os.WriteFile(claims, []byte(`{"id":"`+fixtureIssue+`#c1",`+
 		`"text":"The retry backs off exponentially.","source":"acceptance",`+
@@ -955,7 +964,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	runs := repoRuns(merged, claims, issue, cells)
+	runs := repoRuns(merged, claims, issue, cells, pairs)
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
