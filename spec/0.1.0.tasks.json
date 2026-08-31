@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T05:55:33.661152Z",
+  "updated_at": "2026-08-31T08:09:10.976781Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3866,7 +3866,7 @@
     {
       "id": "mutation-probe-run",
       "title": "Apply the mutation before running tests",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "baseline-resolution",
@@ -3877,16 +3877,23 @@
       "source_sections": [
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T06:02:28.714934Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T06:16:07.5415Z",
+      "closed_reason": "- A mutation probe breaks production code from an agent-supplied unified diff: internal/git/patch.go's ParsePatch reads the diff whole with every hunk body intact, and PatchedFile.Apply applies it strictly, with no offset search and no fuzz, so a hunk that does not match the sandbox file is refused rather than relocated.\n- cr probe run \u003cpr\u003e --kind mutation --patch \u003cfile\u003e --filter \u003cexpr\u003e in internal/cli/probe.go applies the mutation, runs the profile's suite inside the sandbox, reverts the mutation, and records the result; the apply and the revert are one act, since state.UnderSandboxMutation in internal/state/mutate.go writes the files, calls the run, and restores them from a defer it owns, so the mutation is off disk on return, on error, and on panic. The value recorded is probe.Decide's, fed by probe.Ladder reading section 5.3.4's seven rungs off the run, so section 5.1.7's override lands before the write and exactly one value reaches probes.ndjson; section 5.2.6's baselines are performed first inside one hold of section 5.6.1's lock, and the mutated run is stored carrying the probe id, which fences a probe's own run out of every baseline resolution.\n- TestAMutationProbeAppliesRunsRevertsAndRecords in internal/cli/probe_test.go drives the full apply-run-revert-record cycle against the fixture repository and asserts every step from evidence the command could not have faked: the runner's own log shows the baseline ran against the head's file and the probe against the mutated one, the sandbox holds the head's file again when the command returns, runs.ndjson holds r1 with no probe and r2 with one, and probes.ndjson holds p1 with result no-test-failed and baseline r1.\n- The quality gate passes: go test -race ./..., golangci-lint run, and scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-08-31T06:16:07.5415Z",
+      "commit_sha": "37bbf74",
+      "commit_shas": [
+        "37bbf74"
+      ],
+      "commit_files": [
+        "internal/cli/probe_test.go"
+      ]
     },
     {
       "id": "mutation-target-derivation",
       "title": "Derive target from the mutation patch",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mutation-probe-run"
@@ -3896,16 +3903,23 @@
       "source_sections": [
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T06:23:05.705238Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-08-31T06:23:05.705372Z",
+      "closed_reason": "- cr derives target from the patch itself in internal/probe/target.go's Target, and internal/cli/probe.go rejects --target for a mutation probe before it reads anything else, naming section 5.3.2 in the refusal.\n- The evidence chain runs on the patch cr executed: the record's target row is only ever Target's answer over the parsed diff, and there is no path by which a flag can set it, so the line section 6.2.2 anchors a probed finding at is the line the experiment was performed on.\n- TestAMutationProbeRefusesASuppliedTarget in internal/cli/probe_test.go asserts --target exits 2 with no suite run, and TestAMutationProbeAppliesRunsRevertsAndRecords asserts probes.ndjson carries target app.go:3, which is the line the patch's only hunk replaces.\n- The derivation is section 5.3.2's: the path and pre-image line of the first hunk's first removed or replaced line, counting context lines as it walks the hunk body, or the hunk's own first pre-image line when the hunk only adds.\n- The round 12 findings are answered by fixing the order rather than reading the patch's own, so the derivation is single-valued for every unified diff.\n- The first hunk is the lowest pre-image path and then the lowest pre-image start, so an agent cannot steer the target by rearranging its patch; the add-only branch names the hunk's own first pre-image line; and a zero-context add-only first hunk such as @@ -41,0 +42 @@ covers no pre-image line and is refused with TargetError rather than naming line 41, which the patch does not touch.\n- TestTheMutationTargetIsDerivedFromThePatchAlone and TestAPatchNoTargetFollowsFromIsRefused in internal/probe/target_test.go are table-driven over multi-file, multi-hunk, add-only, -U0, file-creating and hunkless patches.\n- Round 12's unbounded-patch-target finding is answered by state.Layout.InSandbox in internal/state/mutate.go, the writer's own resolution exported so internal/cli/probe.go can refuse every path the patch addresses before a suite is run; it rejects an empty, absolute or escaping path and resolves symbolic links before comparing, and TestAPatchAimedOutOfTheSandboxIsRefused asserts exit 1 with the runner log absent.\n- The quality gate passes: go test -race ./..., golangci-lint run, and scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-08-31T06:23:05.705372Z",
+      "commit_sha": "1334700",
+      "commit_shas": [
+        "1334700"
+      ],
+      "commit_files": [
+        "internal/cli/probe_test.go"
+      ]
     },
     {
       "id": "mutation-revert-guarantee",
       "title": "Revert the mutation on every outcome",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mutation-target-derivation",
@@ -3916,11 +3930,18 @@
       "source_sections": [
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T08:09:10.966132Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-08-31T08:09:10.966242Z",
+      "closed_reason": "- Invariant 6 is structural rather than remembered: state.UnderSandboxMutation in internal/state/mutate.go is the only exported way to put a mutation into a sandbox, it arranges the undo in a defer before it calls the run, and applySandboxMutation is unexported with that wrapper as its single caller, so a failing run, a run cr killed for exceeding tests.timeout_seconds, and a panic all leave the sandbox as they found it; TestOnlyTheRevertingWrapperMutatesTheSandbox in internal/cli/norevert_test.go reads the tree and asserts the single caller, the defer's position ahead of the run, and that what it calls is the undo the apply handed back, and moving the revert out of the defer makes it fail.\n- Section 5.3.3's remaining case is cr ceasing to exist, which no code inside the process can answer, and section 5.1.6's check on the next invocation is what does: sandbox.Ensure compares the sandbox against its post-setup baseline before every run and rebuilds one that differs, reporting the recreation as an honesty disclosure that survives --quiet.\n- TestTheMutationIsRevertedAfterAFailingRun and TestTheMutationIsRevertedAfterATimeout in internal/cli/probe_test.go drive the command end to end and assert the sandbox holds the head's own file afterwards, with results failed and timeout recorded; TestAKilledProbeLeavesASandboxTheNextRunRecreates starts the real binary, waits until the mutation is on disk, sends it SIGKILL, asserts the mutation is still there, and then asserts the next invocation names src/Order.php in its section 5.1.6 notice and hands back a rebuilt checkout; internal/state/mutate_test.go covers the panic and the partial-apply paths at the wrapper itself.\n- Dogfooded against deligoez/cr-qa PR 1 from a throwaway clone: the mutation of Order::shipping's uncovered arm recorded no-test-failed at target src/Order.php:34, a mutation of the covered subtotal recorded failed, a stale patch recorded error with no run, a hanging mutation under a three-second budget recorded timeout, and a SIGKILLed probe left the file changed until the next cr test rebuilt the sandbox; after every one of them the sandbox was byte-clean and the clone's status, refs and worktree list were unchanged.\n- The quality gate passes: go test -race ./..., golangci-lint run, and scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-08-31T08:09:10.966242Z",
+      "commit_sha": "eec4e39",
+      "commit_shas": [
+        "eec4e39"
+      ],
+      "commit_files": [
+        "internal/probe/record_test.go"
+      ]
     },
     {
       "id": "mutation-result-ladder",
