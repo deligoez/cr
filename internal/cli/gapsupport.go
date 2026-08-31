@@ -150,9 +150,11 @@ func namedClaim(claim string) string {
 // The head is asked first, per §5.5.3: a probe record from an earlier head must
 // not be used to grade a finding in the current round, whatever its result was.
 // §5.4.5's five results come next, because they settle the question without
-// looking at anything else — the run itself said the probe establishes nothing
-// a `probed` grade could rest on. Only `failed` reaches §5.4.4's two
-// conditions.
+// looking at anything else — the run itself said the probe supports no `probed`
+// grade. `passed` is separated from the other four because §5.4.5 separates it:
+// it establishes the behaviour the supplied test asserts is present, which is a
+// fact worth telling the reader and is not the missing test §5.3 establishes.
+// Only `failed` reaches §5.4.4's two conditions.
 func answerGapSupport(
 	gap *probe.Record, meta *state.Meta, runs []run.Record, pairs []mapping.Pair,
 	record *finding.Finding,
@@ -166,10 +168,15 @@ func answerGapSupport(
 			"the probe ran at %s and this round's head is %s; §5.5.3 keeps a probe from "+
 				"another head out of the current round's grading",
 			gap.Head, meta.Head)
+	case probe.Present(gap):
+		answered.Reason = "§5.4.5: the supplied test passed, so the behaviour it asserts is " +
+			"present — which is not the missing test §5.3's no-test-failed establishes; " +
+			"a passed gap probe supports no probed grade, so the record stays argued (§6.2) " +
+			"and is asked as a question (§6.3)"
 	case !probe.Reproduces(gap):
 		answered.Reason = fmt.Sprintf(
-			"§5.4.5: a %s gap probe supports no probed grade, so a record resting on it "+
-				"stays argued (§6.2) and is asked as a question (§6.3)", gap.Result)
+			"§5.4.5: a gap probe whose result is %s supports no probed grade, so a record "+
+				"resting on it stays argued (§6.2) and is asked as a question (§6.3)", gap.Result)
 	default:
 		answered.Supports, answered.unmapped, answered.Reason = failedGapSupport(
 			gap, runs, pairs, meta.Round, record)
