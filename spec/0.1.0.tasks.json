@@ -3256,7 +3256,7 @@
         "lens-honesty-reporting"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- A role whose prerequisites are unmet is reported as skipped with its reason, never omitted silently, per §4.6.4.\n- The report feeds §4.5.4's honesty channel and survives --quiet.\n- A test skips one role and asserts it appears in both cr review's output and cr status's lens list.",
+      "acceptance": "- A role whose prerequisites are unmet is reported as skipped with its reason, never omitted silently, per §4.6.4.\n- The report feeds §4.5.4's honesty channel and survives --quiet.\n- A test skips one role and asserts it appears in both cr review's output and cr status's lens list.\n- Carried from brief-payload: meta.json's active_roles stays [] after a brief, because filling it needs §4.5.1 role activation. This task owns that fill.",
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
