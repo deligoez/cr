@@ -289,6 +289,8 @@ var gitReads = map[string]string{
 	"ls-tree":    "§6.2.3's question of whether the head holds a cited path at all",
 	"cat-file":   "§6.2.3's read of the cited line as the head holds it",
 	"worktree":   "§5.1.1's sandbox worktree, the one write §2.2 permits",
+	"rev-parse":  "§5.1.6's check that the sandbox HEAD is still the round's head",
+	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked",
 }
 
 // gitSourceFiles parses internal/git's own source, tests excluded.
