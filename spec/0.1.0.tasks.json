@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T09:07:19.530634Z",
+  "updated_at": "2026-08-31T09:11:52.307194Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4070,7 +4070,7 @@
     {
       "id": "gap-probe-removal",
       "title": "Remove the gap test after running",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "gap-probe-placement",
@@ -4081,11 +4081,23 @@
       "source_sections": [
         "### 5.4 Gap probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T09:07:29.018776Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T09:11:52.280215Z",
+      "closed_reason": "- §5.4.2's removal is structural rather than remembered: `state.applySandboxTestFile` is unexported, `state.UnderSandboxTestFile` is its only caller, and that wrapper binds the removal the write handed back and arranges it to run on every exit before it runs anything at all — so the removal happens on the error return, on the timeout, and on the panic unwind alike, and there is no call site for a later edit to return past.\n- `TestOnlyTheRevertingWrappersTouchTheSandbox` is the AST guard, now a table over both doors: for each of `applySandboxMutation`/`UnderSandboxMutation` and `applySandboxTestFile`/`UnderSandboxTestFile` it asserts the writer has exactly one caller, that the caller is the wrapper, that the wrapper arranges its undo before running anything, and that the arranged call runs the undo the write returned. It was checked to bite by moving the removal to after the run, which fails it.\n- The gap probe needs its own door rather than the mutation one, because the obligations are opposites: §5.3.2 rewrites a file that must exist and restores its content, while §5.4.2 creates a file that must not exist and deletes it — one door would carry a single undo that has to decide which it is, inside the one function invariant 6 exists to leave no decision in.\n- `TestAProbeTestFileIsRemovedAfterAFailingRun` covers removal after a failing run at the state boundary and asserts the run's own failure still reaches the caller, so a removal that swallowed it cannot pass.\n- `TestAProbeTestFileIsRemovedWhenTheRunPanics` covers the case a removal written after the run cannot answer at all, asserting both that the file is gone and that the panic still propagates.\n- `TestTheGapProbeFileIsRemovedAfterAFailingRun` covers removal after a failing run through the command: the record carries §5.4.3's `failed` rather than §5.1.7's override, and neither the file nor the directory the placement created is left in the sandbox.\n- `TestTheGapProbeFileIsRemovedAfterATimeout` covers removal after a timeout with a one-second budget against a runner that sleeps for two minutes once the file is placed, so what is measured is the kill and the removal that follows it.\n- `TestAKilledGapProbeLeavesAFileTheNextRunRecreates` asserts the case where the removal did not happen: a real SIGKILL to a real `cr probe run` leaves the probe file on disk, and the next invocation's §5.1.6 check finds it, names it in the §11.1 disclosure, and recreates the sandbox before measuring anything.\n",
+      "gate_passed_at": "2026-08-31T09:11:52.280215Z",
+      "commit_sha": "976e215",
+      "commit_shas": [
+        "976e215",
+        "e30b363",
+        "fb7e73c",
+        "05f5bf1"
+      ],
+      "commit_files": [
+        "internal/cli/norevert_test.go",
+        "internal/cli/probe_test.go",
+        "internal/state/probefile_test.go"
+      ]
     },
     {
       "id": "gap-result-ladder",
