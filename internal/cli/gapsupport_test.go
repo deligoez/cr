@@ -246,6 +246,30 @@ func TestTheUnavailableIntentAxisIsDisclosedWhenItIsWhatKeptAGapProbeOut(t *test
 		"with an issue key the mapping was asked and answered, so no lens was blocked")
 }
 
+// §5.5.2 has a finding reference a probe rather than the other way round, so
+// two records can rest on one experiment — and the disclosure names it once.
+//
+// Repetition here would be read as information. A reader shown "p1, p1" counts
+// two experiments that went nowhere and starts looking for the second one,
+// which is the sort of small wrongness that costs the report its standing.
+func TestTheCouplingDisclosureNamesOneExperimentOnce(t *testing.T) {
+	probedHome(t, gapFixture{result: "failed", passed: true})
+	second := aProbedRecord(gapClaim)
+	second["id"] = "f2"
+	file := writeRecordFile(t, "merged.ndjson", aProbedRecord(gapClaim), second)
+
+	printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.NoError(t, err)
+
+	var payload struct {
+		Honesty []string `json:"honesty"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &payload))
+	require.Len(t, payload.Honesty, 1, "one coupling, one disclosure")
+	assert.Equal(t, 1, strings.Count(payload.Honesty[0], "p1"),
+		"the probe both records rest on is named once")
+}
+
 // §12.1's other shape: the terminal reader is told the same answer the JSON
 // carries, in the same words, and the disclosure reaches them too.
 func TestATerminalRecordNamesWhatTheGapProbeSupports(t *testing.T) {
