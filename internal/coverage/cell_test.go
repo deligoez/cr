@@ -181,3 +181,62 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		assert.Equal(t, []string{}, cells[0].Coverage.TestPaths)
 	})
 }
+
+// A cell names the unit and the role it sits at, and says one of §4.5.5's four
+// things about them.
+//
+// §1.3 defines a cell as the intersection of one unit and one active role, so a
+// line missing either is not a cell at all: it is a verdict about nothing, and
+// §10.1.1 could neither count it towards a unit's row nor report it as a gap.
+// The verdict is held to the closed set for the same reason §1.5's axis ids are
+// closed — every report in §10 reads the word, and a fifth value would be
+// counted by none of them.
+func TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		line  string
+		field string
+		says  string
+	}{
+		{
+			name:  "no unit",
+			line:  `{"role":"correctness","result":"pass"}`,
+			field: "unit",
+			says:  "which has every cell name the unit it sits at",
+		},
+		{
+			name:  "an empty unit",
+			line:  `{"unit":"","role":"correctness","result":"pass"}`,
+			field: "unit",
+			says:  "which has every cell name the unit it sits at",
+		},
+		{
+			name:  "no role",
+			line:  `{"unit":"u1","result":"pass"}`,
+			field: "role",
+			says:  "which has every cell name the role it sits at",
+		},
+		{
+			name:  "no result",
+			line:  `{"unit":"u1","role":"correctness"}`,
+			field: "result",
+			says:  "is required by §4.5.5, which closes it at pass, finding, question, na",
+		},
+		{
+			name:  "a verdict outside the four",
+			line:  `{"unit":"u1","role":"correctness","result":"skipped"}`,
+			field: "result",
+			says:  `is "skipped"; §4.5.5 closes it at pass, finding, question, na`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), active())
+
+			var rejected *RejectedCellError
+			require.ErrorAs(t, err, &rejected)
+			assert.Empty(t, cells, "a refused file stores nothing at all")
+			assert.Equal(t, tc.field, rejected.Field)
+			assert.Contains(t, rejected.Problem, tc.says)
+		})
+	}
+}
