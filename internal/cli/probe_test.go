@@ -581,6 +581,44 @@ func writeProbeTest(t *testing.T) string {
 	return path
 }
 
+// §5.4.4 and §5.4.5 as `cr probe run` reports them over §5.4.3's whole
+// vocabulary: what the reader is told the run established.
+//
+// Only `failed` is left undecided, and that is the narrowing this test exists
+// for. Reporting `undecided` for all six would be honest about `failed` and
+// misleading about the other five: §5.4.5 settles them at the run itself, and a
+// reader told the question is open goes looking for a claim to map when there
+// is nothing a mapping could change.
+//
+// `passed` is its own answer rather than `nothing`, because §5.4.5 says the run
+// established the behaviour is present — and then says in the same breath that
+// this is not the missing test §5.3's `no-test-failed` establishes.
+//
+// Every token is asserted to carry a clause as well. The clause is what a
+// terminal reader actually sees, so a token added without one would print an
+// empty line where the evidence should be.
+func TestWhatEachGapResultIsReportedToEstablish(t *testing.T) {
+	for _, tc := range []struct {
+		result      probe.Result
+		establishes string
+	}{
+		{result: "failed", establishes: establishesUndecided},
+		{result: "passed", establishes: establishesBehaviour},
+		{result: "timeout", establishes: establishesNothing},
+		{result: "error", establishes: establishesNothing},
+		{result: "no-tests-selected", establishes: establishesNothing},
+		{result: "inconclusive", establishes: establishesNothing},
+	} {
+		t.Run(string(tc.result), func(t *testing.T) {
+			token := gapEstablishedBy(&probe.Record{Kind: probe.Gap, Result: tc.result})
+
+			assert.Equal(t, tc.establishes, token)
+			assert.Contains(t, establishedClause[token], "§",
+				"the reader is told which section decided, not just a word")
+		})
+	}
+}
+
 // §5.4.2 end to end: `cr probe run --kind gap --test <file> --target <path:line>`
 // places the test at the path `tests.probe_path_template` gives, runs it,
 // removes it, and records the result.
