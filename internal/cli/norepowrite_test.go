@@ -859,6 +859,14 @@ func repoRuns(merged, claims, issue, cells, pairs string) map[string][]string {
 		// `sandbox` sorts after `brief` — which is what gives it a
 		// recorded head to check the worktree out at.
 		"sandbox create": {"sandbox", "create", fixturePR, "--repo", fixtureSlug},
+		// `cr sandbox destroy` takes that registration back out, and
+		// is what has to leave `.git/worktrees/` as it found it. It
+		// sorts between the two, so `cr test` then meets a pull
+		// request with no sandbox and §5.1.6 rebuilds one — which is
+		// the state this guard most wants covered, since a removal
+		// that left a stale registration behind would make the
+		// rebuild fail on the path it had just freed.
+		"sandbox destroy": {"sandbox", "destroy", fixturePR, "--repo", fixtureSlug},
 		// `cr test` runs a command inside the sandbox, which is the
 		// case this guard exists for from the other direction: the
 		// suite has to run in the worktree under `~/.cr` and never in
