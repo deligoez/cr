@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T04:22:48.065881Z",
+  "updated_at": "2026-08-31T04:34:47.322551Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3700,7 +3700,7 @@
     {
       "id": "count-pattern-extraction",
       "title": "Extract counts from the last match",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "run-record-schema",
@@ -3711,11 +3711,18 @@
       "source_sections": [
         "### 5.2 Test runs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T04:27:25.894714Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T04:34:47.311117Z",
+      "closed_reason": "- internal/run/counts.go reads §5.2.1's two counts out of one capture group per pattern: NewCounter compiles tests.count_pattern and tests.failed_pattern as internal/profile already validated them at exactly one group, and sum indexes match[1] and nothing else, so the arity the profile enforces is the arity the extractor depends on.\n- The corrected acceptance is what was implemented and the pre-repair two-group shape was not: there is no second group, no positional executed-then-failed reading of one match, and no last-match-wins rule anywhere in counts.go.\n- Every match of each pattern is taken and the captures are summed: sum ranges over FindAllStringSubmatch(output, -1) and adds each group, so `Tests: 2 failed, 1 passed, 3 passed` is six executed and two failed rather than the three and two a last-match reader would report.\n- A count pattern that never matches leaves both counts undetermined, which Counts returns as a nil pair so §5.2.4 omits the keys entirely, and a failed pattern that never matches yields zero rather than undetermined, because sum's `matched` result is read for the count pattern and deliberately discarded for the failed one.\n- The all-passing case is the reason for that asymmetry and it is asserted on real output: internal/profile/testdata/pest/all-passing.txt never contains the word failed at all, which the test now asserts as its premise, and the extractor still reports 2 executed and 0 failed from it.\n- A capture that does not parse as a base-10 non-negative integer leaves both counts undetermined: strconv.ParseUint permits no sign, so `-2` fails rather than being subtracted, and a value or a sum beyond maxCount is refused rather than wrapping into a smaller number than the run produced.\n- The spec is stricter than this criterion's wording and the spec was followed: §5.2.1 says a group that does not parse leaves *both* counts undetermined, so an unreadable failed capture takes the executed count with it rather than leaving a half-measured run for §5.3.4 rung 4 to read as a determined one.\n- TestEveryMatchOfEachPatternIsSummedRatherThanTheLastOneWinning covers all five cases the criterion names — no match of either pattern, one match, several matches that must sum, an all-passing run whose failed pattern never matches, and an unparseable capture — plus two more matches on the failed pattern, an unparseable failed capture, and a sum too large to be a count; TestANegativeCaptureIsNotACount, TestOutputArrivingInPiecesIsCountedAsOneStream, TestAProfileWithNoCountPatternDeterminesNothingAndKeepsNothing and TestAnUncompilablePatternIsReportedAndNamesItsField cover the rest.\n- Round 12's undefined-input-stream finding is answered in the implementation: Counter is an io.Writer teed off the same value sandbox.Run gives both cmd.Stdout and cmd.Stderr, so os/exec opens one pipe and one copying goroutine and the text matched is the runner's stdout and stderr merged in the order the runner wrote them.\n- TestTheStoredCountsAreSummedOverTheWholeMergedStream proves that end to end through the command: the runner prints `Tests: 2 passed` to stdout and `Tests: 3 passed` to stderr and the stored record reads tests_run 5, so neither stream alone was read.\n- The counts are taken from the whole captured stream and not from the retained tail, which the same test pins by setting tests.output_tail_bytes to 16: the tail stores only `ests:  3 passed` while the count is still 5. A tail-bounded sum would not be an undetermined count but a wrong one, since a cut through a recap line turns `2 failed, 4 passed` into four tests and no failures — a run §5.2.5 calls passed and §5.3.5 accepts as a baseline.\n- internal/profile/builtin_test.go's sumPattern helper is gone and TestTheLaravelPestPatternsCountCapturedPestOutput now runs the shipped patterns through run.NewCounter, so the six captured Pest 4.7.8 recaps judge the production extractor rather than a copy of the arithmetic that can agree with the spec while cr does not.\n- Dogfooded against deligoez/cr-qa PR 1: `cr test 1` on the all-passing suite recorded `\"tests_run\":4,\"tests_failed\":0` — the case with no failed line at all — and `cr test 1 --filter \"no such test exists\"` recorded neither key, leaving both undetermined per §5.2.1. `passed` is still false on both because §5.2.5's predicate is run-passed-predicate's task.\n- Gate green: go test -race ./... \u0026\u0026 golangci-lint run (0 issues) \u0026\u0026 ./scripts/deadcode.sh.\nOut of scope: §5.2.3's timeout, §5.2.5's passed predicate, §5.2.2's baseline-per-head rule and §5.5's baseline resolution are separate open tasks and are untouched here.\n",
+      "gate_passed_at": "2026-08-31T04:34:47.311117Z",
+      "commit_sha": "25578bb",
+      "commit_shas": [
+        "25578bb"
+      ],
+      "commit_files": [
+        "internal/run/counts.go"
+      ]
     },
     {
       "id": "run-timeout-handling",
