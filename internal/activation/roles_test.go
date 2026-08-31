@@ -25,7 +25,7 @@ func shippedCorpus(t *testing.T) []role.Resolved {
 // scopedCorpus is the shipped corpus plus one global role whose `profiles` list
 // names profiles. §2.5.1 ships no such role, and the list is the half of §4.5.1
 // the shipped four cannot exercise at all.
-func scopedCorpus(t *testing.T, id string, profiles string) []role.Resolved {
+func scopedCorpus(t *testing.T, id, profiles string) []role.Resolved {
 	t.Helper()
 	global := filepath.Join(t.TempDir(), "roles")
 	require.NoError(t, os.MkdirAll(global, 0o700))
