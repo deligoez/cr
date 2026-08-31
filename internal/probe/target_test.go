@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,4 +147,109 @@ func TestAPatchNoTargetFollowsFromIsRefused(t *testing.T) {
 				"a refusal about one file names it, so the reader can open it")
 		})
 	}
+}
+
+// headHolding answers as the head under review would for one file.
+func headHolding(path string, lines ...string) HeadFile {
+	return func(asked string) ([]string, bool, error) {
+		if asked != path {
+			return nil, false, nil
+		}
+		return lines, true, nil
+	}
+}
+
+// §5.5's `path:line`, read the way cr writes one.
+//
+// The rejected spellings are the ones that would let a reader believe cr
+// checked something it did not: a line number cr would never have written, and
+// a value carrying no path at all. `pkg/app.go:12:3` is the case the last colon
+// answers — an editor's `path:line:column`, whose line is not what cr means by
+// one.
+func TestAGapProbeTargetIsAPathAndALineNumber(t *testing.T) {
+	for name, tc := range map[string]struct {
+		target string
+		path   string
+		line   int
+	}{
+		"a path and a line":           {target: "app.go:3", path: "app.go", line: 3},
+		"a path with directories":     {target: "src/pkg/app.go:12", path: "src/pkg/app.go", line: 12},
+		"the first line is a line":    {target: "app.go:1", path: "app.go", line: 1},
+		"the last colon separates":    {target: "app.go:12:3", path: "app.go:12", line: 3},
+		"a colon in a path is a path": {target: "a:b/app.go:7", path: "a:b/app.go", line: 7},
+		"no colon at all":             {target: "app.go"},
+		"no path":                     {target: ":3"},
+		"no line":                     {target: "app.go:"},
+		"a line that is not a number": {target: "app.go:three"},
+		"line zero is not a line":     {target: "app.go:0"},
+		"a negative line":             {target: "app.go:-2"},
+		"a signed line":               {target: "app.go:+3"},
+		"a padded line":               {target: "app.go:03"},
+		"a spaced line":               {target: "app.go: 3"},
+		"a line beyond an int":        {target: "app.go:99999999999999999999"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			path, line, err := ParseTarget(tc.target)
+			if tc.path == "" {
+				var refused *InvalidTargetError
+				require.ErrorAs(t, err, &refused)
+				assert.Equal(t, tc.target, refused.Target)
+				assert.Contains(t, refused.Error(), "§6.2.3",
+					"§5.5 sends the reader to the rule the target is validated by")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.path, path)
+			assert.Equal(t, tc.line, line)
+		})
+	}
+}
+
+// §5.5 has a gap probe's target "supplied and validated as §6.2.3 validates a
+// citation", and §6.2.3 has exactly two refusals: a path the head does not hold
+// as a file, and a line the file does not have.
+//
+// Both boundaries are asserted from both sides, because they are the whole of
+// what the check establishes. §6.2.3 is explicit that validation proves a
+// location **exists** and never that it supports anything, so a target inside
+// the file is accepted whatever is written on that line.
+func TestAGapProbeTargetIsResolvedAgainstTheHead(t *testing.T) {
+	head := headHolding("app.go", "package app", "", "func Retry() {}")
+
+	require.NoError(t, CheckTarget(head, "app.go:3"),
+		"the last line of the file is inside it")
+	require.NoError(t, CheckTarget(head, "app.go:1"),
+		"the first line of the file is inside it")
+
+	var missing *InvalidTargetError
+	require.ErrorAs(t, CheckTarget(head, "gone.go:1"), &missing)
+	assert.Contains(t, missing.Error(), "does not hold as a file")
+
+	var past *InvalidTargetError
+	require.ErrorAs(t, CheckTarget(head, "app.go:4"), &past)
+	assert.Contains(t, past.Error(), "holds 3 lines")
+
+	// A shape the head is never asked about: the reader is not called at
+	// all, so a malformed target is refused without a git invocation.
+	unreadable := HeadFile(func(string) ([]string, bool, error) {
+		t.Fatal("§5.5: a target that is not a path:line names nothing to resolve")
+		return nil, false, nil
+	})
+	var malformed *InvalidTargetError
+	require.ErrorAs(t, CheckTarget(unreadable, "app.go"), &malformed)
+}
+
+// A head cr cannot read is not a target the agent can correct, so the reader's
+// own failure is returned unchanged rather than being turned into a rejection.
+// The two carry different exit codes — §3.1.3's 3 for the external command and
+// §6.2.3's 1 for the agent's data — and reporting a broken git as a mistyped
+// flag would send the agent to retype a correct one.
+func TestAnUnreadableHeadIsNotARejectedTarget(t *testing.T) {
+	broken := errors.New("fatal: not a git repository")
+	err := CheckTarget(func(string) ([]string, bool, error) {
+		return nil, false, broken
+	}, "app.go:3")
+	require.ErrorIs(t, err, broken)
+	var refused *InvalidTargetError
+	assert.NotErrorAs(t, err, &refused)
 }
