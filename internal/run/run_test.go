@@ -49,6 +49,32 @@ func TestARunRecordCarriesExactlyTheFieldsSection524Names(t *testing.T) {
 	}, written)
 }
 
+// The other half of the same fence: who writes each of those fields. §5.2.4's
+// record is produced entirely by cr, so every row is measured except the two
+// §2.3.3 stamps — and the absence of a third author is what says no agent
+// submits a run record, where §6.1's table would carry Required and Optional
+// rows for the fields an agent supplies.
+func TestEveryFieldOfARunRecordIsWrittenByCR(t *testing.T) {
+	require.True(t, checkRecordFields(), "the package's own check must agree")
+
+	byStamp := make([]string, 0, 2)
+	for _, row := range fields {
+		switch row.Author {
+		case stamped:
+			byStamp = append(byStamp, row.Name)
+		case measured:
+		default:
+			t.Fatalf("%s has an author that is neither cr nor the §2.3.3 stamp", row.Name)
+		}
+	}
+	assert.Equal(t, []string{"head", "round"}, byStamp,
+		"§2.3.3's pair reaches the record through state.Stamp, and nothing else does")
+
+	var record any = &Record{}
+	_, stampable := record.(state.Stamped)
+	assert.True(t, stampable, "state.WriteStamped is the one writer of head and round")
+}
+
 // count is the address of one derived test count, which is what §5.2.4's
 // "when derivable" needs a literal to be able to express.
 func count(n int) *int { return &n }
