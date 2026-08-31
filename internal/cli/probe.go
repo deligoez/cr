@@ -804,6 +804,7 @@ func gapRuns(
 	return performed, probe.GapMeasured{
 		TimedOut:    placed.record.TimedOut,
 		Unstarted:   placed.unstarted,
+		ExitCode:    placed.record.ExitCode,
 		TestsRun:    placed.record.TestsRun,
 		TestsFailed: placed.record.TestsFailed,
 	}, nil
