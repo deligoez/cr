@@ -135,3 +135,39 @@ func TestRoleActivenessRestsOnTheAxisAndTheProfileAlone(t *testing.T) {
 		})
 	}
 }
+
+// ids reduces a corpus to the role ids it holds, in corpus order.
+func ids(corpus []role.Resolved) []string {
+	out := make([]string, 0, len(corpus))
+	for i := range corpus {
+		out = append(out, corpus[i].Role.ID)
+	}
+	return out
+}
+
+// The active set is a subset of the corpus and keeps its order.
+//
+// §2.5.5 fixes the corpus order and §6.4.2 reads it to pick a duplicate group's
+// representative, so a filter that sorted its own result would hand cr a second
+// order to disagree with. The case that shows it is a per-repository override:
+// it resolves from the highest layer and therefore precedes the built-ins,
+// which alphabetical order of the ids would not produce.
+func TestTheActiveSetKeepsCorpusOrder(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "roles")
+	require.NoError(t, os.MkdirAll(repo, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "zeta.json"), []byte(`{
+	  "id": "zeta",
+	  "title": "Zeta",
+	  "axis": "correctness",
+	  "instructions": "Look at the change."
+	}`), 0o600))
+
+	corpus, err := role.Resolve(repo, filepath.Join(t.TempDir(), "absent"))
+	require.NoError(t, err)
+	require.Equal(t, "zeta", ids(corpus)[0], "a per-repository role precedes the built-ins per §2.5.5")
+
+	a := Activation{Active: []string{"intent", "correctness", "convention", "test"}}
+
+	assert.Equal(t, ids(corpus), a.ActiveRoles(corpus, "laravel-pest"),
+		"every role is active here, so the active set is the corpus in corpus order")
+}
