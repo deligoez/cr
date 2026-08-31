@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T04:20:50.703484Z",
+  "updated_at": "2026-08-31T04:22:48.065881Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3707,7 +3707,7 @@
         "profile-count-pattern-validation"
       ],
       "estimate_minutes": 12,
-      "acceptance": "- tests.count_pattern yields two capture groups, the executed count and the failed count, per §5.2.1.\n- The last match in the captured output is used, and both groups parse as base-10 non-negative integers; a pattern that does not match, or whose groups do not parse, leaves both counts undetermined.\n- A test covers no match, a single match, several matches where the last differs, and an unparseable group.\n- Round 12 finding undefined-input-stream, assigned here: §5.2.1 never says which stream output_tail and count_pattern read. The implementation fixes it as the runner's merged stdout and stderr, in that order, so the value feeding probe grading is deterministic.",
+      "acceptance": "- tests.count_pattern and tests.failed_pattern each yield exactly one capture group, per §5.2.1. Corrected here after a unit found this acceptance still described the pre-repair two-group shape: a unit following the old text would reimplement the very defect the spec repair removed.\n- Every match of each pattern is taken and the captures are summed, not just the last one. A count pattern that never matches leaves the count undetermined; a failed pattern that never matches means ZERO, not undetermined, because Pest omits any status whose count is zero and prints no \"failed\" line at all on an all-passing run.\n- A capture that does not parse as a base-10 non-negative integer leaves that count undetermined.\n- A test covers no match of either pattern, one match, several matches that must sum, an all-passing run whose failed pattern is absent, and an unparseable capture.\n- Round 12 finding undefined-input-stream, assigned here: §5.2.1 never says which stream output_tail and count_pattern read. The implementation fixes it as the runner's merged stdout and stderr, in that order, so the value feeding probe grading is deterministic.",
       "source_sections": [
         "### 5.2 Test runs"
       ],
