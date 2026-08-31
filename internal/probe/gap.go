@@ -24,6 +24,10 @@ type GapMeasured struct {
 	// program named by `tests.cmd` is not there, or is not executable —
 	// which is rung 2.
 	Unstarted bool
+	// ExitCode is the runner's own exit status. A negative code is a
+	// process that exited on a signal rather than by returning, which
+	// rung 2 puts beside a runner that never started.
+	ExitCode int
 	// TestsRun is the executed test count, nil when undetermined.
 	TestsRun *int
 	// TestsFailed is the failed test count, nil when undetermined.
@@ -43,6 +47,15 @@ type GapMeasured struct {
 // that cannot report counts would drive every gap probe to `failed`, and §5.4.4
 // would raise it at severity `high` on no evidence at all.
 //
+// Rung 2 answers a runner that exited on a signal as well as one that never
+// started, which is round 9's probe-ladder-asymmetry finding. Without it a
+// runner killed by the out-of-memory killer, or one that segmentation-faulted
+// after printing output `tests.count_pattern` still matches, falls through to
+// `failed` — and §5.4.4 makes a supported failed gap probe carry severity at
+// least `high`, so a crashed process would become the loudest item in the
+// draft. The reading is §5.3.4's rung 3 exactly, and the two ladders are the
+// same shape for the same reason.
+//
 // The result this returns is the ladder's, not the record's. §5.1.7 sits above
 // it and Decide is what applies that, so nothing here has to know about the
 // sandbox: a value produced here reaches probes.ndjson only through Decide.
@@ -50,7 +63,7 @@ func GapLadder(m GapMeasured) Result {
 	switch {
 	case m.TimedOut:
 		return resultTimeout
-	case m.Unstarted:
+	case m.Unstarted || m.ExitCode < 0:
 		return ResultError
 	case m.TestsRun != nil && *m.TestsRun == 0:
 		return resultNoTestsSelected
