@@ -49,7 +49,7 @@ type gapFixture struct {
 // unit fixture proves a line holding two fields is read correctly, while these
 // are read through the same structs cr writes them with, and a hand-spelled
 // probe record would be a second declaration of §5.5's shape.
-func probedHome(t *testing.T, f gapFixture) {
+func probedHome(t *testing.T, f gapFixture) state.Layout {
 	t.Helper()
 	layout := recordedHome(t)
 	head := f.head
@@ -79,6 +79,7 @@ func probedHome(t *testing.T, f gapFixture) {
 	})))
 	require.NoError(t, held.Write(state.FileMapping, ndjson(t, pairs...)))
 	require.NoError(t, held.Unlock())
+	return layout
 }
 
 // ndjson renders records as the file cr writes, one JSON document per line.
@@ -107,6 +108,17 @@ func aProbedRecord(claim string) map[string]any {
 	return record
 }
 
+// atMostMedium lowers a record's severity to the ceiling §5.4.5 puts on a
+// record resting on a gap probe that supports no probed grade.
+//
+// The fixture record carries `high`, which is the severity of a finding an
+// agent believes in — and that is the point of the bound: the belief is not
+// evidence, and §5.4.5's results are not evidence either.
+func atMostMedium(record map[string]any) map[string]any {
+	record["severity"] = "medium"
+	return record
+}
+
 // probeAnswer is the §5.4 answer `cr record` printed for one record, read back
 // out of the JSON payload.
 type probeAnswer struct {
@@ -123,7 +135,7 @@ func recordedAnswers(
 	t *testing.T, f gapFixture, record map[string]any,
 ) (answers []probeAnswer, honesty []string) {
 	t.Helper()
-	probedHome(t, f)
+	_ = probedHome(t, f)
 	file := writeRecordFile(t, "merged.ndjson", record)
 
 	printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
@@ -235,7 +247,7 @@ func TestEachResultSection545NamesLeavesTheRecordArgued(t *testing.T) {
 		t.Run(string(result), func(t *testing.T) {
 			answers, _ := recordedAnswers(t, gapFixture{
 				result: result, passed: true, mapped: true, issue: gapIssue,
-			}, aProbedRecord(gapClaim))
+			}, atMostMedium(aProbedRecord(gapClaim)))
 
 			require.Len(t, answers, 1)
 			assert.False(t, answers[0].Supports,
@@ -248,7 +260,7 @@ func TestEachResultSection545NamesLeavesTheRecordArgued(t *testing.T) {
 
 	behaviour, _ := recordedAnswers(t, gapFixture{
 		result: "passed", passed: true, mapped: true, issue: gapIssue,
-	}, aProbedRecord(gapClaim))
+	}, atMostMedium(aProbedRecord(gapClaim)))
 	assert.Contains(t, behaviour[0].Reason, "no-test-failed",
 		"§5.4.5: a passed gap probe is not the missing test §5.3 establishes")
 }
