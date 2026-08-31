@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -372,6 +373,127 @@ func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fixtureSource, string(rebuilt),
 		"§5.1.6: the recreated sandbox holds what the head holds")
+}
+
+// §5.3.4's first rung through the command: a patch that does not apply cleanly
+// records `error`, runs no tests, and leaves the sandbox as it found it.
+//
+// It is a probe result rather than a command failure, because the agent asked
+// what the suite says about this mutation and cr can answer that the mutation
+// was never made. The sandbox is asserted because the apply is where a patch
+// can fail halfway — the first hunk lands, the second does not — and a rung 1
+// recorded over a half-mutated checkout would be §5.1.6's problem on the next
+// run rather than this one's.
+func TestAPatchThatDoesNotApplyIsRecordedWithoutRunningAnything(t *testing.T) {
+	prepared, _, sandboxPath, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	// The context line is the head's own, and the removed line is not, so
+	// the hunk's arithmetic is right and its content is stale.
+	patch := writePatch(t, "--- a/app.go\n+++ b/app.go\n@@ -1,3 +1,3 @@\n package app\n \n"+
+		"-func Retry() { rewritten() }\n+func Retry() {}\n")
+
+	shown := runProbe(t, patch)
+	assert.Equal(t, "error", shown["result"],
+		"§5.3.4's first rung: the mutation was never made")
+	assert.Empty(t, shown["run"], "§5.3.4's first rung runs no tests, so there is no run to record")
+
+	restored, err := os.ReadFile(filepath.Join(sandboxPath, "app.go"))
+	require.NoError(t, err)
+	assert.Equal(t, fixtureSource, string(restored))
+
+	// §5.2.6's baseline still ran, which is why the log is here: the
+	// baseline comes before the probe and is not the probe.
+	observed, err := os.ReadFile(log)
+	require.NoError(t, err)
+	assert.Equal(t, fixtureSource+"---\n", string(observed),
+		"the suite ran once, for the baseline, and not for a mutation that was never applied")
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1)
+	assert.Equal(t, "error", probes[0]["result"])
+	assert.Equal(t, "app.go:3", probes[0]["target"],
+		"§5.5's target is derived from the patch even when the patch would not apply")
+	runs := storedRecords(t, prepared, state.FileRuns)
+	require.Len(t, runs, 1, "only §5.2.6's baseline reached runs.ndjson")
+	assert.NotContains(t, runs[0], "probe")
+}
+
+// §5.1.7 through the command: a probe whose post-run cleanliness check fails is
+// recorded `error` whatever the ladder produced, grades nothing, and forces the
+// sandbox to be recreated before the next run.
+//
+// The runner passes cleanly and dirties a tracked file the mutation does not
+// touch, so the revert cannot put it back — which is the shape a suite with a
+// careless fixture really has. The ladder would have answered `no-test-failed`,
+// the one mutation result §5.3.5 lets prove a gap, so the override is the
+// difference between a record that licenses an assertion to a colleague and one
+// that licenses nothing.
+func TestAProbeWhoseSandboxFailedItsCheckIsVoidedAndForcesRecreation(t *testing.T) {
+	// Only the mutated run dirties the file. §5.2.6's baseline runs first
+	// through the same runner, and a baseline that contaminated itself would
+	// stand as nobody's baseline — so the probe would be refused for want of
+	// a foundation rather than voided by §5.1.7, which is a different
+	// sentence about a different failure.
+	prepared, _, sandboxPath, _ := probeFixture(t,
+		onlyWhenMutated("  echo 'dirtied by the suite' >> .gitignore\n"))
+	patch := writePatch(t, fixtureDiff)
+
+	shown := runProbe(t, patch)
+	assert.Equal(t, "error", shown["result"],
+		"§5.1.7: the check overrides what §5.3.4's ladder produced")
+	voided, ok := shown["voided"].(string)
+	require.True(t, ok, "§5.1.7's reason reaches the reader: %v", shown)
+	assert.Contains(t, voided, ".gitignore", "the reason names the file that differs")
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1, "§5.5.1: one record is written, and it is never amended")
+	assert.Equal(t, "error", probes[0]["result"])
+	runs := storedRecords(t, prepared, state.FileRuns)
+	require.Len(t, runs, 2)
+	assert.Equal(t, true, runs[1]["contaminated"],
+		"the mutated run measured a sandbox that had drifted under it")
+
+	// §5.1.7's third consequence, read off the next invocation rather than
+	// off a flag: the sandbox is rebuilt before anything else runs.
+	var reported map[string]any
+	next := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, json.Unmarshal(
+		[]byte(strings.TrimPrefix(next, "Tests:  4 passed\n")), &reported))
+	honesty, ok := reported["honesty"].([]any)
+	require.True(t, ok)
+	require.Len(t, honesty, 1, "§5.1.7: recreation is forced before the next run")
+	assert.Contains(t, honesty[0], "§5.1.6")
+
+	dropped, err := os.ReadFile(filepath.Join(sandboxPath, ".gitignore"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(dropped), "dirtied by the suite",
+		"the rebuilt sandbox is a fresh checkout")
+}
+
+// The terminal rendering says when §5.1.7 voided a probe, and says nothing
+// about it when the check passed.
+//
+// Asserted apart from the JSON payload because the two are separate renderings
+// and a reader watching the command has to be told why a result of `error`
+// stands where the ladder's own answer would have gone.
+func TestTheProbeRenderingSaysWhenTheCheckVoidedTheResult(t *testing.T) {
+	render := func(t *testing.T, voided string) string {
+		t.Helper()
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: ModeText}
+		require.NoError(t, out.emit(&probeRunResult{
+			Probe: "p1", Kind: "mutation", Sandbox: "/tmp/sandbox",
+			Command: []string{"pest"}, Result: "error", Target: "app.go:3",
+			Baseline: "r1", Voided: voided,
+			Warnings: []string{}, Honesty: []string{},
+		}))
+		return printed.String()
+	}
+
+	said := render(t, "a probe artefact was left behind: tests/cr_probe_p1Test.php")
+	assert.Contains(t, said, "voided, per §5.1.7")
+	assert.Contains(t, said, "cr_probe_p1Test.php", "the reason names what was found")
+	assert.NotContains(t, render(t, ""), "voided",
+		"a probe whose sandbox held says nothing about a check it passed")
 }
 
 // runProbe runs one mutation probe through the command and returns the document
