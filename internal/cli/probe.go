@@ -40,6 +40,11 @@ type probeRunResult struct {
 	Filter string `json:"filter,omitempty"`
 	// Result is §5.5's `result`, after §5.1.7 has had its say.
 	Result string `json:"result"`
+	// Target is the `path:line` §5.3.2 derived from the patch. It is
+	// reported rather than left to the record, because it is what the agent
+	// would otherwise have to take on trust before writing the finding
+	// §6.2.2 anchors there.
+	Target string `json:"target"`
 	// Baseline is the id of the run record §5.2.6 resolved.
 	Baseline string `json:"baseline"`
 	// Run is the id of the run record for the mutated run, and empty when
@@ -64,6 +69,7 @@ func (r *probeRunResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "%s probe in %s\n", r.Kind, w.accent(r.Sandbox))
 	fmt.Fprintf(&out, "  command  %s\n", strings.Join(r.Command, " "))
 	fmt.Fprintf(&out, "  filter   %s\n", listedOrNone(r.Filter))
+	fmt.Fprintf(&out, "  target   %s\n", r.Target)
 	fmt.Fprintf(&out, "  baseline %s\n", r.Baseline)
 	if r.Voided != "" {
 		// Said before the result, because it is what the result
@@ -275,6 +281,14 @@ type probeRequest struct {
 
 // runMutationProbe performs §5.3.2's cycle and records what it produced.
 func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
+	// §5.3.2's target, derived from the patch before anything is run. A
+	// patch cr cannot place a target in is refused here rather than after
+	// §5.2.6 has performed a baseline suite for it, and §5.5 makes the
+	// target a required row of the record either way.
+	aimed, err := probe.Target(request.files)
+	if err != nil {
+		return err
+	}
 	layout, err := state.Default()
 	if err != nil {
 		return err
@@ -342,6 +356,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 		Input:      request.patch,
 		Filter:     request.filter,
 		Result:     outcome.Result(),
+		Target:     aimed,
 		Baseline:   performed.baseline.ID(),
 		DurationMS: performed.durationMS,
 		OutputTail: performed.outputTail,
@@ -370,6 +385,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 		Command:  performed.command,
 		Filter:   request.filter,
 		Result:   string(outcome.Result()),
+		Target:   aimed,
 		Baseline: performed.baseline.ID(),
 		Run:      runID,
 		Voided:   unclean,
