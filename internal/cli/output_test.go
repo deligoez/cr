@@ -466,7 +466,7 @@ func TestATypeThatSerialisesItselfKeepsItsOwnNull(t *testing.T) {
 var outputStructs = []result{
 	initResult{}, configResult(nil), &noteResult{}, &retractResult{}, &answerResult{}, &contextResult{},
 	&recordResult{}, &claimsRecordResult{}, &briefResult{}, &cellsRecordResult{},
-	&mapRecordResult{},
+	&mapRecordResult{}, &sandboxCreateResult{},
 }
 
 // payloadName is a payload's own type name, whether the value listed is the
