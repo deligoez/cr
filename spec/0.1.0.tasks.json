@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T05:53:58.115204Z",
+  "updated_at": "2026-08-31T05:55:33.661152Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6358,9 +6358,28 @@
         "brief-creates-state"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- Found by brief-payload's dogfood run: a cr brief whose intent.key_pattern no longer matches silently rewrites meta.json's issue_key to empty, orphaning every claim already recorded under the old key, since §3.3 forms each claim id as \u003cISSUE-KEY\u003e#c\u003cn\u003e.\n- A brief that would replace a non-empty recorded issue key with a different one, or with none, refuses with exit code 4 and a hint, rather than writing.\n- A test records claims under one key, then briefs again with a pattern that matches nothing, and asserts meta.json and claims.ndjson are both untouched.",
+      "acceptance": "- Found by brief-payload's dogfood run: a cr brief whose intent.key_pattern no longer matches silently rewrites meta.json's issue_key to empty, orphaning every claim already recorded under the old key, since §3.3 forms each claim id as \u003cISSUE-KEY\u003e#c\u003cn\u003e.\n- A brief that would replace a non-empty recorded issue key with a different one, or with none, refuses with exit code 4 and a hint, rather than writing.\n- A test records claims under one key, then briefs again with a pattern that matches nothing, and asserts meta.json and claims.ndjson are both untouched.\n- Also found by dogfooding: with a tracker-backed profile, cr brief runs the tracker command and fails on a 404 before --intent-file can help, and the error never says --issue is what would have avoided it. The message names it.",
       "source_sections": [
         "### 9.3 Rounds and staleness"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "orphaned-sandbox-recovery",
+      "title": "Destroy a sandbox whose registration is gone",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "sandbox-destroy"
+      ],
+      "estimate_minutes": 10,
+      "acceptance": "- Found by baseline-resolution's dogfood run: when the repository under review has been re-cloned or force-pushed, git worktree remove fails with \"is not a working tree\" and cr sandbox create then refuses because the directory exists, leaving no way out of cr but rm -rf under ~/.cr by hand.\n- cr sandbox destroy falls back to removing the sandbox directory when the registration is already gone, so §5.1.5 has no state it cannot clear.\n- A test registers a worktree, removes the registration behind cr's back, and asserts destroy still leaves nothing and that create afterwards succeeds.",
+      "source_sections": [
+        "### 5.1 Sandbox"
       ],
       "started_at": null,
       "closed_at": null,
