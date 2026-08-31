@@ -1,0 +1,264 @@
+package git
+
+import (
+	"fmt"
+	"strings"
+)
+
+// PatchedFile is one file of a unified diff, with every hunk kept whole.
+//
+// It is what ParseHunks deliberately does not produce. That parser answers
+// §3.4.1's question — which lines a diff git wrote counts as changed — and
+// throws the rest of each hunk away, because a unit is built out of changed
+// lines and nothing else. Applying a diff is the other question: the context
+// lines are what say the patch matches the file in front of it, and the
+// removed lines are what say which bytes go. §5.3.2 has cr apply an
+// agent-supplied patch to a sandbox file, so the whole of each hunk has to
+// survive parsing.
+//
+// The two share the header primitives below them rather than the scan, since a
+// scan that produced both would have to be read as answering neither.
+type PatchedFile struct {
+	// Path is the head-side path, without the b/ prefix, falling back to
+	// the pre-image path for a file the patch deletes.
+	Path string
+	// BasePath is the pre-image path without the a/ prefix, and empty
+	// when the patch creates the file.
+	BasePath string
+	// HeadPath is the post-image path, and empty when the patch deletes
+	// the file.
+	HeadPath string
+	// Hunks are the file's hunks, in the order the patch writes them.
+	Hunks []PatchHunk
+}
+
+// PatchHunk is one @@ block with its body intact.
+type PatchHunk struct {
+	// BaseStart is the hunk's first line in the pre-image, and the line
+	// an insertion follows when BaseLines is zero.
+	BaseStart int
+	// BaseLines is how many pre-image lines the hunk covers.
+	BaseLines int
+	// HeadStart is the hunk's first line in the post-image.
+	HeadStart int
+	// HeadLines is how many post-image lines the hunk covers.
+	HeadLines int
+	// Body holds the hunk's lines exactly as the patch wrote them,
+	// leading marker included, so applying can verify what it replaces.
+	Body []string
+}
+
+// ParsePatch reads a unified diff as something to apply.
+//
+// It is strict about the shape and forgiving about nothing. A patch cr is
+// about to run against a checkout is an experiment whose result becomes an
+// assertion to a colleague under §6.2, so a diff that is nearly a diff is
+// refused rather than guessed at: §5.3.4's first rung already gives a patch
+// that does not apply cleanly its answer, and a parser that repaired one would
+// take that rung's decision away from it.
+func ParsePatch(patch string) ([]PatchedFile, error) {
+	files := make([]PatchedFile, 0)
+	var (
+		basePath, headPath string
+		open               bool
+		current            PatchHunk
+		baseLeft, headLeft int
+	)
+
+	for n, line := range strings.Split(strings.TrimSuffix(patch, "\n"), "\n") {
+		if open {
+			if line == "" {
+				return nil, fmt.Errorf(
+					"patch line %d: a hunk holds no empty line, because a blank context line keeps its leading space", n+1)
+			}
+			switch line[0] {
+			case ' ':
+				baseLeft, headLeft = baseLeft-1, headLeft-1
+			case '+':
+				headLeft--
+			case '-':
+				baseLeft--
+			case '\\':
+				// "\ No newline at end of file" annotates the
+				// line above it and belongs to neither
+				// version, so it consumes nothing.
+			default:
+				return nil, fmt.Errorf("patch line %d: %q is not a hunk line", n+1, line)
+			}
+			current.Body = append(current.Body, line)
+			if baseLeft <= 0 && headLeft <= 0 {
+				last := len(files) - 1
+				files[last].Hunks = append(files[last].Hunks, current)
+				open = false
+			}
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(line, "--- "):
+			basePath = headerPath(line[4:], "a/")
+		case strings.HasPrefix(line, "+++ "):
+			headPath = headerPath(line[4:], "b/")
+			named := headPath
+			if named == "" {
+				named = basePath
+			}
+			if named == "" {
+				return nil, fmt.Errorf(
+					"patch line %d: the file header names no path on either side", n+1)
+			}
+			files = append(files, PatchedFile{
+				Path: named, BasePath: basePath, HeadPath: headPath,
+				Hunks: make([]PatchHunk, 0),
+			})
+		case strings.HasPrefix(line, "@@ "):
+			if len(files) == 0 {
+				return nil, fmt.Errorf(
+					"patch line %d: a hunk arrives before any --- and +++ file header", n+1)
+			}
+			fields := hunkHeader.FindStringSubmatch(line)
+			if fields == nil {
+				return nil, fmt.Errorf("patch line %d: %q is not a hunk header", n+1, line)
+			}
+			current = PatchHunk{
+				BaseStart: headerNumber(fields[1]),
+				BaseLines: headerCount(fields[2]),
+				HeadStart: headerNumber(fields[3]),
+				HeadLines: headerCount(fields[4]),
+				Body:      make([]string, 0),
+			}
+			if current.BaseLines == 0 && current.HeadLines == 0 {
+				return nil, fmt.Errorf("patch line %d: %q covers no line on either side", n+1, line)
+			}
+			baseLeft, headLeft = current.BaseLines, current.HeadLines
+			open = true
+		}
+	}
+	if open {
+		return nil, fmt.Errorf("the patch ends inside a hunk")
+	}
+	return files, nil
+}
+
+// ApplyError reports a hunk that does not match the file it addresses, which is
+// §5.3.4's first rung: the patch did not apply cleanly.
+//
+// It names the file, the line, and both texts, because the reader has to decide
+// whether the patch is stale or the sandbox is — and those are opposite fixes.
+type ApplyError struct {
+	// Path is the file the hunk addresses.
+	Path string
+	// Line is the pre-image line number that did not match, and zero
+	// when the hunk reaches past the end of the file.
+	Line int
+	// Want is the line the patch expected to find there.
+	Want string
+	// Found is the line that is actually there, and empty when the file
+	// has no such line.
+	Found string
+	// Problem says which of the two shapes this is.
+	Problem string
+}
+
+func (e *ApplyError) Error() string {
+	if e.Line == 0 {
+		return fmt.Sprintf("%s: %s", e.Path, e.Problem)
+	}
+	return fmt.Sprintf("%s line %d: %s: the patch expected %q and the file holds %q",
+		e.Path, e.Line, e.Problem, e.Want, e.Found)
+}
+
+// Apply returns what content becomes once this file's hunks are applied to it.
+//
+// Every hunk is applied at the line its header names, and every context and
+// removed line is required to be there exactly. There is no offset search and
+// no fuzz, which git's own `apply` offers and cr does not want: a hunk that
+// matched three lines away matched something the agent did not write the patch
+// against, and §5.3.2 has the evidence chain run "on the patch cr executed".
+// A mutation applied somewhere other than where it was aimed is the expensive
+// shape of wrong — the experiment succeeds, the record names a target, and the
+// two are about different code.
+func (f *PatchedFile) Apply(content string) (string, error) {
+	lines := splitLines(content)
+	out := make([]string, 0, len(lines))
+	// cursor is the next pre-image line to copy, counted from zero.
+	cursor := 0
+	// trailing says whether the applied content ends in a newline. It is
+	// the pre-image's answer unless a hunk reached the end of the file,
+	// which is the only place the answer can change.
+	trailing := strings.HasSuffix(content, "\n")
+
+	for i := range f.Hunks {
+		hunk := &f.Hunks[i]
+		// A hunk covering no pre-image line is an insertion after the
+		// line its header names, so the copy runs to that line rather
+		// than to the one before it.
+		upto := hunk.BaseStart - 1
+		if hunk.BaseLines == 0 {
+			upto = hunk.BaseStart
+		}
+		if upto < cursor || upto > len(lines) {
+			return "", &ApplyError{
+				Path:    f.Path,
+				Problem: fmt.Sprintf("the hunk at %d addresses a line the file does not hold", hunk.BaseStart),
+			}
+		}
+		out = append(out, lines[cursor:upto]...)
+		cursor = upto
+
+		for _, body := range hunk.Body {
+			marker, text := body[0], body[1:]
+			switch marker {
+			case ' ', '-':
+				if cursor >= len(lines) {
+					return "", &ApplyError{
+						Path:    f.Path,
+						Problem: fmt.Sprintf("the hunk at %d reaches past the end of the file", hunk.BaseStart),
+					}
+				}
+				if lines[cursor] != text {
+					return "", &ApplyError{
+						Path: f.Path, Line: cursor + 1, Want: text, Found: lines[cursor],
+						Problem: "the hunk does not match the file",
+					}
+				}
+				if marker == ' ' {
+					out = append(out, text)
+				}
+				cursor++
+			case '+':
+				out = append(out, text)
+			}
+		}
+		// The final newline is the last hunk's to change, and only a
+		// hunk that consumed the file to its end can have changed it.
+		if cursor == len(lines) {
+			trailing = !endsWithoutNewline(hunk.Body)
+		}
+	}
+	out = append(out, lines[cursor:]...)
+	if len(out) == 0 {
+		return "", nil
+	}
+	applied := strings.Join(out, "\n")
+	if trailing {
+		applied += "\n"
+	}
+	return applied, nil
+}
+
+// endsWithoutNewline reports whether a hunk leaves the post-image without a
+// final newline.
+//
+// git writes `\ No newline at end of file` directly beneath the line it
+// annotates. A marker under a removed line describes the pre-image alone and
+// says nothing about what the patch produces; one under an added or context
+// line describes the post-image, and is the answer when it is the last thing
+// the hunk has to say.
+func endsWithoutNewline(body []string) bool {
+	last := len(body) - 1
+	if last < 1 || body[last][0] != '\\' {
+		return false
+	}
+	return body[last-1][0] != '-'
+}
