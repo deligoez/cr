@@ -244,8 +244,18 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 				return err
 			}
 			if len(files) == 0 {
+				// The hint names the flag rather than the
+				// concept, because the way this is reached is
+				// a `git diff` on a machine whose owner has
+				// set `diff.external`: git then writes that
+				// tool's output, which is not a diff at all.
+				// cr's own reads pin `--no-ext-diff` for the
+				// same reason, and the agent writing the patch
+				// is outside that fence.
 				return fmt.Errorf(
-					"%s holds no hunk: §5.3.1's mutation is a unified diff against a sandbox file",
+					"%s holds no hunk: §5.3.1's mutation is a unified diff against a sandbox file; "+
+						"if it came from `git diff`, re-run it with --no-ext-diff, "+
+						"which is what a configured diff.external replaces",
 					patchFile)
 			}
 			return runMutationProbe(cmd, out, &probeRequest{
