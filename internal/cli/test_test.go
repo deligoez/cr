@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -158,4 +159,63 @@ func TestTheTestCommandStoresARunRecordForEveryRun(t *testing.T) {
 		"passed":      false,
 	}, stored,
 		"§5.2.4: no filter was given, no count is derivable, and the run was not a probe's")
+}
+
+// §5.6.3: cr warns that an unrelated local test run can still collide, because
+// the lock only covers cr's own runs.
+//
+// It is a warning and not an enforcement, and it could not be anything else — a
+// `pest` the developer started in another terminal takes no lock of cr's and cr
+// cannot see it. What the sentence is against is a held lock reading as a
+// guarantee: a suite that failed because two runs shared a database is exactly
+// the failure someone would otherwise attribute to the code under review.
+//
+// Both renderings are checked, because they fail apart: an agent reads the
+// document and a person reads the terminal, and a warning that reached only one
+// of them has not been given to the reader who was about to act on it.
+func TestTheTestCommandWarnsThatTheProbeLockCoversOnlyItsOwnRuns(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
+		`"match":{"files":[],"globs":[]},"axes":{"test":true},`+
+		`"tests":{"cmd":["true"],"globs":["*_test.txt"]}}`))
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, ProfileID: "qa", Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal([]byte(throughAPipe(t,
+		"test", fixturePR, "--repo", fixtureSlug)), &reported))
+
+	warnings, ok := reported["warnings"].([]any)
+	require.True(t, ok, "§5.6.3's warning is a field on the payload")
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "§5.6.3")
+	assert.Contains(t, warnings[0], fixture,
+		"the warning names the repository whose runs the lock does not cover")
+
+	// The terminal rendering carries the same sentence, and the payload is
+	// rendered directly so the check is on the writer rather than on a
+	// second invocation's incidental state.
+	var printed bytes.Buffer
+	out := &writer{out: &printed, mode: ModeText}
+	require.NoError(t, out.emit(&testRunResult{
+		Run: "r1", Sandbox: "/tmp/sandbox", Command: []string{"true"},
+		Warnings: []string{"the probe lock covers cr's own runs only, per §5.6.3"},
+		Honesty:  []string{},
+	}))
+	assert.Contains(t, printed.String(), "§5.6.3")
 }
