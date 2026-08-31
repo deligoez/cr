@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T01:54:03.772988Z",
+  "updated_at": "2026-08-31T02:36:07.390414Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3236,7 +3236,7 @@
     {
       "id": "cell-computed-fields",
       "title": "Compute cell head from owned state",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "cells-record-command",
@@ -3247,7 +3247,8 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
+      "started_at": "2026-08-31T01:56:08.991867Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
@@ -3416,7 +3417,7 @@
     {
       "id": "sandbox-create",
       "title": "Create the sandbox worktree at head",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "state-directory-layout",
@@ -3427,16 +3428,52 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T02:02:31.269457Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T02:18:42.959395Z",
+      "closed_reason": "- cr sandbox create \u003cpr\u003e adds a detached git worktree at the round's recorded head under ~/.cr/state/\u003cowner\u003e/\u003crepo\u003e/pr-\u003cn\u003e/sandbox/: state.Layout.Sandbox derives the path, git.AddWorktree runs git worktree add --detach, and the head comes from meta.json through Briefed. TestCreateMakesTheWorktreeAtTheHead and TestTheSandboxIsCheckedOutAtTheRoundsRecordedHead assert the path and the revision, the latter against a fixture whose own HEAD is a different commit.\n- The registration under .git/worktrees/ is the sole write: norepowrite_test.go admits worktree to the git allowlist with its section, runs the command against the write fixture, and asserts the exception was empty before the run, is not empty after, and holds nothing outside .git/worktrees/sandbox, while the status, refs and SHA-256 content fingerprints stay byte-identical.\n- The main worktree, index and current branch are untouched: TestAddWorktreeLeavesTheMainWorktreeAlone compares status --porcelain=v2, HEAD, the ref HEAD follows and every branch across the call on a deliberately dirtied checkout, and TestAddWorktreeChecksTheHeadOutAtTheGivenPath proves the sandbox takes no branch by requiring symbolic-ref to fail. Dogfooded against deligoez/cr-qa PR 1: git status --porcelain empty, git worktree list showing the sandbox at be7e2c7 detached.\n",
+      "gate_passed_at": "2026-08-31T02:18:42.959395Z",
+      "commit_sha": "c628350",
+      "commit_shas": [
+        "c628350",
+        "375eef6",
+        "572ddb6",
+        "fec8b45",
+        "ef23411",
+        "a8a45cb",
+        "f6b17a3",
+        "8c9e1bb",
+        "7cbcdca",
+        "3ec3d15",
+        "7c62edf",
+        "c4538ef",
+        "4af6fbe",
+        "8d73e71",
+        "d787d27",
+        "5a748f9",
+        "27ef752"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/sandbox_test.go",
+        "internal/git/run.go",
+        "internal/git/worktree.go",
+        "internal/git/worktree_test.go",
+        "internal/sandbox/sandbox.go",
+        "internal/sandbox/sandbox_test.go",
+        "internal/state/sandbox.go",
+        "internal/state/sandbox_test.go"
+      ]
     },
     {
       "id": "sandbox-copy-setup",
       "title": "Run copy steps before setup commands",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-create",
@@ -3447,11 +3484,47 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T02:19:06.816129Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T02:36:07.275897Z",
+      "closed_reason": "- Every path in sandbox.copy is copied from the main checkout into the sandbox after the worktree is added: state.Layout.CopyIntoSandbox derives the destination from the sandbox path, reproduces files with their mode, directory trees whole, and symlinks as symlinks, and reports a path the checkout does not hold instead of failing on it. TestCopyIntoSandboxReproducesFilesDirectoriesAndLinks and TestCopyIntoSandboxReportsAPathTheCheckoutDoesNotHold cover both, and cr sandbox create reads the list out of the profile the round recorded in meta.json.\n- Commands in sandbox.setup run once, in order, in the sandbox root: internal/sandbox/run.go starts each entry as its own argv with no shell, with the sandbox as the working directory, and stops the run on the first refusal with the command's stderr surfaced as exit code 3. TestASetupCommandThatFailsStopsTheRun and TestTheSandboxRunsTheProfilesCopyAndSetupSteps assert both halves, the latter end to end through the command.\n- TestEveryCopyLandsBeforeTheFirstSetupCommandRuns makes the ordering observable rather than read off the code: the first setup command reads the two copied paths and appends what it found to a log outside the sandbox, the second appends after it, and the log is asserted whole, so a copy that ran late, a command that ran twice, or a pair that ran in the wrong order each produce a different file. Verified by swapping the two loops, which turned the first two lines into the shell's No such file complaints. Dogfooded against deligoez/cr-qa PR 1 with the laravel-pest profile: .env copied, vendor reported absent, composer install run in the sandbox, git status --porcelain in the clone empty and .git/worktrees/sandbox the only new path.\n",
+      "gate_passed_at": "2026-08-31T02:36:07.275897Z",
+      "commit_sha": "b74db28",
+      "commit_shas": [
+        "b74db28",
+        "a4f86ab",
+        "9626778",
+        "0e32e56",
+        "e864b4a",
+        "b9b2b49",
+        "103e420",
+        "0be8a70",
+        "a6e8059",
+        "d1182c4",
+        "31f9dbc",
+        "0cdc3f1",
+        "b998d71",
+        "d8d507e",
+        "3478271",
+        "bb67973",
+        "be8ea8b",
+        "50b4048",
+        "b09e7d9",
+        "bff6260"
+      ],
+      "commit_files": [
+        "internal/cli/dependencies_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/nowrite_test.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/sandbox_test.go",
+        "internal/sandbox/run.go",
+        "internal/sandbox/sandbox.go",
+        "internal/sandbox/sandbox_test.go",
+        "internal/state/sandbox.go",
+        "internal/state/sandbox_test.go"
+      ]
     },
     {
       "id": "sandbox-destroy",
