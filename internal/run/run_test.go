@@ -138,6 +138,41 @@ func TestAnUndeterminedCountIsAbsentFromTheRecordAndAZeroOneIsNot(t *testing.T) 
 	assert.Nil(t, read[1].TestsFailed)
 }
 
+// §5.2.4's id space, which §5.5 has a probe's `baseline` reference. An id is
+// allocated above every id the file already holds rather than at the count of
+// records, so a probe stored at an earlier head keeps pointing at the run it
+// measured; and an id cr did not write is no evidence about what is taken, so
+// it moves nothing.
+func TestNextIDAllocatesAboveEveryRunTheFileHolds(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		existing []Record
+		want     string
+	}{
+		{name: "an empty file", existing: []Record{}, want: "r1"},
+		{name: "one run", existing: []Record{{ID: "r1"}}, want: "r2"},
+		{
+			name:     "a gap left by a run of an earlier round",
+			existing: []Record{{ID: "r1"}, {ID: "r7"}},
+			want:     "r8",
+		},
+		{
+			name:     "records out of order",
+			existing: []Record{{ID: "r9"}, {ID: "r2"}},
+			want:     "r10",
+		},
+		{
+			name:     "spellings cr never wrote",
+			existing: []Record{{ID: "r0"}, {ID: "r007"}, {ID: "r-3"}, {ID: "p4"}, {ID: ""}},
+			want:     "r1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, NextID(tc.existing))
+		})
+	}
+}
+
 // count is the address of one derived test count, which is what §5.2.4's
 // "when derivable" needs a literal to be able to express.
 func count(n int) *int { return &n }
