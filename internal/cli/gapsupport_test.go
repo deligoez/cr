@@ -213,6 +213,46 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 	}
 }
 
+// §5.4.5 through the command: each of the five results it names leaves the
+// record with nothing to be graded `probed` on, so it stays argued under §6.2
+// and is asked as a question under §6.3.
+//
+// Every row is given §5.4.4's two conditions in full — a baseline that passed
+// and a claim mapped to the record's unit — so what refuses support is the
+// result and nothing else. A record that rested on any of these and still
+// reached `probed` would be an assertion to a colleague built on a run that
+// timed out, crashed, selected nothing, printed no count cr could read, or
+// showed the behaviour working.
+//
+// The `passed` row's reason is held to §5.4.5's own distinction as well: the
+// behaviour is present, and that is not the missing test §5.3's
+// `no-test-failed` establishes. It is the one result of the five that
+// establishes anything, and reporting it as "nothing" would throw that away.
+func TestEachResultSection545NamesLeavesTheRecordArgued(t *testing.T) {
+	for _, result := range []probe.Result{
+		"passed", "timeout", "error", "no-tests-selected", "inconclusive",
+	} {
+		t.Run(string(result), func(t *testing.T) {
+			answers, _ := recordedAnswers(t, gapFixture{
+				result: result, passed: true, mapped: true, issue: gapIssue,
+			}, aProbedRecord(gapClaim))
+
+			require.Len(t, answers, 1)
+			assert.False(t, answers[0].Supports,
+				"§5.4.5: this result supports no probed grade, whatever else is in place")
+			assert.Contains(t, answers[0].Reason, "§5.4.5")
+			assert.Contains(t, answers[0].Reason, "argued",
+				"the reader is told where the record lands, not only what it lost")
+		})
+	}
+
+	behaviour, _ := recordedAnswers(t, gapFixture{
+		result: "passed", passed: true, mapped: true, issue: gapIssue,
+	}, aProbedRecord(gapClaim))
+	assert.Contains(t, behaviour[0].Reason, "no-test-failed",
+		"§5.4.5: a passed gap probe is not the missing test §5.3 establishes")
+}
+
 // §4.5.4 and round 12's axis-availability-coupling: when the intent axis is
 // unavailable there is no mapping to meet §5.4.4's second condition with, and
 // the reader is told so.
