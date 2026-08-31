@@ -93,3 +93,48 @@ func TestAddWorktreeLeavesTheMainWorktreeAlone(t *testing.T) {
 	require.NoError(t, err, "§5.1.1 registers the worktree, and nothing is registered")
 	assert.True(t, info.IsDir())
 }
+
+// §5.1.5: removing the worktree takes its registration with it, and a dirty
+// worktree is removed all the same.
+//
+// The dirt is the case §5.1.6 removes one in. A sandbox is rebuilt precisely
+// because it failed a cleanliness check — an unreverted mutation, a leftover
+// probe artefact — so a removal that refused a dirty worktree would refuse on
+// every occasion cr has to remove one, and §5.1.6's mandated recreation could
+// never happen at all.
+//
+// The registration is asserted separately from the directory because they fail
+// apart: one left behind is what makes `worktree add` refuse the path next time,
+// so a removal that took only the files would break the recreation it exists to
+// serve, and only on the second run.
+func TestRemoveWorktreeTakesTheRegistrationWithIt(t *testing.T) {
+	repo, head, path := sandboxFixture(t)
+	require.NoError(t, AddWorktree(repo, path, head))
+	registration := filepath.Join(repo, ".git", "worktrees", filepath.Base(path))
+	require.DirExists(t, registration)
+
+	// An unreverted mutation, which is what a sandbox being removed holds.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(path, "app.txt"), []byte("a mutation nobody reverted\n"), 0o600))
+
+	require.NoError(t, RemoveWorktree(repo, path))
+
+	assert.NoDirExists(t, path, "§5.1.5 removes the worktree")
+	assert.NoDirExists(t, registration, "§5.1.5 removes its registration")
+	assert.NoError(t, AddWorktree(repo, path, head),
+		"the path stayed registered, so it can never be recreated")
+}
+
+// A registration whose directory is already gone is pruned, which is the case
+// `worktree remove` cannot answer: it refuses a path that is not there, and the
+// registration it left behind is what would refuse the next `worktree add`.
+func TestPruneWorktreesClearsARegistrationWhoseDirectoryIsGone(t *testing.T) {
+	repo, head, path := sandboxFixture(t)
+	require.NoError(t, AddWorktree(repo, path, head))
+	require.NoError(t, os.RemoveAll(path))
+
+	require.NoError(t, PruneWorktrees(repo))
+
+	assert.NoDirExists(t, filepath.Join(repo, ".git", "worktrees", filepath.Base(path)))
+	assert.NoError(t, AddWorktree(repo, path, head))
+}
