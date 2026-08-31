@@ -34,10 +34,7 @@ const (
 // tests and no tracker has no mapping at all, so the condition is unreachable
 // rather than unmet. GapUnmappable is what says so out loud.
 func TestAFailedGapProbeSupportsAFindingOnlyOnAPassingBaselineAndAMappedClaim(t *testing.T) {
-	mapped := []mapping.Pair{{
-		Claim: supportClaim, Unit: supportUnit,
-		Stamp: state.Stamp{Head: supportHead, Round: supportRound},
-	}}
+	mapped := mappedPairs()
 	for _, tc := range []struct {
 		name     string
 		passed   bool
@@ -99,6 +96,44 @@ func TestAFailedGapProbeSupportsAFindingOnlyOnAPassingBaselineAndAMappedClaim(t 
 
 			assert.Equal(t, tc.supports, supports,
 				"§5.4.4: the baseline passed and the claim is mapped, or the probe supports nothing")
+		})
+	}
+}
+
+// §5.4.5: none of the five results it names supports a `probed` grade, and the
+// baseline and the mapping are held at their most generous to prove it.
+//
+// Both conditions §5.4.4 asks for are met in every row — the baseline passed
+// and the claim is mapped to the unit — so the only thing refusing support is
+// the result itself. That is the shape §5.4.5 has: `passed` and the four the
+// section lists beside it are refused unconditionally, and a record resting on
+// one falls to `argued` under §6.2 and is asked as a question under §6.3.
+//
+// `passed` is then separated from the other four. It is the one result of the
+// five that establishes something — that the behaviour the supplied test
+// asserts is present — and §5.4.5's whole first sentence exists to keep that
+// from being read as the missing test only §5.3's `no-test-failed` establishes.
+func TestNoGapResultOtherThanFailedSupportsAFinding(t *testing.T) {
+	for _, tc := range []struct {
+		result  Result
+		present bool
+	}{
+		{result: resultPassed, present: true},
+		{result: resultTimeout},
+		{result: ResultError},
+		{result: resultNoTestsSelected},
+		{result: resultInconclusive},
+	} {
+		t.Run(string(tc.result), func(t *testing.T) {
+			record := gapRecord(tc.result)
+
+			assert.False(t, Supports(
+				record,
+				resolvedFor(t, record, true),
+				MapClaim(mappedPairs(), supportRound, supportClaim, supportUnit),
+			), "§5.4.5 refuses this result a probed grade however good the rest is")
+			assert.Equal(t, tc.present, Present(record),
+				"§5.4.5: a passed gap probe establishes the behaviour, and no other result does")
 		})
 	}
 }
@@ -206,6 +241,15 @@ func TestTheProbesOwnBaselineIsResolvedByIdAndStillFenced(t *testing.T) {
 				"a baseline that did not resolve carries no verdict either")
 		})
 	}
+}
+
+// mappedPairs is the round's mapping.ndjson with §5.4.4's second condition met:
+// the claim the fixtures name, joined to the unit they sit on.
+func mappedPairs() []mapping.Pair {
+	return []mapping.Pair{{
+		Claim: supportClaim, Unit: supportUnit,
+		Stamp: state.Stamp{Head: supportHead, Round: supportRound},
+	}}
 }
 
 // gapRecord is the probe record the fixtures are about: one gap probe at the
