@@ -1,10 +1,13 @@
 package state
 
 import (
+	"io/fs"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // §5.1.1 puts the sandbox at ~/.cr/state/<owner>/<repo>/pr-<n>/sandbox/, which
@@ -23,4 +26,43 @@ func TestTheSandboxSitsInThePullRequestsStateDirectory(t *testing.T) {
 		l.Sandbox("acme", "web", 42))
 	assert.Equal(t, filepath.Join(l.PRDir("acme", "web", 42), DirSandbox),
 		l.Sandbox("acme", "web", 42))
+}
+
+// §5.1.2: a copied path arrives in the sandbox as it stands in the checkout.
+//
+// The three shapes are asserted together because each fails on its own. A file
+// carries a mode, and a `vendor/bin` entry that lost its executable bit is a
+// suite that cannot run; a directory has to arrive whole rather than as its top
+// level; and a symlink has to stay one, since `vendor` is full of them and
+// following them would copy the target instead of the link.
+func TestCopyIntoSandboxReproducesFilesDirectoriesAndLinks(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	checkout := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(checkout, ".env"), []byte("APP_ENV=testing\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(checkout, "vendor", "bin"), 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(checkout, "vendor", "bin", "pest"), []byte("#!/bin/sh\n"), 0o755))
+	require.NoError(t, os.Symlink(
+		filepath.Join("..", "bin", "pest"), filepath.Join(checkout, "vendor", "pest-link")))
+
+	for _, rel := range []string{".env", "vendor"} {
+		copied, err := l.CopyIntoSandbox("acme", "web", 42, checkout, rel)
+		require.NoError(t, err)
+		assert.True(t, copied, "%s is in the checkout", rel)
+	}
+
+	sandbox := l.Sandbox("acme", "web", 42)
+	body, err := os.ReadFile(filepath.Join(sandbox, ".env"))
+	require.NoError(t, err)
+	assert.Equal(t, "APP_ENV=testing\n", string(body))
+
+	runner, err := os.Lstat(filepath.Join(sandbox, "vendor", "bin", "pest"))
+	require.NoError(t, err)
+	assert.Equal(t, fs.FileMode(0o755), runner.Mode().Perm(),
+		"a copied runner that lost its executable bit is a suite that cannot run")
+
+	pointsAt, err := os.Readlink(filepath.Join(sandbox, "vendor", "pest-link"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("..", "bin", "pest"), pointsAt,
+		"§5.1.2 copies the path, and a link followed instead of copied is a different tree")
 }
