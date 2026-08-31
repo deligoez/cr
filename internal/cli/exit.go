@@ -5,6 +5,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
@@ -192,6 +193,16 @@ func exitCodeFor(err error) int {
 		// well-formed, so what fails is the payload as a whole, and
 		// §11.2 runs that validation before the confirmation gate:
 		// the block lands whether or not --confirm was given.
+		return ExitValidation
+	}
+	var rejectedCell *coverage.RejectedCellError
+	if errors.As(err, &rejectedCell) {
+		// §4.5.6 rejects a cell naming an unknown unit id or an
+		// inactive role with exit code 1, and §4.5.5's own field rules
+		// fail through the same type. The file was found, read, and
+		// parsed, so nothing about it failed as a file; what is wrong
+		// is the agent's data inside it, exactly as it is for the claim
+		// and record rejections above.
 		return ExitValidation
 	}
 	var illegalTransition *finding.IllegalTransitionError
