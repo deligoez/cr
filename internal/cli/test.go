@@ -157,7 +157,18 @@ func newTestCmd(out *writer) *cobra.Command {
 			// back afterwards, so what §5.2.4 stores is what the
 			// person watching the command saw.
 			tail := run.NewTail(resolved.Tests.OutputTailBytes)
-			log := io.MultiWriter(cmd.ErrOrStderr(), tail)
+			// §5.2.1's two counts are read off that same merged
+			// stream, so what they are matched against is what was
+			// shown and what the tail ends with — and off the whole
+			// of it rather than off the tail, because the counts are
+			// summed over every match and a truncated view loses
+			// matches silently.
+			counter, err := run.NewCounter(
+				resolved.Tests.CountPattern, resolved.Tests.FailedPattern)
+			if err != nil {
+				return err
+			}
+			log := io.MultiWriter(cmd.ErrOrStderr(), tail, counter)
 			// §5.6.1's lock, taken around the run itself and
 			// nothing else. What it protects is the resource the
 			// suite touches — the test database the profile
@@ -175,12 +186,15 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err := errors.Join(err, probe.Unlock()); err != nil {
 				return err
 			}
+			executed, failed := counter.Counts()
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
 			recorded, err := recordRun(layout, owner, repo, pr, stamp, &run.Record{
-				Filter:     filter,
-				ExitCode:   code,
-				DurationMS: took.Milliseconds(),
-				OutputTail: tail.String(),
+				Filter:      filter,
+				ExitCode:    code,
+				DurationMS:  took.Milliseconds(),
+				TestsRun:    executed,
+				TestsFailed: failed,
+				OutputTail:  tail.String(),
 			})
 			if err != nil {
 				return err
