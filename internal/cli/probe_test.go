@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/state"
@@ -1140,4 +1141,82 @@ func TestEveryResultItsKindAdmitsIsStored(t *testing.T) {
 			})
 		}
 	}
+}
+
+// §5.5.1: probe records are immutable once written.
+//
+// The assertion is on the bytes, not on the count. A refusal that left one line
+// on disk would satisfy a length check while having replaced it, and §5.5.1 is
+// about the line a stored finding points at: §5.5.2 has a finding reference a
+// probe by id, so a record rewritten under an id already spent would silently
+// repoint every finding resting on it at a different experiment.
+//
+// The second write is a plausible one rather than a contrived one — a gap probe
+// re-run after its first attempt, carrying the id §5.4.2 fixed before the
+// placement and the result the second run produced. That is how §5.5.1 would be
+// broken in practice, and the refusal names the id that is spent and the next
+// one free, so the experiment can simply be repeated.
+func TestAStoredProbeRecordIsNeverRewritten(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
+	at := state.Stamp{Head: "be7e2c7", Round: 2}
+	file := prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileProbes)
+
+	_, id, err := recordProbe(
+		prepared, fixtureOwner, fixtureProject, fixturePRNumber, at, nil,
+		&probe.Record{
+			Kind: probe.Gap, Result: "passed", Target: "app.go:3", Baseline: "r1",
+			Input: "it('cancels an expired hold', ...)",
+		})
+	require.NoError(t, err)
+	require.Equal(t, "p1", id)
+	written, err := os.ReadFile(file)
+	require.NoError(t, err)
+
+	_, _, err = recordProbe(
+		prepared, fixtureOwner, fixtureProject, fixturePRNumber, at, nil,
+		&probe.Record{
+			ID: "p1", Kind: probe.Gap, Result: "failed", Target: "app.go:1", Baseline: "r2",
+			Input: "it('cancels an expired hold', ...) // second attempt",
+		})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "probe id p1 was taken")
+	assert.Equal(t, ExitState, exitCodeFor(err))
+
+	after, err := os.ReadFile(file)
+	require.NoError(t, err)
+	assert.Equal(t, string(written), string(after),
+		"§5.5.1: the stored record is byte for byte the one that was written")
+}
+
+// §5.5.3 through the reader that grades: a probe from an earlier head supports
+// nothing in the current round, whatever its result was.
+//
+// `failed` is the case worth driving, because it is the one §5.4.4 would
+// otherwise support — the other five results §5.4.5 settles at the run itself,
+// so a head check that did nothing would be invisible in them. The record is
+// stored at the round's own head and then read against a different one, which
+// is what a force-push leaves behind: the probe file is still there, §5.5.1
+// keeps it exactly as it was, and §5.5.3 is what removes its standing.
+func TestAProbeFromAnEarlierHeadGradesNothing(t *testing.T) {
+	stored := &probe.Record{
+		ID: "p1", Kind: probe.Gap, Result: "failed", Target: "app.go:3", Baseline: "r1",
+		Stamp: state.Stamp{Head: "be7e2c7", Round: 2},
+	}
+
+	assert.True(t, stored.Grades("be7e2c7"),
+		"the head it ran against is the head it grades at")
+
+	answered := answerGapSupport(
+		stored,
+		&state.Meta{Head: "9f2c1ab", Round: 3},
+		[]run.Record{{ID: "r1", Passed: true, Stamp: state.Stamp{Head: "9f2c1ab"}}},
+		nil,
+		&finding.Finding{ID: "f1", Probe: "p1", Claim: "CR-1#c1", Unit: "u1"},
+	)
+
+	assert.False(t, answered.Supports,
+		"§5.5.3: a probe from another head grades nothing in this round")
+	assert.Contains(t, answered.Reason, "§5.5.3")
+	assert.Contains(t, answered.Reason, "the probe ran at be7e2c7 and this round's head is 9f2c1ab")
 }
