@@ -182,8 +182,13 @@ func checkRecordFields() bool {
 		if name == "" || name == "-" {
 			panic("§5.2.4: Record." + visible.Name + " reaches runs.ndjson under no name")
 		}
+		// The field is stamped when the struct it came out of is
+		// state.Stamp. Index[0] is the top-level field it arrived
+		// through, which for a promoted field is the embedded struct
+		// and for a direct one is the field itself — and no direct
+		// field of Record is a state.Stamp, so the one test answers.
 		by := measured
-		if len(visible.Index) > 1 && record.Field(visible.Index[0]).Type == stamp {
+		if record.Field(visible.Index[0]).Type == stamp {
 			by = stamped
 		}
 		declared = append(declared, field{Name: name, Author: by})
@@ -212,6 +217,10 @@ func NextID(existing []Record) string {
 	// Indexed rather than ranged by value: a record carries an output
 	// tail, and only its id is read here.
 	for i := range existing {
+		// `>=` here would behave identically — it would assign the
+		// value already held — so no test can tell the two apart, and
+		// gremlins reports the boundary as a surviving mutant for the
+		// same reason it does in finding.NextID.
 		if n, ok := parseID(existing[i].ID); ok && n > highest {
 			highest = n
 		}
@@ -263,6 +272,9 @@ func NewTail(limit int) *Tail {
 // Write keeps the last limit bytes of everything written so far, and reports
 // the whole of p as written: what a caller hands over is accepted, and the
 // truncation is this type's business rather than a short write.
+// Both boundaries here survive mutation and are equivalent: at exactly the
+// limit the first slices from index zero and the second copies the whole of
+// what is held onto itself, so `>=` produces the same bytes as `>` does.
 func (t *Tail) Write(p []byte) (int, error) {
 	written := len(p)
 	if len(p) > t.limit {
@@ -286,6 +298,12 @@ func (t *Tail) Write(p []byte) (int, error) {
 // the fragment is dropped, which keeps the result inside the byte bound §5.2.4
 // sets and leaves it valid UTF-8. Nothing else is trimmed: the tail is the
 // runner's output as the runner wrote it.
+//
+// utf8.UTFMax bounds the search because a rune is at most that many bytes, so a
+// cut through one leaves at most UTFMax-1 continuation bytes ahead of the next
+// start. gremlins reports the bound as a surviving mutant and it is equivalent:
+// the byte it would additionally look at cannot be reached by any cut of a
+// rune.
 func (t *Tail) String() string {
 	held := t.held
 	for i := 0; i < len(held) && i < utf8.UTFMax; i++ {
