@@ -6,13 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -180,4 +183,73 @@ func TestAFirstBriefOpensRoundOneAndRecordsTheDerivedInputs(t *testing.T) {
 	assert.Equal(t, 1, assembled.Round)
 	assert.Len(t, assembled.Units, 1)
 	assert.Len(t, assembled.Threads, 1)
+}
+
+// §3.7.5's notes are the issue key's, and §3.7.2's second half is the reason
+// there is no key.
+//
+// The two halves are one test because they are one branch read from both sides.
+// A brief that resolved a key must carry the store §3.6.4 loads on every round —
+// without that half, a brief that silently returned no notes would look exactly
+// like an issue nobody has recorded a fact against, and §4.1.5 would then raise
+// an unmapped-unit question a note already explains. A brief that resolved none
+// must load no store at all, because §2.2 places it at
+// context/<ISSUE-KEY>.ndjson and a lookup under no key names the directory plus
+// an extension.
+func TestNotesAreLoadedForTheResolvedKeyAndForNoKeyAtAll(t *testing.T) {
+	dir, head, base := repository(t)
+
+	t.Run("a key resolved", func(t *testing.T) {
+		src := sources(t, dir, answering(head, base, oneThread))
+		recorded, err := note.Append(src.Layout, testIssue,
+			"the free-shipping threshold moved to 50.00", note.SourceChat, testPR, time.Now())
+		require.NoError(t, err)
+
+		assembled, err := Run(src)
+		require.NoError(t, err)
+
+		assert.Equal(t, testIssue, assembled.Issue.Key)
+		require.Len(t, assembled.Notes, 1, "§3.6.4 loads the issue key's notes on every round")
+		assert.Equal(t, recorded.ID, assembled.Notes[0].ID)
+	})
+
+	t.Run("no key resolved", func(t *testing.T) {
+		src := sources(t, dir, answering(head, base, oneThread))
+		src.IssueFlag = ""
+		// A pattern no source matches, which is §3.2's fallback reached
+		// without having to invent a pull request whose branch, title,
+		// and body all happen to carry no key.
+		resolved, err := config.Resolve(config.Sources{
+			Flags: map[string]any{"intent.key_pattern": `ZZZ-[0-9]+`},
+		})
+		require.NoError(t, err)
+		src.Config = resolved
+
+		assembled, err := Run(src)
+		require.NoError(t, err)
+
+		assert.Empty(t, assembled.Issue.Key)
+		assert.Contains(t, assembled.Issue.Reason, "intent.key_pattern",
+			"§3.7.2: the reason no key was found reaches the reader")
+		assert.Empty(t, assembled.Notes, "§2.2 has no context store under no key")
+		assert.NoFileExists(t, src.Layout.ContextFile(""),
+			"a lookup under no key would name the context directory plus an extension")
+
+		// §4.5.3 and §4.5.4: the intent axis is unavailable, and it says
+		// so with its reason rather than by being missing from the list.
+		require.Len(t, assembled.Axes.Unavailable, 1)
+		assert.Equal(t, axis.Intent, assembled.Axes.Unavailable[0].Axis)
+
+		// The fixture repository carries no marker file, so §2.4.4
+		// applies as well, and its report is the second disclosure.
+		// The two are separate on purpose: activation.Activate is asked
+		// only when a profile was resolved, so profile.MissingProfile
+		// is what speaks for the repository no profile matched.
+		assert.False(t, assembled.Profile.Selected)
+		require.NotNil(t, assembled.Profile.Missing)
+		disclosed := assembled.Disclosures()
+		require.Len(t, disclosed, 2)
+		assert.Contains(t, disclosed[0].Disclosure(), "§4.5.3")
+		assert.Contains(t, disclosed[1].Disclosure(), "no profile matched this repository")
+	})
 }
