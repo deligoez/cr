@@ -196,3 +196,81 @@ func TestTheSandboxRunsTheProfilesCopyAndSetupSteps(t *testing.T) {
 	assert.Equal(t, "APP_ENV=testing\n", string(observed),
 		"§5.1.3's command ran in the sandbox, after §5.1.2 had copied into it")
 }
+
+// §5.1.5: `cr sandbox destroy` removes the worktree **and its registration**.
+//
+// The registration is what this test is really about. A `git worktree remove`
+// that succeeded and left `.git/worktrees/<name>/` behind would look like a
+// clean destruction from every angle a user can see — the directory is gone,
+// `git status` is clean — and would make the next `cr sandbox create` fail on
+// the one path it is entitled to, because `worktree add` refuses a path that
+// is still registered. So the registration directory is read off disk rather
+// than inferred from git's own report of it.
+//
+// Running it twice is the other half. §5.1.5 asks for the worktree to be gone,
+// and a pull request that never had one is already in that state; the command
+// says so instead of failing, and still prunes, since a registration naming a
+// directory somebody deleted by hand is exactly the leftover it exists to
+// clear.
+func TestDestroyingTheSandboxLeavesNoWorktreeRegistrationBehind(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	registrations := filepath.Join(fixture, ".git", "worktrees")
+	require.NoDirExists(t, registrations, "the fixture starts with no worktree of its own")
+
+	throughAPipe(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	sandboxPath := prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.DirExists(t, sandboxPath)
+	registered, err := os.ReadDir(registrations)
+	require.NoError(t, err)
+	require.Len(t, registered, 1, "the creation registered the worktree it made")
+
+	var destroyed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(throughAPipe(t,
+		"sandbox", "destroy", fixturePR, "--repo", fixtureSlug)), &destroyed))
+	assert.Equal(t, sandboxPath, destroyed["path"])
+	assert.Equal(t, true, destroyed["removed"])
+
+	assert.NoDirExists(t, sandboxPath, "§5.1.5: the worktree is gone")
+	left, err := os.ReadDir(registrations)
+	if err == nil {
+		assert.Empty(t, left, "§5.1.5: .git/worktrees/ carries no leftover entry")
+	} else {
+		require.True(t, os.IsNotExist(err), "%v", err)
+	}
+	// Counted rather than compared against the fixture's own path, which
+	// git reports with its symlinks resolved.
+	listed := 0
+	for _, line := range strings.Split(mustGit(t, fixture, "worktree", "list", "--porcelain"), "\n") {
+		if strings.HasPrefix(line, "worktree ") {
+			listed++
+		}
+	}
+	assert.Equal(t, 1, listed, "git knows of no worktree but the checkout itself")
+	assert.NoFileExists(t,
+		prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileSandboxBaseline),
+		"§5.1.6's baseline described the sandbox that has just been removed")
+
+	var again map[string]any
+	require.NoError(t, json.Unmarshal([]byte(throughAPipe(t,
+		"sandbox", "destroy", fixturePR, "--repo", fixtureSlug)), &again))
+	assert.Equal(t, false, again["removed"],
+		"a pull request with no sandbox is told so, rather than being refused")
+}
