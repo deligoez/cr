@@ -145,8 +145,8 @@ func (e *RejectedCellError) Error() string {
 // The checks run inside the decode rather than after it because
 // state.DecodeStamped is the one place that counts lines, blank ones included,
 // and every refusal here has to name the line the user must open.
-func Decode(file string, body []byte, active []role.Role) ([]*Cell, error) {
-	against := cellChecker{file: file, active: active}
+func Decode(file string, body []byte, units []string, active []role.Role) ([]*Cell, error) {
+	against := cellChecker{file: file, units: units, active: active}
 	return state.DecodeStamped[Cell](file, body, against.check)
 }
 
@@ -154,6 +154,7 @@ func Decode(file string, body []byte, active []role.Role) ([]*Cell, error) {
 // arrived in, and the active roles of the round.
 type cellChecker struct {
 	file   string
+	units  []string
 	active []role.Role
 }
 
@@ -167,11 +168,8 @@ type cellChecker struct {
 // state.DecodeStamped gives about head and round — `""` is a value the agent
 // chose exactly as much as a sentence is.
 func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *Cell) error {
-	if !written(supplied["unit"]) {
-		return &RejectedCellError{
-			File: c.file, Line: line, Field: "unit",
-			Problem: "is required by §4.5.5, which has every cell name the unit it sits at",
-		}
+	if err := c.unit(line, supplied, cell); err != nil {
+		return err
 	}
 	filled, err := c.role(line, supplied, cell)
 	if err != nil {
@@ -181,6 +179,35 @@ func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *
 		return err
 	}
 	return c.coverage(line, &filled, cell)
+}
+
+// unit holds one cell to §4.5.6's first rejection: an unknown unit id.
+//
+// The set is the units of the current round, which §3.7 makes `cr brief`'s to
+// write. §3.4.6 scopes a unit id to its round and forbids carrying it across
+// one, so `u1` of round 2 is a different piece of code from `u1` of round 1 —
+// a cell checked against the whole of units.ndjson would be accepted at a unit
+// this round never formed, and §10.2.2 would count it towards a row it does not
+// belong to.
+func (c cellChecker) unit(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+	switch {
+	case !written(supplied["unit"]):
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "unit",
+			Problem: "is required by §4.5.5, which has every cell name the unit it sits at",
+		}
+	case !slices.Contains(c.units, cell.Unit):
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "unit",
+			Problem: fmt.Sprintf(
+				"names %q, which is not a unit of this round; §4.5.6 rejects a cell naming an "+
+					"unknown unit id, and §3.4.6 scopes a unit id to the round that formed it, "+
+					"which formed %s",
+				cell.Unit, listed(c.units),
+			),
+		}
+	}
+	return nil
 }
 
 // role holds one cell to §4.5.6's second rejection and returns the role it
