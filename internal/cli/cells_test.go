@@ -4,10 +4,17 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/coverage"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // cellType is the coverage cell's type name, which is what a construction of
@@ -122,4 +129,91 @@ func invent() []*coverage.Cell {
 
 	assert.Empty(t, found,
 		"§4.5.6: cr may not invent a cell, so nothing in cr may construct one")
+}
+
+// The pull request the recording tests below run against.
+const (
+	cellsOwner = "acme"
+	cellsRepo  = "api"
+	cellsSlug  = cellsOwner + "/" + cellsRepo
+	cellsPR    = 7
+	cellsHead  = "be7e2c75aeb661ba3c96d7a7634f3f8e84bb7b91"
+)
+
+// briefedForCells writes the state a round leaves behind: two units, and two
+// active roles, so the grid §10.2.2 counts is two by two and a recording that
+// filled the wrong half of it has somewhere to be wrong.
+//
+// meta.json and units.ndjson are written directly rather than through
+// `cr brief`, which would need a repository and a pull request; what these
+// tests are about is what `cr cells record` does with a round, not how the
+// round came to be. The unit hashes differ so §4.5.5's `unit_hash` cannot pass
+// by carrying the same value everywhere.
+func briefedForCells(t *testing.T) state.Layout {
+	t.Helper()
+	layout := state.New(crHome(t))
+	require.NoError(t, layout.Init())
+	require.NoError(t, layout.EnsurePR(cellsOwner, cellsRepo, cellsPR))
+
+	held, err := layout.LockPR(cellsOwner, cellsRepo, cellsPR)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: cellsOwner, Repo: cellsRepo, PR: cellsPR,
+		IssueKey: "CR-7", Round: 1, Head: cellsHead,
+		ActiveRoles: []string{"convention", "correctness"},
+	}))
+	require.NoError(t, held.Write(state.FileUnits,
+		[]byte(`{"id":"u1","path":"src/Order.php","hash":"38372bc96eb4010e",`+
+			`"head":"`+cellsHead+`","round":1}`+"\n"+
+			`{"id":"u2","path":"src/Money.php","hash":"0a1b2c3d4e5f6071",`+
+			`"head":"`+cellsHead+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+	return layout
+}
+
+// recordCells writes an NDJSON file outside the state tree and hands it to
+// `cr cells record`.
+func recordCells(t *testing.T, lines ...string) error {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "cells.ndjson")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	return runCLI(t, "cells", "record", strconv.Itoa(cellsPR), path, "--repo", cellsSlug)
+}
+
+// filledCells is coverage.ndjson as `(unit, role)` pairs, which is the shape
+// §10.2.2 reads it in: the cells that are filled, and by omission the ones that
+// are not.
+func filledCells(t *testing.T, l state.Layout) []string {
+	t.Helper()
+	stored, err := state.ReadRecords[coverage.Cell](l, cellsOwner, cellsRepo, cellsPR, state.FileCoverage)
+	require.NoError(t, err)
+	at := make([]string, 0, len(stored))
+	for i := range stored {
+		at = append(at, stored[i].Unit+"/"+stored[i].Role)
+	}
+	return at
+}
+
+// Two of four cells are recorded, and the other two stay unfilled.
+//
+// This is §4.5.6's last clause read as behaviour: cr "MUST NOT invent a cell
+// for a unit no role reported on — an unfilled cell is a coverage gap per
+// §10.1.1, not something for cr to complete". Two units times two active roles
+// is a grid of four, the file names two of them, and what the round holds
+// afterwards is two. A cr that filled the rest with anything at all — a `pass`,
+// an `na`, a placeholder — would be forming a judgement about code no role
+// looked at, and §10.2.2 would count the round as complete on the strength of
+// it.
+//
+// The two that are recorded sit at different units and different roles, so a
+// writer that completed a row or a column has both to get wrong.
+func TestRecordingTwoOfFourCellsLeavesTheOtherTwoUnfilled(t *testing.T) {
+	layout := briefedForCells(t)
+
+	require.NoError(t, recordCells(t,
+		`{"unit":"u1","role":"correctness","result":"pass"}`,
+		`{"unit":"u2","role":"convention","result":"question"}`))
+
+	assert.Equal(t, []string{"u1/correctness", "u2/convention"}, filledCells(t, layout),
+		"§4.5.6: the two cells no role reported on are a coverage gap, not cr's to complete")
 }
