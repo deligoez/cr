@@ -15,6 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/testadequacy"
 	"github.com/deligoez/cr/internal/text"
@@ -249,6 +250,17 @@ func exitCodeFor(err error) int {
 		// alongside the illegal transition above — and the refusal
 		// names `cr brief`, because recomputing the units instead
 		// would answer §4.1.6 against a set no round recorded.
+		return ExitState
+	}
+	var sandboxExists *sandbox.ExistsError
+	if errors.As(err, &sandboxExists) {
+		// §5.1.1 creates the sandbox worktree and §5.1.5 removes it,
+		// and a sandbox that is already there is neither a file cr
+		// could be pointed at differently nor input it could refuse:
+		// the command line is right, the pull request is briefed, and
+		// what refuses is that a checkout cr did not just make is
+		// standing in the one place §5.1.1 puts one. §11.2 codes that 4
+		// alongside the illegal transition and the unbriefed round.
 		return ExitState
 	}
 	var noPRState *note.NoStateError
