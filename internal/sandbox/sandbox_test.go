@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -265,4 +266,49 @@ func TestAProfileStepThatCannotBeCarriedOutIsRefused(t *testing.T) {
 				"the refusal must leave no sandbox behind for §5.1.1 to refuse over")
 		})
 	}
+}
+
+// §5.1.6: once §5.1.2 and §5.1.3 have completed, the sandbox's tracked-file
+// state is recorded as the post-setup baseline — and the record sits under the
+// pull request's state directory, never in the worktree it describes.
+//
+// Where it lives is the claim with teeth, and round 8's unhomed-state finding
+// is why. The sandbox is a worktree of the repository under review, so a
+// baseline written into it would be cr writing inside that repository, which
+// §2.2 permits for nothing but §5.1.1's registration. It would also be a record
+// that disappears with the checkout it exists to describe, at the exact moment
+// §5.1.6 needs it to decide whether that checkout can be trusted.
+//
+// The setup command modifies a tracked file on purpose. §5.1.3's commands are
+// there to change the checkout — `composer install` rewrites a lock file — so a
+// baseline that recorded nothing but "clean at HEAD" would condemn every
+// sandbox on its first use, and §5.1.6's mandated recreation would never end.
+func TestTheBaselineIsRecordedOutsideTheWorktreeAfterSetup(t *testing.T) {
+	dir, head := repository(t)
+	scripts := t.TempDir()
+
+	src := sources(t, dir, head)
+	src.Setup = []string{script(t, scripts, "setup.sh", "echo touched-by-setup > app.txt\n")}
+
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	recorded := src.Layout.PRFile(fixtureOwner, fixtureRepo, fixturePR, state.FileSandboxBaseline)
+	require.FileExists(t, recorded, "§5.1.6 records the post-setup baseline")
+	assert.NoFileExists(t, filepath.Join(created.Path, state.FileSandboxBaseline),
+		"§2.2: the sandbox is a worktree of the repository under review")
+	inside, err := filepath.Rel(created.Path, recorded)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(inside, ".."+string(filepath.Separator)),
+		"the baseline resolves to %s, which is inside the sandbox", recorded)
+
+	body, err := os.ReadFile(recorded)
+	require.NoError(t, err)
+	var baseline Baseline
+	require.NoError(t, json.Unmarshal(body, &baseline))
+
+	assert.Equal(t, head, baseline.Head, "§5.1.6 reads the baseline beside the head it was taken at")
+	assert.Equal(t, []string{"app.txt"}, baseline.Paths)
+	assert.Contains(t, baseline.Diff, "touched-by-setup",
+		"§5.1.3 legitimately modifies tracked files, so the baseline is what they became")
 }
