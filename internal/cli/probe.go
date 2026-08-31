@@ -926,6 +926,16 @@ func appendProbe(
 	layout state.Layout, owner, repo string, pr int,
 	held *state.Lock, at state.Stamp, underProbe *run.Record, record *probe.Record,
 ) (runID, probeID string, err error) {
+	// §5.5's per-kind vocabulary, asked at the boundary where a record is
+	// stored rather than where a ladder produced its value: what a reader
+	// of probes.ndjson is promised is that every stored line carries a
+	// result its kind admits, and only a check on the way in promises it.
+	// Nothing has been written when this refuses — the run record is
+	// appended below, so the probe's own run does not reach disk without
+	// the probe it measured.
+	if err := probe.CheckResult(record); err != nil {
+		return "", "", err
+	}
 	stored, err := state.ReadRecords[probe.Record](layout, owner, repo, pr, state.FileProbes)
 	if err != nil {
 		return "", "", err
