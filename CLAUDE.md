@@ -123,6 +123,17 @@ Two rules that make the phase-boundary run worth doing:
    makes the suite hang rather than fail, and the timeout coefficient then buys
    that answer at thirty times the suite's runtime. Both are why a run takes
    15–30 minutes and why the efficacy number understates detection.
+4. **Fix `--workers`, because the default saturates the machine and manufactures
+   its own timeouts.** `gremlins unleash` takes `--workers` and `--test-cpu`, and
+   with neither set a run on this ten-core box drove the fifteen-minute load
+   average to 66 — more than six times the core count. A saturated box makes slow
+   mutants time out, so an unpinned run reports timeouts it caused itself, and
+   two runs of the same tree do not compare. Pin both, and record what you pinned
+   beside the numbers. There is also `-D, --diff <branch|commit>`, which scopes
+   mutation to changed code — untried here, and the obvious way to make this a
+   per-task check rather than a release ritual. Note gremlins leaves
+   `/var/folders/.../gremlins-*` behind even on a clean exit; a CI run needs a
+   cleanup step.
 
 **`-race` is in the gate**, added by `state-write-locking`: §2.3.1 puts an
 advisory lock on every per-PR write and §2.3.2 makes reads lock-free, so the
