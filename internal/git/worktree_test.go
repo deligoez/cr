@@ -55,3 +55,41 @@ func TestAddWorktreeChecksTheHeadOutAtTheGivenPath(t *testing.T) {
 	_, err = run(path, "symbolic-ref", "--quiet", "HEAD")
 	assert.Error(t, err, "§5.1.4: the sandbox must take no branch of the repository under review")
 }
+
+// §5.1.4 and §2.2: adding the worktree moves nothing in the main checkout, and
+// the registration is the only trace it leaves.
+//
+// The repository is dirtied first, and deliberately: a clean checkout would
+// pass a comparison of `git status` for reasons of its own. What is compared is
+// everything §2.2's second sentence names — the working tree against HEAD, the
+// index, the commit HEAD sits at, the ref it follows, and every branch — read
+// before and after the one call.
+func TestAddWorktreeLeavesTheMainWorktreeAlone(t *testing.T) {
+	repo, head, path := sandboxFixture(t)
+	writeFixtureFile(t, repo, "app.txt", "edited by the author, uncommitted\n")
+	writeFixtureFile(t, repo, "staged.txt", "staged and not committed\n")
+	fixtureGit(t, repo, "add", "staged.txt")
+
+	main := func() []string {
+		t.Helper()
+		return []string{
+			fixtureGit(t, repo, "status", "--porcelain=v2", "--untracked-files=all"),
+			fixtureGit(t, repo, "rev-parse", "HEAD"),
+			fixtureGit(t, repo, "rev-parse", "--symbolic-full-name", "HEAD"),
+			fixtureGit(t, repo, "for-each-ref", "--format=%(refname) %(objectname)"),
+		}
+	}
+	before := main()
+
+	require.NoError(t, AddWorktree(repo, path, head))
+
+	assert.Equal(t, before, main(),
+		"§5.1.4: cr must not modify the user's main worktree, index, or current branch")
+
+	// §2.2's one exception, read directly: the registration git names
+	// after the worktree's own directory.
+	registration := filepath.Join(repo, ".git", "worktrees", filepath.Base(path))
+	info, err := os.Stat(registration)
+	require.NoError(t, err, "§5.1.1 registers the worktree, and nothing is registered")
+	assert.True(t, info.IsDir())
+}
