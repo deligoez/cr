@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1219,4 +1220,114 @@ func TestAProbeFromAnEarlierHeadGradesNothing(t *testing.T) {
 		"§5.5.3: a probe from another head grades nothing in this round")
 	assert.Contains(t, answered.Reason, "§5.5.3")
 	assert.Contains(t, answered.Reason, "the probe ran at be7e2c7 and this round's head is 9f2c1ab")
+}
+
+// §5.6.4 end to end: `probe.max_per_round` caps probe executions per round, the
+// cap being hit is reported, and the run past it executes nothing.
+//
+// Eleven probes at the built-in cap of ten, because the boundary is the whole
+// rule. A cap asserted only from far below it would pass on an implementation
+// that stopped at nine or at eleven, and either is a defect a reader could not
+// see: one spends a probe the user budgeted for, the other runs one they did
+// not.
+//
+// "Executes nothing" is asserted from the runner's own log rather than from the
+// absence of a record. The runner appends to that log every time it starts, so
+// a refusal placed after §5.2.6's baseline — or after `sandbox.Ensure` ran the
+// profile's setup commands — would leave the log longer than it found it while
+// probes.ndjson still held ten records, and a count would report that as a
+// clean refusal.
+//
+// The tenth run is read through `--quiet`, because §11.1 exempts the cap report
+// from it. §5.6.4's "never silently applied" is what that exemption is for: a
+// reader who is told after the tenth probe that the round has no budget left
+// learns it before the eleventh refuses, rather than from the refusal.
+func TestTheEleventhProbeOfARoundIsRefusedHavingRunNothing(t *testing.T) {
+	prepared, _, sandboxPath, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	patch := writePatch(t, fixtureDiff)
+	probing := []string{"probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", patch}
+
+	// The default of §2.7's table, spelled here so a change to it fails
+	// this test rather than passing under a cap nobody chose.
+	const capped = 10
+	for i := 1; i < capped; i++ {
+		require.NoError(t, runCLI(t, probing...), "probe %d of the round's %d", i, capped)
+	}
+
+	filling := probeDocument(t, throughAPipe(t, append(probing, "--quiet")...))
+	require.Equal(t, "p"+strconv.Itoa(capped), filling["probe"],
+		"the tenth probe is the one that fills the round")
+	honesty, ok := filling["honesty"].([]any)
+	require.True(t, ok, "§11.1's disclosures are a field on the payload")
+	require.Len(t, honesty, 1, "§5.6.4: the cap being hit is reported")
+	assert.Contains(t, honesty[0], "§5.6.4")
+	assert.Contains(t, honesty[0], "10 of 10 probes run this round")
+	assert.Contains(t, honesty[0], "probe.max_per_round",
+		"the report names the setting that would let the round run more")
+
+	before, err := os.ReadFile(log)
+	require.NoError(t, err)
+
+	err = runCLI(t, probing...)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "10 of 10 probes run this round against probe.max_per_round")
+	assert.Contains(t, err.Error(), "this run would be number 11")
+	assert.Contains(t, err.Error(), "nothing was run")
+	assert.Equal(t, ExitValidation, exitCodeFor(err),
+		"§11.2 codes the round's spent budget 1, as it does §1.6.2's comment cap")
+
+	after, err := os.ReadFile(log)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after),
+		"§5.6.4: the refused run executed nothing in the sandbox")
+	assert.Len(t, storedRecords(t, prepared, state.FileProbes), capped,
+		"§5.6.4: the eleventh probe recorded nothing either")
+
+	held, err := os.ReadFile(filepath.Join(sandboxPath, "app.go"))
+	require.NoError(t, err)
+	assert.Equal(t, fixtureSource, string(held),
+		"the sandbox holds what the head holds, untouched by the run that was refused")
+}
+
+// A round with budget left is told nothing about the cap, and a round below it
+// runs its probes.
+//
+// This is the half that makes the assertion above mean something: a cap that
+// refused from the first probe, or a disclosure printed on every run, would
+// satisfy the refusal and break §5.6.4 in the other direction — one stops cr
+// probing at all, the other buries the one report that matters under nine that
+// say nothing new.
+func TestAProbeWithBudgetLeftIsToldNothingAboutTheCap(t *testing.T) {
+	probeFixture(t, "echo 'Tests:  4 passed'\n")
+	patch := writePatch(t, fixtureDiff)
+
+	// The first run creates the sandbox, so §5.1.6's recreation notice is
+	// there and the assertion is about the cap alone: no disclosure on
+	// either run mentions §5.6.4, because neither hit it.
+	first := runProbe(t, patch)
+	require.Equal(t, "p1", first["probe"])
+	assert.NotContains(t, disclosed(t, first), "§5.6.4",
+		"§5.6.4: the cap is reported when it is hit, and the first of ten does not hit it")
+
+	second := runProbe(t, patch)
+	require.Equal(t, "p2", second["probe"], "the round's budget is not spent by one probe")
+	assert.Equal(t, []any{}, second["honesty"],
+		"the sandbox stood, so the second run has nothing to disclose at all")
+}
+
+// disclosed is a payload's §11.1 honesty entries joined into one string, for an
+// assertion about what is not among them.
+func disclosed(t *testing.T, payload map[string]any) string {
+	t.Helper()
+	entries, ok := payload["honesty"].([]any)
+	require.True(t, ok, "§11.1's disclosures are a field on the payload")
+	said := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		text, isText := entry.(string)
+		require.True(t, isText, "a disclosure is a sentence")
+		said = append(said, text)
+	}
+	return strings.Join(said, "\n")
 }
