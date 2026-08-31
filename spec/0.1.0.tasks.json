@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T09:11:52.307194Z",
+  "updated_at": "2026-08-31T09:44:18.434891Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4102,7 +4102,7 @@
     {
       "id": "gap-result-ladder",
       "title": "Decide gap result by rung ladder",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "gap-probe-removal"
@@ -4112,11 +4112,25 @@
       "source_sections": [
         "### 5.4 Gap probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-08-31T09:11:55.041236Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-08-31T09:44:18.348441Z",
+      "closed_reason": "- `probe.GapLadder` is §5.4.3 in the section's own order: a run killed for `tests.timeout_seconds` is `timeout`, a runner that could not be started is `error`, a known executed count of zero is `no-tests-selected`, an undetermined executed or failed count is `inconclusive`, a failed count of zero is `passed`, and anything else is `failed`.\n- Its input is `probe.GapMeasured` rather than a list of arguments, and it is a type of its own rather than a reuse of the mutation ladder's `Measured`: §5.4.3 has no rung for a patch that did not apply, so a field the ladder never reads would be one a caller could fill in and be answered nothing about.\n- Rung 4 is spelled and reasoned in the code: without it a profile that cannot report counts drives every gap probe to `failed`, and §5.4.4 raises that at severity `high` on no evidence at all.\n- Round 9's probe-ladder-asymmetry is implemented: rung 2 fires on `Unstarted || ExitCode \u003c 0`, so a runner killed by the out-of-memory killer or one that segmentation-faults after printing output `tests.count_pattern` still matches reaches `error` rather than `failed`, and a crashed process cannot become high-severity evidence. `internal/cli` hands the ladder the runner's own exit status, which `sandbox.Run` reports as a negative code for a process that died on a signal.\n- `TestTheGapLadderAnswersEveryRunWithExactlyOneRung` restates every rung as a standalone predicate over the whole input and requires exactly one to match, which is the totality claim itself rather than a sample of its consequences — a table that compared six answers would see neither a second rung firing nor a run that fired none.\n- Every rung is exercised, the signal case included: a crashed runner that printed counts rung 6 could read, a timeout that also died on a signal, an empty selection that reports zero failures, an undetermined count beside a zero failed count, and both terminal rungs.\n- `TestEveryRunTheGapLadderCanSeeMatchesOneRung` drives every combination of the fields the ladder reads, with the counts spanning no count, a known zero and a known non-zero, so a rung widened by one boundary or an order swapped by one place has nowhere to hide.\n- `TestNeitherLadderProducesTheOtherKindsResult` holds §5.5's per-kind vocabularies apart at the point a value is chosen: no gap run answers `no-test-failed` and no mutation run answers `passed`, which is the pair that sits on the same rung and means opposite things.\n- The gate's mutation run found one real gap and it is closed: nothing constructed a `probe.IDTakenError`, so `TestAReservedProbeIdAnotherRunTookIsRefused` now spends the id under a first record and asserts the second is refused with exit 4 and writes nothing.\n- `TestAGapProbeWhoseRunnerExitedOnASignalIsAnError` drives the signal case through the command against a runner that prints a matching recap and then segmentation-faults, asserting the record carries `error` beside the counts the rung overrode.\n",
+      "gate_passed_at": "2026-08-31T09:44:18.348441Z",
+      "commit_sha": "783e40e",
+      "commit_shas": [
+        "783e40e",
+        "ef50790",
+        "b6d6a9f",
+        "e52c110",
+        "b69eb31"
+      ],
+      "commit_files": [
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/probe/gap.go",
+        "internal/probe/gap_test.go"
+      ]
     },
     {
       "id": "gap-failed-support-conditions",
