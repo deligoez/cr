@@ -57,7 +57,7 @@ type Ready struct {
 // hands back is the disclosure and not a line on a stream.
 func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 	path := src.Layout.Sandbox(src.Owner, src.Repo, src.PR)
-	reason, err := unclean(src, path, leftoverGlob)
+	reason, err := Unclean(src, leftoverGlob)
 	if err != nil {
 		return nil, err
 	}
@@ -70,15 +70,24 @@ func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 	return &Ready{Path: path, Recreated: &Recreated{Path: path, Reason: reason}}, nil
 }
 
-// unclean reports why the sandbox at path cannot be run in, and the empty
-// string when it can.
+// Unclean reports why the pull request's sandbox cannot be run in, and the
+// empty string when it can. It is §5.1.6's check, without §5.1.6's recreation.
+//
+// The two halves are separate because §5.1.7 needs the first without the
+// second. Its post-run check runs "before the probe record is written", and
+// what it decides is what the record says — rebuilding the sandbox at that
+// moment would destroy the evidence the check just found, and the recreation
+// §5.1.7 requires is "before the next run" rather than before the record.
+// Ensure is the caller that wants both, and it is the one that runs before a
+// run rather than after one.
 //
 // The order is cheapest-first and, more importantly, most-fundamental-first: a
 // sandbox that is not there cannot have a HEAD read, and a HEAD that moved makes
 // every later comparison a comparison against the wrong code. The first answer
 // found is the one reported, because a reader acts on the first thing that is
 // wrong and the rest are consequences of it.
-func unclean(src *Sources, path, leftoverGlob string) (string, error) {
+func Unclean(src *Sources, leftoverGlob string) (string, error) {
+	path := src.Layout.Sandbox(src.Owner, src.Repo, src.PR)
 	switch _, err := os.Stat(path); {
 	case errors.Is(err, fs.ErrNotExist):
 		return "there is no sandbox at that path", nil
