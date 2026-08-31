@@ -291,10 +291,21 @@ func (c cellChecker) result(line int, supplied map[string]json.RawMessage, cell 
 // with no classification leaves §4.4.1's whole answer unrecorded, and a cell on
 // another axis carrying one asserts a coverage judgement no role on that axis
 // was asked to make and no probe backs.
+//
+// An `na` cell is the exception, and it is the one dogfooding found: §4.5.5
+// gives `na` to every role, §4.4.1's classification is the answer a role
+// reached about a unit, and `na` is the statement that it reached none. A
+// test-adequacy role looking at the test file itself has nothing to classify —
+// requiring the object there would make `na` unreachable on the test axis, and
+// requiring a classification would have the role invent one to satisfy cr. So
+// the reason §4.5.5 already demands of an `na` stands in its place, and the
+// object is refused rather than merely optional: a classification beside a
+// verdict that says no judgement was reached is a judgement with nothing behind
+// it.
 func (c cellChecker) coverage(line int, filled *role.Role, cell *Cell) error {
-	onTestAxis := filled.Axis == axis.Test
+	classifies := filled.Axis == axis.Test && cell.Result != ResultNA
 	switch {
-	case onTestAxis && cell.Coverage == nil:
+	case classifies && cell.Coverage == nil:
 		return &RejectedCellError{
 			File: c.file, Line: line, Field: "coverage",
 			Problem: fmt.Sprintf(
@@ -302,14 +313,22 @@ func (c cellChecker) coverage(line int, filled *role.Role, cell *Cell) error {
 					"§4.4.1 has the classification recorded with the test paths it rested on",
 				axis.Test, filled.ID),
 		}
-	case !onTestAxis && cell.Coverage != nil:
+	case !classifies && cell.Coverage != nil && cell.Result == ResultNA:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage",
+			Problem: fmt.Sprintf(
+				"is §4.4.1's classification, and this cell is an %s: the reason §4.5.5 "+
+					"asks of an %s says what the object would have to stand for",
+				ResultNA, ResultNA),
+		}
+	case !classifies && cell.Coverage != nil:
 		return &RejectedCellError{
 			File: c.file, Line: line, Field: "coverage",
 			Problem: fmt.Sprintf(
 				"is §4.4.1's answer for the %s axis, and %q is on the %s axis",
 				axis.Test, filled.ID, filled.Axis),
 		}
-	case !onTestAxis:
+	case !classifies:
 		return nil
 	}
 	if !slices.Contains(classifications, cell.Coverage.Classification) {
