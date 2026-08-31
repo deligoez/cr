@@ -97,26 +97,19 @@ func Required(kind Kind, filter string) []Spec {
 func Missing(stored []run.Record, head string, required []Spec) []Spec {
 	missing := make([]Spec, 0, len(required))
 	for _, spec := range required {
-		if !spec.recorded(stored, head) {
+		if _, resolved := spec.Resolve(stored, head); !resolved {
 			missing = append(missing, spec)
 		}
 	}
 	return missing
 }
 
-// recorded reports whether any run record already stands as this baseline.
-func (s Spec) recorded(stored []run.Record, head string) bool {
-	// Indexed rather than ranged by value: a run record carries an output
-	// tail, and only four of its fields are read here.
-	for i := range stored {
-		if s.stands(&stored[i], head) {
-			return true
-		}
-	}
-	return false
-}
-
 // stands reports whether one run record is a baseline answering this spec.
+//
+// It is the one candidate predicate: Missing asks whether §5.2.2's "once per
+// head" is already satisfied and Resolve asks which record §5.5 points at, and
+// a second copy of these conditions would be a second answer that could drift
+// from the first.
 //
 // Three conditions, and §5.2.6 supplies the third: only a run carrying no
 // `probe` may serve as a baseline, so a probe's own mutated or probe-injected
