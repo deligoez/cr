@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -139,4 +141,58 @@ func TestTheSandboxReportsWhatWasCopiedAndWhatWasRun(t *testing.T) {
 		assert.Contains(t, printed, "absent vendor")
 		assert.Contains(t, printed, "setup  composer install --no-interaction")
 	})
+}
+
+// §5.1.2 and §5.1.3 come out of the profile the round resolved, and the command
+// carries them out in that order.
+//
+// meta.json's `profile_id` is what is read, because §3.7 makes `cr brief` the
+// one writer of it: a command that re-selected a profile of its own could
+// prepare the sandbox for one profile while every role of the round was briefed
+// against another. The setup script reads the copied file and writes what it
+// found outside the sandbox, so the log is evidence of the order rather than a
+// restatement of it.
+func TestTheSandboxRunsTheProfilesCopyAndSetupSteps(t *testing.T) {
+	fixture := fixtureRepository(t)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(fixture, ".env"), []byte("APP_ENV=testing\n"), 0o600))
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	scripts := t.TempDir()
+	log := filepath.Join(scripts, "observed.log")
+	setup := filepath.Join(scripts, "setup.sh")
+	require.NoError(t, os.WriteFile(setup, []byte("#!/bin/sh\ncat .env >> "+log+" 2>&1\n"), 0o700))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
+		`"match":{"files":[],"globs":[]},"axes":{"correctness":true},`+
+		`"sandbox":{"copy":[".env","vendor"],"setup":["`+setup+`"]}}`))
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, ProfileID: "qa", Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	var printed map[string]any
+	require.NoError(t, json.Unmarshal(
+		[]byte(throughAPipe(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)), &printed))
+
+	assert.Equal(t, []any{".env"}, printed["copied"])
+	assert.Equal(t, []any{"vendor"}, printed["absent"],
+		"the fixture holds no vendor tree, and §5.1.2 reports the path rather than failing on it")
+	assert.Equal(t, []any{setup}, printed["setup"])
+
+	observed, err := os.ReadFile(log)
+	require.NoError(t, err, "the setup command never ran")
+	assert.Equal(t, "APP_ENV=testing\n", string(observed),
+		"§5.1.3's command ran in the sandbox, after §5.1.2 had copied into it")
 }
