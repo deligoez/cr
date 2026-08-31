@@ -77,8 +77,22 @@ func TestBothGapSeverityBoundsAreEnforced(t *testing.T) {
 			assert.Contains(t, refused.Error(), "f1")
 			assert.Contains(t, refused.Error(), "p1")
 			assert.Contains(t, refused.Error(), string(tc.result))
+			// And what to write instead. A refusal that named only
+			// what is wrong leaves the agent to work the bound out
+			// of the section, which is the step a message exists to
+			// save — and §12.4 has every error name the next step.
+			assert.Contains(t, refused.Error(), allowedBy[tc.supports],
+				"the refusal names the severities the bound leaves")
 		})
 	}
+}
+
+// allowedBy is what each bound leaves the record, said the way the refusal says
+// it: §5.4.4's floor when the probe supports the finding, §5.4.5's ceiling when
+// it does not.
+var allowedBy = map[bool]string{
+	true:  "high or critical",
+	false: "medium or low",
 }
 
 // §5.4's bounds bind a record resting on a gap probe, and nothing else.
