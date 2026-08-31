@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/testadequacy"
 	"github.com/deligoez/cr/internal/text"
 )
 
@@ -203,6 +204,16 @@ func exitCodeFor(err error) int {
 		// about it failed as a file; what is wrong is the agent's
 		// judgement inside it, exactly as it is for the cell rejection
 		// below.
+		return ExitValidation
+	}
+	var invalidClassification *testadequacy.InvalidClassificationError
+	if errors.As(err, &invalidClassification) {
+		// §4.4.1 closes the classification at three words, and
+		// testadequacy.Coverage refuses a fourth while the cell is being
+		// decoded. It is the same file and the same fault as the cell
+		// rejection below, so it takes the same code; without this
+		// branch a cells file with one mistyped classification would
+		// report 2, telling the user to retype a correct command line.
 		return ExitValidation
 	}
 	var rejectedCell *coverage.RejectedCellError
