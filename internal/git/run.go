@@ -1,9 +1,9 @@
 // Package git reads the repository under review through the git command line.
 //
-// Every invocation in this package is a read. §2.2 permits cr exactly one
-// write inside the repository under review — the worktree registration of
-// §5.1 — and this is not where it happens: nothing here touches the index,
-// HEAD, a branch, the stash, or a tracked file.
+// Every invocation in this package is a read but one. §2.2 permits cr exactly
+// one write inside the repository under review — the worktree registration of
+// §5.1 — and worktree.go is where it happens. Nothing else here touches the
+// index, HEAD, a branch, the stash, or a tracked file.
 //
 // A run is pinned rather than inherited. §2.1.1 requires the same state, the
 // same head, and the same inputs to produce the same result, and git reads a
