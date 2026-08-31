@@ -150,13 +150,14 @@ func TestTheTestCommandStoresARunRecordForEveryRun(t *testing.T) {
 	assert.GreaterOrEqual(t, duration, float64(0))
 	delete(stored, "duration_ms")
 	assert.Equal(t, map[string]any{
-		"id":          "r1",
-		"head":        head,
-		"round":       float64(3),
-		"exit_code":   float64(3),
-		"timed_out":   false,
-		"output_tail": printed[len(printed)-16:],
-		"passed":      false,
+		"id":           "r1",
+		"head":         head,
+		"round":        float64(3),
+		"exit_code":    float64(3),
+		"timed_out":    false,
+		"contaminated": false,
+		"output_tail":  printed[len(printed)-16:],
+		"passed":       false,
 	}, stored,
 		"§5.2.4: no filter was given, no count is derivable, and the run was not a probe's")
 }
