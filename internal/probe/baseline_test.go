@@ -102,14 +102,14 @@ func TestABaselineIsRecordedOncePerHead(t *testing.T) {
 		{
 			name: "§5.2.6: a run carrying a probe cannot stand as one",
 			stored: []run.Record{
-				probed(baselineRun(head, "")),
-				probed(baselineRun(head, "handles an empty cart")),
+				baselineRun(head, "", probed),
+				baselineRun(head, "handles an empty cart", probed),
 			},
 			missing: filtered,
 		},
 		{
 			name:    "a contaminated run cannot stand as one either",
-			stored:  []run.Record{contaminated(baselineRun(head, ""))},
+			stored:  []run.Record{baselineRun(head, "", contaminated)},
 			missing: filtered,
 		},
 		{
@@ -126,22 +126,20 @@ func TestABaselineIsRecordedOncePerHead(t *testing.T) {
 
 // baselineRun is a run record that stands as a baseline: at head, carrying
 // filter, on un-probed and uncontaminated code.
-func baselineRun(head, filter string) run.Record {
-	return run.Record{
+func baselineRun(head, filter string, mark ...func(*run.Record)) run.Record {
+	record := run.Record{
 		ID:     "r1",
 		Stamp:  state.Stamp{Head: head, Round: 1},
 		Filter: filter,
 	}
+	for _, apply := range mark {
+		apply(&record)
+	}
+	return record
 }
 
 // probed marks a run as having measured a probe's code, which §5.2.6 fences out.
-func probed(record run.Record) run.Record {
-	record.Probe = "p1"
-	return record
-}
+func probed(record *run.Record) { record.Probe = "p1" }
 
 // contaminated marks a run whose sandbox failed §5.1.6's check after it.
-func contaminated(record run.Record) run.Record {
-	record.Contaminated = true
-	return record
-}
+func contaminated(record *run.Record) { record.Contaminated = true }
