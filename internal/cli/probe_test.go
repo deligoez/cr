@@ -705,6 +705,133 @@ func occupyProbePath(t *testing.T, prepared state.Layout) {
 	require.NoError(t, os.WriteFile(prepared.Profile("qa"), []byte(withSetup), 0o600))
 }
 
+// onlyWithTheProbeFile is a runner that behaves one way while §5.4.2's test
+// file is in the sandbox and another way without it.
+//
+// §5.2.6 performs a baseline before the probe, through the same command and
+// with the file not yet placed, so a runner that hung or failed unconditionally
+// would do it twice — once on un-probed code, where a failing baseline would
+// deny the probe its footing before the case under test was reached.
+func onlyWithTheProbeFile(then string) string {
+	return "if [ -f " + gapProbePath + " ]; then\n" + then + "fi\necho 'Tests:  5 passed'\n"
+}
+
+// runGap runs one gap probe through the command and returns the document it
+// printed.
+func runGap(t *testing.T, supplied string) map[string]any {
+	t.Helper()
+	return probeDocument(t, throughAPipe(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "gap", "--test", supplied, "--target", "app.go:3"))
+}
+
+// §5.4.2 and invariant 6: the test file is removed when the run fails.
+//
+// A failing gap probe is §5.4.3's last rung and the outcome §5.4.4 is written
+// about, so it is the one an agent most often arrives at — and the one where a
+// removal written after the run would be skipped by the error return above it.
+// The record is asserted to carry the ladder's answer rather than §5.1.7's
+// override, which is what says §5.1.6's post-run check passed on a sandbox the
+// probe had cleared.
+func TestTheGapProbeFileIsRemovedAfterAFailingRun(t *testing.T) {
+	prepared, _, sandboxPath, _ := probeFixture(t,
+		onlyWithTheProbeFile("  echo 'Tests:  1 failed'\n  exit 1\n"), gapProbeTemplate)
+	supplied := writeProbeTest(t)
+
+	shown := runGap(t, supplied)
+	assert.Equal(t, "failed", shown["result"],
+		"§5.4.3's last rung: the supplied test ran and failed")
+	assert.Empty(t, shown["voided"], "§5.1.6's post-run check passed, so §5.1.7 overrode nothing")
+
+	assert.NoFileExists(t, filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath)),
+		"§5.4.2: the removal happens even when the run fails")
+	assert.NoDirExists(t, filepath.Join(sandboxPath, "tests"))
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1)
+	assert.Equal(t, "failed", probes[0]["result"])
+}
+
+// §5.4.2 and invariant 6: the test file is removed when the run times out.
+//
+// This is the case that most obviously escapes a removal placed after the run,
+// because the run does not end — cr kills it. §5.2.3's budget is one second and
+// the runner sleeps for two minutes once the probe file is there, so what is
+// measured is the kill and the removal that follows it, not a suite that
+// happened to finish first.
+func TestTheGapProbeFileIsRemovedAfterATimeout(t *testing.T) {
+	prepared, _, sandboxPath, _ := probeFixture(t,
+		onlyWithTheProbeFile("  sleep 120\n"), gapProbeTemplate, `"timeout_seconds":1`)
+	supplied := writeProbeTest(t)
+
+	shown := runGap(t, supplied)
+	assert.Equal(t, "timeout", shown["result"],
+		"§5.4.3's first rung: a run that never finished said nothing about the code")
+
+	assert.NoFileExists(t, filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath)),
+		"§5.4.2: the removal happens even when the run times out")
+	assert.NoDirExists(t, filepath.Join(sandboxPath, "tests"))
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 1)
+	assert.Equal(t, "timeout", probes[0]["result"])
+}
+
+// §5.4.2's last clause: the removal did not happen, and §5.1.6 catches it.
+//
+// cr is killed while the probe file is on disk, which is the failure no code
+// inside the process can answer — a deferred removal, a signal handler and an
+// atexit hook are all equally absent afterwards, so nothing short of killing
+// the binary tests what the clause is for. The file is asserted to be there
+// after the kill, because otherwise the recreation below would be recreating a
+// sandbox that was already clean and the test would pass meaning nothing.
+//
+// The leftover is untracked and matches `tests.probe_path_template` with its
+// `<probe-id>` position replaced by `*`, which is exactly what §5.1.6 scans
+// for. The next invocation is `cr test` rather than a second probe, because the
+// check belongs to every run: whichever command comes next has to rebuild the
+// sandbox before it measures anything.
+func TestAKilledGapProbeLeavesAFileTheNextRunRecreates(t *testing.T) {
+	prepared, fixture, sandboxPath, _ := probeFixture(t,
+		onlyWithTheProbeFile("  sleep 30\n"), gapProbeTemplate)
+	supplied := writeProbeTest(t)
+	placed := filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath))
+
+	probing := exec.Command(crBinary(t), "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "gap", "--test", supplied, "--target", "app.go:3")
+	probing.Dir = fixture
+	probing.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + t.TempDir(),
+		"TMPDIR=" + os.TempDir(),
+		state.HomeEnv + "=" + prepared.Root(),
+	}
+	require.NoError(t, probing.Start())
+	t.Cleanup(func() { _ = probing.Process.Kill() })
+
+	require.Eventually(t, func() bool {
+		held, err := os.ReadFile(placed)
+		return err == nil && string(held) == gapProbeTest
+	}, 60*time.Second, 20*time.Millisecond, "the probe never placed its test file")
+	require.NoError(t, probing.Process.Kill())
+	_ = probing.Wait()
+
+	require.FileExists(t, placed,
+		"the killed run left the probe file behind, which is what the next run has to find")
+
+	reported := probeDocument(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))
+
+	honesty, ok := reported["honesty"].([]any)
+	require.True(t, ok, "§11.1's disclosures are a field on the payload")
+	require.Len(t, honesty, 1, "§5.1.6: the sandbox was unclean, so it was recreated and said so")
+	assert.Contains(t, honesty[0], "§5.1.6")
+	assert.Contains(t, honesty[0], "a probe artefact was left behind")
+	assert.Contains(t, honesty[0], "cr_probe_p1.txt",
+		"the notice names the file the killed probe left behind")
+
+	assert.NoFileExists(t, placed, "§5.1.6: the recreated sandbox holds what the head holds")
+	assert.NoDirExists(t, filepath.Join(sandboxPath, "tests"))
+}
+
 // Each kind takes the flags its own section names, and refuses the other's.
 //
 // Accepting and ignoring a flag would be the worse failure in every row here:
