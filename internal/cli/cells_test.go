@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -292,4 +293,46 @@ func TestARefusedCellExitsOneAndLeavesTheRoundAsItWas(t *testing.T) {
 				"the good line above the bad one is not written either")
 		})
 	}
+}
+
+// `cr cells record` hands back what it stored, not what it was given.
+//
+// The payload is the command's whole answer to a caller that does not read the
+// state tree, and it is not a copy of the input: §2.3.3 stamps head and round,
+// and §4.5.5's `unit_hash` is taken from units.ndjson — the value §10.2.2 will
+// compare against next, which no caller can derive from the file it wrote.
+//
+// Mutation testing is why this test exists. Negating either of the command's
+// two write-path conditionals makes it return before it emits anything, and
+// every assertion about the recorded state still passed: the write had already
+// happened, so the round looked right and the caller was told nothing at all.
+func TestCellsRecordEmitsWhatItStored(t *testing.T) {
+	briefedForCells(t)
+	path := filepath.Join(t.TempDir(), "cells.ndjson")
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"), 0o600))
+
+	printed := throughAPipe(t, "cells", "record", strconv.Itoa(cellsPR), path, "--repo", cellsSlug)
+
+	var payload struct {
+		Recorded []struct {
+			Unit     string `json:"unit"`
+			Role     string `json:"role"`
+			Result   string `json:"result"`
+			UnitHash string `json:"unit_hash"`
+			Head     string `json:"head"`
+			Round    int    `json:"round"`
+		} `json:"recorded"`
+		Round int `json:"round"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &payload),
+		"§12.1: a command whose stdout is a pipe emits JSON")
+	require.Len(t, payload.Recorded, 1)
+	assert.Equal(t, 1, payload.Round)
+	assert.Equal(t, "u1", payload.Recorded[0].Unit)
+	assert.Equal(t, "correctness", payload.Recorded[0].Role)
+	assert.Equal(t, "38372bc96eb4010e", payload.Recorded[0].UnitHash,
+		"the caller learns the hash §10.2.2 compares, which cr wrote and it did not")
+	assert.Equal(t, cellsHead, payload.Recorded[0].Head)
+	assert.Equal(t, 1, payload.Recorded[0].Round)
 }
