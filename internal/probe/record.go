@@ -47,6 +47,12 @@ type Record struct {
 	TestsRun *int `json:"tests_run,omitempty"`
 	// TestsFailed is the failed test count, absent when undetermined.
 	TestsFailed *int `json:"tests_failed,omitempty"`
+	// Target is §5.5's `path:line`, always `side: RIGHT` because a probe
+	// runs against the sandbox at head. For a mutation probe it is
+	// derived from the patch per §5.3.2 and never supplied, which is what
+	// keeps the evidence chain running on the experiment cr performed
+	// rather than on a flag an agent typed.
+	Target string `json:"target"`
 	// Baseline is the id of the run record §5.2.6 admits as this probe's
 	// baseline. §5.3.5 and §5.4.4 read that record's `passed` before
 	// letting the probe support a `probed` grade, so a probe without one
