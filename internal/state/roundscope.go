@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // ReplaceStamped replaces the current round's records in one of the eight
@@ -81,30 +82,132 @@ func checkStamped(name string) error {
 	return nil
 }
 
-// roundOf is the one field a round-scoped write reads out of a stored line:
-// §2.3.3's round, which is the whole of what makes a line belong to a round.
+// ReplaceStampedKeys replaces only the current round's records that sit at the
+// same key as one of the records being written, and leaves every other line
+// byte for byte: every earlier round, and every key of this round the file
+// being written does not name.
 //
-// It is deliberately not the record's own type. This file is generic over
-// eight different record shapes, and decoding each line into its own struct
-// would mean a line the current version cannot fully decode — a field a later
-// version added — deciding the fate of a round it has nothing to do with.
-type roundOf struct {
-	Round int `json:"round"`
+// coverage.ndjson is what it exists for, and it is a different sentence from
+// the one ReplaceStamped implements. §3.3.1 has `cr claims record` replace the
+// claims of the round, whole; §4.5.6 has `cr cells record` replace "the current
+// round's cell for each `(unit, role)` the file names" and leave every other
+// cell untouched. A round is filled by many roles handing in many files, so a
+// whole-round replacement would have each role's file delete the last one's
+// cells — the review would end with the coverage of whichever role reported
+// last, and §10.2.2 would read that as the round's proven coverage.
+//
+// keyFields names the fields that make a record's key, by their JSON keys, so
+// what a caller declares is the §4.5.6 clause itself rather than a struct this
+// package would have to know. Both sides are keyed by the same function over
+// the same encoded JSON — the records being written are read back out of the
+// bytes about to be appended — so an incoming record and the stored line it
+// replaces cannot be keyed differently.
+func ReplaceStampedKeys[T Stamped](
+	k *Lock, name string, at Stamp, records []T, keyFields []string,
+) error {
+	if err := checkStamped(name); err != nil {
+		return err
+	}
+	for _, record := range records {
+		record.setStamp(at)
+	}
+	added, err := encodeRecords(name, records)
+	if err != nil {
+		return err
+	}
+	replaced, err := keysOf(name, added, keyFields)
+	if err != nil {
+		return err
+	}
+	kept, err := keptLines(k, name, func(line map[string]json.RawMessage) bool {
+		_, taken := replaced[keyOf(keyFields, line)]
+		return roundOf(line) == at.Round && taken
+	})
+	if err != nil {
+		return err
+	}
+	return k.Write(name, append(kept, added...))
+}
+
+// keysOf reads the keys of the records about to be written out of the bytes
+// they were encoded to.
+//
+// Reading them back rather than off the structs is what makes the two sides
+// agree: a stored line is keyed by its JSON fields, so the record replacing it
+// is keyed by its JSON fields too, and a field whose Go name and JSON key
+// differ cannot key one side and miss the other.
+func keysOf(name string, encoded []byte, keyFields []string) (map[string]struct{}, error) {
+	keys := make(map[string]struct{})
+	for i, line := range bytes.Split(encoded, []byte{'\n'}) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(line, &fields); err != nil {
+			return nil, fmt.Errorf("cannot key record %d of %s: %w", i+1, name, err)
+		}
+		keys[keyOf(keyFields, fields)] = struct{}{}
+	}
+	return keys, nil
+}
+
+// keyOf builds one record's key out of the raw values of keyFields, separated
+// by a byte no JSON document can hold, so no two different keys can render the
+// same string. A field the line does not carry contributes nothing, which keeps
+// such a line distinct from every record a command can hand in — §4.5.6's own
+// fields are required, so no incoming cell has an empty one.
+func keyOf(keyFields []string, fields map[string]json.RawMessage) string {
+	var key strings.Builder
+	for _, field := range keyFields {
+		key.Write(fields[field])
+		key.WriteByte(0)
+	}
+	return key.String()
+}
+
+// roundOf is §2.3.3's round as a stored line supplies it, and 0 for a line that
+// supplies none or supplies something that is not a number.
+//
+// §9.3.3 numbers rounds from 1, so 0 is no round at all and such a line is kept
+// by every round-scoped write. Keeping it is the conservative half: a line this
+// version cannot read is history it has no licence to delete.
+func roundOf(fields map[string]json.RawMessage) int {
+	var round int
+	if err := json.Unmarshal(fields["round"], &round); err != nil {
+		return 0
+	}
+	return round
 }
 
 // earlierRounds returns the lines of one §2.3.3 file that do not belong to
 // round, in file order and byte for byte.
 //
 // Every round but the named one is kept, not merely the ones before it. §9.3.5
-// calls the others history and this function has no way to tell a round that
-// has passed from one a state directory carries for some other reason, so it
-// takes out exactly the round it was asked to take out and nothing else.
+// calls the others history and this has no way to tell a round that has passed
+// from one a state directory carries for some other reason, so it takes out
+// exactly the round it was asked to take out and nothing else.
+func earlierRounds(k *Lock, name string, round int) ([]byte, error) {
+	return keptLines(k, name, func(line map[string]json.RawMessage) bool {
+		return roundOf(line) == round
+	})
+}
+
+// keptLines returns the lines of one §2.3.3 file that drop leaves in place, in
+// file order and byte for byte.
+//
+// A line is handed to drop as the fields it supplied rather than as a decoded
+// record. This file is generic over eight different record shapes, and decoding
+// each line into its own struct would mean a line the current version cannot
+// fully decode — a field a later version added — deciding the fate of a round
+// it has nothing to do with. The bytes that survive are the bytes that were
+// there, so a record a later version wrote stays exactly as that version wrote
+// it.
 //
 // The read is unlocked-safe because the caller holds the §2.3.1 lock: no other
 // writer can be between this read and the Write that follows it. A file that is
 // not there yet holds as many records as an empty one, which is the reading
 // storeRecords already gives an absent store.
-func earlierRounds(k *Lock, name string, round int) ([]byte, error) {
+func keptLines(k *Lock, name string, drop func(map[string]json.RawMessage) bool) ([]byte, error) {
 	path := filepath.Join(k.dir, name)
 	held, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -115,11 +218,11 @@ func earlierRounds(k *Lock, name string, round int) ([]byte, error) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
-		var at roundOf
-		if err := json.Unmarshal(line, &at); err != nil {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(line, &fields); err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
 		}
-		if at.Round == round {
+		if drop(fields) {
 			continue
 		}
 		kept.Write(line)
