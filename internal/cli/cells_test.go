@@ -258,3 +258,38 @@ func TestASecondRecordingReplacesOnlyTheCellsItNames(t *testing.T) {
 		assert.Equal(t, 1, stored[i].Round, "§2.3.3 stamps round onto every cell")
 	}
 }
+
+// §4.5.6's rejections reach the shell as §11.2's code 1, and the file that was
+// refused leaves the round exactly as it found it.
+//
+// Both halves matter. The code is what a caller branches on, and a rejection
+// reported as a usage error would tell them to retype a command line that was
+// right. The untouched round is the ordering `cr record` and `cr claims record`
+// already fix: the whole file is validated before anything is written, so a
+// role handing in one bad line among good ones does not lose the answers a
+// previous recording put there.
+func TestARefusedCellExitsOneAndLeavesTheRoundAsItWas(t *testing.T) {
+	layout := briefedForCells(t)
+	require.NoError(t, recordCells(t, `{"unit":"u1","role":"correctness","result":"pass"}`))
+
+	for _, tc := range []struct {
+		name string
+		line string
+	}{
+		{"an unknown unit", `{"unit":"u9","role":"correctness","result":"pass"}`},
+		{"an inactive role", `{"unit":"u1","role":"test-adequacy","result":"pass"}`},
+		{"an na with no reason", `{"unit":"u2","role":"convention","result":"na"}`},
+		{"a supplied head", `{"unit":"u2","role":"convention","result":"pass","head":"deadbee"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := recordCells(t,
+				`{"unit":"u2","role":"correctness","result":"pass"}`, tc.line)
+
+			require.Error(t, err)
+			assert.Equal(t, ExitValidation, exitCodeFor(err),
+				"§4.5.6 and §11.2 code a refused cell 1")
+			assert.Equal(t, []string{"u1/correctness"}, filledCells(t, layout),
+				"the good line above the bad one is not written either")
+		})
+	}
+}
