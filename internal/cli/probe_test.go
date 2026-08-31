@@ -573,10 +573,10 @@ const (
 
 // writeProbeTest stores §5.4.1's test file outside the repository under review
 // and returns its path.
-func writeProbeTest(t *testing.T, body string) string {
+func writeProbeTest(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "edge_case_test.txt")
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(gapProbeTest), 0o600))
 	return path
 }
 
@@ -599,7 +599,7 @@ func writeProbeTest(t *testing.T, body string) string {
 // picking one of the two answers it cannot yet have.
 func TestAGapProbePlacesRunsRemovesAndRecords(t *testing.T) {
 	prepared, _, sandboxPath, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate)
-	supplied := writeProbeTest(t, gapProbeTest)
+	supplied := writeProbeTest(t)
 
 	reported := probeDocument(t, throughAPipe(t, "probe", "run", fixturePR,
 		"--repo", fixtureSlug, "--kind", "gap", "--test", supplied, "--target", "app.go:3"))
@@ -672,7 +672,7 @@ func TestAGapProbePlacesRunsRemovesAndRecords(t *testing.T) {
 func TestAGapProbeRefusesAnExistingFileAtTheProbePath(t *testing.T) {
 	prepared, _, sandboxPath, log := probeFixture(t, gapProbeRunner, gapProbeTemplate)
 	occupyProbePath(t, prepared)
-	supplied := writeProbeTest(t, gapProbeTest)
+	supplied := writeProbeTest(t)
 
 	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
 		"--kind", "gap", "--test", supplied, "--target", "app.go:3")
@@ -713,7 +713,7 @@ func occupyProbePath(t *testing.T, prepared state.Layout) {
 // §5.2.6 performed a baseline suite for an invocation cr was never going to
 // carry out.
 func TestEachProbeKindRefusesTheFlagsItDoesNotTake(t *testing.T) {
-	supplied := writeProbeTest(t, gapProbeTest)
+	supplied := writeProbeTest(t)
 	patch := writePatch(t, fixtureDiff)
 
 	for name, tc := range map[string]struct {
