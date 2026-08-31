@@ -3,6 +3,7 @@ package sandbox
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -345,4 +346,75 @@ func TestTheBaselineIsInvalidatedWhenTheSandboxIsRecreated(t *testing.T) {
 	require.ErrorAs(t, err, &failed)
 	assert.NoFileExists(t, recorded,
 		"the previous sandbox's baseline outlived the sandbox it described")
+}
+
+// §5.2.1: the test command runs inside the sandbox, and never in the checkout
+// cr was invoked from.
+//
+// This is the criterion with teeth, and it is asserted from inside the running
+// process rather than from the call: the script records its own working
+// directory, so what is checked is where the runner stood, not what the caller
+// meant. A suite run in the main checkout would be measuring the user's working
+// tree — mid-edit, possibly on another branch, possibly carrying the change
+// under review and possibly not — and reporting the answer under the pull
+// request head's name. It would also be a run cr had no business starting
+// there: §2.2 permits cr nothing inside the repository under review but
+// §5.1.1's registration, and every later mutation of §5.3 happens in the
+// directory this one establishes.
+//
+// The exit status comes back as a value. A failing suite is an ordinary outcome
+// — §5.3.4's ladder is built on reading one — so a non-zero exit is reported and
+// not raised.
+func TestTheTestCommandRunsInTheSandboxAndNeverTheCheckout(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	scripts := t.TempDir()
+	log := filepath.Join(scripts, "observed.log")
+	runner := script(t, scripts, "runner.sh", "pwd > "+log+"\necho the suite ran\nexit 3\n")
+
+	var printed strings.Builder
+	code, err := Run([]string{runner}, created.Path, &printed)
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, code, "§5.2.1 reports the runner's exit status rather than raising it")
+	assert.Contains(t, printed.String(), "the suite ran",
+		"the runner's output reaches the reader as it is produced")
+
+	observed, err := os.ReadFile(log)
+	require.NoError(t, err, "the test command never ran")
+	// The sandbox path is resolved through its symlinks, because a
+	// temporary directory reaches `pwd` as the path the kernel resolved and
+	// not as the one the layout joined.
+	sandboxPath, err := filepath.EvalSymlinks(created.Path)
+	require.NoError(t, err)
+	checkout, err := filepath.EvalSymlinks(dir)
+	require.NoError(t, err)
+
+	ran := strings.TrimSpace(string(observed))
+	assert.Equal(t, sandboxPath, ran, "§5.2.1: the suite runs inside the sandbox")
+	assert.NotEqual(t, checkout, ran, "§2.2: never in the repository under review")
+}
+
+// A runner that cannot be started at all is a failure and not a test result.
+//
+// The two are different answers and §5.3.4 reads them differently: a runner that
+// ran and exited non-zero has said something about the code, while one that
+// never started has said nothing. §3.1.3 gives the second the shape every
+// external command cr drives fails in, and the argv is carried into it so the
+// user can see what cr tried to start.
+func TestARunnerThatCannotBeStartedIsAFailure(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	code, err := Run([]string{filepath.Join(created.Path, "no-such-runner")}, created.Path, io.Discard)
+
+	assert.Zero(t, code)
+	var failed *RunError
+	require.ErrorAs(t, err, &failed)
+	assert.Contains(t, err.Error(), "no-such-runner")
 }
