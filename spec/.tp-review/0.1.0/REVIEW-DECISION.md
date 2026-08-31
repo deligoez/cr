@@ -195,5 +195,18 @@ anything larger than restating an existing rule in its own section to the user.
   a `passed` filter would perform a fresh filtered run before every probe for
   ever and resolve none. `Passed()` travels inside the resolved baseline instead.
 
+- **§5.3.4's `no-tests-selected` rung is unreachable through the shipped
+  profile, at `mutation-result-ladder`. Open, not repaired.** The rung needs a
+  *known* executed count of zero, and the comment in `internal/probe` says the
+  reader is owed the difference between "the filter selected nothing" and "the
+  counts could not be read". With `laravel-pest` that difference is invisible:
+  an empty selection makes Pest print `INFO No tests found.` with no count at
+  all, `tests.count_pattern` never matches, and the ladder correctly answers
+  `inconclusive`. Driving the rung for real needed a runner that reports the
+  empty selection *as* a count. The ladder is right and the profile is right;
+  what is unstated is that the rung is only reachable from a runner that prints
+  a zero. Carried here rather than repaired — the audit should decide whether
+  §5.2.1 or §5.3.4 owes that sentence.
+
 This is what the implementation phase is for. Review reads what is written; only
 running the thing reads what is reachable, and no reviewer had run Pest.
