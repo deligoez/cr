@@ -152,7 +152,10 @@ func stringSliceParam(fn *ast.FuncDecl, name string) bool {
 // §3.1.1 and §2.4 make their argv the user's to write, so both are held to
 // wholeArgv instead — one program per invocation, taken whole out of the array
 // it was handed, with no argument appended and no element chosen. The result
-// below says so: four runners, four invocations, one program each.
+// below says so: four runners, five invocations, one program each. internal/
+// sandbox/run.go accounts for two of them because §5.1 and §5.2 start different
+// commands — the profile's `sandbox.setup` entries and its `tests.cmd` — and
+// both are argv the user wrote, held to the same wholeArgv rule.
 func TestTheRunnersStartGitGhAndTheConfiguredTracker(t *testing.T) {
 	root := moduleRoot(t)
 
@@ -186,7 +189,8 @@ func TestTheRunnersStartGitGhAndTheConfiguredTracker(t *testing.T) {
 		filepath.Join("internal", "git", "run.go") + " starts git",
 		filepath.Join("internal", "intent", "run.go") + " starts the whole of its argv argument",
 		filepath.Join("internal", "sandbox", "run.go") + " starts the whole of its argv argument",
-	}, found, "§14.1: git, gh, the configured tracker and §5.1.3's setup commands are the only programs cr starts, one to each runner")
+		filepath.Join("internal", "sandbox", "run.go") + " starts the whole of its argv argument",
+	}, found, "§14.1: git, gh, the configured tracker and the profile's own commands are the only programs cr starts, one to each invocation")
 }
 
 // crBinary builds cr and returns the path to the binary it produced.

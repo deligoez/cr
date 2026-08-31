@@ -859,6 +859,12 @@ func repoRuns(merged, claims, issue, cells, pairs string) map[string][]string {
 		// `sandbox` sorts after `brief` — which is what gives it a
 		// recorded head to check the worktree out at.
 		"sandbox create": {"sandbox", "create", fixturePR, "--repo", fixtureSlug},
+		// `cr test` runs a command inside the sandbox, which is the
+		// case this guard exists for from the other direction: the
+		// suite has to run in the worktree under `~/.cr` and never in
+		// the checkout cr was invoked from. It sorts after `sandbox
+		// create`, so there is a sandbox to run in.
+		"test": {"test", fixturePR, "--repo", fixtureSlug},
 	}
 }
 
@@ -896,6 +902,15 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	for id, body := range profile.Builtins() {
 		require.NoError(t, prepared.EnsureProfile(id, body))
 	}
+	// `cr test` needs a profile that names a test command: §2.4 makes an
+	// absent `tests.cmd` a disabled test axis and §5.2.1 then has nothing to
+	// run. The shipped `generic` declares none, so this run's copy of it
+	// gains one that exits 0 and writes nothing — what is measured here is
+	// where the command ran, not what it did.
+	require.NoError(t, os.WriteFile(prepared.Profile("generic"), []byte(
+		`{"id":"generic","match":{"files":[],"globs":["**/*"]},`+
+			`"axes":{"intent":true,"correctness":true,"convention":true,"test":true},`+
+			`"tests":{"cmd":["true"],"globs":["*_test.txt"]}}`), 0o600))
 	require.NoError(t, prepared.EnsureRepo(fixtureOwner, fixtureProject))
 	require.NoError(t, os.WriteFile(
 		prepared.RepoConfig(fixtureOwner, fixtureProject), []byte(`{"profile":"generic"}`), 0o600))
