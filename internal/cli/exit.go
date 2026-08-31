@@ -391,6 +391,16 @@ func exitCodeFor(err error) int {
 		// alongside the record rejections above.
 		return ExitValidation
 	}
+	var invalidTarget *probe.InvalidTargetError
+	if errors.As(err, &invalidTarget) {
+		// §5.5 takes a gap probe's target from `--target` and has it
+		// validated as §6.2.3 validates a citation, and §6.2.3 codes
+		// its own refusals 1. The flag was read and the head was
+		// opened without trouble; what is wrong is the location the
+		// agent typed, which is its data exactly as a citation's path
+		// and line are.
+		return ExitValidation
+	}
 	var outsideSandbox *state.OutsideSandboxError
 	if errors.As(err, &outsideSandbox) {
 		// §5.3.1's patch is written by an agent, and a path in it that
