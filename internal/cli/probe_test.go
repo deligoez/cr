@@ -170,6 +170,7 @@ func TestAMutationProbeAppliesRunsRevertsAndRecords(t *testing.T) {
 		"kind":         "mutation",
 		"input":        fixtureDiff,
 		"result":       "no-test-failed",
+		"target":       "app.go:3",
 		"tests_run":    float64(4),
 		"tests_failed": float64(0),
 		"baseline":     "r1",
