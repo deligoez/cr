@@ -68,3 +68,50 @@ func TestACellCarriesEveryFieldSection455Names(t *testing.T) {
 		assert.Zero(t, cell.Round)
 	}
 }
+
+// An `na` cell that gives no reason is rejected, and so is a reason on a cell
+// that is not `na`.
+//
+// §4.5.5 requires "a reason when it is `na`", and the requirement is load-
+// bearing rather than tidy. `na` is the one verdict that says a lens had
+// nothing to say about a unit, so it is the one that can shrink what P6 counts
+// as proven coverage — a row of bare `na`s reads to §10.2.2 exactly like a row
+// of filled cells while proving that nothing was looked at. The reason is what
+// makes the shrinkage inspectable, so a cell that omits it is refused rather
+// than stored and reported later.
+func TestAnNaCellWithoutAReasonIsRejected(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		line string
+	}{
+		{"no reason at all", `{"unit":"u1","role":"correctness","result":"na"}`},
+		{"a null reason", `{"unit":"u1","role":"correctness","result":"na","reason":null}`},
+		{"an empty reason", `{"unit":"u1","role":"correctness","result":"na","reason":""}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), active())
+
+			var rejected *RejectedCellError
+			require.ErrorAs(t, err, &rejected)
+			assert.Empty(t, cells, "a refused file stores nothing at all")
+			assert.Equal(t, cellsFile, rejected.File)
+			assert.Equal(t, 1, rejected.Line)
+			assert.Equal(t, "reason", rejected.Field)
+			assert.Equal(t,
+				"cells.ndjson line 1: reason is required by §4.5.5 when result is na, "+
+					"because an unexplained na is a lens that did not look",
+				err.Error())
+		})
+	}
+
+	t.Run("a reason on a verdict that is not na", func(t *testing.T) {
+		_, err := Decode(cellsFile,
+			[]byte(`{"unit":"u1","role":"correctness","result":"pass","reason":"looked fine"}`+"\n"),
+			active())
+
+		var rejected *RejectedCellError
+		require.ErrorAs(t, err, &rejected)
+		assert.Equal(t, "reason", rejected.Field)
+		assert.Contains(t, rejected.Problem, "attaches to na alone")
+	})
+}
