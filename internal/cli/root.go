@@ -59,6 +59,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newBriefCmd(out))
 	root.AddCommand(newSandboxCmd(out))
 	root.AddCommand(newTestCmd(out))
+	root.AddCommand(newProbeCmd(out))
 
 	return root
 }
