@@ -13,7 +13,7 @@ linters:
     - unparam
     # Size and duplication. Every threshold below is golangci-lint's own
     # default: the point is not a number this project picked but a line it
-    # cannot cross without saying so. The seven functions over the line today
+    # cannot cross without saying so. The functions over the line today
     # carry a `//nolint` naming their measured size, so `golangci-lint run`
     # reports zero issues and the eighth violation fails the gate the moment
     # it is written.

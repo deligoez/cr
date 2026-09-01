@@ -23,6 +23,9 @@ import (
 type recordResult struct {
 	// Recorded are the records as they were written, in file order.
 	Recorded []*finding.Finding `json:"recorded"`
+	// Duplicates is how many of them §6.4.3 retired into state
+	// `duplicate`, which is §10.1.6's duplicate count for this write.
+	Duplicates int `json:"duplicates"`
 	// Probes is §5.4's answer for every record resting on a gap probe:
 	// whether that probe supports it, and which condition decided. It is
 	// empty, and never nil, when no record names one.
@@ -33,14 +36,26 @@ type recordResult struct {
 	Honesty []string `json:"honesty"`
 }
 
-// Text names how many records were stored and the state §9.1 brought them into,
+// Text names how many records were stored and the states §9.1 brought them into,
 // then what §5.4 made of every gap probe they rest on. The records themselves
 // came from the caller's own file, so printing them into a terminal would repeat
-// what the caller already has; what §5.4 answered is not in that file.
+// what the caller already has; what §9.1 and §5.4 made of them is not in that
+// file.
+//
+// The states are named separately once any record was retired as a duplicate.
+// §6.4.3 keeps a suppressed duplicate rather than dropping it, so a line saying
+// every stored record is in `draft` would be counting records the round will
+// never draft.
 func (r *recordResult) Text(w *writer) string {
 	var out strings.Builder
-	out.WriteString("recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
-		" in state " + finding.StateDraft.String())
+	stored := w.accent(strconv.Itoa(len(r.Recorded)))
+	if r.Duplicates == 0 {
+		out.WriteString("recorded " + stored + " in state " + finding.StateDraft.String())
+	} else {
+		fmt.Fprintf(&out, "recorded %s: %d in state %s, %d in state %s",
+			stored, len(r.Recorded)-r.Duplicates, finding.StateDraft,
+			r.Duplicates, finding.StateDuplicate)
+	}
 	for _, answered := range r.Probes {
 		fmt.Fprintf(&out, "\n  %s %s %s (%s): %s",
 			answered.Record, w.accent(answered.Probe), supported[answered.Supports],
@@ -59,12 +74,24 @@ func (r *recordResult) Text(w *writer) string {
 // here, as `cr brief` asks its own: probe.GapUnmappable holds the sentence the
 // coupling is reported in, so a wording built at the call site cannot come to
 // disagree with the data beside it.
+//
+// The duplicate count is read off the stored records rather than passed in, so
+// it counts what §9.1 actually stamped and not what a caller believed §6.4.3 had
+// marked.
 func newRecordResult(records []*finding.Finding, found *gapEvidence) *recordResult {
 	honesty := make([]string, 0, len(found.unmappable))
 	for _, entry := range found.unmappable {
 		honesty = append(honesty, entry.Disclosure())
 	}
-	return &recordResult{Recorded: records, Probes: found.support, Honesty: honesty}
+	duplicates := 0
+	for _, record := range records {
+		if record.State == finding.StateDuplicate {
+			duplicates++
+		}
+	}
+	return &recordResult{
+		Recorded: records, Duplicates: duplicates, Probes: found.support, Honesty: honesty,
+	}
 }
 
 // supported is how §5.4.4's answer is said, in the section's own verb. It is
@@ -126,6 +153,37 @@ func roundUnitIDs(units []roundUnit) []string {
 	return ids
 }
 
+// stampStates walks §9.1's first two rows over a file `cr record` has accepted.
+//
+// Every record is created in `draft` by the row naming `cr record` as the
+// producer. A record §6.4.3 marked as a suppressed duplicate is then moved on to
+// `duplicate` by the second row, which names the same actor. §6.5.1 assigns that
+// second move here and not to `cr merge`: merge's output carries `duplicate_of`
+// and no `state` at all, and `cr record` is what applies §6.4.3 from it.
+//
+// Both moves are asked of the transition table rather than assumed, so this
+// command writes a state only while §9.1 still has a row allowing it.
+func stampStates(records []*finding.Finding) error {
+	for _, record := range records {
+		if err := finding.MayTransition(
+			record.ID, finding.Creation, finding.StateDraft, finding.ActorRecord,
+		); err != nil {
+			return err
+		}
+		record.State = finding.StateDraft
+		if record.DuplicateOf == "" {
+			continue
+		}
+		if err := finding.MayTransition(
+			record.ID, finding.Existing(finding.StateDraft), finding.StateDuplicate, finding.ActorRecord,
+		); err != nil {
+			return err
+		}
+		record.State = finding.StateDuplicate
+	}
+	return nil
+}
+
 // newRecordCmd records a round's merged findings (§11, §6.1.3, §9.1).
 //
 // The whole file is validated before anything is written, and that ordering is
@@ -142,8 +200,6 @@ func roundUnitIDs(units []roundUnit) []string {
 // field in what it refuses, and internal/cli maps that onto §11.2's code 1. A
 // second reading of the same section here would be a second thing to keep in
 // agreement with the spec.
-//
-//nolint:funlen // measured 2026-08-31 at 61 lines; refactor to clear, never raise the limit
 func newRecordCmd(out *writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "record " + prPlaceholder + " <file>",
@@ -191,17 +247,10 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// §9.1's first row: a new record enters `draft`, and the
-			// move is asked of the table rather than assumed, so the
-			// one command §9.1 lists as a producer is the one that
-			// produces here.
-			for _, record := range records {
-				if err := finding.MayTransition(
-					record.ID, finding.Creation, finding.StateDraft, finding.ActorRecord,
-				); err != nil {
-					return err
-				}
-				record.State = finding.StateDraft
+			// §9.1's first two rows, in the order stampStates
+			// walks them.
+			if err := stampStates(records); err != nil {
+				return err
 			}
 			// §5.4.4 and §5.4.5, read before the write and off
 			// files no lock is needed for (§2.3.2). It is asked of
