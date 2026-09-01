@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -294,9 +295,17 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, err
 	}
-	// §6.2, last of the three, because it rests on what the two before it
-	// established: the citations are resolved and stamped, and §5.4's
-	// bounds have already refused the records they refuse.
+	// §6.1's `axis` row, before the grade rather than after it: §6.2's
+	// `cited` row reads the axis, and §4.4.2 withholds that grade from the
+	// test axis entirely.
+	corpus, err := role.Resolve(l.RepoRolesDir(owner, repo), l.RolesDir())
+	if err != nil {
+		return nil, nil, err
+	}
+	stampAxes(corpus, records)
+	// §6.2, last of them all, because it rests on what the others
+	// established: the citations are resolved and stamped, the axis is
+	// computed, and §5.4's bounds have already refused what they refuse.
 	gradeRecords(round, formed, evidence, records)
 	return records, found, nil
 }

@@ -57,7 +57,8 @@ func resolvedCitation(path string, line int, origin Origin) Citation {
 // from it, so what decides a grade is the field the case changed.
 func aGradedRecord() *Finding {
 	return &Finding{
-		ID: "f1", Kind: KindFinding, Role: "correctness", Class: "unchecked-error",
+		ID: "f1", Kind: KindFinding, Axis: "correctness", Role: "correctness",
+		Class:    "unchecked-error",
 		Severity: SeverityHigh, Unit: gradedUnit, Claim: gradedClaim,
 		Anchor: Anchor{
 			Path: "internal/api/handler.go", StartLine: 42, Line: 44,

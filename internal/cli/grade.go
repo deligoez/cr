@@ -5,6 +5,7 @@ import (
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/probe"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -128,6 +129,37 @@ func unitOf(formed []roundUnit, id string) finding.Containment {
 		}
 	}
 	return nil
+}
+
+// stampAxes writes §6.1's `axis` row onto every record: the axis of the record's
+// `role`, written by cr.
+//
+// It is stamped rather than accepted because §6.1.4 refuses the field on the
+// wire, and §6.2's `cited` row turns on it — an agent that could write `axis`
+// could name any axis but its own and buy the grade §4.4.2 withholds from the
+// test axis. The value comes from §2.5.5's resolved corpus, which is the same
+// corpus `cr cells record` reads a role's axis out of and the same one §6.4.2
+// orders duplicate groups by.
+//
+// The whole corpus is read rather than §4.5.1's active set. Activation decides
+// which roles a round asks for prompts from (§4.5.1) and which cells §4.5.6
+// accepts; it does not decide what axis a role serves, and a record from a role
+// this round did not activate is refused — if it is refused at all — for naming
+// that role, not by being handed an axis it does not have.
+//
+// A role the corpus does not hold leaves the field empty, which is not an
+// omission: §6.1.3 lists the rejections and an unresolvable role is not among
+// them, and finding.ComputeGrade reads an axis cr never computed as one it
+// cannot certify is not `test`. So the record keeps its grade honest instead of
+// borrowing an axis.
+func stampAxes(corpus []role.Resolved, records []*finding.Finding) {
+	axes := make(map[string]string, len(corpus))
+	for i := range corpus {
+		axes[corpus[i].Role.ID] = corpus[i].Role.Axis
+	}
+	for _, record := range records {
+		record.Axis = axes[record.Role]
+	}
 }
 
 // gradeRecords writes §6.2's grade onto every record `cr record` is storing.

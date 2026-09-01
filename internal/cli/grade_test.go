@@ -112,6 +112,46 @@ func TestRecordComputesAndStampsTheGradeSection62Names(t *testing.T) {
 		"§6.2's third row, whatever the evidence sentence claims")
 }
 
+// §4.4.2 through the command: a test-adequacy record cites the same location a
+// correctness record is graded `cited` for, and grades `argued`.
+//
+// The two records differ in their `role` and in nothing else that grading
+// reads, and the axis is not on either of them — §6.1.4 refuses the field on
+// the wire, so what separates them is the axis cr computed from §2.5.5's
+// corpus. Both are asserted on the stored record, because the stamped axis is
+// the other half of the claim: a command that graded correctly while writing no
+// axis would leave §8.1 and §10 reading a field nobody filled.
+//
+// §4.4.2 is what the difference is for. A role reading the suite can always
+// find a test file to point at, and pointing at one is not evidence that the
+// behaviour is untested — only an experiment is, so a test-adequacy record is
+// `probed` or `argued` and §6.3 asks the second as a question.
+func TestATestAdequacyRecordIsNotGradedCitedByItsCitations(t *testing.T) {
+	layout := gradedHome(t)
+
+	adequacy := aGradedRecord("f1")
+	adequacy["role"] = "test-adequacy"
+	adequacy["citations"] = []map[string]any{{"path": "app.go", "line": 1}}
+	correctness := aGradedRecord("f2")
+	correctness["citations"] = []map[string]any{{"path": "app.go", "line": 1}}
+	file := writeRecordFile(t, "merged.ndjson", adequacy, correctness)
+
+	_, err := runRecord(t, "7", file, "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	stored, err := state.ReadRecords[finding.Finding](
+		layout, fixtureOwner, fixtureProject, fixturePRNumber, state.FileFindings)
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+
+	assert.Equal(t, "test", stored[0].Axis, "§6.1: cr writes the axis of the record's role")
+	assert.Equal(t, finding.GradeArgued, stored[0].Grade,
+		"§4.4.2: a citation grades a test-adequacy record nothing")
+	assert.Equal(t, "correctness", stored[1].Axis)
+	assert.Equal(t, finding.GradeCited, stored[1].Grade,
+		"and the same citation on another axis is exactly what §6.2's cited row asks for")
+}
+
 // §6.2.3 through the command: every citation is resolved against the head, the
 // hash cr computed is stored, and an entry the head cannot open refuses the
 // file with exit code 1 naming the line and the entry.

@@ -81,9 +81,36 @@ func (e Evidence) inside(path string, line int) bool {
 	return e.own != nil && e.own.Contains(path, line)
 }
 
-// cites is §6.2's `cited` row read over one record's citations: does it carry
-// at least one entry `cr` resolved against the current head that either has
-// `origin: rule` or lies outside the record's own unit?
+// testAxis is §1.5's `test` axis id, which §6.2's `cited` row names.
+//
+// It is a literal rather than internal/axis's own constant, and the reason is
+// the build constraint Containment gives: internal/axis's tests reach
+// internal/config, which reaches internal/render, which reaches this package,
+// so importing the closed set would close a cycle in that test binary. What
+// keeps the two spellings from drifting is a test — internal/finding's tests
+// may import internal/axis, because nothing in that direction is a cycle — and
+// it asserts they are one string.
+const testAxis = "test"
+
+// cites is §6.2's `cited` row read over one record: does it carry at least one
+// entry `cr` resolved against the current head that either has `origin: rule`
+// or lies outside the record's own unit, and is the record's `axis` not `test`?
+//
+// The axis is asked first, because it settles the row for the whole test axis
+// before any citation is looked at. §4.4.2 is what the clause is for: a
+// test-adequacy finding asserts only with an experiment, and citations to test
+// files must not grade it `cited` — so a record on that axis is `probed` or
+// `argued` and there is no third answer. Asserting that a unit is untested on
+// the strength of having read the tests is exactly the claim §5.3's
+// `no-test-failed` exists to settle, and a `cited` grade would let it be made
+// without running anything.
+//
+// An axis cr did not compute is refused with it. §6.1 makes `axis` the axis of
+// the record's `role`, written by cr, so an empty one is a role the corpus did
+// not resolve rather than a record on some other axis — and the row asks cr to
+// establish that the axis is not `test`, which it cannot do about an axis it
+// never worked out. The direction is the safe one: it can only lower a grade to
+// `argued`, which §6.3 asks as a question.
 //
 // "That `cr` resolved" is read off `content_hash` rather than assumed. §6.2.3
 // has `cr` compute and store that hash for every entry that resolved, and
@@ -99,6 +126,9 @@ func (e Evidence) inside(path string, line int) bool {
 // `origin: rule` means and why §6.2.5 has cr stamp that field positionally
 // rather than let the agent write it.
 func (e Evidence) cites(record *Finding) bool {
+	if record.Axis == "" || record.Axis == testAxis {
+		return false
+	}
 	for i := range record.Citations {
 		// Indexed rather than ranged by value: nothing here writes to
 		// the entry, and it is read three times.
