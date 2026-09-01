@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-01T10:44:11.917566Z",
+  "updated_at": "2026-09-01T10:51:01.891807Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4774,7 +4774,7 @@
     {
       "id": "argued-forcing-visibility",
       "title": "Count forcings in the round summary",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "argued-forcing"
@@ -4784,11 +4784,18 @@
       "source_sections": [
         "### 6.3 The argued rule"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T10:44:18.344128Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-01T10:51:01.879543Z",
+      "closed_reason": "- The forcing is visible in the round summary with a count per class: finding.ForceQuestions applies section 6.3.1 and returns Forcings, one row per defect class by class ascending, and cr draft writes that under forced_to_question in rounds/n/summary.json through state.UpdateRoundSection, which leaves every field another writer of section 10.3 owns byte for byte.\n- The count is an honesty disclosure that survives quiet: Forcings implements finding.HonestyDisclosure, draftResult.Text prints Disclosure on every run and carries the rows as a payload field, and TestTheForcingCountSurvivesQuiet drives cr draft under quiet, quiet compact and quiet no-color through both a pipe and a pty and finds the count in each. TestTheForcingCountIsPrintedAtZero holds it printed when nothing was forced, and TestTheForcingCountDoesNotFadeOnASecondRun holds it counting the grade section 6.3 forces rather than the moves one run made, which is what keeps it non-zero at the two moments a human reads it.\n",
+      "gate_passed_at": "2026-09-01T10:51:01.879543Z",
+      "commit_sha": "d9d79bd",
+      "commit_shas": [
+        "d9d79bd"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go"
+      ]
     },
     {
       "id": "argued-forcing-unoverridable",
