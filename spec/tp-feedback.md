@@ -107,3 +107,28 @@ or `\bdeferred\b` only when no code-ish neighbour (`defer`, backticks, a
 `.go:`/`func` reference) sits near it. `will be done later` is already spelled as
 a phrase for this reason; `deferred` is the one bare word in the list, and it is
 also a common technical term.
+
+## A task cannot leave `wip` except by being finished
+
+`cell-computed-fields` has been `wip` since 2026-08-31, claimed by a unit that
+ended without closing it and left nothing on disk. Three separate units have now
+been handed it by `tp next --brief` as their first instruction, and all three had
+to be told out of band to work something else. It carries no `claimed_at`, so
+nothing distinguishes it from work in progress.
+
+There is no transition out. `tp set … status=open` refuses the field as managed
+and names three commands; of those, `tp claim` is open→wip, `tp close` is
+wip→done, and `tp reopen` refuses with *"cannot reopen: task is wip (must be
+done)"*. So the only exits from `wip` are finishing the task or editing the task
+file by hand, and the second is what this repository's own rules forbid.
+
+That is fine when a unit always outlives its claim, and units do not: an agent
+can be interrupted, run out of context, or be stopped. The state machine has no
+edge for the case that actually happens.
+
+**Proposed fix.** `tp release <id>` (or `tp claim --release`), wip→open,
+recording who released it and when — the same shape as `tp reopen` but from the
+other state. A `claimed_at` stamp on `tp claim` would also let `tp next` skip or
+flag a claim older than a threshold, which is the cheaper half: it does not add a
+transition, it just stops handing a stale claim to the next unit as if it were
+theirs.
