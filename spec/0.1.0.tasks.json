@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-01T10:51:01.891807Z",
+  "updated_at": "2026-09-01T11:19:50.692642Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4800,7 +4800,7 @@
     {
       "id": "argued-forcing-unoverridable",
       "title": "Reject any override of argued forcing",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "argued-forcing-visibility",
@@ -4811,11 +4811,18 @@
       "source_sections": [
         "### 6.3 The argued rule"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T10:51:09.001516Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-01T11:19:50.681864Z",
+      "closed_reason": "- There is no flag, configuration setting, environment variable, profile field, or role instruction that disables or overrides the forcing: no flag in the whole cobra tree carries a name addressing it, section 2.7 refuses a config key or CR_ variable that would, section 2.4's profile table has no such field so a profile carrying one is decoded into nothing, and a role only supplies prose that never reaches the field assignment.\n- cr rejects a record graded argued with kind finding: finding.RefuseArguedAssertion returns ArguedAssertionError naming the record id, internal/cli/exit.go codes it 1, and cr draft runs it over the records it is about to write so the refusal stands at the one door into the payload that v0.1 has built.\n- The forcing happens in cr and not in the prompt: it is the field assignment in finding.ForceQuestion, cr draft reads no profile, no role and no configuration on the way to it, and TestNoShippedRoleAsksForTheForcing parses every shipped role and finds none of them asking for it.\n- TestNoChannelOverridesTheArguedForcing attempts the override through each of the five channels and all five fail: a flag walk over the tree plus cr record and cr draft run under every global flag, a repository config.json carrying argued.forcing refused with exit code 3, two CR_ variables refused by name, a profile file carrying an argued field and a force_findings field ignored, and a repository role whose instructions demand assertions leaving the record a question in the rendered block.\n",
+      "gate_passed_at": "2026-09-01T11:19:50.681864Z",
+      "commit_sha": "4383efa",
+      "commit_shas": [
+        "4383efa"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go"
+      ]
     },
     {
       "id": "dedup-key",
