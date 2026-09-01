@@ -27,12 +27,23 @@ type draftResult struct {
 	// Queued is how many records §7.1 rendered into it, which is also how
 	// many §9.1 now holds in `queued`.
 	Queued int `json:"queued"`
+	// Forced is §6.3.2's count per class over the records this draft
+	// holds, which is also what reached summary.json. It is a field on the
+	// payload rather than a sentence alone, so an agent reading the
+	// document gets the numbers and not only the prose.
+	Forced finding.Forcings `json:"forced_to_question"`
 }
 
-// Text names the count, the round, and the file to open.
+// Text names the count, the round, and the file to open, and then §6.3.2's
+// forcing count.
+//
+// The forcing line is printed on every run, whatever the flags say. §11.1
+// exempts it from `--quiet` by name, and a disclosure that is only printed
+// sometimes is a disclosure the reader cannot rely on: it is how they tell a
+// draft whose questions cr forced from one whose questions the agent chose.
 func (r *draftResult) Text(w *writer) string {
 	return "drafted " + w.accent(strconv.Itoa(r.Queued)) + " record(s) for round " +
-		strconv.Itoa(r.Round) + " to " + r.Path
+		strconv.Itoa(r.Round) + " to " + r.Path + "\n" + r.Forced.Disclosure()
 }
 
 // newDraftCmd renders the editable draft (§11, §7.1).
@@ -76,8 +87,15 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §6.3.1's second moment, applied over the records
+			// this draft holds and before they are rendered: the
+			// block a reviewer reads carries the register in its
+			// marker, so a forcing applied after the rendering
+			// would be a forcing the draft does not show.
+			forced := finding.ForceQuestions(queued)
 			if err := publishDraft(
-				layout, owner, repo, pr, &round, records, draft.Render(queued),
+				layout, owner, repo, pr, &round, records,
+				draft.Render(queued), forced,
 			); err != nil {
 				return err
 			}
@@ -85,6 +103,7 @@ func newDraftCmd(out *writer) *cobra.Command {
 				Path:   layout.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
 				Round:  round.Round,
 				Queued: len(queued),
+				Forced: forced,
 			})
 		},
 	}
@@ -147,7 +166,8 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 }
 
 // publishDraft is the single write, under §2.3.1's lock: the round's records
-// carrying the states §9.1 just stamped, and the draft they were rendered into.
+// carrying the states §9.1 just stamped, the draft they were rendered into, and
+// §6.3.2's forcing count in the round summary.
 //
 // findings.ndjson is replaced for the current round rather than appended to.
 // The records being written are the ones just read back out of it, so an append
@@ -155,22 +175,41 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 // this round, so every earlier round's line survives byte for byte.
 func publishDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	records []*finding.Finding, body string,
+	records []*finding.Finding, body string, forced finding.Forcings,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
 	}
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
-	if err := state.ReplaceStamped(held, state.FileFindings, stamp, records); err != nil {
-		// The lock is released on the way out of every branch, and
-		// the write's own failure is what the caller is told about.
-		_ = held.Unlock()
-		return err
+	writes := []func() error{
+		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
+		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(body)) },
+		func() error { return writeForcingCounts(held, round.Round, forced) },
 	}
-	if err := held.WriteRound(round.Round, state.FileDraft, []byte(body)); err != nil {
-		_ = held.Unlock()
-		return err
+	for _, write := range writes {
+		if err := write(); err != nil {
+			// The lock is released on the way out of every branch,
+			// and the write's own failure is what the caller is
+			// told about.
+			_ = held.Unlock()
+			return err
+		}
 	}
 	return held.Unlock()
+}
+
+// summaryForcedToQuestion is §10.3's "forced to question" count, by the key
+// summary.json holds it under.
+const summaryForcedToQuestion = "forced_to_question"
+
+// writeForcingCounts puts §6.3.2's count per class into the round's
+// summary.json, as the one section of that document `cr draft` owns.
+//
+// §10.3 has `cr merge`, `cr draft` and `cr post` each accumulate their own
+// counts into one file, so the write goes through UpdateRoundSection, which
+// leaves every field this command does not own byte for byte.
+func writeForcingCounts(held *state.Lock, round int, forced finding.Forcings) error {
+	return state.UpdateRoundSection(
+		held, round, state.FileSummary, summaryForcedToQuestion, forced)
 }
