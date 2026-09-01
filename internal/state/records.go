@@ -235,8 +235,6 @@ func RecordLines(body []byte) []int {
 
 // writeRecords encodes records as NDJSON — one JSON document per line — and
 // publishes the file through the held lock.
-// writeRecords encodes records as NDJSON and publishes the file through the
-// held lock.
 func writeRecords[T any](k *Lock, name string, records []T) error {
 	body, err := encodeRecords(name, records)
 	if err != nil {
