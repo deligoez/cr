@@ -26,6 +26,13 @@ drop it because the code it described is gone.
 Exit 0 when every survivor is on the list and every entry matches a survivor.
 Exit 1 otherwise, naming what changed.
 
+Do not set this up where there is nothing to classify. A list that would be
+empty because the tree has no survivors is a record corresponding to nothing,
+and it reads as a discipline being kept -- which is the failure the stale-entry
+rule exists to catch, one level up. The rule is not only that an entry
+protecting nothing must break; it is that a list protecting nothing should not
+be created. Measure first, adopt when there is a backlog to make durable.
+
     scripts/survivors.py <run.json> [known.json]
 """
 
