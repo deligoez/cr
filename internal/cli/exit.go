@@ -207,6 +207,15 @@ func exitCodeFor(err error) int {
 		// parsed; the fault is the agent's data inside it.
 		return ExitValidation
 	}
+	var arguedAssertion *finding.ArguedAssertionError
+	if errors.As(err, &arguedAssertion) {
+		// §6.3.3 rejects any attempt to post a record graded argued
+		// with kind finding, with exit code 1, naming the record id.
+		// It is the invariant refusing rather than the input: the
+		// record is well-formed, and what fails is the register it
+		// would reach the author in.
+		return ExitValidation
+	}
 	var malformedMarker *draft.MalformedMarkerError
 	if errors.As(err, &malformedMarker) {
 		// §7.2.1 has `cr post` refuse to run when a marker is
