@@ -94,3 +94,47 @@ func TestAnEmptyForcingReportIsAnEmptySlice(t *testing.T) {
 	assert.NotNil(t, ForceQuestions(nil))
 	assert.Empty(t, ForceQuestions([]*Finding{}))
 }
+
+// §6.3.3: a record graded `argued` written as a finding is refused, and the
+// refusal names the record id.
+//
+// The offender is put second of three so the two records around it prove what
+// the refusal is about: a `cited` finding may assert per §6.2, and an `argued`
+// question is exactly where §6.3 puts one, so neither is refused and the one
+// that is refused is refused for the pair of fields §6.3.3 names.
+func TestAnArguedAssertionIsRefusedByRecordID(t *testing.T) {
+	asked := classed("naming-drift")
+	asked.ID, asked.Kind = "f1", KindQuestion
+	asserting := classed("unchecked-error")
+	asserting.ID = "f2"
+	cited := classed("unchecked-error")
+	cited.ID, cited.Grade = "f3", GradeCited
+
+	require.NoError(t, RefuseArguedAssertion([]*Finding{asked, cited}),
+		"§6.2 lets a cited record assert, and an argued question is where §6.3 puts one")
+
+	err := RefuseArguedAssertion([]*Finding{asked, asserting, cited})
+	require.Error(t, err)
+
+	var refused *ArguedAssertionError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, "f2", refused.Record, "§6.3.3: the refusal names the record id")
+	assert.Contains(t, err.Error(), "f2")
+	assert.Contains(t, err.Error(), "§6.3.3")
+}
+
+// Applying §6.3.1 satisfies §6.3.3, which is the pair that makes invariant 4 a
+// property of the records rather than of a call having been made.
+//
+// The check runs over the same records the forcing just moved, so a forcing
+// that stopped working would be caught by the refusal rather than reaching the
+// author as an assertion. That is why both are applied at each of §6.3.1's
+// three moments and not only the first.
+func TestTheForcingSatisfiesTheRefusalItIsCheckedBy(t *testing.T) {
+	records := []*Finding{classed("unchecked-error"), classed("naming-drift")}
+	require.Error(t, RefuseArguedAssertion(records), "the agent wrote them as assertions")
+
+	ForceQuestions(records)
+	assert.NoError(t, RefuseArguedAssertion(records),
+		"§6.3.1 applied leaves nothing for §6.3.3 to refuse")
+}
