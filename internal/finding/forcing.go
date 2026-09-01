@@ -1,5 +1,12 @@
 package finding
 
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+)
+
 // ForceQuestion applies §6.3.1 to one record: a record graded `argued` is
 // forced to `kind: question`. It reports whether this application is what moved
 // it, which is the forcing §6.3.2 counts.
@@ -45,4 +52,84 @@ func ForceQuestion(record *Finding) bool {
 	}
 	record.Kind = KindQuestion
 	return true
+}
+
+// Forcing is one row of §6.3.2's report: a defect class, and how many of the
+// round's records the forcing holds in the question register under it.
+type Forcing struct {
+	// Class is §6.1's kebab-case defect class.
+	Class string `json:"class"`
+	// Count is how many records of that class §6.3 forced.
+	Count int `json:"count"`
+}
+
+// Forcings is §6.3.2's report over one round: the forcing's count per class, by
+// class ascending.
+//
+// What it counts is every record graded `argued`, and not the subset some one
+// call to ForceQuestion happened to move. The distinction is the whole of
+// whether the report says anything at all: §6.3.1 applies the forcing three
+// times, so by draft time and again by post time the records it moved at record
+// time are already questions, ForceQuestion reports false for every one of
+// them, and a report counting moves would read zero at exactly the two moments
+// a human sees it. A record graded `argued` is in the question register because
+// §6.3 put it there and for no other reason — §6.2 gives the grade and nothing
+// else writes the kind — so counting the grade counts the forcing, at every
+// moment, however many times it has already been applied.
+//
+// The order is by class rather than by count or by arrival, so the same round
+// renders the same report twice and a stored summary diffs cleanly.
+type Forcings []Forcing
+
+// Total is how many records the forcing holds across every class.
+func (f Forcings) Total() int {
+	total := 0
+	for _, forced := range f {
+		total += forced.Count
+	}
+	return total
+}
+
+// Disclosure is §6.3.2's report, one of the seven §11.1 exempts from `--quiet`,
+// in the shape cap.go's HonestyDisclosure fixes.
+//
+// It is printed at zero as well, for the reason Overlaps.Disclosure gives and
+// one of its own. §11.1 exempting this report is only worth anything if the
+// report is always there: a line that appeared only when something was forced
+// would leave a reviewer unable to tell a round where nothing was argued from a
+// round where the forcing never ran — and the second is a round in which every
+// weak finding reached the author as an assertion.
+func (f Forcings) Disclosure() string {
+	if len(f) == 0 {
+		return "§6.3: 0 records forced to question"
+	}
+	named := make([]string, 0, len(f))
+	for _, forced := range f {
+		named = append(named, fmt.Sprintf("%s %d", forced.Class, forced.Count))
+	}
+	return fmt.Sprintf("§6.3: %d records forced to question — %s",
+		f.Total(), strings.Join(named, ", "))
+}
+
+// ForceQuestions applies §6.3.1 to every record of a round and reports §6.3.2's
+// count per class.
+//
+// The two are one call because they are one obligation seen from two sides.
+// §6.3.1 forces and §6.3.2 makes the forcing visible, and a caller that could
+// force without counting would apply the rule and tell nobody — which is the
+// failure §6.3.2 exists to prevent, since a question is otherwise
+// indistinguishable from a question the agent chose to ask.
+func ForceQuestions(records []*Finding) Forcings {
+	counts := make(map[string]int, len(records))
+	for _, record := range records {
+		ForceQuestion(record)
+		if record.Grade == GradeArgued {
+			counts[record.Class]++
+		}
+	}
+	forced := make(Forcings, 0, len(counts))
+	for _, class := range slices.Sorted(maps.Keys(counts)) {
+		forced = append(forced, Forcing{Class: class, Count: counts[class]})
+	}
+	return forced
 }
