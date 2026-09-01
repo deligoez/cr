@@ -72,7 +72,8 @@ type Cell struct {
 	// else.
 	Reason string `json:"reason,omitempty"`
 	// UnitHash is the §3.4.6 hash the cell was filled for, which §10.2.2
-	// compares against the unit's current one. cr writes it.
+	// compares against the unit's current one. cr writes it, and refuses a
+	// cell that supplied it.
 	UnitHash string `json:"unit_hash"`
 	// NoteID is the note that explained an unmapped unit, which §4.1.5 has
 	// the cell cite so a suppressed question rests on something.
@@ -114,7 +115,8 @@ func (e *RejectedCellError) Error() string {
 }
 
 // Decode reads the cells an agent hands `cr cells record`, holding every line
-// to §4.5.5's fields and to §4.5.6's rejection of an inactive role.
+// to §4.5.5's fields, to §4.5.6's rejection of an inactive role, and to the
+// authorship of the fields cr computes.
 //
 // active is the round's active roles of §4.5.1, each carrying the axis it sits
 // on. One argument answers both questions the decoder asks, and that is
@@ -141,14 +143,19 @@ type cellChecker struct {
 
 // check holds one line to §4.5.5 and to §4.5.6's role half.
 //
-// The order is the order a reader can act on. `role` is settled early because
-// every later question is asked of the role it names: an inactive role has no
-// axis, so there is no rule under which to decide whether `coverage` belongs on
-// the line. `result` follows, because `reason` is conditional on it. Presence is
-// read off the wire rather than off the decoded cell, for the reason
-// state.DecodeStamped gives about head and round — `""` is a value the agent
-// chose exactly as much as a sentence is.
+// The order is the order a reader can act on. Authorship comes first: a cell
+// carrying a field cr computes is refused whatever else it says, because the
+// answer is to drop the field rather than to correct it. `role` is settled
+// early because every later question is asked of the role it names: an inactive
+// role has no axis, so there is no rule under which to decide whether
+// `coverage` belongs on the line. `result` follows, because `reason` is
+// conditional on it. Presence is read off the wire rather than off the decoded
+// cell, for the reason state.DecodeStamped gives about head and round — `""` is
+// a value the agent chose exactly as much as a sentence is.
 func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+	if err := c.computed(line, supplied); err != nil {
+		return err
+	}
 	if err := c.unit(line, supplied, cell); err != nil {
 		return err
 	}
@@ -160,6 +167,42 @@ func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *
 		return err
 	}
 	return c.coverage(line, &filled, cell)
+}
+
+// cellComputed are the fields of §4.5.5 that cr writes onto a cell itself, in
+// the order a rejection names them.
+//
+// `head` is not among them because state.DecodeStamped already refuses it for
+// every one of §2.3.3's eight files. `unit_hash` is a cell's alone, so it is
+// refused here: §3.4.6 fixes the value, `cr cells record` takes it from
+// units.ndjson for the unit the cell names, and no other record carries it.
+var cellComputed = []string{"unit_hash"}
+
+// computed gives §4.5.5's computed field the treatment §6.1.4 gives `grade`: a
+// cell arriving with one is rejected with exit code 1 naming the line and the
+// field.
+//
+// §10.2.2 asks whether a cell "was filled for that unit's current unit hash",
+// which makes the hash the guard's input and the thing being guarded at once.
+// An agent free to write it could echo the current value onto a cell filled
+// against older code, and a stale cell would then be indistinguishable from a
+// fresh one — P6's "coverage is proven" read as coverage asserted. Overwriting
+// a supplied value silently would close the same hole, but it would also accept
+// a file whose author believed they were recording something, and §12.4 has cr
+// name what it refused instead.
+//
+// It reports through the same state.ReservedFieldError that carries §2.3.3's
+// head and round, so a cell's computed fields have one wording and one exit
+// code. Presence alone is the test, as it is there: `"unit_hash": ""` is a key
+// the agent wrote, and the field has the same author whatever value sits under
+// it.
+func (c cellChecker) computed(line int, supplied map[string]json.RawMessage) error {
+	for _, field := range cellComputed {
+		if _, ok := supplied[field]; ok {
+			return &state.ReservedFieldError{File: c.file, Line: line, Field: field}
+		}
+	}
+	return nil
 }
 
 // unit holds one cell to §4.5.6's first rejection: an unknown unit id.
