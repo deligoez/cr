@@ -71,9 +71,10 @@ func newCellsCmd(out *writer) *cobra.Command {
 // no cells at all, so the write below either happens whole or does not happen.
 //
 // Nothing here re-reads §4.5.5's field list. coverage.Decode is the one door:
-// it holds every line to the fields, to §4.5.6's two rejections, and to
-// §2.3.3's reserved head and round, naming the file, the one-based line and the
-// field in what it refuses, and internal/cli maps that onto §11.2's code 1.
+// it holds every line to the fields, to §4.5.6's two rejections, to §2.3.3's
+// reserved head and round, and to §4.5.5's computed `unit_hash`, naming the
+// file, the one-based line and the field in what it refuses, and internal/cli
+// maps that onto §11.2's code 1.
 func newCellsRecordCmd(out *writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "record " + prPlaceholder + " <file>",
