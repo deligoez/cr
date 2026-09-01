@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-01T07:00:51.437078Z",
+  "updated_at": "2026-09-01T08:16:32.294393Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3041,7 +3041,7 @@
     {
       "id": "test-finding-needs-experiment",
       "title": "Deny cited grade to test citations",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "edge-case-role-guidance"
@@ -3051,11 +3051,23 @@
       "source_sections": [
         "### 4.4 Test adequacy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T08:07:29.715187Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T08:07:29.715291Z",
+      "closed_reason": "- finding.Evidence.cites answers §6.2's cited row false for any record whose axis is test, so citations to test files never grade a test-adequacy finding cited and it stays argued without a supporting probe, which §6.3 then asks as a question.\n- The same clause is the whole of §4.4.2 as it applies to grading, enforced where the grade is decided rather than asked of a role's prose; nothing in the implementation reads a file path, and TestTheSameCitationsGradeARecordOnAnotherAxisCited grades a record on the correctness axis cited for exactly the test-file citations the test-adequacy record was refused for.\n- TestATestAdequacyRecordIsExactlyProbedOrArgued records a test-adequacy finding carrying only test-file citations and asserts argued, then adds a supporting mutation probe to the same record and asserts probed, so both outcomes of the axis are covered and there is no third.\n- §6.2's cited row is unreachable for the whole test axis because the axis is the first thing the row asks about, before any citation is read.\n- cr record stamps §6.1's axis row from §2.5.5's resolved corpus before grading, since the row reads the axis and §6.1.4 refuses the field on the wire; TestATestAdequacyRecordIsNotGradedCitedByItsCitations drives two records through the built command that differ only in role and reads back axis test with grade argued and axis correctness with grade cited.\n- An axis cr did not compute cannot reach cited either, per TestAnAxisCrDidNotComputeCannotReachCited: the row asks cr to establish that the axis is not test, and a role §2.5.5 did not resolve leaves cr nothing to establish that from; the record falls to argued, which is the direction that asserts less.\n- TestTheDeniedAxisIsSection15sTestAxis holds the literal in internal/finding to internal/axis's own constant, so the denial cannot be left pointing at a renamed axis.\n- Note for the record: this task's second acceptance criterion cites §4.4.3, which spec/0.1.0.md does not have; §4.4 holds two numbered items and the criterion restates the first criterion's §4.4.2 word for word, so it is satisfied by the same code and tests.\n",
+      "gate_passed_at": "2026-09-01T08:07:29.715291Z",
+      "commit_sha": "6656bd7b469ef2c89355f531866867ee0b75e088",
+      "commit_shas": [
+        "6656bd7b469ef2c89355f531866867ee0b75e088"
+      ],
+      "commit_files": [
+        "internal/cli/grade.go",
+        "internal/cli/grade_test.go",
+        "internal/cli/record.go",
+        "internal/finding/grade.go",
+        "internal/finding/grade_test.go",
+        "internal/finding/testaxis_test.go"
+      ]
     },
     {
       "id": "axis-activation-rules",
@@ -4550,7 +4562,7 @@
     {
       "id": "grade-computation",
       "title": "Compute the grade from evidence",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "citation-content-hash",
@@ -4562,11 +4574,28 @@
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T08:02:12.955426Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T08:02:12.955572Z",
+      "closed_reason": "- internal/finding/grade.go's ComputeGrade is §6.2's table: the probed row is probe.Establishes over the referenced record, the cited row asks for one citations entry cr resolved that either carries origin rule or lies outside the record's own unit, and argued is neither of those.\n- internal/probe/grading.go routes each kind to its own ladder; Proven is §5.3.5's result condition read off the stored mutation record as Reproduces reads §5.4.4's off a gap record, since no Outcome survives into probes.ndjson and §6.2.1 names the record as grading's input.\n- The grade is computed by cr and never asserted by the agent: §6.1.4 already refuses a record arriving with the field, Regrade is the only writer of it, and finding.Resolved takes a probe.Baseline and a probe.ClaimMapping that no caller can manufacture.\n- finding.Evidence holds exactly two unexported fields, the unit boundary and the probe answer, so there is nowhere to put a summary, a severity, a role or an evidence sentence; TestGradingHasNowhereToPutAFieldSection621DoesNotName asserts that field set by reflection.\n- TestARecordWhoseProseClaimsProofButCitesNothingIsArgued records a fixture whose evidence says proven, confirmed and verified in one sentence and whose citations are empty, and asserts it grades argued.\n- TestTwoRecordsAgreeingOnSection621sInputsGradeAlike varies summary, evidence, severity and role between two records that agree on §6.2.1's inputs and asserts one grade.\n- Round 13's mutable-grading-input is a ratchet in Regrade: notAbove compares ranks in the gradeStrength order §6.4.2 already reads, so a recomputation lowers a grade or leaves it unchanged and never raises one within a round.\n- TestARecomputationLowersAGradeAndNeverRaisesIt covers all three directions and TestTheRatchetHoldsOverEveryPairOfGrades covers every pair, including the cited rung a two-value fixture cannot reach.\n- §6.2.1's containment is unit.Unit.Contains, evaluated entirely in head coordinates against the hunk ranges §3.4.6 records from git.Hunk.HeadRange, so a hunk that adds no lines is already its head-side insertion point and no side is compared; TestContainmentIsDecidedInHeadCoordinates covers inside, outside and that insertion point.\n- cr record is wired end to end: §6.2.3 resolves and stamps every citation against the round's head before anything is written, the three stored inputs of §6.2.1 are read once and shared with §5.4's severity bounds so the two answers cannot drift, and gradeRecords stamps the grade last.\n- TestRecordComputesAndStampsTheGradeSection62Names drives three records differing only in their citations through the built command against a real checkout and reads cited, argued and argued back off findings.ndjson.\n- state.RecordLines was added beside DecodeStamped so §6.2.3's post-decode rejection names the line the user must open, counted by the one function that decides which lines carry records.\n",
+      "gate_passed_at": "2026-09-01T08:02:12.955572Z",
+      "commit_sha": "d6c90d4fa5421de1945f38d52d7e0a6e8050c96f",
+      "commit_shas": [
+        "d6c90d4fa5421de1945f38d52d7e0a6e8050c96f"
+      ],
+      "commit_files": [
+        "internal/cli/gapsupport.go",
+        "internal/cli/grade.go",
+        "internal/cli/grade_test.go",
+        "internal/cli/record.go",
+        "internal/finding/grade.go",
+        "internal/finding/grade_test.go",
+        "internal/probe/grading.go",
+        "internal/probe/grading_test.go",
+        "internal/state/records.go",
+        "internal/unit/contains.go",
+        "internal/unit/contains_test.go"
+      ]
     },
     {
       "id": "unit-containment-predicate",
@@ -4650,7 +4679,7 @@
     {
       "id": "cited-never-called-verified",
       "title": "Never describe a cited record verified",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "citation-resolution"
@@ -4660,11 +4689,18 @@
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T08:11:46.579368Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T08:11:46.579465Z",
+      "closed_reason": "- Record-time validation establishes only that a citation exists: finding.ResolveCitations opens the path at the head, refuses an entry the head cannot open, stamps the hash of the line, and compares that hash against nothing, so nothing in the path from a citation to a grade asks whether the location supports the summary.\n- cr describes a cited record as verified, confirmed or proven nowhere in its output, and TestNoStringLiteralCrShipsCallsARecordVerified holds it there: it parses every production Go file in the module and refuses any string literal carrying one of §6.2.4's three words as a whole word.\n- The surface is cr's own words rather than the repository's prose; comments are outside it, since the guard's own documentation and internal/cli/record.go's supported map both name the words in order to forbid them, and a guard those tripped would be one somebody turns off.\n- Matching is whole-word, so §7.4.8's provenance and §3.6.6's unverified hearsay are not convicted, and the guard asserts that of its own matcher before trusting it over the module.\n- TestNoRenderingOfACitedRecordCallsItVerified reads the finished text instead of the literals: it records a finding that actually grades cited, asserts the grade, and then greps the json payload, the terminal line and §8.1.4's built-in question label for a cited question in every language for the three words.\n- The agent's own evidence sentence is removed from what that test examines and the fixture writes all three words into it deliberately, because §8.1.7 renders evidence verbatim and §6.2.4 binds what cr says rather than what cr quotes.\n- The fence was checked against a planted literal in a production file, which it reported by file and by word before the literal was removed; cited therefore means in cr's output only that a human-checkable location was supplied.\n",
+      "gate_passed_at": "2026-09-01T08:11:46.579465Z",
+      "commit_sha": "a392be692aa925167fb3969b4ee4f0a7ef56f050",
+      "commit_shas": [
+        "a392be692aa925167fb3969b4ee4f0a7ef56f050"
+      ],
+      "commit_files": [
+        "internal/cli/citedregister_test.go"
+      ]
     },
     {
       "id": "citation-origin-stamping",
@@ -4708,7 +4744,7 @@
     {
       "id": "argued-forcing",
       "title": "Force argued records to question kind",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "grade-computation"
@@ -4718,11 +4754,22 @@
       "source_sections": [
         "### 6.3 The argued rule"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T08:16:32.282194Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T08:16:32.282302Z",
+      "closed_reason": "- finding.ForceQuestion is invariant 4 and §6.3.1: a record whose grade is argued has its kind set to question, in cr rather than in a role's prompt, so no wording reaches it; §2.7's settings table holds no key for the forcing and TestNoFlagOnRecordTurnsTheForcingOff runs the command again under every global flag §11.1 gives it.\n- The forcing is one idempotent function that reports what it moved, so §6.3.1's three moments each apply the same rule and none of them has to know what the moment before it did; cr record applies the first of the three, immediately after the grade it reads is computed.\n- TestTheForcingReAppliesAtEachOfSection631sThreeMoments flips the record back to kind finding before record time, before draft time and before post time, and asserts the forcing re-applies at each of the three.\n- The repetition is load-bearing rather than defensive, and TestAGradeTheRatchetLoweredIsForcedAtTheNextMoment shows why: a record recorded as a probed finding whose probe stops standing behind it is lowered to argued by the ratchet, and the next moment is what takes it out of the assertion register.\n- TestRecordForcesAnArguedRecordToAQuestion drives an argued record and a cited one through the built command and reads back a question and a finding from findings.ndjson, so the forcing is asserted on what §9.1 keeps for the rest of the round rather than on what the command printed.\n- Nothing here raises a register: TestTheForcingLeavesEveryGradeButArguedAlone covers probed and cited against both kinds and asserts the agent's own choice stands, since §6.2 lets those two assert and does not require them to.\n- Draft time and post time are the remaining two moments of §6.3.1 and are undone here because cr draft and cr post are not yet built; both call this same function, and the task that builds each is where it lands.\n",
+      "gate_passed_at": "2026-09-01T08:16:32.282302Z",
+      "commit_sha": "9a105802d8b63b82ec01e5bcb12e945c401f004b",
+      "commit_shas": [
+        "9a105802d8b63b82ec01e5bcb12e945c401f004b"
+      ],
+      "commit_files": [
+        "internal/cli/forcing_test.go",
+        "internal/cli/grade.go",
+        "internal/cli/record.go",
+        "internal/finding/forcing.go",
+        "internal/finding/forcing_test.go"
+      ]
     },
     {
       "id": "argued-forcing-visibility",
