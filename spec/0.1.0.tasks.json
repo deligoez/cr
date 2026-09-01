@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-08-31T11:25:38.928774Z",
+  "updated_at": "2026-09-01T07:00:51.437078Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4766,7 +4766,7 @@
     {
       "id": "dedup-key",
       "title": "Deduplicate findings by anchor with class",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-computed-field-rejection",
@@ -4777,16 +4777,23 @@
       "source_sections": [
         "### 6.4 Dedup"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T06:46:47.486317Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T06:46:47.486394Z",
+      "closed_reason": "- internal/finding/dedup.go holds §6.4.1's key as one type and one constructor: DedupKey carries Path, Side, Line and Class, DedupKeyOf is the only place a record's key is read, and Groups partitions a slice of records by it in first-appearance order so one input is one partition however the map underneath iterates.\n- anchor.side joins the three fields §6.4.1 names, per round 8's dedup-key-omits-side and side-omitted-from-identity-keys and round 12's dedup-key-drops-side; §9.2 makes the side part of an anchor and §6.1.2 resolves RIGHT against the head and LEFT against the merge base, so one line number names a line in each of two file versions.\n- TestTwoSidesOfOneLineNumberAreTwoDedupGroups builds exactly the colliding pair the finding names, a removed line anchored LEFT at merge-base line 40 and an added line anchored RIGHT at head line 40 of one file in one class, and asserts two groups rather than one; without the side §6.4.3 would retire one of them naming a representative about different code.\n- TestADedupKeyIsTheAnchoredLineAndTheClassAndNothingElse holds the key honest from the other side by reading §6.1's table off the record type through fieldsInCommon, so the two grouping records must differ in every field outside the key and a field added to the table later without being varied fails the test rather than joining the key's blind spot.\n- The quality gate is green: go test -race ./..., golangci-lint run, and scripts/deadcode.sh all pass.\n",
+      "gate_passed_at": "2026-09-01T06:46:47.486394Z",
+      "commit_sha": "1edad05",
+      "commit_shas": [
+        "1edad05"
+      ],
+      "commit_files": [
+        "internal/finding/dedup_test.go"
+      ]
     },
     {
       "id": "dedup-representative",
       "title": "Pick the duplicate group representative",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "dedup-key",
@@ -4797,16 +4804,23 @@
       "source_sections": [
         "### 6.4 Dedup"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T06:53:29.173253Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T06:53:29.173345Z",
+      "closed_reason": "- internal/finding/dedup.go's Group.RepresentativeAt applies §6.4.2's three keys in the section's own order, comparing the grade first through gradeStrength, then the severity through severityStrength, then the role ids through the comparison role.Order returns for §2.5.5's corpus order. It answers with the position in the group rather than with the record, because §6.4.3 needs everything that is not the representative and because a function of this package handing back a *Finding is what the unanchored-item guard reads as a new decode door.\n- The corpus order arrives as role.Order's comparison rather than being rebuilt, so §2.5.5 keeps its single definition; internal/role's own guard already stops any other package from naming the resolution layer, which is the half of that order nobody outside it can spell.\n- TestTheEarliestRoleInCorpusOrderRepresentsAGroupTiedOnGradeAndSeverity fixes the winner for a group tied on grade and on severity and differing only in corpus order, resolving a real two-layer corpus in which zebra-eyes is per-repository and alpha-lens is global, so the loser both sorts first alphabetically and arrives first and neither ascending id nor arrival order can produce the expected answer.\n- TestARepresentativeIsTheHighestGradeBeforeTheHighestSeverity walks every rung of both ladders and gives the record that must win the weaker value of every other key, so a comparison that read the keys in another order picks the other record on every rung.\n- TestAnUnrankableSeverityOrGradeNeverRepresentsAGroup drives a grade and a severity cr does not recognise through the picker, since §6.1.3 checks that those fields are present and not that their values are known.\n- The quality gate is green: go test -race ./..., golangci-lint run, and scripts/deadcode.sh all pass, and gofmt reports nothing under internal.\n",
+      "gate_passed_at": "2026-09-01T06:53:29.173345Z",
+      "commit_sha": "2feb040",
+      "commit_shas": [
+        "2feb040"
+      ],
+      "commit_files": [
+        "internal/finding/dedup_test.go"
+      ]
     },
     {
       "id": "dedup-overlap-summary",
       "title": "Retain duplicates with an overlap summary",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "dedup-representative"
@@ -4816,11 +4830,18 @@
       "source_sections": [
         "### 6.4 Dedup"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T07:00:51.425866Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-01T07:00:51.425956Z",
+      "closed_reason": "- internal/finding/overlap.go's MarkDuplicates applies §6.4.3 over one round's records: it groups them per §6.4.1, picks each group's representative per §6.4.2, and writes that representative's id into every other record's duplicate_of, editing in place and reordering nothing.\n- It writes duplicate_of and no other computed field, because §6.5.1 makes duplicate_of the one cr merge may put in its output and leaves state to cr record.\n- internal/cli/record.go's stampStates walks §9.1's first two rows so a record arriving with duplicate_of is created in draft and then moved to duplicate, asking finding.MayTransition for both moves rather than assuming either; §6.5.1 assigns that second move to cr record.\n- Overlap carries the §6.4.1 key the group formed around, the representative's id, the contributing role ids with each role named once in arrival order, and how many records were retired, which is §6.4.3's overlap summary.\n- Overlaps implements cap.go's HonestyDisclosure with §10.1.6's duplicate count, so the count reaches the reader through the channel §11.1 exempts from quiet rather than through an ordinary informational line, and it is rendered at zero as well as above it.\n- TestASuppressedDuplicateIsStoredInThatStateNamingItsRepresentative records a merged file through the command and reads findings.ndjson back, asserting the suppressed record is still there in state duplicate with its duplicate_of naming the representative.\n- TestEveryRecordButTheRepresentativeIsMarkedADuplicateOfIt and its three siblings cover the marking, the role list, a group of one that is neither marked nor reported, the two sides of one line number suppressing neither record, and the disclosure text.\n- The quality gate is green: go test -race ./..., golangci-lint run, and scripts/deadcode.sh all pass, and gofmt reports nothing under internal.\n",
+      "gate_passed_at": "2026-09-01T07:00:51.425956Z",
+      "commit_sha": "ef70fc1",
+      "commit_shas": [
+        "ef70fc1"
+      ],
+      "commit_files": [
+        "internal/cli/record_test.go"
+      ]
     },
     {
       "id": "waived-findings-dropped",
