@@ -17,6 +17,7 @@ import (
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/testadequacy"
@@ -93,6 +94,17 @@ func exitCodeFor(err error) int {
 		// role file cr cannot read as written is unusable whether the
 		// fault is a missing field or an invented one, and the invented
 		// one is the case §2.5's division of labour turns on.
+		return ExitFile
+	}
+	var malformedRule *rule.MalformedError
+	if errors.As(err, &malformedRule) {
+		// §2.6.5: a malformed rule file aborts the command with exit
+		// code 3, alongside the profile and role files above. It covers
+		// a key outside §2.6's table too, for the reason the role one
+		// does: a rule file cr cannot read as written is unusable
+		// whether the fault is a missing field or an invented one, and
+		// the invented one is the case §2.6's separation of rules from
+		// roles turns on.
 		return ExitFile
 	}
 	var protectedName *config.ProtectedError
