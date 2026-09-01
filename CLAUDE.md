@@ -56,6 +56,29 @@ convenient it is.
 6. **Probes revert.** A mutation is undone even when the run fails, times out, or
    panics.
 
+## A prescribing sentence carries its measurement
+
+This file's function is to tell the next agent what to do, so a wrong fact here
+is not read and discounted — it is implemented. A wrong fact misinforms; a wrong
+fact phrased as a rule instructs.
+
+That happened once already: `--test-cpu` was pinned here as the fix that makes
+two runs comparable, on reasoning rather than measurement, and it silently turned
+every run into a 100% pass. It went to three sibling repositories before anyone
+ran it. So a rule that prescribes carries the numbers that produced it, inline,
+close enough that a reader can check the ground instead of inheriting the
+conclusion — and close enough that the next person to doubt it knows exactly
+which experiment to repeat.
+
+Two related habits, both learned the same way. **State the signature, not the
+mechanism**: what you can observe from outside survives a change of machine, tool
+version and load; a claim about what happens inside is a hypothesis, and
+reporting it as fact is what makes a correct finding useless elsewhere. And
+**check the instrument** — `pgrep -f` matching its own shell, a `grep -v _test`
+filter eating the line it was looking for, a shell that word-splits one binary's
+arguments and not another's. Each produced a confident wrong answer here, and
+none of them errored.
+
 ## Quick reference
 
 ```bash
