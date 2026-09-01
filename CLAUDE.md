@@ -171,11 +171,48 @@ Two rules that make the phase-boundary run worth doing:
    `./internal` finish in seven seconds claiming 1270 killed: `go test ./internal`
    fails with "no Go files", every mutant's run exits non-zero, and every one is
    counted killed. Without `--test-cpu`, `./internal` works and takes 15–30 minutes.
-   There is also `-D, --diff <branch|commit>`, which scopes
-   mutation to changed code — untried here, and the obvious way to make this a
-   per-task check rather than a release ritual. Note gremlins leaves
-   `/var/folders/.../gremlins-*` behind even on a clean exit; a CI run needs a
-   cleanup step.
+   Note gremlins leaves `/var/folders/.../gremlins-*` behind even on a clean
+   exit; a CI run needs a cleanup step.
+5. **The timeout coefficient is 5, not 30, and that is measured.** The suite runs
+   in 26.7s, so the coefficient is the price of one hanging mutant: 13.4 minutes
+   at 30, 2.2 at 5. It dominates the run — seven hangs at 30 is 94 minutes of
+   waiting across four workers, about three quarters of a 36-minute run.
+
+   Lowering it risks one thing, and it is not losing timeouts: a legitimately
+   slow **passing** test could be cut short and counted as detected, which would
+   make the suite look stronger than it is — the expensive direction. So the test
+   is not "same efficacy" but **did any mutant that LIVED at 30 become TIMED OUT
+   at 5**. Measured over both runs' `-o` output, matched on file, line, column
+   and mutator:
+
+   | | |
+   |---|---|
+   | LIVED → TIMED OUT | **0** |
+   | survivors present at 30 and absent at 5 | **0** |
+   | KILLED → TIMED OUT | 5 — both mean "did not survive" |
+   | NOT COVERED → LIVED | 1 — more information, not less |
+   | wall clock | 35m59s → **15m32s** |
+
+   Do not read the efficacy percentage across a coefficient change; read the
+   survivor set. `-o <file>` writes per-mutant `file_name`/`line`/`column`/`type`/
+   `status`, which is what makes that comparison a set difference rather than an
+   eyeballing exercise — and what should eventually hold a checked-in list of
+   known-equivalent survivors, so "new survivor" is decided by construction.
+6. **Two gremlins runs must never overlap.** It happened here: a subagent's
+   closing run and an orchestrator measurement collided, load hit 17 on ten
+   cores, and both numbers became worthless — a saturated box times out mutants
+   it would otherwise kill. Check `pgrep -x gremlins` before starting one. Use
+   `-x`: a waiter written as `until ! pgrep -qf 'gremlins unleash'` matches its
+   own command line and never exits, which left an agent hanging for an hour.
+7. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
+   should mutate nothing and mutated 116; a `-D HEAD~6` run mutated files absent
+   from that diff and took *longer* than the unscoped run. Upstream has three
+   open bugs on it (#278, #296, #301). Scope by naming packages instead, which is
+   exact rather than approximate: gremlins' default mode runs only the mutated
+   package's own tests, so an unchanged package's mutants have an unchanged fate.
+   That also means the efficacy figure understates detection — `internal/cli`
+   tests that drive `internal/probe` do not count toward `internal/probe`'s
+   mutants.
 
 **`-race` is in the gate**, added by `state-write-locking`: §2.3.1 puts an
 advisory lock on every per-PR write and §2.3.2 makes reads lock-free, so the
