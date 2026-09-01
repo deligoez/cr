@@ -61,35 +61,29 @@ type gapEvidence struct {
 // prose is never parsed, and nothing here reads the summary, the class or the
 // agent's own account of what the experiment showed.
 //
+// They arrive already read, in the roundEvidence §6.2's grade computation reads
+// too. One read rather than two is what makes §5.4.4's answer here and the
+// grade the same round's: the files are not locked for reading (§2.3.2), so two
+// passes could see two states of mapping.ndjson and report a support the grade
+// did not rest on.
+//
 // A record naming a probe that is not a gap probe is left alone. §5.3.5's
 // conditions are a different question about a different ladder, and the
 // mutation half of grading is the grade computation's to make.
 func resolveGapSupport(
-	l state.Layout, owner, repo string, pr int, meta *state.Meta, records []*finding.Finding,
+	found *roundEvidence, meta *state.Meta, records []*finding.Finding,
 ) (*gapEvidence, error) {
-	probes, err := state.ReadRecords[probe.Record](l, owner, repo, pr, state.FileProbes)
-	if err != nil {
-		return nil, err
-	}
-	runs, err := state.ReadRecords[run.Record](l, owner, repo, pr, state.FileRuns)
-	if err != nil {
-		return nil, err
-	}
-	pairs, err := state.ReadRecords[mapping.Pair](l, owner, repo, pr, state.FileMapping)
-	if err != nil {
-		return nil, err
-	}
-	found := &gapEvidence{
+	answers := &gapEvidence{
 		support:    make([]gapSupport, 0, len(records)),
 		unmappable: make([]finding.HonestyDisclosure, 0, 1),
 	}
 	unmapped := make([]string, 0, len(records))
 	for _, record := range records {
-		gap := gapProbeOf(probes, record.Probe)
+		gap := gapProbeOf(found.probes, record.Probe)
 		if gap == nil {
 			continue
 		}
-		answered := answerGapSupport(gap, meta, runs, pairs, record)
+		answered := answerGapSupport(gap, meta, found.runs, found.pairs, record)
 		// §5.4.4's floor and §5.4.5's ceiling, refused before anything
 		// is written, as §6.1.3's rejections are: the agent is about to
 		// correct the file and hand the whole of it in again.
@@ -98,7 +92,7 @@ func resolveGapSupport(
 		); err != nil {
 			return nil, err
 		}
-		found.support = append(found.support, answered)
+		answers.support = append(answers.support, answered)
 		// Deduplicated, because §5.5.2 has a finding reference a probe
 		// and not the other way round: two records may rest on the same
 		// experiment, and a disclosure naming it twice would read as two
@@ -112,9 +106,9 @@ func resolveGapSupport(
 	// was told nothing by the mapping either way, and a disclosure there
 	// would report a lens as blocked that nothing was asked of.
 	if len(unmapped) > 0 && meta.IssueKey == "" {
-		found.unmappable = append(found.unmappable, probe.GapUnmappable{Probes: unmapped})
+		answers.unmappable = append(answers.unmappable, probe.GapUnmappable{Probes: unmapped})
 	}
-	return found, nil
+	return answers, nil
 }
 
 // gapProbeOf returns the gap probe record the finding names, and nil when it

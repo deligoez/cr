@@ -164,31 +164,73 @@ func DecodeStamped[E any, T interface {
 	Stamped
 }](file string, body []byte, check func(int, map[string]json.RawMessage, T) error) ([]T, error) {
 	records := make([]T, 0)
-	for i, line := range bytes.Split(body, []byte{'\n'}) {
-		if len(bytes.TrimSpace(line)) == 0 {
-			continue
-		}
+	for _, line := range numberedRecords(body) {
 		var supplied map[string]json.RawMessage
-		if err := json.Unmarshal(line, &supplied); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", file, i+1, err)
+		if err := json.Unmarshal(line.text, &supplied); err != nil {
+			return nil, fmt.Errorf("%s line %d: %w", file, line.at, err)
 		}
 		for _, field := range stampFields {
 			if _, written := supplied[field]; written {
-				return nil, &ReservedFieldError{File: file, Line: i + 1, Field: field}
+				return nil, &ReservedFieldError{File: file, Line: line.at, Field: field}
 			}
 		}
 		record := T(new(E))
-		if err := json.Unmarshal(line, record); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", file, i+1, err)
+		if err := json.Unmarshal(line.text, record); err != nil {
+			return nil, fmt.Errorf("%s line %d: %w", file, line.at, err)
 		}
 		if check != nil {
-			if err := check(i+1, supplied, record); err != nil {
+			if err := check(line.at, supplied, record); err != nil {
 				return nil, err
 			}
 		}
 		records = append(records, record)
 	}
 	return records, nil
+}
+
+// numberedLine is one line of an NDJSON body that carries a record: the
+// one-based line it sits on, and the line itself.
+type numberedLine struct {
+	// at is the number every rejection names, counting the blank lines
+	// that were skipped to reach it.
+	at int
+	// text is the line's bytes, as they arrived.
+	text []byte
+}
+
+// numberedRecords is the one place that decides which lines of an NDJSON body
+// carry a record, and what line number each one sits on.
+//
+// It is one function rather than a loop written at each reader for the reason
+// DecodeStamped gives about its check: a second pass could not agree with the
+// first about a blank line, and every rejection names a line the user has to
+// open. DecodeStamped decodes from this, and RecordLines reports the numbers to
+// a caller that must refuse a record after the decode.
+func numberedRecords(body []byte) []numberedLine {
+	lines := make([]numberedLine, 0)
+	for i, line := range bytes.Split(body, []byte{'\n'}) {
+		if len(bytes.TrimSpace(line)) > 0 {
+			lines = append(lines, numberedLine{at: i + 1, text: line})
+		}
+	}
+	return lines
+}
+
+// RecordLines is the one-based line each record of an NDJSON body arrived on,
+// in the order DecodeStamped returns those records.
+//
+// §6.2.3 is why it is exported. That rejection is raised after the decode, over
+// a slice of records that carries no line numbers of its own, and it has to
+// name the line the user must open exactly as §6.1.3's rejections do — so the
+// caller asks the counter DecodeStamped used rather than counting a second
+// time.
+func RecordLines(body []byte) []int {
+	lines := numberedRecords(body)
+	at := make([]int, 0, len(lines))
+	for _, line := range lines {
+		at = append(at, line.at)
+	}
+	return at
 }
 
 // writeRecords encodes records as NDJSON — one JSON document per line — and

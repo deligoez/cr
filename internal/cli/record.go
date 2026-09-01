@@ -229,55 +229,93 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			formed, err := roundUnitsOf(layout, owner, repo, pr, round.Round)
+			records, found, err := acceptRecords(
+				layout, owner, repo, pr, &round, args[1])
 			if err != nil {
 				return err
 			}
-			units := roundUnitIDs(formed)
-			body, err := os.ReadFile(args[1])
-			if err != nil {
-				return err
-			}
-			// §6.5.1: the input is `cr merge`'s output, which is the
-			// one file allowed to carry `duplicate_of` — §6.4.3 has
-			// `cr merge` mark a suppressed duplicate there and `cr
-			// record` apply it from there. Every other computed
-			// field is refused whatever the source says.
-			records, err := finding.Decode(args[1], body, units, finding.SourceMerge)
-			if err != nil {
-				return err
-			}
-			// §9.1's first two rows, in the order stampStates
-			// walks them.
-			if err := stampStates(records); err != nil {
-				return err
-			}
-			// §5.4.4 and §5.4.5, read before the write and off
-			// files no lock is needed for (§2.3.2). It is asked of
-			// the records rather than of the probes because the
-			// question is about a finding: a gap probe's support is
-			// conditional on the record's own `claim`, which is why
-			// `cr probe run` cannot answer it at the experiment.
-			found, err := resolveGapSupport(layout, owner, repo, pr, &round, records)
-			if err != nil {
-				return err
-			}
-			held, err := layout.LockPR(owner, repo, pr)
-			if err != nil {
-				return err
-			}
-			stamp := state.Stamp{Head: round.Head, Round: round.Round}
-			if err := state.AppendStamped(held, state.FileFindings, stamp, records); err != nil {
-				// The lock is released on the way out of every
-				// branch, and the write's own failure is what
-				// the caller is told about.
-				_ = held.Unlock()
-				return err
-			}
-			if err := held.Unlock(); err != nil {
+			if err := appendRecords(layout, owner, repo, pr, &round, records); err != nil {
 				return err
 			}
 			return out.emit(newRecordResult(records, found))
 		},
 	}
+}
+
+// acceptRecords reads the file the agent handed the command and settles
+// everything §6 has to say about it before a lock is taken: §6.1.3's and
+// §6.1.4's refusals, §9.1's first two rows, §6.2.3's resolution, §5.4's
+// severity bounds, and §6.2's grade.
+//
+// It is the whole of the validation, in one place, so the ordering above is a
+// contract rather than the shape a command body happens to have. Every refusal
+// here happens with nothing written, and the grade is computed last because it
+// rests on what the two before it established.
+func acceptRecords(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, file string,
+) ([]*finding.Finding, *gapEvidence, error) {
+	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return nil, nil, err
+	}
+	body, err := os.ReadFile(file)
+	if err != nil {
+		return nil, nil, err
+	}
+	// §6.5.1: the input is `cr merge`'s output, which is the one file
+	// allowed to carry `duplicate_of` — §6.4.3 has `cr merge` mark a
+	// suppressed duplicate there and `cr record` apply it from there.
+	// Every other computed field is refused whatever the source says.
+	records, err := finding.Decode(file, body, roundUnitIDs(formed), finding.SourceMerge)
+	if err != nil {
+		return nil, nil, err
+	}
+	// §9.1's first two rows, in the order stampStates walks them.
+	if err := stampStates(records); err != nil {
+		return nil, nil, err
+	}
+	// §6.2.3: every citation is resolved against the round's head and
+	// stamped with the hash of the line it names, and one the head cannot
+	// open refuses the whole file.
+	if err := resolveCitations(file, body, round.Head, records); err != nil {
+		return nil, nil, err
+	}
+	// §6.2.1's stored inputs, read off files no lock is needed for
+	// (§2.3.2).
+	evidence, err := readRoundEvidence(l, owner, repo, pr)
+	if err != nil {
+		return nil, nil, err
+	}
+	// §5.4.4 and §5.4.5. They are asked of the records rather than of the
+	// probes because the question is about a finding: a gap probe's support
+	// is conditional on the record's own `claim`, which is why `cr probe
+	// run` cannot answer it at the experiment.
+	found, err := resolveGapSupport(evidence, round, records)
+	if err != nil {
+		return nil, nil, err
+	}
+	// §6.2, last of the three, because it rests on what the two before it
+	// established: the citations are resolved and stamped, and §5.4's
+	// bounds have already refused the records they refuse.
+	gradeRecords(round, formed, evidence, records)
+	return records, found, nil
+}
+
+// appendRecords is the single write, under §2.3.1's lock: the accepted records
+// reach findings.ndjson whole, stamped with the round's head and round.
+func appendRecords(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, records []*finding.Finding,
+) error {
+	held, err := l.LockPR(owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	stamp := state.Stamp{Head: round.Head, Round: round.Round}
+	if err := state.AppendStamped(held, state.FileFindings, stamp, records); err != nil {
+		// The lock is released on the way out of every branch, and
+		// the write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
 }
