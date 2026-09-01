@@ -299,6 +299,34 @@ func representativeOf(order func(a, b string) int, records ...*Finding) *Finding
 	return groups[0].Records[groups[0].RepresentativeAt(order)]
 }
 
+// §6.4.2's three keys total-order a group only as far as the role, so two
+// records from one role at one anchored line in one class, tied on grade and on
+// severity, compare equal under all three. Something still has to decide, and
+// what decides is arrival: Groups holds a group's records in the order they
+// were read, and the first of them represents it.
+//
+// The alternative is not a different answer but an unstable one. A comparison
+// that let an equal record displace the one already held would give the
+// representative slot to whichever role file the caller happened to name last,
+// and `cr merge` would name a different representative for the same round
+// depending on the order a shell expanded its arguments in — while §6.4.3
+// retired the other one either way.
+//
+// Mutation testing is what asked for this case: relaxing the strict comparison
+// in outranks left every other assertion in this file green.
+func TestArrivalDecidesARepresentativeTheThreeKeysCannotSeparate(t *testing.T) {
+	order := corpusOrderAcrossTwoLayers(t)
+
+	first := duplicateRecord("f1", roleBelowInCorpus, GradeCited, SeverityHigh)
+	second := duplicateRecord("f2", roleBelowInCorpus, GradeCited, SeverityHigh)
+	require.Equal(t, first.Role, second.Role, "the pair has to tie on all three keys")
+
+	assert.Same(t, first, representativeOf(order, first, second),
+		"§6.4.2 leaves this tie open, and the record read first is what fills it")
+	assert.Same(t, second, representativeOf(order, second, first),
+		"and arrival is what decides it, not the record id")
+}
+
 // §6.4.2's last key is "the earliest role in corpus order per §2.5.5", and this
 // is the group that turns on it: two roles reporting one defect at one anchored
 // line, tied on grade and on severity, so nothing above the role can decide it.
