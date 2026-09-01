@@ -10,6 +10,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
@@ -183,6 +184,18 @@ func TestARejectedRecordExitsWithTheValidationCode(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("merging findings: %w", err)))
+}
+
+// §7.2.1 has `cr post` refuse to run when a marker is malformed and name the
+// line, and §7.2 codes every marker edit it does not admit 1. The draft was
+// found and read; what is wrong is what the reviewer typed into it, which is
+// the input data §11.2 codes 1 rather than the 3 an unusable file gets. The
+// code must survive the wrapping a command adds on the way out.
+func TestAMalformedMarkerExitsWithTheValidationCode(t *testing.T) {
+	_, err := draft.ParseMarker(4, `<!-- cr:record id="f1" -->`)
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("reading the draft: %w", err)))
 }
 
 // agentRecord stands in for a record type of one of the eight §2.3.3 files. It
