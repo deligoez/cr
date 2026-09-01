@@ -86,7 +86,12 @@ func (e *roundEvidence) referenced(id string) *probe.Record {
 //
 // The line numbers come from state.RecordLines rather than from the records'
 // position in the slice, because §6.2.3's rejection names the line the user
-// must open and the decode counted blank lines to get there.
+// must open and the decode counted blank lines to get there. The two slices are
+// indexed together, which is total rather than lucky: both come from the one
+// function that decides which lines of an NDJSON body carry a record, and
+// state.DecodeStamped appends exactly one record for each line it names — a
+// line it refuses returns an error instead, so records reaching here at all
+// means every named line produced one.
 func resolveCitations(file string, body []byte, head string, records []*finding.Finding) error {
 	at := state.RecordLines(body)
 	dir := ""
