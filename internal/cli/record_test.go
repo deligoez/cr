@@ -255,3 +255,56 @@ func TestATerminalRecordNamesTheCountAndTheState(t *testing.T) {
 		"the count is accented, as every terminal rendering accents its answer")
 	assert.Contains(t, out, " in state draft")
 }
+
+// §6.4.3 retains a suppressed duplicate rather than dropping it, and §6.5.1
+// says where that happens: `cr merge`'s output carries `duplicate_of` and no
+// `state` at all, so this command is what applies §6.4.3 from it and stamps the
+// state §9.1's second row allows.
+//
+// Both halves are asserted on the file, because both are how a duplicate stays
+// accountable. The record is still there, so `cr status` can report what was
+// suppressed and a reviewer can see that two roles agreed; and it names the
+// representative, so what spoke in its place is a record id rather than a
+// recollection of the merge that ran.
+func TestASuppressedDuplicateIsStoredInThatStateNamingItsRepresentative(t *testing.T) {
+	layout := recordedHome(t)
+	suppressed := aRecord("f2", "u2")
+	suppressed["duplicate_of"] = "f1"
+	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), suppressed)
+
+	printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.NoError(t, err)
+
+	stored, err := state.ReadRecords[finding.Finding](
+		layout, recordOwner, recordRepo, recordPRNum, state.FileFindings,
+	)
+	require.NoError(t, err)
+	require.Len(t, stored, 2, "§6.4.3 retains the duplicate; a suppressed record is not a dropped one")
+
+	assert.Equal(t, finding.StateDraft, stored[0].State,
+		"the representative is an ordinary new record")
+	assert.Equal(t, finding.StateDuplicate, stored[1].State,
+		"§6.4.3 and §9.1's second row: cr record moves a marked record on to duplicate")
+	assert.Equal(t, "f1", stored[1].DuplicateOf,
+		"§6.4.3: the retained record names the representative it was retired for")
+
+	assert.Contains(t, printed, `"duplicates": 1`,
+		"§10.1.6's count reaches the caller as a number, not only inside the records")
+}
+
+// §12.1's other shape for the same run. A terminal reader is told the two
+// states apart once any record was retired, because §6.4.3 keeps a suppressed
+// duplicate in the file and a line calling every stored record `draft` would
+// count records this round will never draft.
+func TestATerminalRecordNamesTheDuplicatesApartFromTheDrafts(t *testing.T) {
+	recordedHome(t)
+	suppressed := aRecord("f2", "u2")
+	suppressed["duplicate_of"] = "f1"
+	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), suppressed)
+
+	out := throughATerminal(t, "record", recordPR, file, "--repo", recordSlug)
+
+	assert.Contains(t, out, "\x1b[36m2\x1b[0m", "the count is accented, as every terminal rendering is")
+	assert.Contains(t, out, "1 in state draft")
+	assert.Contains(t, out, "1 in state duplicate")
+}
