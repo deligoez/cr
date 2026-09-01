@@ -268,6 +268,20 @@ Two rules that make the phase-boundary run worth doing:
    That also means the efficacy figure understates detection — `internal/cli`
    tests that drive `internal/probe` do not count toward `internal/probe`'s
    mutants.
+9. **A gremlins run redirected to a file looks stalled and is not. Never judge
+   its progress by the log.** Measured here: `wc -l` on the redirected log sat
+   at 297 after twenty-five minutes, which reads as ~10 mutants/minute and
+   projects a three-hour run; the same run was at 1232 lines a moment later and
+   finished all 1365 in 17m28s. gremlins writes its per-mutant lines to a pipe,
+   and a pipe is block-buffered where a terminal is line-buffered, so the log is
+   a record of what has been *flushed* and never of what has been *done*. An
+   agent that extrapolates from it will either abandon a healthy run or burn an
+   hour re-planning around a number that was never true.
+   **Judge liveness from the process, not the output**: `ps -o etime=,pcpu= -p
+   $(pgrep -x gremlins)` gives elapsed time and whether it is still burning CPU,
+   and elapsed time against the ~17-minute expectation is the only honest
+   progress signal there is. Wait on the process — `until ! pgrep -x gremlins;
+   do sleep 30; done` — never on a line count.
 
 **`-race` is in the gate**, added by `state-write-locking`: §2.3.1 puts an
 advisory lock on every per-PR write and §2.3.2 makes reads lock-free, so the
