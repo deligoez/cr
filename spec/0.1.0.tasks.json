@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-01T10:01:50.385999Z",
+  "updated_at": "2026-09-01T10:37:14.361725Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5201,7 +5201,7 @@
     {
       "id": "draft-render-command",
       "title": "Render queued records into one draft",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "round-directory-artefacts",
@@ -5212,11 +5212,19 @@
       "source_sections": [
         "### 7.1 Draft format"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-01T10:29:15.938793Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-01T10:37:14.352137Z",
+      "closed_reason": "- cr draft \u003cpr\u003e renders every queued record into one Markdown file at rounds/\u003cn\u003e/draft.md; internal/cli/draft.go reads the current round's records out of findings.ndjson, walks section 9.1's draft-to-queued row through finding.MayTransition with ActorDraft, hands the queued records to internal/draft.Render, and writes both the states and the file under one section 2.3.1 lock.\n- The block body is free-form Markdown the user may rewrite entirely; draft.body renders the record's own summary beneath the marker and nothing parses it back, so a reviewer may replace every word without changing what the block means to cr.\n- TestDraftRendersEveryQueuedRecordAndNothingElse puts one record in each of section 9.1's seven states and asserts the file holds exactly the two queued blocks; TestDraftQueuesExactlyTheRecordsItRendered reads the state and the file together so neither can claim a draft the other does not have.\n- Dogfooded on an isolated CR_HOME with five records covering cited, argued, probed, duplicate and suppressed; three blocks rendered, the argued record appeared as a question, and a path holding a quote survived the marker intact.\n",
+      "gate_passed_at": "2026-09-01T10:37:14.352137Z",
+      "commit_sha": "ee7a862",
+      "commit_shas": [
+        "ee7a862"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/root.go"
+      ]
     },
     {
       "id": "draft-marker-grammar",
