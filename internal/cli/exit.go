@@ -6,6 +6,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
+	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
@@ -204,6 +205,14 @@ func exitCodeFor(err error) int {
 		// unit no round has, or claiming a role other than the one whose
 		// output file it arrived in, with exit code 1. The file read and
 		// parsed; the fault is the agent's data inside it.
+		return ExitValidation
+	}
+	var malformedMarker *draft.MalformedMarkerError
+	if errors.As(err, &malformedMarker) {
+		// §7.2.1 has `cr post` refuse to run when a marker is
+		// malformed, naming the line, and §7.2 codes every marker edit
+		// it does not admit 1. The draft read; what is wrong is what
+		// the reviewer typed into it.
 		return ExitValidation
 	}
 	var gapSeverity *finding.GapSeverityError
