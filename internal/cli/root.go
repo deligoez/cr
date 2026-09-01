@@ -60,6 +60,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newSandboxCmd(out))
 	root.AddCommand(newTestCmd(out))
 	root.AddCommand(newProbeCmd(out))
+	root.AddCommand(newDraftCmd(out))
 
 	return root
 }
