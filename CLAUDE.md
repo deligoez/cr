@@ -389,6 +389,13 @@ cr is built with tp, the same way tp builds itself.
 
 ### Rules
 
+- **A unit orients with `tp brief <id>`, never `tp next --brief`.** `tp next`
+  claims — its help says "Get/resume next task", and `--brief` changes what it
+  prints, not what it does. A unit told to orient first and then steered to a
+  named task leaves the claim it just took stranded, and tp has no transition out
+  of `wip` short of finishing: `tp set status=open` refuses the field as managed,
+  `tp reopen` refuses a task that is not `done`. That is how `cell-computed-fields`
+  sat `wip` from 2026-08-31 through four units. `tp brief` is the read-only one.
 - Every task MUST have `source_sections` in canonical form (`"## Heading Text"`);
   `source_lines` is optional precision. A task with neither anchor fails
   validation.

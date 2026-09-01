@@ -116,6 +116,20 @@ been handed it by `tp next --brief` as their first instruction, and all three ha
 to be told out of band to work something else. It carries no `claimed_at`, so
 nothing distinguishes it from work in progress.
 
+**And the orientation command is what claims it.** `tp next` is documented as
+"Get/resume next task"; `--brief` changes what it prints, not what it does. A
+fourth unit opened with `tp next --brief`, watched it flip
+`waived-findings-dropped` from `open` to `wip` with `started_at` written, and had
+to revert the task file by hand to undo it. `tp brief <id>` is the read-only
+one — the help text says so — but a prompt that says "orient yourself first"
+reaches for `next`, and every unit that is then steered to a different task
+strands the claim it just took.
+
+That closes the loop with the missing transition: the command an agent runs
+*before it knows what it is working on* takes a claim, and nothing can give it
+back. The two defects are individually reasonable and jointly produce a task file
+that accumulates permanent `wip` entries at the rate agents are started.
+
 There is no transition out. `tp set … status=open` refuses the field as managed
 and names three commands; of those, `tp claim` is open→wip, `tp close` is
 wip→done, and `tp reopen` refuses with *"cannot reopen: task is wip (must be
