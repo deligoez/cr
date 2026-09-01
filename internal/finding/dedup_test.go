@@ -1,10 +1,15 @@
 package finding
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,4 +201,185 @@ func theSameClassAtOneLineNumberOnBothSides() (removed, added Finding) {
 	}
 
 	return removed, added
+}
+
+// The two ladders §6.4.2 ranks a duplicate group by, written out here rather
+// than read from the implementation's own gradeStrength and severityStrength: a
+// test that ordered by those would agree with whatever order they happened to
+// hold, including a reversed one.
+var (
+	gradesStrongestFirst   = []Grade{GradeProbed, GradeCited, GradeArgued}
+	severitiesHighestFirst = []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow}
+)
+
+// The two role ids the corpus below resolves, chosen so that §2.5.5's order and
+// ascending lexicographic order disagree: `zebra-eyes` is resolved from the
+// per-repository layer and `alpha-lens` from the global one, so corpus order
+// puts `zebra-eyes` first while its id sorts last. Neither is a shipped id, so
+// the built-in layer shadows nothing.
+const (
+	roleAboveInCorpus = "zebra-eyes"
+	roleBelowInCorpus = "alpha-lens"
+)
+
+// duplicateRecord is one member of a duplicate group: the four fields §6.4.1
+// keys on are fixed, and only what §6.4.2 ranks by varies.
+func duplicateRecord(id, roleID string, grade Grade, severity Severity) *Finding {
+	return &Finding{
+		ID:       id,
+		Kind:     KindFinding,
+		Role:     roleID,
+		Class:    "unchecked-error",
+		Severity: severity,
+		Grade:    grade,
+		Unit:     "u1",
+		Anchor: Anchor{
+			Path:        "internal/store/write.go",
+			Side:        git.Right,
+			StartLine:   40,
+			Line:        44,
+			ContentHash: "1f0a2b3c4d5e6f70",
+		},
+		Summary:  "The returned error is discarded.",
+		Evidence: "The call's error result is assigned to the blank identifier.",
+	}
+}
+
+// writeRoleFile writes a minimal §2.5 role file for id into dir, named <id>.json
+// as §2.2 requires.
+func writeRoleFile(t *testing.T, dir, id string) {
+	t.Helper()
+	doc, err := json.Marshal(map[string]any{
+		"id":           id,
+		"title":        "Title of " + id,
+		"axis":         axis.Correctness,
+		"instructions": "Framing text for " + id + ".",
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, id+".json"), doc, 0o600))
+}
+
+// corpusOrderAcrossTwoLayers resolves a real corpus holding roleAboveInCorpus at
+// the per-repository layer and roleBelowInCorpus at the global one, and returns
+// §2.5.5's order over it.
+//
+// It resolves a corpus rather than handing back a comparison written for the
+// occasion, because the property under test is that §6.4.2 reads §2.5.5 — and a
+// stub comparison would pass whatever order internal/role actually produces.
+func corpusOrderAcrossTwoLayers(t *testing.T) func(a, b string) int {
+	t.Helper()
+	repoRoles, globalRoles := t.TempDir(), t.TempDir()
+	writeRoleFile(t, repoRoles, roleAboveInCorpus)
+	writeRoleFile(t, globalRoles, roleBelowInCorpus)
+
+	corpus, err := role.Resolve(repoRoles, globalRoles)
+	require.NoError(t, err)
+	order := role.Order(corpus)
+
+	require.Less(t, roleBelowInCorpus, roleAboveInCorpus,
+		"the pair is only worth ranking while ascending id disagrees with §2.5.5")
+	require.Negative(t, order(roleAboveInCorpus, roleBelowInCorpus),
+		"§2.5.4 puts the per-repository layer first, so %s precedes %s in corpus order",
+		roleAboveInCorpus, roleBelowInCorpus)
+	return order
+}
+
+// representativeOf groups records that share one dedup key and returns the one
+// §6.4.2 makes the group's representative.
+//
+// It goes through Groups rather than building a Group literal, so every case
+// below asserts about the partition §6.4.1 actually produces: a pair that
+// stopped colliding would arrive here as two groups and fail on the length
+// rather than quietly comparing one record against itself.
+func representativeOf(order func(a, b string) int, records ...*Finding) *Finding {
+	groups := Groups(records)
+	if len(groups) != 1 {
+		return nil
+	}
+	return groups[0].Records[groups[0].RepresentativeAt(order)]
+}
+
+// §6.4.2's last key is "the earliest role in corpus order per §2.5.5", and this
+// is the group that turns on it: two roles reporting one defect at one anchored
+// line, tied on grade and on severity, so nothing above the role can decide it.
+//
+// The winner is fixed against the two orders that would otherwise look right.
+// The loser's id sorts first alphabetically, so a representative picked by role
+// id would name it; the loser also arrives first, so one picked by arrival —
+// the order the fan-out files happened to be listed in — would name it too.
+// Either would hand the posted comment to a role a per-repository corpus had
+// deliberately ranked below the other, and §6.4.3 would retire the record the
+// project meant to hear from.
+func TestTheEarliestRoleInCorpusOrderRepresentsAGroupTiedOnGradeAndSeverity(t *testing.T) {
+	order := corpusOrderAcrossTwoLayers(t)
+
+	below := duplicateRecord("f1", roleBelowInCorpus, GradeCited, SeverityHigh)
+	above := duplicateRecord("f2", roleAboveInCorpus, GradeCited, SeverityHigh)
+
+	require.Equal(t, below.Grade, above.Grade, "the pair must be tied on grade")
+	require.Equal(t, below.Severity, above.Severity, "and on severity")
+
+	groups := Groups([]*Finding{below, above})
+	require.Len(t, groups, 1, "§6.4.1: one defect at one place is one group")
+	assert.Same(t, above, groups[0].Records[groups[0].RepresentativeAt(order)],
+		"§6.4.2: the earliest role in corpus order represents the group")
+}
+
+// §6.4.2 orders its three keys, and the order is the whole rule: a group is
+// represented by the highest grade, and severity is consulted only among
+// records that tied on it.
+//
+// Each rung is built so that only the key under test can produce the expected
+// winner. The stronger-graded record is given the quietest severity and the
+// later role, so a comparison that read severity first, or corpus order first,
+// picks the other one; the higher-severity record of the second ladder is given
+// the later role for the same reason. That is what makes this a test of the
+// ordering rather than of three independent comparisons.
+func TestARepresentativeIsTheHighestGradeBeforeTheHighestSeverity(t *testing.T) {
+	order := corpusOrderAcrossTwoLayers(t)
+
+	for at, stronger := range gradesStrongestFirst {
+		for _, weaker := range gradesStrongestFirst[at+1:] {
+			t.Run(string(stronger)+" over "+string(weaker), func(t *testing.T) {
+				loud := duplicateRecord("f1", roleAboveInCorpus, weaker, SeverityCritical)
+				graded := duplicateRecord("f2", roleBelowInCorpus, stronger, SeverityLow)
+				assert.Same(t, graded, representativeOf(order, loud, graded),
+					"§6.4.2 reads the grade before the severity and before the role")
+			})
+		}
+	}
+
+	for at, higher := range severitiesHighestFirst {
+		for _, lower := range severitiesHighestFirst[at+1:] {
+			t.Run(string(higher)+" over "+string(lower), func(t *testing.T) {
+				quiet := duplicateRecord("f1", roleAboveInCorpus, GradeCited, lower)
+				loud := duplicateRecord("f2", roleBelowInCorpus, GradeCited, higher)
+				assert.Same(t, loud, representativeOf(order, quiet, loud),
+					"§6.4.2 reads the severity before the role")
+			})
+		}
+	}
+}
+
+// §6.1.3 checks that `severity` and `grade` are present, not that their values
+// are ones cr knows, so an unrecognised value reaches §6.4.2 — and a rank read
+// off a bare map would make it zero, the strongest rank there is. A record
+// nobody can rank would then represent every group it fell into and speak for
+// the records that were graded.
+//
+// It is not a hypothetical about `grade`: §6.5.1 has `cr merge` compute the
+// grade in memory, so a record whose grade cr never computed carries the empty
+// string here.
+func TestAnUnrankableSeverityOrGradeNeverRepresentsAGroup(t *testing.T) {
+	order := corpusOrderAcrossTwoLayers(t)
+
+	unrankable := duplicateRecord("f1", roleAboveInCorpus, "blocker", SeverityCritical)
+	ranked := duplicateRecord("f2", roleBelowInCorpus, GradeArgued, SeverityLow)
+	assert.Same(t, ranked, representativeOf(order, unrankable, ranked),
+		"a grade cr does not recognise ranks behind every grade it does")
+
+	unrankable = duplicateRecord("f1", roleAboveInCorpus, GradeCited, "showstopper")
+	ranked = duplicateRecord("f2", roleBelowInCorpus, GradeCited, SeverityLow)
+	assert.Same(t, ranked, representativeOf(order, unrankable, ranked),
+		"a severity cr does not recognise ranks behind every severity it does")
 }
