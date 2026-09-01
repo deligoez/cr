@@ -142,6 +142,33 @@ func (k *Lock) WriteRound(round int, name string, data []byte) error {
 	return k.Write(roundPath(round, name), data)
 }
 
+// UpdateRoundSection writes one named field of a round's JSON artefact and
+// leaves every other field of that document exactly as it found it.
+//
+// It is §10.3's sentence as a function. `cr merge`, `cr draft` and `cr post`
+// each accumulate their own counts into one summary.json, so a writer owns some
+// of its fields and none of the rest — and the failure that invites is silent
+// and total: a command that decoded the document into a struct of its own
+// fields would re-encode it without every field that struct does not name, and
+// the history §10.3 exists to make reconstructable from state alone would lose
+// whatever the writer before it put there.
+//
+// The document is therefore carried as raw fields, which is the reading
+// keptLines already gives an NDJSON line: a field this version does not
+// understand is passed through rather than dropped.
+func UpdateRoundSection[T any](k *Lock, round int, name, section string, value T) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("cannot encode %s of %s: %w", section, name, err)
+	}
+	return UpdateRoundJSON(k, round, name, func(doc *map[string]json.RawMessage) {
+		if *doc == nil {
+			*doc = make(map[string]json.RawMessage, 1)
+		}
+		(*doc)[section] = encoded
+	})
+}
+
 // UpdateRoundJSON reads one round's JSON artefact, hands the decoded document
 // to apply, and republishes it.
 //
