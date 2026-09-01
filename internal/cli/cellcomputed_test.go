@@ -136,3 +136,45 @@ func TestACellSupplyingAFieldCrComputesExitsOne(t *testing.T) {
 	}
 }
 
+// A cell recorded before its unit was re-clustered fails §10.2.2's hash
+// comparison, and it does so without anything having to notice.
+//
+// This is the whole of why `unit_hash` is cr's. §10.2.2's second condition is
+// that every cell "was filled for that unit's current unit hash", and the
+// agent's file is byte for byte the same in both recordings here: it names a
+// unit, a role and a verdict, and it cannot name a hash. So the value stored
+// against the first recording is the hash of the code the role actually looked
+// at, and when the unit moves underneath it the stored value stops matching
+// what units.ndjson now holds — automatically, because nobody chose it.
+//
+// The last recording is the other half of the claim. The same line handed in
+// again picks up the new hash, so cr is deriving the value at record time
+// rather than copying a cell forward: a stale cell goes stale, and a re-filled
+// one goes fresh, on the strength of the same input.
+func TestARecordedCellGoesStaleWhenItsUnitIsReclustered(t *testing.T) {
+	first := clusteredUnit(t, beforeTheEdit)
+	second := clusteredUnit(t, afterTheEdit)
+	require.NotEqual(t, first.Hash, second.Hash,
+		"the fixture has to move the unit, or there is nothing to detect")
+
+	layout := briefedForComputedCells(t, first)
+	filled := `{"unit":"u1","role":"correctness","result":"pass"}`
+	require.NoError(t, recordCells(t, filled))
+	require.Equal(t, first.Hash, theRecordedCell(t, layout).UnitHash,
+		"§4.5.5: the cell is filled for the hash the unit had")
+
+	// The unit is re-clustered: the same head, changed code, a new hash.
+	briefedAtUnit(t, layout, second)
+
+	stale := theRecordedCell(t, layout)
+	assert.Equal(t, first.Hash, stale.UnitHash,
+		"the recorded cell keeps the hash it was filled for")
+	assert.NotEqual(t, second.Hash, stale.UnitHash,
+		"§10.2.2: so it no longer matches the unit's current hash, and the round is not complete")
+	assert.Equal(t, cellsHead, stale.Head,
+		"§9.3.1's head is unmoved, so the head comparison alone would have called this complete")
+
+	require.NoError(t, recordCells(t, filled))
+	assert.Equal(t, second.Hash, theRecordedCell(t, layout).UnitHash,
+		"and the identical line re-filled carries the new hash, because cr derives it")
+}
