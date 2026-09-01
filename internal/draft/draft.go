@@ -20,26 +20,9 @@
 package draft
 
 import (
-	"encoding/json"
-	"strconv"
 	"strings"
 
 	"github.com/deligoez/cr/internal/finding"
-)
-
-// The delimiters of §7.1.1's marker.
-//
-// The prefix is `<!-- cr:`, which §8.1.3 reserves for cr-owned regions, and
-// sharing it is deliberate rather than incidental. §8.1.3 rejects any body
-// carrying a `<!-- cr:` sequence, so no block body can hold a string shaped
-// like a marker — which makes "the marker" and "text that looks like one" the
-// same set, and leaves the parser of §7.2 one reading rather than two. A prefix
-// of its own would be a second reserved sequence with no rule refusing it
-// inside a body, and every ambiguity that follows would be ours to invent an
-// answer for.
-const (
-	markerOpen  = "<!-- cr:record"
-	markerClose = "-->"
 )
 
 // Render is §7.1's draft: every queued record as one block, in the order the
@@ -67,7 +50,7 @@ func Render(queued []*finding.Finding) string {
 // body beneath, separated by a blank line so the marker reads as an
 // introduction rather than as part of the prose.
 func block(record *finding.Finding) string {
-	return marker(record) + "\n\n" + body(record) + "\n"
+	return markerOf(record).String() + "\n\n" + body(record) + "\n"
 }
 
 // body is the free-form Markdown region of §7.1.2, which the user may rewrite
@@ -84,63 +67,4 @@ func block(record *finding.Finding) string {
 // non-empty, since §8.1.3 refuses to post an empty body.
 func body(record *finding.Finding) string {
 	return record.Summary
-}
-
-// marker is §7.1.1's HTML comment: the eight fields that section names, in the
-// order it names them, each written as `name="value"`.
-//
-// Every field is written even when it is empty, `disposition` being the one
-// that always is at draft time. §7.2's table gives `disposition` an edit
-// semantics the reviewer reaches by typing `wrong` into it, and a field that
-// only appeared once it had a value would leave them nothing to type into.
-func marker(record *finding.Finding) string {
-	var out strings.Builder
-	out.WriteString(markerOpen)
-	for _, field := range markerFields(record) {
-		out.WriteString(" " + field.name + "=" + quote(field.value))
-	}
-	out.WriteString(" " + markerClose)
-	return out.String()
-}
-
-// markerField is one `name="value"` pair of the marker.
-type markerField struct {
-	name  string
-	value string
-}
-
-// markerFields is §7.1.1's field list, in the order the section writes it:
-// `id`, `kind`, `path`, `start_line`, `line`, `severity`, `grade`, and
-// `disposition`.
-//
-// The three anchor fields are read off the anchor rather than restated, so the
-// marker names the location §9.2 recorded and there is no second copy of it to
-// drift.
-func markerFields(record *finding.Finding) []markerField {
-	return []markerField{
-		{"id", record.ID},
-		{"kind", string(record.Kind)},
-		{"path", record.Anchor.Path},
-		{"start_line", strconv.Itoa(record.Anchor.StartLine)},
-		{"line", strconv.Itoa(record.Anchor.Line)},
-		{"severity", string(record.Severity)},
-		{"grade", string(record.Grade)},
-		{"disposition", string(record.Disposition)},
-	}
-}
-
-// quote renders one marker value as a JSON string.
-//
-// JSON rather than a bare word, because a path is the one value cr does not
-// choose: it may hold a space, a quote, or a newline, and an unquoted marker
-// would then end somewhere other than where it was meant to. Go's encoder also
-// escapes `<`, `>` and `&`, which is what keeps `-->` out of every value and
-// leaves the marker's own terminator unambiguous.
-//
-// The error is discarded because there is none to report: encoding/json
-// replaces invalid UTF-8 with the replacement rune rather than failing, so a
-// string always encodes.
-func quote(value string) string {
-	encoded, _ := json.Marshal(value)
-	return string(encoded)
 }
