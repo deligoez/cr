@@ -44,6 +44,20 @@ func gradedHome(t *testing.T) state.Layout {
 	require.NoError(t, held.Write(state.FileUnits, []byte(
 		`{"id":"u1","path":"app.go","side":"RIGHT",`+
 			`"hunk_ranges":[{"start":3,"end":3}],"head":"`+head+`","round":2}`+"\n")))
+	// The experiment §6.2's `probed` row rests on, and the run §5.2.6
+	// admits as its baseline. They are here rather than in the one test
+	// that reads them because §6.2.1 makes the probe record an input to
+	// every grade: a fixture holding none can only ever exercise the half
+	// of the lookup that finds nothing.
+	require.NoError(t, held.Write(state.FileRuns, []byte(
+		`{"id":"r1","head":"`+head+`","round":2,"exit_code":0,"timed_out":false,`+
+			`"tests_run":12,"tests_failed":0,"passed":true,"duration_ms":410,`+
+			`"output_tail":"Tests:  12 passed\n"}`+"\n")))
+	require.NoError(t, held.Write(state.FileProbes, []byte(
+		`{"id":"p1","kind":"mutation","head":"`+head+`","round":2,`+
+			`"input":"--- a/app.go\n+++ b/app.go\n","result":"no-test-failed",`+
+			`"tests_run":12,"tests_failed":0,"baseline":"r1","target":"app.go:3",`+
+			`"duration_ms":520,"output_tail":"Tests:  12 passed\n"}`+"\n")))
 	require.NoError(t, held.Unlock())
 	return layout
 }
@@ -110,6 +124,41 @@ func TestRecordComputesAndStampsTheGradeSection62Names(t *testing.T) {
 		"§6.2: a citation inside the record's own unit buys nothing")
 	assert.Equal(t, finding.GradeArgued, graded["f3"],
 		"§6.2's third row, whatever the evidence sentence claims")
+}
+
+// §6.2's `probed` row through the command: a record referencing the round's
+// mutation probe is graded on the experiment, and one referencing a probe id
+// nothing holds is not.
+//
+// The two are asserted together because the lookup has two answers and only one
+// of them is reachable from a fixture with no probes on file. Mutation testing
+// found exactly that hole here: every earlier case recorded findings that named
+// no probe, so a lookup that returned nil for every id it was given passed the
+// whole suite, and §6.2's strongest grade was unreachable through the command
+// without anything saying so.
+//
+// A record naming a probe no record holds is not refused here. §6.2.2's
+// rejection of a `probed` claim is the grading validation's, and this command
+// grades the record from what cr resolved rather than from what the record
+// says it rests on — so an unresolvable reference leaves the record with the
+// evidence it actually has, which is none.
+func TestRecordGradesARecordOnTheProbeItReferences(t *testing.T) {
+	layout := gradedHome(t)
+
+	probed := aGradedRecord("f1")
+	probed["probe"] = "p1"
+	probed["severity"] = "high"
+	unknown := aGradedRecord("f2")
+	unknown["probe"] = "p404"
+
+	_, err := runRecord(t, "7", writeRecordFile(t, "merged.ndjson", probed, unknown), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	graded := gradesOf(t, layout)
+	assert.Equal(t, finding.GradeProbed, graded["f1"],
+		"§6.2: the probe's head matches and §5.3.5's conditions are met")
+	assert.Equal(t, finding.GradeArgued, graded["f2"],
+		"a probe id no record holds is no experiment, so §6.2's third row answers")
 }
 
 // §4.4.2 through the command: a test-adequacy record cites the same location a
