@@ -311,7 +311,12 @@ func acceptRecords(
 	// argued is forced to kind question. It is last because it reads the
 	// grade, and it is here rather than in a role's instructions because
 	// there is no wording that reaches a field assignment.
-	forceQuestions(records)
+	//
+	// The count it hands back is §6.3.2's, and this moment is not where
+	// §6.3.2 is answered: §10.3 has `cr merge`, `cr draft` and `cr post`
+	// accumulate the round summary, and `cr record` is none of the three.
+	// The forcing is what is wanted here.
+	finding.ForceQuestions(records)
 	return records, found, nil
 }
 

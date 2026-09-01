@@ -136,21 +136,6 @@ func unitOf(formed []roundUnit, id string) finding.Containment {
 	return nil
 }
 
-// forceQuestions applies §6.3.1's first moment to the records `cr record` is
-// storing: every record graded `argued` is forced to `kind: question`.
-//
-// It runs after gradeRecords and can run nowhere else, because the grade is
-// what it reads. §6.3.1 asks for the same forcing again at draft time and again
-// at post time immediately before the payload is built, and those are the
-// commands' own to apply — finding.ForceQuestion is idempotent and reports what
-// it moved, so each moment applies the one rule and none of them has to know
-// what the moment before it did.
-func forceQuestions(records []*finding.Finding) {
-	for _, record := range records {
-		finding.ForceQuestion(record)
-	}
-}
-
 // stampAxes writes §6.1's `axis` row onto every record: the axis of the record's
 // `role`, written by cr.
 //
