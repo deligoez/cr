@@ -111,6 +111,51 @@ func (f Forcings) Disclosure() string {
 		f.Total(), strings.Join(named, ", "))
 }
 
+// ArguedAssertionError reports a record §6.2 graded `argued` that is still in
+// the assertion register, which §6.3.3 refuses.
+//
+// The cli layer maps it onto exit code 1, which §6.3.3 fixes. Reaching it means
+// the forcing did not hold: §6.3.1 applies it at record time, at draft time and
+// at post time immediately before the payload is built, so a record that is
+// both `argued` and a finding got past all three.
+type ArguedAssertionError struct {
+	// Record is the record id §6.3.3 requires the refusal to name.
+	Record string
+}
+
+func (e *ArguedAssertionError) Error() string {
+	return fmt.Sprintf(
+		"%s is graded argued and written as %s, and §6.3.3 admits no flag, setting, "+
+			"environment variable, profile field, or role instruction that overrides the forcing: "+
+			"an argued record rests on no experiment cr ran and no location cr resolved outside "+
+			"its own unit, so it may be asked and never asserted",
+		e.Record, KindFinding)
+}
+
+// RefuseArguedAssertion is §6.3.3's rejection: no record graded `argued` leaves
+// cr in the assertion register, and the refusal names the record id.
+//
+// It is a proof rather than a second application of the rule. ForceQuestions
+// has already moved every such record, so a caller running both should never
+// see this error — and that is the point. Invariant 4 is a claim about what
+// reaches the author, and a claim resting on one function having been called
+// correctly is a claim that fails silently the day that function stops working.
+// Checking the records that are actually about to be written turns it into a
+// property of the payload.
+//
+// The first offender stops the run rather than a list being gathered. §6.3.3
+// gives no partial outcome to report: nothing may be posted while one argued
+// assertion is in the batch, so the run ends at the first one with its id
+// named, and correcting it brings the next into view.
+func RefuseArguedAssertion(records []*Finding) error {
+	for _, record := range records {
+		if record.Grade == GradeArgued && record.Kind != KindQuestion {
+			return &ArguedAssertionError{Record: record.ID}
+		}
+	}
+	return nil
+}
+
 // ForceQuestions applies §6.3.1 to every record of a round and reports §6.3.2's
 // count per class.
 //
