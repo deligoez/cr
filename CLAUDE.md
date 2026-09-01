@@ -163,7 +163,14 @@ Two rules that make the phase-boundary run worth doing:
    | `--workers 4` | 83 killed, **5 lived**, 3 timed out, 94.32% |
    | `--test-cpu 2` | 91 killed, **0 lived**, 0 timed out, **100%** — 44s |
 
-   The tell is `Lived: 0` beside `100.00%`, and it is always a lie: `finding/id.go`'s
+   The sharpest tell is **`Not covered > 0` beside `Lived: 0`**, because the two
+   cannot honestly co-occur: a tree with mutants no test reaches is a tree whose
+   tests are not exhaustive, so some mutant should survive. Measured on
+   `./internal/finding`, one package, one tree — sound: 83 killed, 5 lived, 7 not
+   covered, 3 timed out; broken: 91 killed, 0 lived, 7 not covered, 0 timed out.
+   83 + 5 + 3 = 91 exactly. **The broken mode turns every LIVED and every TIMED
+   OUT into KILLED and leaves NOT COVERED alone**, because coverage is gathered
+   before any mutant runs and never touches the failing exec. `Lived: 0` beside
    `n > highest` is a documented equivalent mutant — `>=` assigns the value already
    held — and a `--test-cpu` run reports it KILLED. Applying that mutation by hand
    leaves `go test ./internal/finding` green, so nothing killed it. **Treat a 100%
