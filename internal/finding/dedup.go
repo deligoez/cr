@@ -1,6 +1,11 @@
 package finding
 
-import "github.com/deligoez/cr/internal/git"
+import (
+	"cmp"
+	"slices"
+
+	"github.com/deligoez/cr/internal/git"
+)
 
 // DedupKey is §6.4.1's dedup key: the anchored line and the defect class, so
 // two roles that saw one defect in one place produce one comment rather than
@@ -93,4 +98,87 @@ func Groups(records []*Finding) []Group {
 		groups = append(groups, Group{Key: key, Records: []*Finding{record}})
 	}
 	return groups
+}
+
+// gradeStrength is §6.2's three grades from strongest to weakest, which is what
+// §6.4.2's "the highest grade" reads. severityStrength is §6.1's four the same
+// way. Both repeat the order their constants are declared in, because a rank
+// has to be a list somewhere and a list built by hand elsewhere is one a fourth
+// value could be appended to the wrong end of.
+var (
+	gradeStrength    = []Grade{GradeProbed, GradeCited, GradeArgued}
+	severityStrength = []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow}
+)
+
+// rankIn is a value's position in a strength order, and one past the end for a
+// value that order does not list.
+//
+// Unlisted ranks last, for the reason role.Order puts an unresolved role id
+// behind the whole corpus: §6.1.3 checks that a field is present and not that
+// its value is one cr knows, so a severity or a grade cr does not recognise
+// does reach here, and rank zero would hand it the representative slot of every
+// group it appeared in. Last is the honest place for a value nothing can rank.
+func rankIn[T comparable](order []T, value T) int {
+	if at := slices.Index(order, value); at >= 0 {
+		return at
+	}
+	return len(order)
+}
+
+// RepresentativeAt is the position in Records of the record §6.4.2 puts at the
+// head of a duplicate group: the highest grade, then the highest severity, then
+// the earliest role in corpus order per §2.5.5. Everything else the group holds
+// is what §6.4.3 suppresses.
+//
+// It answers with a position rather than with the record, and the difference is
+// not cosmetic in either direction. §6.4.3 needs the whole of "everything that
+// is not the representative", which a position gives directly and a returned
+// pointer only gives back by comparing identities. And a function handing back
+// a *Finding is, in this package, how a record comes into being from bytes cr
+// did not write — TestNoUnanchoredItemBecomesARecordByAnyDoor reads the
+// package's own source for exactly that shape and requires every one of them to
+// be driven through an unanchored item. This function opens no such door: every
+// record it can name was already in the group the caller handed it.
+//
+// The order of the three comparisons is §6.4.2's and is not a preference. Grade
+// outranks severity because severity is the agent's assertion about how much
+// the defect matters while grade is cr's own measure of what the record rests
+// on: §1.6 spends the reviewer's standing on the comment that gets posted, so
+// the record with an experiment behind it speaks for the group ahead of the
+// record that merely called itself critical.
+//
+// roleOrder is role.Order's comparison over role ids, taken as an argument
+// rather than rebuilt here. §2.5.5's order is resolution layer first, the layer
+// is nameable only inside internal/role, and that package's
+// TestNothingOutsideThisPackageCanNameTheLayerARoleResolvedFrom holds it there
+// — so this is the one shape the order can arrive in and there is no second
+// definition of it to drift from.
+//
+// The three comparisons total-order a group only as far as the role: two
+// records from one role, at one anchor, in one class, tied on grade and
+// severity, compare equal. Arrival order settles that last tie, so the
+// partition Groups built decides it and one input still has exactly one
+// representative.
+//
+// A group is never empty: Groups creates one only around a record and only ever
+// appends to it, so there is always a position to return.
+func (g *Group) RepresentativeAt(roleOrder func(a, b string) int) int {
+	best := 0
+	for at, record := range g.Records {
+		if outranks(record, g.Records[best], roleOrder) {
+			best = at
+		}
+	}
+	return best
+}
+
+// outranks reports whether record beats held under §6.4.2's three keys. It is
+// strict, so an equal record never displaces the one already held and the
+// earliest arrival wins a tie the three keys cannot break.
+func outranks(record, held *Finding, roleOrder func(a, b string) int) bool {
+	return cmp.Or(
+		cmp.Compare(rankIn(gradeStrength, record.Grade), rankIn(gradeStrength, held.Grade)),
+		cmp.Compare(rankIn(severityStrength, record.Severity), rankIn(severityStrength, held.Severity)),
+		roleOrder(record.Role, held.Role),
+	) < 0
 }
