@@ -168,9 +168,17 @@ Two rules that make the phase-boundary run worth doing:
    tests are not exhaustive, so some mutant should survive. Measured on
    `./internal/finding`, one package, one tree — sound: 83 killed, 5 lived, 7 not
    covered, 3 timed out; broken: 91 killed, 0 lived, 7 not covered, 0 timed out.
-   83 + 5 + 3 = 91 exactly. **The broken mode turns every LIVED and every TIMED
-   OUT into KILLED and leaves NOT COVERED alone**, because coverage is gathered
-   before any mutant runs and never touches the failing exec. `Lived: 0` beside
+   83 + 5 + 3 = 91 exactly. **The broken mode scores every runnable mutant as
+   not-survived and leaves NOT COVERED alone**, because coverage is gathered
+   before any mutant runs and never touches the failing exec.
+
+   *Which* not-survived status it lands in is machine-dependent, so do not grep
+   for one. Here every LIVED and TIMED OUT became KILLED; a sibling repository
+   measured the same flag on the same kind of tree and got the opposite — 47
+   KILLED and all 5 LIVED became TIMED OUT, 2 mutants killed, 100% efficacy.
+   Anyone matching on this repository's mechanism would read that run's 52
+   timeouts as a loaded machine. The signature that survives both is the pair of
+   counts, not the transition. `Lived: 0` beside
    `n > highest` is a documented equivalent mutant — `>=` assigns the value already
    held — and a `--test-cpu` run reports it KILLED. Applying that mutation by hand
    leaves `go test ./internal/finding` green, so nothing killed it. **Treat a 100%
@@ -205,13 +213,30 @@ Two rules that make the phase-boundary run worth doing:
    `status`, which is what makes that comparison a set difference rather than an
    eyeballing exercise — and what should eventually hold a checked-in list of
    known-equivalent survivors, so "new survivor" is decided by construction.
-6. **Two gremlins runs must never overlap.** It happened here: a subagent's
+6. **`--dry-run` is a coverage instrument, not a cost estimate, and it is free.**
+   It reports RUNNABLE and NOT COVERED without executing a single mutant: 25
+   seconds for `./internal` against 15m32s for the real run, and `-o` writes the
+   same per-mutant records. So the question "do this package's own tests reach
+   this code at all" is answerable before spending anything — and it is a
+   question worth asking, because a package whose mutants are all NOT COVERED
+   returns silence from a real run, which reads like nothing to report. A sibling
+   repository found its newest engine file that way: five mutants, all NOT
+   COVERED, thoroughly tested but only through the CLI, so the engine package's
+   own suite never reached it.
+
+   Run it before a real run and read the NOT COVERED map. Here the largest
+   clusters are `probe/gap.go` at 7 of 7 and `probe/mutation.go` at 7 of 9 —
+   both entirely the tagless-`switch` artifact of rule 3, every one on a case
+   expression of the ladders, which are among the best-tested code in the tree.
+   That is the point: the instrument shows you where to look, and the existing
+   rule says which of those places are already explained.
+7. **Two gremlins runs must never overlap.** It happened here: a subagent's
    closing run and an orchestrator measurement collided, load hit 17 on ten
    cores, and both numbers became worthless — a saturated box times out mutants
    it would otherwise kill. Check `pgrep -x gremlins` before starting one. Use
    `-x`: a waiter written as `until ! pgrep -qf 'gremlins unleash'` matches its
    own command line and never exits, which left an agent hanging for an hour.
-7. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
+8. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
    should mutate nothing and mutated 116; a `-D HEAD~6` run mutated files absent
    from that diff and took *longer* than the unscoped run. Upstream has three
    open bugs on it (#278, #296, #301). Scope by naming packages instead, which is
