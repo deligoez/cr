@@ -73,3 +73,24 @@ func TestACellMayNotSupplyTheFieldsCrComputes(t *testing.T) {
 	}
 }
 
+// The authorship of a field is settled before anything the line says.
+//
+// A cell that supplies `unit_hash` and is wrong in some other way as well is
+// refused for the field it may not carry, not for the rest: the two faults have
+// different repairs, and telling an agent to correct a value it has to delete
+// sends it round the loop a second time. The line number is the one the user
+// opens, counted the way state.DecodeStamped counts it, so the second line here
+// is reported as the second line.
+func TestASuppliedUnitHashIsRefusedBeforeTheLineIsRead(t *testing.T) {
+	body := []byte(`{"unit":"u1","role":"correctness","result":"pass"}` + "\n" +
+		`{"unit":"u9","role":"security","result":"nonsense","unit_hash":"38372bc96eb4010e"}` + "\n")
+
+	cells, err := Decode(cellsFile, body, units(), active())
+
+	var reserved *state.ReservedFieldError
+	require.ErrorAs(t, err, &reserved)
+	assert.Empty(t, cells)
+	assert.Equal(t, "unit_hash", reserved.Field,
+		"the field the agent may not write is the one to report")
+	assert.Equal(t, 2, reserved.Line, "and the line the user has to open")
+}
