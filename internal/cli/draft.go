@@ -93,6 +93,16 @@ func newDraftCmd(out *writer) *cobra.Command {
 			// marker, so a forcing applied after the rendering
 			// would be a forcing the draft does not show.
 			forced := finding.ForceQuestions(queued)
+			// §6.3.3, over the records that are about to be
+			// written rather than over the rule that was just
+			// applied. Invariant 4 is a claim about what reaches
+			// the author, and nothing here can be talked past: no
+			// flag, setting, environment variable, profile field
+			// or role instruction is read on the way to this line,
+			// because there is none to read.
+			if err := finding.RefuseArguedAssertion(queued); err != nil {
+				return err
+			}
 			if err := publishDraft(
 				layout, owner, repo, pr, &round, records,
 				draft.Render(queued), forced,
