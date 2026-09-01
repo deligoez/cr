@@ -889,7 +889,13 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
 		"cells record": {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
-		"map record":   {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
+		// `cr draft` writes two files — the round's draft.md and the
+		// findings whose state §9.1 moved — and §2.2 puts both under
+		// the state root. It sorts before `cr record` here, so it
+		// meets a round with nothing queued, which is the case a
+		// renderer is likeliest to answer by writing nothing at all.
+		"draft":      {"draft", fixturePR, "--repo", fixtureSlug},
+		"map record": {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
 		// `cr brief` is the one command that reads the repository, so
 		// it is the one this guard was widened for: §3.4.1 takes a
 		// diff and §2.4.1 stats marker files, both inside the checkout
