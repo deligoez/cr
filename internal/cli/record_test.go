@@ -270,7 +270,11 @@ func TestASuppressedDuplicateIsStoredInThatStateNamingItsRepresentative(t *testi
 	layout := recordedHome(t)
 	suppressed := aRecord("f2", "u2")
 	suppressed["duplicate_of"] = "f1"
-	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), suppressed)
+	// Three records and one duplicate, so the two counts differ: a
+	// fixture with one of each reads the same whichever state is being
+	// counted, and mutation testing found exactly that hole here.
+	file := writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), suppressed, aRecord("f3", "u2"))
 
 	printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
 	require.NoError(t, err)
@@ -279,7 +283,7 @@ func TestASuppressedDuplicateIsStoredInThatStateNamingItsRepresentative(t *testi
 		layout, recordOwner, recordRepo, recordPRNum, state.FileFindings,
 	)
 	require.NoError(t, err)
-	require.Len(t, stored, 2, "§6.4.3 retains the duplicate; a suppressed record is not a dropped one")
+	require.Len(t, stored, 3, "§6.4.3 retains the duplicate; a suppressed record is not a dropped one")
 
 	assert.Equal(t, finding.StateDraft, stored[0].State,
 		"the representative is an ordinary new record")
@@ -300,11 +304,14 @@ func TestATerminalRecordNamesTheDuplicatesApartFromTheDrafts(t *testing.T) {
 	recordedHome(t)
 	suppressed := aRecord("f2", "u2")
 	suppressed["duplicate_of"] = "f1"
-	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), suppressed)
+	// Two drafts against one duplicate, for the reason the case above
+	// gives: equal counts cannot tell the two states apart.
+	file := writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), suppressed, aRecord("f3", "u2"))
 
 	out := throughATerminal(t, "record", recordPR, file, "--repo", recordSlug)
 
-	assert.Contains(t, out, "\x1b[36m2\x1b[0m", "the count is accented, as every terminal rendering is")
-	assert.Contains(t, out, "1 in state draft")
+	assert.Contains(t, out, "\x1b[36m3\x1b[0m", "the count is accented, as every terminal rendering is")
+	assert.Contains(t, out, "2 in state draft")
 	assert.Contains(t, out, "1 in state duplicate")
 }
