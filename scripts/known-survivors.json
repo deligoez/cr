@@ -1,0 +1,25 @@
+{
+  "_comment": [
+    "Mutants that survive for a reason somebody established, so that a run's",
+    "output can be read as 'what changed' rather than 'what is there'.",
+    "",
+    "An entry is a claim that this specific change cannot be observed. Do not",
+    "add one on inspection alone: apply the mutation by hand, watch the suite",
+    "stay green, and say in `reason` what makes it unobservable. A mutant that",
+    "is merely untested is not equivalent -- it is a missing test.",
+    "",
+    "Everything not listed here is reported as new. That is accurate rather",
+    "than noisy: the classifications made in earlier rounds live in tp closure",
+    "reasons, which is exactly the place a later round cannot read them from.",
+    "Moving one here is what makes it durable."
+  ],
+  "survivors": [
+    {
+      "file": "finding/id.go",
+      "line": 42,
+      "column": 48,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "NextID keeps the highest id seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. Verified by hand on 2026-09-01 -- applied `>=`, `go test ./internal/finding` stayed green. The comment above the line says the same thing, and it predates this file."
+    }
+  ]
+}
