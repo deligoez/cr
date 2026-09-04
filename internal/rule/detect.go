@@ -21,6 +21,10 @@ type Matcher struct {
 	Rule Rule
 	// Pattern is `detect.pattern` compiled.
 	Pattern *regexp.Regexp
+	// Fix is `fix.replace` compiled, nil when the rule carries no `fix`
+	// block. §2.6.2.1 applies it to the line Pattern matched, so the two
+	// travel together: a fix has no line to rewrite until a hit names one.
+	Fix *regexp.Regexp
 }
 
 // Hit is one mechanical match of a rule's `detect` block against one changed

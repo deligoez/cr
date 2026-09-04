@@ -37,6 +37,10 @@ func Compile(corpus []Resolved) ([]Matcher, error) {
 	matchers := make([]Matcher, 0, len(corpus))
 	for at := range corpus {
 		resolved := &corpus[at]
+		fix, err := resolved.compileFix()
+		if err != nil {
+			return nil, err
+		}
 		if resolved.Rule.Detect == nil {
 			continue
 		}
@@ -44,7 +48,7 @@ func Compile(corpus []Resolved) ([]Matcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		matchers = append(matchers, Matcher{Rule: resolved.Rule, Pattern: pattern})
+		matchers = append(matchers, Matcher{Rule: resolved.Rule, Pattern: pattern, Fix: fix})
 	}
 	return matchers, nil
 }
