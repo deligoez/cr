@@ -106,3 +106,31 @@ func TestTheInjectedTextCarriesTheTitleAndTheRationale(t *testing.T) {
 	}
 }
 
+// §2.6.1.4: any record a detect-less rule produces is graded normally per §6.2.
+//
+// The injection is what makes that true, so what it must not carry is a code
+// location. §6.2's `cited` row is bought by a citation cr resolved, and §6.2.5
+// stamps `origin: rule` on one only by matching it against a hit cr's own
+// detection recorded. A detect-less rule records no hit — Compile returns no
+// matcher for it, so Evaluate can produce none — and the text below names no
+// path and no line for a citation to be built out of. So a record written from
+// this rule reaches §6.2 with whatever evidence the agent found and nothing the
+// rule handed it, which is what "graded normally" means.
+func TestAnInjectedRuleHandsTheRecordNoEvidence(t *testing.T) {
+	corpus := injectionCorpus(t)
+	injected := Injected(corpus, axis.Convention)
+	require.Len(t, injected, 1)
+
+	matchers, err := Compile(injected)
+	require.NoError(t, err)
+	assert.Empty(t, matchers,
+		"a detect-less rule compiles to no matcher, so §2.6.1.1 can record no hit for it")
+	assert.Empty(t, Evaluate(matchers, nil),
+		"and with no matcher there is no hit for §6.2.5 to stamp a citation against")
+
+	text := injected[0].Injection()
+	for _, forbidden := range []string{"origin", "citation", "line ", ":1"} {
+		assert.NotContainsf(t, strings.ToLower(text), forbidden,
+			"the injection offers %q, which §6.2 would read as evidence cr never matched", forbidden)
+	}
+}
