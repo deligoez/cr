@@ -8,8 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/symbol"
 )
+
+// indexable is a profile cr can build a symbol index for, so a case about the
+// attachment is not also a case about §4.3.1's unavailability path.
+func indexable() *profile.Profile {
+	return &profile.Profile{ID: "fixture", Symbols: profile.Symbols{Lang: "go"}}
+}
 
 // head is the index one round is attached against.
 func head(decls ...symbol.Decl) *symbol.Index {
@@ -52,18 +59,19 @@ func TestEveryAddedSymbolIsAttachedTheRestOfTheHeadIndex(t *testing.T) {
 		decl("app/new.go", 3, "MoneyFormat"),
 	)
 
-	attached := Attach(index, []git.Hunk{addedAt("app/new.go", 3)})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3)})
 
-	require.Len(t, attached, 1, "one declaration sits on a changed line")
-	assert.Equal(t, "MoneyFormat", attached[0].Added.Name)
-	assert.Equal(t, []string{"FormatMoney", "ParseMoney"}, names(attached[0].Candidates))
+	require.Len(t, attachments.Attached, 1, "one declaration sits on a changed line")
+	assert.Empty(t, attachments.Unavailable, "the lens ran, so §4.5.4 has nothing to report")
+	assert.Equal(t, "MoneyFormat", attachments.Attached[0].Added.Name)
+	assert.Equal(t, []string{"FormatMoney", "ParseMoney"}, names(attachments.Attached[0].Candidates))
 }
 
-// The subtraction is what this task exists for: a symbol the diff declares is
-// never its own candidate. Without it cr would ask the author whether the
-// function they are looking at reinvents itself — and §4.3.4 makes that a
-// question posted to a colleague, which is the exact cost the trust economy is
-// written against.
+// The subtraction is what this attachment exists for: a symbol the diff
+// declares is never its own candidate. Without it cr would ask the author
+// whether the function they are looking at reinvents itself — and §4.3.4 makes
+// that a question posted to a colleague, which is the exact cost the trust
+// economy is written against.
 func TestASymbolTheDiffDeclaresIsNeverItsOwnCandidate(t *testing.T) {
 	index := head(
 		decl("app/existing.go", 10, "FormatMoney"),
@@ -71,10 +79,10 @@ func TestASymbolTheDiffDeclaresIsNeverItsOwnCandidate(t *testing.T) {
 		decl("app/new.go", 9, "MoneyParse"),
 	)
 
-	attached := Attach(index, []git.Hunk{addedAt("app/new.go", 3, 9)})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3, 9)})
 
-	require.Len(t, attached, 2)
-	for _, attachment := range attached {
+	require.Len(t, attachments.Attached, 2)
+	for _, attachment := range attachments.Attached {
 		assert.NotContains(t, names(attachment.Candidates), attachment.Added.Name,
 			"%s is declared by this diff, so it is not a pre-existing candidate for itself",
 			attachment.Added.Name)
@@ -98,10 +106,10 @@ func TestALeftSideChangedLineSubtractsNothing(t *testing.T) {
 		Changed: []git.ChangedLine{{Side: git.Left, Line: 10}},
 	}
 
-	attached := Attach(index, []git.Hunk{addedAt("app/new.go", 3), deleted})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3), deleted})
 
-	require.Len(t, attached, 1, "a hunk that adds nothing declares nothing at the head")
-	assert.Equal(t, []string{"FormatMoney"}, names(attached[0].Candidates))
+	require.Len(t, attachments.Attached, 1, "a hunk that adds nothing declares nothing at the head")
+	assert.Equal(t, []string{"FormatMoney"}, names(attachments.Attached[0].Candidates))
 }
 
 // A changed line that declares nothing adds no attachment. A pull request can
@@ -110,32 +118,20 @@ func TestALeftSideChangedLineSubtractsNothing(t *testing.T) {
 func TestAChangedLineThatDeclaresNothingAttachesNothing(t *testing.T) {
 	index := head(decl("app/existing.go", 10, "FormatMoney"))
 
-	assert.Empty(t, Attach(index, []git.Hunk{addedAt("app/existing.go", 11, 12, 13)}))
-	assert.Empty(t, Attach(index, nil), "a round with no diff adds no symbol")
-}
-
-// A head cr could not index yields no attachment here, because the report that
-// cr could not look is §4.5.4's and not this return value's. The two must not
-// share a shape: an empty result and "cr never built an index" read identically
-// to an author, and the second is the silence §4.3.1 forbids.
-func TestAHeadWithNoIndexAttachesNothingAndSaysSoElsewhere(t *testing.T) {
-	attached := Attach(nil, []git.Hunk{addedAt("app/new.go", 3)})
-
-	assert.Empty(t, attached)
-	encoded, err := json.Marshal(attached)
-	require.NoError(t, err)
-	assert.JSONEq(t, `[]`, string(encoded), "§12: an empty collection serialises as [], never null")
+	assert.Empty(t, Attach(indexable(), index, []git.Hunk{addedAt("app/existing.go", 11, 12, 13)}).Attached)
+	assert.Empty(t, Attach(indexable(), index, nil).Attached, "a round with no diff adds no symbol")
 }
 
 // A head that declares nothing else still attaches, with an empty candidate
 // list that serialises as `[]`. The attachment is the record that cr looked;
 // dropping it would leave the added symbol out of §4.6.1's prompt entirely.
 func TestAnAddedSymbolWithNoCandidatesStillAttaches(t *testing.T) {
-	attached := Attach(head(decl("app/new.go", 3, "MoneyFormat")), []git.Hunk{addedAt("app/new.go", 3)})
+	attachments := Attach(indexable(),
+		head(decl("app/new.go", 3, "MoneyFormat")), []git.Hunk{addedAt("app/new.go", 3)})
 
-	require.Len(t, attached, 1)
-	assert.Empty(t, attached[0].Candidates)
-	encoded, err := json.Marshal(attached[0])
+	require.Len(t, attachments.Attached, 1)
+	assert.Empty(t, attachments.Attached[0].Candidates)
+	encoded, err := json.Marshal(attachments.Attached[0])
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"candidates":[]`)
 }
@@ -153,9 +149,18 @@ func TestEachAttachmentOwnsItsCandidateList(t *testing.T) {
 		decl("app/new.go", 9, "MoneyParse"),
 	)
 
-	attached := Attach(index, []git.Hunk{addedAt("app/new.go", 3, 9)})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3, 9)})
 
-	require.Len(t, attached, 2)
-	attached[0].Candidates[0].Name = "overwritten"
-	assert.Equal(t, "FormatMoney", attached[1].Candidates[0].Name)
+	require.Len(t, attachments.Attached, 2)
+	attachments.Attached[0].Candidates[0].Name = "overwritten"
+	assert.Equal(t, "FormatMoney", attachments.Attached[1].Candidates[0].Name)
+}
+
+// Both collections serialise as `[]` and never as `null`, per §12.
+func TestAnEmptyAttachmentSerialisesAsAnEmptyArray(t *testing.T) {
+	attachments := Attach(indexable(), head(), nil)
+
+	encoded, err := json.Marshal(attachments)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"attached":[],"unavailable":[]}`, string(encoded))
 }

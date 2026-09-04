@@ -7,12 +7,20 @@
 // a question for the same reason: cr cannot know whether the existing symbol
 // was looked at and rejected. So this locates candidates and stops, which is
 // P5 and invariant 1 at one more call site.
+//
+// The other half of what it produces is the honesty one. §4.3.1 needs a symbol
+// index built from the profile's `symbols.lang`, and when none can be built it
+// requires the reinvention half of the convention axis to be marked unavailable
+// per §4.5 rather than skipped silently — so unavailable.go's entry travels
+// beside the attachments rather than in a report a caller has to remember to
+// ask for.
 package reinvention
 
 import (
 	"slices"
 
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/symbol"
 )
 
@@ -30,7 +38,26 @@ type Attachment struct {
 	Candidates []symbol.Decl `json:"candidates"`
 }
 
-// Attach reads §4.3.1 over one round's index and diff.
+// Attachments is §4.3.1's whole answer for one round: what was attached, and
+// the §4.5.4 entry for the half that did not run.
+//
+// The two travel together because §4.3.1 makes them one obligation — attach
+// candidates, or mark the half unavailable — and a caller that could take the
+// first without the second is a caller that can skip it silently, which is the
+// sentence's own wording for the failure. testadequacy.Attachment carries
+// §4.4's symbol half the same way, so §4.6.1 reads the two halves of the same
+// problem with one shape.
+//
+// Both slices are empty rather than nil, per §12.
+type Attachments struct {
+	// Attached holds one entry per symbol the diff added.
+	Attached []Attachment `json:"attached"`
+	// Unavailable holds the §4.5.4 entry for the reinvention half when it
+	// did not run, and nothing when it did.
+	Unavailable []Unavailable `json:"unavailable"`
+}
+
+// Attach reads §4.3.1 over one round's profile, index, and diff.
 //
 // # What "added by the diff" means, and why the index answers it
 //
@@ -59,13 +86,18 @@ type Attachment struct {
 // neighbour is a question about a decision the author made deliberately, in the
 // same change, minutes ago.
 //
-// A nil index is a head cr could not index. It yields no attachment here and is
-// reported through §4.5.4 rather than through this return, because an empty
-// result and "cr could not look" are the same silence otherwise.
-func Attach(index *symbol.Index, hunks []git.Hunk) []Attachment {
-	if index == nil {
-		return []Attachment{}
+// # A head with no index
+//
+// It attaches nothing and reports the §4.5.4 entry instead. An empty attachment
+// list on its own reads to the author as "cr looked for reinvention and found
+// none" — an assertion cr never made — and §4.3.1 forbids exactly that silence.
+// The reason travels with the entry, so what the reader is told is a lens that
+// did not run and what would make it run.
+func Attach(p *profile.Profile, index *symbol.Index, hunks []git.Hunk) Attachments {
+	if entry, marked := unavailability(p, index); marked {
+		return Attachments{Attached: []Attachment{}, Unavailable: []Unavailable{entry}}
 	}
+
 	declared := declaredLines(hunks)
 	added := make([]symbol.Decl, 0, len(index.Decls))
 	pool := make([]symbol.Decl, 0, len(index.Decls))
@@ -81,7 +113,7 @@ func Attach(index *symbol.Index, hunks []git.Hunk) []Attachment {
 	for _, decl := range added {
 		attached = append(attached, Attachment{Added: decl, Candidates: slices.Clone(pool)})
 	}
-	return attached
+	return Attachments{Attached: attached, Unavailable: []Unavailable{}}
 }
 
 // location is one head-side place a declaration can sit.
