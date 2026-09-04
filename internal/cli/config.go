@@ -29,12 +29,26 @@ func (r configResult) Text(w *writer) string {
 
 // newConfigCmd prints the effective configuration of spec/0.1.0.md §2.7,
 // resolved at read time from every layer.
+//
+// `--resolved` is §11's second form of this row and asks for something the
+// command does not yet compute: the layer each setting came from, rather than
+// the value alone. It is registered here so the surface is complete, and it
+// refuses rather than being quietly ignored — a flag that changed nothing would
+// have a caller reading a plain listing as an annotated one. The annotation
+// belongs to config-resolved-annotation.
 func newConfigCmd(out *writer) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Print the effective configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			annotated, err := cmd.Flags().GetBool("resolved")
+			if err != nil {
+				return err
+			}
+			if annotated {
+				return notImplementedFor(cmd, "resolved")
+			}
 			layout, err := state.Default()
 			if err != nil {
 				return err
@@ -63,6 +77,8 @@ func newConfigCmd(out *writer) *cobra.Command {
 			return out.emit(configResult(resolved.Map()))
 		},
 	}
+	cmd.Flags().Bool("resolved", false, "annotate each setting with the layer it came from")
+	return cmd
 }
 
 // splitRepo reads an owner/repo argument, which the per-repository layer of
