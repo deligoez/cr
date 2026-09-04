@@ -333,8 +333,8 @@ func TestEveryPathTheStateLayoutHandsOutIsUnderItsRoot(t *testing.T) {
 var gitReads = map[string]string{
 	"diff":       "§3.4.1's diff of the head against the merge base",
 	"merge-base": "§3.4.1's merge base",
-	"ls-tree":    "§6.2.3's question of whether the head holds a cited path at all",
-	"cat-file":   "§6.2.3's read of the cited line as the head holds it",
+	"ls-tree":    "§6.2.3's question of whether the head holds a cited path at all, and §4.3.1's listing of the head's source",
+	"cat-file":   "§6.2.3's read of the cited line as the head holds it, and §4.3.1's read of a source file to index",
 	"worktree":   "§5.1.1's sandbox worktree, the one write §2.2 permits",
 	"rev-parse":  "§5.1.6's check that the sandbox HEAD is still the round's head",
 	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked",
