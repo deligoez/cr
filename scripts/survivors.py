@@ -105,7 +105,8 @@ def main(argv):
         print("  boundary    -- a real edge with no test; write the test")
         print("  contract    -- a documented rule with no assertion; assert it")
         print("Only the last two are work. Do not call one equivalent before")
-        print("applying it by hand and watching the suite stay green.")
+        print("applying it by hand and watching the suite stay green -- and ask")
+        print("what input range that green covers, not just whether it was green.")
     if stale:
         print("\nA stale entry is a judgement with nothing left to judge.")
         print("Re-point it at the mutant that moved, or delete it because the")
