@@ -201,7 +201,7 @@ func (c checker) computed(line int, supplied map[string]json.RawMessage) error {
 			return &state.ReservedFieldError{File: c.file, Line: line, Field: field}
 		}
 	}
-	return c.computedCitations(line, supplied["citations"])
+	return c.computedCitations(line, supplied[citationsField])
 }
 
 // computedCitations holds each entry of the citations array to the same rule.
