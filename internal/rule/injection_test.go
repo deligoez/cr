@@ -80,3 +80,29 @@ func TestEveryResolvedRuleIsEitherCompiledOrInjected(t *testing.T) {
 	}
 }
 
+// The injected text carries the standard and why it exists, so the role reads
+// what §2.6 item 4 has a record quote to the author.
+//
+// The id is asserted alongside them because §2.6 item 3 requires every record
+// produced by this rule to carry it, and the prompt is the only place the agent
+// can learn it. The resolved path is asserted because §2.6 item 2 lets a higher
+// layer override a lower one whole: a role reading a standard it disagrees with
+// has to be told which of the three files it is written in.
+func TestTheInjectedTextCarriesTheTitleAndTheRationale(t *testing.T) {
+	corpus := injectionCorpus(t)
+	injected := Injected(corpus, axis.Convention)
+	require.Len(t, injected, 1)
+
+	text := injected[0].Injection()
+	rule := injected[0].Rule
+	require.NotEmpty(t, rule.Title)
+	require.NotEmpty(t, rule.Rationale)
+
+	for _, part := range []string{
+		rule.ID, rule.Title, rule.Rationale, injected[0].Path,
+		rule.Axis, rule.Class, string(rule.Severity), string(rule.Kind),
+	} {
+		assert.Containsf(t, text, part, "the injected text drops %q", part)
+	}
+}
+
