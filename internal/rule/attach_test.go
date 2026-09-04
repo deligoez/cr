@@ -62,3 +62,25 @@ func TestAHitIsAttachedToTheUnitThatContainsIt(t *testing.T) {
 	}, hitsBy(attached))
 }
 
+// A hit outside every unit's hunks is attached to no unit, and above all not to
+// an unrelated one.
+//
+// Every case here is a different way of being outside: a line of a unit's own
+// file that falls in the gap between two of its hunks, a line past the last
+// hunk of the file, and a line in a file this round did not change at all.
+// Attaching any of them would send the role to code the match was never in, and
+// §2.6.1.5 has the role confirm a hit before it reaches a draft — so a
+// misplaced hit is not a harmless extra, it is a candidate the role is being
+// asked to confirm about the wrong lines.
+func TestAHitOutsideEveryUnitIsAttachedToNone(t *testing.T) {
+	attached := Attach(attachUnits(), []Hit{
+		{RuleID: "handle-every-error", Path: "internal/api/handler.go", Line: 100},
+		{RuleID: "handle-every-error", Path: "internal/api/handler.go", Line: 400},
+		{RuleID: "no-blank-error", Path: "internal/api/untouched.go", Line: 7},
+	})
+
+	assert.Equal(t, map[string][]int{
+		"u1": {}, "u2": {}, "u3": {}, "u4": {},
+	}, hitsBy(attached))
+}
+
