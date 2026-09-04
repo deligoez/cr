@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T12:37:37.16096Z",
+  "updated_at": "2026-09-04T12:42:30.33207Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3011,7 +3011,7 @@
     {
       "id": "rule-hit-unit-attachment",
       "title": "Attach mechanical rule hits to units",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-hit-citation",
@@ -3022,11 +3022,18 @@
       "source_sections": [
         "### 4.3 Convention and reinvention"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T12:37:47.795114Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T12:42:30.321351Z",
+      "closed_reason": "- Project conventions beyond reinvention come from the rule corpus of §2.6, never from hard-coded logic and never from prose buried inside role instructions. TestAnInstallationWithNoRuleFilesEnforcesNoConvention resolves a tree holding no rule file in either §2.2 directory and no rules array in the profile, and asserts the corpus, the matchers, the hits and the injections are all empty: there is no built-in layer for Resolve to add and nothing embedded in the binary, so every rule cr evaluates was written into a file the project owns. Reinvention is the one convention cr computes for itself, and §4.3.1 gives it machinery outside the corpus. The role half was closed by rule-without-detect-injection, whose TestTheRolePackageCannotReadARule refuses an internal/rule import anywhere under internal/role and whose TestNoBuiltinRoleCarriesARuleAsProse holds the shipped roles to §2.5's table.\n- A mechanical rule hit is attached to the unit that contains it, so the agent judges an already-located candidate instead of searching for one. internal/rule/attach.go's Attach answers for every unit of the round with the hits inside it, deciding containment through unit.Contains — §6.2.1's own predicate rather than a second reading of what a hunk range means, so a hit cannot be attached against one reading and graded against another. Only a RIGHT-side unit can hold one, because §2.6.1.1 evaluates the added and modified RIGHT-side lines and never the removed ones while §6.2.1 compares no side at all; TestAHitIsNeverAttachedToALeftUnit exercises exactly that overlap, with a deletion whose head-side insertion point falls inside a RIGHT unit's range. Every unit is answered for, carrying §12.3's empty array when no rule matched, because §4.6.1 emits one prompt per role and unit and a unit left out would reach its role indistinguishable from a unit cr checked and found clean.\n- A test asserts a hit outside every unit's hunks is not attached to an unrelated unit. TestAHitOutsideEveryUnitIsAttachedToNone covers three ways of being outside: a line in the gap between one unit's two hunks, a line past the last hunk of the file, and a line in a file the round did not change. The gap case is the one with teeth, since an implementation reading only a unit's first and last range would pass every single-hunk fixture and fail there. An unattached hit is not lost: §2.6.1.6 appends every hit to rule-stats.ndjson whatever becomes of it here, and §2.6.1.1 evaluates over the round's own hunks so the case does not arise from a diff at all. What must not happen is the other direction, because §2.6.1.5 has the role confirm a hit before it reaches a draft, and a misplaced hit asks the role to confirm a match about lines it was never in.\n",
+      "gate_passed_at": "2026-09-04T12:42:30.321351Z",
+      "commit_sha": "d178219",
+      "commit_shas": [
+        "d178219"
+      ],
+      "commit_files": [
+        "internal/rule/attach_test.go"
+      ]
     },
     {
       "id": "test-file-attachment",
