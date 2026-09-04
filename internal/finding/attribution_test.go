@@ -63,3 +63,23 @@ func TestOnlyTheRuleMarkRequiresTheID(t *testing.T) {
 		"§6.1 marks `rule` optional, so a record may name one with no mark on it")
 }
 
+// §2.6.1.3: the rule id is carried on the record, separately from any citation.
+//
+// The refusal is what makes "separately" a property of the format. Ignoring the
+// key would satisfy the section's letter — nothing in cr reads it — and leave a
+// second copy of the id sitting in a file a human reads, free to disagree with
+// the record carrying it, which is precisely the disagreement §6.2.5's
+// four-part positional match cannot survive.
+func TestACitationMayNotCarryTheRuleID(t *testing.T) {
+	inside := aRecord()
+	inside["citations"] = []map[string]any{
+		{"path": "internal/api/handler.go", "line": 43},
+		{"path": "internal/api/client.go", "line": 12, "rule": "handle-every-error"},
+	}
+
+	rejected := rejects(t, inside)
+	assert.Equal(t, "citations[1].rule", rejected.Field,
+		"a record with several citations points at the one at fault")
+	assert.Contains(t, rejected.Error(), "§2.6.1.3")
+}
+
