@@ -195,15 +195,35 @@ Two rules that make the phase-boundary run worth doing:
    not-survived and leaves NOT COVERED alone**, because coverage is gathered
    before any mutant runs and never touches the failing exec.
 
+   A second corruption reaches the same fake 100% by another road, found in a
+   sibling repository: gremlins can measure its baseline from a **cached** `go
+   test`, so the baseline reads ~0, the coefficient multiplies it to ~0, and
+   every slow mutant times out. There the tell was `Gathering coverage... done
+   in 186ms` against a real 73-second suite. cr is not currently hit — three
+   runs here gathered in 21.9s, 22.2s and 24.3s against a 26.7s suite — but
+   `go clean -testcache` before a run costs nothing and forecloses it.
+
+   **Wall-clock arithmetic is the cheapest tell of all, and its unit is the
+   package, not the tree.** A healthy run takes roughly
+   `runnable × package-suite ÷ workers`, plus `timeouts × coefficient × baseline
+   ÷ workers`. Measured here: 1218 runnable at a 2.1s package average is 10.7
+   minutes, plus 12 timeouts at 110s is 5.5, giving 16.2 against an observed
+   17m28s. Using the **whole tree's** 26.7s instead predicts 136 minutes and
+   would condemn a healthy run — because default-mode gremlins runs only the
+   mutated package's own tests. Get the unit wrong and the instrument accuses
+   the wrong thing.
+
    *Which* not-survived status it lands in is machine-dependent, so do not grep
    for one. Here every LIVED and TIMED OUT became KILLED; a sibling repository
    measured the same flag on the same kind of tree and got the opposite — 47
    KILLED and all 5 LIVED became TIMED OUT, 2 mutants killed, 100% efficacy.
    Anyone matching on this repository's mechanism would read that run's 52
    timeouts as a loaded machine. The signature that survives both is the pair of
-   counts, not the transition. `Lived: 0` beside
-   `n > highest` is a documented equivalent mutant — `>=` assigns the value already
-   held — and a `--test-cpu` run reports it KILLED. Applying that mutation by hand
+   counts, not the transition.
+
+   A tree that carries a documented equivalent mutant can check the run against
+   it directly. `finding/id.go`'s `n > highest` is one — `>=` assigns the value
+   already held — and a `--test-cpu` run reports it KILLED. Applying that mutation by hand
    leaves `go test ./internal/finding` green, so nothing killed it. **Treat a 100%
    efficacy figure as a broken run, not a good one.** The same flag is what made
    `./internal` finish in seven seconds claiming 1270 killed: `go test ./internal`
