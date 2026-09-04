@@ -84,3 +84,22 @@ func TestAHitOutsideEveryUnitIsAttachedToNone(t *testing.T) {
 	}, hitsBy(attached))
 }
 
+// A hit never reaches a LEFT unit, even one whose head coordinates contain it.
+//
+// The fixture's fourth unit is a deletion in the same file, and §6.2.1 records
+// a deletion as its head-side insertion point — line 44, which is also inside
+// the first unit's range. So containment alone answers yes for both, and the
+// side is what tells them apart. §2.6.1.1 evaluates the RIGHT-side lines only,
+// so the hit is about a line the change added and the LEFT unit is about lines
+// the change removed: attaching it there would ask the role to judge deleted
+// code against a standard for code that is written.
+func TestAHitIsNeverAttachedToALeftUnit(t *testing.T) {
+	attached := Attach(attachUnits(), []Hit{
+		{RuleID: "handle-every-error", Path: "internal/api/handler.go", Line: 44},
+	})
+
+	by := hitsBy(attached)
+	assert.Equal(t, []int{44}, by["u1"], "the RIGHT unit holding the line takes it")
+	assert.Empty(t, by["u4"], "§2.6.1.1 evaluates no removed line, so no hit is about one")
+}
+
