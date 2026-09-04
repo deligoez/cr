@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T13:08:29.832441Z",
+  "updated_at": "2026-09-04T13:34:01.603667Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2933,7 +2933,7 @@
     {
       "id": "symbol-index-build",
       "title": "Build a head symbol index",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "hunk-clustering",
@@ -2944,11 +2944,18 @@
       "source_sections": [
         "### 4.3 Convention and reinvention"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:21:11.552129Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T13:34:01.592838Z",
+      "closed_reason": "- cr builds a symbol index for the head from the profile's symbols.lang per §4.3.1: internal/symbol/head.go's Head lists the head's blobs with git.BlobsAtRevision, keeps the files match.globs owns, reads each with git.BlobLines, and hands them to Build, which scans them with the rule set languages holds for that lang and reports false when cr ships no scanner for it, so a head cr cannot index comes back as no index rather than as an empty one.\n- For every function, method, or class added by the diff, cr attaches candidate pre-existing symbols drawn from the head symbol index minus every symbol the diff itself declares on a changed line: internal/reinvention/attach.go's Attach intersects the index with the diff's RIGHT-side changed lines, partitions the index into the symbols the diff declared and the pool of everything else, and gives each added symbol its own copy of that pool.\n- A test asserts a symbol the diff declares never appears as its own candidate: TestASymbolTheDiffDeclaresIsNeverItsOwnCandidate in internal/reinvention/attach_test.go builds a head declaring three symbols, marks two of them as added by the diff, and asserts each attachment's candidate list holds neither its own name nor the other added symbol's, leaving only the pre-existing one.\n- Dogfooded against this repository's own head over cmd and internal: 2106 symbols across 325 files in 4.6 seconds, 1549 functions, 311 methods, 246 classes, and git status --porcelain stayed clean, which is invariant 2 read from outside.\n",
+      "gate_passed_at": "2026-09-04T13:34:01.592838Z",
+      "commit_sha": "72d65a8",
+      "commit_shas": [
+        "72d65a8"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go"
+      ]
     },
     {
       "id": "reinvention-unavailable-reporting",
