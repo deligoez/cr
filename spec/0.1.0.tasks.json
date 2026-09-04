@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-01T12:10:54.400561Z",
+  "updated_at": "2026-09-04T10:46:51.451383Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1339,7 +1339,7 @@
     {
       "id": "rule-layer-resolution",
       "title": "Resolve rules across three layers",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-schema",
@@ -1350,11 +1350,18 @@
       "source_sections": [
         "### 2.6 Rules"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T10:32:14.606684Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T10:46:51.440948Z",
+      "closed_reason": "- internal/rule/corpus.go Resolve returns one repository's rule corpus in the order of §2.6 item 1, reading the per-repository rules directory first, then the global one, then the resolved profile's rules array carried verbatim by §2.4, with each layer ascending by rule id because §2.1.1 requires the same inputs to give the same result and a directory listing is the operating system's order. TestRulesResolveInLayersHighestFirst asserts the sequence and the layer each rule resolved from.\n- A rule id is unique after resolution because corpus.add records every id it has taken and appends a lower layer's rule only when no higher layer claimed it, and the override is whole rather than field by field because a rule reaches the corpus only through that one append of an entire parsed Rule and no field of any rule is read anywhere in resolution. Two elements of a single profile carrying one id are refused as malformed rather than resolved, since §2.6 item 2 settles a collision between layers and leaves none inside one.\n- TestALowerLayersUntouchedFieldsDoNotSurviveIntoTheWinner furnishes the losing rule with a value in every optional row of §2.6's table, an axis, a severity, a kind, both blocks and all three lists, and then asserts the winner equals the winning file parsed with no other layer in sight. That equality is the assertion rather than a list of fields, because a field-by-field list defends the fields it names and passes a merge that leaks any other.\n- internal/rule/rule.go parts a rule file from a rule embedded in a profile, which differ in exactly one requirement of §2.6, the id equalling the file stem. Parse delegates to a shared parse told which of the two it is reading, so an embedded rule is held to every other row of the table and reports its faults against the profile file and its array position.\n- The layer type is named Source rather than Layer because internal/role fences the Layer identifiers to itself so that §6.4.2 cannot rebuild §2.5.5's corpus order instead of calling role.Order, and that fence reads identifiers rather than types.\n- Run against a real CR_HOME tree with a global rule carrying a detect block, a fix, a critical severity, globs, exempt and profiles, and a per-repository rule of the same id stating only the required rows. The resolved corpus held one entry from the repository layer with no detect, no fix, empty lists and the §2.6 defaults, so nothing of the shadowed rule survived.\n- Gate green at go test -race ./... and golangci-lint run with zero issues and scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-09-04T10:46:51.440948Z",
+      "commit_sha": "9bbae8f",
+      "commit_shas": [
+        "9bbae8f"
+      ],
+      "commit_files": [
+        "internal/rule/corpus_test.go"
+      ]
     },
     {
       "id": "rule-id-on-records",
