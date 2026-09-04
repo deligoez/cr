@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T13:34:01.603667Z",
+  "updated_at": "2026-09-04T13:40:07.585341Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2960,7 +2960,7 @@
     {
       "id": "reinvention-unavailable-reporting",
       "title": "Mark reinvention unavailable without an index",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "symbol-index-build",
@@ -2971,11 +2971,18 @@
       "source_sections": [
         "### 4.3 Convention and reinvention"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:34:33.919769Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T13:39:54.800979Z",
+      "closed_reason": "- When no symbol index can be built, the reinvention half of the convention axis is marked unavailable per §4.5 rather than skipped silently, per §4.3.1: internal/reinvention/unavailable.go declares Unavailable with the lens and the reason, and Attach returns it beside the attachments rather than in a second report a caller has to remember to ask for, so the two halves of §4.3.1's one sentence cannot come apart. The lens is profile.ReinventionLens, half of the convention axis and never the axis itself, because §4.3.5 leaves the rest of that axis to the rule corpus of §2.6.\n- The unavailability appears in the coverage report with its reason and survives --quiet per §11.1: Unavailable.Disclosure satisfies finding.HonestyDisclosure, which is the shape the writer holding §11.1's exemption consumes, and its text is derived from the two fields so what is printed and what a caller reads as data cannot drift apart. Three states each get their own reason naming what would make the lens run, which are a profile declaring no symbols.lang, a symbols.lang cr has no scanner for, and an index that was asked for and did not arrive.\n- A test runs the convention axis under the generic profile and asserts the reinvention half is reported unavailable while the rest of the axis still runs: TestUnderTheGenericProfileTheReinventionHalfIsOutAndTheAxisRuns in internal/reinvention/unavailable_test.go parses the generic profile from the bytes cr ships, asserts activation.Activate keeps the convention axis active, and asserts Attach returns no attachment and exactly one entry whose lens is convention slash reinvention and whose reason names symbols.lang.\n- Dogfooded against this repository's own head: with a go profile the diff's 83 added declarations each carried the pre-existing pool, and with symbols.lang cleared the same call attached nothing and printed the disclosure line naming the lens, the section, and the field to set.\n",
+      "gate_passed_at": "2026-09-04T13:39:54.800979Z",
+      "commit_sha": "0895493",
+      "commit_shas": [
+        "0895493"
+      ],
+      "commit_files": [
+        "internal/reinvention/unavailable_test.go"
+      ]
     },
     {
       "id": "reinvention-similarity-ranking",
