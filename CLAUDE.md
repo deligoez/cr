@@ -76,8 +76,11 @@ version and load; a claim about what happens inside is a hypothesis, and
 reporting it as fact is what makes a correct finding useless elsewhere. And
 **check the instrument** — `pgrep -f` matching its own shell, a `grep -v _test`
 filter eating the line it was looking for, a shell that word-splits one binary's
-arguments and not another's. Each produced a confident wrong answer here, and
-none of them errored.
+arguments and not another's, a cached `go test` answering a dogfood question
+about code that had changed (use `-count=1`), and a one-minute load average
+reading 38 on ten cores while `ps` showed two workers under a single core — the
+fifteen-minute figure, 9.08, was the honest one. Each produced a confident wrong
+answer here, and none of them errored.
 
 ## Quick reference
 
