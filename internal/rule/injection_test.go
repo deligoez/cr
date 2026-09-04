@@ -51,3 +51,32 @@ func TestOnlyTheDetectLessRulesOfAnAxisAreInjected(t *testing.T) {
 		"an axis no rule enforces is injected nothing rather than everything")
 }
 
+// §2.6.1's split is exhaustive and disjoint: every resolved rule is either
+// compiled into a matcher or injected as text, and none is both.
+//
+// This is the property that makes "a rule cr does not enforce" impossible to
+// arrive at by accident. A rule that fell into neither half would be written,
+// validated, resolved, and then silently enforced by nothing at all — and the
+// coverage report would say the convention axis ran.
+func TestEveryResolvedRuleIsEitherCompiledOrInjected(t *testing.T) {
+	corpus := injectionCorpus(t)
+
+	matchers, err := Compile(corpus)
+	require.NoError(t, err)
+	compiled := make([]string, 0, len(matchers))
+	for at := range matchers {
+		compiled = append(compiled, matchers[at].Rule.ID)
+	}
+
+	injected := make([]string, 0, len(corpus))
+	for _, id := range []string{axis.Intent, axis.Correctness, axis.Convention, axis.Test} {
+		injected = append(injected, ids(Injected(corpus, id))...)
+	}
+
+	assert.ElementsMatch(t, ids(corpus), append(compiled, injected...),
+		"§2.6.1 splits the corpus in two, and the two halves are the whole of it")
+	for _, id := range compiled {
+		assert.NotContains(t, injected, id, "%s is enforced twice over", id)
+	}
+}
+
