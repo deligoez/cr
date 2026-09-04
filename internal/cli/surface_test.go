@@ -190,3 +190,47 @@ func TestTheCommandSurfaceIsTheSpecTable(t *testing.T) {
 		"§11 is the whole command surface, so a command in the tree is a row and a row is in the tree")
 }
 
+// A registered command whose behaviour a later task owns refuses with a hint,
+// and the refusal names the command that was typed.
+//
+// The hint is the part worth asserting. Without it the refusal is
+// indistinguishable from a broken install, and the caller's next step — check
+// which build this is — is exactly what a hint is for. The command path is
+// asserted because a stub reached through a group must name the group: `cr
+// rules list` and `cr waivers list` are different commands with the same leaf
+// name, and a refusal saying only `list` would send the caller to the wrong one.
+func TestAStubRefusesWithItsPathAndAHint(t *testing.T) {
+	root := newRootCmd()
+
+	stubs := 0
+	for _, row := range specSurface {
+		if !row.stub {
+			continue
+		}
+		stubs++
+		name := strings.Join(row.path, " ")
+		t.Run(name, func(t *testing.T) {
+			found, _, err := root.Find(row.path)
+			require.NoError(t, err)
+			require.NotNil(t, found.RunE, "`cr %s` runs nothing at all", name)
+
+			err = found.RunE(found, nil)
+			var refused *notImplementedError
+			require.ErrorAsf(t, err, &refused, "`cr %s` did not refuse as a stub", name)
+			assert.Equal(t, "cr "+name, refused.Command)
+			assert.Contains(t, err.Error(), refused.Hint,
+				"the refusal drops the hint it carries")
+			assert.Contains(t, err.Error(), "cr --version",
+				"the hint names no step the caller can take")
+		})
+	}
+
+	require.NotZero(t, stubs, "no row is marked a stub, so this guard measured nothing")
+
+	// §11.2 enumerates five codes and gives none to a command that is
+	// registered and unbuilt, so the refusal takes exitCodeFor's fallback.
+	// It is pinned here because invariant 5 forbids renumbering the five,
+	// which makes inventing a sixth for this the wrong repair.
+	assert.Equal(t, ExitUsage, exitCodeFor(&notImplementedError{Command: "cr status"}))
+}
+
