@@ -234,3 +234,22 @@ func TestAStubRefusesWithItsPathAndAHint(t *testing.T) {
 	assert.Equal(t, ExitUsage, exitCodeFor(&notImplementedError{Command: "cr status"}))
 }
 
+// A flag registered ahead of its behaviour refuses rather than being ignored.
+//
+// `cr config --resolved` is the one place in the surface where a command that
+// works carries a flag that does not, and a silently ignored flag there is the
+// worst of the three outcomes: the caller asks which layer each setting came
+// from, gets a plain listing, and has no way to tell it apart from an annotated
+// one where every setting happened to come from the same layer.
+func TestAFlagAheadOfItsBehaviourRefuses(t *testing.T) {
+	root := newRootCmd()
+	found, _, err := root.Find([]string{"config"})
+	require.NoError(t, err)
+	require.NoError(t, found.Flags().Set("resolved", "true"))
+
+	var refused *notImplementedError
+	require.ErrorAs(t, found.RunE(found, nil), &refused)
+	assert.Equal(t, "cr config --resolved", refused.Command,
+		"the refusal names the whole command, so it reads as `cr config` being missing")
+}
+
