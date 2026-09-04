@@ -940,6 +940,46 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 	}
 }
 
+// stubRuns is the argv each command whose behaviour a later task owns is
+// exercised with, keyed by the command as it is typed.
+//
+// It is a second table rather than more rows of the one above, because the two
+// are held to opposite outcomes and that is the whole point of separating them.
+// Every run above must succeed, since a command refused at its arguments never
+// reaches the code that could write. Every run here must be refused by
+// command-surface-stubs' not-yet-implemented error and by nothing else — which
+// keeps the same guarantee for a different reason: a command that ran, parsed
+// its arguments, and returned before doing anything cannot have written either.
+//
+// The day one of them is built its run stops being refused and fails here,
+// which is what forces it into repoRuns, where the fingerprint then measures a
+// command that actually does something. A stub cannot quietly stay in the weak
+// half of the guard.
+func stubRuns(merged, out string) map[string][]string {
+	return map[string][]string{
+		"review": {"review", fixturePR, "--repo", fixtureSlug},
+		// The merged file is one of the round's own inputs, prepared
+		// outside the repository under review like every other input
+		// here, and `-o` names a path outside it too.
+		"merge": {
+			"merge", merged, "-o", out,
+			"--repo", fixtureSlug, "--pr", fixturePR,
+		},
+		"post":   {"post", fixturePR, "--repo", fixtureSlug},
+		"status": {"status", fixturePR, "--repo", fixtureSlug},
+		"stats":  {"stats", "--repo", fixtureSlug},
+		"claims set-aside": {
+			"claims", "set-aside", fixturePR, fixtureIssue + "#c1",
+			"--note", fixtureIssue + "#n1", "--repo", fixtureSlug,
+		},
+		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
+		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
+		"rules list":     {"rules", "list", "--repo", fixtureSlug},
+		"rules check":    {"rules", "check", fixturePR, "--repo", fixtureSlug},
+		"rules suggest":  {"rules", "suggest", "--repo", fixtureSlug},
+	}
+}
+
 // runOrder is the sequence the runs are performed in: alphabetical, but with
 // `cr sandbox create` hoisted to just behind `cr brief`.
 //
@@ -1099,9 +1139,30 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
+	// A command refused before it does anything still has to be refused for
+	// the right reason: a stub that failed on a missing file, an unbriefed
+	// round, or a mistyped flag would prove nothing about the command it
+	// named, exactly as a run that exits 2 proves nothing above.
+	refuse := func(args ...string) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = fixture
+		cmd.Env = env
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		require.Errorf(t, cmd.Run(),
+			"cr %s ran, so it is built and belongs in repoRuns", strings.Join(args, " "))
+		require.Containsf(t, stderr.String(), "is not implemented in this build",
+			"cr %s failed for some other reason: %s",
+			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
+	}
+
 	runs := repoRuns(merged, claims, issue, cells, pairs, mutation)
+	stubs := stubRuns(merged, filepath.Join(home, "merge-out.ndjson"))
 	commands := leafCommands(t)
-	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
+	exercised := slices.Collect(maps.Keys(runs))
+	exercised = append(exercised, slices.Collect(maps.Keys(stubs))...)
+	require.ElementsMatch(t, commands, exercised,
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
 
 	before := fingerprintOf(t, fixture)
@@ -1111,6 +1172,10 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	for _, name := range runOrder(t, runs) {
 		run(append(strings.Fields(name), "--help")...)
 		run(runs[name]...)
+	}
+	for _, name := range slices.Sorted(maps.Keys(stubs)) {
+		run(append(strings.Fields(name), "--help")...)
+		refuse(stubs[name]...)
 	}
 
 	after := fingerprintOf(t, fixture)
