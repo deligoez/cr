@@ -189,8 +189,28 @@ func Load(path string) (Rule, error) {
 	return Parse(path, data)
 }
 
+// A rule reaches cr from one of two places, and they differ in exactly one
+// requirement. §2.6 fixes a rule id to its file stem, which a rule file has and
+// an element of a profile's `rules` array (§2.4) — the third layer of §2.6 item
+// 1 — does not. Everything else §2.6's table asks of a rule it asks of both, so
+// the two share one parse and part on this constant alone. A profile is data cr
+// reads like any other, not a place where the schema is relaxed.
+const (
+	// fromFile parses a rule that has a file of its own.
+	fromFile = true
+	// fromProfile parses a rule embedded in a profile.
+	fromProfile = false
+)
+
 // Parse validates data as the rule file at path. The path is only read for the
 // file stem and for the error message; nothing on disk is touched.
+func Parse(path string, data []byte) (Rule, error) {
+	return parse(path, data, fromFile)
+}
+
+// parse is the body a rule file and an embedded rule share. stemmed says which
+// of the two this is; path names whatever a fault is reported against, which is
+// the rule file in the first case and the profile file in the second.
 //
 // The key check runs before the field checks, for the reason §2.5's does: a
 // file carrying both an unknown key and a missing required field is most often
@@ -201,7 +221,7 @@ func Load(path string) (Rule, error) {
 // validated is the value the rule will actually carry. A rule that omits
 // `severity` is a rule at `medium`, and validating the empty string first would
 // reject the ordinary case §2.6's table exists to permit.
-func Parse(path string, data []byte) (Rule, error) {
+func parse(path string, data []byte, stemmed bool) (Rule, error) {
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal(data, &keys); err != nil {
 		return Rule{}, decodeError(path, err)
@@ -217,7 +237,7 @@ func Parse(path string, data []byte) (Rule, error) {
 		return Rule{}, err
 	}
 	r.applyDefaults()
-	if err := r.validate(path); err != nil {
+	if err := r.validate(path, stemmed); err != nil {
 		return Rule{}, err
 	}
 	r.Globs, r.Exempt, r.Profiles = list(r.Globs), list(r.Exempt), list(r.Profiles)
@@ -324,8 +344,8 @@ func (r *Rule) applyDefaults() {
 
 // validate applies every requirement of §2.6's table, in table order, so the
 // first fault a user sees is the earliest one in the file's own layout.
-func (r *Rule) validate(path string) error {
-	if err := r.validateID(path); err != nil {
+func (r *Rule) validate(path string, stemmed bool) error {
+	if err := r.validateID(path, stemmed); err != nil {
 		return err
 	}
 	if err := r.validateText(path); err != nil {
@@ -337,26 +357,32 @@ func (r *Rule) validate(path string) error {
 // validateID holds `id` to §2.6's two rules at once: it equals the file stem,
 // and it is kebab-case. The pair is what makes a rules directory listable as a
 // list of rule ids.
-func (r *Rule) validateID(path string) error {
+//
+// The stem half applies only to a rule that has a file — see fromFile. An
+// element of a profile's `rules` array has none, and comparing its id against a
+// stem derived from its own id would report a check that cannot fail as one
+// that passed. The kebab-case half applies to both, because §2.6 item 3 stamps
+// the id onto every record either kind of rule produces.
+func (r *Rule) validateID(path string, stemmed bool) error {
 	stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	switch {
 	case r.ID == "":
 		return &MalformedError{File: path, Field: "id", Problem: "is required"}
-	case r.ID != stem:
+	case stemmed && r.ID != stem:
 		return &MalformedError{
 			File:    path,
 			Field:   "id",
 			Problem: fmt.Sprintf("is %q, but §2.6 requires it to equal the file stem %q", r.ID, stem),
 		}
 	case !idPattern.MatchString(r.ID):
-		return &MalformedError{
-			File:  path,
-			Field: "id",
-			Problem: fmt.Sprintf(
-				"is %q, which is not kebab-case; §2.6 requires %s, and the file must be renamed with it",
-				r.ID, idPattern,
-			),
+		// The remedy is only named where it exists. Telling the author of
+		// an embedded rule to rename a file sends them looking for one
+		// that was never written.
+		problem := fmt.Sprintf("is %q, which is not kebab-case; §2.6 requires %s", r.ID, idPattern)
+		if stemmed {
+			problem += ", and the file must be renamed with it"
 		}
+		return &MalformedError{File: path, Field: "id", Problem: problem}
 	}
 	return nil
 }
