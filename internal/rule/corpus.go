@@ -48,6 +48,15 @@ type Resolved struct {
 	Rule Rule
 	// Source is where that rule came from.
 	Source Source
+	// Path is the file it was read out of: the rule file itself for the two
+	// on-disk layers, and the profile file for a rule embedded in one.
+	//
+	// It is carried because the answers §2.6 owes a user are all files to
+	// open. §2.6.3's pruning has to say where a dead rule is written, and
+	// §2.6.1.2's abort has to name the file holding the pattern that would
+	// not compile. Neither Source nor the id is a file: two layers can spell
+	// one id, and a profile's array has no file name of its own.
+	Path string
 }
 
 // Resolve returns the rule corpus for one repository, in §2.6 item 1's order:
@@ -132,13 +141,15 @@ type corpus struct {
 // won it. §2.6 item 2 makes the id unique after resolution, so the shadowed
 // rule is left out of the corpus rather than demoted, and there is no second
 // entry to place.
-func (c *corpus) add(source Source, rules []Rule) {
+func (c *corpus) add(source Source, rules []Resolved) {
 	for at := range rules {
-		if _, shadowed := c.taken[rules[at].ID]; shadowed {
+		if _, shadowed := c.taken[rules[at].Rule.ID]; shadowed {
 			continue
 		}
-		c.taken[rules[at].ID] = struct{}{}
-		c.rules = append(c.rules, Resolved{Rule: rules[at], Source: source})
+		c.taken[rules[at].Rule.ID] = struct{}{}
+		resolved := rules[at]
+		resolved.Source = source
+		c.rules = append(c.rules, resolved)
 	}
 }
 
@@ -152,7 +163,7 @@ func (c *corpus) add(source Source, rules []Rule) {
 // Entries that are not rule files — a subdirectory, an editor's backup, a
 // README — are skipped rather than rejected, because §2.2 fixes the rule file
 // name as <id>.json and says nothing about what else may sit beside it.
-func loadDir(dir string) ([]Rule, error) {
+func loadDir(dir string) ([]Resolved, error) {
 	entries, err := os.ReadDir(dir)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -160,16 +171,17 @@ func loadDir(dir string) ([]Rule, error) {
 	case err != nil:
 		return nil, &MalformedError{File: dir, Problem: "cannot be listed: " + err.Error()}
 	}
-	rules := make([]Rule, 0, len(entries))
+	rules := make([]Resolved, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), fileExt) {
 			continue
 		}
-		r, err := Load(filepath.Join(dir, entry.Name()))
+		path := filepath.Join(dir, entry.Name())
+		r, err := Load(path)
 		if err != nil {
 			return nil, err
 		}
-		rules = append(rules, r)
+		rules = append(rules, Resolved{Rule: r, Path: path})
 	}
 	sortByID(rules)
 	return rules, nil
@@ -188,8 +200,8 @@ func loadDir(dir string) ([]Rule, error) {
 // nothing about a collision inside one layer because there is no answer to
 // give: neither element is above the other, and taking the first would enforce
 // one of two standards its author wrote and never mention the other.
-func parseProfileRules(profilePath string, raw []json.RawMessage) ([]Rule, error) {
-	rules := make([]Rule, 0, len(raw))
+func parseProfileRules(profilePath string, raw []json.RawMessage) ([]Resolved, error) {
+	rules := make([]Resolved, 0, len(raw))
 	first := make(map[string]int, len(raw))
 	for at, data := range raw {
 		r, err := parse(profilePath, data, fromProfile)
@@ -208,7 +220,7 @@ func parseProfileRules(profilePath string, raw []json.RawMessage) ([]Rule, error
 			}
 		}
 		first[r.ID] = at
-		rules = append(rules, r)
+		rules = append(rules, Resolved{Rule: r, Path: profilePath})
 	}
 	sortByID(rules)
 	return rules, nil
@@ -247,6 +259,6 @@ func element(at int) string {
 // sorts before `a-b.json` because `.` is above `-`, while by id `a` comes
 // before `a-b`. os.ReadDir hands back file-name order, so relying on it would
 // order most corpora right and one shape of id wrong.
-func sortByID(rules []Rule) {
-	slices.SortFunc(rules, func(a, b Rule) int { return strings.Compare(a.ID, b.ID) })
+func sortByID(rules []Resolved) {
+	slices.SortFunc(rules, func(a, b Resolved) int { return strings.Compare(a.Rule.ID, b.Rule.ID) })
 }
