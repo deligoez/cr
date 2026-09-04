@@ -78,3 +78,25 @@ func TestEjectingRolesCarriesNoRuleText(t *testing.T) {
 	}
 }
 
+// The built-in roles carry no rule text either, which is the half the eject
+// above cannot see.
+//
+// §2.6 keeps rules and roles apart — a role is a lens and supplies prose, a
+// rule is a specific standard and is data — and the failure mode this closes is
+// a standard written into a role's `instructions` because that was the only
+// channel that existed. A role saying it is checked by §4.6.1's fan-out instead
+// leaves the standard where §2.6 item 2 can override it and §2.6.3.4 can report
+// it dead.
+func TestNoBuiltinRoleCarriesARuleAsProse(t *testing.T) {
+	shipped := role.Builtins()
+	require.NotEmpty(t, shipped)
+
+	for id, content := range shipped {
+		var carried map[string]any
+		require.NoError(t, json.Unmarshal([]byte(content), &carried))
+		_, named := carried["rules"]
+		assert.Falsef(t, named,
+			"§2.5's table gives a role no rules field, and %s carries one", id)
+	}
+}
+
