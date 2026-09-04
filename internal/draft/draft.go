@@ -66,5 +66,48 @@ func block(record *finding.Finding) string {
 // what §7.1 requires here is that the region exist, be the user's, and be
 // non-empty, since §8.1.3 refuses to post an empty body.
 func body(record *finding.Finding) string {
-	return record.Summary
+	if record.Suggestion == "" {
+		return record.Summary
+	}
+	return record.Summary + "\n\n" + suggestion(record)
+}
+
+// machineGenerated is §7.1.3's label for a suggestion `suggestion_origin: rule`
+// marks, and it says what cr does not know rather than only where the text came
+// from.
+//
+// §2.6.2.4 is the whole sentence: cr cannot establish that a generated
+// replacement compiles, parses, or preserves behaviour. A label reading only
+// "machine generated" leaves the reviewer to supply that themselves, and the
+// register of this draft is P2's — what cr cannot establish is said, not
+// implied. It is English here for the reason §6.1.1's summary is: §8.1.2 has
+// the agent rewrite the body into `render.lang` before the author reads it.
+const machineGenerated = "Machine generated from the rule's fix. `cr` cannot establish that this " +
+	"replacement compiles, parses, or preserves behaviour."
+
+// suggestion is §7.1.3's fenced `suggestion` block, labelled when the record
+// carries `suggestion_origin: rule`.
+//
+// The fence is GitHub's, and the language tag is what makes the block a
+// one-click replacement of the anchored lines rather than a quotation of them.
+// §8.2 is what decides those lines are the right ones; nothing here re-reads
+// them.
+//
+// The label is absent for a suggestion the agent wrote, and that asymmetry is
+// the point. §2.6.2.4 asks for it of a machine-generated replacement alone, and
+// a label on every suggestion would say nothing about any of them — the
+// reviewer would stop reading it, which is the same as not printing it.
+//
+// It sits inside the agent's own region rather than in a `cr`-owned one, which
+// §8.1.3 delimits and regenerates. That is §7.1's arrangement and not an
+// oversight: the body is free-form, the agent rewrites it in `render.lang`, and
+// the label travels with the block it describes. §8.1.6's provenance region is
+// the enforced disclosure, and it is generated at render and post time from the
+// same field this reads.
+func suggestion(record *finding.Finding) string {
+	block := "```suggestion\n" + record.Suggestion + "\n```"
+	if record.SuggestionOrigin != finding.OriginRule {
+		return block
+	}
+	return machineGenerated + "\n\n" + block
 }
