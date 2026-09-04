@@ -103,3 +103,22 @@ func TestAHitIsNeverAttachedToALeftUnit(t *testing.T) {
 	assert.Empty(t, by["u4"], "§2.6.1.1 evaluates no removed line, so no hit is about one")
 }
 
+// Every unit gets an entry, and a unit no rule matched gets an empty list.
+//
+// §4.6.1 emits one prompt per role and unit. A unit left out of this answer
+// would reach its prompt with nothing said about rules, which a role reads as
+// the same thing as a unit cr checked and found clean — and §12.3's `[]` is
+// what says the second and only the second.
+func TestEveryUnitIsAnsweredForEvenWithNoHits(t *testing.T) {
+	units := attachUnits()
+
+	attached := Attach(units, nil)
+
+	require.Len(t, attached, len(units))
+	for at, answer := range attached {
+		assert.Equal(t, units[at].ID, answer.Unit, "the units are answered for in order")
+		assert.NotNil(t, answer.Hits, "§12.3: an empty list is [] and never null")
+		assert.Empty(t, answer.Hits)
+	}
+}
+
