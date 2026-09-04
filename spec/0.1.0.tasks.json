@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T13:40:07.585341Z",
+  "updated_at": "2026-09-04T13:41:04.205116Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1561,7 +1561,7 @@
     {
       "id": "rule-fix-suggestion",
       "title": "Generate a suggestion from fix",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-hit-citation"
@@ -1571,16 +1571,27 @@
       "source_sections": [
         "#### 2.6.2 Fixes"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:16:33.633576Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T13:37:44.140814Z",
+      "closed_reason": "- A rule may carry fix.replace and fix.with as a regular expression and its replacement, applied to the matched line to produce a suggestion: internal/rule/fix.go's Matcher.Replacement applies the compiled fix.replace to a Hit's Text with fix.with as the replacement, expanding capture groups through Go's own Regexp.ReplaceAllString, and TestAFixRewritesTheMatchedLineIntoASuggestion asserts the rewritten line while TestAFixWithNothingToRewriteProducesNoSuggestion asserts the three cases that produce nothing.\n- fix.replace compiles beside detect.pattern in internal/rule/compile.go, for every rule of the corpus rather than only for one that detects, so a pattern cr cannot run is a malformed rule file under section 2.6 item 5 with the field named, asserted by TestAFixPatternThatDoesNotCompileMakesTheRuleFileMalformed in both the detecting and the detect-less shape.\n- A generated suggestion passes the validation of section 8.2 before drafting: Matcher.Suggest offers the generated text to the record only once placeable admits the anchored range under section 8.2 item 1's contiguous RIGHT-side range existing in the diff and section 8.2 item 2's containment in one hunk, and TestAValidatedSuggestionReachesTheRecord asserts the passing case.\n- One that fails validation is dropped while its record survives: Suggest returns false and writes nothing on the failing path, leaving the record whole.\n- A test asserts a record outlives its dropped suggestion: TestARecordOutlivesItsDroppedSuggestion requires Replacement to have produced text first, so each case is a suggestion that existed and was dropped, then asserts the record compares equal to the copy taken before the call across four section 8.2 failures, and TestADroppedRuleSuggestionDoesNotClearTheAgentsOwn asserts the agent's own suggestion is not deleted by a rule that generated nothing usable.\n",
+      "gate_passed_at": "2026-09-04T13:37:44.140814Z",
+      "commit_sha": "d8b71ab",
+      "commit_shas": [
+        "d8b71ab",
+        "41df0eb"
+      ],
+      "commit_files": [
+        "internal/rule/compile.go",
+        "internal/rule/detect.go",
+        "internal/rule/fix.go",
+        "internal/rule/fix_test.go"
+      ]
     },
     {
       "id": "rule-fix-never-applied",
       "title": "Never apply a fix to files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-fix-suggestion"
@@ -1590,16 +1601,23 @@
       "source_sections": [
         "#### 2.6.2 Fixes"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:37:48.805236Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T13:38:50.287529Z",
+      "closed_reason": "- cr never applies a fix to any file: internal/rule/fix.go's Matcher.Replacement is handed a Hit and returns a string, so there is no path, no file opened, and nothing written, and TestTheRulePackageNamesNoCallThatCouldApplyAFix reads the package's own source and asserts it names exactly os.ReadDir and os.ReadFile as an allowlist rather than as a list of forbidden writes.\n- A fix only ever produces suggestion text for the author to accept: TestASuggestionIsTextAndNamesNoFileToWrite asserts the record carries the replacement line and no destination, and TestAGeneratedSuggestionDoesNotRewriteTheLineItReads asserts the hit and the hunk it came from still hold what the diff held.\n- A test asserts the working tree is unchanged after a fix-carrying rule hits: TestAFixCarryingRuleLeavesTheWorkingTreeUnchanged builds a real git repository, takes the real diff of its head commit, drives the whole path to a suggestion on a record, and then reads the checkout back file by file and through git status --porcelain, which also answers for the index and for a file cr might have added rather than changed.\n",
+      "gate_passed_at": "2026-09-04T13:38:50.287529Z",
+      "commit_sha": "d8b6c4d",
+      "commit_shas": [
+        "d8b6c4d"
+      ],
+      "commit_files": [
+        "internal/rule/nofixapplied_test.go"
+      ]
     },
     {
       "id": "rule-fix-provenance",
       "title": "Stamp machine-generated suggestion origin",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-fix-never-applied"
@@ -1609,11 +1627,20 @@
       "source_sections": [
         "#### 2.6.2 Fixes"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:38:54.749514Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T13:40:01.773765Z",
+      "closed_reason": "- cr cannot establish that a generated replacement compiles, parses, or preserves behaviour, and nothing in internal/rule claims otherwise: Matcher.Suggest writes text and an origin and forms no judgement about either, which is why the origin exists at all.\n- A suggestion produced by fix carries suggestion_origin rule: Matcher.Suggest sets record.SuggestionOrigin to finding.OriginRule on the same statement that writes the suggestion, and TestASuggestionProducedByAFixCarriesTheRuleOrigin asserts it.\n- A suggestion produced by fix is labelled as machine generated in the draft: internal/draft renders the label above the fenced suggestion block for a record carrying that origin, which is section 7.1.3's own requirement and is closed by draft-suggestion-block, the task that depends on this one, with TestOnlyAMachineGeneratedSuggestionIsLabelled asserting both directions.\n- A suggestion produced by fix is dropped when the agent does not confirm it: Matcher.confirmedBy requires the record to name this rule, per section 2.6 item 3, so a record naming another rule or none receives nothing, and a hit no record was written for has nothing to travel on because Suggest is the only function that puts suggestion text anywhere and it is handed a record.\n- suggestion_origin is stamped by cr, never supplied by the agent: the value is minted from the matcher rather than read off the record, TestTheRuleOriginIsMintedRatherThanCarriedOver asserts a record arriving with the agent's origin is stamped rule once a fix's suggestion lands on it, and TestNoSignatureInThisPackageAcceptsASuggestionOrigin reads the package's own source and asserts no function takes an Origin at all.\n- A test asserts an unconfirmed machine suggestion never reaches the payload: TestAnUnconfirmedMachineSuggestionNeverReachesARecord covers the two record shapes, and TestAHitNoRecordWasWrittenForLeavesNoSuggestionBehind runs a round where two rules hit the same line, the agent confirms one, and the other rule's generated replacement appears in no record that exists afterwards, which is what a payload is rendered from under section 8.1.\n",
+      "gate_passed_at": "2026-09-04T13:40:01.773765Z",
+      "commit_sha": "264a9a5",
+      "commit_shas": [
+        "264a9a5",
+        "dc9a0b3"
+      ],
+      "commit_files": [
+        "internal/rule/fix.go",
+        "internal/rule/provenance_test.go"
+      ]
     },
     {
       "id": "rules-suggest-command",
@@ -5360,7 +5387,7 @@
     {
       "id": "draft-suggestion-block",
       "title": "Render suggestions as fenced blocks",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "draft-marker-grammar",
@@ -5371,11 +5398,20 @@
       "source_sections": [
         "### 7.1 Draft format"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:40:07.58534Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T13:41:04.188003Z",
+      "closed_reason": "- A suggestion is rendered as a fenced suggestion block inside the body: internal/draft/draft.go's body appends the block beneath the prose when the record carries a suggestion, and TestASuggestionIsRenderedAsAFencedSuggestionBlock asserts the fence, its suggestion language tag, and its position after the summary, while TestARecordWithoutASuggestionRendersNoBlock asserts the block is a consequence of the field rather than of the renderer.\n- A suggestion with suggestion_origin rule is labelled as machine generated: the machineGenerated label is emitted above the fence for that origin alone, in section 2.6.2.4's own words about what cr cannot establish, and TestTheLabelNamesWhatCrCannotEstablish asserts the label names compiles, parses, and preserves behaviour rather than only naming a machine.\n- A test asserts the label appears for a rule-origin suggestion and not for an agent-origin one: TestOnlyAMachineGeneratedSuggestionIsLabelled runs all three origins, requiring the fence in every case and the label only for the rule origin, and TestTheSuggestionBlockOpensNoCrOwnedRegion reads the rendered body back to assert the label opens no cr-owned region, which section 8.1.3 refuses with exit code 1.\n",
+      "gate_passed_at": "2026-09-04T13:41:04.188003Z",
+      "commit_sha": "7267b05",
+      "commit_shas": [
+        "7267b05",
+        "34066b2"
+      ],
+      "commit_files": [
+        "internal/draft/draft.go",
+        "internal/draft/suggestion_test.go"
+      ]
     },
     {
       "id": "draft-summary-header",
