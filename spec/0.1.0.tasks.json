@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T11:01:22.32148Z",
+  "updated_at": "2026-09-04T11:55:26.040757Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1456,7 +1456,7 @@
     {
       "id": "rule-hit-citation",
       "title": "Record a hit as citation",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-pattern-compilation"
@@ -1466,11 +1466,18 @@
       "source_sections": [
         "#### 2.6.1 Detection"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T11:01:33.726784Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T11:55:26.029986Z",
+      "closed_reason": "- internal/rule/citation.go Hit.Citation renders one §2.6.1.1 hit as the §6.1 citations entry §2.6.1.3 requires, carrying the matched path, the matched line and origin rule and nothing else. TestAHitBecomesACitationCarryingPathLineAndRuleOrigin asserts the whole struct rather than field by field. No content hash is written, because §6.2.3 has cr compute and store that at record time against the head the record is being written for, and §6.2's cited row reads its presence as the mark of an entry cr actually resolved.\n- The rule id is left out of the citation and belongs on the record's own rule field per §2.6 item 3. TestTheRuleIDIsCarriedOnTheRecordAndNotInTheCitation walks the citation reflectively rather than naming its fields, so a rule key added to §6.1's citation shape later fails there. §6.2.5 matches a citation to a hit by head and rule id and path and line together, so an id inside the citation would be a second copy of one of the four halves of that match, able to disagree with the record carrying it.\n- TestTheOriginIsStampedByCrAndCannotBeSupplied asserts the signature and not only the value. Citation takes nothing but the receiver, so there is no parameter through which an agent could supply an origin, and the only way to obtain a rule-origin citation is to have run detection and be holding its Hit. That matters because §6.2.5 rejects a record arriving with any origin at all, and because origin rule is what buys §6.2's cited row for a citation inside the record's own unit.\n- TestARuleCitationMayGradeCitedRatherThanDoes gives one citation four fates through finding.ComputeGrade. It grades cited on the convention axis once cr has stamped the content hash, and argued on the test axis, argued before cr resolved it, and argued on an axis cr never computed. The test axis row is the one §2.6.1.3 is misreadable about, since §4.4.2 has a test-adequacy finding assert only with an experiment.\n- Dogfooded the whole chain against an isolated CR_HOME and a real diff of this repository. One rule file resolved, compiled to one matcher, produced one hit, and serialised to the citation path internal slash rule slash detect_test.go line 52 with origin rule and no other key. The same record then graded cited on convention and argued on test, and argued again before the hash was stamped.\n- A full mutation run over internal with a timeout coefficient of five and four workers reported 1387 killed, 25 lived, 138 not covered and 9 timed out. Two survivors fell in code this unit wrote. The arithmetic on the capacity hint in Resolve is equivalent, confirmed by applying the mutation by hand and watching the suite stay green, and the same line survives in internal/role where the pattern was taken from. The negation on MalformedError.Error was a real gap, so internal/rule/message_test.go now asserts both sentence shapes and the reachable field-less case a profile's rules array produces, and inverting the branch by hand fails it.\n- Gate green at go test -race ./... and golangci-lint run with zero issues and scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-09-04T11:55:26.029986Z",
+      "commit_sha": "e515763",
+      "commit_shas": [
+        "e515763"
+      ],
+      "commit_files": [
+        "internal/rule/message_test.go"
+      ]
     },
     {
       "id": "rule-without-detect-injection",
