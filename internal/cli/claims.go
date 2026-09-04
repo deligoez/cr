@@ -58,6 +58,31 @@ func newClaimsCmd(out *writer) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newClaimsRecordCmd(out))
+	cmd.AddCommand(newClaimsSetAsideCmd())
+	return cmd
+}
+
+// newClaimsSetAsideCmd registers §11's
+// `cr claims set-aside <pr> <claim-id> --note <note-id>`, which §4.1.8 has
+// stamp `set_aside_note` on an intent gap entry after checking the note exists
+// for the pull request's issue key.
+//
+// `--note` is not optional decoration. §4.1.3 writes an unimplemented claim to
+// `intent-gaps.ndjson` and §10.2.3 lets it block completeness until it is
+// mapped or set aside, so the note is the whole of what a set-aside rests on:
+// judging a claim out of scope is the agent's call, never cr's, and the note id
+// is where that call is recorded. A set-aside with nothing behind it would be
+// cr forming the opinion §4.1.8 denies it.
+//
+// The behaviour belongs to claims-set-aside-command; what is registered here is
+// the shape.
+func newClaimsSetAsideCmd() *cobra.Command {
+	cmd := stubCmd(
+		"set-aside "+prPlaceholder+" <claim-id>",
+		"Mark an unimplemented claim out of scope",
+		prArgs(2),
+	)
+	cmd.Flags().String("note", "", "the note id recording why the claim is out of scope (§4.1.8)")
 	return cmd
 }
 
