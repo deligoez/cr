@@ -83,3 +83,20 @@ func TestACitationMayNotCarryTheRuleID(t *testing.T) {
 	assert.Contains(t, rejected.Error(), "§2.6.1.3")
 }
 
+// The type has no room for the id either, which is the half a wire-level
+// refusal cannot cover.
+//
+// A field on Citation would be filled by cr's own code rather than by an
+// agent's line, so nothing above would see it. §6.1 enumerates a citation's
+// four fields and §2.6.1.3 puts the id elsewhere, so the struct is read here
+// against that list rather than against a copy of itself.
+func TestTheCitationTypeHoldsNoRuleID(t *testing.T) {
+	names := make([]string, 0, len(CitationFields()))
+	for _, field := range CitationFields() {
+		names = append(names, field.Name)
+	}
+	require.Equal(t, []string{"path", "line", "content_hash", "origin"}, names)
+
+	assert.Equal(t, names, wireNames(reflect.TypeFor[Citation]()),
+		"§2.6.1.3: a citation carries the match and not the rule that made it")
+}
