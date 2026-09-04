@@ -122,3 +122,21 @@ func TestEveryUnitIsAnsweredForEvenWithNoHits(t *testing.T) {
 	}
 }
 
+// §4.3.5: cr enforces no convention of its own.
+//
+// The corpus of a tree with no rule files anywhere is empty, which is what
+// "never from hard-coded logic" comes to in code: there is no built-in layer
+// for Resolve to add, nothing is embedded in the binary, and every rule cr
+// evaluates was written into a file the project owns. Reinvention is the one
+// convention cr computes itself, and §4.3.1 gives it its own machinery outside
+// the corpus.
+func TestAnInstallationWithNoRuleFilesEnforcesNoConvention(t *testing.T) {
+	corpus, err := Resolve(t.TempDir(), t.TempDir(), profileFile, nil)
+	require.NoError(t, err)
+	assert.Empty(t, corpus, "§4.3.5: a convention cr shipped would resolve here")
+
+	matchers, err := Compile(corpus)
+	require.NoError(t, err)
+	assert.Empty(t, Evaluate(matchers, nil))
+	assert.Empty(t, Injected(corpus, "convention"))
+}
