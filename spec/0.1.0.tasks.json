@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T12:31:24.029167Z",
+  "updated_at": "2026-09-04T12:37:37.16096Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1496,7 +1496,7 @@
     {
       "id": "rule-without-detect-injection",
       "title": "Inject detect-less rules into prompts",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-hit-citation"
@@ -1506,11 +1506,18 @@
       "source_sections": [
         "#### 2.6.1 Detection"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T12:33:34.597769Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T12:37:37.141854Z",
+      "closed_reason": "- A rule without a detect block is injected into its axis role's prompt as text, and any record it produces is graded normally per §6.2. internal/rule/injection.go's Injected returns every resolved rule of one axis carrying no detect block, in §2.6 item 1's corpus order, and Resolved.Injection renders one as the text §2.6.1.4 puts into the prompt. It is Compile's other half, and TestEveryResolvedRuleIsEitherCompiledOrInjected holds the two to being exhaustive and disjoint, so no rule can fall between them and be enforced by neither while the coverage report says the axis ran. Normal grading is a property of what the injection withholds rather than of a rule applied later: a detect-less rule compiles to no matcher, so §2.6.1.1 records no hit and §6.2.5 has nothing to stamp origin rule against, and the text names no path and no line for a citation to be built out of. TestAnInjectedRuleHandsTheRecordNoEvidence asserts both halves.\n- The injection reaches the prompt through §4.6.1's fan-out, not through the role's own instructions file. TestTheRolePackageCannotReadARule reads the imports of every file under internal/role and refuses one that names internal/rule, so the other route is closed by construction rather than by nobody having taken it. TestEjectingRolesCarriesNoRuleText runs cr init, plants a detect-less rule in the state tree, ejects the roles and asserts every file is the built-in byte for byte with neither the title nor the rationale in it. That is the case worth running: §2.5.2 forbids overwriting an ejected role, so a standard folded into one on eject day would be frozen there, unreachable by an edit to the rule, by §2.6 item 2's layering and by §2.6.3.4's dead-rule report. TestNoBuiltinRoleCarriesARuleAsProse closes the shipped corpus against the same mistake.\n- A test asserts a detect-less rule's title and rationale appear in the emitted prompt. TestTheInjectedTextCarriesTheTitleAndTheRationale asserts both, and alongside them the rule id §2.6 item 3 requires every record from the rule to carry, the resolved path §2.6 item 2 makes the answer to which layer won, and the class, severity and kind §2.6's table gives records from the rule. It asserts them of what Injected hands the fan-out and not of a rendered prompt, because §4.6.1's emission is review-prompt-emission's and cr review is a registered stub in this build. This is the shape testadequacy.Attach and PerUnit already take for §4.4.1's half of the same prompt, and deadcode ./... lists Injected and Resolved.Injection as test-only for the same reason it lists those two: the task that wires them is review-prompt-emission.\n",
+      "gate_passed_at": "2026-09-04T12:37:37.141854Z",
+      "commit_sha": "0708092",
+      "commit_shas": [
+        "0708092"
+      ],
+      "commit_files": [
+        "internal/cli/ruleinjection_test.go"
+      ]
     },
     {
       "id": "unconfirmed-hit-dropped",
