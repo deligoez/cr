@@ -41,3 +41,25 @@ func TestARuleProducedRecordWithoutTheRuleIDIsRejected(t *testing.T) {
 		"the id the record named is the id it carries")
 }
 
+// The mark is what makes the record answerable, not the presence of a
+// suggestion.
+//
+// Two records are one field apart here. A record with the same suggestion and
+// `suggestion_origin: agent` is the agent's own work and §2.6 asks nothing of
+// it, and a record naming a rule while wearing no mark at all is a record the
+// agent attributed itself, which §6.1 marks optional and admits. Without both
+// halves the assertion above would also pass a validator that simply required
+// `rule` on every record carrying a suggestion.
+func TestOnlyTheRuleMarkRequiresTheID(t *testing.T) {
+	agents := aRecord()
+	agents["suggestion"] = "if err != nil {"
+	agents["suggestion_origin"] = "agent"
+	assert.Empty(t, accepts(t, agents).Rule,
+		"§2.6 asks nothing of a suggestion the agent wrote")
+
+	attributed := aRecord()
+	attributed["rule"] = "handle-every-error"
+	assert.Equal(t, "handle-every-error", accepts(t, attributed).Rule,
+		"§6.1 marks `rule` optional, so a record may name one with no mark on it")
+}
+
