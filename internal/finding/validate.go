@@ -171,7 +171,10 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 			),
 		}
 	}
-	return nil
+	// §2.6 item 3 and §2.6.1.3, last because they read what the walk above
+	// established: the record parsed, its required fields are there, and
+	// what is left is whether a rule stands behind it and is named.
+	return c.ruleAttribution(line, supplied, record)
 }
 
 // computed holds one line to §6.1.4: `cr` writes the computed fields, and a
