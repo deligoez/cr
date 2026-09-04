@@ -60,13 +60,40 @@ func (m *Matcher) Replacement(hit *Hit) (string, bool) {
 // record arriving with a suggestion of its own carries `suggestion_origin:
 // agent` under §6.1's table, and clearing the field here would delete the
 // agent's own work in the name of a rule that produced nothing usable.
+//
+// `suggestion_origin: rule` is stamped here and taken from nowhere. §2.6.2.4
+// requires it of a suggestion `fix` produced, and the value is minted from the
+// matcher rather than read off the record for the reason Hit.Citation gives
+// about `origin`: a field the caller could supply is a field an agent could
+// supply, and this one is what §8.1.6 reads to disclose weak provenance to the
+// author. An agent able to write it could equally withhold it, and the
+// disclosure would be the one thing a machine-generated replacement leaves out.
 func (m *Matcher) Suggest(record *finding.Finding, hit *Hit, hunks []git.Hunk) bool {
 	text, produced := m.Replacement(hit)
-	if !produced || !placeable(&record.Anchor, hunks) {
+	if !produced || !m.confirmedBy(record) || !placeable(&record.Anchor, hunks) {
 		return false
 	}
-	record.Suggestion = text
+	record.Suggestion, record.SuggestionOrigin = text, finding.OriginRule
 	return true
+}
+
+// confirmedBy reports whether the record is the agent's confirmation of this
+// rule's hit, which §2.6.1.5 requires before anything a rule found reaches a
+// draft and §2.6.2.4 requires again of the suggestion itself.
+//
+// Naming the rule is what confirmation looks like on a record. §2.6 item 3 has
+// every record a rule produced carry the rule id, so a record carrying this
+// one's is the agent saying it read the hit and stands behind it — and a record
+// carrying another rule's id, or none, is a finding the agent wrote about the
+// same lines for its own reasons. Attaching a machine-generated replacement to
+// that record would put text the agent never confirmed under a comment the
+// agent wrote, which is the pairing §2.6.1.5 exists to prevent.
+//
+// A hit nobody wrote a record for is answered by the signature. There is no
+// record to be handed here, and no other function of this package puts
+// suggestion text anywhere, so an unconfirmed hit has nothing to travel on.
+func (m *Matcher) confirmedBy(record *finding.Finding) bool {
+	return record.Rule == m.Rule.ID
 }
 
 // placeable reports whether §8.2 admits a suggestion replacing the record's
