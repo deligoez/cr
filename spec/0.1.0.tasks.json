@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T10:54:48.130338Z",
+  "updated_at": "2026-09-04T11:01:22.32148Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1430,7 +1430,7 @@
     {
       "id": "rule-pattern-compilation",
       "title": "Compile detect patterns as Go regexp",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-detection-scope"
@@ -1440,11 +1440,18 @@
       "source_sections": [
         "#### 2.6.1 Detection"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T10:55:36.164378Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T11:01:22.306812Z",
+      "closed_reason": "- internal/rule/compile.go Compile reads detect.mode against the ModeRegex constant and compiles detect.pattern with Go's regexp package, so §2.6.1.2's two requirements are held in one place and every Matcher handed to §2.6.1.1's evaluation carries a pattern that compiled. TestCompileProducesTheRulesOwnPattern asserts the compiled pattern is the rule's own by matching a line it should catch and one it should not.\n- A pattern that fails to compile returns a rule.MalformedError naming the rule id, the field detect.pattern and the file the rule is written in, which internal/cli/exit.go already maps onto ExitFile. TestAPatternThatDoesNotCompileAbortsNamingTheRule pins the field and the id, and internal/cli/rulepattern_test.go asserts exitCodeFor gives the file code both bare and wrapped. TestTheAbortNamesTheFileTheRuleIsWrittenIn checks the named file per layer, a rule file naming itself and an embedded rule naming its profile.\n- Any detect.mode other than regex returns the same error type on the same code, covered by TestAModeOtherThanRegexAborts over glob, literal, substring, REGEX, Regex, a leading space and the empty string. The upper and mixed case rows are there because a value accepted case-insensitively would make the closed set larger than the one word the section wrote.\n- A blank mode is refused rather than defaulted, and that decision is written into the constant's comment. §2.6's table gives axis and severity and kind a default in the table itself and gives mode none, because §2.6.1.2 states the requirement in the section that runs the pattern instead. Reading regex into a blank mode would be cr choosing a semantics for a detector its author never finished describing, which is right today and wrong the first time a second mode exists.\n- The mode is read before the pattern, asserted by TestAnUnsupportedModeIsReportedBeforeThePatternIsRead. A block declaring a mode cr does not have is a block whose pattern cr has no way to read, so compiling first would report a pattern valid in another dialect as a broken regular expression.\n- internal/rule/corpus.go now records the file each resolved rule was read from, which the abort needs to name one. That closed a gap the previous task left, where Resolved's own comment claimed §2.6.3 could say which file a dead rule is written in while carrying only the layer and the id.\n- Dogfooded against real rule files under an isolated CR_HOME. A good rule compiled and produced eight hits over a real diff of this repository, a rule with a blank mode reported detect.mode of rule prefer-value-objects is empty and §2.6.1.2 admits only regex in v0.1, and a rule with an unparseable pattern reported detect.pattern of rule handle-every-error is not a Go regexp with Go's own parse error, each naming its file.\n- Gate green at go test -race ./... and golangci-lint run with zero issues and scripts/deadcode.sh.\n",
+      "gate_passed_at": "2026-09-04T11:01:22.306812Z",
+      "commit_sha": "b568cbb",
+      "commit_shas": [
+        "b568cbb"
+      ],
+      "commit_files": [
+        "internal/cli/rulepattern_test.go"
+      ]
     },
     {
       "id": "rule-hit-citation",
