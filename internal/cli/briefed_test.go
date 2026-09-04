@@ -60,8 +60,14 @@ var section37Obliges = [][]string{
 }
 
 // stillAbsent are the commands of that list §11 has not built yet, spelled the
-// way they are typed. A command drops out of here the moment it is registered,
-// and the guard below then requires it to have an invocation in briefRuns.
+// way they are typed. A command drops out of here the moment it is built, and
+// the guard below then requires it to have an invocation in briefRuns.
+//
+// Registration is no longer what puts a command here. command-surface-stubs
+// registers every §11 row's argument shape ahead of its behaviour, so `cr
+// review` resolves in the tree and reads nothing at all; what the guard asks
+// instead is whether the command carries stubAnnotation, which is removed by
+// the commit that builds it.
 var stillAbsent = []string{"review"}
 
 // unbriefedInputs writes the files the guarded commands are pointed at and
@@ -139,12 +145,12 @@ func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T)
 // yet built, and neither state is assumed.
 //
 // The criterion asks for a test that runs `cr review`, `cr cells record` and
-// `cr map record` against a pull request that was never briefed. None of the
-// three exists in v0.1 yet, and a test written against a command that is not
-// there would assert nothing while looking like it asserted everything. So the
-// absence is the assertion: the moment one of them is registered it drops out
-// of the list below and this test fails until it has an invocation in briefRuns
-// — where the guard above then runs it and requires exit 4.
+// `cr map record` against a pull request that was never briefed. Not all three
+// are built in v0.1 yet, and a test written against a command that does nothing
+// would assert nothing while looking like it asserted everything. So the
+// absence is the assertion: the moment one of them is built it drops out of the
+// list below and this test fails until it has an invocation in briefRuns —
+// where the guard above then runs it and requires exit 4.
 func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
 	claims, issue, merged, cells, pairs := unbriefedInputs(t)
 	guarded := briefRuns(claims, issue, merged, cells, pairs)
@@ -154,6 +160,15 @@ func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
 		name := strings.Join(path, " ")
 		found, _, err := newRootCmd().Find(path)
 		if err != nil || found.Name() != path[len(path)-1] {
+			absent = append(absent, name)
+			continue
+		}
+		// A command whose surface is registered ahead of its behaviour
+		// reads no state and so cannot refuse for the reason this
+		// guard is about. It counts as absent until stubAnnotation
+		// comes off, which is exactly when it starts reading
+		// units.ndjson.
+		if _, stub := found.Annotations[stubAnnotation]; stub {
 			absent = append(absent, name)
 			continue
 		}
