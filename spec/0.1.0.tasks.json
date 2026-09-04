@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T11:58:10.780137Z",
+  "updated_at": "2026-09-04T12:21:15.379322Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -90,7 +90,7 @@
     {
       "id": "command-surface-stubs",
       "title": "Register every specified command stub",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cobra-root-command"
@@ -100,11 +100,18 @@
       "source_sections": [
         "## 11. Command surface"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T12:06:05.595845Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-04T12:21:15.356899Z",
+      "closed_reason": "- Every row of §11's table is registered with its documented argument shape and flags. Seven top-level commands were added — internal/cli/review.go (--axis), merge.go (-o/--output, --pr, and §11.1's global --repo), post.go (--confirm, --reconcile), status.go, stats.go, waivers.go (list, remove \u003cid\u003e, --pr), rules.go (list --dead, check \u003cpr\u003e, suggest) — plus internal/cli/claims.go's set-aside \u003cpr\u003e \u003cclaim-id\u003e --note and internal/cli/config.go's --resolved. The rows already built keep the flags they had: init --eject-roles, test --filter, probe run --kind, note --remove. All twenty-six commands a user can type are in the tree, and `cr --help` lists the twenty-two top-level ones.\n- A table-driven test enumerates the §11 rows and asserts each command resolves with its flag set. internal/cli/surface_test.go's specSurface carries one entry per invocable row, and TestTheCommandSurfaceIsTheSpecTable resolves each through cobra's Find, pins the Use line so a dropped positional fails, asserts every flag §11 names resolves, asserts §11's only shorthand -o resolves to --output, and asserts the command's own local flag set is exactly §11's flags plus the declared additions and nothing else. It then compares the table against leafCommands in both directions, so an undocumented command in the tree fails as loudly as a missing one.\n- Unimplemented behaviour returns a not-yet-implemented error carrying a hint. internal/cli/stub.go's notImplementedError names the command cobra resolved and carries notImplementedHint, which tells the caller this is a stub rather than a broken install and to check `cr --version` against the release notes. notImplementedFor names a flag instead of a command, so `cr config --resolved` refuses without claiming that `cr config` is missing. §11.2 gives no code to a registered and unbuilt command, so the refusal takes exitCodeFor's fallback of code 2, pinned by TestAStubRefusesWithItsPathAndAHint rather than by a sixth code that would renumber the five invariant 5 fixes.\n- The surface itself is complete, which means the argument shape is real ahead of the behaviour. TestAStubStillValidatesItsArguments runs every stub's Args validator and requires it to refuse an argument that is not a pull request, so `cr status HEAD` is answered as the usage error it is rather than as a stub refusal. TestAFlagAheadOfItsBehaviourRefuses covers the one flag registered on a command that works.\n- The finding intent-file-bypass raised is confirmed against the spec rather than taken on trust. §11's `cr brief \u003cpr\u003e` row names no flag at all while other rows name theirs, §3.1.4 makes an issue file the stand-in for the tracker command, and CLAUDE.md's manual QA recipe runs `cr brief 1 --repo \u003cowner\u003e/\u003cscratch\u003e --issue CR-1 --intent-file issue.txt`. §11 is therefore incomplete about this row and not silent about a flag that should not exist. The same reading applies to `cr waivers remove`, where §11's row omits a positional that §7.4.7 spells out.\n- `cr brief` registers --intent-file and the table records it as a deliberate addition. specSurface's added field maps every flag a command registers beyond §11's row to the section that requires it, and TestTheCommandSurfaceIsTheSpecTable asserts the command's local flag set equals §11's flags plus exactly those declarations, so an addition is either recorded with its section or it fails the test. `cr brief` declares --intent-file for §3.1.4 and --issue for §3.2, `cr claims record` declares --intent-file for the same reason, `cr probe run` declares the four flags §11's trailing ellipsis stands for, and `cr answer` and `cr note` declare §3.6.1's source and pr. `cr waivers remove \u003cid\u003e` carries §7.4.7's positional and says so in the same place.\n",
+      "gate_passed_at": "2026-09-04T12:21:15.356899Z",
+      "commit_sha": "baaac36",
+      "commit_shas": [
+        "baaac36"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go"
+      ]
     },
     {
       "id": "usage-errors-exit-two",
