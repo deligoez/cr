@@ -253,3 +253,34 @@ func TestAFlagAheadOfItsBehaviourRefuses(t *testing.T) {
 		"the refusal names the whole command, so it reads as `cr config` being missing")
 }
 
+// Every command §11 marks as taking a pull request rejects an argument that is
+// not one, so a stub answers a mistyped command line differently from a correct
+// one.
+//
+// This is what the argument shape buys before the behaviour exists. A stub that
+// accepted anything would give the same message to `cr status 42` and to
+// `cr status HEAD`, and the second is a usage error §11.2 codes 2 whether or
+// not the command is built.
+func TestAStubStillValidatesItsArguments(t *testing.T) {
+	root := newRootCmd()
+
+	checked := 0
+	for _, row := range specSurface {
+		if !row.stub || !strings.Contains(row.use, prPlaceholder) {
+			continue
+		}
+		checked++
+		name := strings.Join(row.path, " ")
+		t.Run(name, func(t *testing.T) {
+			found, _, err := root.Find(row.path)
+			require.NoError(t, err)
+			require.NotNil(t, found.Args, "`cr %s` validates no arguments", name)
+			assert.Error(t, found.Args(found, []string{"not-a-pull-request"}),
+				"`cr %s` accepted an argument that is not a pull request", name)
+			assert.NoError(t, found.Args(found,
+				slices.Repeat([]string{"42"}, strings.Count(row.use, "<"))))
+		})
+	}
+
+	require.NotZero(t, checked, "no stub takes a pull request, so this guard measured nothing")
+}
