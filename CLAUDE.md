@@ -203,15 +203,26 @@ Two rules that make the phase-boundary run worth doing:
    runs here gathered in 21.9s, 22.2s and 24.3s against a 26.7s suite — but
    `go clean -testcache` before a run costs nothing and forecloses it.
 
-   **Wall-clock arithmetic is the cheapest tell of all, and its unit is the
-   package, not the tree.** A healthy run takes roughly
-   `runnable × package-suite ÷ workers`, plus `timeouts × coefficient × baseline
-   ÷ workers`. Measured here: 1218 runnable at a 2.1s package average is 10.7
-   minutes, plus 12 timeouts at 110s is 5.5, giving 16.2 against an observed
-   17m28s. Using the **whole tree's** 26.7s instead predicts 136 minutes and
-   would condemn a healthy run — because default-mode gremlins runs only the
-   mutated package's own tests. Get the unit wrong and the instrument accuses
-   the wrong thing.
+   **The tell to reach for first is the gathering time itself: it should be
+   close to a cold `go test` of what is being mutated.** One number, one
+   comparison, and it measures the quantity that gets corrupted rather than a
+   consequence of it — so it catches the cached baseline and the `--test-cpu`
+   failure alike. Here: 21.9s, 22.2s and 24.3s against a 26.7s suite.
+
+   Wall-clock arithmetic is the obvious second check, and it is **an upper bound
+   only**. A run cannot take much less than `runnable × per-mutant-cost ÷
+   workers`, but per-mutant cost is neither the tree's suite nor reliably the
+   package's: gremlins uses the coverage profile, so a mutant costs the tests
+   that *reach* it. Measured in a sibling repository: 74 runnable against a 73s
+   package suite could not finish under 22 minutes and finished healthy in
+   2m36s, because that package's cost is bimodal — 1.5s of unit tests beside 72s
+   of tests that spawn the binary. The arithmetic condemned a sound run.
+   It appeared to hold here — 1218 runnable at a 2.1s package average predicts
+   10.7 minutes, plus 12 timeouts at 110s, against an observed 17m28s — but that
+   agreement is homogeneity, not confirmation: cr's package suites are all within
+   a small factor of each other, so "this package's tests" and "the tests that
+   reach this mutant" happen to cost about the same. **Read a short run as a
+   question, never as a verdict**, and answer it with the gathering time.
 
    *Which* not-survived status it lands in is machine-dependent, so do not grep
    for one. Here every LIVED and TIMED OUT became KILLED; a sibling repository
