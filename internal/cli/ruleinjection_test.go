@@ -100,3 +100,33 @@ func TestNoBuiltinRoleCarriesARuleAsProse(t *testing.T) {
 	}
 }
 
+// Nothing in internal/role can read a rule, which is what makes the two
+// assertions above hold for code nobody has written yet.
+//
+// The import is the whole of the mechanism. A role's instructions are built in
+// internal/role and nowhere else, so a rule can only reach them through this
+// package — and it cannot, because the dependency does not exist and would have
+// to be added deliberately. §2.6.1.4's injection therefore has one route to a
+// prompt, the fan-out of §4.6.1, and the other route is closed by construction
+// rather than by nobody having taken it yet.
+func TestTheRolePackageCannotReadARule(t *testing.T) {
+	const rolePkg = "internal" + string(filepath.Separator) + "role" + string(filepath.Separator)
+
+	scanned := 0
+	var found []string
+	crSource(t, func(rel string, imports []string) {
+		if !strings.HasPrefix(rel, rolePkg) {
+			return
+		}
+		scanned++
+		for _, name := range imports {
+			if strings.HasSuffix(name, "/internal/rule") {
+				found = append(found, rel+" imports "+name)
+			}
+		}
+	})
+
+	require.NotZero(t, scanned, "no file of internal/role was read, so this guard proved nothing")
+	assert.Empty(t, found,
+		"§2.6.1.4: a rule reaches a prompt through §4.6.1's fan-out, never through a role")
+}
