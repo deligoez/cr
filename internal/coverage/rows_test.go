@@ -44,3 +44,12 @@ func TestRowsCountCompleteRowsAndGapsAsSection1011Does(t *testing.T) {
 	assert.Equal(t, Rows{Units: 3, Complete: 1, Gaps: 2, Oversized: 1, Roles: 2},
 		RowsOf(2, units, active, cells))
 }
+
+// §10.2.2 asks for a complete row for every active role, and a round with no
+// active role asks for nothing. The count of roles travels with the count of
+// rows so that answer is never read as coverage without the zero beside it.
+func TestWithNoActiveRoleEveryRowIsCompleteAgainstZeroRoles(t *testing.T) {
+	rows := RowsOf(1, []unit.Unit{{ID: "u1", Hash: "h1"}}, []string{}, []Cell{})
+
+	assert.Equal(t, Rows{Units: 1, Complete: 1, Roles: 0}, rows)
+}
