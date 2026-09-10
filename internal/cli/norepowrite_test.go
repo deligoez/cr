@@ -896,6 +896,12 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 		// renderer is likeliest to answer by writing nothing at all.
 		"draft":      {"draft", fixturePR, "--repo", fixtureSlug},
 		"map record": {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
+		// `cr review` reads the repository as `cr brief` does: §4.6.1
+		// carries the unit's hunks, so it takes §3.4.1's diff at the
+		// recorded head, and §4.3.1 reads the head's blobs for the
+		// symbol index. It sorts after `cr brief`, so there is a round
+		// whose units the diff has to rebuild.
+		"review": {"review", fixturePR, "--repo", fixtureSlug},
 		// `cr brief` is the one command that reads the repository, so
 		// it is the one this guard was widened for: §3.4.1 takes a
 		// diff and §2.4.1 stats marker files, both inside the checkout
@@ -957,7 +963,6 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 // half of the guard.
 func stubRuns(merged, out string) map[string][]string {
 	return map[string][]string{
-		"review": {"review", fixturePR, "--repo", fixtureSlug},
 		// The merged file is one of the round's own inputs, prepared
 		// outside the repository under review like every other input
 		// here, and `-o` names a path outside it too.

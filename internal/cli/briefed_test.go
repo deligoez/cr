@@ -44,6 +44,7 @@ func briefRuns(claims, issue, merged, cells, pairs string) map[string][]string {
 		},
 		"cells record": {"cells", "record", unbriefedPR, cells, "--repo", unbriefedSlug},
 		"map record":   {"map", "record", unbriefedPR, pairs, "--repo", unbriefedSlug},
+		"review":       {"review", unbriefedPR, "--repo", unbriefedSlug},
 	}
 }
 
@@ -68,7 +69,7 @@ var section37Obliges = [][]string{
 // review` resolves in the tree and reads nothing at all; what the guard asks
 // instead is whether the command carries stubAnnotation, which is removed by
 // the commit that builds it.
-var stillAbsent = []string{"review"}
+var stillAbsent []string
 
 // unbriefedInputs writes the files the guarded commands are pointed at and
 // returns their paths, alongside a state root holding no round for the pull

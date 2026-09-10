@@ -63,7 +63,7 @@ var specSurface = []surfaceRow{
 		"intent-file": "§3.1.4",
 		"issue":       "§3.2",
 	}},
-	{path: []string{"review"}, use: "review <pr>", spec: []string{"axis"}, stub: true},
+	{path: []string{"review"}, use: "review <pr>", spec: []string{"axis"}},
 	{path: []string{"claims", "record"}, use: "record <pr> <file>", added: map[string]string{
 		// §3.3 re-reads the issue text to check every claim's span, so
 		// the bypass §3.1.4 gives `cr brief` is needed here too and is
