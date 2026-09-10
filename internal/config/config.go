@@ -367,6 +367,8 @@ func coerce(def, raw any) (any, error) {
 		return toString(raw)
 	case int:
 		return toInt(raw)
+	case float64:
+		return toFloat(raw)
 	case []string:
 		return toStrings(raw)
 	}
@@ -397,6 +399,26 @@ func toInt(raw any) (any, error) {
 		return number, nil
 	}
 	return nil, fmt.Errorf("expected a whole number, got %T", raw)
+}
+
+// toFloat reads a fractional setting. A whole number is accepted as itself, so
+// a threshold written as `1` in a config file means 1.0 rather than a type
+// error: JSON has one number type and a user writing an endpoint of the range
+// writes it without a decimal point.
+func toFloat(raw any) (any, error) {
+	switch value := raw.(type) {
+	case float64:
+		return value, nil
+	case int:
+		return float64(value), nil
+	case string:
+		number, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil {
+			return nil, fmt.Errorf("expected a number, got %q", value)
+		}
+		return number, nil
+	}
+	return nil, fmt.Errorf("expected a number, got %T", raw)
 }
 
 func toStrings(raw any) (any, error) {
@@ -435,6 +457,12 @@ func (c Config) String(key string) string {
 // Int returns an integer setting.
 func (c Config) Int(key string) int {
 	value, _ := c.values[key].(int)
+	return value
+}
+
+// Float returns a fractional setting.
+func (c Config) Float(key string) float64 {
+	value, _ := c.values[key].(float64)
 	return value
 }
 
