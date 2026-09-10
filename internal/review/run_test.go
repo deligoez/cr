@@ -286,3 +286,19 @@ func TestAReviewFanOutLeavesFindingsUntouched(t *testing.T) {
 		assert.Empty(t, entries, "and cr put no file in it")
 	}
 }
+
+// A fan-out directory cr cannot create fails the review. Every prompt names its
+// directory as where the role writes, so a run that carried on without one
+// would hand each role a path it cannot write to; fanOut has the write's own
+// failure be what the caller is told about, and no case above makes the write
+// fail.
+func TestAFanOutDirectoryThatCannotBeCreatedFailsTheReview(t *testing.T) {
+	src := briefed(t)
+	blocker := filepath.Join(src.Layout.PRDir(runOwner, runRepo, runPR), state.DirFanOut)
+	require.NoError(t, os.WriteFile(blocker, []byte("not a directory"), 0o600))
+
+	fan, err := Run(src)
+
+	require.Error(t, err)
+	assert.Nil(t, fan)
+}
