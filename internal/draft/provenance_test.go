@@ -20,10 +20,10 @@ func lookups() *Provenances {
 	}
 }
 
-// cited is a record carrying the given citations under rule.
-func cited(rule string, citations ...finding.Citation) *finding.Finding {
+// cited is a record carrying the given citations under the no-panic rule.
+func cited(citations ...finding.Citation) *finding.Finding {
 	record := aRecord("f1")
-	record.Rule, record.Citations = rule, citations
+	record.Rule, record.Citations = "no-panic", citations
 	return record
 }
 
@@ -65,11 +65,11 @@ func TestEveryTriggerAndTheBothCitationsCaseDiscloseProvenance(t *testing.T) {
 	}{
 		{"a machine suggestion", machine, "suggestion_origin: rule"},
 		{"a claim resting on a note", onNote, "claim: CR-7#c2 (source: note)\nnote: CR-7#n1 (source: chat)"},
-		{"a citation of rule origin", cited("no-panic", ruled),
+		{"a citation of rule origin", cited(ruled),
 			"rule: no-panic\nrationale: A panic takes the caller down."},
-		{"a rule citation beside an agent citation outside the unit", cited("no-panic", outside, ruled),
+		{"a rule citation beside an agent citation outside the unit", cited(outside, ruled),
 			"rule: no-panic\nrationale: A panic takes the caller down."},
-		{"an agent citation outside the unit alone", cited("no-panic", outside), ""},
+		{"an agent citation outside the unit alone", cited(outside), ""},
 		{"a claim drawn from the issue", onIssue, ""},
 		{"a record resting on nothing weak", aRecord("f1"), ""},
 	} {
