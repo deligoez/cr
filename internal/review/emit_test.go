@@ -195,6 +195,27 @@ func TestAHunkIsFencedLongerThanAnyFenceItQuotes(t *testing.T) {
 	assert.Contains(t, text, "`````diff\n@@ -1 +1 @@\n+s := \"````\"\n`````")
 }
 
+// The fence is exactly the length block promises: one backtick longer than the
+// longest run the hunk holds, and three when it holds none. The case above
+// finds its fence inside any longer one just as well, so it cannot tell a fence
+// of five from a fence of twenty; the fence line asserted newline to newline
+// can.
+func TestAHunkFenceIsExactlyTheLengthBlockPromises(t *testing.T) {
+	for name, c := range map[string]struct{ hunk, fence string }{
+		"a hunk holding no backtick":      {"@@ -1 +1 @@\n-old\n+new", "```"},
+		"a hunk quoting a fence of four":  {"@@ -1 +1 @@\n+s := \"````\"", "`````"},
+		"a hunk holding a lone backtick":  {"@@ -1 +1 @@\n+s := `x`", "```"},
+		"a hunk quoting a fence of three": {"@@ -1 +1 @@\n+```go", "````"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := handRound()
+			r.Units[0].Texts = []string{c.hunk}
+
+			assert.Contains(t, Emit(r)[0].Text, "\n"+c.fence+"diff\n"+c.hunk+"\n"+c.fence+"\n")
+		})
+	}
+}
+
 // Every prompt names the NDJSON path its role writes to, and states §6.1's
 // record schema together with the fields §6.1.4 forbids the agent to write
 // (§4.6.2); an intent prompt also states §3.3's claim record.
