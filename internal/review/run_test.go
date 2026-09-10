@@ -216,3 +216,23 @@ func TestAnAxisNarrowsTheFanOutToItsRoles(t *testing.T) {
 	}
 }
 
+// A unit the round recorded that the diff at the recorded head does not give is
+// refused, naming the unit and the brief that records the units again, rather
+// than emitted over code its cell would not be counted against.
+func TestAUnitTheDiffNoLongerGivesIsRefused(t *testing.T) {
+	src := briefed(t)
+	meta, err := src.Layout.ReadMeta(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileUnits, []byte(
+		`{"id":"u1","path":"order.go","side":"RIGHT","hunk_ranges":[{"start":40,"end":44}],`+
+			`"head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	_, err = Run(src)
+	var stale *StaleUnitError
+	require.ErrorAs(t, err, &stale)
+	assert.Equal(t, "u1", stale.Unit)
+	assert.Contains(t, err.Error(), "cr brief 7 --repo acme/shop")
+}
