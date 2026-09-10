@@ -1,0 +1,292 @@
+package review
+
+import (
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/reinvention"
+	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/rule"
+)
+
+// page accumulates one prompt's text, section by section.
+type page struct {
+	strings.Builder
+}
+
+// section opens a titled section.
+func (p *page) section(title string) {
+	p.WriteString("\n## " + title + "\n\n")
+}
+
+// line writes one line.
+func (p *page) line(format string, args ...any) {
+	fmt.Fprintf(&p.Builder, format+"\n", args...)
+}
+
+// block writes text inside a fence no line of the text can close.
+//
+// The fence is one backtick longer than the longest run the text holds, and
+// never shorter than three. A hunk is the author's code, and code quoting a
+// fence of its own would otherwise end the block early and have the rest of the
+// hunk read as prompt.
+func (p *page) block(info, text string) {
+	longest, run := 0, 0
+	for _, r := range text {
+		if r != '`' {
+			run = 0
+			continue
+		}
+		run++
+		longest = max(longest, run)
+	}
+	fence := strings.Repeat("`", max(3, longest+1))
+	p.line("%s%s\n%s\n%s", fence, info, text, fence)
+}
+
+// text renders one role's prompt over the unit at index at.
+//
+// The sections follow §4.6.1's sentence: the role's instructions and focus,
+// the unit's hunks, the claims mapped to it, the candidate symbols of §4.3.1,
+// the rule hits of §4.3.6, the test files of §4.4.1, and the threads and notes
+// of §3.5.3 and §4.1.5. Each section says what cr located and stops there.
+func (r *Round) text(lens *role.Role, at int) string {
+	u := &r.Units[at]
+	var p page
+	p.line("# %s (%s) on unit %s", lens.Title, lens.ID, u.ID)
+	p.line("")
+	p.line("Round %d at head %s, reviewed through the %s axis. cr located everything below "+
+		"and judged none of it; every verdict is yours.", r.Round, r.Head, lens.Axis)
+	persona(&p, lens)
+	hunks(&p, u)
+	r.claims(&p, u.ID)
+	if lens.Axis == axis.Intent {
+		r.unmapped(&p, u.ID)
+	}
+	r.candidates(&p, u)
+	r.hits(&p, lens, at)
+	r.tests(&p, at)
+	r.threads(&p, u)
+	r.notes(&p)
+	return p.String()
+}
+
+// persona writes the role's instructions verbatim and its focus questions.
+func persona(p *page, lens *role.Role) {
+	p.section("Instructions")
+	p.line("%s", strings.TrimSpace(lens.Instructions))
+	p.section("Focus")
+	if len(lens.Focus) == 0 {
+		p.line("The role names no focus questions.")
+	}
+	for _, question := range lens.Focus {
+		p.line("- %s", question)
+	}
+}
+
+// hunks writes the unit's record and every hunk's text.
+func hunks(p *page, u *Unit) {
+	p.section("Unit " + u.ID + " (§3.4)")
+	p.line("%s, %s side, formed by %s, %d changed line(s), hunk ranges %s.",
+		u.Path, u.Side, u.Formation, u.ChangedLines, ranges(u))
+	for _, text := range u.Texts {
+		p.line("")
+		p.block("diff", text)
+	}
+}
+
+// ranges renders a unit's head-side hunk ranges.
+func ranges(u *Unit) string {
+	spans := make([]string, 0, len(u.HunkRanges))
+	for _, span := range u.HunkRanges {
+		spans = append(spans, strconv.Itoa(span.Start)+"-"+strconv.Itoa(span.End))
+	}
+	return strings.Join(spans, ", ")
+}
+
+// claims writes the claims the round's mapping maps to the unit.
+func (r *Round) claims(p *page, id string) {
+	p.section("Claims mapped to this unit (§4.1.6)")
+	if !r.Mapped {
+		p.line("No mapping is recorded for round %d yet, so no claim is known to be mapped to "+
+			"this unit (§4.6.5).", r.Round)
+		return
+	}
+	mapped := mapping.ClaimsOf(r.Pairs, r.Round, id)
+	if len(mapped) == 0 {
+		p.line("The mapping maps no claim to this unit.")
+	}
+	for _, claimID := range mapped {
+		at := slices.IndexFunc(r.Claims, func(c intent.Claim) bool { return c.ID == claimID })
+		if at < 0 {
+			p.line("- %s", claimID)
+			continue
+		}
+		p.line("- %s: %s", claimID, r.Claims[at].Text)
+	}
+}
+
+// unmapped writes §4.1.2's item for an intent role, when the unit raises one.
+func (r *Round) unmapped(p *page, id string) {
+	at := slices.IndexFunc(r.Unmapped, func(item UnmappedUnit) bool { return item.Unit == id })
+	if at < 0 {
+		return
+	}
+	p.section("Unmapped unit (§4.1.2)")
+	p.line("The round's mapping maps no claim to this unit. It is raised as kind: %s and never as "+
+		"a finding (§4.1.4): the most common cause is intent that never reached the tracker.",
+		r.Unmapped[at].Kind)
+	p.line("")
+	p.line("If one of the notes below explains the unit, raise nothing and record this role's " +
+		"coverage cell with note_id naming that note (§4.1.5). Whether a note explains it is " +
+		"your decision; cr matches no text.")
+}
+
+// candidates writes §4.3.1's candidates for the symbols the diff adds inside the
+// unit, or the reason the lens did not run.
+func (r *Round) candidates(p *page, u *Unit) {
+	p.section("Candidate pre-existing symbols (§4.3.1)")
+	if len(r.Candidates.Unavailable) > 0 {
+		for _, out := range r.Candidates.Unavailable {
+			p.line("Unavailable: %s", out.Disclosure())
+		}
+		return
+	}
+	added := r.addedIn(u)
+	if len(added) == 0 {
+		p.line("The diff declares no function, method, or class inside this unit.")
+		return
+	}
+	p.line("Whether a candidate is semantic reinvention is your judgement (§4.3.2); a " +
+		"reinvention item cites the candidate as path:line (§4.3.3).")
+	for _, attached := range added {
+		p.line("- added %s %s (%d params) at %s:%d",
+			attached.Added.Kind, attached.Added.Name, attached.Added.Params,
+			attached.Added.Path, attached.Added.Line)
+		if len(attached.Candidates) == 0 {
+			p.line("  - no candidate qualified under §4.3.2")
+		}
+		for _, candidate := range attached.Candidates {
+			p.line("  - candidate %s %s (%d params) at %s:%d",
+				candidate.Kind, candidate.Name, candidate.Params, candidate.Path, candidate.Line)
+		}
+	}
+}
+
+// addedIn narrows the round's §4.3.1 attachments to the symbols declared inside
+// the unit, by the containment predicate §6.2.1 grades with. Only a RIGHT unit
+// can declare one: the index is built over the head, and a unit numbered on the
+// LEFT describes code the head no longer holds.
+func (r *Round) addedIn(u *Unit) []reinvention.Attachment {
+	inside := make([]reinvention.Attachment, 0)
+	if u.Side != git.Right {
+		return inside
+	}
+	for _, attached := range r.Candidates.Attached {
+		if u.Contains(attached.Added.Path, attached.Added.Line) {
+			inside = append(inside, attached)
+		}
+	}
+	return inside
+}
+
+// hits writes §4.3.6's rule hits inside the unit, and the rules §2.6.1.4
+// injects for the role's axis.
+func (r *Round) hits(p *page, lens *role.Role, at int) {
+	p.section("Rule hits (§4.3.6)")
+	if len(r.Hits[at].Hits) == 0 {
+		p.line("No rule's detector matched a changed line of this unit.")
+	} else {
+		p.line("Detection reports hits, never verdicts: confirm a hit to raise it, or drop it " +
+			"(§2.6.1.5). A record a rule produced carries the rule id, per §2.6's third rule.")
+	}
+	for _, hit := range r.Hits[at].Hits {
+		p.line("- rule %s at %s:%d: %s", hit.RuleID, hit.Path, hit.Line, strings.TrimSpace(hit.Text))
+		if standard := r.standard(hit.RuleID); standard != nil {
+			p.line("  %s", standard.Injection())
+		}
+	}
+	p.section("Standards without a detector (§2.6.1.4)")
+	injected := rule.Injected(r.Rules, lens.Axis)
+	if len(injected) == 0 {
+		p.line("No rule of the %s axis is injected as text.", lens.Axis)
+	}
+	for i := range injected {
+		p.line("")
+		p.line("%s", injected[i].Injection())
+	}
+}
+
+// standard finds a rule of the round's corpus by id.
+func (r *Round) standard(id string) *rule.Resolved {
+	for i := range r.Rules {
+		if r.Rules[i].Rule.ID == id {
+			return &r.Rules[i]
+		}
+	}
+	return nil
+}
+
+// tests writes §4.4.1's attachment: the test files the pull request changed or
+// added, the symbols they reference, and the halves that did not run.
+func (r *Round) tests(p *page, at int) {
+	attached := &r.Tests[at]
+	p.section("Test files (§4.4.1)")
+	p.line("Changed or added by the pull request: %s.", listed(attached.Paths))
+	p.line("Symbols they reference: %s.", listed(attached.Symbols))
+	for _, out := range attached.Unavailable {
+		p.line("Unavailable: %s", out.Disclosure())
+	}
+}
+
+// threads writes §3.5.3's threads for the unit.
+func (r *Round) threads(p *page, u *Unit) {
+	p.section("Existing human threads near this unit (§3.5.3)")
+	near := Threads(u.Hunks, r.Threads, r.Proximity)
+	if len(near) == 0 {
+		p.line("No human thread is anchored within %d lines of this unit.", r.Proximity)
+		return
+	}
+	p.line("Whether a thread already covers a finding is your decision; when it does, the " +
+		"finding is recorded with suppressed_by naming the thread (§3.5.4).")
+	for i := range near {
+		thread := &near[i]
+		p.line("- %s at %s:%d-%d (%s), by %s, resolved %t:",
+			thread.ID, thread.Anchor.Path, thread.Anchor.StartLine, thread.Anchor.Line,
+			thread.Anchor.Side, thread.Comment.Author, thread.Resolved)
+		p.line("  %s", strings.TrimSpace(thread.Comment.Body))
+		for _, reply := range thread.Replies {
+			p.line("  - reply by %s: %s", reply.Author, strings.TrimSpace(reply.Body))
+		}
+	}
+}
+
+// notes writes the issue key's notes that still stand.
+func (r *Round) notes(p *page) {
+	p.section("Notes for the issue key (§3.6, §4.1.5)")
+	if len(r.Notes) == 0 {
+		p.line("No note is recorded against the issue key.")
+		return
+	}
+	p.line("A note is unverified hearsay recorded by a human (§3.6.6).")
+	for i := range r.Notes {
+		recorded := &r.Notes[i]
+		p.line("- %s (%s, from pull request %d): %s",
+			recorded.ID, recorded.Source, recorded.PR, strings.TrimSpace(recorded.Text))
+	}
+}
+
+// listed renders a list for a sentence, and says none rather than leaving the
+// sentence empty.
+func listed(values []string) string {
+	if len(values) == 0 {
+		return "none"
+	}
+	return strings.Join(values, ", ")
+}
