@@ -154,3 +154,42 @@ func TestTwoOfThreeHitsTheAgentNeverConfirmsNeverReachFindings(t *testing.T) {
 	}
 }
 
+// §2.6.1.5's last sentence: no detect block buys §6.3's assertion register on
+// its own.
+//
+// The rule declares `kind: finding` and `severity: critical`, which is the most
+// a rule file can ask for. What detection reports carries neither — each hit is
+// the four fields of a match and nothing a verdict is made of — and running it
+// twice leaves findings.ndjson as empty as it found it, so the only way the
+// rule's standard reaches a draft is a record the agent chose to write.
+func TestAHitCarriesNoVerdictWhateverItsRuleDeclares(t *testing.T) {
+	layout := detectedHome(t)
+
+	for range 2 {
+		var document map[string]any
+		require.NoError(t, json.Unmarshal(runRulesCheck(t), &document))
+		assert.ElementsMatch(t, []string{"round", "head", "hits", "units"}, keysOf(document))
+
+		hits, isList := document["hits"].([]any)
+		require.True(t, isList)
+		require.Len(t, hits, 3)
+		for _, hit := range hits {
+			fields, isObject := hit.(map[string]any)
+			require.True(t, isObject)
+			assert.ElementsMatch(t, []string{"rule", "path", "line", "text"}, keysOf(fields),
+				"a hit is a match, and carries no kind, severity, or grade")
+		}
+	}
+	assert.Empty(t, storedFindings(t, layout),
+		"a rule declaring kind finding still produces no record until the agent writes one")
+}
+
+// keysOf lists one JSON object's keys.
+func keysOf(object map[string]any) []string {
+	keys := make([]string, 0, len(object))
+	for key := range object {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
