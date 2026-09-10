@@ -56,3 +56,11 @@ func TestAnUnmappedUnitArrivesAsAQuestionBeforeTheForcingRuns(t *testing.T) {
 	}
 }
 
+// A round whose every unit is mapped raises nothing, and says so with an empty
+// list rather than a nil one, per §12.
+func TestAFullyMappedRoundRaisesNoUnmappedUnitItem(t *testing.T) {
+	items := Unmapped([]string{"u1"}, []mapping.Pair{stored("CR-1#c1", "u1", 1)}, 1)
+
+	assert.NotNil(t, items)
+	assert.Empty(t, items)
+}
