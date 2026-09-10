@@ -78,3 +78,27 @@ func TestEveryTriggerAndTheBothCitationsCaseDiscloseProvenance(t *testing.T) {
 		})
 	}
 }
+
+// §8.1.3's fixed sequence: a question carrying weak provenance opens with the
+// §8.1.4 label, then the §8.1.6 provenance region, then the agent body — and
+// the provenance region is cr's, so recovering the agent region leaves it out.
+func TestTheProvenanceRegionSitsBetweenTheLabelAndTheAgentBody(t *testing.T) {
+	question := cited(finding.Citation{Path: "lib.go", Line: 4, Origin: finding.OriginRule})
+	question.Kind, question.Grade = finding.KindQuestion, finding.GradeArgued
+
+	rendered, err := Render([]*finding.Finding{question}, render.LangEN, lookups())
+	require.NoError(t, err)
+
+	label := strings.Index(rendered, "<!-- cr:label -->")
+	provenance := strings.Index(rendered, "<!-- cr:provenance -->")
+	summary := strings.Index(rendered, question.Summary)
+	require.NotEqual(t, -1, label)
+	require.NotEqual(t, -1, provenance)
+	assert.Less(t, label, provenance, "the label opens the comment")
+	assert.Less(t, provenance, summary, "the provenance region stands above the agent body")
+
+	_, comment, found := strings.Cut(rendered, "-->\n\n")
+	require.True(t, found)
+	assert.Equal(t, body(question), render.AgentRegion(comment),
+		"the agent region recovers without the provenance cr regenerates")
+}
