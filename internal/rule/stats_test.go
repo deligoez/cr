@@ -100,6 +100,27 @@ func TestAHitOfAnotherRoundOrPullRequestIsItsOwnEntry(t *testing.T) {
 	assert.Len(t, ledger(t, l), 3)
 }
 
+// Round 9's rule-stats-event-producer names `cr record` as the producer of a
+// dismissal: one per hit of the round that no recorded record confirms. The
+// record that confirms one is itself written as a record event, at its anchor.
+func TestRecordingWritesARecordEventAndDismissesEveryUnconfirmedHit(t *testing.T) {
+	l := state.New(t.TempDir())
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), occasion(0)))
+
+	confirmation := citing("f1", "no-panic", 4)
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo,
+		[]*finding.Finding{confirmation}, []*finding.Finding{confirmation}, occasion(1)))
+
+	held := ledger(t, l)
+	require.Len(t, held, 6)
+	assert.Equal(t, Stat{
+		Rule: "no-panic", Path: "lib.go", Line: 4, Event: EventRecord, Record: "f1",
+		PR: 13, Round: 2, Head: statsHead, At: occasion(1).At.UTC(),
+	}, held[3])
+	assert.Equal(t, []int{5, 6}, linesOf(held, EventDismissal),
+		"§2.6.1.5's drop, made observable: the two hits no record cites")
+}
+
 // Every write carries the entries it does not own through unchanged: another
 // pull request's dismissals, another round's hits and records, and the entries
 // of this round a write does not key. Only the round's own dismissals are
