@@ -132,18 +132,23 @@ func detectRound(
 	}, nil
 }
 
-// roundMatchers resolves §2.6 item 1's three layers for the round's profile and
-// compiles every detect block among them.
+// roundMatchers compiles every detect block of the round's rule corpus.
 func roundMatchers(l state.Layout, owner, repo, profileID string) ([]rule.Matcher, error) {
-	resolved, file, err := roundProfile(l, profileID)
-	if err != nil {
-		return nil, err
-	}
-	corpus, err := rule.Resolve(l.RepoRulesDir(owner, repo), l.RulesDir(), file, resolved.Rules)
+	corpus, err := roundCorpus(l, owner, repo, profileID)
 	if err != nil {
 		return nil, err
 	}
 	return rule.Compile(corpus)
+}
+
+// roundCorpus resolves §2.6 item 1's three layers for the round's profile: the
+// per-repository rules, the global ones, and the profile's own array.
+func roundCorpus(l state.Layout, owner, repo, profileID string) ([]rule.Resolved, error) {
+	resolved, file, err := roundProfile(l, profileID)
+	if err != nil {
+		return nil, err
+	}
+	return rule.Resolve(l.RepoRulesDir(owner, repo), l.RulesDir(), file, resolved.Rules)
 }
 
 // roundHunks takes §3.4.1's diff at the round's head, against the merge base
