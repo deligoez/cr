@@ -220,6 +220,23 @@ func TestAnAbsentRulesDirectoryHoldsNoRule(t *testing.T) {
 	assert.NotNil(t, corpus, "an empty corpus serialises as [], never null")
 }
 
+// A machine that customised its rules globally and nowhere else is the common
+// case, not the edge: no per-repository directory, and a profile — or §2.4.4's
+// empty one — carrying no `rules` array. The corpus is then the global layer
+// alone, holding more rules than the other two layers together: a shape every
+// fixture above leaves out.
+func TestAGlobalLayerAloneIsTheWholeCorpus(t *testing.T) {
+	absent := filepath.Join(t.TempDir(), "never-created")
+
+	corpus, err := Resolve(absent,
+		rulesDir(t, ruleDoc("no-raw-sql", nil), ruleDoc("handle-every-error", nil)),
+		profileFile, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"handle-every-error", "no-raw-sql"}, ids(corpus))
+	assert.Equal(t, []Source{GlobalSource, GlobalSource}, sources(corpus))
+}
+
 // An absent directory is the one listing failure that means "no rule". Every
 // other one is reported, so a rules directory cr cannot read aborts rather than
 // silently resolving to the layer below it — which would enforce the global
