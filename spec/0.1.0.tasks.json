@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T22:15:39.298457Z",
+  "updated_at": "2026-09-10T22:20:08.413108Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4961,7 +4961,7 @@
     {
       "id": "citation-origin-stamping",
       "title": "Stamp citation origin by positional match",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "citation-resolution",
@@ -4972,11 +4972,25 @@
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T22:15:47.80794Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T22:20:08.382989Z",
+      "closed_reason": "- origin is computed, never supplied: internal/rule/origin.go's StampOrigins is the field's only writer at record time, and cr record calls it in acceptRecords after §6.2.3's resolution and before the grade, overwriting whatever the decoder left.\n- A record arriving with any origin value is rejected with exit code 1, per §6.2.5: the decoder's existing §6.1.4 fence already refused it, and TestARecordArrivingWithAnyOriginIsRefused now asserts it through cr record for both origin rule (on a line the rule really hit) and origin agent, with exit 1, the field citations[0].origin, and findings.ndjson left empty.\n- At record time cr stamps each citation by matching it positionally against its own detection output: a citation gets origin rule when rule-stats.ndjson holds a hit event for the same head, the same rule id as the record names, and the same path and line, per §2.6.1.6; the ledger is read lock-free through rule.ReadStats, and a record event or a dismissal at the same place supports nothing.\n- Every other citation gets origin agent: TestACitationIsOfRuleOriginOnlyOnAFullPositionalMatch moves each of head, rule, path and line away from the hit in turn, and swaps the entry for a record event and a dismissal, and every one of those cases is stamped agent.\n- Matching on rule id alone would let a record name any rule and point anywhere inside its own unit, which is exactly the forgery the deleted rule grade branch allowed: TestACitationOfARealRuleAtALineItNeverHitIsOfAgentOrigin records two no-panic records citing lines inside their own unit, and only the one at the hit's line is graded cited and keeps kind finding, while the other is graded argued and forced to a question by §6.3.\n- A test asserts a citation naming a real rule id at a line that rule never hit gets origin agent: TestACitationOfARealRuleAtALineItNeverHitIsOfAgentOrigin runs cr rules check over a real checkout (hits on lines 4, 5, 6), records a no-panic record citing line 3, and asserts its stored citation carries origin agent.\n",
+      "gate_passed_at": "2026-09-10T22:20:08.382989Z",
+      "commit_sha": "6cd4fa2",
+      "commit_shas": [
+        "6cd4fa2",
+        "117a310",
+        "5ae93b7",
+        "58a0162",
+        "730f9e1"
+      ],
+      "commit_files": [
+        "internal/cli/origin_test.go",
+        "internal/cli/record.go",
+        "internal/rule/origin.go",
+        "internal/rule/origin_test.go"
+      ]
     },
     {
       "id": "citations-rendered-verbatim",
