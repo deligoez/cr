@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -53,7 +54,8 @@ func (r *rulesCheckResult) Text(w *writer) string {
 // when the agent confirms it, and confirmation is what a rule cannot supply for
 // itself. That is why the command takes no severity, kind, or grade of its own
 // and writes no record — there is no judgement here for a flag to influence,
-// and findings.ndjson is `cr record`'s to write from the agent's own file. A
+// and findings.ndjson is `cr record`'s to write from the agent's own file. What
+// it does write is §2.6.1.6's hit entries, to the repository's rule ledger. A
 // hit the agent never writes a record for is dropped by that absence: nothing
 // in cr turns a hit into a record, so there is no path by which one could reach
 // the draft unconfirmed.
@@ -84,6 +86,14 @@ func newRulesCheckCmd(out *writer) *cobra.Command {
 			}
 			checked, err := detectRound(layout, owner, repo, pr, &round)
 			if err != nil {
+				return err
+			}
+			// §2.6.1.6: every hit reaches the repository's ledger,
+			// keyed so a second run of the same round overwrites
+			// rather than counts it again.
+			if err := rule.RecordHits(layout, owner, repo, checked.Hits, &rule.Occasion{
+				PR: pr, Round: round.Round, Head: round.Head, At: time.Now(),
+			}); err != nil {
 				return err
 			}
 			return out.emit(checked)
