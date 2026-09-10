@@ -161,8 +161,15 @@ Two rules that make the phase-boundary run worth doing:
    unknown values are rejected.
 2. **A surviving mutant is not a score to drive down.** Classify them: an
    equivalent mutant nothing can observe, an undocumented boundary, or a
-   documented contract with no boundary test. Only the last is worth acting on,
-   and say which ones are being left and why. `gremlins` is load-sensitive — a
+   documented contract with no boundary test. The last is always worth acting
+   on. **An undocumented boundary is worth a test when the mutant crashes or
+   changes what a reader sees** — measured 2026-09-11, four of the six boundary
+   survivors from four slices panicked (`makeslice: cap out of range` twice,
+   `index out of range`, `integer divide by zero`), each in an input range no
+   fixture reached. One more class exists and must not be filed as equivalent:
+   **unobservable but not equivalent**, a mutant that differs only on an error
+   path nothing can inject. Enter it in `scripts/known-survivors.json` saying
+   exactly that. Say which ones are being left and why. `gremlins` is load-sensitive — a
    run full of `TIMED OUT` is not a result.
 3. **Read `NOT COVERED` and `TIMED OUT` as their own categories, never as
    survivors.** A mutant on a tagless `switch`'s **case expression** is reported
