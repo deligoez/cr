@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T21:22:54.102805Z",
+  "updated_at": "2026-09-10T21:28:59.917881Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6023,7 +6023,7 @@
     {
       "id": "initial-body-composition",
       "title": "Compose the initial body in English",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "render-lang-domain",
@@ -6034,11 +6034,24 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T21:25:37.292913Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T21:28:59.890211Z",
+      "closed_reason": "- cr renders each block's initial body from the record's summary and evidence, in English, per §8.1.2: internal/draft/draft.go's body places the stored summary and the stored evidence verbatim as two paragraphs in that order, with no word of cr's between them, followed by §7.1.3's suggestion block when one exists; TestTheInitialBodyIsTheSummaryThenTheEvidenceVerbatim compares the whole body for equality, TestTheInitialBodyCarriesBothFieldsByteForByte carries Markdown through untouched, TestTheSuggestionFollowsTheInitialBody keeps the suggestion beneath, and TestAnEmptyFieldContributesNoParagraph leaves no blank paragraph for an empty field.\n- The agent then rewrites that body in render.lang by editing draft.md before the human reads it: the block body stays the §7.1.2 free-form region the agent edits, and since §6.1.1 keeps both fields English the initial body is English without cr translating anything.\n- Editing the draft is the only input path for reader-facing prose, cr never translates or composes, and never accepts a body through any other channel: body only concatenates two stored fields, and no command, flag, positional, or decoded record type carries a body.\n- A test asserts no command accepts a body argument or a body field: internal/cli/bodychannel_test.go's TestNoCommandAcceptsABodyArgumentOrABodyField walks every flag and every Use line of the whole tree for \"body\", walks the JSON keys of finding.Finding, intent.Claim, mapping.Pair and coverage.Cell recursively, and runs cr record then cr draft over a record carrying a body key to show the key never reaches the block while the summary and evidence do.\n- Existing tests TestABlockIsAMarkerAndABody and TestEveryRecordIsItsOwnBlockInTheOrderItArrived were updated for the second paragraph (5b090a1); no assertion was weakened.\n",
+      "gate_passed_at": "2026-09-10T21:28:59.890211Z",
+      "commit_sha": "d9866fb",
+      "commit_shas": [
+        "d9866fb",
+        "5b090a1",
+        "ac2a87c",
+        "8dab5cc"
+      ],
+      "commit_files": [
+        "internal/cli/bodychannel_test.go",
+        "internal/draft/draft.go",
+        "internal/draft/draft_test.go",
+        "internal/draft/initialbody_test.go"
+      ]
     },
     {
       "id": "comment-region-sequence",
