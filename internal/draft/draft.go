@@ -20,6 +20,7 @@
 package draft
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -27,7 +28,8 @@ import (
 )
 
 // Render is §7.1's draft: every queued record as one block, in the order the
-// records arrive, and nothing else.
+// records arrive, and nothing else. lang is §8.1.1's `render.lang`, which the
+// §8.1.4 label of every question is built in for.
 //
 // The order is the caller's. §7.1 asks for every queued record and says nothing
 // about arrangement, and findings.ndjson is in the order `cr record` stored it
@@ -44,11 +46,12 @@ import (
 // record, and nothing is rendered. The body is drawn from fields the agent
 // wrote, and a draft carrying a reserved sequence would be misread when it is
 // read back — as a second marker, or as a region cr discards — so the refusal
-// is made while the fault is still one field of one record.
-func Render(queued []*finding.Finding) (string, error) {
+// is made while the fault is still one field of one record. A question the
+// label table has no row for stops it the same way.
+func Render(queued []*finding.Finding, lang render.Lang) (string, error) {
 	blocks := make([]string, 0, len(queued))
 	for _, record := range queued {
-		rendered, err := block(record)
+		rendered, err := block(record, lang)
 		if err != nil {
 			return "", err
 		}
@@ -60,13 +63,36 @@ func Render(queued []*finding.Finding) (string, error) {
 // block is one record's rendering: §7.1.1's marker introducing it, and §8.1.3's
 // comment beneath, separated by a blank line so the marker reads as an
 // introduction rather than as part of the prose.
-func block(record *finding.Finding) (string, error) {
-	agent := body(record)
-	if err := render.ValidateBody(record.ID, agent); err != nil {
+func block(record *finding.Finding, lang render.Lang) (string, error) {
+	comment, err := commentOf(record, lang)
+	if err != nil {
 		return "", err
 	}
-	comment := render.Comment{Body: agent}
 	return markerOf(record).String() + "\n\n" + comment.String() + "\n", nil
+}
+
+// commentOf is one record's §8.1.3 comment: the agent region cr renders from
+// the record, and the owned regions that apply to it.
+//
+// The §8.1.4 label is asked of the record's kind as it stands here, after
+// §6.3's forcing ran over it, and of nothing else. It opens every question —
+// one the agent wrote as a question and one cr forced alike — because the
+// reader cannot tell the two apart and the line is how they learn the register
+// and the grade either way. A finding carries none.
+func commentOf(record *finding.Finding, lang render.Lang) (render.Comment, error) {
+	comment := render.Comment{Body: body(record)}
+	if err := render.ValidateBody(record.ID, comment.Body); err != nil {
+		return render.Comment{}, err
+	}
+	if record.Kind != finding.KindQuestion {
+		return comment, nil
+	}
+	label, err := render.QuestionLabelRegion(lang, record.Grade)
+	if err != nil {
+		return render.Comment{}, fmt.Errorf("record %s: %w", record.ID, err)
+	}
+	comment.Label = label
+	return comment, nil
 }
 
 // body is the free-form Markdown region of §7.1.2, which the user may rewrite

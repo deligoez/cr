@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -106,7 +109,11 @@ func newDraftCmd(out *writer) *cobra.Command {
 			// §8.1.3's refusal of a body is made before anything
 			// is written, so a refused draft leaves findings.ndjson,
 			// draft.md and summary.json exactly as they were.
-			rendered, err := draft.Render(queued)
+			lang, err := renderLang(layout, owner, repo)
+			if err != nil {
+				return err
+			}
+			rendered, err := draft.Render(queued, lang)
 			if err != nil {
 				return err
 			}
@@ -123,6 +130,26 @@ func newDraftCmd(out *writer) *cobra.Command {
 			})
 		},
 	}
+}
+
+// renderLang is §8.1.1's `render.lang` as §2.7's layers resolve it for this
+// repository, which is the language every §8.1.4 label in the draft is built
+// in for.
+//
+// The language is the only thing a layer can say about the label. §2.7 makes
+// the label itself unreadable from every layer, and Resolve refuses a name
+// addressing it before this function ever sees a value, so the text reaching
+// the draft is always one row of the built-in table.
+func renderLang(l state.Layout, owner, repo string) (render.Lang, error) {
+	resolved, err := config.Resolve(config.Sources{
+		Environ:      os.Environ(),
+		GlobalConfig: l.Config(),
+		RepoConfig:   l.RepoConfig(owner, repo),
+	})
+	if err != nil {
+		return render.Lang{}, err
+	}
+	return render.ParseLang(resolved.String(render.Setting))
 }
 
 // roundFindingsOf reads the records of one round out of findings.ndjson.

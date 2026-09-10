@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/render"
 )
 
 // aRecord is one queued record, complete enough for §7.1.1's eight marker
@@ -31,10 +32,11 @@ func aRecord(id string) *finding.Finding {
 	}
 }
 
-// renderOf is Render over records, for a test whose records §8.1.3 accepts.
+// renderOf is Render over records in English, for a test whose records §8.1.3
+// accepts.
 func renderOf(t *testing.T, records ...*finding.Finding) string {
 	t.Helper()
-	rendered, err := Render(records)
+	rendered, err := Render(records, render.LangEN)
 	require.NoError(t, err)
 	return rendered
 }
