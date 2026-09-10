@@ -130,29 +130,47 @@ func newDraftCmd(out *writer) *cobra.Command {
 	}
 }
 
-// renderDraft is §7.1's draft.md for the queued records, read out of
-// everything it rests on before anything is written: §2.7's settings, §8.1.6's
-// provenance sources, and §7.1.4's coverage state.
+// drafted is one rendering of the round, as §7.1 has it reach disk: draft.md,
+// and §7.1.5's rendered.json beside it.
+type drafted struct {
+	// file is draft.md.
+	file string
+	// rendered is rendered.json's entries, each record's agent region as
+	// cr generated it.
+	rendered map[string]string
+}
+
+// renderDraft is §7.1's draft.md and §7.1.5's rendered.json for the queued
+// records, read out of everything they rest on before anything is written:
+// §2.7's settings, §8.1.6's provenance sources, and §7.1.4's coverage state.
 func renderDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, queued []*finding.Finding,
-) (string, error) {
+) (drafted, error) {
 	settings, err := resolveDraftSettings(l, owner, repo)
 	if err != nil {
-		return "", err
+		return drafted{}, err
 	}
 	// §8.1.6: what the provenance region names from outside the records.
 	sources, err := draftProvenances(l, owner, repo, pr, round, queued)
 	if err != nil {
-		return "", err
+		return drafted{}, err
 	}
 	rows, err := roundCoverage(l, owner, repo, pr, round)
 	if err != nil {
-		return "", err
+		return drafted{}, err
 	}
-	return draft.File(queued, settings.lang, sources, draft.HeaderFacts{
+	file, err := draft.File(queued, settings.lang, sources, draft.HeaderFacts{
 		MaxComments: settings.maxComments,
 		Coverage:    rows,
 	})
+	if err != nil {
+		return drafted{}, err
+	}
+	rendered, err := draft.Rendered(queued, settings.lang, sources)
+	if err != nil {
+		return drafted{}, err
+	}
+	return drafted{file: file, rendered: rendered}, nil
 }
 
 // settingMaxComments is §1.6.2's cap, by the key §2.7's table holds it under.
@@ -273,16 +291,22 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 }
 
 // publishDraft is the single write, under §2.3.1's lock: the round's records
-// carrying the states §9.1 just stamped, the draft they were rendered into, and
-// §6.3.2's forcing count in the round summary.
+// carrying the states §9.1 just stamped, the draft they were rendered into,
+// §7.1.5's rendered.json beside it, and §6.3.2's forcing count in the round
+// summary.
 //
 // findings.ndjson is replaced for the current round rather than appended to.
 // The records being written are the ones just read back out of it, so an append
 // would store every one of them a second time; §9.3.5 scopes the replacement to
 // this round, so every earlier round's line survives byte for byte.
+//
+// rendered.json is replaced whole, and on the same run as draft.md, so the two
+// always describe the same rendering: an entry for a record the draft no longer
+// holds, or a draft block with no entry, would leave §7.1.6 comparing a body
+// against the wrong thing or against nothing.
 func publishDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	records []*finding.Finding, body string, forced finding.Forcings,
+	records []*finding.Finding, out drafted, forced finding.Forcings,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
@@ -291,7 +315,8 @@ func publishDraft(
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
 	writes := []func() error{
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
-		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(body)) },
+		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(out.file)) },
+		func() error { return writeRendered(held, round.Round, out.rendered) },
 		func() error { return writeForcingCounts(held, round.Round, forced) },
 	}
 	for _, write := range writes {
@@ -304,6 +329,16 @@ func publishDraft(
 		}
 	}
 	return held.Unlock()
+}
+
+// writeRendered replaces the round's rendered.json with this rendering's
+// entries, whatever the document held before: §7.1.5 has it describe the draft
+// it was written beside, and an entry left over from an earlier rendering would
+// describe a block that draft no longer has.
+func writeRendered(held *state.Lock, round int, rendered map[string]string) error {
+	return state.UpdateRoundJSON(held, round, state.FileRendered, func(doc *map[string]string) {
+		*doc = rendered
+	})
 }
 
 // summaryForcedToQuestion is §10.3's "forced to question" count, by the key
