@@ -248,6 +248,31 @@ func TestASignatureTheFileEndsInsideStopsAtTheLastLine(t *testing.T) {
 	assert.Equal(t, 2, index.Decls[0].Params)
 }
 
+// signatureLines counts the declaration's own line: a signature spanning that
+// many lines is read whole, and one spanning a line more is "more lines than
+// this" and is cut. TestAnUnbalancedSignatureStopsAtTheBound puts its commas
+// twenty lines past the bound, where a bound one line out cuts them just the
+// same.
+func TestTheBoundCountsTheDeclarationsOwnLine(t *testing.T) {
+	for name, c := range map[string]struct {
+		body   string
+		params int
+	}{
+		"closing on the last line the bound reads": {
+			"func A(x int," + strings.Repeat("\n", signatureLines-1) + "y int)", 2},
+		"closing one line past it": {
+			"func A(x int," + strings.Repeat("\n", signatureLines) + "y, z int)", 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			index, built := Build("go", []File{fileOf("x.go", c.body)})
+
+			require.True(t, built)
+			require.Len(t, index.Decls, 1)
+			assert.Equal(t, c.params, index.Decls[0].Params)
+		})
+	}
+}
+
 // §4.3.2 orders candidates by similarity, then path ascending, then line
 // ascending. Ordering the index itself is what makes the tail of that ordering
 // free — and what makes two runs over one head agree, whatever order git
