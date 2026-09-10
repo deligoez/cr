@@ -1,5 +1,7 @@
 package mapping
 
+import "slices"
+
 // Unmapped is §4.1.2's derivation over one round: the units, of those given,
 // that the round's mapping maps to no claim, in the order they are given.
 //
@@ -28,4 +30,24 @@ func Unmapped(units []string, pairs []Pair, round int) []string {
 		}
 	}
 	return unmapped
+}
+
+// ClaimsOf is the other reading of the same join: the claim ids the round's
+// mapping maps to one unit, in the order the pairs were recorded, each once.
+//
+// It is what §4.2.1 evaluates a unit against and what §4.6.1 carries into the
+// unit's prompt as "the claims mapped to it". The order is the agent's own —
+// the order it wrote the pairs in — because cr has no ranking of claims to put
+// in its place, and a pair the file repeats is one mapping stated twice rather
+// than a claim that counts double.
+func ClaimsOf(pairs []Pair, round int, unit string) []string {
+	claims := make([]string, 0)
+	for i := range pairs {
+		held := &pairs[i]
+		if held.Round != round || held.Unit != unit || slices.Contains(claims, held.Claim) {
+			continue
+		}
+		claims = append(claims, held.Claim)
+	}
+	return claims
 }
