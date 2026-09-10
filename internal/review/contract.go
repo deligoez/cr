@@ -1,6 +1,7 @@
 package review
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -46,8 +47,16 @@ func contract(p *page, lens *role.Role, output string) {
 		"raise, write nothing.", lens.ID)
 	p.line("")
 	p.line("A record carries §6.1's fields:")
+	reserved := finding.Reserved()
 	for _, field := range finding.Fields() {
-		p.line("- %s: %s", field.Name, findingWords[field.Requirement])
+		word := findingWords[field.Requirement]
+		// §6.1's column calls disposition, duplicate_of and thread_id
+		// optional, and §6.1.4 reserves them to cr all the same; a list
+		// saying only "optional" would read as leave to write them.
+		if field.Requirement != finding.Computed && slices.Contains(reserved, field.Name) {
+			word += ", and §6.1.4 reserves it to cr"
+		}
+		p.line("- %s: %s", field.Name, word)
 	}
 	p.line("")
 	p.line("Each entry of citations carries:")
