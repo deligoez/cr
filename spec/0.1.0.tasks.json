@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T21:46:49.150991Z",
+  "updated_at": "2026-09-10T22:05:26.560618Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1522,7 +1522,7 @@
     {
       "id": "unconfirmed-hit-dropped",
       "title": "Drop hits the agent never confirms",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-hit-citation"
@@ -1532,11 +1532,32 @@
       "source_sections": [
         "#### 2.6.1 Detection"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T21:58:25.512289Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T22:05:26.52228Z",
+      "closed_reason": "- Detection reports hits, never verdicts: cr rules check \u003cpr\u003e is built in internal/cli/rulescheck.go, resolves the round's rule corpus, evaluates it over the round's diff at the recorded head, attaches each hit to its unit per §4.3.6, and prints round, head, hits and units with no kind, severity or grade (rule.Hit gained JSON tags rule, path, line, text); it moved from the stub tables to the built ones in surface_test.go, norepowrite_test.go and output_test.go, and refuses an unbriefed pull request with exit 4 naming cr brief.\n- A hit reaches a draft only when the agent explicitly confirms it by writing a record naming the rule and citing the matched line, which cr record stores; cr rules check writes no record at all, so findings.ndjson, the only thing §7.1 drafts from, holds only what the agent wrote.\n- An unconfirmed hit is dropped, not posted, per §2.6.1.5, because nothing in cr turns a hit into a record: TestNothingInTheRulePackageMakesARecord proves from the AST that internal/rule holds no finding.Finding literal, no new of it and no function returning one, and it was verified to fail on a planted violation.\n- Confirmation is what a rule cannot supply for itself, so no detect block buys the assertion register of §6.3 on its own: TestAHitCarriesNoVerdictWhateverItsRuleDeclares runs detection twice with a rule declaring kind finding and severity critical and asserts each hit object carries exactly rule, path, line and text and findings.ndjson stays empty.\n- A test runs detection producing three hits, has the agent confirm one, and asserts two never reach findings.ndjson: TestTwoOfThreeHitsTheAgentNeverConfirmsNeverReachFindings runs cr rules check over a real checkout adding three panics on lines 4, 5 and 6, records one confirming record through cr record, and asserts findings.ndjson holds that one record and no stored record anchors or cites lines 5 or 6.\n",
+      "gate_passed_at": "2026-09-10T22:05:26.52228Z",
+      "commit_sha": "bdc4592",
+      "commit_shas": [
+        "bdc4592",
+        "5f29f3a",
+        "f5ca3dc",
+        "147fb0c",
+        "bd8fd61",
+        "ab812c1",
+        "5d0aa69"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/cli/rules.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/rulescheck_test.go",
+        "internal/cli/surface_test.go",
+        "internal/rule/detect.go",
+        "internal/rule/norecord_test.go"
+      ]
     },
     {
       "id": "rule-stats-ledger",
