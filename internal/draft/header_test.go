@@ -103,3 +103,14 @@ func TestAnEmptyRoundIsItsHeaderAlone(t *testing.T) {
 	assert.Contains(t, rendered, "\nrecords: 0 queued\n")
 	assert.Contains(t, rendered, "\ncomments: 0 comments queued against post.max_comments 20\n")
 }
+
+// A value outside §6.1's vocabulary is counted under its own name rather than
+// dropped, so the counts always sum to the records queued.
+func TestAValueOutsideTheVocabularyIsCountedNotDropped(t *testing.T) {
+	odd := aRecord("f1")
+	odd.Severity = "urgent"
+
+	header := headerOfFile(t, fileOf(t, headerFacts, odd, aRecord("f2")))
+
+	assert.Contains(t, header, "\nseverity: critical 0, high 1, medium 0, low 0, urgent 1\n")
+}
