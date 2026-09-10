@@ -168,6 +168,18 @@ func TestAHitIsConfirmedOnlyByItsRuleAtItsLocation(t *testing.T) {
 	}
 }
 
+// A record naming no rule produced nothing a rule's statistics count, so it
+// writes no record event.
+func TestARecordNamingNoRuleWritesNoRecordEvent(t *testing.T) {
+	l := state.New(t.TempDir())
+	unruled := citing("f1", "", 4)
+
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo,
+		[]*finding.Finding{unruled}, []*finding.Finding{unruled}, occasion(0)))
+
+	assert.Empty(t, ledger(t, l))
+}
+
 // Every write carries the entries it does not own through unchanged: another
 // pull request's dismissals, another round's hits and records, and the entries
 // of this round a write does not key. Only the round's own dismissals are
