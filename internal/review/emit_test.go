@@ -120,7 +120,8 @@ func TestEveryPromptNamesItsOutputAndStatesTheRecordContract(t *testing.T) {
 		assert.Contains(t, prompt.Text, "\n    "+prompt.Output+"\n")
 		for _, row := range []string{
 			"- id: required", "- kind: required", "- axis: computed by cr", "- claim: optional",
-			"- grade: computed by cr", "- round: stamped by cr", "- origin: computed by cr",
+			"- grade: computed by cr\n", "- round: stamped by cr", "- origin: computed by cr",
+			"- disposition: optional, and §6.1.4 reserves it to cr", "- suppressed_by: optional\n",
 		} {
 			assert.Contains(t, prompt.Text, row)
 		}
