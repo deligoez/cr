@@ -114,3 +114,15 @@ func TestAValueOutsideTheVocabularyIsCountedNotDropped(t *testing.T) {
 
 	assert.Contains(t, header, "\nseverity: critical 0, high 1, medium 0, low 0, urgent 1\n")
 }
+
+// A record the renderer refuses stops the file, header and all, exactly as it
+// stops Render: nothing is half-written.
+func TestARefusedRecordStopsTheWholeFile(t *testing.T) {
+	refused := aRecord("f2")
+	refused.Summary = render.Reserved + "label -->"
+
+	rendered, err := File([]*finding.Finding{aRecord("f1"), refused}, render.LangEN, nil, headerFacts)
+
+	require.Error(t, err)
+	assert.Empty(t, rendered)
+}
