@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T21:34:54.79404Z",
+  "updated_at": "2026-09-10T21:39:39.035077Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2824,7 +2824,7 @@
     {
       "id": "unmapped-unit-question",
       "title": "Raise an unmapped unit as question",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "map-record-command"
@@ -2834,11 +2834,28 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T21:36:22.814675Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T21:39:38.984951Z",
+      "closed_reason": "- A unit mapped to zero claims raises an unmapped-unit item: mapping.Unmapped in internal/mapping/join.go derives the units of one round that mapping.ndjson's pairs of that same round map to no claim, reading the pairs and nothing else so §4.1.6 stays the only join, and review.Unmapped in internal/review/unmapped.go raises one UnmappedUnit item per such unit, in the order the units are given; TestAUnitMappedToZeroClaimsOfItsRoundIsUnmapped and TestAUnitMappedToZeroClaimsRaisesAnUnmappedUnitItem assert it, including that a pair from an earlier round does not map this round's unit of the same id.\n- An unmapped unit defaults to a question and never a finding: the item carries Kind set to finding.KindQuestion by construction, with no grade consulted, because §4.1.4's usual cause is intent that never reached the tracker and §6.3's forcing reaches only argued records.\n- TestAnUnmappedUnitArrivesAsAQuestionBeforeTheForcingRuns asserts the item's record arrives as kind question before §6.3 runs: for a record raised from the item at each of argued, cited and probed, finding.ForceQuestion reports that it moved nothing and the kind is question, so the register came with the item rather than from the forcing; empty rounds return [] not nil (TestAFullyMappedRoundRaisesNoUnmappedUnitItem).\n- Out of scope: the item has no consumer outside tests until §4.6's fan-out emits it (review-prompt-emission), and nothing at cr record time refuses an intent-axis record written as kind finding on an unmapped unit; mapping-package-tests' premise that internal/mapping has no test file no longer holds, though Decode itself is still untested there.\n",
+      "gate_passed_at": "2026-09-10T21:39:38.984951Z",
+      "commit_sha": "245cb18",
+      "commit_shas": [
+        "245cb18",
+        "8c11a27",
+        "e25f6f9",
+        "6b75f3a",
+        "905e8ed",
+        "00407c2",
+        "5329666",
+        "bd75d55"
+      ],
+      "commit_files": [
+        "internal/mapping/join.go",
+        "internal/mapping/join_test.go",
+        "internal/review/unmapped.go",
+        "internal/review/unmapped_test.go"
+      ]
     },
     {
       "id": "unmapped-unit-notes",
