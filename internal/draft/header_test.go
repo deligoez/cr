@@ -72,3 +72,24 @@ func TestTheFileOpensWithTheSummaryHeader(t *testing.T) {
 		strings.TrimPrefix(rendered, header+"\n\n"),
 		"beneath the header and a blank line, the blocks are exactly what Render gives")
 }
+
+// The header's comment count is §1.6.2's, from the call the cap check makes,
+// at the cap and one past it. Past it, the header names the excess in the words
+// the block itself will use, so the reviewer triages against the number that
+// will stop `cr post`.
+func TestTheHeaderCountsCommentsAsTheCapCheckDoes(t *testing.T) {
+	for _, count := range []int{20, 21} {
+		queued := make([]*finding.Finding, 0, count)
+		for range count {
+			queued = append(queued, aRecord("f1"))
+		}
+		capped := finding.CommentCapFor(queued, headerFacts.MaxComments)
+
+		header := headerOfFile(t, fileOf(t, headerFacts, queued...))
+
+		assert.Contains(t, header, "\ncomments: "+capped.Disclosure()+"\n", "at %d", count)
+	}
+	over := fileOf(t, HeaderFacts{MaxComments: 2}, aRecord("f1"), aRecord("f2"), aRecord("f3"))
+	assert.Contains(t, headerOfFile(t, over),
+		"3 comments queued against post.max_comments 2, 1 over the cap")
+}
