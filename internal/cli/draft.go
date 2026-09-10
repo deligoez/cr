@@ -113,7 +113,7 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rendered, err := draft.Render(queued, lang)
+			rendered, err := draft.Render(queued, lang, nil)
 			if err != nil {
 				return err
 			}

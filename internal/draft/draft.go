@@ -48,10 +48,14 @@ import (
 // read back — as a second marker, or as a region cr discards — so the refusal
 // is made while the fault is still one field of one record. A question the
 // label table has no row for stops it the same way.
-func Render(queued []*finding.Finding, lang render.Lang) (string, error) {
+//
+// sources is what §8.1.6's provenance region needs from outside the records,
+// and may be nil when the caller holds none: a record resting on no note and
+// citing no rule's hit needs nothing from it.
+func Render(queued []*finding.Finding, lang render.Lang, sources *Provenances) (string, error) {
 	blocks := make([]string, 0, len(queued))
 	for _, record := range queued {
-		rendered, err := block(record, lang)
+		rendered, err := block(record, lang, sources)
 		if err != nil {
 			return "", err
 		}
@@ -63,8 +67,8 @@ func Render(queued []*finding.Finding, lang render.Lang) (string, error) {
 // block is one record's rendering: §7.1.1's marker introducing it, and §8.1.3's
 // comment beneath, separated by a blank line so the marker reads as an
 // introduction rather than as part of the prose.
-func block(record *finding.Finding, lang render.Lang) (string, error) {
-	comment, err := commentOf(record, lang)
+func block(record *finding.Finding, lang render.Lang, sources *Provenances) (string, error) {
+	comment, err := commentOf(record, lang, sources)
 	if err != nil {
 		return "", err
 	}
@@ -79,11 +83,20 @@ func block(record *finding.Finding, lang render.Lang) (string, error) {
 // one the agent wrote as a question and one cr forced alike — because the
 // reader cannot tell the two apart and the line is how they learn the register
 // and the grade either way. A finding carries none.
-func commentOf(record *finding.Finding, lang render.Lang) (render.Comment, error) {
+//
+// The §8.1.6 provenance region is asked of the record and of sources alike,
+// for a finding and a question both: weak provenance is disclosed whatever
+// register the record reaches the author in.
+func commentOf(record *finding.Finding, lang render.Lang, sources *Provenances) (render.Comment, error) {
 	comment := render.Comment{Body: body(record)}
 	if err := render.ValidateBody(record.ID, comment.Body); err != nil {
 		return render.Comment{}, err
 	}
+	provenance, err := render.ProvenanceRegion(record.ID, sources.of(record))
+	if err != nil {
+		return render.Comment{}, err
+	}
+	comment.Provenance = provenance
 	if record.Kind != finding.KindQuestion {
 		return comment, nil
 	}
