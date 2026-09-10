@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/render"
 )
 
 // suggesting is a queued record carrying a suggestion of the given origin.
@@ -93,6 +94,12 @@ func TestARecordWithoutASuggestionRendersNoBlock(t *testing.T) {
 // a label written as an owned region here would make every record carrying a
 // machine suggestion unpostable — and §7.1.6 would preserve the agent's edit of
 // a region §8.1.3 says cr regenerates.
+//
+// The comment as a whole does carry an owned region for such a record: §8.1.6
+// discloses `suggestion_origin: rule` in the provenance region. So the claim
+// is read off the agent region AgentRegion recovers, and the label and the
+// fence are asserted to be in it — a label moved into an owned region would
+// be stripped with that region and fail here rather than pass unseen.
 func TestTheSuggestionBlockOpensNoCrOwnedRegion(t *testing.T) {
 	rendered := renderOf(t, suggesting(finding.OriginRule))
 
@@ -100,5 +107,8 @@ func TestTheSuggestionBlockOpensNoCrOwnedRegion(t *testing.T) {
 	require.True(t, found)
 	_, body, found = strings.Cut(body, "-->\n\n")
 	require.True(t, found)
-	assert.NotContains(t, body, "<!-- cr:")
+	agent := render.AgentRegion(body)
+	assert.NotContains(t, agent, "<!-- cr:")
+	assert.Contains(t, agent, machineGenerated)
+	assert.Contains(t, agent, "```suggestion")
 }
