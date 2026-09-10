@@ -55,8 +55,11 @@ func (p *page) block(info, text string) {
 // The sections follow §4.6.1's sentence: the role's instructions and focus,
 // the unit's hunks, the claims mapped to it, the candidate symbols of §4.3.1,
 // the rule hits of §4.3.6, the test files of §4.4.1, and the threads and notes
-// of §3.5.3 and §4.1.5. Each section says what cr located and stops there.
-func (r *Round) text(lens *role.Role, at int) string {
+// of §3.5.3 and §4.1.5. Each section says what cr located and stops there. The
+// prompt ends on §4.6.2's contract — where the role writes and what a record
+// may carry — so the instruction the agent acts on last is cr's and not the
+// role's.
+func (r *Round) text(lens *role.Role, at int, output string) string {
 	u := &r.Units[at]
 	var p page
 	p.line("# %s (%s) on unit %s", lens.Title, lens.ID, u.ID)
@@ -74,6 +77,10 @@ func (r *Round) text(lens *role.Role, at int) string {
 	r.tests(&p, at)
 	r.threads(&p, u)
 	r.notes(&p)
+	if lens.Axis == axis.Intent {
+		claimSchema(&p)
+	}
+	contract(&p, lens, output)
 	return p.String()
 }
 

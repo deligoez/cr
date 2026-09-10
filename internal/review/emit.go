@@ -1,6 +1,9 @@
 package review
 
 import (
+	"path/filepath"
+
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
@@ -26,6 +29,9 @@ type Unit struct {
 	Hunks []git.Hunk
 	// Texts are those hunks' texts, per git.HunkTexts.
 	Texts []string
+	// FanOut is the directory §4.6.2's output files for this unit sit in,
+	// per state.Layout.FanOutDir.
+	FanOut string
 }
 
 // Round is everything §4.6.1 attaches, gathered once for one round and read by
@@ -83,6 +89,9 @@ type Prompt struct {
 	Axis string `json:"axis"`
 	// Unit is the unit's id.
 	Unit string `json:"unit"`
+	// Output is the NDJSON path §4.6.2 has the role write its records to,
+	// which the text names as well.
+	Output string `json:"output"`
 	// Text is the prompt itself.
 	Text string `json:"prompt"`
 }
@@ -101,11 +110,13 @@ func Emit(r *Round) []Prompt {
 	for i := range r.Roles {
 		lens := &r.Roles[i]
 		for at := range r.Units {
+			output := filepath.Join(r.Units[at].FanOut, finding.FanOutFile(lens.ID))
 			prompts = append(prompts, Prompt{
-				Role: lens.ID,
-				Axis: lens.Axis,
-				Unit: r.Units[at].ID,
-				Text: r.text(lens, at),
+				Role:   lens.ID,
+				Axis:   lens.Axis,
+				Unit:   r.Units[at].ID,
+				Output: output,
+				Text:   r.text(lens, at, output),
 			})
 		}
 	}
