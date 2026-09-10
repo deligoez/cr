@@ -144,3 +144,13 @@ func Fields() []Field {
 func CitationFields() []Field {
 	return append(make([]Field, 0, len(citationFields)), citationFields...)
 }
+
+// Reserved returns §6.1.4's fence: every field a record may not arrive
+// carrying, in §6.1's table order with §3.3's two last. The result is a copy.
+//
+// It is the list the decoder refuses by, handed out rather than restated, so a
+// prompt telling a role which fields it may not write (§4.6.2) names exactly
+// the fields `cr merge` and `cr record` will reject.
+func Reserved() []string {
+	return append(make([]string, 0, len(reserved)), reserved...)
+}
