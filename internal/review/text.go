@@ -209,7 +209,7 @@ func (r *Round) hits(p *page, lens *role.Role, at int) {
 	for _, hit := range r.Hits[at].Hits {
 		p.line("- rule %s at %s:%d: %s", hit.RuleID, hit.Path, hit.Line, strings.TrimSpace(hit.Text))
 		if standard := r.standard(hit.RuleID); standard != nil {
-			p.line("  %s", standard.Injection())
+			p.line("  %s", strings.ReplaceAll(standard.Injection(), "\n", "\n  "))
 		}
 	}
 	p.section("Standards without a detector (§2.6.1.4)")
@@ -267,11 +267,13 @@ func (r *Round) threads(p *page, u *Unit) {
 	}
 }
 
-// notes writes the issue key's notes that still stand.
+// notes writes the issue key's notes that still stand. A retracted note is
+// left out rather than shown struck through: §3.6.6 revokes it, and a prompt is
+// not the place to offer a withdrawn fact as a reason.
 func (r *Round) notes(p *page) {
 	p.section("Notes for the issue key (§3.6, §4.1.5)")
 	if len(r.Notes) == 0 {
-		p.line("No note is recorded against the issue key.")
+		p.line("No note recorded against the issue key still stands.")
 		return
 	}
 	p.line("A note is unverified hearsay recorded by a human (§3.6.6).")
