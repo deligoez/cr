@@ -203,3 +203,16 @@ func TestRunEmitsEveryActiveRoleOverEveryUnitOfTheRound(t *testing.T) {
 		"the test file's unit is mapped to no claim, so the intent role raises it")
 }
 
+// `--axis` narrows the fan-out to one axis's roles.
+func TestAnAxisNarrowsTheFanOutToItsRoles(t *testing.T) {
+	src := briefed(t)
+	src.Axis = "intent"
+
+	fan, err := Run(src)
+	require.NoError(t, err)
+	require.Len(t, fan.Prompts, 2)
+	for _, prompt := range fan.Prompts {
+		assert.Equal(t, "intent", prompt.Axis)
+	}
+}
+
