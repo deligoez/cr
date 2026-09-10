@@ -113,7 +113,13 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rendered, err := draft.Render(queued, lang, nil)
+			// §8.1.6: what the provenance region names from
+			// outside the records, read before anything is written.
+			sources, err := draftProvenances(layout, owner, repo, pr, &round, queued)
+			if err != nil {
+				return err
+			}
+			rendered, err := draft.Render(queued, lang, sources)
 			if err != nil {
 				return err
 			}
