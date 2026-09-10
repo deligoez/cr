@@ -54,22 +54,35 @@ func block(record *finding.Finding) string {
 }
 
 // body is the free-form Markdown region of §7.1.2, which the user may rewrite
-// entirely.
+// entirely, holding §8.1.2's initial body.
 //
 // It is free-form in the sense that matters: nothing downstream parses it, and
 // §7.2's triage reads the marker rather than the prose, so a reviewer may
 // replace every word of it without changing what the block means to cr.
 //
-// What it opens with is `summary`, which §6.1.1 keeps in English. §8.1.2's
-// composition — the initial body drawn from `summary` and `evidence`, and the
-// agent's rewrite into `render.lang` — is its own obligation and its own task;
-// what §7.1 requires here is that the region exist, be the user's, and be
-// non-empty, since §8.1.3 refuses to post an empty body.
+// §8.1.2 has cr render it from the record's `summary` and `evidence`, in
+// English, and then forbids cr to compose. Both hold because the two fields
+// are placed rather than written: each is carried verbatim as its own
+// paragraph, in the order §8.1.2 names them, with no word of cr's between or
+// around them. §6.1.1 already keeps both in English, so the body is English
+// without cr translating anything, and every sentence in it is one the agent
+// wrote into the record. The rewrite into `render.lang` is the agent's, made
+// by editing `draft.md` — the one input path §8.1.2 leaves for reader-facing
+// prose.
+//
+// An empty field contributes no paragraph, so a record carrying no evidence
+// renders its summary alone rather than a summary trailed by a blank line.
 func body(record *finding.Finding) string {
-	if record.Suggestion == "" {
-		return record.Summary
+	paragraphs := make([]string, 0, 3)
+	for _, paragraph := range []string{record.Summary, record.Evidence} {
+		if paragraph != "" {
+			paragraphs = append(paragraphs, paragraph)
+		}
 	}
-	return record.Summary + "\n\n" + suggestion(record)
+	if record.Suggestion != "" {
+		paragraphs = append(paragraphs, suggestion(record))
+	}
+	return strings.Join(paragraphs, "\n\n")
 }
 
 // machineGenerated is §7.1.3's label for a suggestion `suggestion_origin: rule`
