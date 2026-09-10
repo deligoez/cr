@@ -121,6 +121,27 @@ func TestRecordingWritesARecordEventAndDismissesEveryUnconfirmedHit(t *testing.T
 		"§2.6.1.5's drop, made observable: the two hits no record cites")
 }
 
+// A dismissal says no recorded record confirms a hit, which stops being true
+// once one does. A later `cr record` of the same round that confirms it takes
+// its dismissal back, and one that mentions it not at all leaves a hit an
+// earlier record confirmed alone.
+func TestALaterConfirmationInTheSameRoundTakesTheDismissalBack(t *testing.T) {
+	l := state.New(t.TempDir())
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), occasion(0)))
+	first := citing("f1", "no-panic", 4)
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo,
+		[]*finding.Finding{first}, []*finding.Finding{first}, occasion(1)))
+
+	second := citing("f2", "no-panic", 5)
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo,
+		[]*finding.Finding{second}, []*finding.Finding{first, second}, occasion(2)))
+
+	held := ledger(t, l)
+	assert.Equal(t, []int{6}, linesOf(held, EventDismissal))
+	assert.Equal(t, []int{4, 5}, linesOf(held, EventRecord))
+	assert.Equal(t, []int{4, 5, 6}, linesOf(held, EventHit), "hits are never taken back")
+}
+
 // Every write carries the entries it does not own through unchanged: another
 // pull request's dismissals, another round's hits and records, and the entries
 // of this round a write does not key. Only the round's own dismissals are
