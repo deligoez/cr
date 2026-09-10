@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T21:43:50.783165Z",
+  "updated_at": "2026-09-10T21:46:49.150991Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6169,7 +6169,7 @@
     {
       "id": "question-mark-refusal",
       "title": "Refuse a question body without punctuation",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "question-label-region"
@@ -6179,11 +6179,26 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T21:40:40.802678Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T21:46:49.116771Z",
+      "closed_reason": "- cr refuses to post a kind=question body containing no ? character, with exit code 1 naming the record id, per §8.1.5: internal/render/question.go's ValidatePostBody refuses a kind=question agent region holding no \"?\" with a render.BodyError naming the record, which exitCodeFor already codes ExitValidation; it applies §8.1.3's two refusals first and reads the agent region alone, so a \"?\" inside an owned region never counts. cr post is still a §11 stub, so the function is reached from tests only until the posting tasks build the command and call it over each recovered agent region; the draft deliberately does not run it, since the initial body is a statement until the agent rewrites it.\n- The register of a question is not cosmetic, and without it §6.3's forcing changes only a field the reader never sees: TestAForcedQuestionIsRefusedUntilItsBodyAsks drafts an argued record forced into a question, shows its unrewritten agent region refused naming the record, and shows the agent's rewrite into a question accepted with the label regenerated rather than read back; TestAQuestionMarkInAnOwnedRegionDoesNotCount shows a \"?\" in the evidence region's output tail does not let a declarative body through.\n- A test asserts a declarative question body is refused: TestADeclarativeQuestionBodyIsRefused refuses the unrewritten initial body, a statement, a full-width question mark and an inverted one, each naming the record id; TestOnlyAQuestionIsAskedForAQuestionMark accepts questions and every finding; TestThePostCheckKeepsSection813sRefusals keeps the empty and reserved-sequence refusals; and internal/cli's TestADeclarativeQuestionIsCodedOneNamingTheRecord pins exit code 1 and the record id in the message.\n- 12260b2 adds a render-package assertion on NoLabelError's message after the gremlins dry run reported it NOT COVERED by the package's own tests.\n",
+      "gate_passed_at": "2026-09-10T21:46:49.116771Z",
+      "commit_sha": "dd26a89",
+      "commit_shas": [
+        "dd26a89",
+        "9fcdac0",
+        "ecc40d6",
+        "5cbb25d",
+        "12260b2"
+      ],
+      "commit_files": [
+        "internal/cli/questionmark_test.go",
+        "internal/draft/questionmark_test.go",
+        "internal/render/labelregion_test.go",
+        "internal/render/question.go",
+        "internal/render/question_test.go"
+      ]
     },
     {
       "id": "provenance-region",
