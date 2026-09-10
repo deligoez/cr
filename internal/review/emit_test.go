@@ -78,3 +78,17 @@ func TestTheUnmappedItemReachesOnlyTheIntentPromptOfItsUnit(t *testing.T) {
 	}
 }
 
+// Before a mapping is recorded for the round, no prompt says which claims a unit
+// is mapped to, and none says a unit is mapped to none: §4.6.5 makes
+// unmapped-ness unknowable on the first pass.
+func TestBeforeAMappingNoPromptCallsAUnitUnmapped(t *testing.T) {
+	r := handRound()
+	r.Mapped, r.Unmapped = false, []UnmappedUnit{}
+
+	for _, prompt := range Emit(r) {
+		assert.Contains(t, prompt.Text, "No mapping is recorded for round 1 yet")
+		assert.NotContains(t, prompt.Text, "The mapping maps no claim to this unit.")
+		assert.NotContains(t, prompt.Text, "Unmapped unit (§4.1.2)")
+	}
+}
+
