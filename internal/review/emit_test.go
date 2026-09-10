@@ -58,3 +58,23 @@ func TestOnePromptIsEmittedPerActiveRoleAndUnit(t *testing.T) {
 	}, at)
 }
 
+// The unmapped-unit item reaches the intent role's prompt for the unmapped unit
+// and no other prompt, and it says the register §4.1.4 fixes.
+//
+// The intent role raises the item, so it is the one told to; a correctness
+// role handed the same instruction would raise a second question about the
+// same unit, and §1.6 prices the second one as much as the first.
+func TestTheUnmappedItemReachesOnlyTheIntentPromptOfItsUnit(t *testing.T) {
+	prompts := Emit(handRound())
+	require.Len(t, prompts, 4)
+
+	for _, prompt := range prompts {
+		carries := prompt.Role == "intent-coverage" && prompt.Unit == "u2"
+		assert.Equalf(t, carries, strings.Contains(prompt.Text, "Unmapped unit (§4.1.2)"),
+			"%s on %s", prompt.Role, prompt.Unit)
+		if carries {
+			assert.Contains(t, prompt.Text, "raised as kind: question and never as a finding")
+		}
+	}
+}
+
