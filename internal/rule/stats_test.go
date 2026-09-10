@@ -100,3 +100,38 @@ func TestAHitOfAnotherRoundOrPullRequestIsItsOwnEntry(t *testing.T) {
 	assert.Len(t, ledger(t, l), 3)
 }
 
+// Every write carries the entries it does not own through unchanged: another
+// pull request's dismissals, another round's hits and records, and the entries
+// of this round a write does not key. Only the round's own dismissals are
+// restated, and only by `cr record`.
+func TestAWriteCarriesEveryEntryItDoesNotOwnThroughUnchanged(t *testing.T) {
+	l := state.New(t.TempDir())
+	other, earlier := occasion(0), occasion(0)
+	other.PR, earlier.Round = 14, 1
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), other))
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo, nil, nil, other))
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), earlier))
+	stale := citing("f1", "no-panic", 4)
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo,
+		[]*finding.Finding{stale}, []*finding.Finding{stale}, earlier))
+	before := ledger(t, l)
+
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), occasion(9)))
+	confirmation := citing("f1", "no-panic", 6)
+	require.NoError(t, RecordRecords(l, statsOwner, statsRepo,
+		[]*finding.Finding{confirmation}, []*finding.Finding{confirmation}, occasion(9)))
+
+	assert.Equal(t, before, ledger(t, l)[:len(before)],
+		"no entry of another pull request or round was touched")
+}
+
+// linesOf lists the lines of one event's entries, in ledger order.
+func linesOf(held []Stat, event Event) []int {
+	lines := make([]int, 0)
+	for i := range held {
+		if held[i].Event == event {
+			lines = append(lines, held[i].Line)
+		}
+	}
+	return lines
+}
