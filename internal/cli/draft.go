@@ -7,10 +7,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/unit"
 )
 
 // draftResult is what `cr draft` has to report: where the draft was written,
@@ -109,17 +111,7 @@ func newDraftCmd(out *writer) *cobra.Command {
 			// §8.1.3's refusal of a body is made before anything
 			// is written, so a refused draft leaves findings.ndjson,
 			// draft.md and summary.json exactly as they were.
-			lang, err := renderLang(layout, owner, repo)
-			if err != nil {
-				return err
-			}
-			// §8.1.6: what the provenance region names from
-			// outside the records, read before anything is written.
-			sources, err := draftProvenances(layout, owner, repo, pr, &round, queued)
-			if err != nil {
-				return err
-			}
-			rendered, err := draft.Render(queued, lang, sources)
+			rendered, err := renderDraft(layout, owner, repo, pr, &round, queued)
 			if err != nil {
 				return err
 			}
@@ -138,24 +130,90 @@ func newDraftCmd(out *writer) *cobra.Command {
 	}
 }
 
-// renderLang is §8.1.1's `render.lang` as §2.7's layers resolve it for this
-// repository, which is the language every §8.1.4 label in the draft is built
-// in for.
+// renderDraft is §7.1's draft.md for the queued records, read out of
+// everything it rests on before anything is written: §2.7's settings, §8.1.6's
+// provenance sources, and §7.1.4's coverage state.
+func renderDraft(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, queued []*finding.Finding,
+) (string, error) {
+	settings, err := resolveDraftSettings(l, owner, repo)
+	if err != nil {
+		return "", err
+	}
+	// §8.1.6: what the provenance region names from outside the records.
+	sources, err := draftProvenances(l, owner, repo, pr, round, queued)
+	if err != nil {
+		return "", err
+	}
+	rows, err := roundCoverage(l, owner, repo, pr, round)
+	if err != nil {
+		return "", err
+	}
+	return draft.File(queued, settings.lang, sources, draft.HeaderFacts{
+		MaxComments: settings.maxComments,
+		Coverage:    rows,
+	})
+}
+
+// settingMaxComments is §1.6.2's cap, by the key §2.7's table holds it under.
+const settingMaxComments = "post.max_comments"
+
+// draftSettings are the two §2.7 settings a draft is rendered under.
+type draftSettings struct {
+	// lang is §8.1.1's `render.lang`, which every §8.1.4 label in the
+	// draft is built in for.
+	lang render.Lang
+	// maxComments is §1.6.2's cap, which §7.1.4's header counts the
+	// queued comments against.
+	maxComments int
+}
+
+// resolveDraftSettings reads both settings out of one resolution of §2.7's
+// layers for this repository, so the header and the labels are rendered under
+// the same configuration.
 //
 // The language is the only thing a layer can say about the label. §2.7 makes
 // the label itself unreadable from every layer, and Resolve refuses a name
 // addressing it before this function ever sees a value, so the text reaching
 // the draft is always one row of the built-in table.
-func renderLang(l state.Layout, owner, repo string) (render.Lang, error) {
+func resolveDraftSettings(l state.Layout, owner, repo string) (draftSettings, error) {
 	resolved, err := config.Resolve(config.Sources{
 		Environ:      os.Environ(),
 		GlobalConfig: l.Config(),
 		RepoConfig:   l.RepoConfig(owner, repo),
 	})
 	if err != nil {
-		return render.Lang{}, err
+		return draftSettings{}, err
 	}
-	return render.ParseLang(resolved.String(render.Setting))
+	lang, err := render.ParseLang(resolved.String(render.Setting))
+	if err != nil {
+		return draftSettings{}, err
+	}
+	return draftSettings{lang: lang, maxComments: resolved.Int(settingMaxComments)}, nil
+}
+
+// roundCoverage is the round's coverage state for §7.1.4's header: its units,
+// the cells filled for them, and meta.json's active roles, counted per
+// §10.1.1.
+//
+// The active set is meta.json's rather than a recomputation, for the reason
+// activeRoles gives: `cr brief` settles it once per round, and a header that
+// derived its own could count a row complete against roles the round never
+// asked for.
+func roundCoverage(l state.Layout, owner, repo string, pr int, round *state.Meta) (coverage.Rows, error) {
+	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return coverage.Rows{}, err
+	}
+	cells, err := state.ReadRecords[coverage.Cell](l, owner, repo, pr, state.FileCoverage)
+	if err != nil {
+		return coverage.Rows{}, err
+	}
+	units := make([]unit.Unit, 0, len(formed))
+	for i := range formed {
+		units = append(units, formed[i].Unit)
+	}
+	return coverage.RowsOf(round.Round, units, round.ActiveRoles, cells), nil
 }
 
 // roundFindingsOf reads the records of one round out of findings.ndjson.
