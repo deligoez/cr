@@ -508,6 +508,31 @@ cr is built with tp, the same way tp builds itself.
 - cr's own repository is a legitimate dogfooding target once it has pull requests
   of its own.
 
+### Two units at once
+
+Two units may run in parallel on disjoint packages: tp takes a flock on the task
+file for `claim`, `next` and `done` (`engine.WithFileLock` in each), so claims
+do not race. Three rules make it safe, each learned by breaking it.
+
+- **Never rewrite history while another unit is working.** `hc rewrite`,
+  `hc split` on landed commits, rebase, amend: all of them re-hash every commit
+  after the rewrite point, including the other unit's. It happened here — a
+  unit split its own test commits and three of its sibling's commits came out
+  with new SHAs. The sibling had already recorded the new ones in tp, so nothing
+  was lost; had it recorded the old ones, `tp done --commit` would name commits
+  that no longer exist. Split a commit before the next one lands, or not at all.
+- **Commit only your own hunks, chosen by content.** The task file carries the
+  other unit's claim hunks beside yours, interleaved. Read `hc diff --json` and
+  pick by what each hunk adds, not by position.
+- **Never run a full mutation run while either unit is live.** Units do the
+  25-second dry run; the full run happens in a quiet window, once.
+
+**`.tp-review/` is tp's, including `REVIEW-DECISION.md`.** Since tp 1.1.1 a
+`PreToolUse` hook refuses a hand edit anywhere under it, citing tp's §6.2 scope
+fence. Earlier entries in that file predate the fence. An open spec question
+found during implementation now goes where tp accepts it: into the acceptance
+of the open task that will meet it, through `tp set`, or into a closure reason.
+
 ### Reset-native subagent-per-unit
 
 Prefer running each unit — one implementation task, or one review round's
