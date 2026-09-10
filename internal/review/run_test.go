@@ -181,6 +181,19 @@ func TestAnEmittedPromptCarriesAllSevenAttachments(t *testing.T) {
 	}
 }
 
+// A hit's standard names the file the rule is written in — for a rule the
+// profile ships, the profile's own file — because rule.Resolved's Path is the
+// file a user opens to change the standard. The case above asserts the rule
+// and its rationale but not where it came from, so a round that lost the path
+// on the way into rule.Resolve would print "from " with nothing after it.
+func TestAHitsStandardNamesTheProfileFileItShipsIn(t *testing.T) {
+	src := briefed(t)
+	fan, err := Run(src)
+	require.NoError(t, err)
+
+	assert.Contains(t, promptOf(t, fan, "correctness", "u1"), "\n  from "+src.Layout.Profile("shop")+"\n")
+}
+
 // The round's active roles each get a prompt for each unit, and the halves that
 // could not run are reported beside them rather than left out.
 func TestRunEmitsEveryActiveRoleOverEveryUnitOfTheRound(t *testing.T) {
