@@ -142,6 +142,32 @@ func TestALaterConfirmationInTheSameRoundTakesTheDismissalBack(t *testing.T) {
 	assert.Equal(t, []int{4, 5, 6}, linesOf(held, EventHit), "hits are never taken back")
 }
 
+// A hit is confirmed only by a record naming its rule and citing its path and
+// line. The rule id alone would let a record about anything confirm every hit
+// of that rule, and the location alone would let a record about another
+// standard confirm this one.
+func TestAHitIsConfirmedOnlyByItsRuleAtItsLocation(t *testing.T) {
+	hit := &Stat{Rule: "no-panic", Path: "lib.go", Line: 5, Event: EventHit}
+	elsewhere := citing("f1", "no-panic", 5)
+	elsewhere.Citations[0].Path = "other.go"
+
+	for _, c := range []struct {
+		name      string
+		record    *finding.Finding
+		confirmed bool
+	}{
+		{"the rule at the line", citing("f1", "no-panic", 5), true},
+		{"the rule at another line", citing("f1", "no-panic", 4), false},
+		{"the rule at the line of another file", elsewhere, false},
+		{"another rule at the line", citing("f1", "handle-every-error", 5), false},
+		{"no rule at the line", citing("f1", "", 5), false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.confirmed, confirmed(hit, []*finding.Finding{c.record}))
+		})
+	}
+}
+
 // Every write carries the entries it does not own through unchanged: another
 // pull request's dismissals, another round's hits and records, and the entries
 // of this round a write does not key. Only the round's own dismissals are
