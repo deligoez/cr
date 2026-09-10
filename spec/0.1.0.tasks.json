@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T22:20:08.413108Z",
+  "updated_at": "2026-09-10T22:20:43.644241Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3567,7 +3567,7 @@
     {
       "id": "review-prompt-contract",
       "title": "State the output path with schema",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-prompt-emission"
@@ -3577,11 +3577,37 @@
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T22:14:08.062882Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T22:20:43.584118Z",
+      "closed_reason": "- Every prompt names the NDJSON path its role writes to and states §6.1's record schema with the fields the agent may not write: Prompt.Output is state.Layout.FanOutDir's per-round, per-unit directory joined with finding.FanOutFile(role), so cr merge's RoleForFile binds the file to the role that wrote it, and internal/review/contract.go renders the path, every row of finding.Fields and finding.CitationFields with its Required column, the optional rows §6.1.4 reserves marked as reserved, and the forbidden list built from finding.Reserved, the citation's computed fields and the two §2.3.3 stamps; TestEveryPromptNamesItsOutputAndStatesTheRecordContract asserts all of it for every prompt.\n- cr review never writes to findings.ndjson: the only thing it writes is the fan-out directories, created under the pull request's lock by state.Lock.EnsureFanOut and holding no file, and a dogfood run with an isolated CR_HOME confirmed findings.ndjson's shasum and mtime unchanged while git status --porcelain and HEAD of the repository under review stayed identical.\n- TestAReviewFanOutLeavesFindingsUntouched asserts findings.ndjson keeps the same bytes and the same modification time across a real fan-out, while every output the prompts name sits under the state root in an empty directory cr created.\n- intent.ClaimFields and intent.ClaimSources are no longer test-only: deadcode ./... lists neither after this closes, nor finding.Fields or finding.CitationFields, which the same contract section now reads.\n- §3.7's payload was indeed the wrong home: nothing was added to the brief, and the two functions are consumed by the fan-out instead.\n- Their consumer is §4.6.2's schema statement: an intent role's prompt states §3.3's claim record from them, the fields with their Required column and the four sources, which is where span_hash and issue_hash of §6.1.4's fence are defined.\n- The wiring is verified by measurement rather than asserted: deadcode ./... fell to 82 lines with no entry under internal/intent.\n- Out of scope: §4.6.3's second sentence, reporting the cells cr review expects filled, belongs to review-expects-cells.\n",
+      "gate_passed_at": "2026-09-10T22:20:43.584118Z",
+      "commit_sha": "8652d70",
+      "commit_shas": [
+        "8652d70",
+        "067500e",
+        "b318da1",
+        "1f5db06",
+        "560abb6",
+        "356a983",
+        "072413e",
+        "5f2f2cb",
+        "b4103cf",
+        "0109e1f",
+        "a6eace4"
+      ],
+      "commit_files": [
+        "internal/finding/fields.go",
+        "internal/finding/reserved_test.go",
+        "internal/review/contract.go",
+        "internal/review/emit.go",
+        "internal/review/emit_test.go",
+        "internal/review/run.go",
+        "internal/review/run_test.go",
+        "internal/review/text.go",
+        "internal/state/fanout.go",
+        "internal/state/fanout_test.go"
+      ]
     },
     {
       "id": "review-expects-cells",
