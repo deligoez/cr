@@ -37,7 +37,7 @@ func TestABlockIsAMarkerAndABody(t *testing.T) {
 	rendered := Render([]*finding.Finding{aRecord("f1")})
 
 	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
-	require.Len(t, lines, 3, "a marker, a blank line, and the body")
+	require.Len(t, lines, 5, "a marker, a blank line, and the body's two paragraphs")
 	assert.Equal(t,
 		`<!-- cr:record id="f1" kind="finding" path="internal/api/handler.go" `+
 			`start_line="42" line="44" severity="high" grade="cited" disposition="" -->`,
@@ -45,6 +45,9 @@ func TestABlockIsAMarkerAndABody(t *testing.T) {
 	assert.Empty(t, lines[1])
 	assert.Equal(t, "The error Decode returns is dropped.", lines[2],
 		"§7.1.2: the body is the region the user may rewrite entirely")
+	assert.Empty(t, lines[3])
+	assert.Equal(t, "The call's second result is assigned to the blank identifier.", lines[4],
+		"§8.1.2: the initial body is drawn from the summary and the evidence")
 }
 
 // §7.1.1 names eight fields, and the marker carries all eight — `disposition`
@@ -73,7 +76,7 @@ func TestEveryRecordIsItsOwnBlockInTheOrderItArrived(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(rendered, "<!-- cr:record "))
 	assert.Less(t, strings.Index(rendered, `id="f1"`), strings.Index(rendered, `id="f2"`),
 		"the caller's order is the draft's order")
-	assert.Contains(t, rendered, first.Summary+"\n\n<!-- cr:record "+`id="f2"`,
+	assert.Contains(t, rendered, first.Evidence+"\n\n<!-- cr:record "+`id="f2"`,
 		"a blank line separates one block's body from the next block's marker")
 }
 
