@@ -30,14 +30,17 @@ type ownedRegion struct {
 	open, close string
 }
 
+// The three owned regions of §8.1.3, each by its pair.
+var (
+	labelRegion      = ownedRegion{open: labelOpen, close: labelClose}
+	provenanceRegion = ownedRegion{open: provenanceOpen, close: provenanceClose}
+	evidenceRegion   = ownedRegion{open: evidenceOpen, close: evidenceClose}
+)
+
 // ownedRegions are §8.1.3's three pairs, in the order the sequence places
 // them: the §8.1.4 label, the §8.1.6 provenance block, and — beneath the agent
 // body — the §8.1.7 evidence block.
-var ownedRegions = []ownedRegion{
-	{open: labelOpen, close: labelClose},
-	{open: provenanceOpen, close: provenanceClose},
-	{open: evidenceOpen, close: evidenceClose},
-}
+var ownedRegions = []ownedRegion{labelRegion, provenanceRegion, evidenceRegion}
 
 // wrap delimits content by the region's pair, each marker on a line of its
 // own, which is the shape ProbeEvidence already gives the evidence region.
