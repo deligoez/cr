@@ -10,6 +10,8 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
@@ -156,6 +158,30 @@ func TestBeforeAMappingNoPromptCallsAUnitUnmapped(t *testing.T) {
 		assert.Contains(t, prompt.Text, "No mapping is recorded for round 1 yet")
 		assert.NotContains(t, prompt.Text, "The mapping maps no claim to this unit.")
 		assert.NotContains(t, prompt.Text, "Unmapped unit (§4.1.2)")
+	}
+}
+
+// Once a mapping is recorded, a unit mapped to a claim lists it and a unit
+// mapped to none says so, and neither prompt carries the other's line. The
+// case above covers only the first pass, where neither line may appear; an
+// intent role told "no claim" above a claim it is then shown would raise
+// §4.1.2's question about a unit the mapping covers.
+func TestAMappedUnitListsItsClaimAndOnlyAnUnmappedOneSaysItHasNone(t *testing.T) {
+	r := handRound()
+	r.Claims = []intent.Claim{{ID: "CR-7#c1", Text: "The total sums the subtotal and the shipping."}}
+	pair := mapping.Pair{Claim: "CR-7#c1", Unit: "u1"}
+	pair.Head, pair.Round = r.Head, r.Round
+	r.Pairs = []mapping.Pair{pair}
+
+	prompts := Emit(r)
+	require.Len(t, prompts, 4)
+	for _, prompt := range prompts {
+		mapped := prompt.Unit == "u1"
+		assert.Equalf(t, mapped,
+			strings.Contains(prompt.Text, "- CR-7#c1: The total sums the subtotal and the shipping."),
+			"%s on %s", prompt.Role, prompt.Unit)
+		assert.Equalf(t, !mapped, strings.Contains(prompt.Text, "The mapping maps no claim to this unit."),
+			"%s on %s", prompt.Role, prompt.Unit)
 	}
 }
 
