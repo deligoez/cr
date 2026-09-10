@@ -47,7 +47,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-01 at cognitive 46 over 123 statements
+//nolint:gocognit,funlen // measured 2026-09-11 at cognitive 49 over 148 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
