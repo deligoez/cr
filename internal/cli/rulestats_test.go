@@ -57,3 +57,29 @@ func TestRulesCheckRunTwiceInOneRoundLeavesOneLedgerEntryPerHit(t *testing.T) {
 	}
 }
 
+// Round 9's rule-stats-event-producer through the command: `cr record` writes a
+// record event for the record it stored, at that record's anchor, and a
+// dismissal for each of the two hits no record of the round confirms.
+func TestRecordWritesTheRecordAndDismissesTheHitsNoRecordConfirms(t *testing.T) {
+	layout := detectedHome(t)
+	runRulesCheck(t)
+
+	_, err := runRecord(t, fixturePR,
+		writeRecordFile(t, "merged.ndjson", confirming("f1", 4)), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	held, err := rule.ReadStats(layout, fixtureOwner, fixtureProject)
+	require.NoError(t, err)
+	byEvent := map[rule.Event][]int{}
+	for _, entry := range held {
+		byEvent[entry.Event] = append(byEvent[entry.Event], entry.Line)
+		if entry.Event == rule.EventRecord {
+			assert.Equal(t, "f1", entry.Record)
+		}
+	}
+	assert.Equal(t, map[rule.Event][]int{
+		rule.EventHit:       {4, 5, 6},
+		rule.EventRecord:    {4},
+		rule.EventDismissal: {5, 6},
+	}, byEvent)
+}
