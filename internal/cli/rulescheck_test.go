@@ -193,3 +193,16 @@ func keysOf(object map[string]any) []string {
 	return keys
 }
 
+// `cr rules check` reads the round's units, so a pull request no brief has
+// opened a round on is refused with §11.2's code 4 naming `cr brief`.
+func TestRulesCheckRefusesAnUnbriefedPullRequest(t *testing.T) {
+	layout := state.New(crHome(t))
+	require.NoError(t, layout.Init())
+
+	err := runCLI(t, "rules", "check", fixturePR, "--repo", fixtureSlug)
+
+	var missing *state.NotBriefedError
+	require.ErrorAs(t, err, &missing)
+	assert.Equal(t, ExitState, exitCodeFor(err))
+	assert.Contains(t, err.Error(), "cr brief "+fixturePR)
+}
