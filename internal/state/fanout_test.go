@@ -36,3 +36,20 @@ func TestEnsureFanOutCreatesOneDirectoryPerUnitAndKeepsWhatIsInIt(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, "{}\n", string(body), "emitting a round twice discards nothing a role wrote")
 }
+
+// A unit id that is not one path segment is refused, and so is a round no
+// brief has opened, and neither creates anything.
+func TestEnsureFanOutRefusesAnIDThatCouldClimbAndARoundOfZero(t *testing.T) {
+	l := lockedPR(t)
+	held, err := l.LockPR("acme", "web", 42)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, held.Unlock()) }()
+
+	for _, unit := range []string{"", ".", "..", "../u1", "u1/u2"} {
+		assert.Errorf(t, held.EnsureFanOut(1, []string{unit}), "%q", unit)
+	}
+	assert.Error(t, held.EnsureFanOut(0, []string{"u1"}))
+
+	_, err = os.Stat(filepath.Join(l.PRDir("acme", "web", 42), DirFanOut))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
