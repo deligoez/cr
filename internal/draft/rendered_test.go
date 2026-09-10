@@ -1,6 +1,7 @@
 package draft
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,4 +33,20 @@ func TestAnEntryIsTheAgentRegionWithoutTheOwnedRegions(t *testing.T) {
 	assert.NotContains(t, rendered["f1"], render.Reserved, "no cr-owned region reaches the entry")
 	assert.Contains(t, renderOf(t, question), rendered["f1"],
 		"and it is the region as the draft carries it, not a second rendering of it")
+}
+
+// The entry is the region as the file holds it, so a field ending on newlines
+// is recorded without them: in draft.md those newlines are indistinguishable
+// from the blank line that separates the body from what follows, and reading
+// the untouched block back recovers the body without them. An entry keeping
+// them would differ from every untouched body, and §7.1.6 would take a block
+// nobody edited for an edited one.
+func TestAnEntryIsWhatReadingTheUntouchedBlockBackRecovers(t *testing.T) {
+	trailing := aRecord("f1")
+	trailing.Evidence += "\n\n"
+
+	rendered, err := Rendered([]*finding.Finding{trailing}, render.LangEN, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, trailing.Summary+"\n\n"+strings.TrimRight(trailing.Evidence, "\n"), rendered["f1"])
 }
