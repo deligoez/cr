@@ -93,3 +93,13 @@ func TestTheHeaderCountsCommentsAsTheCapCheckDoes(t *testing.T) {
 	assert.Contains(t, headerOfFile(t, over),
 		"3 comments queued against post.max_comments 2, 1 over the cap")
 }
+
+// A round with nothing queued still opens with the header, and holds nothing
+// else: the counts are said, not inferred from an empty file.
+func TestAnEmptyRoundIsItsHeaderAlone(t *testing.T) {
+	rendered := fileOf(t, headerFacts)
+
+	assert.Equal(t, headerOfFile(t, rendered)+"\n", rendered)
+	assert.Contains(t, rendered, "\nrecords: 0 queued\n")
+	assert.Contains(t, rendered, "\ncomments: 0 comments queued against post.max_comments 20\n")
+}
