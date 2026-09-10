@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T21:39:39.035077Z",
+  "updated_at": "2026-09-10T21:40:25.073408Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6115,7 +6115,7 @@
     {
       "id": "question-label-region",
       "title": "Prepend the fixed question label",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "comment-region-sequence",
@@ -6126,11 +6126,32 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T21:35:30.340994Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T21:40:25.036003Z",
+      "closed_reason": "- cr prepends a fixed, cr-owned label line to every kind=question comment, naming the register and the grade, per §8.1.4: internal/draft/draft.go's commentOf sets Comment.Label to render.QuestionLabelRegion(lang, grade) for every record whose kind is question after §6.3's forcing, so the §8.1.4 row, which names the register and the grade, opens the comment between §8.1.3's label pair; a finding carries none; TestEveryQuestionOpensWithItsLabelAndNoFindingCarriesOne drafts a question and a finding for each of the two languages and three grades and asserts the whole marker, label, body sequence, and TestTheDraftedLabelIsNotPartOfTheAgentRegion shows AgentRegion strips it, so the label is regenerated and never read back.\n- The label text is built in per render.lang and is not configurable: QuestionLabelRegion is a lookup into label.go's literal table and never a composition, and cr draft resolves only render.lang through §2.7 (renderLang), which picks a row; a pair with no row is refused with NoLabelError, coded 3, rather than rendered without a label, per TestAPairTheTableHasNoRowForIsRefused and TestAQuestionTheTableCannotLabelStopsTheDraft.\n- §6.3's forcing reaches the reader through this line alone, so §2.7 protects it exactly as it protects the gate: config.Resolve's existing label token refuses every layer's name addressing it, and cr draft now runs that resolution, so a spoiled layer stops the draft with exit code 3 before anything is written.\n- A test asserts the label is unreachable from every configuration layer and appears on every question: internal/cli/labelunreachable_test.go's TestTheQuestionLabelIsUnreachableFromEveryConfigurationLayer checks all five §2.7 layers through cr draft (no flag names the label and every global flag leaves the built-in line; CR_RENDER_LABEL, CR_QUESTION_LABEL and CR_POST_LABELS, a per-repository key and a nested global key each refuse with exit 3 and no draft.md; no built-in default holds a label key) and shows render.lang choosing the Turkish row by default and the English row when set, never supplying text.\n- Render now takes the language, so the draft test helper and the reserved-sequence test pass render.LangEN (fe21c2c); a call-site change with no assertion weakened.\n",
+      "gate_passed_at": "2026-09-10T21:40:25.036003Z",
+      "commit_sha": "ee03114",
+      "commit_shas": [
+        "ee03114",
+        "0aac4bf",
+        "fe21c2c",
+        "b4391c8",
+        "5a7c9c8",
+        "9ea9aaa"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/exit.go",
+        "internal/cli/labelunreachable_test.go",
+        "internal/draft/draft.go",
+        "internal/draft/draft_test.go",
+        "internal/draft/label_test.go",
+        "internal/draft/reserved_test.go",
+        "internal/render/comment.go",
+        "internal/render/label.go",
+        "internal/render/labelregion_test.go"
+      ]
     },
     {
       "id": "question-mark-refusal",
