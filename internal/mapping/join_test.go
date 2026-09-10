@@ -51,3 +51,24 @@ func TestAFullyMappedRoundRaisesAnEmptyListNotANilOne(t *testing.T) {
 	assert.NotNil(t, unmapped)
 	assert.Empty(t, unmapped)
 }
+
+// The claims mapped to a unit are the round's pairs naming it, in the order the
+// agent recorded them, each once.
+//
+// Every way a pair can fail to belong is present beside the ones that do: a
+// pair of another unit, a pair of round 1 naming the same unit id, and a pair
+// the file states twice. A unit's prompt listing a claim of another round would
+// have the role evaluate code against intent the round never joined to it
+// (§3.4.6, §9.3.5), and a repeated claim would be read as a second requirement.
+func TestTheClaimsOfAUnitAreItsRoundsPairsInRecordedOrder(t *testing.T) {
+	pairs := []Pair{
+		pair("CR-1#c3", "u1", 2),
+		pair("CR-1#c1", "u2", 2),
+		pair("CR-1#c9", "u1", 1),
+		pair("CR-1#c1", "u1", 2),
+		pair("CR-1#c3", "u1", 2),
+	}
+
+	assert.Equal(t, []string{"CR-1#c3", "CR-1#c1"}, ClaimsOf(pairs, 2, "u1"))
+	assert.Equal(t, []string{}, ClaimsOf(pairs, 2, "u5"), "a unit no pair names has none, and says so with []")
+}
