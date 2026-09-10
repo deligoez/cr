@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T22:12:29.412327Z",
+  "updated_at": "2026-09-10T22:15:39.298457Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1562,7 +1562,7 @@
     {
       "id": "rule-stats-ledger",
       "title": "Append rule events idempotently to ledger",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "unconfirmed-hit-dropped",
@@ -1573,11 +1573,38 @@
       "source_sections": [
         "#### 2.6.1 Detection"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T22:06:28.015335Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T22:15:39.214961Z",
+      "closed_reason": "- Every hit, record, and dismissal is appended to rule-stats.ndjson with the rule id, the matched path and line, the round, and the head, per §2.6.1.6: internal/rule/stats.go's Stat carries rule, path, line, event, pr, round, head and at; cr rules check writes a hit entry per hit through rule.RecordHits, and cr record writes a record entry at the anchor of every stored record naming a rule and a dismissal per unconfirmed hit through rule.RecordRecords, all through state.UpdateRuleStats, the ledger's one locked read-modify-write door (TestTheRuleLedgerHasOneWriter asserts rule's update is its only caller).\n- The path and line are load-bearing: a hit is confirmed only by a record naming its rule and citing its exact path and line (TestAHitIsConfirmedOnlyByItsRuleAtItsLocation covers the rule at another line, at the same line of another file, another rule and no rule), and TestAHitEntryCarriesEveryFieldTheLedgerIsKeyedAndOrderedBy asserts the whole entry, so §6.2.5 has a positional record to match a citation against.\n- Round 8 finding cross-pr-round-ordering-undefined: each entry also carries pr and a UTC timestamp (at, normalised with UTC() and asserted both in rule tests and off the raw file bytes in TestRulesCheckRunTwiceInOneRoundLeavesOneLedgerEntryPerHit), and TestAHitOfAnotherRoundOrPullRequestIsItsOwnEntry keeps entries of other rounds and pull requests apart.\n- Round 9 finding rule-stats-event-producer: entries are keyed by rule id, path, line, round, head and event type, with the pull request and record id added to the key because a round index means nothing across pull requests and two records of one rule on one line are two records, and an entry with an existing key is overwritten in place rather than appended, so cr rules check and cr review in the same round cannot double-count a hit; TestAWriteCarriesEveryEntryItDoesNotOwnThroughUnchanged asserts every other entry survives.\n- Round 9 finding rule-stats-event-producer: cr record is the producer of dismissal events, writing one per current-round hit that no record of the round cites (read back from findings.ndjson after the append, so an earlier confirmation counts), and it restates the round's dismissals so a later confirmation takes one back (TestRecordWritesTheRecordAndDismissesTheHitsNoRecordConfirms, TestALaterConfirmationInTheSameRoundTakesTheDismissalBack).\n- A test runs detection twice in one round and asserts the ledger holds one entry per hit, not two: TestRulesCheckRunTwiceInOneRoundLeavesOneLedgerEntryPerHit runs cr rules check twice over three hits and reads three entries off the file, and TestDetectionRunTwiceInOneRoundLeavesOneEntryPerHit asserts the second run's timestamp is the one kept.\n",
+      "gate_passed_at": "2026-09-10T22:15:39.214961Z",
+      "commit_sha": "370469f",
+      "commit_shas": [
+        "370469f",
+        "d97df42",
+        "ad71e43",
+        "5e4016e",
+        "f3d3776",
+        "c280e06",
+        "4aa6a4b",
+        "f7c3736",
+        "6541c47",
+        "3420e60",
+        "9c18b2a",
+        "f4d7be5",
+        "ba68aad",
+        "353c9f0",
+        "6ed0be9"
+      ],
+      "commit_files": [
+        "internal/cli/norulestatsrewrite_test.go",
+        "internal/cli/record.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/rulestats_test.go",
+        "internal/rule/stats.go",
+        "internal/rule/stats_test.go",
+        "internal/state/rulestats.go"
+      ]
     },
     {
       "id": "rule-fix-suggestion",
