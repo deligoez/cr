@@ -22,9 +22,9 @@ import (
 func handRound() *Round {
 	units := []Unit{
 		{Unit: unit.Unit{ID: "u1", Path: "a.go", Side: git.Right, HunkRanges: []unit.Range{{Start: 1, End: 1}}},
-			Texts: []string{"@@ -1 +1 @@\n-old\n+new"}},
+			Texts: []string{"@@ -1 +1 @@\n-old\n+new"}, FanOut: "/state/pr-7/fanout/1/u1"},
 		{Unit: unit.Unit{ID: "u2", Path: "b.go", Side: git.Right, HunkRanges: []unit.Range{{Start: 4, End: 4}}},
-			Texts: []string{"@@ -4 +4 @@\n-before\n+after"}},
+			Texts: []string{"@@ -4 +4 @@\n-before\n+after"}, FanOut: "/state/pr-7/fanout/1/u2"},
 	}
 	empty := testadequacy.Attachment{Paths: []string{}, Symbols: []string{}, Unavailable: []testadequacy.Unavailable{}}
 	return &Round{
@@ -100,4 +100,38 @@ func TestAHunkIsFencedLongerThanAnyFenceItQuotes(t *testing.T) {
 
 	text := Emit(r)[0].Text
 	assert.Contains(t, text, "`````diff\n@@ -1 +1 @@\n+s := \"````\"\n`````")
+}
+
+// Every prompt names the NDJSON path its role writes to, and states §6.1's
+// record schema together with the fields §6.1.4 forbids the agent to write
+// (§4.6.2); an intent prompt also states §3.3's claim record.
+//
+// The path is asserted against cr merge's own reading of it. finding.RoleForFile
+// is what binds a merged file's records to a role (§6.1.3), so a prompt naming a
+// path whose base name bound some other role — or none — would have the role's
+// records refused or misattributed on the way in.
+func TestEveryPromptNamesItsOutputAndStatesTheRecordContract(t *testing.T) {
+	for _, prompt := range Emit(handRound()) {
+		assert.Equal(t, "/state/pr-7/fanout/1/"+prompt.Unit+"/review-"+prompt.Role+".ndjson", prompt.Output)
+		bound, ok := finding.RoleForFile(prompt.Output)
+		assert.True(t, ok)
+		assert.Equal(t, prompt.Role, bound, "cr merge attributes the file to the role that wrote it")
+
+		assert.Contains(t, prompt.Text, "\n    "+prompt.Output+"\n")
+		for _, row := range []string{
+			"- id: required", "- kind: required", "- axis: computed by cr", "- claim: optional",
+			"- grade: computed by cr", "- round: stamped by cr", "- origin: computed by cr",
+		} {
+			assert.Contains(t, prompt.Text, row)
+		}
+		assert.Contains(t, prompt.Text, "You may not write axis, grade, state, disposition, duplicate_of, "+
+			"thread_id, span_hash, issue_hash, a citation's content_hash, a citation's origin, round, head.")
+
+		claims := strings.Contains(prompt.Text, "## Claim record (§3.3)")
+		assert.Equal(t, prompt.Axis == axis.Intent, claims, "%s on %s", prompt.Role, prompt.Unit)
+		if claims {
+			assert.Contains(t, prompt.Text, "- span_hash: computed by cr")
+			assert.Contains(t, prompt.Text, "source is one of description, acceptance, comment, note")
+		}
+	}
 }
