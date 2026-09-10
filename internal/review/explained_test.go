@@ -81,3 +81,23 @@ func TestTheIssueKeysNotesAreAttachedToEveryUnmappedUnit(t *testing.T) {
 	}
 }
 
+// A recorded note suppresses the matching unmapped-unit question only when the
+// agent says so, and the cell that says so carries the note's id.
+//
+// n1's text names u2 in so many words, which is the case a text match would
+// take as settled. It is not: with the note recorded and no decision recorded,
+// u2 is raised all the same, because §4.1.5 forbids cr to decide by matching
+// text and §2.1.3 gives the decision to the agent. Only once the intent role's
+// cell arrives through the decoder `cr cells record` uses, citing n1, does u2
+// stop being raised — and u3, which nobody explained, is raised throughout.
+func TestARecordedNoteSuppressesTheQuestionOnlyWhenTheAgentSaysSo(t *testing.T) {
+	assert.Equal(t, []string{"u2", "u3"}, raisedUnits(Raise(intentRound())),
+		"a note whose words describe the unit suppresses nothing on its own")
+
+	decided := recorded(t, 2, `{"unit":"u2","role":"intent-coverage","result":"pass","note_id":"CR-1#n1"}`)
+	assert.Equal(t, "CR-1#n1", decided.NoteID, "§4.1.5: the coverage cell cites the note id")
+
+	assert.Equal(t, []string{"u3"}, raisedUnits(Raise(intentRound(decided))),
+		"once the agent records that n1 explains u2, u2's question is not raised")
+}
+
