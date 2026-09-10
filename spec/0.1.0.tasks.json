@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T22:39:14.952571Z",
+  "updated_at": "2026-09-10T23:15:54.716666Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5603,7 +5603,7 @@
     {
       "id": "draft-summary-header",
       "title": "Open the draft with a header",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "draft-suggestion-block",
@@ -5614,11 +5614,33 @@
       "source_sections": [
         "### 7.1 Draft format"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T23:07:31.455315Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T23:15:54.657315Z",
+      "closed_reason": "- draft.md now opens with §7.1.4's summary header: internal/draft/header.go's File renders one HTML comment opened by `\u003c!-- cr:summary` ahead of every block, listing records queued, counts by kind, severity and grade in §6.1's order, the coverage state as §10.1.1's unit counts from internal/coverage's RowsOf (units, complete rows, gaps, oversized, against meta.json's active roles, counting only cells of the round filled for the unit's current hash), and the comment count as finding.CommentCapFor's disclosure against post.max_comments, which internal/cli/draft.go resolves from §2.7's layers in the same resolution as render.lang; TestTheFileOpensWithTheSummaryHeader asserts the file's first line opens the comment, that it is exactly one comment closed on its own line before the first marker, and every listed line, while TestAnEmptyRoundIsItsHeaderAlone, TestAValueOutsideTheVocabularyIsCountedNotDropped, TestARefusedRecordStopsTheWholeFile and the two RowsOf tests fence the rest.\n- TestTheDraftHeaderReportsTheCountTheCapCheckUses runs cr draft over three queued records with post.max_comments set to 2 in the repository layer, then asserts the header carries finding.CommentCapFor(queued, resolved post.max_comments).Disclosure() verbatim, names \"3 comments queued against post.max_comments 2, 1 over the cap\", and that the same CommentCap's Err is the CommentCapExceededError §1.6.2 blocks on, while the draft itself is still written; TestTheHeaderCountsCommentsAsTheCapCheckDoes asserts the same identity at the cap and one past it.\n",
+      "gate_passed_at": "2026-09-10T23:15:54.657315Z",
+      "commit_sha": "2350db0",
+      "commit_shas": [
+        "2350db0",
+        "3089ea4",
+        "78d0999",
+        "5c65e00",
+        "db142a8",
+        "600563d",
+        "aed8441",
+        "0b40ade",
+        "abe14f1",
+        "e4d4603",
+        "6841c95"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftheader_test.go",
+        "internal/coverage/rows.go",
+        "internal/coverage/rows_test.go",
+        "internal/draft/header.go",
+        "internal/draft/header_test.go"
+      ]
     },
     {
       "id": "draft-rendered-regions",
