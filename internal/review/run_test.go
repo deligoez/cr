@@ -236,3 +236,40 @@ func TestAUnitTheDiffNoLongerGivesIsRefused(t *testing.T) {
 	assert.Equal(t, "u1", stale.Unit)
 	assert.Contains(t, err.Error(), "cr brief 7 --repo acme/shop")
 }
+
+// A review fan-out leaves findings.ndjson untouched (§4.6.3): the file carries
+// the same bytes and the same modification time afterwards. What the fan-out
+// does write is the directories its prompts name, under the state root (§2.2),
+// and nothing inside them — the records are the roles' to write.
+func TestAReviewFanOutLeavesFindingsUntouched(t *testing.T) {
+	src := briefed(t)
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings, []byte(`{"id":"f1","kind":"question","role":"correctness",`+
+		`"class":"unchecked-shipping","severity":"low","unit":"u1","summary":"s","evidence":"e","round":1,"head":"h"}`+"\n")))
+	require.NoError(t, held.Unlock())
+	path := src.Layout.PRFile(runOwner, runRepo, runPR, state.FileFindings)
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+	stamped, err := os.Stat(path)
+	require.NoError(t, err)
+
+	fan, err := Run(src)
+	require.NoError(t, err)
+
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after), "§4.6.3: cr review writes nothing to findings.ndjson")
+	restamped, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, stamped.ModTime(), restamped.ModTime(), "and does not rewrite it with the same bytes either")
+
+	require.NotEmpty(t, fan.Prompts)
+	for _, prompt := range fan.Prompts {
+		assert.True(t, strings.HasPrefix(prompt.Output, src.Layout.Root()+string(filepath.Separator)),
+			"§2.2: %s is under the state root", prompt.Output)
+		entries, err := os.ReadDir(filepath.Dir(prompt.Output))
+		require.NoError(t, err, "the directory a role writes into exists")
+		assert.Empty(t, entries, "and cr put no file in it")
+	}
+}
