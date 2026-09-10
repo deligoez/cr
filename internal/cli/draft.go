@@ -103,9 +103,15 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err := finding.RefuseArguedAssertion(queued); err != nil {
 				return err
 			}
+			// §8.1.3's refusal of a body is made before anything
+			// is written, so a refused draft leaves findings.ndjson,
+			// draft.md and summary.json exactly as they were.
+			rendered, err := draft.Render(queued)
+			if err != nil {
+				return err
+			}
 			if err := publishDraft(
-				layout, owner, repo, pr, &round, records,
-				draft.Render(queued), forced,
+				layout, owner, repo, pr, &round, records, rendered, forced,
 			); err != nil {
 				return err
 			}

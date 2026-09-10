@@ -31,10 +31,18 @@ func aRecord(id string) *finding.Finding {
 	}
 }
 
+// renderOf is Render over records, for a test whose records §8.1.3 accepts.
+func renderOf(t *testing.T, records ...*finding.Finding) string {
+	t.Helper()
+	rendered, err := Render(records)
+	require.NoError(t, err)
+	return rendered
+}
+
 // §7.1.1: one record is one block, introduced by a marker carrying the eight
 // fields the section names.
 func TestABlockIsAMarkerAndABody(t *testing.T) {
-	rendered := Render([]*finding.Finding{aRecord("f1")})
+	rendered := renderOf(t, aRecord("f1"))
 
 	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
 	require.Len(t, lines, 5, "a marker, a blank line, and the body's two paragraphs")
@@ -55,7 +63,7 @@ func TestABlockIsAMarkerAndABody(t *testing.T) {
 // reviewer type `wrong` into. A field that appeared only once it had a value
 // would leave the verb no place to be written.
 func TestTheMarkerCarriesEveryFieldSection711Names(t *testing.T) {
-	rendered := Render([]*finding.Finding{aRecord("f1")})
+	rendered := renderOf(t, aRecord("f1"))
 
 	for _, field := range []string{
 		"id", "kind", "path", "start_line", "line", "severity", "grade", "disposition",
@@ -71,7 +79,7 @@ func TestEveryRecordIsItsOwnBlockInTheOrderItArrived(t *testing.T) {
 	first, second := aRecord("f1"), aRecord("f2")
 	second.Summary = "The retry never backs off."
 
-	rendered := Render([]*finding.Finding{first, second})
+	rendered := renderOf(t, first, second)
 
 	assert.Equal(t, 2, strings.Count(rendered, "<!-- cr:record "))
 	assert.Less(t, strings.Index(rendered, `id="f1"`), strings.Index(rendered, `id="f2"`),
@@ -84,8 +92,8 @@ func TestEveryRecordIsItsOwnBlockInTheOrderItArrived(t *testing.T) {
 // describing an empty round. The header §7.1.4 asks for is its own obligation;
 // what this says is that the block renderer invents no block.
 func TestNothingQueuedRendersNoBlock(t *testing.T) {
-	assert.Empty(t, Render(nil))
-	assert.Empty(t, Render([]*finding.Finding{}))
+	assert.Empty(t, renderOf(t))
+	assert.Empty(t, renderOf(t, []*finding.Finding{}...))
 }
 
 // A marker value cr does not choose cannot break the marker.
@@ -107,7 +115,7 @@ func TestAPathCannotBreakOutOfTheMarker(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			record := aRecord("f1")
 			record.Anchor.Path = path
-			rendered := Render([]*finding.Finding{record})
+			rendered := renderOf(t, record)
 
 			markers := 0
 			for _, line := range strings.Split(rendered, "\n") {

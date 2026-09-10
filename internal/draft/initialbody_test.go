@@ -15,7 +15,7 @@ import (
 // closing newline.
 func bodyOf(t *testing.T, record *finding.Finding) string {
 	t.Helper()
-	rendered := Render([]*finding.Finding{record})
+	rendered := renderOf(t, record)
 	_, body, found := strings.Cut(rendered, " -->\n\n")
 	require.True(t, found, "a block is a marker, a blank line, and a body")
 	return strings.TrimSuffix(body, "\n")

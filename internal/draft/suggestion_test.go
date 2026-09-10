@@ -26,7 +26,7 @@ func suggesting(origin finding.Origin) *finding.Finding {
 // lines and treats every other tag as a quotation, so the tag is the difference
 // between an offer the author can accept and a code sample they have to retype.
 func TestASuggestionIsRenderedAsAFencedSuggestionBlock(t *testing.T) {
-	rendered := Render([]*finding.Finding{suggesting(finding.OriginAgent)})
+	rendered := renderOf(t, suggesting(finding.OriginAgent))
 
 	assert.Contains(t, rendered, "```suggestion\n\tif err := dec.Decode(&body); err != nil {\n```")
 	assert.Greater(t, strings.Index(rendered, "```suggestion"),
@@ -53,7 +53,7 @@ func TestOnlyAMachineGeneratedSuggestionIsLabelled(t *testing.T) {
 		{name: "carrying no origin at all", origin: "", labelled: false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			rendered := Render([]*finding.Finding{suggesting(c.origin)})
+			rendered := renderOf(t, suggesting(c.origin))
 
 			require.Contains(t, rendered, "```suggestion", "every case renders the block")
 			if c.labelled {
@@ -81,7 +81,7 @@ func TestTheLabelNamesWhatCrCannotEstablish(t *testing.T) {
 // of the field and not of the renderer. §6.1's table makes `suggestion`
 // optional, and most records carry none.
 func TestARecordWithoutASuggestionRendersNoBlock(t *testing.T) {
-	rendered := Render([]*finding.Finding{aRecord("f1")})
+	rendered := renderOf(t, aRecord("f1"))
 
 	assert.NotContains(t, rendered, "```suggestion")
 	assert.NotContains(t, rendered, machineGenerated)
@@ -94,7 +94,7 @@ func TestARecordWithoutASuggestionRendersNoBlock(t *testing.T) {
 // machine suggestion unpostable — and §7.1.6 would preserve the agent's edit of
 // a region §8.1.3 says cr regenerates.
 func TestTheSuggestionBlockOpensNoCrOwnedRegion(t *testing.T) {
-	rendered := Render([]*finding.Finding{suggesting(finding.OriginRule)})
+	rendered := renderOf(t, suggesting(finding.OriginRule))
 
 	body, found := strings.CutPrefix(rendered, "<!-- cr:record ")
 	require.True(t, found)

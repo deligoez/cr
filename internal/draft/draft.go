@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/render"
 )
 
 // Render is §7.1's draft: every queued record as one block, in the order the
@@ -38,19 +39,34 @@ import (
 // rather than a missing one: the file is written either way, so a reviewer who
 // opens it sees a draft with no blocks rather than a stale draft from the round
 // before.
-func Render(queued []*finding.Finding) string {
+//
+// A record whose initial body §8.1.3 refuses stops the whole draft, naming the
+// record, and nothing is rendered. The body is drawn from fields the agent
+// wrote, and a draft carrying a reserved sequence would be misread when it is
+// read back — as a second marker, or as a region cr discards — so the refusal
+// is made while the fault is still one field of one record.
+func Render(queued []*finding.Finding) (string, error) {
 	blocks := make([]string, 0, len(queued))
 	for _, record := range queued {
-		blocks = append(blocks, block(record))
+		rendered, err := block(record)
+		if err != nil {
+			return "", err
+		}
+		blocks = append(blocks, rendered)
 	}
-	return strings.Join(blocks, "\n")
+	return strings.Join(blocks, "\n"), nil
 }
 
-// block is one record's rendering: §7.1.1's marker introducing it, and §7.1.2's
-// body beneath, separated by a blank line so the marker reads as an
+// block is one record's rendering: §7.1.1's marker introducing it, and §8.1.3's
+// comment beneath, separated by a blank line so the marker reads as an
 // introduction rather than as part of the prose.
-func block(record *finding.Finding) string {
-	return markerOf(record).String() + "\n\n" + body(record) + "\n"
+func block(record *finding.Finding) (string, error) {
+	agent := body(record)
+	if err := render.ValidateBody(record.ID, agent); err != nil {
+		return "", err
+	}
+	comment := render.Comment{Body: agent}
+	return markerOf(record).String() + "\n\n" + comment.String() + "\n", nil
 }
 
 // body is the free-form Markdown region of §7.1.2, which the user may rewrite

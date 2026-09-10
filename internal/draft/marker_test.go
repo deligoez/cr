@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/deligoez/cr/internal/finding"
 )
 
 // aMarker is the grammar's own example line, as a Marker.
@@ -86,7 +84,7 @@ func TestARenderedRecordParsesBackToItsFields(t *testing.T) {
 	record := aRecord("f7")
 	record.Anchor.Path = `internal/api/a "handler".go`
 
-	rendered := Render([]*finding.Finding{record})
+	rendered := renderOf(t, record)
 	marker, err := ParseMarker(1, strings.Split(rendered, "\n")[0])
 	require.NoError(t, err)
 
