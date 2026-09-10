@@ -355,6 +355,25 @@ func TestAbsentLayersLeaveTheBuiltinsAsTheWholeCorpus(t *testing.T) {
 	}
 }
 
+// `cr init --eject-roles` writes every shipped role into the global layer, and
+// a user who then adds one role of their own holds a global layer larger than
+// the other two together. That is the ordinary path §2.5.2 gives a user who
+// takes the corpus over, and every fixture above leaves it out. Each ejected
+// copy shadows its built-in, so the corpus is the global layer alone.
+func TestAnEjectedCorpusWithOneRoleAddedResolvesFromTheGlobalLayer(t *testing.T) {
+	global := Builtins()
+	global["security"] = roleJSON(t, "security", nil)
+
+	got, err := Resolve(absentDir(t), layerDir(t, global))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"convention", "correctness", "intent-coverage", "security", "test-adequacy"},
+		corpusIDs(got))
+	for _, r := range got {
+		assert.Equal(t, GlobalLayer, r.Layer, "an ejected copy shadows its built-in")
+	}
+}
+
 // A roles directory cr cannot list is not an empty layer. Treating it as one
 // would resolve to the layer below and never say that the user's own roles were
 // unreachable, so the listing failure is reported as a malformed layer and
