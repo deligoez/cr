@@ -4,10 +4,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -56,4 +58,38 @@ func TestARuleOriginCitationReachesTheDraftNamingTheRuleAndItsRationale(t *testi
 		"<!-- cr:/provenance -->")
 	assert.NotContains(t, blockOf(t, drafted, "f2"), "<!-- cr:provenance -->",
 		"an agent-origin citation is no weak provenance")
+}
+
+// §8.1.6's second trigger through the commands: a record resting on a claim with
+// `source: note` reaches the draft with a provenance region naming the claim,
+// the note it came from, and that note's §3.6.3 source — read out of the round's
+// claims.ndjson and the issue's context store, where §3.3.2 and §3.6.1 put them.
+func TestAClaimRestingOnANoteReachesTheDraftNamingTheNoteAndItsSource(t *testing.T) {
+	layout := detectedHome(t)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	meta.IssueKey = fixtureIssue
+	recorded, err := note.Append(layout, fixtureIssue, "Load may panic during start-up only.",
+		note.SourceMeeting, fixturePRNumber, time.Now())
+	require.NoError(t, err)
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Write(state.FileClaims, []byte(`{"id":"`+fixtureIssue+`#c1",`+
+		`"text":"Load may panic during start-up.","source":"note",`+
+		`"span":"Load may panic during start-up only.","note_id":"`+recorded.ID+`",`+
+		`"head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	rests := confirming("f1", 4)
+	delete(rests, "rule")
+	delete(rests, "citations")
+	rests["claim"] = fixtureIssue + "#c1"
+	_, err = runRecord(t, fixturePR, writeRecordFile(t, "merged.ndjson", rests), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	assert.Contains(t, blockOf(t, draftedFixture(t, layout), "f1"), "<!-- cr:provenance -->\n"+
+		"claim: "+fixtureIssue+"#c1 (source: note)\n"+
+		"note: "+recorded.ID+" (source: meeting)\n"+
+		"<!-- cr:/provenance -->")
 }
