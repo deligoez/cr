@@ -13,6 +13,7 @@ import (
 	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
+	"github.com/deligoez/cr/internal/symbol"
 	"github.com/deligoez/cr/internal/testadequacy"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -71,6 +72,36 @@ func TestOnePromptIsEmittedPerActiveRoleAndUnit(t *testing.T) {
 	assert.Equal(t, []string{
 		"intent-coverage/u1", "intent-coverage/u2", "correctness/u1", "correctness/u2",
 	}, at)
+}
+
+// §4.3.1's candidates, with the line standing in for an empty list only where
+// the list is empty. An added symbol with a qualifying candidate lists it and
+// says nothing about having none; one without says so. A prompt carrying both
+// for one symbol hands the role a contradiction, and the absence is the half a
+// role would act on.
+func TestAnAddedSymbolSaysNoCandidateQualifiedOnlyWhenNoneDid(t *testing.T) {
+	r := handRound()
+	r.Units[0].HunkRanges = []unit.Range{{Start: 1, End: 2}}
+	r.Candidates.Attached = []reinvention.Attachment{
+		{
+			Added: symbol.Decl{Path: "a.go", Line: 1, Name: "formatMoneys", Kind: symbol.Function, Params: 2},
+			Candidates: []symbol.Decl{
+				{Path: "money.go", Line: 3, Name: "FormatMoney", Kind: symbol.Function, Params: 2},
+			},
+		},
+		{
+			Added:      symbol.Decl{Path: "a.go", Line: 2, Name: "roundCents", Kind: symbol.Function, Params: 1},
+			Candidates: []symbol.Decl{},
+		},
+	}
+
+	text := Emit(r)[0].Text
+
+	assert.Contains(t, text, "- added function formatMoneys (2 params) at a.go:1\n"+
+		"  - candidate function FormatMoney (2 params) at money.go:3\n")
+	assert.Contains(t, text, "- added function roundCents (1 params) at a.go:2\n"+
+		"  - no candidate qualified under §4.3.2\n")
+	assert.Equal(t, 1, strings.Count(text, "no candidate qualified"))
 }
 
 // The unmapped-unit item reaches the intent role's prompt for the unmapped unit
