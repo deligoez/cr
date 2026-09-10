@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
+	"github.com/deligoez/cr/internal/review"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/sandbox"
@@ -330,6 +331,16 @@ func exitCodeFor(err error) int {
 		// alongside the illegal transition above — and the refusal
 		// names `cr brief`, because recomputing the units instead
 		// would answer §4.1.6 against a set no round recorded.
+		return ExitState
+	}
+	var staleUnit *review.StaleUnitError
+	if errors.As(err, &staleUnit) {
+		// §4.6.1's prompt shows a unit the round recorded, and the diff
+		// at the recorded head no longer gives it. The command line is
+		// right and nothing the user named is malformed; what refuses
+		// is where the round stands, which §11.2 codes 4 beside the
+		// unbriefed pull request above, and the refusal names the
+		// `cr brief` that records the units again.
 		return ExitState
 	}
 	var setupFailed *sandbox.SetupError
