@@ -124,10 +124,38 @@ var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@
 // A hunk ends where its header's counts run out and not where the following
 // lines stop looking like content, so a diff of a patch file — whose added
 // lines begin with +++, --- and @@ — is read as the content it is.
-//
-//nolint:funlen // measured 2026-08-31 at 46 statements; refactor to clear, never raise the limit
 func ParseHunks(patch string) ([]Hunk, error) {
+	hunks, _, err := parse(patch)
+	return hunks, err
+}
+
+// HunkTexts returns the text of every hunk of a unified diff — its header line
+// and every line of its body, context included, joined by LF — in the order
+// ParseHunks returns the hunks, so the two slices index together.
+//
+// It exists for §4.6.1's prompt, which carries "the unit's hunks" to an agent
+// who has to read them. A Hunk holds §3.4.1's changed lines and nothing else,
+// so a modification arrives as its added half alone: the line it replaced is a
+// removal, and §3.4.1 counts removals only in a hunk that adds nothing. A role
+// judging a change it can only see the new half of is judging half a change.
+//
+// It is the same reading as ParseHunks rather than a second one. The two share
+// parse, so a hunk ends here exactly where ParseHunks ends it — by its header's
+// counts, not by where the following lines stop looking like content — and a
+// patch ParseHunks refuses is refused here with the same error.
+func HunkTexts(patch string) ([]string, error) {
+	_, texts, err := parse(patch)
+	return texts, err
+}
+
+// parse reads a unified diff into its hunks and, index for index, each hunk's
+// text. ParseHunks and HunkTexts are its two views.
+//
+//nolint:funlen // measured 2026-09-11 at 51 statements; refactor to clear, never raise the limit
+func parse(patch string) ([]Hunk, []string, error) {
 	hunks := make([]Hunk, 0)
+	texts := make([]string, 0)
+	var body []string
 	var (
 		basePath, headPath string
 		open               bool
@@ -140,8 +168,9 @@ func ParseHunks(patch string) ([]Hunk, error) {
 	for n, line := range strings.Split(strings.TrimSuffix(patch, "\n"), "\n") {
 		if open {
 			if line == "" {
-				return nil, fmt.Errorf("diff line %d: a hunk holds no empty line, because a blank context line keeps its leading space", n+1)
+				return nil, nil, fmt.Errorf("diff line %d: a hunk holds no empty line, because a blank context line keeps its leading space", n+1)
 			}
+			body = append(body, line)
 			switch line[0] {
 			case ' ':
 				baseLine, headLine = baseLine+1, headLine+1
@@ -157,7 +186,7 @@ func ParseHunks(patch string) ([]Hunk, error) {
 				// above it and belongs to neither version, so it
 				// consumes nothing.
 			default:
-				return nil, fmt.Errorf("diff line %d: %q is not a hunk line", n+1, line)
+				return nil, nil, fmt.Errorf("diff line %d: %q is not a hunk line", n+1, line)
 			}
 			if baseLeft <= 0 && headLeft <= 0 {
 				current.Side, current.Changed = Right, added
@@ -165,6 +194,7 @@ func ParseHunks(patch string) ([]Hunk, error) {
 					current.Side, current.Changed = Left, removed
 				}
 				hunks, open = append(hunks, current), false
+				texts = append(texts, strings.Join(body, "\n"))
 			}
 			continue
 		}
@@ -177,7 +207,7 @@ func ParseHunks(patch string) ([]Hunk, error) {
 		case strings.HasPrefix(line, "@@ "):
 			fields := hunkHeader.FindStringSubmatch(line)
 			if fields == nil {
-				return nil, fmt.Errorf("diff line %d: %q is not a hunk header", n+1, line)
+				return nil, nil, fmt.Errorf("diff line %d: %q is not a hunk header", n+1, line)
 			}
 			current = Hunk{
 				Path:      headPath,
@@ -190,18 +220,19 @@ func ParseHunks(patch string) ([]Hunk, error) {
 				current.Path = basePath
 			}
 			if current.BaseLines == 0 && current.HeadLines == 0 {
-				return nil, fmt.Errorf("diff line %d: %q covers no line on either side", n+1, line)
+				return nil, nil, fmt.Errorf("diff line %d: %q covers no line on either side", n+1, line)
 			}
 			added, removed = make([]ChangedLine, 0), make([]ChangedLine, 0)
+			body = []string{line}
 			baseLine, headLine = current.BaseStart, current.HeadStart
 			baseLeft, headLeft = current.BaseLines, current.HeadLines
 			open = true
 		}
 	}
 	if open {
-		return nil, fmt.Errorf("the patch ends inside the hunk at %s:%d", current.Path, current.HeadStart)
+		return nil, nil, fmt.Errorf("the patch ends inside the hunk at %s:%d", current.Path, current.HeadStart)
 	}
-	return hunks, nil
+	return hunks, texts, nil
 }
 
 // headerPath reads the path out of a --- or +++ file header.
