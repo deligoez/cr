@@ -181,3 +181,25 @@ func TestAnEmittedPromptCarriesAllSevenAttachments(t *testing.T) {
 	}
 }
 
+// The round's active roles each get a prompt for each unit, and the halves that
+// could not run are reported beside them rather than left out.
+func TestRunEmitsEveryActiveRoleOverEveryUnitOfTheRound(t *testing.T) {
+	fan, err := Run(briefed(t))
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, fan.Round)
+	at := make([]string, 0, len(fan.Prompts))
+	for _, prompt := range fan.Prompts {
+		at = append(at, prompt.Role+"/"+prompt.Unit)
+	}
+	assert.Equal(t, []string{
+		"convention/u1", "convention/u2", "correctness/u1", "correctness/u2",
+		"intent-coverage/u1", "intent-coverage/u2", "test-adequacy/u1", "test-adequacy/u2",
+	}, at)
+	assert.Equal(t, []string{
+		"lens test/symbols unavailable, per §4.5.4: cr built no symbol index for symbols.lang \"go\"",
+	}, fan.Honesty, "§4.4.1's symbol half has no index to read, and says so")
+	assert.Contains(t, promptOf(t, fan, "intent-coverage", "u2"), "Unmapped unit (§4.1.2)",
+		"the test file's unit is mapped to no claim, so the intent role raises it")
+}
+
