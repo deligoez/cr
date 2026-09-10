@@ -127,6 +127,14 @@ func exitCodeFor(err error) int {
 		// about the invocation can be corrected.
 		return ExitFile
 	}
+	var noLabel *render.NoLabelError
+	if errors.As(err, &noLabel) {
+		// §8.1.4's table has a row for every language Resolve admits
+		// and every grade §6.2 computes, so a question it cannot label
+		// was read from state cr did not write. That is a file cr
+		// cannot use, which §11.2 codes 3 beside the unknown language.
+		return ExitFile
+	}
 	var refusedBody *render.BodyError
 	if errors.As(err, &refusedBody) {
 		// §8.1.3 rejects a body that is empty or carries a `<!-- cr:`
