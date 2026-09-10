@@ -124,6 +124,27 @@ func TestTheUnmappedItemReachesOnlyTheIntentPromptOfItsUnit(t *testing.T) {
 	}
 }
 
+// §4.3.6's hits, and the instruction §2.6.1.5 attaches to them, reach only a
+// unit that has one. A unit with a hit is told to confirm or drop it and never
+// that no detector matched; a unit with none is told that, and not handed an
+// instruction about hits it does not have.
+func TestAUnitIsToldNoDetectorMatchedOnlyWhenNoneDid(t *testing.T) {
+	r := handRound()
+	r.Hits[0].Hits = []rule.Hit{{RuleID: "no-panic", Path: "a.go", Line: 1, Text: "new"}}
+
+	prompts := Emit(r)
+	require.Len(t, prompts, 4)
+	for _, prompt := range prompts {
+		hit := prompt.Unit == "u1"
+		assert.Equalf(t, hit, strings.Contains(prompt.Text, "- rule no-panic at a.go:1: new"),
+			"%s on %s", prompt.Role, prompt.Unit)
+		assert.Equalf(t, hit, strings.Contains(prompt.Text, "confirm a hit to raise it, or drop it"),
+			"%s on %s", prompt.Role, prompt.Unit)
+		assert.Equalf(t, !hit, strings.Contains(prompt.Text, "No rule's detector matched a changed line of this unit."),
+			"%s on %s", prompt.Role, prompt.Unit)
+	}
+}
+
 // Before a mapping is recorded for the round, no prompt says which claims a unit
 // is mapped to, and none says a unit is mapped to none: §4.6.5 makes
 // unmapped-ness unknowable on the first pass.
