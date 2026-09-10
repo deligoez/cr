@@ -17,8 +17,6 @@
 package reinvention
 
 import (
-	"slices"
-
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/symbol"
@@ -28,13 +26,15 @@ import (
 type Attachment struct {
 	// Added is the function, method, or class the diff declared.
 	Added symbol.Decl `json:"added"`
-	// Candidates are the pre-existing symbols of the head, empty rather
-	// than nil when the head declared nothing else, per §12.
+	// Candidates are the pre-existing symbols that qualified under
+	// §4.3.2, in that item's order and no longer than
+	// `reinvention.max_candidates`. It is empty rather than nil when none
+	// qualified, per §12.
 	//
-	// It is not yet §4.3.2's ranked list. This is the whole pool the
-	// ranking then narrows by comparison-name similarity and parameter
-	// count, and each attachment owns its own copy so a ranking can sort
-	// or filter one in place without moving another's.
+	// They carry no similarity and no verdict. §4.3.2 ends by saying
+	// semantic equivalence is the agent's judgement and not cr's, and a
+	// score travelling beside a symbol would read as a confidence cr does
+	// not have — which §4.3.4 then posts to a colleague as a question.
 	Candidates []symbol.Decl `json:"candidates"`
 }
 
@@ -86,6 +86,17 @@ type Attachments struct {
 // neighbour is a question about a decision the author made deliberately, in the
 // same change, minutes ago.
 //
+// # What reaches the attachment
+//
+// The pool is what §4.3.1 subtracts; what is attached is §4.3.2's ranking of
+// it, narrowed to the candidates whose parameter count matches and whose
+// comparison-name similarity clears the threshold, ordered, and cut at
+// `reinvention.max_candidates`. The two items are one attachment because a
+// caller holding the unranked pool would be holding every symbol in the
+// repository, and handing that to §4.6.1's prompt is not a narrower version of
+// the right answer — it is a question about every function the author did not
+// write.
+//
 // # A head with no index
 //
 // It attaches nothing and reports the §4.5.4 entry instead. An empty attachment
@@ -93,7 +104,7 @@ type Attachments struct {
 // none" — an assertion cr never made — and §4.3.1 forbids exactly that silence.
 // The reason travels with the entry, so what the reader is told is a lens that
 // did not run and what would make it run.
-func Attach(p *profile.Profile, index *symbol.Index, hunks []git.Hunk) Attachments {
+func Attach(p *profile.Profile, index *symbol.Index, hunks []git.Hunk, r Ranking) Attachments {
 	if entry, marked := unavailability(p, index); marked {
 		return Attachments{Attached: []Attachment{}, Unavailable: []Unavailable{entry}}
 	}
@@ -111,7 +122,7 @@ func Attach(p *profile.Profile, index *symbol.Index, hunks []git.Hunk) Attachmen
 
 	attached := make([]Attachment, 0, len(added))
 	for _, decl := range added {
-		attached = append(attached, Attachment{Added: decl, Candidates: slices.Clone(pool)})
+		attached = append(attached, Attachment{Added: decl, Candidates: rank(decl, pool, r)})
 	}
 	return Attachments{Attached: attached, Unavailable: []Unavailable{}}
 }

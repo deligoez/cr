@@ -18,13 +18,21 @@ func indexable() *profile.Profile {
 	return &profile.Profile{ID: "fixture", Symbols: profile.Symbols{Lang: "go"}}
 }
 
+// unranked is a Ranking that qualifies everything the subtraction left, so a
+// case about §4.3.1's pool is not also a case about §4.3.2's threshold. The
+// ranking has its own cases in rank_test.go.
+func unranked() Ranking {
+	return Ranking{MinSimilarity: 0, MaxCandidates: 100}
+}
+
 // head is the index one round is attached against.
 func head(decls ...symbol.Decl) *symbol.Index {
 	return &symbol.Index{Lang: "go", Decls: decls}
 }
 
 // decl is one declaration of the head, spelled short enough that a table stays
-// readable.
+// readable. Every one declares a single parameter, so §4.3.2's equality holds
+// among them and a case about something else is not silently about that.
 func decl(path string, line int, name string) symbol.Decl {
 	return symbol.Decl{Path: path, Line: line, Name: name, Kind: symbol.Function, Params: 1}
 }
@@ -40,7 +48,7 @@ func addedAt(path string, lines ...int) git.Hunk {
 }
 
 // names reads the candidate names out of an attachment, so an assertion says
-// which symbols were offered rather than repeating four fields of each.
+// which symbols were offered rather than repeating five fields of each.
 func names(decls []symbol.Decl) []string {
 	out := make([]string, 0, len(decls))
 	for _, d := range decls {
@@ -59,12 +67,13 @@ func TestEveryAddedSymbolIsAttachedTheRestOfTheHeadIndex(t *testing.T) {
 		decl("app/new.go", 3, "MoneyFormat"),
 	)
 
-	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3)})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3)}, unranked())
 
 	require.Len(t, attachments.Attached, 1, "one declaration sits on a changed line")
 	assert.Empty(t, attachments.Unavailable, "the lens ran, so §4.5.4 has nothing to report")
 	assert.Equal(t, "MoneyFormat", attachments.Attached[0].Added.Name)
-	assert.Equal(t, []string{"FormatMoney", "ParseMoney"}, names(attachments.Attached[0].Candidates))
+	assert.ElementsMatch(t, []string{"FormatMoney", "ParseMoney"},
+		names(attachments.Attached[0].Candidates))
 }
 
 // The subtraction is what this attachment exists for: a symbol the diff
@@ -79,7 +88,7 @@ func TestASymbolTheDiffDeclaresIsNeverItsOwnCandidate(t *testing.T) {
 		decl("app/new.go", 9, "MoneyParse"),
 	)
 
-	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3, 9)})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3, 9)}, unranked())
 
 	require.Len(t, attachments.Attached, 2)
 	for _, attachment := range attachments.Attached {
@@ -106,7 +115,8 @@ func TestALeftSideChangedLineSubtractsNothing(t *testing.T) {
 		Changed: []git.ChangedLine{{Side: git.Left, Line: 10}},
 	}
 
-	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3), deleted})
+	attachments := Attach(indexable(), index,
+		[]git.Hunk{addedAt("app/new.go", 3), deleted}, unranked())
 
 	require.Len(t, attachments.Attached, 1, "a hunk that adds nothing declares nothing at the head")
 	assert.Equal(t, []string{"FormatMoney"}, names(attachments.Attached[0].Candidates))
@@ -118,16 +128,18 @@ func TestALeftSideChangedLineSubtractsNothing(t *testing.T) {
 func TestAChangedLineThatDeclaresNothingAttachesNothing(t *testing.T) {
 	index := head(decl("app/existing.go", 10, "FormatMoney"))
 
-	assert.Empty(t, Attach(indexable(), index, []git.Hunk{addedAt("app/existing.go", 11, 12, 13)}).Attached)
-	assert.Empty(t, Attach(indexable(), index, nil).Attached, "a round with no diff adds no symbol")
+	assert.Empty(t, Attach(indexable(), index,
+		[]git.Hunk{addedAt("app/existing.go", 11, 12, 13)}, unranked()).Attached)
+	assert.Empty(t, Attach(indexable(), index, nil, unranked()).Attached,
+		"a round with no diff adds no symbol")
 }
 
 // A head that declares nothing else still attaches, with an empty candidate
 // list that serialises as `[]`. The attachment is the record that cr looked;
 // dropping it would leave the added symbol out of §4.6.1's prompt entirely.
 func TestAnAddedSymbolWithNoCandidatesStillAttaches(t *testing.T) {
-	attachments := Attach(indexable(),
-		head(decl("app/new.go", 3, "MoneyFormat")), []git.Hunk{addedAt("app/new.go", 3)})
+	attachments := Attach(indexable(), head(decl("app/new.go", 3, "MoneyFormat")),
+		[]git.Hunk{addedAt("app/new.go", 3)}, unranked())
 
 	require.Len(t, attachments.Attached, 1)
 	assert.Empty(t, attachments.Attached[0].Candidates)
@@ -136,11 +148,10 @@ func TestAnAddedSymbolWithNoCandidatesStillAttaches(t *testing.T) {
 	assert.Contains(t, string(encoded), `"candidates":[]`)
 }
 
-// Each attachment owns its candidate list, so §4.3.2's ranking can narrow or
-// sort one in place without moving another's. Sharing one backing array would
-// make the second added symbol's candidates depend on what was done to the
-// first's, which is the kind of defect that shows up as a wrong question weeks
-// later.
+// Each attachment owns its candidate list, so a caller can narrow or sort one
+// in place without moving another's. Sharing one backing array would make the
+// second added symbol's candidates depend on what was done to the first's,
+// which is the kind of defect that shows up as a wrong question weeks later.
 func TestEachAttachmentOwnsItsCandidateList(t *testing.T) {
 	index := head(
 		decl("app/existing.go", 10, "FormatMoney"),
@@ -149,16 +160,18 @@ func TestEachAttachmentOwnsItsCandidateList(t *testing.T) {
 		decl("app/new.go", 9, "MoneyParse"),
 	)
 
-	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3, 9)})
+	attachments := Attach(indexable(), index, []git.Hunk{addedAt("app/new.go", 3, 9)}, unranked())
 
 	require.Len(t, attachments.Attached, 2)
+	require.NotEmpty(t, attachments.Attached[1].Candidates)
+	untouched := names(attachments.Attached[1].Candidates)
 	attachments.Attached[0].Candidates[0].Name = "overwritten"
-	assert.Equal(t, "FormatMoney", attachments.Attached[1].Candidates[0].Name)
+	assert.Equal(t, untouched, names(attachments.Attached[1].Candidates))
 }
 
 // Both collections serialise as `[]` and never as `null`, per §12.
 func TestAnEmptyAttachmentSerialisesAsAnEmptyArray(t *testing.T) {
-	attachments := Attach(indexable(), head(), nil)
+	attachments := Attach(indexable(), head(), nil, unranked())
 
 	encoded, err := json.Marshal(attachments)
 	require.NoError(t, err)

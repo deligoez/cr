@@ -43,7 +43,7 @@ func TestUnderTheGenericProfileTheReinventionHalfIsOutAndTheAxisRuns(t *testing.
 	assert.Contains(t, active.Active, axis.Convention,
 		"§4.3.5 leaves the rest of the convention axis to the rule corpus of §2.6")
 
-	attachments := Attach(p, nil, []git.Hunk{addedAt("app/new.go", 3)})
+	attachments := Attach(p, nil, []git.Hunk{addedAt("app/new.go", 3)}, unranked())
 
 	assert.Empty(t, attachments.Attached, "with no index there is no candidate to attach")
 	require.Len(t, attachments.Unavailable, 1)
@@ -60,7 +60,7 @@ func TestUnderTheGenericProfileTheReinventionHalfIsOutAndTheAxisRuns(t *testing.
 // consumes. Implementing it is what puts the entry in that channel instead of
 // in an ordinary informational line a flag can silence.
 func TestTheUnavailableReinventionHalfIsAnHonestyDisclosure(t *testing.T) {
-	attachments := Attach(shippedGeneric(t), nil, nil)
+	attachments := Attach(shippedGeneric(t), nil, nil, unranked())
 	require.Len(t, attachments.Unavailable, 1)
 
 	var quietProof finding.HonestyDisclosure = attachments.Unavailable[0]
@@ -90,7 +90,7 @@ func TestEachWayTheIndexIsMissingHasItsOwnReason(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			p := &profile.Profile{ID: "fixture", Symbols: profile.Symbols{Lang: tc.lang}}
 
-			attachments := Attach(p, nil, nil)
+			attachments := Attach(p, nil, nil, unranked())
 
 			require.Len(t, attachments.Unavailable, 1)
 			assert.Contains(t, attachments.Unavailable[0].Reason, tc.contains)
@@ -98,7 +98,7 @@ func TestEachWayTheIndexIsMissingHasItsOwnReason(t *testing.T) {
 	}
 
 	t.Run("the index was asked for and did not arrive", func(t *testing.T) {
-		attachments := Attach(indexable(), nil, nil)
+		attachments := Attach(indexable(), nil, nil, unranked())
 
 		require.Len(t, attachments.Unavailable, 1)
 		assert.Contains(t, attachments.Unavailable[0].Reason, "cr built no symbol index for symbols.lang \"go\"",
@@ -110,7 +110,7 @@ func TestEachWayTheIndexIsMissingHasItsOwnReason(t *testing.T) {
 // report and a caller printing §4.5.4's list cannot disagree about which lens
 // was out.
 func TestTheUnavailableEntryCarriesTheLensAndTheReasonAsFields(t *testing.T) {
-	attachments := Attach(shippedGeneric(t), nil, nil)
+	attachments := Attach(shippedGeneric(t), nil, nil, unranked())
 
 	encoded, err := json.Marshal(attachments.Unavailable[0])
 	require.NoError(t, err)
