@@ -57,3 +57,24 @@ func TestAHumanThreadWithinTheWindowIsAttachedAndOneBeyondIsNot(t *testing.T) {
 	}
 }
 
+// A bot's thread and a thread beyond the window are both left unattached, and
+// so are a thread on another file and one the head has moved past; a resolved
+// human thread inside the window is attached all the same (§3.5.1, §3.5.3).
+func TestABotThreadAndAThreadBeyondTheWindowAreLeftUnattached(t *testing.T) {
+	bot := thread("bot", git.Right, 21, 21)
+	bot.AuthorType = gh.AuthorBot
+	far := thread("far", git.Right, 60, 60)
+	elsewhere := thread("elsewhere", git.Right, 21, 21)
+	elsewhere.Anchor.Path = "src/Money.php"
+	outdated := thread("outdated", git.Right, 0, 0)
+	outdated.Outdated, outdated.Anchor.OriginalLine = true, 21
+	resolved := thread("resolved", git.Right, 21, 21)
+	resolved.Resolved = true
+
+	attached := Threads([]git.Hunk{orderHunk()},
+		[]gh.Thread{bot, far, elsewhere, outdated, resolved}, 10)
+
+	assert.Equal(t, []gh.Thread{resolved}, attached)
+	assert.Equal(t, []gh.Thread{}, Threads([]git.Hunk{orderHunk()}, []gh.Thread{bot}, 10),
+		"none attached is [] rather than nil, per §12")
+}
