@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-04T13:41:04.205116Z",
+  "updated_at": "2026-09-10T21:22:54.102805Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3014,7 +3014,7 @@
     {
       "id": "reinvention-similarity-ranking",
       "title": "Rank candidates by comparison name similarity",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "reinvention-unavailable-reporting"
@@ -3024,11 +3024,18 @@
       "source_sections": [
         "### 4.3 Convention and reinvention"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-04T13:40:21.97516Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T21:22:54.09265Z",
+      "closed_reason": "- Candidate ranking works on the comparison name, the symbol name case-folded to lowercase with every underscore and hyphen removed, per §4.3.2: internal/reinvention/rank.go's comparisonName lowercases the name and maps both characters away, and TestTheComparisonNameFoldsCaseAndDropsUnderscoresAndHyphens folds five spellings of one idea to formatmoney while keeping digits and non-ASCII letters.\n- Similarity is 1 - levenshtein(a, b) / max(len(a), len(b)) over comparison names, counted in Unicode code points, defined as 1.0 when both names are empty: similarity converts both names to runes before the one-row levenshtein and returns 1 for two empty names, and TestSimilarityIsOneMinusTheNormalisedEditDistance pins kitten against sitting, the empty pair, and değer against deger at 1 - 1/5 rather than the byte figure.\n- A candidate qualifies only when its similarity is at least reinvention.min_similarity (default 0.6) and its declared parameter count equals that of the added symbol: rank checks the count as an equality and the score with a greater-or-equal, both keys sit in internal/config's settings table with defaults 0.6 and 5, and TestACandidateQualifiesOnBothTheThresholdAndTheParameterCount rejects the same name at another arity and another name at the same arity and admits a candidate exactly on the threshold.\n- The declared parameter count of a function or method is the number of parameters in its signature: internal/symbol's countParams counts the non-empty parameters at the list's own depth, which TestTheParameterCountIgnoresCommasThatAreNotSeparators pins through nested types, quoted defaults, and a trailing comma, and rank compares that count for equality.\n- For a class it is the parameter count of its constructor, or zero when it declares none: internal/symbol copies the constructor's count onto the class as it scans, and TestAClassQualifiesOnItsConstructorsParameterCount follows it end to end, offering an added PHP class the existing class whose constructor matches and not the closer-named one that declares no constructor.\n- Qualifying candidates are ordered by similarity descending, then path ascending, then line ascending, and cr attaches at most reinvention.max_candidates (default 5): byRank is that three-key comparison and rank cuts after sorting, TestCandidatesAreOrderedBySimilarityThenPathThenLineAndCut asserts the order across a three-way tie, the cut at three, and the same result from the pool reversed, and dogfooded on this repository's head the default ranking attached one to five candidates to 23 of 107 added declarations instead of a 2095-symbol pool.\n- Semantic equivalence is the agent's judgement, not cr's: rank uses the similarity only to order and drops it before returning, so what leaves the package is a list of declarations and nothing that says whether any of them is a reinvention.\n- A test asserts cr emits candidates and no verdict: TestCrEmitsCandidatesAndNoVerdict asserts the candidate was emitted, that an attachment serialises as exactly added and candidates, and that a candidate serialises as exactly path, line, name, kind, and params, with no score and no verdict.\n",
+      "gate_passed_at": "2026-09-10T21:22:54.09265Z",
+      "commit_sha": "e610e6d",
+      "commit_shas": [
+        "e610e6d"
+      ],
+      "commit_files": [
+        "internal/reinvention/rank_test.go"
+      ]
     },
     {
       "id": "reinvention-defaults-to-question",
