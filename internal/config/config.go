@@ -70,6 +70,9 @@ var settings = []setting{
 	{render.Setting, render.LangTR.String()},
 	{"rules.dead_after", 20},
 	{"rules.harvest_min", 3},
+	// §3.5.3's window: a human thread whose anchor falls within this many
+	// lines of a unit's hunks is attached to the unit.
+	{"threads.proximity_lines", 10},
 }
 
 // defaults indexes settings by key.
