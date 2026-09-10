@@ -92,3 +92,12 @@ func TestBeforeAMappingNoPromptCallsAUnitUnmapped(t *testing.T) {
 	}
 }
 
+// A hunk quoting a fence of its own is fenced one backtick longer, so the
+// author's code cannot close the block and have the rest read as prompt.
+func TestAHunkIsFencedLongerThanAnyFenceItQuotes(t *testing.T) {
+	r := handRound()
+	r.Units[0].Texts = []string{"@@ -1 +1 @@\n+s := \"````\""}
+
+	text := Emit(r)[0].Text
+	assert.Contains(t, text, "`````diff\n@@ -1 +1 @@\n+s := \"````\"\n`````")
+}
