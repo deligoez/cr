@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T21:28:59.917881Z",
+  "updated_at": "2026-09-10T21:34:54.79404Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6056,7 +6056,7 @@
     {
       "id": "comment-region-sequence",
       "title": "Delimit each cr-owned comment region",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "initial-body-composition",
@@ -6067,11 +6067,33 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T21:29:12.413183Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T21:34:54.752992Z",
+      "closed_reason": "- A body is non-empty and never contains the marker comment: internal/render/comment.go's ValidateBody refuses a body that is empty or whitespace only and one carrying the Reserved sequence `\u003c!-- cr:`, which covers §7.1.1's record marker and every owned delimiter, naming the record in a BodyError; TestABodyIsNonEmptyAndCarriesNoReservedSequence covers seven refused and three accepted bodies.\n- A posted comment is a fixed sequence of regions, the §8.1.4 label, the §8.1.6 provenance block when one applies, the agent body, and the §8.1.7 evidence block when one applies, per §8.1.3: Comment holds the four regions and Comment.String joins the ones present in that fixed order with one blank line between each two, so no caller can reorder them; TestACommentIsTheFixedSequenceOfRegions asserts the full order and that an absent region leaves no separator, and internal/draft's block now renders every body through Comment.\n- Each cr-owned region is delimited by its own named pair, `\u003c!-- cr:label --\u003e`…`\u003c!-- cr:/label --\u003e`, `\u003c!-- cr:provenance --\u003e`…`\u003c!-- cr:/provenance --\u003e`, `\u003c!-- cr:evidence --\u003e`…`\u003c!-- cr:/evidence --\u003e`, so recovery never depends on counting: ownedRegions lists the three pairs, the evidence pair reusing evidence.go's constants, and AgentRegion finds each region by its pair wherever it sits; TestEveryOwnedRegionIsDelimitedByItsOwnNamedPair pins the six markers verbatim and TestRecoveryFindsARegionByItsPairNotItsPosition recovers the body from a rearranged comment.\n- A body containing any \u003c!-- cr: sequence is rejected with exit code 1: exitCodeFor maps render.BodyError to ExitValidation, and cr draft now refuses a record whose initial body carries the sequence before writing anything; TestAnInitialBodyThatSection813RefusesStopsTheDraft covers the summary, the evidence, a suggestion and an empty body, and TestDraftRejectsABodyCarryingTheReservedSequence asserts exit code 1, the record id in the error, no draft.md, and every record left in draft.\n- cr regenerates every owned region and discards edits inside them: AgentRegion removes each complete owned region whole, whatever was typed inside it, so the caller rebuilds the Comment from the record with the recovered agent region; a marker left without its partner stays in the agent region and ValidateBody refuses it rather than cr guessing, per TestAHalfDeletedRegionIsRefusedRatherThanGuessed.\n- §8.1.5, §7.1.5, and §7.1.6 apply to the agent region alone: AgentRegion returns exactly the Body a comment was built from when nobody edited it, for all eight combinations of owned regions (TestAnUneditedCommentRecoversItsBody), so rendered.json comparison and the question-mark check read the agent region only; the draft read-back that calls AgentRegion arrives with draft-rendered-regions and draft-regeneration, and until then AgentRegion is reached from tests only.\n- A test asserts an edit inside an owned region is discarded while the same edit in the agent region survives: TestAnEditInsideAnOwnedRegionIsDiscardedWhileTheSameEditInTheAgentRegionSurvives writes one edit into all three owned regions and the agent region, regenerates, and asserts exactly one copy survives, in the agent region, with every owned region byte-identical to what cr generated.\n- Render now returns an error, so the existing draft tests call it through a renderOf helper (bda98f3); that is a call-site change with no assertion weakened.\n",
+      "gate_passed_at": "2026-09-10T21:34:54.752992Z",
+      "commit_sha": "f8dc4cc",
+      "commit_shas": [
+        "f8dc4cc",
+        "25c5a21",
+        "bda98f3",
+        "dc1274e",
+        "1ace836",
+        "f774d5a"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftbody_test.go",
+        "internal/cli/exit.go",
+        "internal/draft/draft.go",
+        "internal/draft/draft_test.go",
+        "internal/draft/initialbody_test.go",
+        "internal/draft/marker_test.go",
+        "internal/draft/reserved_test.go",
+        "internal/draft/suggestion_test.go",
+        "internal/render/comment.go",
+        "internal/render/comment_test.go"
+      ]
     },
     {
       "id": "question-label-region",
