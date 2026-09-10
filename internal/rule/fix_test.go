@@ -191,6 +191,55 @@ func TestARecordOutlivesItsDroppedSuggestion(t *testing.T) {
 	}
 }
 
+// topOfFileDiff changes a file's first line, so its hunk's head range starts
+// at line 1 — the lowest line §8.2.1's range can name.
+const topOfFileDiff = `--- a/app/Models/Order.php
++++ b/app/Models/Order.php
+@@ -1,2 +1,2 @@
+-$removed = DB::raw('gone');
++$added = DB::raw('new');
+ $tail = 1;
+`
+
+// §8.2.2's "within one hunk" counts the hunk's own first and last lines in,
+// and §8.2.1's range may start on a file's first line. Every case above that
+// places a suggestion sits strictly inside its hunk, so a validator that
+// counted either edge out would pass them all — and would then drop, without
+// a word, the fix for every finding anchored on an edge line.
+func TestASuggestionMayReachEitherEdgeOfItsHunk(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		diff   string
+		anchor finding.Anchor
+	}{
+		{name: "a range starting on the hunk's first line", diff: mixedDiff,
+			anchor: finding.Anchor{
+				Path: "app/Models/Order.php", Side: git.Right, StartLine: 10, Line: 11,
+			}},
+		{name: "a range ending on the hunk's last line", diff: mixedDiff,
+			anchor: finding.Anchor{
+				Path: "app/Models/Order.php", Side: git.Right, StartLine: 11, Line: 12,
+			}},
+		{name: "a range on the file's first line", diff: topOfFileDiff,
+			anchor: finding.Anchor{
+				Path: "app/Models/Order.php", Side: git.Right, StartLine: 1, Line: 1,
+			}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			matcher := fixMatcher(t, fixBlock(nil))
+			hunks := hunksOf(t, c.diff)
+			hits := Evaluate([]Matcher{matcher}, hunks)
+			require.Len(t, hits, 1)
+			record := aRuleRecord()
+			record.Anchor = c.anchor
+
+			require.True(t, matcher.Suggest(&record, &hits[0], hunks))
+
+			assert.Equal(t, `$added = DB::selectRaw('new');`, record.Suggestion)
+		})
+	}
+}
+
 // A record already carrying the agent's own suggestion is left alone when the
 // rule's fix produces nothing usable. §6.1's table lets an agent supply a
 // suggestion of its own, and clearing the field on the failing path would
