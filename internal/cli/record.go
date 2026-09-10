@@ -5,11 +5,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -238,6 +240,9 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := appendRecords(layout, owner, repo, pr, &round, records); err != nil {
 				return err
 			}
+			if err := recordRuleStats(layout, owner, repo, pr, &round, records); err != nil {
+				return err
+			}
 			return out.emit(newRecordResult(records, found))
 		},
 	}
@@ -337,4 +342,31 @@ func appendRecords(
 		return err
 	}
 	return held.Unlock()
+}
+
+// recordRuleStats is `cr record`'s share of §2.6.1.6: a record event for every
+// record it stored that names a rule, and a dismissal for every hit of the
+// round that no record of the round confirms — round 9's
+// rule-stats-event-producer, which names this command as the observable moment
+// §2.6.1.5's drop otherwise lacks.
+//
+// It runs after the records are stored and reads the round's records back, so
+// a hit an earlier `cr record` of the round confirmed counts as confirmed here
+// too. The read takes no lock, per §2.3.2.
+func recordRuleStats(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, recorded []*finding.Finding,
+) error {
+	stored, err := state.ReadRecords[finding.Finding](l, owner, repo, pr, state.FileFindings)
+	if err != nil {
+		return err
+	}
+	ofRound := make([]*finding.Finding, 0, len(stored))
+	for i := range stored {
+		if stored[i].Round == round.Round {
+			ofRound = append(ofRound, &stored[i])
+		}
+	}
+	return rule.RecordRecords(l, owner, repo, recorded, ofRound, &rule.Occasion{
+		PR: pr, Round: round.Round, Head: round.Head, At: time.Now(),
+	})
 }
