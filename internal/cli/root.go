@@ -72,7 +72,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newStatusCmd())
 	root.AddCommand(newStatsCmd())
 	root.AddCommand(newWaiversCmd())
-	root.AddCommand(newRulesCmd())
+	root.AddCommand(newRulesCmd(out))
 
 	return root
 }

@@ -6,9 +6,9 @@ import (
 
 // newRulesCmd groups §11's rule commands: the corpus §2.6 resolves, the
 // mechanical detection of §2.6.1, and the harvesting of §2.6.3.
-func newRulesCmd() *cobra.Command {
+func newRulesCmd(out *writer) *cobra.Command {
 	cmd := groupCmd("rules", "Inspect, run, and harvest project rules")
-	cmd.AddCommand(newRulesListCmd(), newRulesCheckCmd(), newRulesSuggestCmd())
+	cmd.AddCommand(newRulesListCmd(), newRulesCheckCmd(out), newRulesSuggestCmd())
 	return cmd
 }
 
@@ -24,26 +24,6 @@ func newRulesListCmd() *cobra.Command {
 	cmd := stubCmd("list", "Print the effective rules and the layer each came from", cobra.NoArgs)
 	cmd.Flags().Bool("dead", false, "report rules with no hit or record in the recent rounds (§2.6.3.4)")
 	return cmd
-}
-
-// newRulesCheckCmd registers §11's `cr rules check <pr>`, §2.6.1.1's
-// mechanical evaluation over the added and modified RIGHT-side lines of the
-// diff.
-//
-// It reports hits and never verdicts, per §2.6.1.5: a hit reaches a draft only
-// when the agent confirms it, and confirmation is what a rule cannot supply for
-// itself. That is why the command is scoped to a pull request and takes no
-// severity, kind, or grade of its own — there is no judgement here for a flag
-// to influence.
-//
-// The behaviour belongs to rule-hit-unit-attachment and the detection tasks
-// beside it; what is registered here is the shape.
-func newRulesCheckCmd() *cobra.Command {
-	return stubCmd(
-		"check "+prPlaceholder,
-		"Run mechanical rule detection over the diff",
-		prArgs(1),
-	)
 }
 
 // newRulesSuggestCmd registers §11's `cr rules suggest --repo <owner/repo>`,
