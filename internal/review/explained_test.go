@@ -101,3 +101,35 @@ func TestARecordedNoteSuppressesTheQuestionOnlyWhenTheAgentSaysSo(t *testing.T) 
 		"once the agent records that n1 explains u2, u2's question is not raised")
 }
 
+// A cell suppresses an item only when it is the intent role's decision, for this
+// round, resting on a note that still stands.
+//
+// Each case below is a cell sitting at u2 that is one condition short of that,
+// and each leaves u2's question raised. Suppressing on any of them would
+// withhold a question on the strength of something other than the decision
+// §4.1.5 describes: another lens's remark, a decision about a unit of the same
+// id in an earlier round, a note §3.6.6 has revoked, or a note that never was.
+func TestACellShortOfTheIntentRolesStandingDecisionSuppressesNothing(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		round int
+		line  string
+	}{
+		{"another role's cell", 2,
+			`{"unit":"u2","role":"correctness","result":"question","note_id":"CR-1#n1"}`},
+		{"an earlier round's cell", 1,
+			`{"unit":"u2","role":"intent-coverage","result":"pass","note_id":"CR-1#n1"}`},
+		{"a retracted note", 2,
+			`{"unit":"u2","role":"intent-coverage","result":"pass","note_id":"CR-1#n2"}`},
+		{"a note the store never held", 2,
+			`{"unit":"u2","role":"intent-coverage","result":"pass","note_id":"CR-1#n9"}`},
+		{"no note at all", 2,
+			`{"unit":"u2","role":"intent-coverage","result":"question"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cell := recorded(t, tc.round, tc.line)
+
+			assert.Equal(t, []string{"u2", "u3"}, raisedUnits(Raise(intentRound(cell))))
+		})
+	}
+}
