@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T22:20:43.644241Z",
+  "updated_at": "2026-09-10T22:35:40.431436Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6353,7 +6353,7 @@
     {
       "id": "provenance-region",
       "title": "Emit provenance for weak record origins",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "question-mark-refusal",
@@ -6365,11 +6365,47 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T22:22:12.534925Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T22:35:40.350334Z",
+      "closed_reason": "- Weak provenance is disclosed in the comment itself, not in a draft-only annotation: the region is §8.1.3's second owned region of render.Comment, whose String is the comment as written into the draft and posted; cr post is still a stub, so post-time regeneration rides on the same Comment when its task builds it.\n- cr emits a cr-owned provenance region per §8.1.3 (render.ProvenanceRegion, between \u003c!-- cr:provenance --\u003e and \u003c!-- cr:/provenance --\u003e) when the record carries suggestion_origin rule, rests on a claim with source note, or has a stored citation with origin rule, per §8.1.6; draft.Provenances.of reads the triggers off the record and cr draft hands it the lookups through cli/provenance.go.\n- The region names the machine origin (suggestion_origin: rule), or the claim, the note and the note's §3.6.3 source (read from claims.ndjson and the issue's context store), or the rule id with its rationale per §2.6 item 4 (read from the round's resolved rule corpus), as field-name template lines like ProbeEvidence, so no prose is composed.\n- Being cr-owned, it is generated from the record at every render and never read back: AgentRegion discards it, TestTheProvenanceRegionSitsBetweenTheLabelAndTheAgentBody asserts the agent region recovers without it, and a rationale carrying \u003c!-- cr: refuses the record with render.BodyError (exit 1) rather than breaking recovery.\n- Round 9 finding provenance-trigger-ambiguity: the third trigger is implemented mechanically as any stored citation carrying origin rule, regardless of what else qualifies the record for cited.\n- When a record carries both a rule citation and an outside-unit agent citation, the region is emitted because a rule-origin citation is present, which is the one reading that does not depend on which citation \"earned\" cited.\n- A test covers all three triggers plus the both-citations case: TestEveryTriggerAndTheBothCitationsCaseDiscloseProvenance renders a machine suggestion, a note-sourced claim, a rule-origin citation and the rule-plus-outside-agent case, plus three negatives, and TestARuleOriginCitationReachesTheDraftNamingTheRuleAndItsRationale and TestAClaimRestingOnANoteReachesTheDraftNamingTheNoteAndItsSource drive the rule and note triggers through cr rules check, cr record and cr draft.\n- Round 12 finding provenance-trigger-undecidable is settled as assigned: the region is emitted whenever any stored citation carries origin rule, and when triggers coincide every applicable trigger's content is emitted.\n- The contents follow the §8.1.6 order, machine origin then note then rule, asserted by TestCoincidingTriggersEmitEveryContentInSection816Order; TestTheSuggestionBlockOpensNoCrOwnedRegion (closed task rule-fix-provenance) now reads the agent region through AgentRegion and additionally asserts the machine label and fence sit in it, because the whole comment now legitimately carries this owned region.\n",
+      "gate_passed_at": "2026-09-10T22:35:40.350334Z",
+      "commit_sha": "424d3b7",
+      "commit_shas": [
+        "424d3b7",
+        "ee8690f",
+        "fcf18a6",
+        "28b2bb1",
+        "869d280",
+        "11a43c5",
+        "497a3e4",
+        "8364838",
+        "7eb8db2",
+        "d3d5676",
+        "7c380a7",
+        "3793ee4",
+        "4e1794a",
+        "3e422c7",
+        "4a91b7f",
+        "ca6cbe3"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/provenance.go",
+        "internal/cli/provenance_test.go",
+        "internal/cli/rulescheck.go",
+        "internal/draft/draft.go",
+        "internal/draft/draft_test.go",
+        "internal/draft/label_test.go",
+        "internal/draft/provenance.go",
+        "internal/draft/provenance_test.go",
+        "internal/draft/questionmark_test.go",
+        "internal/draft/reserved_test.go",
+        "internal/draft/suggestion_test.go",
+        "internal/render/provenance.go",
+        "internal/render/provenance_test.go",
+        "internal/state/rulestats_test.go"
+      ]
     },
     {
       "id": "evidence-region",
