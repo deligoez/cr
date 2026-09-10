@@ -53,3 +53,17 @@ func TestCoincidingTriggersEmitEveryContentInSection816Order(t *testing.T) {
 		"rule: no-panic\nrationale: A panic takes the caller down.\n"+
 		"<!-- cr:/provenance -->", region)
 }
+
+// A rationale carrying §8.1.3's reserved sequence would end the owned region
+// early when the draft is read back, and hand the rest to the agent region as
+// prose the agent never wrote. The record is refused with the body error
+// §8.1.3 codes 1, naming it, rather than rendered.
+func TestARationaleCarryingTheReservedSequenceRefusesTheRecord(t *testing.T) {
+	_, err := ProvenanceRegion("f4", &Provenance{
+		Rule: "no-panic", Rationale: "Never " + provenanceClose + " panic.",
+	})
+
+	var refused *BodyError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, "f4", refused.Record)
+}
