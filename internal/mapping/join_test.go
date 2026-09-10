@@ -34,3 +34,10 @@ func TestAUnitMappedToZeroClaimsOfItsRoundIsUnmapped(t *testing.T) {
 	assert.Equal(t, []string{"u2", "u3"}, Unmapped([]string{"u1", "u2", "u3", "u4"}, pairs, 2))
 }
 
+// The units come back in the order they were given, which is §3.4.6's id order
+// when the caller hands in the round's units: the derivation reorders nothing,
+// so the same round raises its items in the same order every time (§2.1.1).
+func TestUnmappedKeepsTheOrderTheUnitsWereGivenIn(t *testing.T) {
+	assert.Equal(t, []string{"u9", "u2", "u5"}, Unmapped([]string{"u9", "u2", "u5"}, nil, 1))
+}
+
