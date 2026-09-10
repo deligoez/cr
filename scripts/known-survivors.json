@@ -35,6 +35,13 @@
       "column": 20,
       "type": "CONDITIONALS_BOUNDARY",
       "reason": "rank cuts the qualified list with `qualified = qualified[:limit]`, and `>` against `>=` differs only when len(qualified) == limit, where the cut is `s = s[:len(s)]`: same length, same elements, and only the elements are copied out after it. limit is max(MaxCandidates, 0), so no negative bound reaches the slice. Verified by hand on 2026-09-11 -- applied `>=`, `go test -count=1 ./internal/reinvention` stayed green. The fixtures reach len < limit (4 against 5) and len > limit (4 against 3, 1 against 0 and -1) but not len == limit; that case is the identity reslice above, which the language fixes rather than a fixture."
+    },
+    {
+      "file": "state/rulestats.go",
+      "line": 55,
+      "column": 36,
+      "type": "CONDITIONALS_NEGATION",
+      "reason": "NOT equivalent -- unobservable, and entered as such. The guard is `released := held.Unlock(); err == nil && released != nil`, and the mutant `err != nil` differs only when Unlock itself fails: then the original reports the release error after a good write and keeps the write error after a bad one, while the mutant does the reverse. gofrs/flock v0.13.0 returns an error from Unlock only when flock(LOCK_UN) fails on a descriptor it holds open and locked, and held is a local with no seam to inject that. Verified by hand on 2026-09-11 -- applied `err != nil`, `go test -count=1 ./internal/state` stayed green. Reaching it needs a seam in a closed task's production code for an error path the lock does not produce in practice; not worth that change. Revisit if the ledger's lock ever gains an injectable interface."
     }
   ]
 }
