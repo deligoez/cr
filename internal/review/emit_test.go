@@ -250,3 +250,30 @@ func TestEveryPromptNamesItsOutputAndStatesTheRecordContract(t *testing.T) {
 		}
 	}
 }
+
+// §2.6.1.4's standards without a detector reach the prompt of their axis's
+// role, and the sentence saying no rule is injected appears only where none
+// is. A correctness role told no correctness rule is injected, beneath the rule
+// that is, would read that rule as withdrawn.
+func TestARoleIsToldNoStandardIsInjectedOnlyWhereNoneIs(t *testing.T) {
+	r := handRound()
+	r.Rules = []rule.Resolved{{
+		Rule: rule.Rule{
+			ID: "handle-every-error", Title: "Every error is handled where it is returned.",
+			Rationale: "A dropped error turns a failure into a wrong answer nobody sees.",
+			Class:     "unchecked-error", Axis: axis.Correctness,
+		},
+		Path: "/home/.cr/rules/handle-every-error.json",
+	}}
+
+	prompts := Emit(r)
+	require.Len(t, prompts, 4)
+	for _, prompt := range prompts {
+		injected := prompt.Axis == axis.Correctness
+		assert.Equalf(t, injected, strings.Contains(prompt.Text, "rule handle-every-error (axis correctness"),
+			"%s on %s", prompt.Role, prompt.Unit)
+		assert.Equalf(t, !injected,
+			strings.Contains(prompt.Text, "No rule of the "+prompt.Axis+" axis is injected as text."),
+			"%s on %s", prompt.Role, prompt.Unit)
+	}
+}
