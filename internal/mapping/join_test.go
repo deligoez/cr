@@ -41,3 +41,13 @@ func TestUnmappedKeepsTheOrderTheUnitsWereGivenIn(t *testing.T) {
 	assert.Equal(t, []string{"u9", "u2", "u5"}, Unmapped([]string{"u9", "u2", "u5"}, nil, 1))
 }
 
+// A round whose every unit is mapped raises nothing, and says so with an empty
+// list rather than a nil one, per §12: a caller serialising the answer must
+// print `[]`, which is the difference between "nothing is unmapped" and "the
+// question was never asked".
+func TestAFullyMappedRoundRaisesAnEmptyListNotANilOne(t *testing.T) {
+	unmapped := Unmapped([]string{"u1"}, []Pair{pair("CR-1#c1", "u1", 1)}, 1)
+
+	assert.NotNil(t, unmapped)
+	assert.Empty(t, unmapped)
+}
