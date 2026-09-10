@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T23:15:54.716666Z",
+  "updated_at": "2026-09-10T23:23:03.253075Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5645,7 +5645,7 @@
     {
       "id": "draft-rendered-regions",
       "title": "Store each record's agent region",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "draft-summary-header"
@@ -5655,11 +5655,26 @@
       "source_sections": [
         "### 7.1 Draft format"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T23:17:51.376092Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-10T23:23:03.218323Z",
+      "closed_reason": "- cr draft now writes rounds/\u003cn\u003e/rendered.json beside draft.md under the same §2.3.1 lock: internal/draft/rendered.go's Rendered maps each queued record's id to its agent region, and internal/cli/draft.go's writeRendered replaces the document whole through state.UpdateRoundJSON on every run.\n- The cr-owned regions are excluded because each entry is render.AgentRegion over the rendered comment, which strips the label and provenance regions cr regenerates; TestAnEntryIsTheAgentRegionWithoutTheOwnedRegions renders a rule-suggestion question carrying both and asserts the entry is body() byte for byte with no \u003c!-- cr: sequence, and this wiring takes render.AgentRegion and withoutRegion off deadcode's test-only list.\n- No aggregate hash of the agent regions is computed or stored anywhere: Rendered returns only the id-keyed entries and writeRendered writes only that map.\n- The aggregate is absent because nothing consumes it, §7.1.6 reads per-record entries, and the inference it invited is the one §8.5.4 forbids, which the Rendered doc comment states.\n- TestRenderedJSONHoldsOneEntryPerRecordAndNoAggregateHash runs cr draft over two queued records and a duplicate, decodes rendered.json as raw fields so any extra key would surface, and asserts the keys are exactly f1 and f2, each a string equal to the initial body and contained in draft.md.\n- rendered.json holds only the body cr generated because Rendered takes records and never the draft, so no edit can reach an entry; TestAnEditedBodyNeverBecomesItsRenderedEntry rewrites the body in draft.md, runs cr draft twice more, and asserts the entry is still cr's generated body both times.\n- The third-draft failure is closed at its root by TestAnEntryIsWhatReadingTheUntouchedBlockBackRecovers: the entry is the region as reading the untouched block back recovers it, so an untouched body compares equal to its entry byte for byte and an edited one never does.\n",
+      "gate_passed_at": "2026-09-10T23:23:03.218323Z",
+      "commit_sha": "b52e989",
+      "commit_shas": [
+        "b52e989",
+        "ccc1923",
+        "7477ce0",
+        "c7e8d09",
+        "9f5cf8c",
+        "40010db"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftrendered_test.go",
+        "internal/draft/rendered.go",
+        "internal/draft/rendered_test.go"
+      ]
     },
     {
       "id": "draft-regeneration",
