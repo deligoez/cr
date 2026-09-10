@@ -60,6 +60,25 @@ func TestARuleOriginCitationReachesTheDraftNamingTheRuleAndItsRationale(t *testi
 		"an agent-origin citation is no weak provenance")
 }
 
+// The same region when the rule-origin citation is the only citation the round
+// queues — one confirmed hit and nothing else, the plainest round a rule
+// produces. The case above queues an agent-origin citation beside it, so it
+// cannot tell a corpus read because a citation is rule-origin from one read
+// because some citation is not; draftProvenances promises the first, and only a
+// round with no other citation in it asks.
+func TestARoundCitingOnlyARuleHitStillQuotesTheRulesRationale(t *testing.T) {
+	layout := detectedHome(t)
+	runRulesCheck(t)
+	_, err := runRecord(t, fixturePR, writeRecordFile(t, "merged.ndjson", confirming("f1", 4)),
+		"--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	assert.Contains(t, blockOf(t, draftedFixture(t, layout), "f1"), "<!-- cr:provenance -->\n"+
+		"rule: no-panic\n"+
+		"rationale: A panic in a library takes down every caller's process.\n"+
+		"<!-- cr:/provenance -->")
+}
+
 // §8.1.6's second trigger through the commands: a record resting on a claim with
 // `source: note` reaches the draft with a provenance region naming the claim,
 // the note it came from, and that note's §3.6.3 source — read out of the round's
