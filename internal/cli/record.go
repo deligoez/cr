@@ -250,8 +250,8 @@ func newRecordCmd(out *writer) *cobra.Command {
 
 // acceptRecords reads the file the agent handed the command and settles
 // everything §6 has to say about it before a lock is taken: §6.1.3's and
-// §6.1.4's refusals, §9.1's first two rows, §6.2.3's resolution, §5.4's
-// severity bounds, and §6.2's grade.
+// §6.1.4's refusals, §9.1's first two rows, §6.2.3's resolution, §6.2.5's
+// origin, §5.4's severity bounds, and §6.2's grade.
 //
 // It is the whole of the validation, in one place, so the ordering above is a
 // contract rather than the shape a command body happens to have. Every refusal
@@ -286,6 +286,14 @@ func acceptRecords(
 	if err := resolveCitations(file, body, round.Head, records); err != nil {
 		return nil, nil, err
 	}
+	// §6.2.5: every citation's origin is computed against cr's own
+	// detection output, positionally, before the grade reads it. The
+	// ledger is read without a lock (§2.3.2).
+	ledger, err := rule.ReadStats(l, owner, repo)
+	if err != nil {
+		return nil, nil, err
+	}
+	rule.StampOrigins(ledger, round.Head, records)
 	// §6.2.1's stored inputs, read off files no lock is needed for
 	// (§2.3.2).
 	evidence, err := readRoundEvidence(l, owner, repo, pr)
