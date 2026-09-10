@@ -6830,6 +6830,23 @@
       "closed_reason": null,
       "gate_passed_at": null,
       "commit_sha": null
+    },
+    {
+      "id": "symbol-index-clustering-wiring",
+      "title": "Hand the head symbol index to hunk clustering",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 0,
+      "acceptance": "brief/brief.go calls unit.Clusters with a nil SymbolIndex on every run, so the symbol branch of hunk clustering never runs outside tests and every pull request clusters by adjacency alone. The nil was deliberate while no index existed; internal/unit/symbols.go says so, calling a nil index every run until the head symbol index exists. symbol-index-build has since built that index, and nothing handed it over. It does not satisfy unit.SymbolIndex yet: Indexed can be answered, but Enclosing needs the span each symbol covers, and the index records only the line a symbol is declared on. The index gains the spans or an adapter derives them, cr brief passes the built index where it now passes nil, and a file the index cannot serve still falls through to adjacency without an error. A test drives cr brief over a diff whose hunks sit inside one function and asserts they form one unit by symbol, where adjacency alone would split them.",
+      "source_sections": [
+        "### 3.4 Review units"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
