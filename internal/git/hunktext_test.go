@@ -39,3 +39,14 @@ func TestEveryHunksTextIsItsHeaderAndItsWholeBody(t *testing.T) {
 	}
 }
 
+// A patch ParseHunks refuses is refused by HunkTexts with the same error, so a
+// prompt can never be built from a text the unit clustering never read.
+func TestHunkTextsRefusesWhatParseHunksRefuses(t *testing.T) {
+	patch := "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n one\n"
+	_, refused := ParseHunks(patch)
+	require.Error(t, refused)
+
+	texts, err := HunkTexts(patch)
+	require.EqualError(t, err, refused.Error())
+	assert.Nil(t, texts)
+}
