@@ -68,3 +68,19 @@ func TestAHitEntryCarriesEveryFieldTheLedgerIsKeyedAndOrderedBy(t *testing.T) {
 	assert.Equal(t, time.UTC, ledger(t, l)[0].At.Location(), "the timestamp is written in UTC")
 }
 
+// Round 9's rule-stats-event-producer: an entry is overwritten under its key
+// rather than appended again, so detection run twice in one round leaves one
+// entry per hit — and the second run's moment is the one kept.
+func TestDetectionRunTwiceInOneRoundLeavesOneEntryPerHit(t *testing.T) {
+	l := state.New(t.TempDir())
+
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), occasion(0)))
+	require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits(), occasion(5)))
+
+	held := ledger(t, l)
+	require.Len(t, held, 3, "one entry per hit, not two")
+	for _, entry := range held {
+		assert.Equal(t, occasion(5).At.UTC(), entry.At, "the entry was overwritten in place")
+	}
+}
+
