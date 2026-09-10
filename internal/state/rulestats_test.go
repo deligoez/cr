@@ -1,6 +1,7 @@
 package state
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -69,4 +70,34 @@ func TestConcurrentLedgerUpdatesLoseNoEntry(t *testing.T) {
 	written, err := ReadRuleStatsRecords[numbered](l, "octocat", "hello")
 	require.NoError(t, err)
 	assert.Len(t, written, writers, "every writer's entry survived every other writer's publish")
+}
+
+// A ledger the door cannot read, or entries it cannot encode, are reported
+// rather than published over — and the lock is released on the way out, so the
+// next command is not left waiting on a failure it had no part in.
+func TestAFailedLedgerUpdateIsReportedAndReleasesTheLock(t *testing.T) {
+	l := contextRoot(t)
+	const owner, repo = "octocat", "hello"
+	require.NoError(t, UpdateRuleStats(l, owner, repo, func(held []numbered) []numbered {
+		return append(held, numbered{N: 1})
+	}))
+
+	unencodable := UpdateRuleStats(l, owner, repo, func([]chan int) []chan int {
+		return []chan int{make(chan int)}
+	})
+	require.Error(t, unencodable)
+	kept, err := ReadRuleStatsRecords[numbered](l, owner, repo)
+	require.NoError(t, err)
+	assert.Equal(t, []numbered{{N: 1}}, kept, "a write that could not encode published nothing")
+
+	ledger := l.RepoRuleStats(owner, repo)
+	require.NoError(t, os.Remove(ledger))
+	require.NoError(t, os.Mkdir(ledger, 0o700))
+	unreadable := UpdateRuleStats(l, owner, repo, func(held []numbered) []numbered { return held })
+	require.Error(t, unreadable)
+	assert.Contains(t, unreadable.Error(), ledger, "the refusal names the file")
+
+	require.NoError(t, os.Remove(ledger))
+	require.NoError(t, UpdateRuleStats(l, owner, repo, func(held []numbered) []numbered { return held }),
+		"the failed update released the lock")
 }
