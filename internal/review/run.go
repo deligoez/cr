@@ -119,6 +119,9 @@ func Run(src *Sources) (*Fanout, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := r.fanOut(src); err != nil {
+		return nil, err
+	}
 	return &Fanout{Round: r.Round, Head: r.Head, Prompts: Emit(r), Honesty: honesty}, nil
 }
 
@@ -292,6 +295,32 @@ func belongs(u *unit.Unit, hunk *git.Hunk) bool {
 	}
 	start, end := hunk.HeadRange()
 	return slices.Contains(u.HunkRanges, unit.Range{Start: start, End: end})
+}
+
+// fanOut gives every unit the directory §4.6.2's output files sit in, and
+// creates those directories under the pull request's lock (§2.3.1).
+//
+// Directories are all `cr review` writes, and nothing it writes is a file: the
+// records are the roles' to write, and §4.6.3 has `cr review` write nothing to
+// findings.ndjson. They sit under the state root per §2.2, so a role told where
+// to write is never told to write inside the repository under review.
+func (r *Round) fanOut(src *Sources) error {
+	ids := make([]string, 0, len(r.Units))
+	for i := range r.Units {
+		r.Units[i].FanOut = src.Layout.FanOutDir(src.Owner, src.Repo, src.PR, r.Round, r.Units[i].ID)
+		ids = append(ids, r.Units[i].ID)
+	}
+	held, err := src.Layout.LockPR(src.Owner, src.Repo, src.PR)
+	if err != nil {
+		return err
+	}
+	if err := held.EnsureFanOut(r.Round, ids); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
 }
 
 // profileOf loads the profile the round resolved to, and the empty profile of
