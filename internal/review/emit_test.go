@@ -43,6 +43,21 @@ func handRound() *Round {
 	}
 }
 
+// A round holding no unit emits no prompt, as an empty list rather than a nil
+// one. Nothing between the round's unit records and Emit refuses an empty set —
+// a diff that clusters into no unit leaves exactly that — and every other
+// fixture here has units, so none asks what the fan-out is when one factor of
+// roles times units is zero.
+func TestARoundWithNoUnitEmitsAnEmptyListOfPrompts(t *testing.T) {
+	r := handRound()
+	r.Units, r.Hits, r.Tests = []Unit{}, []rule.Attachment{}, []testadequacy.Attachment{}
+
+	prompts := Emit(r)
+
+	assert.Empty(t, prompts)
+	assert.NotNil(t, prompts, "§12: an empty list serialises as [], never null")
+}
+
 // For every active role and every unit, one prompt: role by role in corpus
 // order, and unit by unit in id order within each (§4.6.1).
 func TestOnePromptIsEmittedPerActiveRoleAndUnit(t *testing.T) {
