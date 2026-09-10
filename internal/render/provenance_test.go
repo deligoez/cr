@@ -34,3 +34,22 @@ func TestEachTriggerAloneNamesWhatSection816Requires(t *testing.T) {
 		})
 	}
 }
+
+// Round 12's provenance-trigger-undecidable: when triggers coincide, the region
+// carries every applicable trigger's content, in §8.1.6's order — the machine
+// origin, then the note, then the rule — so no trigger's disclosure is dropped
+// for another's, and the order is the section's rather than the caller's.
+func TestCoincidingTriggersEmitEveryContentInSection816Order(t *testing.T) {
+	region, err := ProvenanceRegion("f1", &Provenance{
+		Rule: "no-panic", Rationale: "A panic takes the caller down.",
+		Claim: "CR-7#c2", Note: "CR-7#n1", NoteSource: "meeting",
+		Suggestion: true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "<!-- cr:provenance -->\n"+
+		"suggestion_origin: rule\n"+
+		"claim: CR-7#c2 (source: note)\nnote: CR-7#n1 (source: meeting)\n"+
+		"rule: no-panic\nrationale: A panic takes the caller down.\n"+
+		"<!-- cr:/provenance -->", region)
+}
