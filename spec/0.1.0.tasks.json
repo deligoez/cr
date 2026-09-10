@@ -1623,7 +1623,7 @@
         "rule-fix-never-applied"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- cr cannot establish that a generated replacement compiles, parses, or preserves behaviour. A suggestion produced by fix carries suggestion_origin: rule, is labelled as machine generated in the draft, and is dropped when the agent does not confirm it, per §2.6.2.4.\n- suggestion_origin is stamped by cr, never supplied by the agent.\n- A test asserts an unconfirmed machine suggestion never reaches the payload.",
+      "acceptance": "- cr cannot establish that a generated replacement compiles, parses, or preserves behaviour. A suggestion produced by fix carries suggestion_origin: rule, is labelled as machine generated in the draft, and is dropped when the agent does not confirm it, per §2.6.2.4.\n- For a suggestion cr generated from a rule fix, suggestion_origin: rule is minted by cr and no function in internal/rule accepts an origin as input. The field itself stays optional on the wire per 6.1, where an agent may supply agent or rule for a suggestion it wrote.\n- A test asserts an unconfirmed machine suggestion never reaches the payload.",
       "source_sections": [
         "#### 2.6.2 Fixes"
       ],
