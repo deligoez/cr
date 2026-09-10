@@ -127,6 +127,14 @@ func exitCodeFor(err error) int {
 		// about the invocation can be corrected.
 		return ExitFile
 	}
+	var refusedBody *render.BodyError
+	if errors.As(err, &refusedBody) {
+		// §8.1.3 rejects a body that is empty or carries a `<!-- cr:`
+		// sequence with exit code 1. Every file read and parsed; what
+		// is refused is prose inside one record's block, which §11.2
+		// codes 1 alongside the record rejections below.
+		return ExitValidation
+	}
 	var gitCommand *git.CommandError
 	if errors.As(err, &gitCommand) {
 		// §3.1.3 codes a non-zero exit from an external command 3 and
