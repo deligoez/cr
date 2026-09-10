@@ -235,6 +235,19 @@ func TestAnUnbalancedSignatureStopsAtTheBound(t *testing.T) {
 		"the scan stopped at the bound, so it never reached the commas past it")
 }
 
+// The other way an unterminated list ends is the file ending first: a file cut
+// off mid-edit, or a `(` misread in its last lines. The scan stops at the last
+// line there is, and the parameter still open counts, as params says. The case
+// above runs out of bound long before it runs out of file, so it never asks
+// where the file's own end is.
+func TestASignatureTheFileEndsInsideStopsAtTheLastLine(t *testing.T) {
+	index, built := Build("go", []File{fileOf("x.go", "func A(x int,\n\ty string")})
+
+	require.True(t, built)
+	require.Len(t, index.Decls, 1)
+	assert.Equal(t, 2, index.Decls[0].Params)
+}
+
 // §4.3.2 orders candidates by similarity, then path ascending, then line
 // ascending. Ordering the index itself is what makes the tail of that ordering
 // free — and what makes two runs over one head agree, whatever order git
