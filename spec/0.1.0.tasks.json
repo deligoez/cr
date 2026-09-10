@@ -2426,7 +2426,7 @@
     {
       "id": "thread-proximity-attachment",
       "title": "Attach nearby human threads to units",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "thread-author-typing",
@@ -2437,11 +2437,20 @@
       "source_sections": [
         "### 3.5 Existing threads"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T22:26:34.224519Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-10T22:26:34.224749Z",
+      "closed_reason": "- review.Threads attaches to a unit every ingested human thread whose anchor falls inside the unit's hunks or within threads.proximity_lines of them, with the setting defaulting to 10, per §3.5.3; TestAHumanThreadWithinTheWindowIsAttachedAndOneBeyondIsNot asserts both edges of the window on both sides of the hunk, and on the LEFT side against the merge-base range so a comparison made in the wrong coordinates lands on the wrong edge.\n- cr never decides suppression itself: nothing in internal/review drops or marks a record because of a thread, and no function there takes a thread and returns a verdict.\n- It locates the candidate and supplies it: Threads returns the attached threads and the review prompt carries them to the role as one of §4.6.1's attachments, where the role decides.\n- TestABotThreadAndAThreadBeyondTheWindowAreLeftUnattached asserts that a bot thread and a thread beyond the window are both left unattached, together with a thread on another file and one the head has moved past, while a resolved human thread inside the window is still attached.\n\nThis was built inside review-prompt-emission, which needed nearby threads as one of §4.6.1's attachments but did not list this task among its dependencies; the unit that closed it reported the overlap. Verified by reading both tests against the three criteria before closing.\n",
+      "gate_passed_at": "2026-09-10T22:26:34.224749Z",
+      "commit_sha": "e120dd6",
+      "commit_shas": [
+        "e120dd6",
+        "df52bc5"
+      ],
+      "commit_files": [
+        "internal/review/threads.go",
+        "internal/review/threads_test.go"
+      ]
     },
     {
       "id": "thread-suppression-recording",
