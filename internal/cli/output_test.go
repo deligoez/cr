@@ -466,6 +466,7 @@ func TestATypeThatSerialisesItselfKeepsItsOwnNull(t *testing.T) {
 var outputStructs = []result{
 	initResult{}, configResult(nil), &noteResult{}, &retractResult{}, &answerResult{}, &contextResult{},
 	&recordResult{}, &claimsRecordResult{}, &briefResult{}, &cellsRecordResult{},
+	&rulesCheckResult{},
 	&mapRecordResult{}, &sandboxCreateResult{}, &sandboxDestroyResult{}, &testRunResult{},
 	&probeRunResult{}, &draftResult{}, &reviewResult{},
 }

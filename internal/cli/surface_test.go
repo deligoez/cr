@@ -105,7 +105,7 @@ var specSurface = []surfaceRow{
 		stub: true},
 	{path: []string{"stats"}, use: "stats", spec: []string{"repo"}, stub: true},
 	{path: []string{"rules", "list"}, use: "list", spec: []string{"dead", "repo"}, stub: true},
-	{path: []string{"rules", "check"}, use: "check <pr>", stub: true},
+	{path: []string{"rules", "check"}, use: "check <pr>"},
 	{path: []string{"rules", "suggest"}, use: "suggest", spec: []string{"repo"}, stub: true},
 	{path: []string{"status"}, use: "status <pr>", stub: true},
 }

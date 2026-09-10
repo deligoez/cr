@@ -943,6 +943,10 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 			"probe", "run", fixturePR, "--repo", fixtureSlug,
 			"--kind", "mutation", "--patch", mutation,
 		},
+		// `cr rules check` reads the repository for the diff §2.6.1.1
+		// evaluates, exactly as `cr brief` does, and it sorts after `cr
+		// brief` in the run order, so the round it reads has been opened.
+		"rules check": {"rules", "check", fixturePR, "--repo", fixtureSlug},
 	}
 }
 
@@ -980,7 +984,6 @@ func stubRuns(merged, out string) map[string][]string {
 		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
 		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
 		"rules list":     {"rules", "list", "--repo", fixtureSlug},
-		"rules check":    {"rules", "check", fixturePR, "--repo", fixtureSlug},
 		"rules suggest":  {"rules", "suggest", "--repo", fixtureSlug},
 	}
 }
