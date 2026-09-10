@@ -54,6 +54,9 @@ func TestAPairTheTableHasNoRowForIsRefused(t *testing.T) {
 			assert.Equal(t, pair.lang, missing.Lang)
 			assert.Equal(t, pair.grade, missing.Grade)
 			assert.Empty(t, region)
+			assert.Contains(t, err.Error(), "§8.1.4", "the refusal names the section it enforces")
+			assert.Contains(t, err.Error(), `grade "`+string(pair.grade)+`"`,
+				"and the grade the table had no row for")
 		})
 	}
 }
