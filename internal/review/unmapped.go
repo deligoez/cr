@@ -10,6 +10,7 @@ package review
 import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/note"
 )
 
 // UnmappedUnit is §4.1.2's unmapped-unit item: a unit of the round the mapping
@@ -30,6 +31,10 @@ type UnmappedUnit struct {
 	// Kind is the register the item is raised in, which §4.1.4 fixes at
 	// finding.KindQuestion.
 	Kind finding.Kind `json:"kind"`
+	// Notes are the issue key's notes §4.1.5 attaches to every unmapped
+	// unit, so the agent can decide whether one explains it. Raise fills
+	// them; the item is empty rather than nil without them, per §12.
+	Notes []note.Note `json:"notes"`
 }
 
 // Unmapped raises §4.1.2's items over one round: one per unit the round's
@@ -44,7 +49,7 @@ func Unmapped(units []string, pairs []mapping.Pair, round int) []UnmappedUnit {
 	ids := mapping.Unmapped(units, pairs, round)
 	items := make([]UnmappedUnit, 0, len(ids))
 	for _, id := range ids {
-		items = append(items, UnmappedUnit{Unit: id, Kind: finding.KindQuestion})
+		items = append(items, UnmappedUnit{Unit: id, Kind: finding.KindQuestion, Notes: []note.Note{}})
 	}
 	return items
 }
