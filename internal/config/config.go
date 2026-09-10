@@ -57,6 +57,13 @@ var settings = []setting{
 	{"probe.lock_timeout_seconds", 300},
 	{"probe.max_per_round", 10},
 	{"profile", ""},
+	// §4.3.2's two knobs on the reinvention search. min_similarity is the
+	// only fractional setting in the table, and it is fractional because
+	// §4.3.2 defines similarity as a ratio: rounding it to an integer here
+	// would move the threshold to 0 or 1 and either qualify every symbol in
+	// the repository or none.
+	{"reinvention.max_candidates", 5},
+	{"reinvention.min_similarity", 0.6},
 	// §8.1.1's language. Its key and its default both come from the domain
 	// that owns them, so this table cannot drift from the enumeration the
 	// value is checked against in Resolve.
