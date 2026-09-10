@@ -84,3 +84,19 @@ func TestDetectionRunTwiceInOneRoundLeavesOneEntryPerHit(t *testing.T) {
 	}
 }
 
+// A hit of a later round, or of another pull request, is a different entry:
+// the key holds the round and the pull request, and only an identical key
+// overwrites.
+func TestAHitOfAnotherRoundOrPullRequestIsItsOwnEntry(t *testing.T) {
+	l := state.New(t.TempDir())
+	later, other := occasion(0), occasion(0)
+	later.Round = 3
+	other.PR = 14
+
+	for _, on := range []*Occasion{occasion(0), later, other} {
+		require.NoError(t, RecordHits(l, statsOwner, statsRepo, threeHits()[:1], on))
+	}
+
+	assert.Len(t, ledger(t, l), 3)
+}
+
