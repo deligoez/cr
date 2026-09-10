@@ -2,7 +2,9 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,5 +55,38 @@ func TestRenderedJSONHoldsOneEntryPerRecordAndNoAggregateHash(t *testing.T) {
 		assert.Equal(t, record.Summary+"\n\n"+record.Evidence, region,
 			"§8.1.2's initial body, exactly as rendered")
 		assert.Contains(t, readDraft(t, layout), region, "and exactly as draft.md carries it")
+	}
+}
+
+// §7.1.5: rendered.json holds only the body cr generated, so an edit to
+// draft.md never becomes an entry — not on the run after it, and not on the run
+// after that.
+//
+// This is the third-draft case the criterion names. Were the reviewer's body
+// written into rendered.json by the second run, the third would find the draft
+// equal to its entry, take the block for untouched, and put cr's English back
+// over the reviewer's prose. The body is rewritten here the way an agent
+// rewrites it into `render.lang`, and the draft is run twice more.
+func TestAnEditedBodyNeverBecomesItsRenderedEntry(t *testing.T) {
+	record := aStoredRecord("f1", finding.StateDraft)
+	layout := draftedHome(t, record)
+	generated := record.Summary + "\n\n" + record.Evidence
+
+	_, err := runDraft(t, draftPR, "--repo", draftSlug)
+	require.NoError(t, err)
+
+	for run := 2; run <= 3; run++ {
+		edited := strings.Replace(readDraft(t, layout), generated,
+			"The reviewer's own wording: the error from Decode never reaches the caller.", 1)
+		require.NoError(t, os.WriteFile(
+			layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FileDraft),
+			[]byte(edited), 0o600))
+
+		_, err = runDraft(t, draftPR, "--repo", draftSlug)
+		require.NoError(t, err)
+
+		var entry string
+		require.NoError(t, json.Unmarshal(readRendered(t, layout)["f1"], &entry))
+		assert.Equal(t, generated, entry, "run %d: the entry is still the body cr generated", run)
 	}
 }
