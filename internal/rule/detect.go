@@ -39,16 +39,16 @@ type Matcher struct {
 // path, and the matched line.
 type Hit struct {
 	// RuleID is the rule whose pattern matched, per §2.6 item 3.
-	RuleID string
+	RuleID string `json:"rule"`
 	// Path is the file the matched line is in, repository-relative.
-	Path string
+	Path string `json:"path"`
 	// Line is the matched line's number at the head. §2.6.1.1 evaluates
 	// only RIGHT-side lines, so a hit is always numbered on §9.2's RIGHT
 	// and never carries a side that could be recorded as the other one.
-	Line int
+	Line int `json:"line"`
 	// Text is the matched line's content, which §2.6.2.1 applies
 	// `fix.replace` to.
-	Text string
+	Text string `json:"text"`
 }
 
 // Evaluate applies every matcher over the diff and returns the hits, in corpus
