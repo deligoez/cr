@@ -1,0 +1,97 @@
+package review
+
+import (
+	"slices"
+
+	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/reinvention"
+	"github.com/deligoez/cr/internal/rule"
+	"github.com/deligoez/cr/internal/symbol"
+	"github.com/deligoez/cr/internal/testadequacy"
+	"github.com/deligoez/cr/internal/unit"
+)
+
+// attach fills the attachments computed over the round's diff: §4.3.1's
+// candidates, §4.3.6's rule hits with §2.6.1.4's injected standards, and
+// §4.4.1's test files. It returns §4.5.4's report of the halves that could not
+// run, which travels with the prompts rather than in a report a caller has to
+// remember to ask for.
+func (r *Round) attach(src *Sources, p *profile.Profile, hunks []git.Hunk) ([]string, error) {
+	// A head §4.3.1 cannot index answers false with a nil index, which
+	// reinvention.Attach turns into its unavailability rather than into an
+	// empty list of candidates.
+	index, _, err := symbol.Head(src.RepoDir, r.Head, p)
+	if err != nil {
+		return nil, err
+	}
+	r.Candidates = reinvention.Attach(p, index, hunks, reinvention.Ranking{
+		MinSimilarity: src.Config.Float("reinvention.min_similarity"),
+		MaxCandidates: src.Config.Int("reinvention.max_candidates"),
+	})
+	if err := r.detect(src, p, hunks); err != nil {
+		return nil, err
+	}
+	// No References implementation exists yet, so the symbol half of
+	// §4.4.1 reports itself unavailable with its reason, per
+	// testadequacy.Attach, and the file half still runs.
+	tests := testadequacy.Attach(p, nil, hunks)
+	r.Tests = testadequacy.PerUnit(r.clusters(), tests)
+
+	honesty := make([]string, 0, len(r.Candidates.Unavailable)+len(tests.Unavailable))
+	for _, out := range r.Candidates.Unavailable {
+		honesty = append(honesty, out.Disclosure())
+	}
+	for _, out := range tests.Unavailable {
+		honesty = append(honesty, out.Disclosure())
+	}
+	return honesty, nil
+}
+
+// detect resolves §2.6's corpus for the round's profile, runs §2.6.1's
+// detectors over the diff, and places each hit on the unit that contains it.
+//
+// A rule whose `profiles` names other profiles is left out of the round, since
+// §2.6's table reads an empty list as all profiles and any other list as the
+// ones named.
+func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error {
+	path := ""
+	if p.ID != "" {
+		path = src.Layout.Profile(p.ID)
+	}
+	corpus, err := rule.Resolve(
+		src.Layout.RepoRulesDir(src.Owner, src.Repo), src.Layout.RulesDir(), path, p.Rules)
+	if err != nil {
+		return err
+	}
+	r.Rules = make([]rule.Resolved, 0, len(corpus))
+	for i := range corpus {
+		scoped := corpus[i].Rule.Profiles
+		if len(scoped) == 0 || slices.Contains(scoped, p.ID) {
+			r.Rules = append(r.Rules, corpus[i])
+		}
+	}
+	matchers, err := rule.Compile(r.Rules)
+	if err != nil {
+		return err
+	}
+	formed := make([]unit.Unit, 0, len(r.Units))
+	for i := range r.Units {
+		formed = append(formed, r.Units[i].Unit)
+	}
+	r.Hits = rule.Attach(formed, rule.Evaluate(matchers, hunks))
+	return nil
+}
+
+// clusters are the round's units in the shape §3.4.4 formed them, which is the
+// shape testadequacy.PerUnit hands §4.4.1's attachment to.
+func (r *Round) clusters() []unit.Cluster {
+	clusters := make([]unit.Cluster, 0, len(r.Units))
+	for i := range r.Units {
+		u := &r.Units[i]
+		clusters = append(clusters, unit.Cluster{
+			Path: u.Path, Side: u.Side, Formation: u.Formation, Hunks: u.Hunks, Oversized: u.Oversized,
+		})
+	}
+	return clusters
+}

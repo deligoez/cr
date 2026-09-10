@@ -1,0 +1,310 @@
+package review
+
+import (
+	"fmt"
+	"slices"
+
+	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/coverage"
+	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/unit"
+)
+
+// Sources are the inputs one fan-out reads.
+//
+// Everything that touches the outside world is a field, for the reason
+// brief.Sources gives: the GitHub client is injectable and the repository is a
+// directory, so §4.6 can be exercised against a real repository with no token
+// and no network. Nothing here writes: `cr review` emits prompts, and the state
+// it reads was written by the commands that own it.
+type Sources struct {
+	// Layout resolves §2.2's paths and holds the per-PR state.
+	Layout state.Layout
+	// GH reads the pull request, for the base §3.4.1's merge base is taken
+	// against.
+	GH gh.Client
+	// Config is §2.7's resolved configuration.
+	Config config.Config
+	// Owner, Repo, and PR name the pull request under review.
+	Owner string
+	Repo  string
+	PR    int
+	// RepoDir is the repository under review. Every read of it goes
+	// through internal/git.
+	RepoDir string
+	// Axis narrows the fan-out to the roles of one axis, and is empty for
+	// every axis.
+	Axis string
+}
+
+// Fanout is what `cr review` reports: the round the prompts were emitted for,
+// the prompts, and §4.5.4's report of the lenses that did not run.
+type Fanout struct {
+	// Round and Head are the round the prompts belong to.
+	Round int    `json:"round"`
+	Head  string `json:"head"`
+	// Prompts are §4.6.1's prompts, in emission order.
+	Prompts []Prompt `json:"prompts"`
+	// Honesty is §4.5.4's report of the halves of §4.3.1 and §4.4.1 that
+	// could not run this round, rendered as the sentences §11.1 exempts
+	// from `--quiet`. It is empty, and never nil, when both ran.
+	Honesty []string `json:"honesty"`
+}
+
+// StaleUnitError reports a unit units.ndjson recorded that the diff at the
+// round's head no longer gives.
+//
+// The units are `cr brief`'s to record (§3.7), and every command of the round
+// checks a unit id against that record, so a prompt has to show the unit the
+// round holds. When the diff cr reads now cannot produce one of its hunks — the
+// base moved, the checkout lost the head, a setting changed the clustering —
+// a prompt built anyway would show a role code other than the code its cell
+// will be counted against. §11.2 codes it 4: nothing about the invocation is
+// wrong, and what refuses is where the round stands.
+type StaleUnitError struct {
+	// Unit is the unit id that could not be rebuilt.
+	Unit string
+	// Round and Head are the round that recorded it.
+	Round int
+	Head  string
+	// Owner, Repo, and PR name the pull request, so the hint is runnable.
+	Owner string
+	Repo  string
+	PR    int
+}
+
+func (e *StaleUnitError) Error() string {
+	return fmt.Sprintf(
+		"unit %s of round %d is not what the diff at head %s gives, so no prompt can show the code "+
+			"its cell would be counted against; §3.7 has `cr brief` record the units: run "+
+			"`cr brief %d --repo %s/%s` and review the round it records",
+		e.Unit, e.Round, e.Head, e.PR, e.Owner, e.Repo)
+}
+
+// Run gathers one round's attachments and emits §4.6.1's prompts over them.
+//
+// The round is the one `cr brief` recorded, read through state.Layout.Briefed,
+// so a pull request no round has been opened on is refused with §11.2's code 4
+// naming the command that opens one.
+func Run(src *Sources) (*Fanout, error) {
+	meta, err := src.Layout.Briefed(src.Owner, src.Repo, src.PR)
+	if err != nil {
+		return nil, err
+	}
+	r := &Round{Round: meta.Round, Head: meta.Head, Proximity: src.Config.Int("threads.proximity_lines")}
+	records, err := r.read(src, &meta)
+	if err != nil {
+		return nil, err
+	}
+	hunks, texts, err := diffOf(src, meta.Head)
+	if err != nil {
+		return nil, err
+	}
+	if r.Units, err = withHunks(src, &meta, records, hunks, texts); err != nil {
+		return nil, err
+	}
+	p, err := profileOf(src.Layout, meta.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	honesty, err := r.attach(src, p, hunks)
+	if err != nil {
+		return nil, err
+	}
+	return &Fanout{Round: r.Round, Head: r.Head, Prompts: Emit(r), Honesty: honesty}, nil
+}
+
+// read fills the attachments that come out of the round's state: the active
+// roles, the claims, the mapping, the threads, the notes, and §4.1's items. It
+// returns the round's unit records, which the diff is matched against next.
+func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
+	active, err := activeRoles(src, meta.ActiveRoles)
+	if err != nil {
+		return nil, err
+	}
+	records, err := ofRound(src, state.FileUnits, r.Round, func(u *unit.Record) int { return u.Round })
+	if err != nil {
+		return nil, err
+	}
+	if r.Claims, err = ofRound(src, state.FileClaims, r.Round, func(c *intent.Claim) int { return c.Round }); err != nil {
+		return nil, err
+	}
+	if r.Pairs, err = state.ReadRecords[mapping.Pair](src.Layout, src.Owner, src.Repo, src.PR, state.FileMapping); err != nil {
+		return nil, err
+	}
+	if r.Threads, err = gh.ReadThreads(src.Layout, src.Owner, src.Repo, src.PR); err != nil {
+		return nil, err
+	}
+	notes, err := notesOf(src.Layout, meta.IssueKey)
+	if err != nil {
+		return nil, err
+	}
+	r.Notes = standingNotes(notes)
+	r.Roles = onAxis(active, src.Axis)
+	r.Mapped = slices.ContainsFunc(r.Pairs, func(p mapping.Pair) bool { return p.Round == r.Round })
+	r.Unmapped, err = r.raise(src, records, notes, onAxis(active, axis.Intent))
+	return records, err
+}
+
+// raise is §4.1.2 and §4.1.5 over the round, once a mapping has been recorded
+// for it. Before one is, no unit is known to be unmapped (§4.6.5), and raising
+// every unit as a question would put a question about each of them to the
+// author on the strength of a mapping nobody has made yet.
+func (r *Round) raise(
+	src *Sources, records []unit.Record, notes []note.Note, intentRoles []role.Role,
+) ([]UnmappedUnit, error) {
+	if !r.Mapped {
+		return []UnmappedUnit{}, nil
+	}
+	cells, err := state.ReadRecords[coverage.Cell](src.Layout, src.Owner, src.Repo, src.PR, state.FileCoverage)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(records))
+	for i := range records {
+		ids = append(ids, records[i].ID)
+	}
+	roleIDs := make([]string, 0, len(intentRoles))
+	for i := range intentRoles {
+		roleIDs = append(roleIDs, intentRoles[i].ID)
+	}
+	return Raise(&IntentRound{
+		Round: r.Round, Units: ids, Pairs: r.Pairs, Notes: notes, Cells: cells, IntentRoles: roleIDs,
+	}), nil
+}
+
+// ofRound reads one of §2.3.3's stamped files and keeps the records of one
+// round, per §9.3.5. roundOf reads a record's stamped round.
+func ofRound[T any](src *Sources, name string, round int, roundOf func(*T) int) ([]T, error) {
+	stored, err := state.ReadRecords[T](src.Layout, src.Owner, src.Repo, src.PR, name)
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]T, 0, len(stored))
+	for i := range stored {
+		if roundOf(&stored[i]) == round {
+			kept = append(kept, stored[i])
+		}
+	}
+	return kept, nil
+}
+
+// activeRoles is §4.5.1's active set as `cr brief` settled it in meta.json,
+// resolved against §2.5.5's corpus and kept in corpus order.
+func activeRoles(src *Sources, active []string) ([]role.Role, error) {
+	corpus, err := role.Resolve(src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]role.Role, 0, len(active))
+	for i := range corpus {
+		if slices.Contains(active, corpus[i].Role.ID) {
+			roles = append(roles, corpus[i].Role)
+		}
+	}
+	return roles, nil
+}
+
+// onAxis keeps the roles of one axis, and every role when the axis is empty.
+func onAxis(roles []role.Role, id string) []role.Role {
+	kept := make([]role.Role, 0, len(roles))
+	for i := range roles {
+		if id == "" || roles[i].Axis == id {
+			kept = append(kept, roles[i])
+		}
+	}
+	return kept
+}
+
+// notesOf loads §3.6's store for the round's issue key, and no store at all
+// when §3.2 resolved none: a lookup under no key would name the context
+// directory plus an extension.
+func notesOf(l state.Layout, key string) ([]note.Note, error) {
+	if key == "" {
+		return []note.Note{}, nil
+	}
+	return note.Load(l, key)
+}
+
+// diffOf takes §3.4.1's diff at the round's head and reads its hunks and their
+// texts out of the one patch.
+func diffOf(src *Sources, head string) ([]git.Hunk, []string, error) {
+	pr, err := src.GH.PullRequest(src.Owner, src.Repo, src.PR)
+	if err != nil {
+		return nil, nil, err
+	}
+	diff, err := git.DiffAgainstMergeBase(src.RepoDir, pr.Base, head)
+	if err != nil {
+		return nil, nil, err
+	}
+	hunks, err := git.ParseHunks(diff.Patch)
+	if err != nil {
+		return nil, nil, err
+	}
+	texts, err := git.HunkTexts(diff.Patch)
+	if err != nil {
+		return nil, nil, err
+	}
+	return hunks, texts, nil
+}
+
+// withHunks gives every recorded unit the hunks its ranges name, and refuses a
+// unit the diff cannot rebuild whole.
+//
+// A hunk belongs to a unit when it is on the unit's file and side and its
+// head-side range is one the unit recorded — the coordinates §3.4.6 stores a
+// range in, taken from git.Hunk.HeadRange as the record was.
+func withHunks(
+	src *Sources, meta *state.Meta, records []unit.Record, hunks []git.Hunk, texts []string,
+) ([]Unit, error) {
+	units := make([]Unit, 0, len(records))
+	for i := range records {
+		formed := Unit{Unit: records[i].Unit, Hunks: make([]git.Hunk, 0), Texts: make([]string, 0)}
+		for at := range hunks {
+			if belongs(&formed.Unit, &hunks[at]) {
+				formed.Hunks = append(formed.Hunks, hunks[at])
+				formed.Texts = append(formed.Texts, texts[at])
+			}
+		}
+		if len(formed.Hunks) != len(formed.HunkRanges) {
+			return nil, &StaleUnitError{
+				Unit: formed.ID, Round: meta.Round, Head: meta.Head,
+				Owner: src.Owner, Repo: src.Repo, PR: src.PR,
+			}
+		}
+		units = append(units, formed)
+	}
+	return units, nil
+}
+
+// belongs reports whether a hunk is one of the unit's.
+func belongs(u *unit.Unit, hunk *git.Hunk) bool {
+	if hunk.Path != u.Path || hunk.Side != u.Side {
+		return false
+	}
+	start, end := hunk.HeadRange()
+	return slices.Contains(u.HunkRanges, unit.Range{Start: start, End: end})
+}
+
+// profileOf loads the profile the round resolved to, and the empty profile of
+// §2.4.4 when none matched. An empty profile declares no language, no test
+// glob, and no rule, so every lens that needs one reports itself unavailable
+// rather than being given a guess.
+func profileOf(l state.Layout, id string) (*profile.Profile, error) {
+	if id == "" {
+		return &profile.Profile{}, nil
+	}
+	loaded, err := profile.Load(l.Profile(id))
+	if err != nil {
+		return nil, err
+	}
+	return &loaded, nil
+}
