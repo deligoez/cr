@@ -45,3 +45,28 @@ func TestTheRuleLedgerIsReadThroughOneLockedDoorAndWrittenByRename(t *testing.T)
 	require.NoError(t, err, "the ledger's lock and a pull request's coexist")
 	require.NoError(t, prHeld.Unlock())
 }
+
+// The lock covers the read as well as the write: two commands updating one
+// ledger at once each see the other's entries, so none is lost. Asserted on
+// what reached the file, because flock(2) establishes no happens-before edge
+// the race detector can see.
+func TestConcurrentLedgerUpdatesLoseNoEntry(t *testing.T) {
+	l := contextRoot(t)
+	const writers = 8
+
+	done := make(chan error, writers)
+	for n := range writers {
+		go func() {
+			done <- UpdateRuleStats(l, "octocat", "hello", func(held []numbered) []numbered {
+				return append(held, numbered{N: n})
+			})
+		}()
+	}
+	for range writers {
+		require.NoError(t, <-done)
+	}
+
+	written, err := ReadRuleStatsRecords[numbered](l, "octocat", "hello")
+	require.NoError(t, err)
+	assert.Len(t, written, writers, "every writer's entry survived every other writer's publish")
+}
