@@ -7259,7 +7259,7 @@
     {
       "id": "rule-profile-scope",
       "title": "Apply a rule's profiles list in the rule package, once",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 0,
@@ -7267,11 +7267,27 @@
       "source_sections": [
         "### 2.6 Rules"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-11T06:24:35.471962Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:36:42.094853Z",
+      "closed_reason": "- A rule's profiles row is now answered in one place, internal/rule/profiles.go: Rule.InProfile reads it (empty means all, the empty id of an unmatched round is named by no list) and ForProfile keeps the resolved corpus's rules that apply under one profile, replacing the inline check review/attach.go carried.\n- cr rules check no longer evaluates a rule scoped to another profile: roundMatchers compiles rule.ForProfile(corpus, profileID), and reverting that one call fails the beta rules-check subtest while the review subtests stay green, so the test separates the two commands.\n- Both evaluating commands ask rule.ForProfile after resolution (review/attach.go's detect and cli/rulescheck.go's roundMatchers are the only rule.Compile callers outside tests); it lives in its own file because TestDetectionCanReadNothingButTheDiff fences detect.go's imports, and TestARuleAppliesOnlyUnderTheProfilesItNames pins the row including that a per-repository rule scoped elsewhere still shadows the global rule of its id.\n- TestARuleScopedToAnotherProfileHitsInNeitherCommand scopes no-panic to alpha, resolves the round to beta and to alpha in separate homes, and asserts cr rules check's hits and cr review's prompt hit lines and ledger entries are 0 under beta and 3 under alpha, driving both commands end to end through the CLI.\n",
+      "gate_passed_at": "2026-09-11T06:36:42.094853Z",
+      "commit_sha": "a6307fe",
+      "commit_shas": [
+        "a6307fe",
+        "af3c7db",
+        "09f92e3",
+        "6096d27",
+        "887e278"
+      ],
+      "commit_files": [
+        "internal/cli/reviewhits_test.go",
+        "internal/cli/ruleprofile_test.go",
+        "internal/cli/rulescheck.go",
+        "internal/review/attach.go",
+        "internal/rule/profiles.go",
+        "internal/rule/profilescope_test.go"
+      ]
     },
     {
       "id": "rule-fix-suggestion-wiring",
