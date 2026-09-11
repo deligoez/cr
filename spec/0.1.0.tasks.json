@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T06:38:32.145064Z",
+  "updated_at": "2026-09-11T06:51:58.763899Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7213,7 +7213,7 @@
     {
       "id": "symbol-index-clustering-wiring",
       "title": "Hand the head symbol index to hunk clustering",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 0,
@@ -7221,11 +7221,28 @@
       "source_sections": [
         "### 3.4 Review units"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-11T06:38:32.145063Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:51:58.721817Z",
+      "closed_reason": "- cr brief no longer passes a nil SymbolIndex: brief.go's unitsOf builds 4.3.1's head index through symbol.Head, the same one cr review attaches candidates from, and hands it to unit.Clusters, so the symbol branch of 3.4.4 now runs on every brief whose profile names a language cr indexes.\n- The deliberate nil is gone with its reason: the index exists, and a nil now reaches clustering only as headSymbols' nil interface for a head whose profile names no language cr can scan.\n- internal/unit/symbols.go and cluster.go no longer call a nil index every run's state; both comments name *symbol.Index as the implementation and a nil index only as a head cr cannot index.\n- symbol-index-build's index reached no clustering caller before this; deadcode ./... lists none of Indexed, Enclosing, cover or bodyEnd, so all four are reachable from main through cr brief.\n- The index gains the spans rather than an adapter deriving them, because a declaration line alone cannot say where a body ends and a derived bound (up to the next declaration) would name a function for trailing top-level code; internal/symbol/span.go bounds each body at the brace that closes the first brace opened outside parentheses, skipping strings and comments, and Enclosing names the innermost span keyed name@line so two same-named methods stay two symbols.\n- A file the index cannot serve falls through without an error: a profile with no indexable language yields a nil interface (headSymbols never wraps a nil *Index), a file outside the index is not Indexed, and a body the scan cannot bound gets no span, all covered by TestABodyTheScanCannotBoundEnclosesNothing, TestTheIndexCoversTheFilesItWasBuiltOver and the plain-profile half of the brief test.\n- TestTwoHunksInsideOneFunctionAreOneUnitBySymbol drives brief.Run over a repository whose change edits lines 5 and 24 of one Go function and asserts one unit formed by symbol with ranges 2-8 and 21-26, and two adjacency units under a profile with no symbols.lang; passing nil again fails it, and a dogfood cr brief with the dev binary on a laravel-pest scratch repository formed u1 by symbol over total()'s two hunks (7-13, 26-32) and u2 by symbol for label() (36-41), where adjacency would have joined 26-32 with 36-41.\n",
+      "gate_passed_at": "2026-09-11T06:51:58.721817Z",
+      "commit_sha": "d8d2cd4",
+      "commit_shas": [
+        "d8d2cd4",
+        "2956c39",
+        "412f379",
+        "d5c2e5a",
+        "cf35f7d"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/symbols_test.go",
+        "internal/symbol/span.go",
+        "internal/symbol/span_test.go",
+        "internal/symbol/symbol.go",
+        "internal/unit/cluster.go",
+        "internal/unit/symbols.go"
+      ]
     },
     {
       "id": "review-hits-ledger",
