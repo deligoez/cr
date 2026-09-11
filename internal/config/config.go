@@ -54,6 +54,12 @@ var settings = []setting{
 	{"intent.cmd", []string{"jira", "issue", "view", "{key}", "--plain"}},
 	{"intent.key_pattern", `[A-Z][A-Z0-9]+-[0-9]+`},
 	{"post.max_comments", 20},
+	// The cap on the probe input §8.1.7's evidence region carries, which
+	// round 9's unverifiable-evidence-region names and gives no default.
+	// It takes §2.4's `tests.output_tail_bytes` default, the one byte cap
+	// the spec does give a probe's text, so a region's two fenced blocks
+	// are bounded alike. The key is render's, as render.lang's is.
+	{render.MaxProbeInputSetting, 4096},
 	{"probe.lock_timeout_seconds", 300},
 	{"probe.max_per_round", 10},
 	{"profile", ""},
