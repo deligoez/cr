@@ -5,9 +5,28 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/probe"
 )
+
+// inputCap is post.max_probe_input_bytes' default, the cap every region here
+// is rendered under unless a test is about the cap itself.
+const inputCap = 4096
+
+// probeRegion is ProbeEvidence for record f1 under inputCap, for a test whose
+// probe §8.1.3 accepts.
+func probeRegion(t *testing.T, p *probe.Record) string {
+	t.Helper()
+	region, err := ProbeEvidence("f1", p, inputCap)
+	require.NoError(t, err)
+	return region
+}
+
+// aPatch is a mutation probe's input: the one-hunk patch §5.3.1 has cr apply.
+const aPatch = "--- a/src/Order.php\n+++ b/src/Order.php\n@@ -34 +34 @@\n" +
+	"-        return $this->subtotal + $this->shipping;\n" +
+	"+        return $this->subtotal;\n"
 
 // §5.3.6 and §8.1.7: the filter the run was narrowed to reaches the evidence
 // region, and the region says nothing else.
@@ -20,11 +39,12 @@ import (
 // restated wider than the empty selection it catches — breaks this test, which
 // is the only way "does not claim it" can be checked at all.
 func TestTheFilterReachesTheEvidenceRegionAndNothingIsClaimedBesideIt(t *testing.T) {
-	region := ProbeEvidence(&probe.Record{
+	region := probeRegion(t, &probe.Record{
 		Kind:       probe.Mutation,
 		Target:     "src/Order.php:34",
 		Filter:     "charges shipping",
 		Result:     "no-test-failed",
+		Input:      aPatch,
 		OutputTail: "  Tests:  1 passed (1 assertions)\n",
 	})
 
@@ -34,13 +54,17 @@ func TestTheFilterReachesTheEvidenceRegionAndNothingIsClaimedBesideIt(t *testing
 		"target: src/Order.php:34",
 		"filter: charges shipping",
 		"result: no-test-failed",
+		"input:",
+		"```",
+		strings.TrimSuffix(aPatch, "\n"),
+		"```",
 		"output_tail:",
 		"```",
 		"  Tests:  1 passed (1 assertions)",
 		"```",
 		"<!-- cr:/evidence -->",
 	}, "\n"), region,
-		"§8.1.7: the region carries the probe's kind, target, filter, result and output_tail")
+		"§8.1.7: the region carries the probe's kind, target, filter, result, input and output_tail")
 }
 
 // §5.3.6: the filter is carried, not paraphrased.
@@ -60,7 +84,7 @@ func TestAFilterReachesTheRegionVerbatim(t *testing.T) {
 		"  leading and trailing  ",
 	} {
 		t.Run(filter, func(t *testing.T) {
-			region := ProbeEvidence(&probe.Record{
+			region := probeRegion(t, &probe.Record{
 				Kind:   probe.Mutation,
 				Target: "src/Order.php:34",
 				Filter: filter,
@@ -80,10 +104,11 @@ func TestAFilterReachesTheRegionVerbatim(t *testing.T) {
 // evidence region is the one place in a posted comment where every word is
 // supposed to be checkable against the record.
 func TestAnUnfilteredRunCarriesNoFilterRow(t *testing.T) {
-	region := ProbeEvidence(&probe.Record{
+	region := probeRegion(t, &probe.Record{
 		Kind:       probe.Mutation,
 		Target:     "src/Order.php:34",
 		Result:     "no-test-failed",
+		Input:      aPatch,
 		OutputTail: "  Tests:  4 passed\n",
 	})
 
@@ -94,6 +119,10 @@ func TestAnUnfilteredRunCarriesNoFilterRow(t *testing.T) {
 		"kind: mutation",
 		"target: src/Order.php:34",
 		"result: no-test-failed",
+		"input:",
+		"```",
+		strings.TrimSuffix(aPatch, "\n"),
+		"```",
 		"output_tail:",
 		"```",
 		"  Tests:  4 passed",
@@ -107,7 +136,7 @@ func TestAnUnfilteredRunCarriesNoFilterRow(t *testing.T) {
 // own output to be read as the comment's prose, which in this region means read
 // as something cr asserted.
 func TestAnOutputTailHoldingAFenceIsStillContained(t *testing.T) {
-	region := ProbeEvidence(&probe.Record{
+	region := probeRegion(t, &probe.Record{
 		Kind:       probe.Mutation,
 		Target:     "src/Order.php:34",
 		Result:     "failed",

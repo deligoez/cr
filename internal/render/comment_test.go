@@ -12,12 +12,13 @@ import (
 
 // aFullComment is a comment carrying every region §8.1.3 names, each owned
 // one built the way its constructor builds it.
-func aFullComment() Comment {
+func aFullComment(t *testing.T) Comment {
+	t.Helper()
 	return Comment{
 		Label:      ownedRegions[0].wrap("**Question** — evidence grade: argued"),
 		Provenance: ownedRegions[1].wrap("Rests on note n3, source: the author."),
 		Body:       "Does Decode's error reach the caller?\n\nThe second result is discarded.",
-		Evidence: ProbeEvidence(&probe.Record{
+		Evidence: probeRegion(t, &probe.Record{
 			Kind: probe.Mutation, Target: "internal/api/handler.go:42",
 			Result: "no-test-failed", OutputTail: "ok  \tgithub.com/acme/api\t0.4s\n",
 		}),
@@ -28,7 +29,7 @@ func aFullComment() Comment {
 // provenance block when one applies, the agent body, and the evidence block
 // when one applies — and a region that does not apply leaves no trace.
 func TestACommentIsTheFixedSequenceOfRegions(t *testing.T) {
-	full := aFullComment()
+	full := aFullComment(t)
 	assert.Equal(t,
 		full.Label+"\n\n"+full.Provenance+"\n\n"+full.Body+"\n\n"+full.Evidence,
 		full.String(), "§8.1.3's order, a blank line between each two regions")
@@ -69,7 +70,7 @@ func TestEveryOwnedRegionIsDelimitedByItsOwnNamedPair(t *testing.T) {
 // recovers exactly the agent body it was built from. That is what lets
 // §7.1.5's `rendered.json` tell an edited body from an untouched one.
 func TestAnUneditedCommentRecoversItsBody(t *testing.T) {
-	full := aFullComment()
+	full := aFullComment(t)
 	for mask := range 8 {
 		comment := Comment{Body: full.Body}
 		if mask&1 != 0 {
@@ -95,7 +96,7 @@ func TestAnUneditedCommentRecoversItsBody(t *testing.T) {
 // edit, or kept every edit, fails one half.
 func TestAnEditInsideAnOwnedRegionIsDiscardedWhileTheSameEditInTheAgentRegionSurvives(t *testing.T) {
 	const edit = "EDITED BY THE REVIEWER"
-	regenerated := aFullComment()
+	regenerated := aFullComment(t)
 	written := regenerated.String()
 
 	edited := written
@@ -111,7 +112,7 @@ func TestAnEditInsideAnOwnedRegionIsDiscardedWhileTheSameEditInTheAgentRegionSur
 
 	assert.Equal(t, 1, strings.Count(posted, edit), "only the agent region's copy survives")
 	assert.Contains(t, regenerated.Body, edit, "the edit in the agent region survives")
-	assert.Equal(t, strings.Replace(written, aFullComment().Body, regenerated.Body, 1), posted,
+	assert.Equal(t, strings.Replace(written, aFullComment(t).Body, regenerated.Body, 1), posted,
 		"every owned region is exactly as cr generated it")
 }
 
@@ -119,7 +120,7 @@ func TestAnEditInsideAnOwnedRegionIsDiscardedWhileTheSameEditInTheAgentRegionSur
 // evidence above the body and the label beneath it still gets back the body
 // they wrote, and nothing of cr's travels with it.
 func TestRecoveryFindsARegionByItsPairNotItsPosition(t *testing.T) {
-	full := aFullComment()
+	full := aFullComment(t)
 	rearranged := full.Evidence + "\n\n" + full.Body + "\n\n" + full.Label + "\n\n" + full.Provenance
 
 	assert.Equal(t, full.Body, AgentRegion(rearranged))
@@ -131,7 +132,7 @@ func TestRecoveryFindsARegionByItsPairNotItsPosition(t *testing.T) {
 // reviewer one edit rather than costing the author a slice of cr's text
 // presented as the reviewer's.
 func TestAHalfDeletedRegionIsRefusedRatherThanGuessed(t *testing.T) {
-	full := aFullComment()
+	full := aFullComment(t)
 	for _, region := range ownedRegions {
 		for _, missing := range []string{region.open, region.close} {
 			damaged := strings.Replace(full.String(), missing, "", 1)

@@ -65,7 +65,7 @@ func TestAQuestionMarkInAnOwnedRegionDoesNotCount(t *testing.T) {
 	comment := Comment{
 		Label: label,
 		Body:  "Decode's error does not reach the caller.",
-		Evidence: ProbeEvidence(&probe.Record{
+		Evidence: probeRegion(t, &probe.Record{
 			Kind: probe.Mutation, Target: "internal/api/handler.go:42",
 			Result: "no-test-failed", OutputTail: "did the suite run? yes: 12 passed\n",
 		}),

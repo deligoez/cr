@@ -48,6 +48,25 @@ func (r ownedRegion) wrap(content string) string {
 	return r.open + "\n" + strings.Trim(content, "\n") + "\n" + r.close
 }
 
+// checked wraps content whose values cr did not write — a probe's input and
+// output, a citation's path — and refuses it, naming the record, when it
+// carries Reserved.
+//
+// An owned region is generated and never read back: AgentRegion discards
+// whatever stands between its pair, and ends the region at the first closing
+// marker it meets. A value carrying the sequence would end the region early
+// and hand the rest to the agent's region as if the agent had written it, so
+// the record is refused under §8.1.3's rejection of a body holding it — as
+// ProvenanceRegion refuses a rationale that would.
+func (r ownedRegion) checked(record, content string) (string, error) {
+	if strings.Contains(content, Reserved) {
+		return "", &BodyError{Record: record, Problem: fmt.Sprintf(
+			"would carry %q in its %s region, which §8.1.3 reserves for cr's own delimiters",
+			Reserved, strings.TrimSuffix(strings.TrimPrefix(r.open, Reserved), " -->"))}
+	}
+	return r.wrap(content), nil
+}
+
 // regionSeparator is what stands between two regions of a comment: a blank
 // line, so each region is a Markdown block of its own and an HTML comment
 // marker never runs into the prose beside it.
