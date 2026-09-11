@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T06:58:07.8341Z",
+  "updated_at": "2026-09-11T07:00:11.110732Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5801,7 +5801,7 @@
         "argued-forcing-unoverridable"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- cr post recomputes every record's grade and re-applies §6.3 before building the payload, so no draft edit can turn an argued record into a posted assertion, per §7.2.2.\n- A test edits a marker to kind=finding on an argued record and asserts posting is refused.\n- Carried from intent-finding-on-unmapped-unit (6929636): §4.1.4's forcing of an intent finding on an unmapped unit to a question runs only at cr record. A mapping that changes after recording can leave a recorded finding on a now-unmapped unit, so cr draft and cr post re-apply that forcing alongside §6.3's, and a test records the finding while the unit is mapped, clears the mapping, and asserts the drafted and posted record is a question.",
+      "acceptance": "- cr post recomputes every record's grade and re-applies §6.3 before building the payload, so no draft edit can turn an argued record into a posted assertion, per §7.2.2.\n- A test edits a marker to kind=finding on an argued record and asserts posting is refused.\n- Carried from intent-finding-on-unmapped-unit (6929636): §4.1.4's forcing of an intent finding on an unmapped unit to a question runs only at cr record. A mapping that changes after recording can leave a recorded finding on a now-unmapped unit, so cr draft and cr post re-apply that forcing alongside §6.3's, and a test records the finding while the unit is mapped, clears the mapping, and asserts the drafted and posted record is a question.\n- Carried from evidence-region (f926390): §8.1.7 regenerates the cr-owned regions at post time too, but cr post is still a stub and draft.commentOf, the one path that builds label, provenance and evidence regions, is unexported. cr post builds every posted body through that same path via an exported entry point, never a second renderer, and a test asserts a posted body's evidence region is byte-identical to the drafted one for an untouched block.",
       "source_sections": [
         "### 7.2 Triage verbs"
       ],
