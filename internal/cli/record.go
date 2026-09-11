@@ -320,6 +320,10 @@ func acceptRecords(
 	// established: the citations are resolved and stamped, the axis is
 	// computed, and §5.4's bounds have already refused what they refuse.
 	gradeRecords(round, formed, evidence, records)
+	// §4.1.4: an intent-axis record on a unit the round's mapping maps
+	// to no claim is a question, never a finding. It reads the axis
+	// stamped above and moves only toward the question register.
+	forceUnmappedIntent(round.Round, formed, evidence.pairs, records)
 	// §6.3.1's first of three moments, and invariant 4: a record graded
 	// argued is forced to kind question. It is last because it reads the
 	// grade, and it is here rather than in a role's instructions because
