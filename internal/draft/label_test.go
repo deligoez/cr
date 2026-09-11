@@ -24,11 +24,11 @@ func TestEveryQuestionOpensWithItsLabelAndNoFindingCarriesOne(t *testing.T) {
 	for _, lang := range render.Langs() {
 		for _, grade := range grades {
 			question := aRecord("f1")
-			question.Kind, question.Grade = finding.KindQuestion, grade
+			question.Kind, question.Grade, question.Probe = finding.KindQuestion, grade, "p1"
 			asserting := aRecord("f2")
-			asserting.Grade = grade
+			asserting.Grade, asserting.Probe = grade, "p1"
 
-			rendered, err := Render([]*finding.Finding{question, asserting}, lang, nil, nil)
+			rendered, err := Render([]*finding.Finding{question, asserting}, lang, withProbe(), nil)
 			require.NoError(t, err)
 
 			label, err := render.QuestionLabelRegion(lang, grade)
