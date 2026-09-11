@@ -52,8 +52,8 @@ type Cluster struct {
 // §3.4.3 makes one detectable, then adjacency over what is left, then one
 // cluster per hunk for what adjacency has nothing to measure.
 //
-// gapLines is `cluster.gap_lines`. index is nil until §4.3.1's head index
-// exists — the state of every run today — and Detectable reads that as a no
+// gapLines is `cluster.gap_lines`. index is nil when the head has no index —
+// a profile with no language cr can scan — and Detectable reads that as a no
 // rather than as a missing answer, so the symbol branch simply does not fire
 // and §3.4.3's fallthrough is the whole behaviour.
 func Clusters(hunks []git.Hunk, p *profile.Profile, index SymbolIndex, gapLines int) []Cluster {

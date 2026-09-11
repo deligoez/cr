@@ -6,10 +6,9 @@ import "github.com/deligoez/cr/internal/profile"
 // SymbolIndex is what §3.4's symbol handling reads: which files cr has a
 // symbol index for, and which symbol encloses a line of one of them.
 //
-// §4.3.1's head symbol index is what will implement this. §3.4.3 asks the
+// §4.3.1's head symbol index, *symbol.Index, implements this. §3.4.3 asks the
 // narrower of the two questions — whether there is an index for a file at all
-// — and §3.4.4's symbol branch asks the other, so the later index slots in
-// behind both without a caller of Detectable or Clusters changing.
+// — and §3.4.4's symbol branch asks the other.
 //
 // Indexed returns a bool and not a (bool, error). §3.4.3 requires clustering
 // to fall through "without reporting an error", and the way to keep an error
@@ -35,8 +34,8 @@ type SymbolIndex interface {
 
 // Detectable answers §3.4.3 for one file: an enclosing symbol is detectable
 // only when the profile declares symbols.lang and cr can build a symbol index
-// for the file. A nil index is cr having none — which is every run until
-// §4.3.1's index exists — and is a negative answer, not a missing one.
+// for the file. A nil index is cr having none — a head whose language cr
+// cannot index — and is a negative answer, not a missing one.
 //
 // The same absent symbols.lang obliges §3.4.3 and §4.3.1 to opposite things,
 // and this is the side allowed to be quiet. Clustering that cannot see a
