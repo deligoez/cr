@@ -545,11 +545,12 @@ of the open task that will meet it, through `tp set`, or into a closure reason.
 Prefer running each unit — one implementation task, or one review round's
 per-role reviewers — in a **fresh subagent context**, not inline in the
 orchestrator. The subagent's work reaches disk (commit, `tp done`, `.tp-review`
-record) and the orchestrator re-orients from durable state (`tp resume`,
-`tp next`) between units.
+record) and the orchestrator re-orients from durable state (`tp status`,
+`scripts/frontier.py`) between units — never `tp next`, which claims.
 
 A fresh subagent inherits CLAUDE.md and skills but not session history, so its
-first call is `tp next --brief`. Inject only what tp cannot know: runtime setup
+first call is `tp brief <id>` for the task it was given, then `tp claim <id>`.
+Inject only what tp cannot know: runtime setup
 (native Read/Edit/Write may be hook-blocked, so use codedbpro) and live
 operational gotchas. Subagents do not nest, so the orchestrator runs each round's
 fan-out itself.
