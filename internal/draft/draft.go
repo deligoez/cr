@@ -95,7 +95,9 @@ func block(
 //
 // The §8.1.6 provenance region is asked of the record and of sources alike,
 // for a finding and a question both: weak provenance is disclosed whatever
-// register the record reaches the author in.
+// register the record reaches the author in. So is §8.1.7's evidence region,
+// which is asked of the grade rather than of the kind: a `probed` or `cited`
+// record asserts on what it rests on, whichever register it is written in.
 //
 // The agent region is the preserved one when §7.1.6 kept it, and the rendered
 // one otherwise. Only that region is taken from the draft: the owned regions
@@ -116,6 +118,11 @@ func commentOf(
 		return render.Comment{}, err
 	}
 	comment.Provenance = provenance
+	evidence, err := sources.evidence(record)
+	if err != nil {
+		return render.Comment{}, err
+	}
+	comment.Evidence = evidence
 	if record.Kind != finding.KindQuestion {
 		return comment, nil
 	}
