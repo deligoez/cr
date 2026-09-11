@@ -31,7 +31,7 @@ func cited(citations ...finding.Citation) *finding.Finding {
 // returns the provenance region its comment carries, empty when none.
 func provenanceIn(t *testing.T, record *finding.Finding) string {
 	t.Helper()
-	rendered, err := Render([]*finding.Finding{record}, render.LangEN, lookups())
+	rendered, err := Render([]*finding.Finding{record}, render.LangEN, lookups(), nil)
 	require.NoError(t, err)
 	_, after, opened := strings.Cut(rendered, "<!-- cr:provenance -->\n")
 	if !opened {
@@ -86,7 +86,7 @@ func TestTheProvenanceRegionSitsBetweenTheLabelAndTheAgentBody(t *testing.T) {
 	question := cited(finding.Citation{Path: "lib.go", Line: 4, Origin: finding.OriginRule})
 	question.Kind, question.Grade = finding.KindQuestion, finding.GradeArgued
 
-	rendered, err := Render([]*finding.Finding{question}, render.LangEN, lookups())
+	rendered, err := Render([]*finding.Finding{question}, render.LangEN, lookups(), nil)
 	require.NoError(t, err)
 
 	label := strings.Index(rendered, "<!-- cr:label -->")

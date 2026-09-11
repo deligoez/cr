@@ -37,7 +37,7 @@ func TestAnInitialBodyThatSection813RefusesStopsTheDraft(t *testing.T) {
 			refused := aRecord("f2")
 			spoil(refused)
 
-			rendered, err := Render([]*finding.Finding{aRecord("f1"), refused}, render.LangEN, nil)
+			rendered, err := Render([]*finding.Finding{aRecord("f1"), refused}, render.LangEN, nil, nil)
 
 			var bodyErr *render.BodyError
 			require.ErrorAs(t, err, &bodyErr)

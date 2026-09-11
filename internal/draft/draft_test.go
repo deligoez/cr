@@ -36,7 +36,7 @@ func aRecord(id string) *finding.Finding {
 // accepts.
 func renderOf(t *testing.T, records ...*finding.Finding) string {
 	t.Helper()
-	rendered, err := Render(records, render.LangEN, nil)
+	rendered, err := Render(records, render.LangEN, nil, nil)
 	require.NoError(t, err)
 	return rendered
 }

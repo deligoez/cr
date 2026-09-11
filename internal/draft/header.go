@@ -32,14 +32,17 @@ const (
 )
 
 // File is §7.1's draft.md whole: §7.1.4's summary header, then every queued
-// record as one block per Render.
+// record as one block per Render, carrying the bodies preserved holds.
 //
 // The header always opens the file, including a round with nothing queued. A
 // file that opened with a block on some rounds and with nothing on others would
 // leave the reviewer to infer the counts from what is absent, and the header is
 // where the counts are said.
-func File(queued []*finding.Finding, lang render.Lang, sources *Provenances, facts HeaderFacts) (string, error) {
-	blocks, err := Render(queued, lang, sources)
+func File(
+	queued []*finding.Finding, lang render.Lang, sources *Provenances,
+	preserved map[string]string, facts HeaderFacts,
+) (string, error) {
+	blocks, err := Render(queued, lang, sources, preserved)
 	if err != nil {
 		return "", err
 	}

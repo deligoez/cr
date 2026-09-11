@@ -22,7 +22,7 @@ var headerFacts = HeaderFacts{
 // fileOf is File over records in English under headerFacts.
 func fileOf(t *testing.T, facts HeaderFacts, records ...*finding.Finding) string {
 	t.Helper()
-	rendered, err := File(records, render.LangEN, nil, facts)
+	rendered, err := File(records, render.LangEN, nil, nil, facts)
 	require.NoError(t, err)
 	return rendered
 }
@@ -121,7 +121,7 @@ func TestARefusedRecordStopsTheWholeFile(t *testing.T) {
 	refused := aRecord("f2")
 	refused.Summary = render.Reserved + "label -->"
 
-	rendered, err := File([]*finding.Finding{aRecord("f1"), refused}, render.LangEN, nil, headerFacts)
+	rendered, err := File([]*finding.Finding{aRecord("f1"), refused}, render.LangEN, nil, nil, headerFacts)
 
 	require.Error(t, err)
 	assert.Empty(t, rendered)

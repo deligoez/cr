@@ -28,7 +28,7 @@ func TestEveryQuestionOpensWithItsLabelAndNoFindingCarriesOne(t *testing.T) {
 			asserting := aRecord("f2")
 			asserting.Grade = grade
 
-			rendered, err := Render([]*finding.Finding{question, asserting}, lang, nil)
+			rendered, err := Render([]*finding.Finding{question, asserting}, lang, nil, nil)
 			require.NoError(t, err)
 
 			label, err := render.QuestionLabelRegion(lang, grade)
@@ -53,7 +53,7 @@ func TestTheDraftedLabelIsNotPartOfTheAgentRegion(t *testing.T) {
 	question := aRecord("f1")
 	question.Kind, question.Grade = finding.KindQuestion, finding.GradeArgued
 
-	rendered, err := Render([]*finding.Finding{question}, render.LangTR, nil)
+	rendered, err := Render([]*finding.Finding{question}, render.LangTR, nil, nil)
 	require.NoError(t, err)
 	_, comment, found := strings.Cut(rendered, " -->\n\n")
 	require.True(t, found)
@@ -67,7 +67,7 @@ func TestAQuestionTheTableCannotLabelStopsTheDraft(t *testing.T) {
 	question := aRecord("f4")
 	question.Kind, question.Grade = finding.KindQuestion, finding.GradeArgued
 
-	rendered, err := Render([]*finding.Finding{question}, render.Lang{}, nil)
+	rendered, err := Render([]*finding.Finding{question}, render.Lang{}, nil, nil)
 
 	var missing *render.NoLabelError
 	require.ErrorAs(t, err, &missing)

@@ -52,10 +52,17 @@ import (
 // sources is what §8.1.6's provenance region needs from outside the records,
 // and may be nil when the caller holds none: a record resting on no note and
 // citing no rule's hit needs nothing from it.
-func Render(queued []*finding.Finding, lang render.Lang, sources *Provenances) (string, error) {
+//
+// preserved are the agent regions §7.1.6 keeps from the draft being
+// regenerated, keyed by record id, and may be nil on a first rendering. A
+// record found there carries that region as its body instead of the one cr
+// would render, and it is held to §8.1.3 exactly as a rendered one is.
+func Render(
+	queued []*finding.Finding, lang render.Lang, sources *Provenances, preserved map[string]string,
+) (string, error) {
 	blocks := make([]string, 0, len(queued))
 	for _, record := range queued {
-		rendered, err := block(record, lang, sources)
+		rendered, err := block(record, lang, sources, preserved)
 		if err != nil {
 			return "", err
 		}
@@ -67,8 +74,10 @@ func Render(queued []*finding.Finding, lang render.Lang, sources *Provenances) (
 // block is one record's rendering: §7.1.1's marker introducing it, and §8.1.3's
 // comment beneath, separated by a blank line so the marker reads as an
 // introduction rather than as part of the prose.
-func block(record *finding.Finding, lang render.Lang, sources *Provenances) (string, error) {
-	comment, err := commentOf(record, lang, sources)
+func block(
+	record *finding.Finding, lang render.Lang, sources *Provenances, preserved map[string]string,
+) (string, error) {
+	comment, err := commentOf(record, lang, sources, preserved)
 	if err != nil {
 		return "", err
 	}
@@ -87,8 +96,18 @@ func block(record *finding.Finding, lang render.Lang, sources *Provenances) (str
 // The §8.1.6 provenance region is asked of the record and of sources alike,
 // for a finding and a question both: weak provenance is disclosed whatever
 // register the record reaches the author in.
-func commentOf(record *finding.Finding, lang render.Lang, sources *Provenances) (render.Comment, error) {
-	comment := render.Comment{Body: body(record)}
+//
+// The agent region is the preserved one when §7.1.6 kept it, and the rendered
+// one otherwise. Only that region is taken from the draft: the owned regions
+// are built here from the record every time, per §8.1.3.
+func commentOf(
+	record *finding.Finding, lang render.Lang, sources *Provenances, preserved map[string]string,
+) (render.Comment, error) {
+	agent, kept := preserved[record.ID]
+	if !kept {
+		agent = body(record)
+	}
+	comment := render.Comment{Body: agent}
 	if err := render.ValidateBody(record.ID, comment.Body); err != nil {
 		return render.Comment{}, err
 	}

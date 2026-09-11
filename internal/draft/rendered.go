@@ -30,7 +30,7 @@ import (
 func Rendered(queued []*finding.Finding, lang render.Lang, sources *Provenances) (map[string]string, error) {
 	regions := make(map[string]string, len(queued))
 	for _, record := range queued {
-		comment, err := commentOf(record, lang, sources)
+		comment, err := commentOf(record, lang, sources, nil)
 		if err != nil {
 			return nil, err
 		}

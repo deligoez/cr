@@ -24,7 +24,7 @@ func TestAForcedQuestionIsRefusedUntilItsBodyAsks(t *testing.T) {
 	forced := aRecord("f3")
 	forced.Kind, forced.Grade = finding.KindQuestion, finding.GradeArgued
 
-	rendered, err := Render([]*finding.Finding{forced}, render.LangEN, nil)
+	rendered, err := Render([]*finding.Finding{forced}, render.LangEN, nil, nil)
 	require.NoError(t, err)
 	_, comment, found := strings.Cut(rendered, " -->\n\n")
 	require.True(t, found)
