@@ -198,6 +198,7 @@ func renderDraft(
 	if err != nil {
 		return drafted{}, err
 	}
+	sources.MaxProbeInput = settings.maxProbeInput
 	rows, err := roundCoverage(l, owner, repo, pr, round)
 	if err != nil {
 		return drafted{}, err
@@ -219,7 +220,7 @@ func renderDraft(
 // settingMaxComments is §1.6.2's cap, by the key §2.7's table holds it under.
 const settingMaxComments = "post.max_comments"
 
-// draftSettings are the two §2.7 settings a draft is rendered under.
+// draftSettings are the three §2.7 settings a draft is rendered under.
 type draftSettings struct {
 	// lang is §8.1.1's `render.lang`, which every §8.1.4 label in the
 	// draft is built in for.
@@ -227,6 +228,9 @@ type draftSettings struct {
 	// maxComments is §1.6.2's cap, which §7.1.4's header counts the
 	// queued comments against.
 	maxComments int
+	// maxProbeInput is post.max_probe_input_bytes, the cap on the probe
+	// input §8.1.7's evidence region carries.
+	maxProbeInput int
 }
 
 // resolveDraftSettings reads both settings out of one resolution of §2.7's
@@ -250,7 +254,11 @@ func resolveDraftSettings(l state.Layout, owner, repo string) (draftSettings, er
 	if err != nil {
 		return draftSettings{}, err
 	}
-	return draftSettings{lang: lang, maxComments: resolved.Int(settingMaxComments)}, nil
+	return draftSettings{
+		lang:          lang,
+		maxComments:   resolved.Int(settingMaxComments),
+		maxProbeInput: resolved.Int(render.MaxProbeInputSetting),
+	}, nil
 }
 
 // roundCoverage is the round's coverage state for §7.1.4's header: its units,
