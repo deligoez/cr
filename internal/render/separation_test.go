@@ -28,8 +28,13 @@ var persistence = []string{
 
 // recordKeepers are the packages that hold or write what cr stores: §2.2's
 // paths and locks, §6.1's findings, §3.6's notes, §3.3's claims, §4.6's units,
-// and §5.3's coverage cells.
-var recordKeepers = []string{"state", "finding", "note", "intent", "unit", "testadequacy"}
+// §5.3's coverage cells, and §5.5's probe records.
+//
+// probe is here because this package imports it: §8.1.7's evidence region
+// carries a probe record verbatim, which is the direction §8.1.2 has the
+// dependency run — the renderer reads the record. Listing it closes the
+// reverse, so no probe record can be shaped by a language.
+var recordKeepers = []string{"state", "finding", "note", "intent", "unit", "testadequacy", "probe"}
 
 // importsOf reads the import paths of every non-test Go file in dir.
 func importsOf(t *testing.T, dir string) map[string][]string {
