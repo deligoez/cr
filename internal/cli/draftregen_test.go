@@ -15,8 +15,8 @@ import (
 
 // regenerated is what a `cr draft` run reported about the draft it replaced.
 type regenerated struct {
-	Discarded []string `json:"discarded"`
-	Preserved []string `json:"preserved"`
+	Triaged   []triagedRecord `json:"triaged"`
+	Preserved []string        `json:"preserved"`
 }
 
 // redraft runs `cr draft` and decodes what it reported.
@@ -69,11 +69,14 @@ func TestRegenerationKeepsEditsDiscardsDeletionsAndResurrectsNothing(t *testing.
 	require.NoError(t, os.WriteFile(draftFile, []byte(edited), 0o600))
 
 	second := redraft(t)
-	assert.Equal(t, regenerated{Discarded: []string{"f4"}, Preserved: []string{"f2", "f3"}}, second)
+	assert.Equal(t, regenerated{
+		Triaged:   []triagedRecord{{ID: "f4", Outcome: finding.OutcomeDiscardedNotHere}},
+		Preserved: []string{"f2", "f3"},
+	}, second)
 	assertRegenerated(t, layout, generated(records[0]), whitespace, substantive)
 
 	third := redraft(t)
-	assert.Equal(t, regenerated{Discarded: []string{}, Preserved: []string{"f2", "f3"}}, third,
+	assert.Equal(t, regenerated{Triaged: []triagedRecord{}, Preserved: []string{"f2", "f3"}}, third,
 		"the third run discards nothing new and still keeps both edits")
 	assertRegenerated(t, layout, generated(records[0]), whitespace, substantive)
 }

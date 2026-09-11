@@ -33,12 +33,12 @@ type draftResult struct {
 	// Queued is how many records §7.1 rendered into it, which is also how
 	// many §9.1 now holds in `queued`.
 	Queued int `json:"queued"`
-	// Discarded are the records whose block the reviewer deleted from the
-	// draft this run replaced, each now discarded as `not-here` with a
-	// pull-request-scoped waiver (§7.1.6, §7.2). They are named rather than
-	// counted, because a discard is a decision cr acted on and the reviewer
-	// is owed the list of what it acted on.
-	Discarded []string `json:"discarded"`
+	// Triaged are the records the draft this run replaced moved away from
+	// `kept` through §7.2's verbs, each with §7.3.1's outcome and whether
+	// §7.3.4 counts it against the class. A discard is a decision cr acted
+	// on — the record is discarded and its waiver written — so the reviewer
+	// is owed the list of what it acted on rather than a count.
+	Triaged []triagedRecord `json:"triaged"`
 	// Preserved are the records whose edited body §7.1.6 carried into the
 	// new draft in place of the one cr renders.
 	Preserved []string `json:"preserved"`
@@ -60,8 +60,12 @@ type draftResult struct {
 func (r *draftResult) Text(w *writer) string {
 	text := "drafted " + w.accent(strconv.Itoa(r.Queued)) + " record(s) for round " +
 		strconv.Itoa(r.Round) + " to " + r.Path + "\n"
-	if len(r.Discarded) > 0 {
-		text += "discarded as not-here, block deleted: " + strings.Join(r.Discarded, ", ") + "\n"
+	for _, triaged := range r.Triaged {
+		text += triaged.ID + ": " + string(triaged.Outcome)
+		if triaged.CountsAgainstClass {
+			text += ", counted against its class"
+		}
+		text += "\n"
 	}
 	if len(r.Preserved) > 0 {
 		text += "kept the edited body of: " + strings.Join(r.Preserved, ", ") + "\n"
@@ -127,6 +131,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
+	queued = softenForDraft(queued, triage.Softened)
 	// §6.3.1's second moment, applied over the records this draft holds
 	// and before they are rendered: the block a reviewer reads carries the
 	// register in its marker, so a forcing applied after the rendering
@@ -147,7 +152,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	if err := waiveDiscards(l, owner, repo, pr, triage.Deleted); err != nil {
+	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
 		return err
 	}
 	if err := publishDraft(l, owner, repo, pr, round, records, rendered, forced); err != nil {
@@ -157,7 +162,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Path:      l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
 		Round:     round.Round,
 		Queued:    len(queued),
-		Discarded: recordIDs(triage.Deleted),
+		Triaged:   triage.report(),
 		Preserved: preservedIDs(queued, triage.Preserved),
 		Forced:    forced,
 	})
