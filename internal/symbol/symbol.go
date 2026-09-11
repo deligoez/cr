@@ -47,8 +47,9 @@ const (
 //
 // Line is where the declaration is written, which is the line §4.3.3 cites as
 // `path:line` and the line §4.3.1 tests against the diff's changed lines. It is
-// not a span: the index answers where a symbol is declared, and unit.SymbolIndex
-// asks the different question of what encloses a line.
+// not a span: the index answers where a symbol is declared here, and keeps the
+// lines each body covers apart, for unit.SymbolIndex's different question of
+// what encloses a line (span.go).
 type Decl struct {
 	// Path is the file the declaration sits in, repository-relative and
 	// slash-separated, as git spells a path.
@@ -89,6 +90,12 @@ type Index struct {
 	// Decls are every declaration the head holds, in path then line order.
 	// It is empty rather than nil when the head declares nothing, per §12.
 	Decls []Decl `json:"decls"`
+	// files are the paths the index was built over, including a file that
+	// declares nothing, which is §3.4.3's per-file question.
+	files map[string]bool
+	// spans are, per path, the lines each declaration covers where the scan
+	// could bound its body, which is §3.4.4's symbol branch's question.
+	spans map[string][]span
 }
 
 // Build indexes files in the language lang names.
@@ -103,14 +110,19 @@ func Build(lang string, files []File) (*Index, bool) {
 	if !known {
 		return nil, false
 	}
-	decls := make([]Decl, 0, len(files))
-	for _, file := range files {
-		decls = append(decls, rules.scan(file)...)
+	index := &Index{
+		Lang: lang, Decls: make([]Decl, 0, len(files)),
+		files: make(map[string]bool, len(files)), spans: make(map[string][]span, len(files)),
 	}
-	slices.SortStableFunc(decls, func(a, b Decl) int {
+	for _, file := range files {
+		found := rules.scan(file)
+		index.Decls = append(index.Decls, found...)
+		index.cover(file, found)
+	}
+	slices.SortStableFunc(index.Decls, func(a, b Decl) int {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line))
 	})
-	return &Index{Lang: lang, Decls: decls}, true
+	return index, true
 }
 
 // Supported reports whether cr has a scanner for lang, so a caller can name the
