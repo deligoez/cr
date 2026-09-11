@@ -151,3 +151,19 @@ func TestASecondBlockForOneRecordStopsTheIngest(t *testing.T) {
 	assert.Equal(t, strings.Count(file, "\n")+2, malformed.At, "the second marker is the one named")
 	assert.Contains(t, malformed.Problem, fmt.Sprintf("line %d", first), "and the first is named beside it")
 }
+
+// A block naming a record the draft was not rendered for is never adopted: it
+// is neither kept nor taken for anything, so the regenerated draft does not
+// carry it. That is what keeps a deleted block from being resurrected by
+// pasting it back, since a discarded record is no longer among the queued.
+func TestABlockOutsideTheQueuedRecordsIsNotAdopted(t *testing.T) {
+	record, discarded := aRecord("f1"), aRecord("f9")
+	file, entries := renderedRound(t, record)
+	pasted := file + "\n" + markerOf(discarded).String() + "\n\n" + body(discarded) + "\n"
+
+	triage, err := Ingest([]*finding.Finding{record}, pasted, entries)
+	require.NoError(t, err)
+
+	assert.Empty(t, triage.Deleted)
+	assert.Empty(t, triage.Preserved, "the pasted block is not a body cr keeps for anything")
+}
