@@ -94,3 +94,17 @@ func TestAnEditInsideAnOwnedRegionIsNoEditOfTheBody(t *testing.T) {
 	assert.Empty(t, triage.Preserved, "the typing sat inside a region cr owns")
 	assert.Empty(t, triage.Deleted)
 }
+
+// A block with no rendered.json entry keeps its body. With nothing to compare
+// against, cr cannot show the block is untouched, and keeping a body that
+// happens to equal cr's own costs nothing where overwriting an edited one would
+// destroy the reviewer's prose.
+func TestABlockWithNoEntryKeepsItsBody(t *testing.T) {
+	record := aRecord("f1")
+	file, _ := renderedRound(t, record)
+
+	triage, err := Ingest([]*finding.Finding{record}, file, map[string]string{})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"f1": body(record)}, triage.Preserved)
+}
