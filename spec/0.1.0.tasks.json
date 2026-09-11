@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T06:36:44.105238Z",
+  "updated_at": "2026-09-11T06:38:17.830355Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7309,7 +7309,7 @@
     {
       "id": "intent-finding-on-unmapped-unit",
       "title": "Refuse an intent-axis finding on a unit no claim maps to",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 0,
@@ -7317,11 +7317,21 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-11T06:29:32.958982Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:38:17.81501Z",
+      "closed_reason": "- cr record now applies 4.1.4 itself: internal/cli/unmappedintent.go's forceUnmappedIntent reads the round's unmapped units from mapping.Unmapped over mapping.ndjson, the same derivation 4.1.2's item is raised from, and acceptRecords calls it after the axis is stamped and the grade computed.\n- An intent-axis record written as kind finding on such a unit is moved to kind question before the single append, so nothing downstream has a finding to turn back; a round with no mapping recorded maps every unit to zero claims and is forced the same way, and only the intent axis and only toward the question register are touched.\n- Forcing was chosen over refusal because 4.1.4 says the unmapped unit MUST default to a question: a default is cr's to apply, the record is re-shaped rather than the file rejected (P2, and 6.3.1's precedent for argued records), and a refusal would have made the agent rewrite the kind cr already knows.\n- TestAnIntentFindingOnAnUnmappedUnitIsStoredAsAQuestion records the same intent finding, graded cited so 6.3 forces nothing, with and without a mapping pair for u1 and asserts findings.ndjson holds kind question unmapped and kind finding mapped; disabling the call fails only the unmapped subtest, and a dogfood cr record with the dev binary stored the record as kind question.\n- The gap sat between cr review's prompt contract, which already raises the unmapped item as a question, and cr record, which never read the mapping for the kind; the test drives cr record end to end through the CLI over a real mapping file.\n",
+      "gate_passed_at": "2026-09-11T06:38:17.81501Z",
+      "commit_sha": "6929636",
+      "commit_shas": [
+        "6929636",
+        "9e1e22f"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/unmappedintent.go",
+        "internal/cli/unmappedintent_test.go"
+      ]
     }
   ]
 }
