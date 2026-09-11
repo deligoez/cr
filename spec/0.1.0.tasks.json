@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T06:24:20.684804Z",
+  "updated_at": "2026-09-11T06:25:36.090594Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5679,7 +5679,7 @@
     {
       "id": "draft-regeneration",
       "title": "Regenerate the draft preserving edited bodies",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "draft-rendered-regions",
@@ -5690,11 +5690,45 @@
       "source_sections": [
         "### 7.1 Draft format"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T23:23:56.870912Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:25:36.007269Z",
+      "closed_reason": "- cr draft regenerates the round's draft: internal/cli/draft.go's produceDraft runs ingestDraft over the records already queued whenever the round holds any, so a second and third cr draft read the draft they replace instead of overwriting it, and a round with nothing queued is a first rendering.\n- The ingest comes first and its deletions become discards and waivers at that moment: internal/draft/ingest.go's Ingest names every queued record with no block as deleted, internal/cli/regenerate.go walks each through §9.1's queued-to-discarded row with ActorDraft and disposition not-here, and waiveDiscards writes its pull-request-scoped waiver through finding.Waive after rendering succeeds and before findings.ndjson is published; bodies whose agent region differs from rendered.json are then carried into the new draft by draft.File's preserved map, while rendered.json keeps cr's generated body.\n- A deleted block is never resurrected because a discarded record is terminal and queueRecords renders only draft and queued records, and a block pasted back for a record outside the queue is not adopted; TestABlockOutsideTheQueuedRecordsIsNotAdopted and the third run of TestRegenerationKeepsEditsDiscardsDeletionsAndResurrectsNothing assert both.\n- Edit detection is byte-exact: Ingest compares render.AgentRegion of the block read back with the record's rendered.json entry by string equality, and a record with no entry keeps its body rather than being overwritten (TestABlockWithNoEntryKeepsItsBody).\n- A whitespace-only edit therefore preserves the reviewer's body under the one reading the code has: TestIngestReadsTheFourCasesOfSection716 adds two trailing spaces to a body and asserts it is kept exactly as typed, and TestAnEditInsideAnOwnedRegionIsNoEditOfTheBody asserts typing inside a cr-owned label is discarded rather than counted as an edit.\n- TestRegenerationKeepsEditsDiscardsDeletionsAndResurrectsNothing drives cr draft over an untouched block, a whitespace-only edit, a substantive edit and a deleted block, then regenerates twice, asserting the untouched body is rendered as before, both edits are kept byte for byte on both runs, f4 is discarded not-here with exactly one waiver, rendered.json keeps cr's bodies, and the reported discarded and preserved ids; dogfooded on deligoez/cr-qa#1 with an isolated CR_HOME, where an agent-region rewrite survived, typing inside a label was discarded, a deleted block became wp1, and git status in the checkout was unchanged.\nOut of scope: cr record stores every anchor with content_hash \"\" (seen on all four cr-qa records), so the §7.4.1 waiver key written here degrades to path and class and would not stop suppressing when the code changes; anchor-no-migration owns recording the content hash. Also out of scope: a block naming an unknown id is ignored rather than aborted (unknown-marker-id-aborts), marker verbs other than deletion land with triage-verb-interpretation, and triage events with triage-event-writing.\n",
+      "gate_passed_at": "2026-09-11T06:25:36.007269Z",
+      "commit_sha": "5196e3a",
+      "commit_shas": [
+        "5196e3a",
+        "632895d",
+        "4c96cf7",
+        "abac68c",
+        "07c7e52",
+        "167fbdc",
+        "83ed4eb",
+        "3bb7975",
+        "b66a1df",
+        "e86536b",
+        "bcc850a",
+        "63547f2",
+        "c8a54ff"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftregen_test.go",
+        "internal/cli/regenerate.go",
+        "internal/draft/draft.go",
+        "internal/draft/draft_test.go",
+        "internal/draft/header.go",
+        "internal/draft/header_test.go",
+        "internal/draft/ingest.go",
+        "internal/draft/ingest_test.go",
+        "internal/draft/label_test.go",
+        "internal/draft/preserved_test.go",
+        "internal/draft/provenance_test.go",
+        "internal/draft/questionmark_test.go",
+        "internal/draft/rendered.go",
+        "internal/draft/rendered_decode.go",
+        "internal/draft/reserved_test.go"
+      ]
     },
     {
       "id": "triage-verb-interpretation",
