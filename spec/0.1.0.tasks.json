@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T06:25:36.090594Z",
+  "updated_at": "2026-09-11T06:36:44.105238Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5733,7 +5733,7 @@
     {
       "id": "triage-verb-interpretation",
       "title": "Interpret the five draft triage verbs",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "draft-regeneration",
@@ -5744,11 +5744,32 @@
       "source_sections": [
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-11T06:27:31.463487Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:36:44.054282Z",
+      "closed_reason": "- Triage is read out of the edited draft.md: internal/draft/ingest.go's Ingest interprets §7.2's verbs from the file alone, and cr draft calls it on every regeneration through internal/cli/regenerate.go's ingestDraft.\n- cr draft interprets the result now, and cr post, still a stub, has draft.Ingest as the single interpreter it will call, so the two cannot read one draft two ways.\n- A block left unchanged is kept and rendered again as cr renders it, with outcome kept: TestTheFiveTriageVerbsOfSection72's f1 carries no disposition, no waiver and no triaged entry.\n- A block whose body prose was edited is kept with the edited body carried into the draft through Triage.Preserved, so it is posted as edited: f2 in the same test is kept, listed in preserved, and its edited sentence is in the regenerated draft.\n- Changing kind=finding to kind=question softens the record: Ingest lists it in Triage.Softened, softenForDraft renders it as a question with its label while findings.ndjson keeps it a finding so the next reading of the draft softens it again, and its outcome finding.OutcomeSoftened is reported in cr draft's triaged list; writing that outcome to triage.ndjson as an event is triage-event-writing's.\n- Deleting a block discards the record with disposition not-here and writes a pull-request-scoped waiver: f4 is discarded not-here and its waiver sits in the pull request's waivers.ndjson and nowhere else.\n- Setting disposition=wrong discards the record as a false positive whether or not its body remains, writes a repository-wide waiver, and counts against the class: f5 is discarded wrong with its waiver in ~/.cr/waivers/\u003cowner\u003e/\u003crepo\u003e.ndjson, its outcome discarded-wrong reports counts_against_class true, and TestAWrongMarkerDiscardsWhetherOrNotTheBodyRemains covers an untouched body, a deleted body, and a wrong that also softened.\n- Both discard verbs are observable in the file cr reads back: blocksOf finds no marker for a deleted block, and reads disposition=wrong off the marker that stays, which ParseMarker holds to the grammar.\n- A record carrying disposition=wrong is discarded even when its body is untouched: f5's body is never edited in the five-verb test and it is discarded wrong, so the reviewer never deletes text to say it.\n- not-here stays the true-but-not-worth-it disposition and never counts against the class's precision: finding.Outcome.CountsAgainstClass is false for discarded-not-here, and its waiver is scoped to the pull request by finding.Waive.\n- wrong stays the false-positive disposition and is the demoting signal alongside softened, which §7.3.4 also puts in the numerator: CountsAgainstClass is true for discarded-wrong and softened only, asserted by TestOnlyWrongAndSoftenedCountAgainstTheClass.\n- The two are never collapsed: each deletion and each wrong takes its own disposition, waiver file and outcome, and the five-verb test asserts f4 and f5 land in different files with different counts.\n- TestTheFiveTriageVerbsOfSection72 drives all five verbs through cr draft and asserts, per verb, the stored disposition, the waiver scope read from the two files of §7.4.4, and the outcome with its counts_against_class contribution; dogfooded on deligoez/cr-qa#1, where softening f1 rendered it with the cited label while state kept it a finding, marking f2 wrong wrote wr1 to the repository file, and git status in the checkout was unchanged.\nOut of scope: a disposition of not-here typed by hand, a question turned back into a finding, and every other marker edit are re-rendered from the record rather than aborted; marker-edit-semantics owns those aborts. The waivers carry content_hash \"\" because cr record stores no anchor hash, which anchor-no-migration owns.\n",
+      "gate_passed_at": "2026-09-11T06:36:44.054282Z",
+      "commit_sha": "6f69793",
+      "commit_shas": [
+        "6f69793",
+        "54b8bb7",
+        "bf5cf18",
+        "d101f8b",
+        "0bd90e4",
+        "2a8b597",
+        "aa98d62",
+        "859e3ec"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftregen_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/triageverbs_test.go",
+        "internal/draft/ingest.go",
+        "internal/draft/ingest_test.go",
+        "internal/finding/outcome.go",
+        "internal/finding/outcome_test.go"
+      ]
     },
     {
       "id": "marker-edit-semantics",
