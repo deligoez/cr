@@ -33,14 +33,17 @@ func reviewedHome(t *testing.T) state.Layout {
 	return layout
 }
 
-// runReview runs `cr review` against the fixture's pull request.
-func runReview(t *testing.T) {
+// runReview runs `cr review` against the fixture's pull request and returns the
+// JSON document it printed.
+func runReview(t *testing.T) []byte {
 	t.Helper()
 	cmd := newRootCmd()
-	cmd.SetOut(&bytes.Buffer{})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetArgs([]string{"review", fixturePR, "--repo", fixtureSlug})
 	require.NoError(t, cmd.Execute())
+	return out.Bytes()
 }
 
 // §2.6.1.6 through `cr review`: the hits it attaches to its prompts reach the
