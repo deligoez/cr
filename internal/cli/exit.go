@@ -47,7 +47,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-11 at cognitive 49 over 148 statements
+//nolint:gocognit,funlen // measured 2026-09-11 at cognitive 50 over 151 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -134,6 +134,13 @@ func exitCodeFor(err error) int {
 		// and every grade §6.2 computes, so a question it cannot label
 		// was read from state cr did not write. That is a file cr
 		// cannot use, which §11.2 codes 3 beside the unknown language.
+		return ExitFile
+	}
+	var missingProbe *draft.MissingProbeError
+	if errors.As(err, &missingProbe) {
+		// A `probed` record naming a probe probes.ndjson does not hold
+		// was read from state cr did not write, as a question the label
+		// table cannot label was. §11.2 codes that 3 beside it.
 		return ExitFile
 	}
 	var refusedBody *render.BodyError
