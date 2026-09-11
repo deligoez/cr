@@ -30,3 +30,17 @@ func TestAPreservedBodyReplacesOnlyTheAgentRegion(t *testing.T) {
 	_, comment, _ := strings.Cut(rendered, "\n")
 	assert.Equal(t, kept, render.AgentRegion(comment), "the agent region is the kept body, byte for byte")
 }
+
+// A preserved body is held to §8.1.3 exactly as a rendered one is. A reviewer
+// who deleted half of an owned region leaves its other marker in the agent
+// region, and the regeneration stops naming the record rather than writing a
+// draft whose regions no longer pair.
+func TestAPreservedBodyIsHeldToSection813(t *testing.T) {
+	kept := "A body that swallowed half a region.\n\n" + render.Reserved + "/label -->"
+
+	_, err := Render([]*finding.Finding{aRecord("f1")}, render.LangEN, nil, map[string]string{"f1": kept})
+
+	var refused *render.BodyError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, "f1", refused.Record)
+}
