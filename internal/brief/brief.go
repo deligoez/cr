@@ -37,6 +37,7 @@ import (
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/symbol"
 	"github.com/deligoez/cr/internal/unit"
 )
 
@@ -281,9 +282,9 @@ func assemble(src *Sources) (*Brief, error) {
 // the merge base alongside, because §3.7.1 prints the commit the diff was
 // actually taken against.
 //
-// The symbol index is nil, which unit.Detectable reads as cr having none:
-// §4.3.1's head index does not exist yet, so §3.4.3's fallthrough to adjacency
-// is the whole of the clustering today.
+// The symbol index is §4.3.1's head index, the one `cr review` attaches
+// candidates from, so §3.4.4's symbol branch reads the same declarations the
+// reinvention lens does.
 func unitsOf(src *Sources, p *profile.Profile, base, head string) ([]unit.Unit, string, error) {
 	diff, err := git.DiffAgainstMergeBase(src.RepoDir, base, head)
 	if err != nil {
@@ -293,12 +294,29 @@ func unitsOf(src *Sources, p *profile.Profile, base, head string) ([]unit.Unit, 
 	if err != nil {
 		return nil, "", err
 	}
-	clusters := unit.Clusters(hunks, p, nil, src.Config.Int("cluster.gap_lines"))
+	index, err := headSymbols(src.RepoDir, head, p)
+	if err != nil {
+		return nil, "", err
+	}
+	clusters := unit.Clusters(hunks, p, index, src.Config.Int("cluster.gap_lines"))
 	units, err := unit.Units(unit.Split(clusters, src.Config.Int("cluster.max_lines")))
 	if err != nil {
 		return nil, "", err
 	}
 	return units, diff.MergeBase, nil
+}
+
+// headSymbols is the head index as unit.Clusters takes it: nil when the profile
+// declares no language cr can index, which unit.Detectable reads as no index
+// and §3.4.3 falls through to adjacency on without an error. The nil is
+// returned as an interface value and never as a nil *symbol.Index inside one,
+// which a nil check would not see.
+func headSymbols(dir, head string, p *profile.Profile) (unit.SymbolIndex, error) {
+	index, built, err := symbol.Head(dir, head, p)
+	if err != nil || !built {
+		return nil, err
+	}
+	return index, nil
 }
 
 // roundOf is the round this brief orients: the one already open, or §9.3.3's
