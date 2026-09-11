@@ -167,3 +167,33 @@ func TestABlockOutsideTheQueuedRecordsIsNotAdopted(t *testing.T) {
 	assert.Empty(t, triage.Deleted)
 	assert.Empty(t, triage.Preserved, "the pasted block is not a body cr keeps for anything")
 }
+
+// §7.2: `disposition=wrong` in the marker discards the record as a false
+// positive whether or not the body remains. f1 keeps its body untouched, so the
+// reviewer did not have to delete text to say it; f2's body is gone; f3 was
+// also softened, and the discard is what the record comes to. None of the three
+// has a body kept for it, since none is rendered again.
+func TestAWrongMarkerDiscardsWhetherOrNotTheBodyRemains(t *testing.T) {
+	records := fourRecords()[:3]
+	file, entries := renderedRound(t, records...)
+	for _, record := range records {
+		marker := markerOf(record)
+		marked := marker
+		marked.Disposition = string(finding.DispositionWrong)
+		if record.ID == "f3" {
+			marked.Kind = string(finding.KindQuestion)
+		}
+		file = strings.Replace(file, marker.String(), marked.String(), 1)
+	}
+	file = strings.Replace(file, entries["f2"], "", 1)
+
+	triage, err := Ingest(records, file, entries)
+	require.NoError(t, err)
+
+	assert.Equal(t, records, triage.Wrong)
+	assert.Empty(t, triage.Softened, "a wrong discard is what the record comes to")
+	assert.Empty(t, triage.Preserved)
+	for _, record := range records {
+		assert.Equal(t, finding.OutcomeDiscardedWrong, triage.Outcome(record), record.ID)
+	}
+}
