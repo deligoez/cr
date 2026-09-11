@@ -197,3 +197,25 @@ func TestAWrongMarkerDiscardsWhetherOrNotTheBodyRemains(t *testing.T) {
 		assert.Equal(t, finding.OutcomeDiscardedWrong, triage.Outcome(record), record.ID)
 	}
 }
+
+// §7.2: changing `kind=finding` to `kind=question` softens the record. The same
+// marker on a record that already was a question asks for nothing and is kept,
+// so only a change the reviewer made is read as one.
+func TestAQuestionMarkerOnAFindingSoftensIt(t *testing.T) {
+	asserted, asked := aRecord("f1"), aRecord("f2")
+	asked.Kind, asked.Grade = finding.KindQuestion, finding.GradeArgued
+	asked.Summary = "Does the caller ever see the error Decode returns?"
+	file, entries := renderedRound(t, asserted, asked)
+	marker := markerOf(asserted)
+	softened := marker
+	softened.Kind = string(finding.KindQuestion)
+	file = strings.Replace(file, marker.String(), softened.String(), 1)
+
+	triage, err := Ingest([]*finding.Finding{asserted, asked}, file, entries)
+	require.NoError(t, err)
+
+	assert.Equal(t, []*finding.Finding{asserted}, triage.Softened)
+	assert.Equal(t, finding.OutcomeSoftened, triage.Outcome(asserted))
+	assert.Equal(t, finding.OutcomeKept, triage.Outcome(asked))
+	assert.Empty(t, triage.Preserved, "a marker edit alone is no edit of the body")
+}
