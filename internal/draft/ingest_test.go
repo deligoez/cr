@@ -73,3 +73,24 @@ func withoutBlock(t *testing.T, file, id string) string {
 	}
 	return file[:start] + file[start+1+end:]
 }
+
+// §8.1.3: cr regenerates every owned region and discards edits inside them, so
+// a reviewer who types into a question's label has not edited the body. Only
+// the agent region is compared, and it is untouched here.
+func TestAnEditInsideAnOwnedRegionIsNoEditOfTheBody(t *testing.T) {
+	question := aRecord("f1")
+	question.Kind, question.Grade = finding.KindQuestion, finding.GradeArgued
+	question.Summary = "Does the caller ever see the error Decode returns?"
+	file, entries := renderedRound(t, question)
+	label, err := render.QuestionLabelRegion(render.LangEN, finding.GradeArgued)
+	require.NoError(t, err)
+	require.Contains(t, file, label)
+
+	edited := strings.Replace(file, label,
+		strings.Replace(label, "\n", "\nI would rather this said something else.\n", 1), 1)
+	triage, err := Ingest([]*finding.Finding{question}, edited, entries)
+	require.NoError(t, err)
+
+	assert.Empty(t, triage.Preserved, "the typing sat inside a region cr owns")
+	assert.Empty(t, triage.Deleted)
+}
