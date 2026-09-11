@@ -2,6 +2,7 @@ package review
 
 import (
 	"slices"
+	"time"
 
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
@@ -79,7 +80,18 @@ func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error
 	for i := range r.Units {
 		formed = append(formed, r.Units[i].Unit)
 	}
-	r.Hits = rule.Attach(formed, rule.Evaluate(matchers, hunks))
+	hits := rule.Evaluate(matchers, hunks)
+	// §2.6.1.6: every hit reaches the repository's ledger through the
+	// writer `cr rules check` uses, keyed so a second run at the same head
+	// overwrites rather than counts it again. §6.2.5 stamps a citation
+	// `origin: rule` only against this file, so a hit attached to a prompt
+	// and left out of it would grade the agent's confirmation as its own.
+	if err := rule.RecordHits(src.Layout, src.Owner, src.Repo, hits, &rule.Occasion{
+		PR: src.PR, Round: r.Round, Head: r.Head, At: time.Now(),
+	}); err != nil {
+		return err
+	}
+	r.Hits = rule.Attach(formed, hits)
 	return nil
 }
 
