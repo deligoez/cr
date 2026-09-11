@@ -108,3 +108,27 @@ func TestABlockWithNoEntryKeepsItsBody(t *testing.T) {
 
 	assert.Equal(t, map[string]string{"f1": body(record)}, triage.Preserved)
 }
+
+// lineOf is the one-based line of a draft on which needle first appears.
+func lineOf(t *testing.T, file, needle string) int {
+	t.Helper()
+	at := strings.Index(file, needle)
+	require.GreaterOrEqual(t, at, 0)
+	return strings.Count(file[:at], "\n") + 1
+}
+
+// A marker the reviewer mistyped stops the ingest, naming its line, rather than
+// being read as prose — which would take the record behind it for deleted and
+// discard it with a waiver nobody asked for.
+func TestAMalformedMarkerStopsTheIngestNamingItsLine(t *testing.T) {
+	record := aRecord("f1")
+	file, entries := renderedRound(t, record)
+	broken := strings.Replace(file, `kind="finding"`, `kind=finding`, 1)
+
+	triage, err := Ingest([]*finding.Finding{record}, broken, entries)
+
+	var malformed *MalformedMarkerError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, lineOf(t, broken, "<!-- cr:record "), malformed.At)
+	assert.Empty(t, triage.Deleted, "nothing is discarded on the strength of a draft cr could not read")
+}
