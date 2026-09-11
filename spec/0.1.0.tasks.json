@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-10T23:23:03.253075Z",
+  "updated_at": "2026-09-11T06:24:20.684804Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7175,7 +7175,7 @@
     {
       "id": "review-hits-ledger",
       "title": "Record the hits cr review attaches in the rule ledger",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 0,
@@ -7183,11 +7183,23 @@
       "source_sections": [
         "#### 2.6.1 Detection"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-10T23:27:32.9255Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:24:20.653513Z",
+      "closed_reason": "- cr review now appends every hit it attaches to rule-stats.ndjson: internal/review/attach.go's detect evaluates the detectors once and hands the same hits to rule.RecordHits before rule.Attach places them on units, so the prompts and the ledger are fed from one list.\n- Each entry carries 2.6.1 item 6's rule id, path, line, round and head plus the pull request and a UTC timestamp, which is what 6.2.5's positional match reads; a mutation passing nil to RecordHits fails both new tests, so the stamp now depends on cr review's write and not on an earlier cr rules check.\n- The writer is rule.RecordHits, the one cr rules check uses, keyed so a rerun overwrites; TestReviewRunTwiceAtOneHeadLeavesOneLedgerEntryPerHit runs cr review twice with no cr rules check and reads three entries off the file's bytes, and TestTheRuleLedgerHasOneWriter still passes unchanged because the call reaches state.UpdateRuleStats only through rule's update.\n- TestACitationOfALineOnlyReviewHitIsOfRuleOrigin runs cr review and then cr record on a finding citing lib.go:4 and asserts origin rule, grade cited and kind finding; a dogfood run with the dev binary over a scratch repository read three hit entries in rule-stats.ndjson after two cr review runs and cr record stamped the citation origin rule.\n- The gap sat between two units' packages, so the tests drive both commands end to end through the CLI; their reviewedHome helper records the unit as cr brief does (head lines 1 to 7 under the diff's three lines of context), because detectedHome's 3-to-7 unit is refused by review.Run's stale-unit check while cr rules check never checks it.\n",
+      "gate_passed_at": "2026-09-11T06:24:20.653513Z",
+      "commit_sha": "add01e8",
+      "commit_shas": [
+        "add01e8",
+        "cfcc12f",
+        "8546020"
+      ],
+      "commit_files": [
+        "internal/cli/review.go",
+        "internal/cli/reviewhits_test.go",
+        "internal/review/attach.go",
+        "internal/review/run.go"
+      ]
     },
     {
       "id": "rule-profile-scope",
