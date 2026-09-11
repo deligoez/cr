@@ -132,13 +132,15 @@ func detectRound(
 	}, nil
 }
 
-// roundMatchers compiles every detect block of the round's rule corpus.
+// roundMatchers compiles every detect block of the round's rule corpus that
+// applies under the round's profile, per §2.6's `profiles` row, which is the
+// same rule.ForProfile `cr review` asks.
 func roundMatchers(l state.Layout, owner, repo, profileID string) ([]rule.Matcher, error) {
 	corpus, err := roundCorpus(l, owner, repo, profileID)
 	if err != nil {
 		return nil, err
 	}
-	return rule.Compile(corpus)
+	return rule.Compile(rule.ForProfile(corpus, profileID))
 }
 
 // roundCorpus resolves §2.6 item 1's three layers for the round's profile: the
