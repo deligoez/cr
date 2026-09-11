@@ -1,6 +1,7 @@
 package draft
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -131,4 +132,22 @@ func TestAMalformedMarkerStopsTheIngestNamingItsLine(t *testing.T) {
 	require.ErrorAs(t, err, &malformed)
 	assert.Equal(t, lineOf(t, broken, "<!-- cr:record "), malformed.At)
 	assert.Empty(t, triage.Deleted, "nothing is discarded on the strength of a draft cr could not read")
+}
+
+// A second block for one record stops the ingest, naming the second marker's
+// line and the first's. One record is one block, so two bodies under one id
+// leave no single answer to what the reviewer wrote, and cr does not pick one.
+func TestASecondBlockForOneRecordStopsTheIngest(t *testing.T) {
+	record := aRecord("f1")
+	file, entries := renderedRound(t, record)
+	first := lineOf(t, file, "<!-- cr:record ")
+	marker := markerOf(record).String()
+	doubled := file + "\n" + marker + "\n\nA pasted copy of the block.\n"
+
+	_, err := Ingest([]*finding.Finding{record}, doubled, entries)
+
+	var malformed *MalformedMarkerError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, strings.Count(file, "\n")+2, malformed.At, "the second marker is the one named")
+	assert.Contains(t, malformed.Problem, fmt.Sprintf("line %d", first), "and the first is named beside it")
 }
