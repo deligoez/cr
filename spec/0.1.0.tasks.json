@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T06:53:59.679762Z",
+  "updated_at": "2026-09-11T06:58:07.8341Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6502,7 +6502,7 @@
     {
       "id": "evidence-region",
       "title": "Append the evidence region per grade",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "provenance-region",
@@ -6513,11 +6513,43 @@
       "source_sections": [
         "### 8.1 Render contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-11T06:43:21.628903Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-11T06:58:07.743295Z",
+      "closed_reason": "- draft.commentOf now fills render.Comment.Evidence from Provenances.evidence, keyed on the grade (probed and cited assert, argued gets none), so Comment.String places the region beneath the agent body in §8.1.3's order; TestEveryAssertingGradeCarriesItsEvidenceBeneathTheBody (draft) and TestTheDraftCarriesEachAssertingRecordsEvidence (cli, through cr record then cr draft) assert it.\n- render.CitedEvidence writes one \"citation: path:line\" row per stored citation in record order, asserted whole by TestCitedEvidenceListsEveryCitationAsPathLine and end to end as \"citation: app.go:1\"; a record carrying no citation gets no region, since §6.2 grades none cited without one.\n- render.ProbeEvidence keeps kind, target, filter (absent when unfiltered), result and a fenced output_tail under §5.5's own names with nothing composed beside them, asserted whole by TestTheFilterReachesTheEvidenceRegionAndNothingIsClaimedBesideIt and TestAnUnfilteredRunCarriesNoFilterRow; the probe is read out of probes.ndjson by cli.readProbes and carried as draft.Provenances.Probes.\n- The region is template substitution only, rebuilt from the record on every render (commentOf builds every owned region each time, and TestTheEvidenceRegionLeavesTheByteExactEditDetectionIntact shows typing inside it is discarded and the regenerated draft is byte-identical); cr post is still a stub, so post time reuses this same commentOf path when single-review-batching assembles the payload.\n- ProbeEvidence carries §5.5's input for both kinds as an \"input:\" row with a fenced block (the fence outgrows any backtick run in it), so the mutation patch or the gap test file cr executed is in the region; dogfooded on deligoez/cr-qa PR 1, where the draft carried the free-shipping patch verbatim under f1's region.\n- An inert mutation now shows the author exactly what was changed beside the no-test-failed result, which is what the finding asked the region to expose; the input is taken from the probe record, which §5.5.1 keeps immutable, never from anything the agent retypes.\n- For a gap probe the region shows the test file beside its output and the result, which is the material the author needs to tell a wrong behaviour from a wrong test (TestTheMutationPatchAndTheGapTestBothReachTheRegion asserts the gap test reaches the region whole).\n- capped() cuts the input at post.max_probe_input_bytes on a rune boundary and the row then reads \"input (truncated to N of M bytes by post.max_probe_input_bytes):\"; the key is render.MaxProbeInputSetting, added to config's table with default 4096 (tests.output_tail_bytes' default, since the spec names the key only in round 9's finding and gives no default), resolved by cr draft through §2.7's layers and asserted end to end by TestTheProbeInputCapIsReadFromTheConfiguration via CR_POST_MAX_PROBE_INPUT_BYTES=8.\n- TestTheMutationPatchAndTheGapTestBothReachTheRegion asserts the mutation patch and the gap test both reach the region whole, and TestATruncatedInputIsAnnounced plus TestATruncatedInputIsCutOnACharacterBoundary assert the announcement, the exact-cap boundary, a negative cap, and a cut inside a multi-byte character.\n- render.gapLimit carries §5.4.4's own sentence (\"a failed gap probe means either the behaviour is wrong or the supplied test is wrong, and cr cannot distinguish the two\") as a \"limit:\" row, so the limit reaches the reader in the posted comment and not only the spec.\n- The limit row stands beneath a gap probe's result and never in a mutation probe's region, asserted by TestTheMutationPatchAndTheGapTestBothReachTheRegion.\n- internal/render/separation_test.go's recordKeepers now lists probe, with a comment naming why: render imports probe for this region.\n- That keeps the dependency in §8.1.2's direction, renderer reads record, and TestNoRenderingDecisionCanReachStoredState already fails if probe ever imports render.\n- Adding probe to the list costs nothing today (probe imports no render) and closes the reverse edge by construction; a Reserved sequence in a probe's input, output or a citation path is refused naming the record (TestAnEvidenceRegionCarryingTheReservedSequenceIsRefused), and a probed record whose probe probes.ndjson lacks stops cr draft with exit 3 (draft.MissingProbeError, TestADraftOfAProbedRecordWithoutItsProbeExitsThree; exitCodeFor re-measured at cognitive 50 over 151 statements).\n",
+      "gate_passed_at": "2026-09-11T06:58:07.743295Z",
+      "commit_sha": "dcad71c",
+      "commit_shas": [
+        "dcad71c",
+        "b0cfdca",
+        "5d07fc8",
+        "1485164",
+        "0a903ab",
+        "875a421",
+        "cde2ad5",
+        "6032c49",
+        "9dfcf54",
+        "446fcd3",
+        "01ce8a8"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/evidence_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/provenance.go",
+        "internal/config/config.go",
+        "internal/draft/draft.go",
+        "internal/draft/evidence.go",
+        "internal/draft/evidence_test.go",
+        "internal/draft/label_test.go",
+        "internal/draft/provenance.go",
+        "internal/render/comment.go",
+        "internal/render/comment_test.go",
+        "internal/render/evidence.go",
+        "internal/render/evidence_test.go",
+        "internal/render/question_test.go",
+        "internal/render/separation_test.go"
+      ]
     },
     {
       "id": "suggestion-range-validation",
