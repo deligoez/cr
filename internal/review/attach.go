@@ -1,7 +1,6 @@
 package review
 
 import (
-	"slices"
 	"time"
 
 	"github.com/deligoez/cr/internal/git"
@@ -52,9 +51,8 @@ func (r *Round) attach(src *Sources, p *profile.Profile, hunks []git.Hunk) ([]st
 // detect resolves §2.6's corpus for the round's profile, runs §2.6.1's
 // detectors over the diff, and places each hit on the unit that contains it.
 //
-// A rule whose `profiles` names other profiles is left out of the round, since
-// §2.6's table reads an empty list as all profiles and any other list as the
-// ones named.
+// A rule whose `profiles` names other profiles is left out of the round, by
+// the same rule.ForProfile `cr rules check` asks.
 func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error {
 	path := ""
 	if p.ID != "" {
@@ -65,13 +63,7 @@ func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error
 	if err != nil {
 		return err
 	}
-	r.Rules = make([]rule.Resolved, 0, len(corpus))
-	for i := range corpus {
-		scoped := corpus[i].Rule.Profiles
-		if len(scoped) == 0 || slices.Contains(scoped, p.ID) {
-			r.Rules = append(r.Rules, corpus[i])
-		}
-	}
+	r.Rules = rule.ForProfile(corpus, p.ID)
 	matchers, err := rule.Compile(r.Rules)
 	if err != nil {
 		return err
