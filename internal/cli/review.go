@@ -62,8 +62,9 @@ func (e *unknownAxisFlagError) Error() string {
 // `cr review` emits the prompts an agent runs, performs no judgement of its
 // own, and calls no model (§4.6, invariant 1): the prompts go to the output and
 // nothing is sent anywhere. It reads the round `cr brief` recorded, the
-// repository it was run from, and the pull request's base, and writes nothing —
-// not inside the repository under review (§2.2) and not in the state tree.
+// repository it was run from, and the pull request's base. It writes nothing
+// inside the repository under review (§2.2); in the state tree it writes the
+// fan-out directories and §2.6.1.6's ledger entries for the hits it attaches.
 //
 // `--axis` narrows the fan-out to one axis's roles, which is the control §4.6.5's
 // two passes are run through.

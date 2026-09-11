@@ -23,8 +23,9 @@ import (
 // Everything that touches the outside world is a field, for the reason
 // brief.Sources gives: the GitHub client is injectable and the repository is a
 // directory, so §4.6 can be exercised against a real repository with no token
-// and no network. Nothing here writes: `cr review` emits prompts, and the state
-// it reads was written by the commands that own it.
+// and no network. `cr review` emits prompts, and the state it reads was written
+// by the commands that own it; what it writes is the fan-out directories and
+// §2.6.1.6's ledger entries for the hits it found.
 type Sources struct {
 	// Layout resolves §2.2's paths and holds the per-PR state.
 	Layout state.Layout
