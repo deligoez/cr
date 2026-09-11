@@ -113,3 +113,29 @@ func TestTheFiveTriageVerbsOfSection72(t *testing.T) {
 	assert.Equal(t, []string{"f2"}, report.Preserved, "the edited body is posted as edited")
 	assert.Contains(t, file, "The reviewer's own wording of f2.")
 }
+
+// §12.1's other shape for a regeneration. A terminal reader is told, record by
+// record, what cr acted on — each outcome, and whether it counts against the
+// class — and whose edited body was kept, because a discard wrote a waiver on
+// their behalf and they are owed the list rather than a count.
+func TestATerminalRegenerationNamesWhatItTriaged(t *testing.T) {
+	records := []*finding.Finding{
+		aStoredRecord("f1", finding.StateDraft), aStoredRecord("f2", finding.StateDraft),
+		aStoredRecord("f3", finding.StateDraft),
+	}
+	records[1].Anchor.Path = "internal/api/f2.go"
+	records[2].Anchor.Path = "internal/api/f3.go"
+	layout := draftedHome(t, records...)
+	redraft(t)
+	edited := strings.Replace(readDraft(t, layout), records[0].Summary, "The reviewer's own wording of f1.", 1)
+	edited = deleteBlock(t, edited, "f2")
+	edited = markerEdit(t, edited, "f3", `disposition=""`, `disposition="wrong"`)
+	require.NoError(t, os.WriteFile(
+		layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FileDraft), []byte(edited), 0o600))
+
+	out := throughATerminal(t, "draft", draftPR, "--repo", draftSlug)
+
+	assert.Contains(t, out, "\nf2: discarded-not-here\n", "a deletion is named and not counted against the class")
+	assert.Contains(t, out, "\nf3: discarded-wrong, counted against its class\n")
+	assert.Contains(t, out, "\nkept the edited body of: f1\n")
+}
