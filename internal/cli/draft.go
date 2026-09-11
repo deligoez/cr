@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -32,6 +33,15 @@ type draftResult struct {
 	// Queued is how many records §7.1 rendered into it, which is also how
 	// many §9.1 now holds in `queued`.
 	Queued int `json:"queued"`
+	// Discarded are the records whose block the reviewer deleted from the
+	// draft this run replaced, each now discarded as `not-here` with a
+	// pull-request-scoped waiver (§7.1.6, §7.2). They are named rather than
+	// counted, because a discard is a decision cr acted on and the reviewer
+	// is owed the list of what it acted on.
+	Discarded []string `json:"discarded"`
+	// Preserved are the records whose edited body §7.1.6 carried into the
+	// new draft in place of the one cr renders.
+	Preserved []string `json:"preserved"`
 	// Forced is §6.3.2's count per class over the records this draft
 	// holds, which is also what reached summary.json. It is a field on the
 	// payload rather than a sentence alone, so an agent reading the
@@ -39,25 +49,27 @@ type draftResult struct {
 	Forced finding.Forcings `json:"forced_to_question"`
 }
 
-// Text names the count, the round, and the file to open, and then §6.3.2's
-// forcing count.
+// Text names the count, the round, and the file to open, then what the
+// regeneration took from the draft it replaced, and then §6.3.2's forcing
+// count.
 //
 // The forcing line is printed on every run, whatever the flags say. §11.1
 // exempts it from `--quiet` by name, and a disclosure that is only printed
 // sometimes is a disclosure the reader cannot rely on: it is how they tell a
 // draft whose questions cr forced from one whose questions the agent chose.
 func (r *draftResult) Text(w *writer) string {
-	return "drafted " + w.accent(strconv.Itoa(r.Queued)) + " record(s) for round " +
-		strconv.Itoa(r.Round) + " to " + r.Path + "\n" + r.Forced.Disclosure()
+	text := "drafted " + w.accent(strconv.Itoa(r.Queued)) + " record(s) for round " +
+		strconv.Itoa(r.Round) + " to " + r.Path + "\n"
+	if len(r.Discarded) > 0 {
+		text += "discarded as not-here, block deleted: " + strings.Join(r.Discarded, ", ") + "\n"
+	}
+	if len(r.Preserved) > 0 {
+		text += "kept the edited body of: " + strings.Join(r.Preserved, ", ") + "\n"
+	}
+	return text + r.Forced.Disclosure()
 }
 
 // newDraftCmd renders the editable draft (§11, §7.1).
-//
-// The command settles the round's records first and writes once. §9.1's move
-// into `queued` and §7.1's rendering are two halves of one answer — a record is
-// queued because it was rendered — so a run that stamped the states and then
-// failed to write the file would leave findings.ndjson claiming a draft that
-// does not exist. Both reach disk under the one lock §2.3.1 requires.
 func newDraftCmd(out *writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "draft " + prPlaceholder,
@@ -84,50 +96,71 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			records, err := roundFindingsOf(layout, owner, repo, pr, round.Round)
-			if err != nil {
-				return err
-			}
-			queued, err := queueRecords(records)
-			if err != nil {
-				return err
-			}
-			// §6.3.1's second moment, applied over the records
-			// this draft holds and before they are rendered: the
-			// block a reviewer reads carries the register in its
-			// marker, so a forcing applied after the rendering
-			// would be a forcing the draft does not show.
-			forced := finding.ForceQuestions(queued)
-			// §6.3.3, over the records that are about to be
-			// written rather than over the rule that was just
-			// applied. Invariant 4 is a claim about what reaches
-			// the author, and nothing here can be talked past: no
-			// flag, setting, environment variable, profile field
-			// or role instruction is read on the way to this line,
-			// because there is none to read.
-			if err := finding.RefuseArguedAssertion(queued); err != nil {
-				return err
-			}
-			// §8.1.3's refusal of a body is made before anything
-			// is written, so a refused draft leaves findings.ndjson,
-			// draft.md and summary.json exactly as they were.
-			rendered, err := renderDraft(layout, owner, repo, pr, &round, queued)
-			if err != nil {
-				return err
-			}
-			if err := publishDraft(
-				layout, owner, repo, pr, &round, records, rendered, forced,
-			); err != nil {
-				return err
-			}
-			return out.emit(&draftResult{
-				Path:   layout.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
-				Round:  round.Round,
-				Queued: len(queued),
-				Forced: forced,
-			})
+			return produceDraft(out, layout, owner, repo, pr, &round)
 		},
 	}
+}
+
+// produceDraft renders the round's draft, regenerating the one already there.
+//
+// The command settles the round's records first and writes once. §9.1's move
+// into `queued` and §7.1's rendering are two halves of one answer — a record is
+// queued because it was rendered — so a run that stamped the states and then
+// failed to write the file would leave findings.ndjson claiming a draft that
+// does not exist. Both reach disk under the one lock §2.3.1 requires.
+//
+// A regeneration ingests the draft it replaces before anything else, per
+// §7.1.6, and every refusal below is made before anything is written: a
+// refused run leaves findings.ndjson, draft.md, rendered.json, summary.json and
+// the waivers exactly as they were, and the reviewer's edits are still in the
+// file for the next run to read.
+func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round *state.Meta) error {
+	records, err := roundFindingsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return err
+	}
+	triage, err := ingestDraft(l, owner, repo, pr, round, records)
+	if err != nil {
+		return err
+	}
+	queued, err := queueRecords(records)
+	if err != nil {
+		return err
+	}
+	// §6.3.1's second moment, applied over the records this draft holds
+	// and before they are rendered: the block a reviewer reads carries the
+	// register in its marker, so a forcing applied after the rendering
+	// would be a forcing the draft does not show.
+	forced := finding.ForceQuestions(queued)
+	// §6.3.3, over the records that are about to be written rather than
+	// over the rule that was just applied. Invariant 4 is a claim about
+	// what reaches the author, and nothing here can be talked past: no
+	// flag, setting, environment variable, profile field or role
+	// instruction is read on the way to this line, because there is none
+	// to read.
+	if err := finding.RefuseArguedAssertion(queued); err != nil {
+		return err
+	}
+	// §8.1.3's refusal of a body, a preserved one included, is made before
+	// anything is written.
+	rendered, err := renderDraft(l, owner, repo, pr, round, queued, triage.Preserved)
+	if err != nil {
+		return err
+	}
+	if err := waiveDiscards(l, owner, repo, pr, triage.Deleted); err != nil {
+		return err
+	}
+	if err := publishDraft(l, owner, repo, pr, round, records, rendered, forced); err != nil {
+		return err
+	}
+	return out.emit(&draftResult{
+		Path:      l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
+		Round:     round.Round,
+		Queued:    len(queued),
+		Discarded: recordIDs(triage.Deleted),
+		Preserved: preservedIDs(queued, triage.Preserved),
+		Forced:    forced,
+	})
 }
 
 // drafted is one rendering of the round, as §7.1 has it reach disk: draft.md,
@@ -143,8 +176,13 @@ type drafted struct {
 // renderDraft is §7.1's draft.md and §7.1.5's rendered.json for the queued
 // records, read out of everything they rest on before anything is written:
 // §2.7's settings, §8.1.6's provenance sources, and §7.1.4's coverage state.
+//
+// preserved reaches draft.md and never rendered.json: §7.1.5 keeps a body
+// §7.1.6 preserved out of its entry, and draft.Rendered takes no preserved
+// bodies to put there.
 func renderDraft(
-	l state.Layout, owner, repo string, pr int, round *state.Meta, queued []*finding.Finding,
+	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	queued []*finding.Finding, preserved map[string]string,
 ) (drafted, error) {
 	settings, err := resolveDraftSettings(l, owner, repo)
 	if err != nil {
@@ -159,7 +197,7 @@ func renderDraft(
 	if err != nil {
 		return drafted{}, err
 	}
-	file, err := draft.File(queued, settings.lang, sources, draft.HeaderFacts{
+	file, err := draft.File(queued, settings.lang, sources, preserved, draft.HeaderFacts{
 		MaxComments: settings.maxComments,
 		Coverage:    rows,
 	})
