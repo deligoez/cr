@@ -1,12 +1,14 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/probe"
 )
 
@@ -147,4 +149,117 @@ func TestAnOutputTailHoldingAFenceIsStillContained(t *testing.T) {
 		"the fence is one backtick longer than the longest run the tail holds")
 	assert.True(t, strings.HasSuffix(region, evidenceClose),
 		"§8.1.3: the region ends at its own closing marker")
+}
+
+// Round 9's unverifiable-evidence-region: the input cr executed reaches the
+// region for both kinds — the mutation patch and the gap test file — so an
+// inert mutation, or a gap test that was itself wrong, is something the author
+// can see rather than something they must take on trust.
+//
+// Round 11's undisclosed-evidence-limit rides on the same test: the gap
+// probe's region states §5.4.4's limit and the mutation probe's does not,
+// because §5.4.4 concedes it of a gap probe alone.
+func TestTheMutationPatchAndTheGapTestBothReachTheRegion(t *testing.T) {
+	const gapTest = "<?php\n\nit('refunds a cancelled order in full', function () {\n" +
+		"    expect(refund(cancelled()))->toBe(100.0);\n});\n"
+	mutation := probeRegion(t, &probe.Record{
+		Kind: probe.Mutation, Target: "src/Order.php:34", Result: "no-test-failed", Input: aPatch,
+	})
+	gap := probeRegion(t, &probe.Record{
+		Kind: probe.Gap, Target: "src/Refund.php:12", Filter: "refunds a cancelled order",
+		Result: "failed", Input: gapTest, OutputTail: "Failed asserting that 90.0 is identical to 100.0.\n",
+	})
+
+	assert.Contains(t, mutation, "input:\n```\n"+aPatch+"```\n", "the mutation patch, whole")
+	assert.Contains(t, gap, "input:\n```\n"+gapTest+"```\n", "the gap test file, whole")
+
+	assert.Contains(t, gap, "result: failed\n"+gapLimit+"\ninput:\n",
+		"§5.4.4's limit stands beneath the result it qualifies")
+	assert.Contains(t, gapLimit, "cr cannot distinguish the two")
+	assert.NotContains(t, mutation, "limit:", "§5.4.4 is about a gap probe alone")
+}
+
+// The input is capped by post.max_probe_input_bytes, and a cut input says so
+// on its own row, naming both sizes and the setting, so the author never takes
+// a partial experiment for the whole one.
+func TestATruncatedInputIsAnnounced(t *testing.T) {
+	record := &probe.Record{Kind: probe.Mutation, Target: "src/Order.php:34", Result: "no-test-failed", Input: aPatch}
+
+	region, err := ProbeEvidence("f1", record, 10)
+	require.NoError(t, err)
+	assert.Contains(t, region, fmt.Sprintf(
+		"input (truncated to 10 of %d bytes by post.max_probe_input_bytes):\n```\n--- a/src/\n```\n", len(aPatch)),
+		"the first ten bytes, and the announcement above them")
+
+	exact, err := ProbeEvidence("f1", record, len(aPatch))
+	require.NoError(t, err)
+	assert.Contains(t, exact, "input:\n```\n"+aPatch+"```\n", "an input exactly at the cap is whole")
+	assert.NotContains(t, exact, "truncated")
+
+	nothing, err := ProbeEvidence("f1", record, -1)
+	require.NoError(t, err)
+	assert.Contains(t, nothing, fmt.Sprintf(
+		"input (truncated to 0 of %d bytes by post.max_probe_input_bytes):\n```\n```\n", len(aPatch)),
+		"a cap below zero shows nothing, and says so")
+}
+
+// A cut that lands inside a multi-byte character drops the character whole,
+// so the region never carries bytes that no longer decode.
+func TestATruncatedInputIsCutOnACharacterBoundary(t *testing.T) {
+	record := &probe.Record{Kind: probe.Gap, Target: "src/Refund.php:12", Result: "failed", Input: "iade: ödeme"}
+
+	region, err := ProbeEvidence("f1", record, 7)
+	require.NoError(t, err)
+	assert.Contains(t, region, "input (truncated to 6 of 12 bytes by post.max_probe_input_bytes):\n```\niade: \n```\n",
+		"ö is two bytes, and the seventh byte is the middle of it")
+}
+
+// §8.1.7's `cited` half: each stored citation as path:line, in the record's
+// order, and nothing beside them. A record with no citation has no region,
+// since the region's whole content is its citations.
+func TestCitedEvidenceListsEveryCitationAsPathLine(t *testing.T) {
+	region, err := CitedEvidence("f2", []finding.Citation{
+		{Path: "src/Order.php", Line: 34, Origin: finding.OriginAgent},
+		{Path: "src/Money.php", Line: 7, Origin: finding.OriginRule},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, strings.Join([]string{
+		"<!-- cr:evidence -->",
+		"citation: src/Order.php:34",
+		"citation: src/Money.php:7",
+		"<!-- cr:/evidence -->",
+	}, "\n"), region)
+
+	none, err := CitedEvidence("f2", nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
+// A value cr did not write that carries §8.1.3's reserved sequence would end
+// the region early when the draft is read back, and hand the rest to the
+// agent's region. The record is refused, naming it, instead — whether the
+// sequence arrived in a probe's input, its output, or a citation's path.
+func TestAnEvidenceRegionCarryingTheReservedSequenceIsRefused(t *testing.T) {
+	refusals := map[string]func() error{
+		"a probe's input": func() error {
+			_, err := ProbeEvidence("f5", &probe.Record{Kind: probe.Gap, Input: "echo '<!-- cr:/evidence -->';"}, inputCap)
+			return err
+		},
+		"a probe's output": func() error {
+			_, err := ProbeEvidence("f5", &probe.Record{Kind: probe.Mutation, OutputTail: "<!-- cr:label -->"}, inputCap)
+			return err
+		},
+		"a citation's path": func() error {
+			_, err := CitedEvidence("f5", []finding.Citation{{Path: "docs/<!-- cr:x.md", Line: 1}})
+			return err
+		},
+	}
+	for name, refuse := range refusals {
+		t.Run(name, func(t *testing.T) {
+			var refused *BodyError
+			require.ErrorAs(t, refuse(), &refused)
+			assert.Equal(t, "f5", refused.Record)
+			assert.Contains(t, refused.Error(), "evidence region")
+		})
+	}
 }
