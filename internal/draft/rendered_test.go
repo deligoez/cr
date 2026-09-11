@@ -50,3 +50,14 @@ func TestAnEntryIsWhatReadingTheUntouchedBlockBackRecovers(t *testing.T) {
 
 	assert.Equal(t, trailing.Summary+"\n\n"+strings.TrimRight(trailing.Evidence, "\n"), rendered["f1"])
 }
+
+// A rendered.json cr cannot read is refused naming the file, rather than read
+// as empty. Empty would keep every body, so nothing would be lost, but it would
+// be a silent answer about a file cr wrote itself.
+func TestAnUnreadableRenderedJSONIsRefusedNamingTheFile(t *testing.T) {
+	entries, err := DecodeRendered("rendered.json", []byte(`{"f1": 7}`))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rendered.json")
+	assert.Nil(t, entries)
+}
