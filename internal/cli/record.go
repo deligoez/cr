@@ -29,6 +29,16 @@ type recordResult struct {
 	// Duplicates is how many of them §6.4.3 retired into state
 	// `duplicate`, which is §10.1.6's duplicate count for this write.
 	Duplicates int `json:"duplicates"`
+	// Suppressed is how many of them §3.5.4 retired into state
+	// `suppressed`, because an ingested human thread already covers them.
+	//
+	// It is counted apart from Duplicates rather than added to it. The two
+	// are different decisions by different authors — §6.4.3 is cr's mark
+	// over this round's own redundancy, §3.5.4 the agent's judgement about
+	// what a human already said on the pull request — and a reviewer
+	// reading one total could not tell a round that said everything twice
+	// from a round whose findings were already raised.
+	Suppressed int `json:"suppressed"`
 	// Probes is §5.4's answer for every record resting on a gap probe:
 	// whether that probe supports it, and which condition decided. It is
 	// empty, and never nil, when no record names one.
@@ -45,20 +55,13 @@ type recordResult struct {
 // what the caller already has; what §9.1 and §5.4 made of them is not in that
 // file.
 //
-// The states are named separately once any record was retired as a duplicate.
-// §6.4.3 keeps a suppressed duplicate rather than dropping it, so a line saying
-// every stored record is in `draft` would be counting records the round will
-// never draft.
+// The states are named separately once any record was retired. §6.4.3 keeps a
+// suppressed duplicate rather than dropping it and §3.5.4 keeps a
+// thread-suppressed finding the same way, so a line saying every stored record
+// is in `draft` would be counting records the round will never draft.
 func (r *recordResult) Text(w *writer) string {
 	var out strings.Builder
-	stored := w.accent(strconv.Itoa(len(r.Recorded)))
-	if r.Duplicates == 0 {
-		out.WriteString("recorded " + stored + " in state " + finding.StateDraft.String())
-	} else {
-		fmt.Fprintf(&out, "recorded %s: %d in state %s, %d in state %s",
-			stored, len(r.Recorded)-r.Duplicates, finding.StateDraft,
-			r.Duplicates, finding.StateDuplicate)
-	}
+	out.WriteString(r.states(w))
 	for _, answered := range r.Probes {
 		fmt.Fprintf(&out, "\n  %s %s %s (%s): %s",
 			answered.Record, w.accent(answered.Probe), supported[answered.Supports],
@@ -66,6 +69,30 @@ func (r *recordResult) Text(w *writer) string {
 	}
 	for _, disclosed := range r.Honesty {
 		fmt.Fprintf(&out, "\n%s", disclosed)
+	}
+	return out.String()
+}
+
+// states is the first line: how many records were stored, and — once any of
+// them was retired — how many stand in each state §9.1 put them in.
+//
+// A state with no records in it is left out rather than printed as zero. The
+// line exists to say what the round will not draft, and `0 in state suppressed`
+// answers a question nobody asked while pushing the counts that matter further
+// along the line.
+func (r *recordResult) states(w *writer) string {
+	stored := w.accent(strconv.Itoa(len(r.Recorded)))
+	if r.Duplicates == 0 && r.Suppressed == 0 {
+		return "recorded " + stored + " in state " + finding.StateDraft.String()
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "recorded %s: %d in state %s",
+		stored, len(r.Recorded)-r.Duplicates-r.Suppressed, finding.StateDraft)
+	if r.Duplicates > 0 {
+		fmt.Fprintf(&out, ", %d in state %s", r.Duplicates, finding.StateDuplicate)
+	}
+	if r.Suppressed > 0 {
+		fmt.Fprintf(&out, ", %d in state %s", r.Suppressed, finding.StateSuppressed)
 	}
 	return out.String()
 }
@@ -86,14 +113,18 @@ func newRecordResult(records []*finding.Finding, found *gapEvidence) *recordResu
 	for _, entry := range found.unmappable {
 		honesty = append(honesty, entry.Disclosure())
 	}
-	duplicates := 0
+	duplicates, suppressed := 0, 0
 	for _, record := range records {
-		if record.State == finding.StateDuplicate {
+		switch record.State {
+		case finding.StateDuplicate:
 			duplicates++
+		case finding.StateSuppressed:
+			suppressed++
 		}
 	}
 	return &recordResult{
-		Recorded: records, Duplicates: duplicates, Probes: found.support, Honesty: honesty,
+		Recorded: records, Duplicates: duplicates, Suppressed: suppressed,
+		Probes: found.support, Honesty: honesty,
 	}
 }
 
