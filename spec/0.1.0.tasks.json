@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T22:02:17.138556Z",
+  "updated_at": "2026-09-12T22:02:56.930252Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7635,7 +7635,7 @@
     {
       "id": "round-summary-idempotence",
       "title": "Replace summary sections rather than accumulating",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "round-summary-writers"
@@ -7645,16 +7645,25 @@
       "source_sections": [
         "### 10.3 Round summary"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T21:54:30.688016Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T21:59:48.553839Z",
+      "closed_reason": "- writeSummary in internal/cli/summary.go replaces a writer's whole section on every run: completeOwnership refuses a run that leaves out any count summaryOwners gives that writer, and every count is computed from the round's state (raised over the files handed to this merge, deduplicated and suppressed_by_thread over the stored records, drafted and the two discard counts over the round's records, the caps over queued records and the round's probes, posted over the records in posted), so the document is a function of current state and a re-run writes the same values.\n- summaryOwners in internal/cli/summary.go states which keys belong to which writer: raised, waived and already_posted to cr merge; deduplicated and suppressed_by_thread to cr record; forced_to_question, new_classes, drafted, discarded_not_here, discarded_wrong, comments and probe_cap to cr draft; posted and payload_hash to cr post — 10.3's writer list with cr record added per round 8.\n- writeSummary's doc comment records that none of the writers is once-per-round: 7.1.6 regenerates the draft, 8.5.1 makes the dry run the ordinary precursor to --confirm, and re-running cr merge after fixing one role's output is the recovery path.\n- The same comment records that additive accumulation would inflate waived, deduplicated and drafted and make the summary the one place a re-run silently changes the record; summarizeDraft counts discards off the round's records rather than this run's triage for the same reason, since a regeneration after a deletion sees no deletion, and the dogfood run showed discarded_not_here staying at 1 across two regenerations after the deletion.\n- internal/cli/summary_test.go's TestRerunningEveryWriterLeavesTheRoundSummaryUnchanged runs cr merge twice, cr draft twice before and twice after a block deletion, and cr post's dry run twice before one --confirm, and asserts the summary equals the single-run case, with discarded_not_here still 1 and the dry-run summaries byte-identical; TestAWriterMustReplaceItsWholeSection asserts a partial section is refused before anything is written, and hand-disabling that check turned it red.\n",
+      "gate_passed_at": "2026-09-12T21:59:48.553839Z",
+      "commit_sha": "625f95e",
+      "commit_shas": [
+        "625f95e",
+        "63e48c3"
+      ],
+      "commit_files": [
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go"
+      ]
     },
     {
       "id": "round-summary-payload-hash",
       "title": "Record the payload hash once built",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "round-summary-idempotence",
@@ -7665,11 +7674,20 @@
       "source_sections": [
         "### 10.3 Round summary"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T21:59:51.680285Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:02:56.91396Z",
+      "closed_reason": "- The payload hash is recorded only once cr post --confirm has built and sent a payload: summaryPayloadHash is written solely by writeAdopted in internal/cli/reconcile.go (landed in 88912a9), which runs after the network call returned on --confirm and after an adoption on --reconcile, and never on the dry run or on 8.4.2's refused call; the summaryPosted/summaryPayloadHash doc comment in internal/cli/summary.go states that an unfinalised summary is a valid terminal state for a round.\n- The undetermined choice is settled as absent: a round drafted and never posted, or run only through 8.5.1's dry run, keeps a summary with neither payload_hash nor posted, never null and never the dry-run hash; dogfooded on a scratch repository, where a round after two dry runs embedded payload hash b3c329358c607f58 in the printed body while summary.json held twelve keys and no payload_hash or posted.\n- internal/cli/summary_test.go's TestAnUnpostedRoundSummaryOmitsThePayloadHashAndStillValidates takes a round through a dry run and a --confirm GitHub refuses, then asserts the summary passes assertSummaryShape (every section decodes strictly into its stated shape and none is null), omits payload_hash and posted entirely, and does not contain the dry run's hash; hand-applying a mutant that writes cr post's section with the hash on the dry run turned it red.\n",
+      "gate_passed_at": "2026-09-12T22:02:56.91396Z",
+      "commit_sha": "541c089",
+      "commit_shas": [
+        "541c089",
+        "58aeba5"
+      ],
+      "commit_files": [
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go"
+      ]
     },
     {
       "id": "skill-document",
