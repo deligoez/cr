@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T10:15:50.218315Z",
+  "updated_at": "2026-09-12T10:44:24.980912Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5318,7 +5318,7 @@
     {
       "id": "waived-findings-dropped",
       "title": "Drop waived findings before any record",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "dedup-overlap-summary",
@@ -5329,11 +5329,22 @@
       "source_sections": [
         "### 6.4 Dedup"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T10:36:54.327624Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T10:44:24.966076Z",
+      "closed_reason": "- finding.DropWaived is §6.4.4's pass: it removes every record whose §7.4.1 key an active waiver carries, matching through WaivedBy so §7.4.2's narrowness holds, and returns a Drops carrying the count and the ids of the waivers that applied; TestAWaivedFindingIsDroppedCountedAndLeavesNoRecord and TestTheDropNamesEachApplyingWaiverOnceAcrossBothScopes assert both halves over waivers from each of §7.4.4's two files.\n- The pass removes rather than marks, so a waived finding is never among the records a caller writes out: the test asserts the dropped record is absent from the NDJSON the kept records encode to, that its State and DuplicateOf are still empty, and that only Drops.Dropped moved — which is round 3's waived-record-no-state answered, since §9.1's exhaustive table defines no waived state and a record dropped after it was written would sit in draft with no legal edge out while §10.2.4 blocked the round.\n- The end-to-end assertion over findings.ndjson and summary.json is not reachable yet and is already owned: nothing writes findings.ndjson from this pass until merge-command exists, merge-counts-reporting asserts the drop counts reach summary.json, and record-reapplies-drops asserts a raw single-role file fed straight to cr record still has its waived findings dropped; what this task can prove — that the pass hands on no trace of the record and that only the count survives — is asserted here against the encoded bytes.\n- Drops.Disclosure is §10.1.6's waiver count in the shape §11.1 exempts from --quiet, printed at zero as well, so a round where no waiver matched reads differently from a round where the drop never ran; the zero case is asserted in TestAWaiverStopsSilencingOnceTheAnchoredCodeChanges.\nOut of scope: internal/cli/lenses.go, uncommitted in a sibling unit's tree, re-derives a round's axes from meta.json exactly as internal/cli/status.go's lensesOf and roundAxes do; the two should be folded into one derivation before both land.\n",
+      "gate_passed_at": "2026-09-12T10:44:24.966076Z",
+      "commit_sha": "39a2a54",
+      "commit_shas": [
+        "39a2a54",
+        "175ac77"
+      ],
+      "commit_files": [
+        "internal/finding/anchored_test.go",
+        "internal/finding/cap_test.go",
+        "internal/finding/waived.go",
+        "internal/finding/waived_test.go"
+      ]
     },
     {
       "id": "merge-command",
