@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T22:47:37.806691Z",
+  "updated_at": "2026-09-12T23:06:35.525874Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2245,7 +2245,7 @@
     {
       "id": "diff-file-exclusions",
       "title": "Exclude ignored files with binary listing",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "changed-line-definition"
@@ -2255,11 +2255,27 @@
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:57:43.365114Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:06:35.516792Z",
+      "closed_reason": "- (1) Files matching ignore.globs are excluded and counted per §3.4.2: internal/brief/brief.go unitsOf reads config ignore.globs and hands only unit.Files.Clusterable's hunks to unit.Clusters, and internal/unit/files.go sortFiles counts every changed file a glob matches in Files.Excluded; TestSortFilesExcludesListsAndClustersEachFileOnce pins it.\n- (2) Binary and generated files are listed but not clustered per §3.4.7: internal/git/files.go ChangedFiles reads `git diff --numstat -z` with diffArgs less --unified (which implies the patch), so a binary file is listed, Generated reads `git check-attr -z --source=\u003chead\u003e linguist-generated` through the pinned runner, and unit.Files.Listed carries {path, kind} with kind binary or generated; check-attr joined norepowrite_test.go's gitReads as a read.\n- (3) TestExcludedAndListedFilesFormNoUnitAndReachTheStatusReport in internal/cli/fileexclusions_test.go briefs a PR adding vendor/dep.go (ignored), logo.png (binary) and api.pb.go (linguist-generated), asserts the brief's units are lib.go alone, and asserts `cr status` reports excluded 1 and both listed files in JSON and in the terminal; hand mutants dropping Clusterable in unitsOf and dropping Files from statusResult each turn it red.\n- (4) The §2.3 gap is not closed by a new row: nothing was added to §2.3 or to the brief's write fence (internal/brief/nojudgement_test.go untouched, cr brief still persists only meta.json, units.ndjson and threads.ndjson), and status re-derives instead, which does put gh and a checkout on the status path as the decision accepted.\n- (5) What makes a file generated is settled by the decision recorded below, not by a spec change.\n- (6) The `Code generated ... DO NOT EDIT` header candidate was not implemented: cr reads no file content to decide generated.\n- (7) The measurement that ignore.globs was read by no code no longer holds: internal/brief/brief.go and internal/cli/statusfiles.go both read config Strings(\"ignore.globs\").\n- (8) The measurement that a binary file was dropped silently no longer holds: git.ChangedFiles lists it from numstat, and TestChangedFilesListsEveryFileIncludingTheBinaryOnes asserts logo.png arrives with Binary true beside a rename and a mode change.\n- (9) Reading (1a) implemented: cr brief applies ignore.globs and lists binary and generated files inside unitsOf, while it forms the units, and prints them under §3.7.4 as `files` in JSON and a line per listed file in the terminal.\n- (10) Reading (1b) implemented: cr status re-derives the excluded count and the listing in internal/cli/statusfiles.go from the diff at meta.json's recorded head (gh for the base, git merge-base, unit.FilesOf) with ignore.globs as resolved now, and discloses drift in the honesty channel in both directions, a path the globs now exclude that holds a unit and a path they no longer exclude that holds none; TestStatusDisclosesGlobsThatDriftedFromTheRoundsUnits pins both sentences and a hand mutant returning no drift turns it red.\n- (11) Reading (2) implemented: a file is generated when git check-attr at the round's head reports linguist-generated set (value set or true), read from the head tree via --source so a worktree .gitattributes is not consulted; TestGeneratedReadsTheHeadsAttributesAndNotTheWorktrees pins that, and $GIT_DIR/info/attributes and core.attributesFile remain consulted because the runner pins neither.\n- (12) Both readings are recorded in this reason; dogfooded with /tmp/cr-dev/cr on a local scratch repo with a gh shim, where brief printed \"1 file(s) excluded by ignore.globs, per §3.4.2; 2 listed and not clustered, per §3.4.7\" and git status --porcelain in the repo under review stayed empty.\n",
+      "gate_passed_at": "2026-09-12T23:06:35.516792Z",
+      "commit_sha": "f12bd87",
+      "commit_shas": [
+        "f12bd87"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/brief.go",
+        "internal/cli/fileexclusions_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/status.go",
+        "internal/cli/statusfiles.go",
+        "internal/git/files.go",
+        "internal/git/files_test.go",
+        "internal/unit/files.go",
+        "internal/unit/files_test.go"
+      ]
     },
     {
       "id": "symbol-detectability-fallthrough",
