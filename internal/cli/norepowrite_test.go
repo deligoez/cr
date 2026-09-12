@@ -889,6 +889,15 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
 		"cells record": {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
+		// `cr claims set-aside` writes intent-gaps.ndjson and reads the
+		// §3.6 store, both under the state root, and reaches the
+		// repository not at all. It runs last: §4.1.7 derives the entry
+		// it stamps at `cr map record`, and the note it rests on is the
+		// one `cr note` recorded, so runOrder defers it past both.
+		"claims set-aside": {
+			"claims", "set-aside", fixturePR, fixtureIssue + "#c1",
+			"--note", fixtureIssue + "#n1", "--repo", fixtureSlug,
+		},
 		// `cr rules suggest` reads the state root and nothing else:
 		// §2.6.3.1 scans the comments posted from recorded rounds,
 		// which live under `~/.cr/`, and §2.6.3.3 forbids it to write
@@ -994,11 +1003,7 @@ func stubRuns(merged, out string) map[string][]string {
 			"merge", merged, "-o", out,
 			"--repo", fixtureSlug, "--pr", fixturePR,
 		},
-		"stats": {"stats", "--repo", fixtureSlug},
-		"claims set-aside": {
-			"claims", "set-aside", fixturePR, fixtureIssue + "#c1",
-			"--note", fixtureIssue + "#n1", "--repo", fixtureSlug,
-		},
+		"stats":          {"stats", "--repo", fixtureSlug},
 		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
 		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
 		"rules list":     {"rules", "list", "--repo", fixtureSlug},
@@ -1022,16 +1027,22 @@ func stubRuns(merged, out string) map[string][]string {
 func runOrder(t *testing.T, runs map[string][]string) []string {
 	t.Helper()
 	hoisted := []string{"brief", "sandbox create"}
-	for _, name := range hoisted {
-		require.Contains(t, runs, name, "the hoisted %s has no invocation to run", name)
+	// `cr claims set-aside` stamps an entry §4.1.7 derives at `cr map
+	// record` and rests it on a note `cr note` records, and alphabetical
+	// order puts it before both — so it goes last rather than earlier.
+	// It is the mirror of a hoist and not a second kind of exception:
+	// both say that one command's input is another command's output.
+	deferred := []string{"claims set-aside"}
+	for _, name := range append(slices.Clone(hoisted), deferred...) {
+		require.Contains(t, runs, name, "the ordered %s has no invocation to run", name)
 	}
 	order := slices.Clone(hoisted)
 	for _, name := range slices.Sorted(maps.Keys(runs)) {
-		if !slices.Contains(hoisted, name) {
+		if !slices.Contains(hoisted, name) && !slices.Contains(deferred, name) {
 			order = append(order, name)
 		}
 	}
-	return order
+	return append(order, deferred...)
 }
 
 // No command in the tree writes inside the repository it is run in.
