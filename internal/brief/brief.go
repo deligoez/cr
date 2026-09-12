@@ -116,6 +116,11 @@ type Brief struct {
 	Drift  intent.Drift   `json:"drift"`
 	// §3.7.4: the units of §3.4, with their paths, hunk ranges, and hashes.
 	Units []unit.Unit `json:"units"`
+	// Files is what §3.4 formed no unit from: the count §3.4.2 excluded
+	// and the binary and generated files §3.4.7 lists. It sits under
+	// §3.7.4 because both are §3.4's own obligations, and a unit list
+	// printed without them would read as the whole of the diff.
+	Files unit.Files `json:"files"`
 	// §3.7.5: the ingested threads of §3.5 and the notes of §3.6.
 	Threads []gh.Thread `json:"threads"`
 	Notes   []note.Note `json:"notes"`
@@ -232,7 +237,7 @@ func assemble(src *Sources) (*Brief, error) {
 	if err := selection.Err(); err != nil {
 		return nil, err
 	}
-	units, mergeBase, err := unitsOf(src, &selection.Profile, pr.Base, pr.Head)
+	units, mergeBase, files, err := unitsOf(src, &selection.Profile, pr.Base, pr.Head)
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +292,7 @@ func assemble(src *Sources) (*Brief, error) {
 		Claims:      claims,
 		Drift:       drift,
 		Units:       units,
+		Files:       files,
 		Threads:     threads,
 		Notes:       notes,
 		Axes:        axes,
@@ -295,32 +301,39 @@ func assemble(src *Sources) (*Brief, error) {
 }
 
 // unitsOf carries out §3.4 for one head: the diff against the merge base, the
-// hunks, §3.4.4's clustering, §3.4.5's split, and §3.4.6's records. It returns
-// the merge base alongside, because §3.7.1 prints the commit the diff was
-// actually taken against.
+// hunks, §3.4.2's exclusion and §3.4.7's listing, §3.4.4's clustering, §3.4.5's
+// split, and §3.4.6's records. It returns the merge base alongside, because
+// §3.7.1 prints the commit the diff was actually taken against, and the files
+// that formed no unit, because §3.4.2 and §3.4.7 have them counted and listed.
 //
 // The symbol index is §4.3.1's head index, the one `cr review` attaches
 // candidates from, so §3.4.4's symbol branch reads the same declarations the
 // reinvention lens does.
-func unitsOf(src *Sources, p *profile.Profile, base, head string) ([]unit.Unit, string, error) {
+func unitsOf(
+	src *Sources, p *profile.Profile, base, head string,
+) ([]unit.Unit, string, unit.Files, error) {
 	diff, err := git.DiffAgainstMergeBase(src.RepoDir, base, head)
 	if err != nil {
-		return nil, "", err
+		return nil, "", unit.Files{}, err
 	}
 	hunks, err := git.ParseHunks(diff.Patch)
 	if err != nil {
-		return nil, "", err
+		return nil, "", unit.Files{}, err
+	}
+	files, err := unit.FilesOf(src.RepoDir, diff.MergeBase, head, src.Config.Strings("ignore.globs"))
+	if err != nil {
+		return nil, "", unit.Files{}, err
 	}
 	index, err := headSymbols(src.RepoDir, head, p)
 	if err != nil {
-		return nil, "", err
+		return nil, "", unit.Files{}, err
 	}
-	clusters := unit.Clusters(hunks, p, index, src.Config.Int("cluster.gap_lines"))
+	clusters := unit.Clusters(files.Clusterable(hunks), p, index, src.Config.Int("cluster.gap_lines"))
 	units, err := unit.Units(unit.Split(clusters, src.Config.Int("cluster.max_lines")))
 	if err != nil {
-		return nil, "", err
+		return nil, "", unit.Files{}, err
 	}
-	return units, diff.MergeBase, nil
+	return units, diff.MergeBase, files, nil
 }
 
 // headSymbols is the head index as unit.Clusters takes it: nil when the profile

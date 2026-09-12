@@ -160,6 +160,21 @@ func (r *briefResult) units(w *writer, out *strings.Builder) {
 			ranges(formed.HunkRanges), formed.Hash, formed.Formation,
 			oversized(formed.Oversized))
 	}
+	out.WriteString(filesLines(&r.Files, "  "))
+}
+
+// filesLines renders what §3.4 formed no unit from: §3.4.2's excluded count,
+// and every file §3.4.7 lists with its kind. The count is printed at zero too,
+// because a reader shown no line cannot tell a diff nothing was excluded from
+// a report that never looked.
+func filesLines(files *unit.Files, indent string) string {
+	var out strings.Builder
+	fmt.Fprintf(&out, "%s%d file(s) excluded by ignore.globs, per §3.4.2; %d listed and not clustered, per §3.4.7\n",
+		indent, files.Excluded, len(files.Listed))
+	for _, listed := range files.Listed {
+		fmt.Fprintf(&out, "%s  %s (%s)\n", indent, listed.Path, listed.Kind)
+	}
+	return out.String()
 }
 
 // ranges renders a unit's hunk ranges, both ends inclusive and head-side, in

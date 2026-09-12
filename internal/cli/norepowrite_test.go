@@ -349,6 +349,7 @@ var gitReads = map[string]string{
 	"worktree":   "§5.1.1's sandbox worktree, the one write §2.2 permits",
 	"rev-parse":  "§5.1.6's check that the sandbox HEAD is still the round's head",
 	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked",
+	"check-attr": "§3.4.7's question of whether the head declares a file generated",
 }
 
 // gitSourceFiles parses internal/git's own source, tests excluded.

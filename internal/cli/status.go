@@ -20,6 +20,7 @@ import (
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/symbol"
 	"github.com/deligoez/cr/internal/testadequacy"
+	"github.com/deligoez/cr/internal/unit"
 )
 
 // intentCoverage is §10.1.2's half of the coverage report: how much of the
@@ -60,6 +61,9 @@ type statusResult struct {
 	Head  string `json:"head"`
 	// Coverage is §10.1.1, counted by coverage.RowsOf.
 	Coverage coverage.Rows `json:"coverage"`
+	// Files is §3.4.2's excluded count and §3.4.7's listing, derived
+	// again from the diff at the round's head by statusFiles.
+	Files unit.Files `json:"files"`
 	// Intent is §10.1.2.
 	Intent intentCoverage `json:"intent"`
 	// Axes is §10.1.3's first clause and two of §4.5.4's four kinds: the
@@ -128,6 +132,7 @@ func (r *statusResult) Text(w *writer) string {
 		strconv.Itoa(r.Coverage.Roles) + " active role(s), " +
 		strconv.Itoa(r.Coverage.Gaps) + " with gaps, " +
 		strconv.Itoa(r.Coverage.Oversized) + " oversized\n")
+	out.WriteString(filesLines(&r.Files, ""))
 	out.WriteString("claims: " + strconv.Itoa(r.Intent.Claims) + " total, " +
 		strconv.Itoa(r.Intent.Mapped) + " mapped to a unit, " +
 		strconv.Itoa(len(r.Intent.Gaps)) + " unimplemented (" +
@@ -268,6 +273,10 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
+	files, drift, err := statusFiles(l, owner, repo, pr, &round.Meta)
+	if err != nil {
+		return nil, err
+	}
 	verdict := coverage.Complete(&coverage.Conditions{
 		HeadMoved: round.Stale(),
 		Rows:      rows,
@@ -283,6 +292,7 @@ func statusOf(
 		Round:        round.Round,
 		Head:         round.Head,
 		Coverage:     rows,
+		Files:        files,
 		Intent:       covered,
 		Axes:         axes,
 		Skipped:      lenses.Roles,
@@ -290,7 +300,7 @@ func statusOf(
 		Probes:       probesOf(probes, records),
 		Unstanding:   unstanding,
 		Completeness: verdict,
-		Honesty:      disclosed,
+		Honesty:      append(disclosed, drift...),
 	}, nil
 }
 
