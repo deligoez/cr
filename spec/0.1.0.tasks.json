@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:38:40.882631Z",
+  "updated_at": "2026-09-12T14:41:52.117506Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6198,7 +6198,7 @@
     {
       "id": "stats-command",
       "title": "Report triage statistics per class",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "triage-event-fields"
@@ -6208,16 +6208,33 @@
       "source_sections": [
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:04:16.567871Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:13:10.166061Z",
+      "closed_reason": "- `cr stats --repo \u003cowner/repo\u003e` is built in `internal/cli/stats.go`: it resolves the repository through §11.1's global `--repo`, reads the ledger lock-free through `finding.TriageEvents` per §2.3.2, and prints §7.3.2's five counts — raised, kept, softened, discarded as `not-here`, discarded as `wrong` — once per class and once per rule, in the order §7.3.2 names them. `finding.Tally` in `internal/finding/triagestats.go` computes both cuts in one pass so a class and the rules that produced it cannot disagree, and it refuses an action outside §7.3.1's five rather than letting it fall through no arm of the switch and silently shrink §7.3.4's denominator.\n- The statistics are computed from `~/.cr/repos/\u003cowner\u003e/\u003crepo\u003e/triage.ndjson`, which §2.2 makes repository state shared by every pull request, so one read answers for all of them; the command takes no `\u003cpr\u003e` and has no way to narrow to one. §9.3 therefore has nothing to say about it, the same answer `cr rules suggest` gets and for the same reason, and it is entered in `movedHeadRuns` as `readsNoRound`. §9.3.5's round scoping does not reach it either: triage.ndjson is not one of §2.3.3's eight per-PR files, so `TestEveryStampedReadIsRoundScopedOrDeclared` needs no cross-round exemption for it.\n- `TestStatsCountsEveryActionPerClassAndPerRuleAcrossPullRequests` in `internal/cli/stats_test.go` seeds four records across PR 7 and PR 9 — the later spanning two of its own rounds, since a round index is per pull request — and asserts the whole per-class and per-rule breakdown through the command's own JSON: `unchecked-error` 3/1/1/0/1 and `missing-test` 1/0/0/1/0 per class, and `no-dropped-error` 2/1/1/0/0 per rule, where the rule row counts two of the three records the class row counts because `f4` carries no rule id. Two further tests cover the empty repository, which answers with §12.3's empty arrays rather than refusing, and the refusal of a sixth action name.\n",
+      "gate_passed_at": "2026-09-12T14:13:10.166061Z",
+      "commit_sha": "749ccd2",
+      "commit_shas": [
+        "749ccd2",
+        "82a8f5c",
+        "dcbc1a2",
+        "c352dd8"
+      ],
+      "commit_files": [
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/cli/stats.go",
+        "internal/cli/stats_test.go",
+        "internal/cli/surface_test.go",
+        "internal/finding/triagestats.go"
+      ]
     },
     {
       "id": "new-class-drift-reporting",
       "title": "Report every class first seen",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "stats-command"
@@ -6227,16 +6244,30 @@
       "source_sections": [
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:13:15.383018Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:21:12.425465Z",
+      "closed_reason": "- `class` is agent-composed and nothing downstream re-derives it: §7.4.1 keys a waiver on `(anchor.path, class, content hash)` and §9.3.6's posted index on the same class, so a slug reworded between rounds escapes both keys silently and the finding returns as if it had never been waived or posted. That is the whole reason this report exists rather than a nicety — `finding.NewClasses` and `finding.FirstSeenClasses` in `internal/finding/newclass.go` are what make the reword observable at the two moments a reader could still act on it.\n- `cr` reports every class first seen in a round as new, in both places §7.3.3 names. In the round summary: `cr draft` computes the list through `newDraftClasses` off the ledger as it stands before the round's own §7.3.1 events are written, and `writeNewClasses` puts it under `new_classes` in `rounds/\u003cn\u003e/summary.json` through `UpdateRoundSection`, on every run and empty included — a round that raised no new class and a round whose report was never written would otherwise read alike. The run prints it too. In `cr stats`: `first_seen` names every class with the pull request and round the ledger first held it on, so `unchecked-error` at pr 7 round 1 sits beside `dropped-error` at pr 12 round 1 under the same rule and the drift is a comparison the reader can make. `NewClasses` excludes this pull request and round from what counts as prior history, so §7.1.6's regeneration cannot turn a class new once and old ever after, and `FirstSeenClasses` orders by the ledger's own position rather than by `at`, because a re-run overwrites an event under its key and rewrites its timestamp — regenerating an old round's draft would otherwise hand \"first seen\" to a round that merely happened second.\n- `TestARewordedClassSlugIsReportedAsNewInTheSummaryAndInStats` in `internal/cli/newclass_test.go` gives the repository a history on pull request 3, drafts round 2 of pull request 7 raising the same `unchecked-error` and asserts nothing is reported, then rewords that one record's class to `dropped-error` at the same anchor with the same prose and reruns the round: the report fires in the command's own output, in `summary.json`'s `new_classes`, and in `cr stats`'s `first_seen`, which names `unchecked-error` at pr 3 round 1 and `dropped-error` at pr 7 round 2. `TestARegeneratedRoundReportsTheSameNewClasses` drafts one round three times and asserts the answer never moves.\n",
+      "gate_passed_at": "2026-09-12T14:21:12.425465Z",
+      "commit_sha": "e14e453",
+      "commit_shas": [
+        "e14e453",
+        "2f6e4e6",
+        "ba95990",
+        "d584912"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/newclass_test.go",
+        "internal/cli/stats.go",
+        "internal/cli/triage.go",
+        "internal/finding/newclass.go"
+      ]
     },
     {
       "id": "demotion-candidates",
       "title": "Compute the demotion rate as bound",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "new-class-drift-reporting"
@@ -6246,16 +6277,29 @@
       "source_sections": [
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:21:12.495896Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:36:57.310743Z",
+      "closed_reason": "- `TriageCounts.DemotionRate` in `internal/finding/demotion.go` divides the counted outcomes by the class's raises, and both come from the repository's whole `triage.ndjson`: `cr stats` reads it across every pull request through `finding.TriageEvents`, and `finding.Tally` gives the per-class counts the rate is taken over. The numerator walks §7.3.1's action vocabulary through `TriageActions()`, skips the raise, and adds an outcome only when `Outcome.CountsAgainstClass()` admits it — which is `discarded-wrong` and `softened`, so the rate is `(discarded-wrong + softened) / raised` as §7.3.4 writes it. A class with no raises returns 0 rather than dividing by zero, and is on no list anyway.\n- `not-here` never enters that numerator, and it is excluded by construction rather than by a subtraction: `Outcome.CountsAgainstClass()` is the one place the decision is spelled and `DemotionRate` reads it instead of restating it, so no second opinion about the disposition can exist in the tree. The reason is not arithmetic — §7.2 makes `not-here` the ordinary case of a true finding not worth a comment on this pull request, so it is no evidence that the class is imprecise. `TestTheDemotionRateExcludesNotHereFromItsNumerator` seeds two classes with the identical shape of history, 10 raises and 7 discards each, differing only in disposition: `imprecise` comes out at 0.70 and `unwelcome` at 0.00.\n- `finding.DemotionCandidates` lists a class when its rate exceeds `stats.demote_threshold` and its raises are at least `stats.min_samples`, both resolved through §2.7's layers by `statsSample` in `internal/cli/stats.go` and defaulting to 0.6 and 8 in `internal/config/config.go`'s settings table. \"Exceeds\" is read strictly and the minimum as \"at least\", because §7.3.4 words the two bounds differently; applying the `\u003c=` → `\u003c` mutation by hand makes `borderline` at exactly 0.6 a candidate and `TestAThinSampleAndAnExactThresholdAreNotCandidates` fails, so the boundary is held by a test rather than by a comment. `TestTheSampleComesFromTheResolvedConfiguration` moves both settings from a repository config and watches the candidacy follow.\n- The rate can only understate imprecision, and the report says so in the words §7.3.5 gives: `finding.DemotionBound` reads \"§7.3.5: a lower bound on imprecision, not a measured precision — marking a false positive `wrong` costs an extra edit while deleting the block is free, so `discarded-wrong` is under-counted\". It is a constant so every renderer says it identically, and it is emitted whether or not the run found a candidate — the caveat is a fact about the statistic, not about this run's results.\n- `cr` presents the number as a lower bound at every door and as a precision at none. The JSON field is `rate_lower_bound`, so a reader who copies one number out of the document keeps the caveat in the key; `demotion_rate_bound` carries the sentence beside it; and the terminal rendering prints the same sentence under the candidate list. `TestTheDemotionRateIsReportedAsALowerBoundAndNotAsPrecision` asserts all three on the printed document rather than on the rendering — an agent reads the document, and §7.3.5 binds what the number may be presented as to any reader — and also asserts that no field anywhere in the payload is named `precision`.\n- `internal/cli/demotion_test.go` holds both halves. The `not-here` exclusion is `TestTheDemotionRateExcludesNotHereFromItsNumerator`'s paired fixture above, where a numerator that merely counted discards would put both classes on the list at 0.70 and demote one that has never once been wrong; the lower-bound wording is `TestTheDemotionRateIsReportedAsALowerBoundAndNotAsPrecision`'s three assertions on the document. Dogfooded against a seeded ledger through the built binary: `speculative-nil 0.70 over 10 raise(s)` is listed, `style-nit` (10 raised, 7 `not-here`) is not, and `rare-race` (5 raised, 5 `wrong`, rate 1.00) is not either, because 5 is under the minimum of 8.\n",
+      "gate_passed_at": "2026-09-12T14:36:57.310743Z",
+      "commit_sha": "81b058c",
+      "commit_shas": [
+        "81b058c",
+        "0b82928",
+        "243ddf8",
+        "719d251"
+      ],
+      "commit_files": [
+        "internal/cli/demotion_test.go",
+        "internal/cli/stats.go",
+        "internal/config/config.go",
+        "internal/finding/demotion.go"
+      ]
     },
     {
       "id": "volume-candidates",
       "title": "Report accurate classes rarely worth posting",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "demotion-candidates"
@@ -6265,11 +6309,22 @@
       "source_sections": [
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:37:01.833178Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:41:52.099734Z",
+      "closed_reason": "- `TriageCounts.NotHereRate` and `finding.VolumeCandidates` in `internal/finding/volume.go` list a class separately when its `not-here` discards exceed `stats.demote_threshold` over at least `stats.min_samples` raises — the same `finding.Sample` §7.3.4's demotion candidacy is drawn over, read as the same two settings rather than as a second number arrived at separately, so a project that moves either knob moves both lists together. `cr stats` prints it under its own heading and emits it as `volume_candidates`, apart from `demotion_candidates` and unranked against it. Each candidate carries §7.3.6's own sentence in `VolumeRemedy` — \"accurate but rarely worth posting — the remedy is to stop raising it, not to soften it\" — on the candidate rather than only in the surrounding prose, because that is the whole reason for a second list: the class is not imprecise, so softening it would turn a true finding nobody wanted into a question nobody wanted. The two rates share a denominator and no outcome at all, since §7.2's dispositions mean opposite things, and a volume candidate carries no lower-bound caveat: §7.3.5's under-counting is about the `wrong` marker costing an edit that plain deletion does not, while `not-here` is what cr itself writes when a block is deleted.\n- Both candidacies are values returned to the caller and printed, and nothing else. Neither `internal/finding/demotion.go` nor `internal/finding/volume.go` nor `internal/cli/stats.go` opens a file for writing; there is no flag on the command that would have it act on a list, and its doc comment says so. `cr stats` closes its output with \"§7.3.7: both lists are reports; cr changed no rule\", for the reason `cr rules suggest` prints the same kind of line — a list headed \"candidates\" invites the reading that something has been decided.\n- `TestStatsChangesNothingIncludingTheRuleItProposesDemoting` fingerprints every file under `~/.cr` byte for byte across a run that produced one demotion candidate and one volume candidate — the run that would act on them if any run did — with a rule file carrying `\"kind\":\"finding\"` planted first, so the assertion has the field §7.3.7 names and not merely the absence of one. The whole tree rather than the rule file alone is deliberate: a run that altered no rule while quietly rewriting the ledger it had just read would satisfy a narrower guard and break the same sentence.\n- `TestAnAccurateButUnwantedClassIsAVolumeCandidateAndNotADemotionOne` in `internal/cli/volume_test.go` seeds two classes with the identical shape of history — 10 raises, 7 discards, 3 keeps — differing only in the disposition of the discards: `unwelcome` appears in `volume_candidates` at a `not_here_rate` of 0.7 and is absent from `demotion_candidates`, while `imprecise` appears in `demotion_candidates` at 0.7 and is absent from `volume_candidates`. `TestAVolumeCandidacyIsDrawnOverTheSameSampleAsADemotion` holds the shared minimum. Dogfooded through the built binary against a seeded ledger: `style-nit 0.70 over 10 raise(s)` under volume candidates and nowhere else, `speculative-nil 0.70 over 10 raise(s)` under demotion candidates and nowhere else, and `rare-race` (5 raised, 5 `wrong`, rate 1.00) on neither list because 5 is under the minimum of 8.\n",
+      "gate_passed_at": "2026-09-12T14:41:52.099734Z",
+      "commit_sha": "ce8b637",
+      "commit_shas": [
+        "ce8b637",
+        "3277b89",
+        "5ac17ac"
+      ],
+      "commit_files": [
+        "internal/cli/stats.go",
+        "internal/cli/volume_test.go",
+        "internal/finding/volume.go"
+      ]
     },
     {
       "id": "anchor-schema",
