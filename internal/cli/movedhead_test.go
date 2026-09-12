@@ -203,6 +203,11 @@ func movedHeadRuns(dir string) map[string]section93 {
 		"note":            readsNoRound("note", fixtureIssue, "a fact", "--source", "chat", "--pr", fixturePR),
 		"context":         readsNoRound("context", fixtureIssue),
 		"sandbox destroy": readsNoRound("sandbox", "destroy", fixturePR),
+		// `cr rules suggest` is repository-scoped: §2.6.3.1 scans
+		// every recorded round of every pull request, so there is no
+		// one round whose head §9.3.1 could compare against a current
+		// one, and no per-PR state for §9.3.2 to refuse the write of.
+		"rules suggest": readsNoRound("rules", "suggest"),
 	}
 }
 

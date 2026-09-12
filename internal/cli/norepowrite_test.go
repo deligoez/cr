@@ -889,6 +889,12 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
 		"cells record": {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
+		// `cr rules suggest` reads the state root and nothing else:
+		// §2.6.3.1 scans the comments posted from recorded rounds,
+		// which live under `~/.cr/`, and §2.6.3.3 forbids it to write
+		// a rule file — so it should reach the repository neither to
+		// read nor to write, and this is where that is checked.
+		"rules suggest": {"rules", "suggest", "--repo", fixtureSlug},
 		// `cr draft` writes two files — the round's draft.md and the
 		// findings whose state §9.1 moved — and §2.2 puts both under
 		// the state root. It sorts before `cr record` here, so it
@@ -991,7 +997,6 @@ func stubRuns(merged, out string) map[string][]string {
 		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
 		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
 		"rules list":     {"rules", "list", "--repo", fixtureSlug},
-		"rules suggest":  {"rules", "suggest", "--repo", fixtureSlug},
 	}
 }
 
