@@ -11,6 +11,7 @@ import (
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
@@ -208,16 +209,14 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
 		return err
 	}
-	// §7.3.3's report for this round, read off the ledger as it stands
-	// before §7.3.1's events below add this round's own: a class is new
-	// against what the repository knew, and a regeneration must not be the
-	// run that tells it the class is old.
-	fresh, err := newDraftClasses(l, owner, repo, pr, round.Round, queued)
+	// §10.3's counts this command owns, read off the round as this run
+	// leaves it and before §7.3.1's events below add this round's own.
+	summary, err := summarizeDraft(l, owner, repo, pr, round, records, queued)
 	if err != nil {
 		return err
 	}
-	summary := draftSummary{forced: forced, newClasses: fresh}
-	if err := publishDraft(l, owner, repo, pr, round, records, rendered, summary); err != nil {
+	summary.forced = forced
+	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary); err != nil {
 		return err
 	}
 	// §7.3.1's events, after the draft they describe reached disk.
@@ -232,7 +231,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Retriaged:  triage.retriaged(),
 		Preserved:  preservedIDs(queued, triage.Preserved),
 		Forced:     forced,
-		NewClasses: fresh,
+		NewClasses: summary.newClasses,
 		Warnings:   warnings,
 	})
 }
@@ -289,7 +288,10 @@ func renderDraft(
 // settingMaxComments is §1.6.2's cap, by the key §2.7's table holds it under.
 const settingMaxComments = "post.max_comments"
 
-// draftSettings are the three §2.7 settings a draft is rendered under.
+// settingMaxProbes is §5.6.4's cap, by the key §2.7's table holds it under.
+const settingMaxProbes = "probe.max_per_round"
+
+// draftSettings are the §2.7 settings a draft is rendered and summarised under.
 type draftSettings struct {
 	// lang is §8.1.1's `render.lang`, which every §8.1.4 label in the
 	// draft is built in for.
@@ -300,6 +302,9 @@ type draftSettings struct {
 	// maxProbeInput is post.max_probe_input_bytes, the cap on the probe
 	// input §8.1.7's evidence region carries.
 	maxProbeInput int
+	// maxProbes is §5.6.4's probe.max_per_round, which §10.3's probe cap
+	// state is measured against.
+	maxProbes int
 }
 
 // resolveDraftSettings reads both settings out of one resolution of §2.7's
@@ -327,6 +332,7 @@ func resolveDraftSettings(l state.Layout, owner, repo string) (draftSettings, er
 		lang:          lang,
 		maxComments:   resolved.Int(settingMaxComments),
 		maxProbeInput: resolved.Int(render.MaxProbeInputSetting),
+		maxProbes:     resolved.Int(settingMaxProbes),
 	}, nil
 }
 
@@ -403,8 +409,8 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 
 // publishDraft is the single write, under §2.3.1's lock: the round's records
 // carrying the states §9.1 just stamped, the draft they were rendered into,
-// §7.1.5's rendered.json beside it, and the two round-summary sections
-// `cr draft` owns — §6.3.2's forcing count and §7.3.3's newly seen classes.
+// §7.1.5's rendered.json beside it, and the round-summary sections `cr draft`
+// owns.
 //
 // findings.ndjson is replaced for the current round rather than appended to.
 // The records being written are the ones just read back out of it, so an append
@@ -417,7 +423,7 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 // against the wrong thing or against nothing.
 func publishDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	records []*finding.Finding, out drafted, summary draftSummary,
+	records []*finding.Finding, out drafted, summary *draftSummary,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
@@ -428,8 +434,7 @@ func publishDraft(
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
 		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(out.file)) },
 		func() error { return writeRendered(held, round.Round, out.rendered) },
-		func() error { return writeForcingCounts(held, round.Round, summary.forced) },
-		func() error { return writeNewClasses(held, round.Round, summary.newClasses) },
+		func() error { return writeSummary(held, round.Round, ownerDraft, summary.counts()) },
 	}
 	for _, write := range writes {
 		if err := write(); err != nil {
@@ -457,17 +462,42 @@ func writeRendered(held *state.Lock, round int, rendered map[string]string) erro
 // owns, gathered into one value so publishDraft takes the document's shape
 // rather than one parameter per field.
 //
-// §10.3 has `cr merge`, `cr draft` and `cr post` each accumulate their own
-// counts into one file, so what a command owns is a fixed, small set — and a
-// type that names it is what keeps the next section from arriving as a ninth
-// positional argument nobody at the call site can tell from the eighth.
+// §10.3 has each writer accumulate its own counts into one file, so what a
+// command owns is a fixed, small set — and a type that names it is what keeps
+// the next section from arriving as a ninth positional argument nobody at the
+// call site can tell from the eighth. summaryOwners is where the set is stated.
 type draftSummary struct {
 	// forced is §6.3.2's count per class over the records this draft
 	// holds.
 	forced finding.Forcings
 	// newClasses is §7.3.3's report for this round: the classes the
-	// repository's ledger had not held before it.
+	// repository's ledger had not held before it. It is written on every
+	// run, empty included, because silence about a reworded slug is what
+	// §7.3.3 exists to stop.
 	newClasses []string
+	// drafted is how many records §7.1 rendered into the draft.
+	drafted int
+	// discardedNotHere and discardedWrong are the round's records §7.2's
+	// discard verbs have moved to `discarded`, by §7.4.2's disposition.
+	discardedNotHere int
+	discardedWrong   int
+	// comments is §1.6.2's comment count against post.max_comments.
+	comments summaryCap
+	// probes is §5.6.4's probe cap over the round.
+	probes summaryCap
+}
+
+// counts is the summary as the rows writeSummary takes.
+func (s *draftSummary) counts() []summaryCount {
+	return []summaryCount{
+		{key: summaryForcedToQuestion, value: s.forced},
+		{key: summaryNewClasses, value: s.newClasses},
+		{key: summaryDrafted, value: s.drafted},
+		{key: summaryDiscardedNotHere, value: s.discardedNotHere},
+		{key: summaryDiscardedWrong, value: s.discardedWrong},
+		{key: summaryComments, value: s.comments},
+		{key: summaryProbeCap, value: s.probes},
+	}
 }
 
 // summaryForcedToQuestion is §10.3's "forced to question" count, by the key
@@ -478,26 +508,57 @@ const summaryForcedToQuestion = "forced_to_question"
 // holds them under.
 const summaryNewClasses = "new_classes"
 
-// writeForcingCounts puts §6.3.2's count per class into the round's
-// summary.json.
+// summarizeDraft reads `cr draft`'s share of §10.3's counts off the round as
+// this run leaves it. The forcing count is the caller's to fill, since it is
+// the value §6.3.1's second moment just computed over the same records.
 //
-// §10.3 has `cr merge`, `cr draft` and `cr post` each accumulate their own
-// counts into one file, so the write goes through UpdateRoundSection, which
-// leaves every field this command does not own byte for byte.
-func writeForcingCounts(held *state.Lock, round int, forced finding.Forcings) error {
-	return state.UpdateRoundSection(
-		held, round, state.FileSummary, summaryForcedToQuestion, forced)
-}
-
-// writeNewClasses puts §7.3.3's newly seen classes into the round's
-// summary.json, which is the first of the two places the section requires the
-// drift to be reported; `cr stats` is the other.
+// Every count is taken from the round's state rather than from what this run
+// changed. A regeneration reads the draft it replaces, so a block deleted in
+// the first run is already `discarded` by the second and appears in no
+// triage the second run makes — a count of this run's discards would read
+// two, then zero, for one reviewer decision.
 //
-// The list is written on every run, empty included. A round that raised no new
-// class and a round whose report was never written look the same to a reader
-// of the document otherwise, and the whole point of §7.3.3 is that silence
-// about a reworded slug is what it is trying to stop.
-func writeNewClasses(held *state.Lock, round int, classes []string) error {
-	return state.UpdateRoundSection(
-		held, round, state.FileSummary, summaryNewClasses, classes)
+// §7.3.3's classes are read off the ledger as it stands before §7.3.1's events
+// add this round's own: a class is new against what the repository knew, and a
+// regeneration must not be the run that tells it the class is old.
+//
+// The probe cap is measured here and never enforced. §5.6.4's refusal is
+// `cr probe run`'s, and a draft that refused on a spent budget would make the
+// round undraftable once its last experiment had run.
+func summarizeDraft(
+	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	records, queued []*finding.Finding,
+) (draftSummary, error) {
+	fresh, err := newDraftClasses(l, owner, repo, pr, round.Round, queued)
+	if err != nil {
+		return draftSummary{}, err
+	}
+	settings, err := resolveDraftSettings(l, owner, repo)
+	if err != nil {
+		return draftSummary{}, err
+	}
+	probes, err := state.ReadStamped[probe.Record](l, owner, repo, pr, state.FileProbes, round.Round)
+	if err != nil {
+		return draftSummary{}, err
+	}
+	commented := finding.CommentCapFor(queued, settings.maxComments)
+	capped := probe.RoundCapFor(probes, round.Round, settings.maxProbes)
+	summary := draftSummary{
+		newClasses: fresh,
+		drafted:    len(queued),
+		comments:   summaryCap{Count: commented.Count, Max: commented.Max},
+		probes:     summaryCap{Count: capped.Count, Max: capped.Max},
+	}
+	for _, record := range records {
+		if record.State != finding.StateDiscarded {
+			continue
+		}
+		switch record.Disposition {
+		case finding.DispositionNotHere:
+			summary.discardedNotHere++
+		case finding.DispositionWrong:
+			summary.discardedWrong++
+		}
+	}
+	return summary, nil
 }
