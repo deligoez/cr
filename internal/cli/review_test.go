@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/review"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // An `--axis` naming no axis of §1.5 is refused as the malformed invocation it
@@ -23,6 +25,34 @@ func TestAnAxisOutsideSection15IsAUsageError(t *testing.T) {
 	require.ErrorAs(t, err, &unknown)
 	assert.Equal(t, ExitUsage, exitCodeFor(err))
 	assert.Contains(t, err.Error(), "intent, correctness, convention, test")
+}
+
+// §4.6.5's refusal reaches the caller of `cr review` with §11.2's code 4, and
+// the intent pass it names runs against the same round.
+//
+// The fixture's round is rolled back to before its intent pass: both files
+// `cr map record` publishes are emptied, which is the state a round is in
+// between `cr brief` and the first `cr review --axis intent`. What is asserted
+// is the pair — the remaining axes refused, the pass that lifts the refusal
+// allowed — because a refusal with no way past it is worse than none at all.
+func TestReviewRefusesTheRemainingAxesUntilTheIntentPassHasRun(t *testing.T) {
+	statusHome(t)
+	layout := state.New(os.Getenv(state.HomeEnv))
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileMapping, nil))
+	require.NoError(t, held.Write(state.FileIntentGaps, nil))
+	require.NoError(t, held.Unlock())
+
+	err = runCLI(t, "review", fixturePR, "--repo", fixtureSlug)
+
+	require.Error(t, err)
+	assert.Equal(t, ExitState, exitCodeFor(err), "§11.2 codes a state conflict 4")
+	assert.Contains(t, err.Error(), "--axis intent",
+		"§12.4: the refusal names the pass that lifts it")
+
+	_, err = runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug, "--axis", "intent")
+	assert.NoError(t, err, "§4.6.5: the intent pass is what produces the mapping")
 }
 
 // A terminal prints every prompt whole under the role and unit it is for, and
