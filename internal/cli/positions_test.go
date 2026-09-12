@@ -35,10 +35,10 @@ func suggesting(id string, line int, replacement string) *finding.Finding {
 	}
 }
 
-// suggestingRound is the fixture checkout of detectedHome with one record of
-// the given shape already in findings.ndjson, drafted so the round holds it
-// queued.
-func suggestingRound(t *testing.T, record *finding.Finding) state.Layout {
+// suggestingRound puts the fixture checkout of detectedHome behind CR_HOME with
+// one record of the given shape already in findings.ndjson, drafted so the
+// round holds it queued.
+func suggestingRound(t *testing.T, record *finding.Finding) {
 	t.Helper()
 	layout := detectedHome(t)
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
@@ -51,7 +51,6 @@ func suggestingRound(t *testing.T, record *finding.Finding) state.Layout {
 
 	_, err = runDraft(t, fixturePR, "--repo", fixtureSlug)
 	require.NoError(t, err)
-	return layout
 }
 
 // §8.4.1: the review-creation call is atomic, so every comment position is held
