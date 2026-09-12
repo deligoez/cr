@@ -15,6 +15,42 @@ import (
 // and a second file would let the two disagree about which round posted what.
 const postedThreads = "threads"
 
+// postedRecords is the field the ids of the records the payload was drawn from
+// are written to posted.json under.
+//
+// It is in the same document and for the same reason postedThreads is: §2.3's
+// table gives a round one posted.json. What it buys is §8.4.4's adoption —
+// Comment.Record is `json:"-"` because GitHub has no field for it, so a payload
+// read back off disk names no record, and a reconciliation without this would
+// have to guess which records reached the author from the comments' anchors.
+const postedRecordsSection = "records"
+
+// recordSentRecords writes the ids the payload's comments were drawn from into
+// posted.json, beside the payload.
+//
+// It runs when the outcome is unknown and not on every send, because that is
+// the only outcome that ever reads them back: §8.4.2's rejection marks nothing
+// posted, and a call that returned marks its records posted there and then.
+func recordSentRecords(l state.Layout, round *state.Meta, sent *post.Review) error {
+	ids := make([]string, 0, len(sent.Comments))
+	for i := range sent.Comments {
+		ids = append(ids, sent.Comments[i].Record)
+	}
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
+	if err != nil {
+		return err
+	}
+	if err := state.UpdateRoundSection(
+		held, round.Round, state.FilePosted, postedRecordsSection, ids,
+	); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
+}
+
 // writePosted is §8.3.3's first half: the exact payload written to
 // rounds/<n>/posted.json before the network call. It answers with the path,
 // which is what post.Request sends as `--input`.
