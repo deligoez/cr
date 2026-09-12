@@ -134,7 +134,33 @@ func TestAFailedTrackerCommandSurfacesItsStderr(t *testing.T) {
 	assert.Equal(t, 2, exited.ExitCode())
 
 	silent := &CommandError{Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2")}
-	assert.Equal(t, "jira issue view CR-1: exit status 2", silent.Error())
+	assert.Equal(t, "jira issue view CR-1: exit status 2"+wayPast, silent.Error())
+}
+
+// A tracker that refused names the two flags that get a run past it, whether or
+// not it said anything itself.
+//
+// §12.4 has every error name the next actionable step, and this one could not:
+// the tool's stderr is about the tool, and the fault is as often cr's key as
+// the tracker's state. A dogfood run met exactly that — a 404 for a key read
+// off the branch name — and neither flag appeared anywhere in the failure.
+func TestAFailedTrackerCommandNamesTheFlagsThatGetPastIt(t *testing.T) {
+	for name, refused := range map[string]*CommandError{
+		"a tracker that explained itself": {
+			Args: []string{"jira", "issue", "view", "CR-1"},
+			Err:  errors.New("exit status 2"), Stderr: "404 not found",
+		},
+		"a tracker that said nothing": {
+			Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2"),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Contains(t, refused.Error(), "--issue <KEY>",
+				"§3.2: the key cr resolved is as likely the fault as the tracker")
+			assert.Contains(t, refused.Error(), "--intent-file <path>",
+				"§3.1.4: the issue text without the command at all")
+		})
+	}
 }
 
 // The tracker command is handed the ambient environment whole, which is the
