@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/deligoez/cr/internal/activation"
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
@@ -71,10 +72,30 @@ type Fanout struct {
 	Head  string `json:"head"`
 	// Prompts are §4.6.1's prompts, in emission order.
 	Prompts []Prompt `json:"prompts"`
-	// Honesty is §4.5.4's report of the halves of §4.3.1 and §4.4.1 that
-	// could not run this round, rendered as the sentences §11.1 exempts
-	// from `--quiet`. It is empty, and never nil, when both ran.
+	// Honesty is §4.5.4's report of every lens that did not run this
+	// round — the halves of §4.3.1 and §4.4.1, and §4.6.4's skipped roles
+	// — rendered as the sentences §11.1 exempts from `--quiet`. It is
+	// empty, and never nil, when every lens looked.
+	//
+	// It holds the same kinds `cr status` puts in its own `honesty`,
+	// because the two are one channel: a reader parsing that array is
+	// reading §4.5.4's report whichever command produced it, and a kind
+	// carried by one command and dropped by the other would be a lens
+	// that never looked going unstated depending on what was run.
 	Honesty []string `json:"honesty"`
+	// Skipped is §4.6.4's report typed, as `cr status` carries it in
+	// §10.1.3's lens list: every role of §2.5.5's corpus the round left
+	// out, with the reason its prerequisites were unmet. Its sentences
+	// are already in Honesty above; this is the same report as data, so
+	// a caller need not parse them back out.
+	//
+	// It is the round's set and not this invocation's, exactly as
+	// Expected is. `--axis` narrows which of the active roles get a
+	// prompt, and a role left out of one pass of §4.6.5 has not been
+	// skipped — reporting it here would tell the reader that a role which
+	// is about to run did not, which is the opposite of the silence
+	// §4.6.4 forbids.
+	Skipped []coverage.SkippedRole `json:"skipped_roles"`
 	// Expected is §4.6.3's set of cells the round is waiting for, so
 	// §10.2.2 can be checked once the roles return. It is the round's
 	// whole demand and not this invocation's: `--axis` narrows Prompts and
@@ -146,17 +167,60 @@ func Run(src *Sources) (*Fanout, error) {
 	if err != nil {
 		return nil, err
 	}
-	honesty, err := r.attach(src, p, hunks)
+	halves, err := r.attach(src, p, hunks)
 	if err != nil {
 		return nil, err
 	}
 	if err := r.fanOut(src); err != nil {
 		return nil, err
 	}
+	skipped, err := skippedOf(src, p, &meta)
+	if err != nil {
+		return nil, err
+	}
 	return &Fanout{
-		Round: r.Round, Head: r.Head, Prompts: Emit(r), Honesty: honesty,
-		Expected: coverage.Expect(unitIDs(r.Units), r.Active),
+		Round: r.Round, Head: r.Head, Prompts: Emit(r),
+		Honesty:  sentences(coverage.Lenses{Halves: halves, Roles: skipped}),
+		Expected: coverage.Expect(unitIDs(r.Units), r.Active), Skipped: skipped,
 	}, nil
+}
+
+// skippedOf is §4.6.4's report for this round, derived where `cr status`
+// derives its own.
+//
+// coverage.Skipped is the one derivation and internal/activation answers the
+// axis half, so the roles this reports and the roles §10.1.3 reports are one
+// answer to one question. Two derivations would each be internally consistent
+// and could still name different sets, and a reader has no way to see that from
+// either command alone.
+//
+// The axis decision is re-derived from what meta.json recorded rather than from
+// the repository as it reads now, for the reason activation.OfRound gives, and
+// the active set is meta.json's rather than a recomputation, for the reason
+// coverage.Skipped gives.
+func skippedOf(src *Sources, p *profile.Profile, meta *state.Meta) ([]coverage.SkippedRole, error) {
+	corpus, err := role.Resolve(src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
+	if err != nil {
+		return nil, err
+	}
+	axes := activation.OfRound(
+		p, meta.ProfileID, meta.IssueKey, src.Config.String("intent.key_pattern"))
+	return coverage.Skipped(axes, corpus, meta.ActiveRoles, meta.ProfileID), nil
+}
+
+// sentences renders §4.5.4's report as the lines §11.1 exempts from `--quiet`.
+//
+// The collecting is coverage.Lenses' rather than an append written out here,
+// for the reason that type gives: a kind added to the collector reaches this
+// command's honesty channel with it, instead of reaching whichever call site
+// somebody remembered. §4.6.4's roles are the kind that arrived that way.
+func sentences(lenses coverage.Lenses) []string {
+	disclosed := lenses.Disclosures()
+	out := make([]string, 0, len(disclosed))
+	for _, entry := range disclosed {
+		out = append(out, entry.Disclosure())
+	}
+	return out
 }
 
 // unitIDs is the round's unit ids in §3.4.6's order, which is the order the

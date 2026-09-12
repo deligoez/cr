@@ -3,7 +3,6 @@ package review
 import (
 	"time"
 
-	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
@@ -19,7 +18,9 @@ import (
 // §4.4.1's test files. It returns §4.5.4's report of the halves that could not
 // run, which travels with the prompts rather than in a report a caller has to
 // remember to ask for.
-func (r *Round) attach(src *Sources, p *profile.Profile, hunks []git.Hunk) ([]string, error) {
+func (r *Round) attach(
+	src *Sources, p *profile.Profile, hunks []git.Hunk,
+) ([]finding.HonestyDisclosure, error) {
 	// A head §4.3.1 cannot index answers false with a nil index, which
 	// reinvention.Attach turns into its unavailability rather than into an
 	// empty list of candidates.
@@ -40,27 +41,21 @@ func (r *Round) attach(src *Sources, p *profile.Profile, hunks []git.Hunk) ([]st
 	tests := testadequacy.Attach(p, nil, hunks)
 	r.Tests = testadequacy.PerUnit(r.clusters(), tests)
 
-	// The two halves are collected through coverage.Lenses rather than
-	// appended into a slice here, because §4.5.4's report has four kinds
-	// and this command sees two of them. A kind added to the collector
-	// reaches this caller with it; a list built here would keep reporting
-	// the two it was written against.
-	lenses := coverage.Lenses{
-		Halves: make([]finding.HonestyDisclosure, 0,
-			len(r.Candidates.Unavailable)+len(tests.Unavailable)),
-	}
+	// The halves are handed back as disclosures rather than as finished
+	// sentences, because §4.5.4's report has four kinds and this function
+	// sees two of them. Run collects all four through coverage.Lenses,
+	// which is the only place §4.6.4's roles are known; flattening here
+	// would produce a list that has to be re-joined there anyway, and the
+	// joining is what the collector exists for.
+	halves := make([]finding.HonestyDisclosure, 0,
+		len(r.Candidates.Unavailable)+len(tests.Unavailable))
 	for _, out := range r.Candidates.Unavailable {
-		lenses.Halves = append(lenses.Halves, out)
+		halves = append(halves, out)
 	}
 	for _, out := range tests.Unavailable {
-		lenses.Halves = append(lenses.Halves, out)
+		halves = append(halves, out)
 	}
-	disclosed := lenses.Disclosures()
-	honesty := make([]string, 0, len(disclosed))
-	for _, entry := range disclosed {
-		honesty = append(honesty, entry.Disclosure())
-	}
-	return honesty, nil
+	return halves, nil
 }
 
 // detect resolves §2.6's corpus for the round's profile, runs §2.6.1's
