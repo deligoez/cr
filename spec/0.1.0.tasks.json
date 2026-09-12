@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T09:50:29.314868Z",
+  "updated_at": "2026-09-12T10:03:33.79105Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6279,7 +6279,7 @@
     {
       "id": "head-comparison",
       "title": "Compare the current head every command",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "brief-creates-state"
@@ -6289,16 +6289,47 @@
       "source_sections": [
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:46:15.923442Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:53:00.870603Z",
+      "closed_reason": "- state.Layout.Briefed now takes a state.CurrentHead the compiler will not let a caller omit and returns a state.Round carrying meta.json's recorded head beside the one GitHub reports, so §9.3.1's comparison is made by the one door every command that reads per-PR state comes through, and Round.Disclosure names both heads whenever they differ.\n- state.Round.Disclosure is §11.1's stale-round report in finding.HonestyDisclosure's shape, TestTheStaleRoundReportIsAnHonestyDisclosureTheRefusalRepeats asserts both the interface and that §9.3.2's refusal opens with the same sentence, and internal/cli carries it in the `honesty` field of cr rules check and cr answer, which is the channel quiet-honesty-exemptions will hold the exemption for.\n- TestAMovedHeadRefusesEveryWriterAndIsDisclosedToEveryReader runs every command leafCommands finds in the tree against a round whose head really moved and requires each of them to answer §9.3, so a command added later has no row, fails, and has to be given one.\n- cr answer is bound and answers through answerHonesty rather than through §9.3.2's refusal: it reads meta.json for the issue key, writes only §3.6's context store, and prints both heads beside the note it stored.\n- The command set is derived rather than enumerated: TestTheRoundHasOneDoorAndMetaJSONHasFourReaders reads the callers of Briefed and of the raw ReadMeta beneath it out of the source, and TestEveryFileHoldingARoundAnswersSection93 requires every file that holds a round to name RefuseStale or Disclosure.\n- Briefed is reached from exactly internal/cli/head.go's briefedRound and internal/review/run.go's Run, which is what closes the set from the other end: a command cannot obtain a round without supplying the current head.\n- ReadMeta has exactly four production readers, each outside §9.3.1's reach for its own reason — Briefed itself, cr brief's two, and note.issueKeyOf, whose command answers §9.3.1 through answerHonesty instead.\n- Both suppliers of the current head read GitHub's headRefOid as gh/pr.go argues they must: internal/cli's currentHead seam through ghClient, and review.Sources.currentHead through the client already on its sources.\n- The seam's test default is installed once in output_test.go's crHome and echoes the round's own recorded head, so no existing fixture changed shape, and probeFixture puts the gh shim on the PATH as well because three probe tests spawn the built binary.\n",
+      "gate_passed_at": "2026-09-12T09:53:00.870603Z",
+      "commit_sha": "df0c42c",
+      "commit_shas": [
+        "df0c42c",
+        "6c65640",
+        "8a3eb2d"
+      ],
+      "commit_files": [
+        "internal/brief/brief_test.go",
+        "internal/brief/idempotence_test.go",
+        "internal/brief/roles_test.go",
+        "internal/cli/answer.go",
+        "internal/cli/cells.go",
+        "internal/cli/claims.go",
+        "internal/cli/draft.go",
+        "internal/cli/exit.go",
+        "internal/cli/head.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/output_test.go",
+        "internal/cli/post.go",
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/cli/record.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/rulescheck_test.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/test.go",
+        "internal/review/expected_test.go",
+        "internal/review/run.go",
+        "internal/state/briefed.go",
+        "internal/state/briefed_test.go"
+      ]
     },
     {
       "id": "stale-head-write-refusal",
       "title": "Refuse writes when the head moved",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "head-comparison"
@@ -6308,11 +6339,35 @@
       "source_sections": [
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:53:04.757735Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T10:03:33.770246Z",
+      "closed_reason": "- state.Round.RefuseStale raises §9.3.2's StaleRoundError naming both heads, exitCodeFor maps it onto §11.2's code 4, and every command that writes per-PR state calls it immediately after the door hands back the round: cr record, cr claims record, cr cells record, cr map record, cr draft, cr post, cr review, cr sandbox create, cr test and cr probe run.\n- The refusal is a method on the round the comparison produced, so it cannot come apart from it, and its hint names `cr brief \u003cpr\u003e --repo \u003cowner\u003e/\u003crepo\u003e` — measured against deligoez/cr-qa#1 with the round recorded at 294b636 and GitHub answering be7e2c75, where all ten printed \"§9.3.2 refuses every write to per-PR state until the round moves with it: run `cr brief 1 --repo deligoez/cr-qa`\" and exited 4, and `cr brief 1` then opened round 2 at be7e2c75 and `cr draft 1` succeeded.\n- cr post --reconcile is exempt and stays exempt by ordering rather than by a second check: newPostCmd refuses every unbuilt flag before any state is read, so the moved head produced §11.2's code 2 naming the flag, and TestPostReconcileIsExemptFromTheStaleHeadRefusal asserts no StaleRoundError is in that chain, which is what will fail if the flag's behaviour is later written on the other side of the round read.\n- TestAMovedHeadRefusesEveryWriterAndIsDisclosedToEveryReader moves the head with two real commits on the head branch and gh answering the second, requires exit 4 and both heads from every writer, requires cr rules check and cr answer to run and disclose, and requires cr brief to open round 2 at the new head; its table is compared against leafCommands, so a command added later fails until it is given an answer.\n",
+      "gate_passed_at": "2026-09-12T10:03:33.770246Z",
+      "commit_sha": "df0c42c",
+      "commit_shas": [
+        "df0c42c",
+        "11c20aa",
+        "9826869"
+      ],
+      "commit_files": [
+        "internal/cli/answer.go",
+        "internal/cli/cells.go",
+        "internal/cli/claims.go",
+        "internal/cli/draft.go",
+        "internal/cli/exit.go",
+        "internal/cli/head.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/movedhead_test.go",
+        "internal/cli/post.go",
+        "internal/cli/probe.go",
+        "internal/cli/record.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/test.go",
+        "internal/review/run.go",
+        "internal/state/briefed.go"
+      ]
     },
     {
       "id": "round-increment",
