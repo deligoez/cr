@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T23:41:54.421069Z",
+  "updated_at": "2026-09-12T23:55:44.541456Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3981,7 +3981,7 @@
     {
       "id": "mapping-stamp-on-meta",
       "title": "Stamp mapping existence onto the metadata",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-two-pass-intent"
@@ -3991,11 +3991,33 @@
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:41:54.421068Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:55:35.36817Z",
+      "closed_reason": "- Round 9 mapping-existence-unobservable: cr map record's publishMapping (internal/cli/mapcmd.go) now writes meta.json's new mapping_round and mapping_head (state.Meta.MappingRound/MappingHead) last, under the same §2.3.1 lock as mapping.ndjson and intent-gaps.ndjson, and §4.6.5's gate reads that stamp through state.Meta.MappingRecorded (round and head must both equal meta.json's) via review.Round.Mapped; review.mapRecordRan, which inferred existence from pairs, intent-gaps entries and a zero-claim shortcut, is deleted, and cr brief's metaOf carries the stamp through so a same-head brief keeps it while a stamp left by a closed round names a round the new one is not.\n- An empty mapping over a round with no claims leaves mapping.ndjson and intent-gaps.ndjson empty, byte-identical to a round nobody mapped; with the stamp the empty case unblocks and the absent case stays refused, and review's second intent pass (SecondPass, raise) now keys on the same stamp, so an empty mapping gets its per-unit unmapped prompts; dogfooded on a scratch round with an issue key and zero claims, `cr review 1` exited 4, `cr map record 1 empty.ndjson` wrote \"mapping_round\": 1 and \"mapping_head\": \"5f895e8b…\" into meta.json, and `cr review 1` then exited 0 with 3 prompts.\n- TestAnEmptyMappingRecordedStampsMetaAndUnblocksTheRemainingAxes records an empty mapping through cr map record, asserts the stamp names the round and head, and asserts cr review then succeeds.\n- TestAnAbsentMappingStillExitsFour and review's TestAnAbsentMappingStampStillRefusesWhateverTheFilesHold assert an unstamped round exits 4 with MappingRequiredError even when mapping.ndjson and an intent-gaps entry are present; restoring the old pairs-count reading turns the empty-mapping tests in cli and review red.\n- Round 12 empty-vs-absent-mapping is the same stamp: TestAMappingStampCountsOnlyForTheRoundAndHeadItNames pins that only a stamp for the recorded round and head counts, and TestASameHeadBriefKeepsTheMappingStamp pins that brief does not drop it.\n",
+      "gate_passed_at": "2026-09-12T23:55:35.36817Z",
+      "commit_sha": "7f3e168",
+      "commit_shas": [
+        "7f3e168",
+        "f569072",
+        "9884565",
+        "7ad85b7",
+        "2449fd9",
+        "a5622eb",
+        "432c9cf"
+      ],
+      "commit_files": [
+        "internal/brief/mappingstamp_test.go",
+        "internal/brief/store.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/mappingstamp_test.go",
+        "internal/cli/review_test.go",
+        "internal/cli/status_test.go",
+        "internal/review/run.go",
+        "internal/review/run_test.go",
+        "internal/state/meta.go",
+        "internal/state/meta_test.go"
+      ]
     },
     {
       "id": "intent-unavailable-escape",
