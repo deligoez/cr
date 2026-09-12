@@ -46,7 +46,8 @@ func (l Layout) ReadMeta(owner, repo string, pr int) (Meta, error) {
 	}
 	var m Meta
 	if err := json.Unmarshal(body, &m); err != nil {
-		return Meta{}, fmt.Errorf("cannot read %s: %w", l.PRFile(owner, repo, pr, FileMeta), err)
+		return Meta{}, FileFailure(
+			"read", l.PRFile(owner, repo, pr, FileMeta), UnusableHint, err)
 	}
 	m.ActiveRoles = roleList(m.ActiveRoles)
 	return m, nil

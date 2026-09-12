@@ -82,10 +82,25 @@ func (l Layout) ReadPR(owner, repo string, pr int, name string) ([]byte, error) 
 	path := l.PRFile(owner, repo, pr, name)
 	body, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+		// A file of §2.2's tree the command required, so §11.2 codes it
+		// 3 and the hint names what writes it. It was a bare
+		// fmt.Errorf until unreadable-input-exit-code, and exitCodeFor
+		// has no mapping for one: measured, `cr record` on a round
+		// missing probes.ndjson exited 2.
+		return nil, FileFailure("read", path, readHint(name), err)
 	}
 	return body, nil
 }
+
+// writeHint is §12.4's next actionable step for a §2.3 write that did not land.
+//
+// Every one of them is a file failure and §11.2 codes it 3. It is not a usage
+// error: measured 2026-09-12 by the mutation slice, `cr record` against a
+// read-only pull-request directory failed inside writeAtomic with a bare
+// `cannot create a temporary file in <dir>` and exited 2, telling the user to
+// retype a command line that was right.
+const writeHint = "§2.3 publishes every write by renaming a temporary file into place, " +
+	"so the directory itself has to be writable; check its permissions and free space"
 
 // writeAtomic publishes data at path by writing a temporary file beside it and
 // renaming it into place.
@@ -96,10 +111,9 @@ func (l Layout) ReadPR(owner, repo string, pr int, name string) ([]byte, error) 
 // on every platform cr targets, so the reader sees either the previous file or
 // the whole new one. os.CreateTemp creates the temporary file with filePerm.
 func writeAtomic(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
-		return fmt.Errorf("cannot create a temporary file in %s: %w", dir, err)
+		return FileFailure("create a temporary file beside", path, writeHint, err)
 	}
 	// A no-op once the rename has succeeded; it clears the temporary file on
 	// every path that fails before it.
@@ -107,13 +121,13 @@ func writeAtomic(path string, data []byte) error {
 
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("cannot write %s: %w", tmp.Name(), err)
+		return FileFailure("write", tmp.Name(), writeHint, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("cannot close %s: %w", tmp.Name(), err)
+		return FileFailure("close", tmp.Name(), writeHint, err)
 	}
 	if err := os.Rename(tmp.Name(), path); err != nil {
-		return fmt.Errorf("cannot publish %s: %w", path, err)
+		return FileFailure("publish", path, writeHint, err)
 	}
 	return nil
 }

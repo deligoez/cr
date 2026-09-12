@@ -190,11 +190,11 @@ func UpdateRoundJSON[T any](k *Lock, round int, name string, apply func(*T)) err
 	path := filepath.Join(k.dir, roundPath(round, name))
 	body, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("cannot read %s: %w", path, err)
+		return FileFailure("read", path, readHint(name), err)
 	}
 	var doc T
 	if err := json.Unmarshal(body, &doc); err != nil {
-		return fmt.Errorf("cannot read %s: %w", path, err)
+		return FileFailure("read", path, UnusableHint, err)
 	}
 	apply(&doc)
 	out, err := json.MarshalIndent(doc, "", "  ")

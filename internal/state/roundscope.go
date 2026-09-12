@@ -332,7 +332,7 @@ func visitLines(
 	path := filepath.Join(k.dir, name)
 	held, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+		return nil, FileFailure("read", path, readHint(name), err)
 	}
 	var kept bytes.Buffer
 	for i, line := range bytes.Split(held, []byte{'\n'}) {

@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"os"
 )
 
@@ -29,7 +28,12 @@ import (
 // names a path outside it, which is where a merged file belongs.
 func WriteNamedFile(path string, body []byte) error {
 	if err := os.WriteFile(path, body, filePerm); err != nil {
-		return fmt.Errorf("cannot write %s: %w", path, err)
+		// §11.2 codes a write cr could not perform 3, as it codes a
+		// read: the path is the caller's own, and what refuses is the
+		// filesystem rather than anything about the invocation.
+		return FileFailure("write", path,
+			"`-o` names where the merged findings go; "+
+				"check that its directory exists and is writable", err)
 	}
 	return nil
 }

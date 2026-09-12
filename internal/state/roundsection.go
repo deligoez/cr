@@ -3,7 +3,6 @@ package state
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 )
 
@@ -44,14 +43,14 @@ func ReadRoundSection[T any](
 	path := l.RoundFile(owner, repo, pr, round, name)
 	var document map[string]json.RawMessage
 	if err := json.Unmarshal(body, &document); err != nil {
-		return value, false, fmt.Errorf("cannot read %s: %w", path, err)
+		return value, false, FileFailure("read", path, UnusableHint, err)
 	}
 	held, recorded := document[section]
 	if !recorded {
 		return value, false, nil
 	}
 	if err := json.Unmarshal(held, &value); err != nil {
-		return value, false, fmt.Errorf("cannot read %s of %s: %w", section, path, err)
+		return value, false, FileFailure("read the "+section+" section of", path, UnusableHint, err)
 	}
 	return value, true, nil
 }

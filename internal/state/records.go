@@ -120,7 +120,7 @@ func AppendStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error
 	// which is the reading storeRecords already gives an absent store.
 	held, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("cannot read %s: %w", path, err)
+		return FileFailure("read", path, readHint(name), err)
 	}
 	return k.Write(name, append(held, added...))
 }
@@ -302,7 +302,7 @@ func storeRecords[T any](path string) ([]T, error) {
 		return make([]T, 0), nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+		return nil, FileFailure("read", path, UnusableHint, err)
 	}
 	return decodeRecords[T](path, body)
 }
