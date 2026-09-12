@@ -5772,7 +5772,7 @@
     {
       "id": "waivers-list-command",
       "title": "List active waivers across both scopes",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "waiver-storage"
@@ -5782,11 +5782,24 @@
       "source_sections": [
         "### 7.4 Waivers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:39:54.995117Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:47:22.304836Z",
+      "closed_reason": "- cr waivers list --repo \u003cowner/repo\u003e [--pr \u003cnumber\u003e] prints active waivers with their scope and disposition, covering both files of §7.4.4 with --pr and the repository-wide file alone without it: internal/cli/waivers.go's listWaivers reads finding.RepositoryWaivers always and, only when --pr is given, finding.PullRequestWaivers through briefedRound; each stored line is emitted whole (id, §7.4.1 key, disposition, §7.4.8 round/pr/head/reason) beside the scope finding.Waiver.Scope derives, a stored disposition §7.2 lacks is refused rather than given a guessed scope, and the document's scopes field names which files were read. Every line in a file is active because §7.4.7's removal deletes rather than marks. §9.3's reading: the pull request's waivers.ndjson is §2.3 per-PR state, so the --pr run discloses §9.3.1's head comparison (movedhead_test.go's table gives `waivers list --pr` owesDisclosure; §9.3.5 exempts waivers from round scoping only), and the run without --pr reads no round. Dogfooded on a scratch repo after a `wrong` triage: \"1 active waiver(s) in the repository and pull-request scope(s)\" / \"wr1 repository wrong: unchecked-error at lib.go RIGHT aaaabbbbccccdddd (round 1, pr 1, head 4651d22...)\" / the §9.3.1 sentence; git status --porcelain in the repo stayed empty.\n- A test asserts the PR-scoped file is invisible without --pr and visible with it: internal/cli/waivers_test.go TestAPullRequestScopedWaiverIsListedOnlyWithPR writes a `wrong` (wr1) and a `not-here` (wp1) waiver over statusHome's briefed round, then asserts the JSON without --pr lists only wr1 under scopes [\"repository\"] with no honesty, the JSON with --pr lists wr1 then wp1 under [\"repository\",\"pull-request\"] with scope, disposition, pr and reason and a §9.3.1 sentence, and a real terminal shows wp1's line with --pr and not without. Hand mutant dropping the PR file's records from the listing failed it (\"§7.4.7: with --pr, both files of §7.4.4\"); reverted to the identical revision.\n- The listing obligation of §7.4.7 is met by this command, and the removal obligation is left to waivers-remove-command, which stays a registered stub until it lands (surface_test.go now marks only `waivers remove` and `rules list` as stubs; norepowrite_test.go runs `waivers list --pr` against the fixture and requires the repository under review untouched; output_test.go walks waiversListResult for null arrays).\n",
+      "gate_passed_at": "2026-09-12T22:47:22.304836Z",
+      "commit_sha": "ee98ccc",
+      "commit_shas": [
+        "ee98ccc"
+      ],
+      "commit_files": [
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/cli/surface_test.go",
+        "internal/cli/waivers.go",
+        "internal/cli/waivers_test.go"
+      ]
     },
     {
       "id": "waivers-remove-command",
