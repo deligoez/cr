@@ -526,6 +526,12 @@ var codes = []mapped{
 	// §11.2 codes 1 rather than the 3 a malformed profile gets.
 	{is[*state.ReservedFieldError](), ExitValidation,
 		"drop the field the message names from that record; §6.1.4 has cr write it"},
+	// A §11 row whose surface is registered and whose behaviour is not built.
+	// §11.2 has no code for it and inventing one would renumber what
+	// invariant 5 pins, so it keeps the 2 it always took; the row exists for
+	// §12.4, because the usage hint would tell the caller to fix a command
+	// line that is right.
+	{is[*notImplementedError](), ExitUsage, notImplementedHint},
 	// A file cr had to read, write or use and could not: an input the
 	// caller named, a file of §2.2's tree a command required, or a §2.3
 	// write that did not land. §11.2 codes all three 3.

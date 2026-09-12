@@ -20,10 +20,12 @@ const notImplementedHint = "the §11 command surface is complete before its beha
 // It is a type rather than a bare string so the refusal is distinguishable
 // from a malformed invocation by inspection: a caller can tell "cr has never
 // heard of this" from "cr knows this command and has not built it", which is
-// exactly the distinction a complete surface exists to make. Nothing maps it
-// in exit.go, so it takes exitCodeFor's fallback of §11.2's code 2 — §11.2
-// enumerates five codes and has no row for a command that is registered and
-// unbuilt, and inventing a sixth would renumber the contract invariant 5 pins.
+// exactly the distinction a complete surface exists to make. exit.go maps it
+// to §11.2's code 2 — §11.2 enumerates five codes and has no row for a
+// command that is registered and unbuilt, and inventing a sixth would renumber
+// the contract invariant 5 pins — and gives it notImplementedHint as §12.4's
+// step, since the usage hint would send the caller to a command line that is
+// right.
 type notImplementedError struct {
 	// Command is the command as it was typed, e.g. `cr rules list`, taken
 	// from cobra's own path so a stub reached through a group names the
