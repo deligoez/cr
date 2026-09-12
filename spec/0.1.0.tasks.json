@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:18:18.54343Z",
+  "updated_at": "2026-09-12T08:31:50.135498Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6623,7 +6623,7 @@
     {
       "id": "single-review-batching",
       "title": "Post every comment as one review",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "suggestion-indentation-warning",
@@ -6634,11 +6634,20 @@
       "source_sections": [
         "### 8.3 Batching"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:28:33.836305Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:31:50.121629Z",
+      "closed_reason": "- internal/post/review.go turns a round's queued records into one Review and posts it through a single Create call: Build makes one comment per record, Request names the one reviews endpoint, and there is no per-comment door for a caller to loop over, so three comments are one call and one notification.\n- The event is an unexported constant with no parameter and no setter, so every payload cr builds carries COMMENT: Build writes it and Payload writes it again over whatever the struct holds.\n- Neither verdict event exists as a string anywhere in what cr ships, which is what makes emitting one unreachable rather than merely unintended.\n- TestAMultiCommentRoundIsOneReviewCreationCall counts the calls a three-comment round makes through a recording Sender and asserts the one argument vector, TestAnEventWrittenOntoTheReviewDoesNotReachThePayload writes each verdict onto the struct and reads COMMENT back out, and TestNoStringCrShipsHoldsAVerdictEvent parses every non-test Go file and finds neither verdict in any string literal.\n",
+      "gate_passed_at": "2026-09-12T08:31:50.121629Z",
+      "commit_sha": "c10ffd2",
+      "commit_shas": [
+        "c10ffd2",
+        "65f30dd"
+      ],
+      "commit_files": [
+        "internal/post/review.go",
+        "internal/post/review_test.go"
+      ]
     },
     {
       "id": "payload-hash-preimage",
