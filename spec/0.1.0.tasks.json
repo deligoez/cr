@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T11:27:28.898333Z",
+  "updated_at": "2026-09-12T11:38:34.259986Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3772,18 +3772,19 @@
     {
       "id": "review-skipped-roles",
       "title": "Report skipped roles with their reasons",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "review-expects-cells",
         "lens-honesty-reporting"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- A role whose prerequisites are unmet is reported as skipped with its reason, never omitted silently, per §4.6.4.\n- The report feeds §4.5.4's honesty channel and survives --quiet.\n- A test skips one role and asserts it appears in both cr review's output and cr status's lens list.\n- Carried from brief-payload: meta.json's active_roles stays [] after a brief, because filling it needs §4.5.1 role activation. This task owns that fill.",
+      "acceptance": "- A role whose prerequisites are unmet is reported as skipped with its reason, never omitted silently, per §4.6.4.\n- The report feeds §4.5.4's honesty channel and survives --quiet.\n- A test skips one role and asserts it appears in both cr review's output and cr status's lens list.\n- Carried from brief-payload: meta.json's active_roles stays [] after a brief, because filling it needs §4.5.1 role activation. This task owns that fill. VERIFIED ALREADY DONE: internal/brief/store.go's metaOf writes ActiveRoles from brief.axesOf, TestOnlyBriefWritesTheActiveRoleList fences it to that one writer, and status_test.go's round carries a filled list; the empty list seen in a scratch dogfood is §2.4.4 (no profile matched), not a missing fill.\n- HANDOVER 2026-09-12: the shared derivation landed in f831a9b, 86ca1d0 and b52f707 — activation.OfRound re-derives the round's axes from meta.json and coverage.Skipped derives §4.6.4's roles beside the SkippedRole they build, and cr status now reads both instead of its own copies. What remains is the cr review half: add Skipped []coverage.SkippedRole to review.Fanout, fill it from coverage.Skipped over role.Resolve and activation.OfRound using meta.ActiveRoles and meta.ProfileID, give Fanout a Disclosures method joining Honesty with the skipped roles' Disclosure sentences, have internal/cli/review.go's Text print that instead of Honesty alone, and then write the third criterion's test over statusHome, whose generic profile disables the test axis and skips the role on it.",
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
+      "started_at": "2026-09-12T11:27:57.680333Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
