@@ -563,6 +563,19 @@ do not race. Three rules make it safe, each learned by breaking it.
   and `hc diff --json` at the moment you revert, and if a hunk is not yours,
   leave the file broken and say so instead. A broken build is recoverable in
   minutes; an uncommitted hour is not.
+- **Every codedbpro write carries `if_revision`, and a codedbpro read is not
+  proof of what is on disk.** The same file, `internal/review/run.go`, was lost
+  twice on 2026-09-12 by two different mechanisms, and this is the second. A
+  batch of three writes landed on it while another unit had it open: the one op
+  carrying `if_revision` failed closed exactly as designed, and **the two
+  without it overwrote a function each**. Afterwards the instrument agreed with
+  itself and not with the world — `read` and `diff` both reported the file
+  unchanged at a stale revision, with `live:true` and `fresh:true`, while
+  `git diff` showed 159 parse errors and `diff {file}` answered
+  `changed:false` for a file git called modified. So: pass `if_revision` from
+  the read that informed the write, prefer `str_replace` with `expected:1` over
+  a line range whenever the anchor text is unique, and when the two disagree
+  about a file's contents, **git is the truth**.
 - **Never run a full mutation run while either unit is live.** Units do the
   25-second dry run; the full run happens in a quiet window, once.
 
