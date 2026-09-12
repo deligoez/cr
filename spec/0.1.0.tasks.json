@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:00:00.545775Z",
+  "updated_at": "2026-09-12T14:00:27.892516Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3805,7 +3805,7 @@
     {
       "id": "review-two-pass-intent",
       "title": "Run the intent axis in passes",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-skipped-roles",
@@ -3816,11 +3816,32 @@
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T13:43:22.888376Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:00:27.850116Z",
+      "closed_reason": "- `cr review` runs in two passes: review.Sources.Axis selects which, and internal/review/run.go's Round.read sets SecondPass to Mapped \u0026\u0026 Axis == intent, the one invocation that emits over fewer than every unit.\n- `cr review \u003cpr\u003e --axis intent` emits prompts carrying the units and the claims but no mapping: internal/review/text.go's unjoined lists every claim of the round under the line saying no mapping is recorded yet, and no line says which claims a unit is mapped to or that it is mapped to none.\n- The intent role produces the mapping and the agent stores it with `cr map record` per §4.1.6, which the prompt now names in as many words; dogfooded against a scratch repository, where the first pass printed \"- CR-1#c1: The total sums the subtotal and the shipping.\" under that line for both units.\n- Once the mapping is stored, `cr review \u003cpr\u003e --axis intent` re-emits one prompt per unit mapped to zero claims: internal/review/emit.go's Round.emits skips every unit mapping.ClaimsOf answers for, and the dogfood run emitted intent-coverage/u1 and intent-coverage/u2 before `cr map record` and intent-coverage/u2 alone after it.\n- That prompt carries the notes of §4.1.5, unchanged, so §4.1.2 and §4.1.5 have an emitting pass: the dogfood run's second-pass prompt printed \"## Unmapped unit (§4.1.2)\" and the instruction to record the cell with note_id naming a note.\n- Unmapped-ness stays unknowable on the first pass: Round.Mapped is untouched, so before a mapping no prompt says a unit is mapped to none and no §4.1.2 item is raised, which TestBeforeAMappingNoPromptCallsAUnitUnmapped still holds.\n- `cr review \u003cpr\u003e` refuses the remaining axes with exit code 4 until a mapping exists for the current round and head: review.MappingRequiredError is returned by refuseWithoutMapping before any attachment is gathered, internal/cli/exit.go maps it onto ExitState, and the dogfood run exited 4 for both `cr review 1` and `cr review 1 --axis correctness`.\n- The round and head are the current ones by construction: Round.RefuseStale runs first, and the pairs, claims and gaps the decision reads all come through state.ReadStamped for this round alone per §9.3.5.\n- The refusal is never owed where it could not be lifted: §4.6.6's round with no intent role is exempt, and so is a round whose mapping is empty, since §4.1.7 leaves an intent-gaps entry behind for every claim an empty mapping maps to no unit.\n- A test drives both passes and asserts the second emits only zero-claim units: internal/review/run_test.go's TestTheIntentAxisRunsInTwoPasses runs the first pass, stores the mapping, runs the second, and requires one prompt whose unit is u2.\n- The gate is green at 9 commits: `go test -race -count=1 ./...`, `golangci-lint run` at 0 issues, `./scripts/deadcode.sh` silent, `gofmt -l internal cmd` empty, and `git status --porcelain` in the dogfood repository empty, per invariant 2.\n",
+      "gate_passed_at": "2026-09-12T14:00:27.850116Z",
+      "commit_sha": "e002f86",
+      "commit_shas": [
+        "e002f86",
+        "ee94cd8",
+        "7b55f26",
+        "193a657",
+        "e78d8a8",
+        "920ade3",
+        "310af38",
+        "153c874",
+        "aa186d5"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/review_test.go",
+        "internal/review/emit.go",
+        "internal/review/expected_test.go",
+        "internal/review/run.go",
+        "internal/review/run_test.go",
+        "internal/review/text.go"
+      ]
     },
     {
       "id": "mapping-stamp-on-meta",
