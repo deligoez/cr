@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T21:53:57.592322Z",
+  "updated_at": "2026-09-12T21:56:00.42758Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -116,7 +116,7 @@
     {
       "id": "usage-errors-exit-two",
       "title": "Exit two on usage errors",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "command-surface-stubs"
@@ -126,11 +126,18 @@
       "source_sections": [
         "## 11. Command surface"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T21:55:12.4653Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T21:56:00.417674Z",
+      "closed_reason": "- A missing required argument, an unknown flag, and an unparseable pull request reference all exit 2: measured on the built binary, `cr record 1`, `cr record 1 x --repo o/r --bogus` and `cr record abc x --repo o/r` each exit 2 with the usage hint, and TestEveryUsageErrorExitsTwoFromTheProcess holds nine such invocations at 2.\n- Cobra's usage errors reach the process as 2 rather than 1: Execute passes every error through exitCodeFor, no row of the exit code table claims a usage error so each takes the ExitUsage fallback (TestNoRowClaimsAUsageError), and a hand mutant making Execute exit 1 failed all nine process runs before it was reverted.\n- The test covers commands of different argument shapes: record takes a pull request and a file, note takes an issue key and text, status takes a pull request, merge takes variadic files with required -o and --pr flags, and probe run takes a pull request and a valued --kind flag.\n",
+      "gate_passed_at": "2026-09-12T21:56:00.417674Z",
+      "commit_sha": "4304912",
+      "commit_shas": [
+        "4304912"
+      ],
+      "commit_files": [
+        "internal/cli/usage_test.go"
+      ]
     },
     {
       "id": "output-mode-switching",
