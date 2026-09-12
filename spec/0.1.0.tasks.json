@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T13:20:47.727056Z",
+  "updated_at": "2026-09-12T13:36:44.954918Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7392,7 +7392,7 @@
     {
       "id": "completeness-verdict-honesty",
       "title": "Print the verdict beside missing lenses",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "completeness-conditions"
@@ -7402,11 +7402,20 @@
       "source_sections": [
         "### 10.2 Completeness"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T13:21:05.131322Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T13:36:44.900835Z",
+      "closed_reason": "- statusOf builds coverage.Conditions from the round and hands coverage.Complete's verdict to statusHonesty, which prints it into the honesty channel through coverage.Lenses.Verdict; TestAnIncompleteVerdictCarriesTheExactReason asserts the false verdict names the §10.2.2 and §10.2.3 items that blocked the round.\n- The verdict sentence is reachable only through Lenses.Verdict, which appends every lens of §4.5.4 that did not run after it, so a renderer holding the verdict alone cannot print the claim without the list that qualifies it; TestACompleteVerdictIsPrintedWithEveryLensThatDidNotRun asserts the complete round prints its disabled axis, both unavailable lens halves and its skipped role beside the sentence.\n- coverage.verdictLine's two branches say only `round complete, per §10.2` and `round not complete, per §10.2: \u003creason\u003e`, so no output of cr names an approval or calls a round settled.\n- TestNoApprovalOrSettledWordingIsReachableOnACompleteRound runs the complete round through both output shapes and asserts neither carries any of eleven approval or settled words, after asserting the verdict sentence was printed at all.\n",
+      "gate_passed_at": "2026-09-12T13:36:44.900835Z",
+      "commit_sha": "24f7acd",
+      "commit_shas": [
+        "24f7acd",
+        "b66986a"
+      ],
+      "commit_files": [
+        "internal/cli/completeness_test.go",
+        "internal/cli/status.go"
+      ]
     },
     {
       "id": "round-summary-writers",
