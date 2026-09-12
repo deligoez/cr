@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T09:01:17.658869Z",
+  "updated_at": "2026-09-12T09:08:11.839662Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3665,7 +3665,7 @@
     {
       "id": "review-expects-cells",
       "title": "Report the cell set review expects",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-prompt-contract",
@@ -3676,11 +3676,29 @@
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:01:34.385204Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:08:11.808503Z",
+      "closed_reason": "- review.Fanout now carries Expected, built in Run from coverage.Expect and reported in both of §12.1's shapes — as expected_cells in the JSON and as a printed list under \"expects N cell(s) for §10.2.2\" at a terminal — so §10.2.2 has the set to check once the roles return; the dogfood run against deligoez/cr-qa PR 1 printed \"expects 20 cell(s) for §10.2.2\" over u1 through u5 times convention, correctness, intent-coverage and test-adequacy.\n- coverage.Expect is the cross product of the units and the active roles with nothing subtracted, and it is built from Round.Active — §4.5.1's whole set as meta.json carries it — rather than from the roles --axis narrowed the prompts to, so a skipped role of §4.6.4, an oversized unit and an intent-only pass each leave the set exactly as it was; the dogfood run with --axis intent emitted 5 prompts and still reported 20 expected cells.\n- internal/review/expected_test.go's TestTheExpectedSetIsExactlyWhatCompletenessDemands fills a cell for every reported pair and asserts coverage.RowsOf — which is where §10.2.2 is implemented — counts every row complete with no gap, then refills one cell short and asserts exactly one gap appears, so the reported set is compared against §10.2.2's own demand for the same round rather than against a list restated in the test.\n",
+      "gate_passed_at": "2026-09-12T09:08:11.808503Z",
+      "commit_sha": "12b5f15",
+      "commit_shas": [
+        "12b5f15",
+        "a68af42",
+        "ce67c54",
+        "8eece66",
+        "ab1f4da",
+        "00d2b44"
+      ],
+      "commit_files": [
+        "internal/cli/review.go",
+        "internal/cli/reviewexpects_test.go",
+        "internal/coverage/expected.go",
+        "internal/coverage/expected_test.go",
+        "internal/review/emit.go",
+        "internal/review/expected_test.go",
+        "internal/review/run.go"
+      ]
     },
     {
       "id": "review-skipped-roles",
