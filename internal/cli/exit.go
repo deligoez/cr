@@ -21,6 +21,7 @@ import (
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/suggestion"
 	"github.com/deligoez/cr/internal/testadequacy"
 	"github.com/deligoez/cr/internal/text"
 )
@@ -47,7 +48,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-11 at cognitive 50 over 151 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 51 over 154 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -149,6 +150,14 @@ func exitCodeFor(err error) int {
 		// sequence with exit code 1. Every file read and parsed; what
 		// is refused is prose inside one record's block, which §11.2
 		// codes 1 alongside the record rejections below.
+		return ExitValidation
+	}
+	var refusedSuggestion *suggestion.RangeError
+	if errors.As(err, &refusedSuggestion) {
+		// §8.2.4 fixes the code a suggestion failing §8.2's validation
+		// is refused with, and it is the body refusal's: every file was
+		// read, and what cannot be posted is one record's replacement
+		// range, which §11.2 codes 1 alongside the record rejections.
 		return ExitValidation
 	}
 	var gitCommand *git.CommandError
