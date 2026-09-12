@@ -35,6 +35,15 @@ type CommandError struct {
 	// reported command is the command that ran and can be pasted back
 	// into a shell.
 	Args []string
+	// Stdout is what gh wrote to standard output. It is kept because a
+	// failed `gh api` call writes GitHub's own response document there
+	// and only a one-line summary to standard error — measured against
+	// `gh api search/issues`, whose 422 put
+	// {"message":"Validation Failed","errors":[…],"status":"422"} on
+	// stdout and `gh: Validation Failed (HTTP 422)` on stderr. §8.4.2
+	// requires every position GitHub named invalid to be reported, and
+	// those names exist nowhere but that document.
+	Stdout string
 	// Stderr is what gh wrote to standard error, trimmed of surrounding
 	// whitespace. §3.1.3 requires it to reach the user.
 	Stderr string
@@ -144,6 +153,7 @@ func invoke(args ...string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", &CommandError{
 			Args:   slices.Clone(args),
+			Stdout: stdout.String(),
 			Stderr: strings.TrimSpace(stderr.String()),
 			Err:    err,
 		}
