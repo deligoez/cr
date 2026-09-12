@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:36:10.993761Z",
+  "updated_at": "2026-09-12T08:53:09.297848Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2826,7 +2826,7 @@
     {
       "id": "brief-idempotent-at-head",
       "title": "Make brief idempotent at unchanged head",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "brief-no-judgement"
@@ -2836,11 +2836,20 @@
       "source_sections": [
         "### 3.7 Orientation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:38:10.652121Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:53:09.282906Z",
+      "closed_reason": "- At an unchanged head every file internal/brief/store.go's persist writes is a function of the head and the round, and roundOf now returns the recorded index unchanged when the recorded head equals the current one, so the second brief rewrites the same bytes; TestASecondBriefAtOneHeadChangesNothingAndAMovedHeadOpensTheNextRound compares every regular file under state.Layout.Root() before and after a second Run and finds them byte-identical, and the dogfood run against deligoez/cr-qa PR 1 under an isolated CR_HOME printed the same payload twice with diff -r over the state tree reporting no differences.\n- roundOf in internal/brief/brief.go now takes the head assemble already fetched and returns recorded.Round+1 exactly when it differs from meta.json's recorded head, which is §9.3.3's if-and-only-if, and metaOf then stores that head beside the new index, so a moved head is the one case a brief changes state; the same test moves the head with a third commit and asserts the round becomes 2 and meta.json records the new head.\n- internal/brief/idempotence_test.go runs Run twice at one head and asserts equality of a snapshot holding the bytes of every regular file under the state root rather than of the §2.3 rows alone, so a brief that began writing the context store, a waivers file, or a rounds artefact would fail it.\n",
+      "gate_passed_at": "2026-09-12T08:53:09.282906Z",
+      "commit_sha": "67c706e",
+      "commit_shas": [
+        "67c706e",
+        "8107911"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/idempotence_test.go"
+      ]
     },
     {
       "id": "map-record-command",
