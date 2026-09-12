@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T11:22:26.219735Z",
+  "updated_at": "2026-09-12T11:27:28.898333Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3082,7 +3082,7 @@
     {
       "id": "claims-set-aside-command",
       "title": "Set an unimplemented claim aside",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "intent-gap-derivation",
@@ -3093,11 +3093,36 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T11:07:03.798107Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:27:28.84756Z",
+      "closed_reason": "- internal/cli/claims.go's newClaimsSetAsideCmd is §11's `cr claims set-aside \u003cpr\u003e \u003cclaim-id\u003e --note \u003cnote-id\u003e`, with --note required, reading the round through briefedRound and refusing a moved head under §9.3.2 because it writes intent-gaps.ndjson; stampSetAside then checks the note and internal/mapping/setaside.go's SetAside writes set_aside_note onto the entry standing against that claim in the round, republished whole through state.ReplaceStamped under one hold of the §2.3.1 lock so the round's other entries survive and earlier rounds stay history.\n- The check §4.1.8 names runs before anything is written: the note is looked up in the §3.6 store for the issue key meta.json recorded for the pull request, loaded whole because §9.3.5 exempts it from round scoping, and an id the store does not hold raises note.UnknownNoteError while a claim the round raises no §4.1.3 entry for raises mapping.NoGapError, both mapped in internal/cli/exit.go onto §11.2's code 1 with exitCodeFor re-measured at cognitive 56 over 167 statements on 2026-09-12.\n- Judging a claim out of scope is the agent's call and never cr's: nothing here reads the claim, the diff, or the note's body, and a second set-aside writes the newer note id without cr ruling which reference is right.\n- cr validates the note reference and nothing else: existence in the pull request's own store is the whole of the check, and internal/cli/setaside_test.go's TestASetAsideRecordsTheAgentsNoteAndFormsNoOpinionOfIt asserts the entry carries the note id and never the note's text.\n- internal/cli/setaside_test.go's TestASetAsideNamingNoNoteIsRefusedAndWritesNothing runs the command with CR-11#n9 against a store that holds no such note, and asserts the refusal is note.UnknownNoteError, that exitCodeFor gives it ExitValidation, that it names the pull request's issue key and `cr context`, and that intent-gaps.ndjson is byte-identical afterwards.\n",
+      "gate_passed_at": "2026-09-12T11:27:28.84756Z",
+      "commit_sha": "f6fe0b8",
+      "commit_shas": [
+        "f6fe0b8",
+        "83ea475",
+        "c179b27",
+        "ea099a2",
+        "1a44998",
+        "5ad26ef",
+        "66dcb1c",
+        "844a984",
+        "6f56dcb",
+        "71d0be6"
+      ],
+      "commit_files": [
+        "internal/cli/claims.go",
+        "internal/cli/exit.go",
+        "internal/cli/intentgaps_test.go",
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/setaside_test.go",
+        "internal/cli/surface_test.go",
+        "internal/mapping/setaside.go",
+        "internal/mapping/setaside_test.go"
+      ]
     },
     {
       "id": "correctness-axis",
