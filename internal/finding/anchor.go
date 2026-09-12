@@ -211,3 +211,50 @@ func ResolveAnchor(trees Trees, file string, line int, anchor *Anchor) error {
 	}
 	return nil
 }
+
+// Reanchor re-validates one record's anchor after §7.2's marker edit moved it,
+// and recomputes §9.2's content hash over the lines it now names.
+//
+// The re-validation is §7.2's own: `path`, `start_line` and `line` are checked
+// per §6.1.2 and the edit aborts when the anchor no longer resolves. That is
+// ValidateAnchor and then ResolveAnchor over the moved anchor — the shape rule
+// first, because ResolveAnchor measures only the last line of the range against
+// the file and relies on the shape having been settled.
+//
+// The hash is round 12's anchor-hash-not-recomputed finding. §7.2 names the
+// three fields it re-validates and says nothing about the content hash, which
+// §9.2 makes part of the anchor and §7.4.1 keys a waiver on: an anchor moved to
+// other lines while still carrying the hash of the lines it left would waive a
+// class at code nobody has read, and would keep doing so after the code it
+// really points at changed.
+//
+// It is computed from the tree rather than from anything the caller holds, for
+// the reason AnchorContentHash gives about its pre-image: §9.2's anchor hash,
+// §7.4.1's waiver key and §6.1's citation hash have to be comparable, so the
+// lines are read where the record's side says they live.
+//
+// The file is opened a second time, after ResolveAnchor has already opened it.
+// That is what makes the slice below total: the resolution is what establishes
+// the range lies inside the file, and carrying the lines out of ResolveAnchor
+// would leave the hash's correctness to a caller that could forget to use them.
+func Reanchor(trees Trees, file string, line int, anchor *Anchor) error {
+	if err := ValidateAnchor(file, line, anchor); err != nil {
+		return err
+	}
+	if err := ResolveAnchor(trees, file, line, anchor); err != nil {
+		return err
+	}
+	// The side is known and the path resolves: both are what ResolveAnchor
+	// established above, so neither answer is re-read here.
+	read, _, _ := trees.tree(anchor.Side)
+	lines, _, err := read(anchor.Path)
+	if err != nil {
+		return err
+	}
+	hash, err := AnchorContentHash(lines[anchor.StartLine-1 : anchor.Line])
+	if err != nil {
+		return err
+	}
+	anchor.ContentHash = hash
+	return nil
+}
