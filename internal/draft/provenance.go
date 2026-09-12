@@ -1,6 +1,8 @@
 package draft
 
 import (
+	"fmt"
+
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/render"
@@ -52,10 +54,10 @@ type NoteClaim struct {
 // stamps `origin: rule` against a hit of the rule the record names.
 //
 // A nil receiver holds no lookups: the record's claim cannot then be told to
-// rest on a note, and a rule-origin citation names the rule's id without its
-// rationale. `cr draft` always hands one over; nil is for a caller whose
-// records carry neither.
-func (p *Provenances) of(record *finding.Finding) *render.Provenance {
+// rest on a note, and a rule-origin citation has no rationale to quote, which
+// is refused rather than drawn without it. `cr draft` always hands one over;
+// nil is for a caller whose records carry neither.
+func (p *Provenances) of(record *finding.Finding) (*render.Provenance, error) {
 	disclosed := &render.Provenance{Suggestion: record.SuggestionOrigin == finding.OriginRule}
 	if p != nil && record.Claim != "" {
 		if rests, found := p.NoteClaims[record.Claim]; found {
@@ -70,7 +72,35 @@ func (p *Provenances) of(record *finding.Finding) *render.Provenance {
 		if p != nil {
 			disclosed.Rationale = p.Rationales[record.Rule]
 		}
+		if disclosed.Rationale == "" {
+			return nil, &MissingRationaleError{Record: record.ID, Rule: record.Rule}
+		}
 		break
 	}
-	return disclosed
+	return disclosed, nil
+}
+
+// MissingRationaleError refuses a record whose §8.1.6 provenance region would
+// name its rule without the rule's rationale.
+//
+// §2.6 item 4 has every record a rule produced able to quote the rule's
+// `rationale`, and §8.1.6 has the region name the rule id with it. A rule the
+// corpus no longer resolves at draft or post time — its file removed or
+// renamed since `cr record`, or scoped out of the round's profile — leaves the
+// id with nothing to quote, and a region drawn without the line would tell the
+// author the violation and not the standard while saying nothing about the
+// gap. So the draft stops, naming the record and the rule, as
+// MissingProbeError stops a `probed` record with no probe beneath it.
+type MissingRationaleError struct {
+	// Record is the id of the record carrying the rule-origin citation.
+	Record string
+	// Rule is the rule id it names.
+	Rule string
+}
+
+func (e *MissingRationaleError) Error() string {
+	return fmt.Sprintf(
+		"record %s cites a hit of rule %q, whose rationale the rule corpus no longer holds: "+
+			"§8.1.6's provenance region must quote it per §2.6 item 4, so the comment cannot be rendered",
+		e.Record, e.Rule)
 }

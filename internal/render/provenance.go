@@ -27,7 +27,8 @@ type Provenance struct {
 	NoteSource string
 	// Rule is the third: the rule id a stored citation's `origin: rule`
 	// was matched against, and Rationale that rule's `rationale` per §2.6
-	// item 4. Rationale is empty when the corpus no longer holds the rule.
+	// item 4. draft refuses a rule-origin record whose rationale the corpus
+	// no longer holds, so a region never reaches the author without it.
 	Rule      string
 	Rationale string
 }

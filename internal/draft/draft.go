@@ -113,7 +113,11 @@ func commentOf(
 	if err := render.ValidateBody(record.ID, comment.Body); err != nil {
 		return render.Comment{}, err
 	}
-	provenance, err := render.ProvenanceRegion(record.ID, sources.of(record))
+	disclosed, err := sources.of(record)
+	if err != nil {
+		return render.Comment{}, err
+	}
+	provenance, err := render.ProvenanceRegion(record.ID, disclosed)
 	if err != nil {
 		return render.Comment{}, err
 	}
