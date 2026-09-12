@@ -291,12 +291,12 @@ func newRecordCmd(out *writer) *cobra.Command {
 			// empty one, so every record would be refused for
 			// naming an unknown unit rather than for the reason
 			// it was actually refused. §11.2 codes that 4.
-			round, err := layout.Briefed(owner, repo, pr)
+			round, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}
 			records, found, err := acceptRecords(
-				layout, owner, repo, pr, &round, args[1])
+				layout, owner, repo, pr, &round.Meta, args[1])
 			if err != nil {
 				return err
 			}
@@ -304,13 +304,13 @@ func newRecordCmd(out *writer) *cobra.Command {
 			// record confirming a rule's hit is where a `fix`
 			// block's suggestion is generated, and §2.6.2.2 has
 			// §8.2 refuse an unplaceable one before drafting.
-			if err := suggestRuleFixes(layout, owner, repo, pr, &round, records); err != nil {
+			if err := suggestRuleFixes(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
-			if err := appendRecords(layout, owner, repo, pr, &round, records); err != nil {
+			if err := appendRecords(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
-			if err := recordRuleStats(layout, owner, repo, pr, &round, records); err != nil {
+			if err := recordRuleStats(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
 			return out.emit(newRecordResult(records, found))

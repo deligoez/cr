@@ -119,11 +119,21 @@ func newPostCmd(out *writer) *cobra.Command {
 			// `cr draft` gives: the draft this reads back lives
 			// under rounds/<n>/, and a pull request no round has
 			// been opened on has no <n>. §11.2 codes that 4.
-			round, err := layout.Briefed(owner, repo, pr)
+			round, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}
-			return buildReview(out, layout, owner, repo, pr, &round)
+			// §9.3.2: `cr post` is the command that anchors, and the
+			// section exempts `--reconcile` from this refusal by
+			// name — which is what says the rest of the command is
+			// bound by it. The exemption is reached above, where
+			// every unbuilt flag refuses before any state is read,
+			// and the flag's behaviour has to keep arriving on that
+			// side of this line.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
+			return buildReview(out, layout, owner, repo, pr, &round.Meta)
 		},
 	}
 	cmd.Flags().Bool("confirm", false, "perform the network write (§8.5.2)")

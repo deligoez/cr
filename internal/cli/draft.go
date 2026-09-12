@@ -111,11 +111,17 @@ func newDraftCmd(out *writer) *cobra.Command {
 			// `cr record` gives: §7.1 writes into rounds/<n>/, and
 			// a pull request no round has been opened on has no
 			// <n> to write into. §11.2 codes that 4.
-			round, err := layout.Briefed(owner, repo, pr)
+			round, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}
-			return produceDraft(out, layout, owner, repo, pr, &round)
+			// §9.3.2: this command moves records into `queued` and
+			// writes the round's draft.md, so a head that moved
+			// under the round refuses here.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
+			return produceDraft(out, layout, owner, repo, pr, &round.Meta)
 		},
 	}
 }

@@ -46,6 +46,23 @@ type Sources struct {
 	Axis string
 }
 
+// currentHead is §9.3.1's current head, read through the client already on
+// these sources rather than through a seam of its own.
+//
+// gh/pr.go argues it must be GitHub's `headRefOid`: a local branch of the same
+// name may sit anywhere, and on a fork it names a different history
+// altogether, so a head taken from the checkout would make the round's
+// staleness a property of what the user happened to have checked out. The same
+// read supplies §3.4.1's base, so the answer the comparison uses and the answer
+// the diff uses come from one place.
+func (s *Sources) currentHead() (string, error) {
+	opened, err := s.GH.PullRequest(s.Owner, s.Repo, s.PR)
+	if err != nil {
+		return "", err
+	}
+	return opened.Head, nil
+}
+
 // Fanout is what `cr review` reports: the round the prompts were emitted for,
 // the prompts, and §4.5.4's report of the lenses that did not run.
 type Fanout struct {
@@ -101,10 +118,18 @@ func (e *StaleUnitError) Error() string {
 // so a pull request no round has been opened on is refused with §11.2's code 4
 // naming the command that opens one.
 func Run(src *Sources) (*Fanout, error) {
-	meta, err := src.Layout.Briefed(src.Owner, src.Repo, src.PR)
+	round, err := src.Layout.Briefed(src.Owner, src.Repo, src.PR, src.currentHead)
 	if err != nil {
 		return nil, err
 	}
+	// §9.3.2: a fan-out writes the round's fan-out directories and
+	// §2.6.1.6's ledger entries, and every prompt it emits shows a unit
+	// formed at the round's head. A head that moved under the round
+	// refuses here, naming both heads.
+	if err := round.RefuseStale(); err != nil {
+		return nil, err
+	}
+	meta := round.Meta
 	r := &Round{Round: meta.Round, Head: meta.Head, Proximity: src.Config.Int("threads.proximity_lines")}
 	records, err := r.read(src, &meta)
 	if err != nil {

@@ -31,6 +31,16 @@ type rulesCheckResult struct {
 	Hits []rule.Hit `json:"hits"`
 	// Units are §4.3.6's attachments, one per unit of the round.
 	Units []rule.Attachment `json:"units"`
+	// Honesty carries §9.3.1's comparison of the round's head against the
+	// pull request's current one, rendered as the sentence §11.1 exempts
+	// from `--quiet`.
+	//
+	// This command discloses where the writers of §9.3.2 refuse. What it
+	// writes is §2.6.1.6's ledger, which §2.2 scopes to the repository
+	// rather than to the pull request, so the refusal does not reach it —
+	// and a reader is owed the comparison either way, because the hits
+	// below were evaluated over the diff at the round's head.
+	Honesty []string `json:"honesty"`
 }
 
 // Text names how many hits the round's diff holds and what a hit is not, then
@@ -43,6 +53,9 @@ func (r *rulesCheckResult) Text(w *writer) string {
 		w.accent(strconv.Itoa(len(r.Hits))), r.Head, r.Round)
 	for _, hit := range r.Hits {
 		fmt.Fprintf(&out, "\n  %s at %s:%d", hit.RuleID, hit.Path, hit.Line)
+	}
+	for _, entry := range r.Honesty {
+		fmt.Fprintf(&out, "\n%s", entry)
 	}
 	return out.String()
 }
@@ -80,7 +93,7 @@ func newRulesCheckCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			round, err := layout.Briefed(owner, repo, pr)
+			round, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}
@@ -108,7 +121,7 @@ func newRulesCheckCmd(out *writer) *cobra.Command {
 // §2.6.1.2's aborts reach the caller before anything outside the state tree is
 // asked a question.
 func detectRound(
-	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	l state.Layout, owner, repo string, pr int, round *state.Round,
 ) (*rulesCheckResult, error) {
 	matchers, err := roundMatchers(l, owner, repo, round.ProfileID)
 	if err != nil {
@@ -129,6 +142,7 @@ func detectRound(
 	hits := rule.Evaluate(matchers, hunks)
 	return &rulesCheckResult{
 		Round: round.Round, Head: round.Head, Hits: hits, Units: rule.Attach(units, hits),
+		Honesty: []string{round.Disclosure()},
 	}, nil
 }
 

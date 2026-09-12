@@ -48,7 +48,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 52 over 157 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 54 over 161 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -355,6 +355,21 @@ func exitCodeFor(err error) int {
 		// alongside the illegal transition above — and the refusal
 		// names `cr brief`, because recomputing the units instead
 		// would answer §4.1.6 against a set no round recorded.
+		return ExitState
+	}
+	var staleRound *state.StaleRoundError
+	var headUnread *state.NoCurrentHeadError
+	if errors.As(err, &staleRound) || errors.As(err, &headUnread) {
+		// §9.3's two halves of one conflict, mapped together because
+		// they are the same answer to the same question: the head this
+		// round was opened at is not the head the pull request has now,
+		// or cr could not learn what the pull request has now. §9.3.2
+		// refuses every write to per-PR state in the first case, and
+		// §9.3.1 leaves cr no way to skip the comparison in the second.
+		// Neither is bad input — the command line is right and every
+		// file it named was read — and both are undone by §9.3.3's
+		// `cr brief` rather than by retyping, which is what §11.2 codes
+		// 4 alongside the unbriefed pull request above.
 		return ExitState
 	}
 	var staleUnit *review.StaleUnitError

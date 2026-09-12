@@ -120,7 +120,7 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			// one, so every pair would be refused for naming an
 			// unknown unit rather than for the reason it was
 			// actually refused. §11.2 codes that 4.
-			round, err := layout.Briefed(owner, repo, pr)
+			round, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}

@@ -509,7 +509,7 @@ func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error
 	if err != nil {
 		return nil, err
 	}
-	round, err := layout.Briefed(request.owner, request.repo, request.pr)
+	round, err := briefedRound(layout, request.owner, request.repo, request.pr)
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +543,7 @@ func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error
 	}
 	return &probeSetup{
 		layout: layout,
-		round:  round,
+		round:  round.Meta,
 		dir:    dir,
 		src:    src,
 		glob:   glob,

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,14 +17,23 @@ import (
 type answerResult struct {
 	// Note is the record as it was written to the store.
 	Note note.Note `json:"note"`
+	// Honesty carries §9.3.1's comparison of the round's head against the
+	// pull request's current one, rendered as the sentence §11.1 exempts
+	// from `--quiet`. It is empty, and never nil, when no round has been
+	// opened and there is therefore no recorded head to compare against.
+	Honesty []string `json:"honesty"`
 }
 
 // Text names the id, the record answered, and the source. The answer itself is
 // what the user just typed, so echoing it would confirm nothing they do not
 // already have.
 func (r *answerResult) Text(w *writer) string {
-	return "recorded " + w.accent(r.Note.ID) + " answering " + r.Note.Record +
+	text := "recorded " + w.accent(r.Note.ID) + " answering " + r.Note.Record +
 		" from " + string(r.Note.Source)
+	for _, entry := range r.Honesty {
+		text += "\n" + entry
+	}
+	return text
 }
 
 // newAnswerCmd stores the answer to a posted question as a note (§3.6.2).
@@ -61,11 +71,15 @@ func newAnswerCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			honesty, err := answerHonesty(layout, owner, repo, pr)
+			if err != nil {
+				return err
+			}
 			recorded, err := note.Answer(layout, owner, repo, pr, args[1], args[2], parsed, time.Now())
 			if err != nil {
 				return err
 			}
-			return out.emit(&answerResult{Note: recorded})
+			return out.emit(&answerResult{Note: recorded, Honesty: honesty})
 		},
 	}
 	cmd.Flags().StringVar(&source, "source", "", "where the answer came from: "+sourceList())
@@ -74,4 +88,31 @@ func newAnswerCmd(out *writer) *cobra.Command {
 	_ = cmd.MarkFlagRequired("source")
 
 	return cmd
+}
+
+// answerHonesty is §9.3.1's comparison for `cr answer`, which reads meta.json
+// for the issue key and is therefore bound by it.
+//
+// It runs before the note is written and gates nothing. §9.3.2's refusal binds
+// the commands that write per-PR state, and §3.6's context store is not one:
+// §9.3.5 exempts it from round scoping outright, so an answer arriving after
+// the head moved is still a true fact about a question that was really asked.
+//
+// A pull request no round has been opened on is the one case with nothing to
+// disclose — §9.3.1 compares against a recorded head and round 0 has none — so
+// that refusal alone is read as "no comparison" and note.Answer below says what
+// the absence means. Every other failure is returned, including a head cr could
+// not read: §9.3.1 leaves no way to skip the comparison, and reporting a round
+// as current because nobody looked is the outcome it exists to prevent.
+func answerHonesty(l state.Layout, owner, repo string, pr int) ([]string, error) {
+	honesty := make([]string, 0, 1)
+	round, err := briefedRound(l, owner, repo, pr)
+	var unbriefed *state.NotBriefedError
+	if errors.As(err, &unbriefed) {
+		return honesty, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return append(honesty, round.Disclosure()), nil
 }

@@ -89,7 +89,7 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			round, err := layout.Briefed(owner, repo, pr)
+			round, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}

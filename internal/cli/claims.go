@@ -130,7 +130,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			// so a pull request no round has been opened on is
 			// refused here, per §3.7 and §11.2's code 4, instead
 			// of recording claims against round 0.
-			recorded, err := layout.Briefed(owner, repo, pr)
+			recorded, err := briefedRound(layout, owner, repo, pr)
 			if err != nil {
 				return err
 			}
