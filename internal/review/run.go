@@ -253,51 +253,25 @@ func gate(src *Sources, r *Round, meta *state.Meta) (*profile.Profile, activatio
 // that could never be lifted.
 //
 // The round scoping and the head are already settled by the time this is
-// reached. RefuseStale above refuses a round whose head moved, and every file
-// read here was read through state.ReadStamped for this round alone (§9.3.5),
-// so a mapping recorded in an earlier round is not one this round has.
+// reached. RefuseStale above refuses a round whose head moved, and r.Mapped is
+// meta.json's mapping stamp compared against the round and head meta.json
+// records, so a mapping recorded in an earlier round is not one this round has.
+//
+// Existence is read off that stamp and not off the round's files. §4.1.1 lets
+// every unit be mapped to zero claims, so an empty mapping holds no pair and,
+// over a round with no claim, derives no §4.1.7 entry either — byte-identical
+// to a mapping nobody recorded. Round 9's mapping-existence-unobservable and
+// round 12's empty-vs-absent-mapping are that gap, and `cr map record` stamping
+// the round and head is what closes it: an inference over the files either
+// unblocked a round nobody mapped or held one whose mapping was empty.
 func refuseWithoutMapping(src *Sources, r *Round, axes activation.Activation) error {
 	if r.Mapped || src.Axis == axis.Intent || !slices.Contains(axes.Active, axis.Intent) {
 		return nil
-	}
-	recorded, err := mapRecordRan(src, r)
-	if err != nil || recorded {
-		return err
 	}
 	return &MappingRequiredError{
 		Round: r.Round, Head: r.Head,
 		Owner: src.Owner, Repo: src.Repo, PR: src.PR, Axis: src.Axis,
 	}
-}
-
-// mapRecordRan reports whether §4.1.6's mapping exists for the round, for a
-// round holding no pair.
-//
-// Counting pairs is not enough, and the gap is not a corner case: §4.1.1 lets
-// every unit be mapped to zero claims, so an empty mapping is a real answer and
-// a round that recorded one looks exactly like a round nobody has mapped. What
-// tells them apart is §4.1.7 — `cr map record` derives an entry for every claim
-// its mapping leaves mapped to no unit — so after the pass has run, each of the
-// round's claims has left behind either a pair or a gap.
-//
-// A round that recorded no claim at all is the third case, and there the pass
-// has nothing to produce rather than not having run: the only mapping over no
-// claims is the empty one, which leaves no trace whatever. Refusing there would
-// be a refusal no command in v0.1 could lift.
-//
-// The read is made here rather than in Round.read because this is the only
-// question that needs it, and only on the one path where the answer is still in
-// doubt: a round with a pair has answered already.
-func mapRecordRan(src *Sources, r *Round) (bool, error) {
-	if len(r.Claims) == 0 {
-		return true, nil
-	}
-	gaps, err := state.ReadStamped[mapping.Gap](
-		src.Layout, src.Owner, src.Repo, src.PR, state.FileIntentGaps, r.Round)
-	if err != nil {
-		return false, err
-	}
-	return len(gaps) > 0, nil
 }
 
 // skippedOf is §4.6.4's report for this round, derived where `cr status`
@@ -388,9 +362,10 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 	r.Notes = standingNotes(notes)
 	r.Active = roleIDs(active)
 	r.Roles = onAxis(active, src.Axis)
-	// The pairs are the round's own, per §9.3.5, so a pair at all is a
-	// mapping this round recorded.
-	r.Mapped = len(r.Pairs) > 0
+	// meta.json's stamp, not the pairs: an empty mapping holds no pair and
+	// is still a mapping this round recorded, per round 9's
+	// mapping-existence-unobservable.
+	r.Mapped = meta.MappingRecorded()
 	// §4.6.5's second pass, and the only invocation that emits over fewer
 	// than every unit. It is the intent axis re-run once the mapping is
 	// stored, which is exactly where "the units mapped to zero claims" is a

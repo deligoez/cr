@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,13 +30,13 @@ func TestAnAxisOutsideSection15IsAUsageError(t *testing.T) {
 // the intent pass it names runs against the same round.
 //
 // The fixture's round is rolled back to before its intent pass: both files
-// `cr map record` publishes are emptied, which is the state a round is in
-// between `cr brief` and the first `cr review --axis intent`. What is asserted
-// is the pair — the remaining axes refused, the pass that lifts the refusal
-// allowed — because a refusal with no way past it is worse than none at all.
+// `cr map record` publishes are emptied and meta.json's mapping stamp is taken
+// off, which is the state a round is in between `cr brief` and the first
+// `cr review --axis intent`. What is asserted is the pair — the remaining axes
+// refused, the pass that lifts the refusal allowed — because a refusal with no
+// way past it is worse than none at all.
 func TestReviewRefusesTheRemainingAxesUntilTheIntentPassHasRun(t *testing.T) {
-	statusHome(t)
-	layout := state.New(os.Getenv(state.HomeEnv))
+	layout := unmappedStatusRound(t)
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
 	require.NoError(t, held.Write(state.FileMapping, nil))

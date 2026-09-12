@@ -77,6 +77,9 @@ func writeStatusRound(t *testing.T, layout state.Layout, head string) {
 		// axis is not one: §4.5.2 disables it for a profile declaring
 		// no tests.cmd, whatever `axes.test` says.
 		ActiveRoles: []string{"convention", "correctness", "intent-coverage"},
+		// The mapping written below is one `cr map record` stored, so
+		// meta.json carries the stamp that command leaves.
+		MappingRound: 1, MappingHead: head,
 	}))
 	// The range is the head-side range the round's own diff gives, context
 	// included: `@@ -1,3 +1,6 @@` over the two commits statusHome makes.

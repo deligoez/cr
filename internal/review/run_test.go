@@ -106,14 +106,24 @@ func briefed(t *testing.T) *Sources {
 }
 
 // recordMapping stores §4.1.6's mapping of the round's one claim to u1, as
-// `cr map record` stores it: replacing the round's pairs under the §2.3.1 lock.
+// `cr map record` stores it: replacing the round's pairs under the §2.3.1 lock
+// and stamping the round and head on meta.json.
 func recordMapping(t *testing.T, src *Sources, head string) {
 	t.Helper()
+	storeMapping(t, src, head, []*mapping.Pair{{Claim: runIssue + "#c1", Unit: "u1"}})
+}
+
+// storeMapping replaces the round's pairs with the ones given and leaves the
+// mapping stamp `cr map record` leaves on meta.json beside them.
+func storeMapping(t *testing.T, src *Sources, head string, pairs []*mapping.Pair) {
+	t.Helper()
+	meta, err := src.Layout.ReadMeta(runOwner, runRepo, runPR)
+	require.NoError(t, err)
 	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
 	require.NoError(t, err)
-	require.NoError(t, state.ReplaceStamped(held, state.FileMapping,
-		state.Stamp{Head: head, Round: 1},
-		[]*mapping.Pair{{Claim: runIssue + "#c1", Unit: "u1"}}))
+	require.NoError(t, state.ReplaceStamped(held, state.FileMapping, state.Stamp{Head: head, Round: 1}, pairs))
+	meta.MappingRound, meta.MappingHead = 1, head
+	require.NoError(t, held.WriteMeta(&meta))
 	require.NoError(t, held.Unlock())
 }
 
@@ -343,10 +353,26 @@ func TestAnIntentAxisThatDidNotRunIsNotAMappingToWaitFor(t *testing.T) {
 // counted pairs would hold the round at the intent pass forever, since running
 // that pass again produces the same empty file.
 //
-// What lifts the refusal is §4.1.7's derivation: the claim the empty mapping
-// maps to no unit leaves an intent-gaps entry behind, and that entry is the
-// round's proof the pass has run.
+// What lifts the refusal is meta.json's mapping stamp, round 9's
+// mapping-existence-unobservable: the empty mapping here derives no §4.1.7
+// entry, so nothing in the round's files says the pass ran.
 func TestAnEmptyMappingIsAMappingAndLiftsTheRefusal(t *testing.T) {
+	src, head := briefedWithoutMapping(t)
+	storeMapping(t, src, head, []*mapping.Pair{})
+
+	src.Axis = axis.Correctness
+	fan, err := Run(src)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, fan.Prompts)
+}
+
+// Without the stamp the round's files lift nothing, whatever they hold. An
+// intent-gaps entry and an empty mapping.ndjson are what an empty mapping over
+// one claim leaves, and also what a cleared or hand-written round leaves: the
+// gate reads the stamp `cr map record` writes, not an inference from them, so
+// the remaining axes still exit 4.
+func TestAnAbsentMappingStampStillRefusesWhateverTheFilesHold(t *testing.T) {
 	src, head := briefedWithoutMapping(t)
 	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
 	require.NoError(t, err)
@@ -357,10 +383,10 @@ func TestAnEmptyMappingIsAMappingAndLiftsTheRefusal(t *testing.T) {
 	require.NoError(t, held.Unlock())
 
 	src.Axis = axis.Correctness
-	fan, err := Run(src)
+	_, err = Run(src)
 
-	require.NoError(t, err)
-	assert.NotEmpty(t, fan.Prompts)
+	var required *MappingRequiredError
+	require.ErrorAs(t, err, &required)
 }
 
 // A unit the round recorded that the diff at the recorded head does not give is
