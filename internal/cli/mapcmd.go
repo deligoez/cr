@@ -144,10 +144,10 @@ func storeMapping(
 	}
 	// Joined rather than branched: the lock is released whether or not the
 	// writes succeeded, and neither failure is traded away for the other.
-	return errors.Join(writeMapping(l, held, owner, repo, pr, at, pairs, claims), held.Unlock())
+	return errors.Join(publishMapping(l, held, owner, repo, pr, at, pairs, claims), held.Unlock())
 }
 
-// writeMapping publishes the two files through the held lock.
+// publishMapping publishes the two files through the held lock.
 //
 // The gaps are written with ReplaceStamped rather than WriteStamped for the
 // reason the mapping is: §9.3.5 scopes a replacement to the current round, and
@@ -158,7 +158,7 @@ func storeMapping(
 // which is what carries a §4.1.8 set-aside through a re-recorded mapping. The
 // read takes no lock of its own and needs none — this holds the §2.3.1 lock, so
 // no other writer can be between it and the write that follows.
-func writeMapping(
+func publishMapping(
 	l state.Layout, held *state.Lock, owner, repo string, pr int,
 	at state.Stamp, pairs []*mapping.Pair, claims []string,
 ) error {
