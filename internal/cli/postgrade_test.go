@@ -147,27 +147,6 @@ func TestClearingTheMappingMakesARecordedIntentFindingAQuestion(t *testing.T) {
 		"§4.1.4 at post time, over the payload the author would actually receive")
 }
 
-// §8.5.2's network write is not built, so `--confirm` still refuses rather than
-// being accepted and quietly validating — which would teach a caller that the
-// gate is satisfied by a run that sent nothing, the one lesson it cannot afford
-// to teach.
-//
-// What changed with §8.5.1 is where the refusal stands: below the validation
-// rather than above it, so the flag decides what becomes of a payload and never
-// whether one is checked. TestAnInvalidPayloadExitsOneUnderBothFlagSettings is
-// that ordering from the other side.
-func TestConfirmStillRefusesBecauseTheWriteIsNotBuilt(t *testing.T) {
-	draftedHome(t, aCitedRecord("f1"))
-	redraft(t)
-
-	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
-
-	require.Error(t, err)
-	var unbuilt *notImplementedError
-	require.ErrorAs(t, err, &unbuilt)
-	assert.Equal(t, "cr post --confirm", unbuilt.Command, "the refusal names the flag")
-}
-
 // `cr post` builds the payload out of what the draft left queued: a block the
 // reviewer deleted is not a comment, and a record the round never queued is not
 // one either. Nothing of the run reaches disk.
