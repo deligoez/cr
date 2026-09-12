@@ -5,6 +5,7 @@ import (
 
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -56,7 +57,12 @@ func ingestDraft(
 	if err != nil {
 		return triaged{}, err
 	}
-	triage, err := draft.Ingest(rendered, string(file), entries)
+	triage, err := draft.Ingest(rendered, &draft.Draft{
+		Name:     l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
+		Body:     string(file),
+		Rendered: entries,
+		Trees:    anchorTrees(owner, repo, pr, round.Head),
+	})
 	if err != nil {
 		return triaged{}, err
 	}
@@ -81,7 +87,83 @@ func ingestDraft(
 			record.State, record.Disposition = finding.StateDiscarded, disposition
 		}
 	}
+	applyRetriage(triage.Retriaged)
 	return triaged{Triage: triage, read: rendered}, nil
+}
+
+// anchorTrees are §6.1.2's two revisions for this round, each opened only when
+// something actually reads it.
+//
+// §7.2 re-validates a marker's `path`, `start_line` and `line` against them,
+// and that is the only thing in `cr draft` which reads the repository at all.
+// So a run where no marker moved an anchor must not require a checkout, and one
+// that moved a RIGHT anchor must not require the pull request — both closures
+// resolve what they need on first use and not before, which keeps the ordinary
+// run, where the reviewer edited prose, exactly as cheap as it was.
+//
+// The merge base is taken the way §3.4.1 takes it, against the base GitHub
+// reports for the pull request, so a LEFT anchor is re-validated against the
+// same revision this round's units were formed against.
+func anchorTrees(owner, repo string, pr int, head string) finding.Trees {
+	var dir, base string
+	checkout := func() (string, error) {
+		if dir == "" {
+			resolved, err := repoDir()
+			if err != nil {
+				return "", err
+			}
+			dir = resolved
+		}
+		return dir, nil
+	}
+	return finding.Trees{
+		Head: func(path string) ([]string, bool, error) {
+			where, err := checkout()
+			if err != nil {
+				return nil, false, err
+			}
+			return git.FileAtRevision(where, head, path)
+		},
+		MergeBase: func(path string) ([]string, bool, error) {
+			where, err := checkout()
+			if err != nil {
+				return nil, false, err
+			}
+			if base == "" {
+				opened, err := ghClient().PullRequest(owner, repo, pr)
+				if err != nil {
+					return nil, false, err
+				}
+				merged, err := git.MergeBase(where, opened.Base, head)
+				if err != nil {
+					return nil, false, err
+				}
+				base = merged
+			}
+			return git.FileAtRevision(where, base, path)
+		},
+	}
+}
+
+// applyRetriage writes the admitted marker edits onto the records they were
+// read against: §7.2's `severity` row, and the re-validated anchor of its
+// location row, carrying §9.2's content hash recomputed over the lines it now
+// names.
+//
+// These reach findings.ndjson where a softening does not, and the asymmetry is
+// §7.2's own. A softening is a verb the draft goes on saying, so storing it
+// would leave §7.3's `softened` nothing to count; these two are values cr has
+// accepted, and a value left unstored would be overwritten by the marker the
+// next rendering writes back out of the record.
+func applyRetriage(edits []draft.Retriage) {
+	for _, edit := range edits {
+		if edit.Severity != "" {
+			edit.Record.Severity = edit.Severity
+		}
+		if edit.Anchor != nil {
+			edit.Record.Anchor = *edit.Anchor
+		}
+	}
 }
 
 // triaged is what ingestDraft read: the triage, and the records it was read
