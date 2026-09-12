@@ -27,6 +27,33 @@ func TestAClassIsKebabCaseOrNothing(t *testing.T) {
 	}
 }
 
+// Every door that admits a record refuses a class outside §6.1's form, naming
+// the file, the line, and the value.
+//
+// The doors are the ones TestNoUnanchoredItemBecomesARecordByAnyDoor reads out
+// of the package's source, so a way in added later is held to the class as soon
+// as it is held to the anchor. A class checked at one door and not another would
+// split §6.4.1's dedup group and miss §7.4.1's waiver for whatever came in
+// through the other.
+func TestEveryDoorRefusesAClassThatIsNotKebabCase(t *testing.T) {
+	for name, calls := range doors {
+		for i, call := range calls {
+			item := aRecord()
+			item["class"] = "Not Kebab"
+
+			records, err := call(t, item)
+
+			assert.Nil(t, records, "%s #%d", name, i)
+			var invalid *InvalidClassError
+			require.ErrorAs(t, err, &invalid, "%s #%d", name, i)
+			assert.Equal(t, 3, invalid.Line, "%s #%d: the line in the file, blank line counted", name, i)
+			assert.Equal(t, "Not Kebab", invalid.Class, "%s #%d", name, i)
+			assert.NotEmpty(t, invalid.File, "%s #%d", name, i)
+			assert.Contains(t, err.Error(), "class", "%s #%d: the field is named", name, i)
+		}
+	}
+}
+
 // The rejection has to be openable: §6.1.3 names the line and the field for a
 // missing one, and a bad class is no harder to find than a missing one. The
 // value is quoted because the faults that reach here are invisible otherwise —

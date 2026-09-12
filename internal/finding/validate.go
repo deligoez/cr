@@ -153,6 +153,14 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 			}
 		}
 	}
+	// §6.1's class row, in the table's order: present by now, so what is left
+	// is its form. It is checked here, inside the one checker every door
+	// shares, because §6.4.1's dedup key, §7.4.1's waiver key and §9.3.6's
+	// posted index are all built from it downstream, and none of them
+	// re-checks a record that got in.
+	if err := ValidateClass(c.file, line, record.Class); err != nil {
+		return err
+	}
 	if err := ValidateAnchor(c.file, line, &record.Anchor); err != nil {
 		return err
 	}
