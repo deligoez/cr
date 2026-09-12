@@ -4,6 +4,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,5 +115,39 @@ func TestABriefWritesTheDerivedInputsAndNoJudgementArtefact(t *testing.T) {
 		}
 		assert.Equalf(t, before[name], after[name],
 			"§3.7 permits a brief the derived inputs of §3.3 to §3.6, and %s is not one of them", name)
+	}
+}
+
+// Every gh invocation a brief makes is a read.
+//
+// §3.7's first half is that `cr brief` performs no network write, and the
+// enforcement lives in internal/gh: Run is a read door closed by default, and
+// nowrite_test.go asserts that nothing outside that package can mint the
+// Confirmation the write door needs. What that argument cannot show is what
+// this command asks for, because gh.WithRunner replaces the door in every test
+// here — so the invocations are recorded and judged.
+//
+// The conditions below are strictly narrower than the boundary's own: an
+// invocation that passes them is one the boundary admits, so this can refuse
+// something internal/gh would allow and can never admit something it refuses.
+// That is the safe direction for a guard restating a rule it does not own.
+func TestABriefAsksGitHubForNothingButReads(t *testing.T) {
+	dir, head, base := repository(t)
+	seen := &calls{}
+	src := sources(t, dir, seen.through(answering(head, base, oneThread)))
+
+	_, err := Run(src)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, seen.args,
+		"a brief that reached GitHub not at all would say nothing about what it asks for")
+	for _, argv := range seen.args {
+		joined := strings.Join(argv, " ")
+		require.Equalf(t, "api", argv[0],
+			"§2.1.2: `gh api` is the whole of what cr reads with, and this run used %q", joined)
+		for _, writes := range []string{"mutation", "subscription", "--method", "-X", "--input"} {
+			assert.NotContainsf(t, joined, writes,
+				"§3.7: a brief performs no network write, and %q names %s", joined, writes)
+		}
 	}
 }
