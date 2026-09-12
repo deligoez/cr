@@ -8410,7 +8410,7 @@
     {
       "id": "record-id-uniqueness",
       "title": "Refuse a record id already held",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "record-command"
@@ -8420,11 +8420,21 @@
       "source_sections": [
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:06:54.354586Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:20:56.432411Z",
+      "closed_reason": "- The measured defect is reproduced and closed: with the new call in internal/cli/record.go acceptRecords replaced by a nil error, TestARecordIDAlreadyStoredIsRefusedAndNothingIsWritten shows the second batch carrying f1 accepted, and with it restored the batch is refused, so a draft marker, waiver, posted index entry or triage event naming f1 can reach only the one record §6.1 keeps stable.\n- cr record refuses in internal/cli/recordids.go refuseHeldIDs, called in acceptRecords right after finding.Decode and before any lock or write: an id repeated within the file exits 1 as a RejectedRecordError on field id naming the id, its line and the line of its first use, and an id held by a record stored in any round (findings.ndjson read whole, declared in roundscope_test.go's crossRoundReaders) exits 1 naming the id, the line, and the stored record's round and head; the check lives at cr record's acceptance rather than in the Decode door because the stored ids are pull request state the decoder is never handed, and cr record is the only command that adds a record to findings.ndjson, so no door bypasses it. Dogfood refusal quoted: `rec2.ndjson line 2: id \"f1\" is already held by the record stored for this pull request in round 1 at head d2fe88e…; §6.1 makes a record id stable for the life of the pull request, so give this record an id no stored record holds`, exit 1, findings.ndjson shasum unchanged.\n- internal/cli/recordids_test.go TestARecordIDAlreadyStoredIsRefusedAndNothingIsWritten records f1, then a batch of f2 and f1, and asserts the refusal on line 2 field id with exit 1 and findings.ndjson byte-identical afterwards, so the fresh f2 was not written either.\n- internal/cli/recordids_test.go TestARecordIDRepeatedWithinOneBatchIsRefused hands one batch f1, f2, f1 and asserts the refusal on line 3 naming line 1 with exit 1 and nothing stored; both tests go red with the call removed.\n",
+      "gate_passed_at": "2026-09-12T23:20:56.432411Z",
+      "commit_sha": "8cdf48b",
+      "commit_shas": [
+        "8cdf48b"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/recordids.go",
+        "internal/cli/recordids_test.go",
+        "internal/cli/roundscope_test.go"
+      ]
     }
   ]
 }
