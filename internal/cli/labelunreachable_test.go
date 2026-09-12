@@ -58,9 +58,14 @@ func refusedDraft(t *testing.T, layout state.Layout) {
 	assert.Contains(t, protected.Subject, "§8.1.4")
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 
-	_, statErr := os.Stat(
+	// `cr record` already wrote its §10.3 counts, and a round summary is
+	// written into a round directory §2.3 creates whole, empty draft.md
+	// included — so what a refused layer leaves is an empty draft, and a
+	// rendering would have given it a header at the very least.
+	body, readErr := os.ReadFile(
 		layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileDraft))
-	assert.ErrorIs(t, statErr, os.ErrNotExist, "a refused layer drafts nothing")
+	require.NoError(t, readErr)
+	assert.Empty(t, string(body), "a refused layer drafts nothing")
 }
 
 // §8.1.4 and §2.7: the question label is built in per `render.lang`, it is not
