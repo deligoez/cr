@@ -390,6 +390,11 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, err
 	}
+	// §6.1's id row: stable for the life of the pull request, so an id
+	// repeated in this file or held by a stored record is refused here.
+	if err := refuseHeldIDs(l, owner, repo, pr, file, body, records); err != nil {
+		return nil, nil, err
+	}
 	// Round 13's agent-chosen-grading-boundary: the unit a record names is
 	// the unit its anchor sits in, or §6.2's `cited` row is measured
 	// against a boundary the agent picked.

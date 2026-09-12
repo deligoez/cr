@@ -75,6 +75,9 @@ var crossRoundReaders = map[string]string{
 	"internal/cli/rulessuggest.go: postedComments": "§2.6.3.1 harvests every recorded round of " +
 		"every pull request of the repository, so there is no one round to scope to.",
 	"internal/cli/test.go: appendRun": "run.NextID, for the reason probe.NextID is.",
+	"internal/cli/recordids.go: refuseHeldIDs": "§6.1 makes a record id stable for the life of the pull " +
+		"request, and §9.3.4 keeps an earlier round's record as `stale`, so an id any round's record holds " +
+		"is held still.",
 }
 
 // §9.3.5's first sentence over the tree: a command reads only the current
