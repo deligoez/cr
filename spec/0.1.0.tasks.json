@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T22:02:56.930252Z",
+  "updated_at": "2026-09-12T22:12:48.495608Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -350,7 +350,7 @@
     {
       "id": "quiet-honesty-exemptions",
       "title": "Exempt honesty disclosures from quiet",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "global-flags"
@@ -360,11 +360,37 @@
       "source_sections": [
         "### 11.1 Global flags"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:02:42.383275Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:12:48.463358Z",
+      "closed_reason": "- --quiet now suppresses the one informational message cr writes, a test run's live echo to stderr in `cr test` and `cr probe run` (internal/cli/output.go informational, used in test.go and probe.go), and never a disclosure; TestQuietSuppressesTheLiveRunOutputAndNotTheDisclosure shows the runner's output present without the flag and absent with it while the 5.1.6 notice stays.\n- All seven are printed under --quiet: the lenses of 4.5.4, the probe cap of 5.6.4, the forcing counts of 6.3.2, the waiver and duplicate counts of 10.1.6, the sandbox recreation notice of 5.1.6 and the stale-round report of 9.3.2 render through writer.disclose, and the comment cap of 1.6.2 reaches the reader as `cr post`'s refusal through reportFailure, which is given no flag; dogfooded, `cr status 1 --repo o/r --quiet` on the built binary prints every lens, the 9.3.1 head sentence and both 10.1.6 counts in a terminal and in the JSON honesty field.\n- The exemption is structural: writer.disclose reads no flag, quiet is read only in output.go's settle and informational, and TestEveryDisclosureAResultPrintsGoesThroughTheWriter reads every rendering method taking the *writer and fails on a Honesty or Disclosure() outside a disclose or len call; hand mutants making disclose honour quiet, making informational ignore it, and making status print its Honesty itself were each caught and reverted.\n- TestEveryHonestyDisclosureSurvivesQuiet runs all seven situations under --quiet through a pseudo-terminal: a complete status round, a tenth probe filling the cap, a draft of an argued record, a merge dropping a waived finding, a first probe recreating the sandbox, a round whose head moved, and the comment-cap refusal.\n- spec/0.1.0.md line 1331 already reads \"Every lens of §4.5.4 that did not run\", the wording 8.4.3, 10.1.3 and 10.2 use, so no spec change was needed, and the lens case of the test asserts the four lenses that did not run on the shipped generic profile.\n",
+      "gate_passed_at": "2026-09-12T22:12:48.463358Z",
+      "commit_sha": "31f9323",
+      "commit_shas": [
+        "31f9323",
+        "cac9e13",
+        "922bde8",
+        "da1be98",
+        "7c71b53"
+      ],
+      "commit_files": [
+        "internal/cli/answer.go",
+        "internal/cli/brief.go",
+        "internal/cli/draft.go",
+        "internal/cli/exit.go",
+        "internal/cli/merge.go",
+        "internal/cli/output.go",
+        "internal/cli/post.go",
+        "internal/cli/probe.go",
+        "internal/cli/quiet_test.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/record.go",
+        "internal/cli/review.go",
+        "internal/cli/root.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/status.go",
+        "internal/cli/test.go"
+      ]
     },
     {
       "id": "normalise-text-transform",
