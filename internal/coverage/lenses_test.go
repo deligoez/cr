@@ -113,3 +113,24 @@ func TestTheVerdictCarriesItsReasonOnlyWhenItIsFalse(t *testing.T) {
 	assert.Contains(t, blocked[0], "u2 holds no cell for role correctness",
 		"§10.2: a false verdict names the exact reason")
 }
+
+// Every kind the report collects satisfies finding.HonestyDisclosure, which is
+// the channel §11.1 exempts from `--quiet`.
+//
+// The skipped role is the one of §4.5.4's four kinds this package introduces,
+// so it is the one that could reach the report as data and leave the terminal
+// silent. The two words are asserted as mutually exclusive for the reason
+// internal/activation asserts the same pair: §4.5.4's kinds are different
+// sentences to the reader, and one carrying another's word lets them take the
+// wrong one.
+func TestASkippedRoleReachesTheReaderAsADisclosure(t *testing.T) {
+	var _ finding.HonestyDisclosure = SkippedRole{}
+
+	text := skippedRole.Disclosure()
+	assert.Contains(t, text, skippedRole.Role)
+	assert.Contains(t, text, skippedRole.Reason)
+	assert.Contains(t, text, "skipped")
+	assert.Contains(t, text, "§4.6.4")
+	assert.NotContains(t, text, "unavailable")
+	assert.NotContains(t, text, "disabled")
+}
