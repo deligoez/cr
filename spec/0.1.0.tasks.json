@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:58:45.262676Z",
+  "updated_at": "2026-09-12T09:01:17.658869Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2967,7 +2967,7 @@
     {
       "id": "intent-gap-entries",
       "title": "Write unimplemented claims to gaps file",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "map-record-command",
@@ -2978,11 +2978,24 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:53:23.594335Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:01:17.635472Z",
+      "closed_reason": "- internal/mapping/gap.go's Gaps is §4.1.3's derivation over one round: a claim the round's mapping maps to no unit raises an entry, a claim it maps to any unit raises none, and TestAClaimMappedToZeroUnitsOfItsRoundRaisesAGap asserts both against a fixture holding a claim mapped twice, a claim mapped only by round 1's pair, and a claim mapped once.\n- mapping.Gap is not a record and not a cell: it carries no unit, no anchor and no register, and internal/cli/mapcmd.go's writeMapping publishes it to intent-gaps.ndjson through state.ReplaceStamped with claim, head, round and set_aside_note, the last written even when empty so §4.1.8's decision is read off the value rather than off the key's absence; the dogfood run against deligoez/cr-qa PR 1 wrote {\"claim\":\"CR-1#c3\",\"head\":\"be7e2c75aeb661ba3c96d7a7634f3f8e84bb7b91\",\"round\":1,\"set_aside_note\":\"\"} for the two of four claims the mapping left unmapped.\n- The entry is durable and round-scoped, which is what lets §10.1.2 report it and §10.2.3 block on it: it is written with §2.3.3's stamp under the §2.3.1 lock and replaced per round per §9.3.5, so cr status reads the current round's entries and a set-aside survives a re-recorded mapping; the two readers themselves are status-coverage-report, whose acceptance already carries §10.1.2's unimplemented-claim entries, and completeness-conditions, whose acceptance already carries §10.2.3's block, and neither command exists yet — cr status is still stubCmd in internal/cli/status.go.\n- internal/cli/intentgaps_test.go's TestMapRecordWritesAnEntryForEveryClaimMappedToNoUnit reads the four fields off the wire as JSON keys rather than off a decoded struct and asserts head is the round's head and round is 2 although the mapping file the agent handed in carried neither, so the stamp it checks is cr's.\n",
+      "gate_passed_at": "2026-09-12T09:01:17.635472Z",
+      "commit_sha": "e438b36",
+      "commit_shas": [
+        "e438b36",
+        "a220d73",
+        "18957c6",
+        "b0de766"
+      ],
+      "commit_files": [
+        "internal/cli/intentgaps_test.go",
+        "internal/cli/mapcmd.go",
+        "internal/mapping/gap.go",
+        "internal/mapping/gap_test.go"
+      ]
     },
     {
       "id": "intent-gap-never-posted",
