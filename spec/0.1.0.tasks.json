@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T09:13:30.998912Z",
+  "updated_at": "2026-09-12T09:17:06.822167Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5929,7 +5929,7 @@
     {
       "id": "unknown-marker-id-aborts",
       "title": "Abort on an unknown marker id",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "post-recomputes-grade"
@@ -5939,11 +5939,22 @@
       "source_sections": [
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:13:43.817367Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:17:06.803855Z",
+      "closed_reason": "- v0.1 has no manual-comment channel in the draft, and draft.refuseUnknownBlocks is where that is enforced: it walks the blocks of the file the reviewer saved, finds the earliest one naming a record the round did not render, and stops the ingest there.\n- That refusal is a MarkerEditError carrying the unknown id, which internal/cli/exit.go maps to ExitValidation, so a block cr never rendered aborts with exit code 1 instead of being adopted as a record; it landed with marker-edit-semantics in 34733f7 because §7.2's immutable `id` row and §7.2.3 are the same block seen from two sides, and this task is what holds it to §7.2.3's own obligation.\n- The refusal names why rather than only what: its message says §7.2.3 gives v0.1 no manual-comment channel in the draft, because a hand-written block carries none of the role, axis and cr-computed grade every record in the corpus has, and §6.2 would have nothing to compute a grade from.\n- It also names where the comment does belong, telling the reviewer to restore the id cr wrote and write a comment of their own on GitHub after posting, which is dogfooded through the built binary: both `cr draft` and `cr post` answered a pasted block with `draft line 31, record f9: id names no record this round rendered, and §7.2.3 gives v0.1 no manual-comment channel in the draft; restore the id cr wrote, and write a comment of your own on GitHub after posting` at exit 1.\n- TestAHandWrittenBlockAbortsNamingTheUnknownID adds a well-formed block of the reviewer's own beside an untouched round and asserts exit 1 naming f9 through both commands §7.2 gives the draft, and TestAHandWrittenBlockIsRefusedBeforeAnyVerbIsRead adds a deletion beside it and asserts neither record moved and no waiver was written, since the refusal is made before any verb is read.\n",
+      "gate_passed_at": "2026-09-12T09:17:06.803855Z",
+      "commit_sha": "c82e63b",
+      "commit_shas": [
+        "c82e63b",
+        "34733f7",
+        "7d35e0e"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/manualcomment_test.go",
+        "internal/draft/ingest.go"
+      ]
     },
     {
       "id": "triage-event-writing",
