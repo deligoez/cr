@@ -139,6 +139,35 @@ func TestPruneWorktreesClearsARegistrationWhoseDirectoryIsGone(t *testing.T) {
 	assert.NoError(t, AddWorktree(repo, path, head))
 }
 
+// A worktree is registered while its registration stands and not after it is
+// gone, even with its directory still on disk.
+//
+// The path is handed in through a symlink on purpose. git lists the path it
+// resolved, so on macOS a worktree under the temporary directory is listed under
+// /private; a comparison of the strings as given would call a registered
+// worktree unregistered, and destroy would delete it without git.
+func TestWorktreeRegisteredAnswersForTheRegistrationNotTheDirectory(t *testing.T) {
+	repo, head, path := sandboxFixture(t)
+	require.NoError(t, AddWorktree(repo, path, head))
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(filepath.Dir(path), link))
+	throughLink := filepath.Join(link, filepath.Base(path))
+
+	registered, err := WorktreeRegistered(repo, throughLink)
+	require.NoError(t, err)
+	assert.True(t, registered, "the worktree git lists, named through a symlink")
+
+	other, err := WorktreeRegistered(repo, filepath.Join(t.TempDir(), "sandbox"))
+	require.NoError(t, err)
+	assert.False(t, other, "a path git never registered")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(repo, ".git", "worktrees", filepath.Base(path))))
+	require.DirExists(t, path)
+	orphaned, err := WorktreeRegistered(repo, path)
+	require.NoError(t, err)
+	assert.False(t, orphaned, "a directory whose registration is gone is not a worktree of this repository")
+}
+
 // A removal that failed is reported, and does not become a prune that
 // succeeded.
 //

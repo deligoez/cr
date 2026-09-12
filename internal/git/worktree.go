@@ -1,5 +1,10 @@
 package git
 
+import (
+	"path/filepath"
+	"strings"
+)
+
 // AddWorktree checks the repository out at head into path, as a worktree with
 // no branch of its own (§5.1.1).
 //
@@ -38,6 +43,43 @@ func RemoveWorktree(repoDir, path string) error {
 	}
 	_, err := run(repoDir, "worktree", "prune")
 	return err
+}
+
+// WorktreeRegistered reports whether repoDir's worktree list names path.
+//
+// A sandbox directory can outlive the registration that made it a worktree:
+// re-cloning the repository under review replaces `.git/worktrees/` wholesale,
+// and `worktree remove` then refuses the directory as "not a working tree".
+// Asking the repository first is what lets §5.1.5's removal tell that case from
+// a worktree git still answers for.
+//
+// Both sides are compared through their symlinks resolved, because git records
+// the path it resolved and not the one it was given: measured on macOS, a
+// worktree added at `/tmp/…` is listed as `/private/tmp/…`. A listed path that
+// no longer resolves — a registration whose directory is gone — is compared as
+// written.
+func WorktreeRegistered(repoDir, path string) (bool, error) {
+	listing, err := run(repoDir, "worktree", "list", "--porcelain", "-z")
+	if err != nil {
+		return false, err
+	}
+	want := resolvedPath(path)
+	for _, field := range splitNUL(listing) {
+		listed, ok := strings.CutPrefix(field, "worktree ")
+		if ok && resolvedPath(listed) == want {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// resolvedPath is path with its symlinks resolved, or cleaned when it cannot be
+// resolved.
+func resolvedPath(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return filepath.Clean(path)
 }
 
 // PruneWorktrees drops the registrations whose directories are gone.
