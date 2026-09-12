@@ -6556,7 +6556,7 @@
     {
       "id": "anchor-no-migration",
       "title": "Record anchor context without migrating it",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "anchor-side-semantics"
@@ -6566,11 +6566,24 @@
       "source_sections": [
         "### 9.2 Anchors"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:21:15.809816Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:29:25.547516Z",
+      "closed_reason": "- An anchor is bound to the head it was produced against: internal/cli/recordanchors.go stampAnchors resolves every accepted anchor against anchorTrees at meta.json's recorded head (and the merge base against it), and cr brief's §9.3.4 invalidation rewrites only a record's state field in raw JSON, so nothing re-reads an anchor at a later head.\n- cr never migrates an anchor across a head change: TestAHeadChangeStalesTheRecordsAndMigratesNoAnchor in internal/cli/anchorstamp_test.go records f1 at lines 42-44, commits a head inserting five lines above them, runs cr brief, and asserts the stored anchor is equal field for field to the one recorded (still 42-44, same hash); a hand mutant writing a moved 47-49 anchor during invalidation turns it red.\n- Migration stays v0.2's: no code path added here computes a new position, and stale is what the head change produces, asserted by the same test (state stale after the increment).\n- The context window and content hash are recorded per §9.2.3: finding.Reanchor became finding.StampAnchor in internal/finding/anchor.go, which validates and resolves the anchor and then stamps the normalised hash of start_line..line and up to three lines of context on each side, cut at the file ends; cr record calls it for every record before any write, and §7.2's marker edit in internal/draft/edits.go reaches the same function. TestStampAnchorRecordsTheHashAndAWindowCutAtTheFileEnds covers top, middle and bottom of a file, and a +1 window mutant turns it red.\n- That recording is for a v0.2 migration: v0.1 reads neither value back for positioning, and the head-change test asserts the context window (handler lines 39-41) survives on disk after the round goes stale.\n- TestAHeadChangeStalesTheRecordsAndMigratesNoAnchor asserts the head change produces a stale record, no migrated anchor, and the context window still on disk.\n- The 2026-09-11 measurement was re-checked before changing anything: at 8cdf48b cr record did not compute the hash at all, it stored the agent's value unchanged (dogfood record with content_hash 0123456789abcdef came back as 0123456789abcdef), so an agent that omitted it stored \"\" exactly as measured on cr-qa#1. After the fix the dogfood record stored {\"content_hash\": \"aa43f4175e6650c7\", \"context_before\": [\"package lib\", \"\", \"func Load() {\"], \"context_after\": [\"}\"]} for lib.go:4.\n- TestARecordedAnchorCarriesTheHashOfItsLinesAndItsWaiverTheSame records aRecord's anchor (typed hash 0123456789abcdef), asserts the stored content_hash is AnchorContentHash of handler lines 42-44 at recordHead with context 39-41 and 45-47, then deletes the block from cr draft and asserts the pull-request waiver §7.4.1 writes carries that same hash; removing the stampAnchors call turns it red. recordedHome now builds a deterministic commit whose id is recordHead (103679608f0a…) so the 19 record fixtures that broke under the stamp resolve their anchors.\n",
+      "gate_passed_at": "2026-09-12T23:29:25.547516Z",
+      "commit_sha": "7977bbb",
+      "commit_shas": [
+        "7977bbb"
+      ],
+      "commit_files": [
+        "internal/cli/anchorstamp_test.go",
+        "internal/cli/record.go",
+        "internal/cli/record_test.go",
+        "internal/cli/recordanchors.go",
+        "internal/draft/edits.go",
+        "internal/finding/anchor.go",
+        "internal/finding/anchorstamp_test.go"
+      ]
     },
     {
       "id": "record-state-set",
