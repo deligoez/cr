@@ -188,8 +188,8 @@ func stampSetAside(l state.Layout, round *state.Round, claim, noteID string) err
 	if note.StandingOf(notes, noteID) == note.StandingDangling {
 		return &note.UnknownNoteError{ID: noteID, IssueKey: round.IssueKey}
 	}
-	recorded, err := state.ReadRecords[mapping.Gap](
-		l, round.Owner, round.Repo, round.PR, state.FileIntentGaps)
+	recorded, err := state.ReadStamped[mapping.Gap](
+		l, round.Owner, round.Repo, round.PR, state.FileIntentGaps, round.Round)
 	if err != nil {
 		return err
 	}
