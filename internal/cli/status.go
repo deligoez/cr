@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/profile"
@@ -441,7 +442,7 @@ func roundHalves(
 	if err != nil {
 		return nil, err
 	}
-	hunks, err := roundHunks(owner, repo, pr, head)
+	hunks, err := halfHunks(owner, repo, pr, head, index)
 	if err != nil {
 		return nil, err
 	}
@@ -459,4 +460,30 @@ func roundHalves(
 		out = append(out, entry)
 	}
 	return out, nil
+}
+
+// halfHunks reads the round's diff for the two halves above, and reads nothing
+// when no index arrived.
+//
+// This is not the shortcut roundHalves rejects. The index is still built and
+// still asked for; what is skipped is the diff it would have been compared
+// against, in the one case where the comparison cannot happen. Measured on this
+// tree: reinvention.Attach returns its unavailability before it reads a hunk,
+// and testadequacy.Attach is handed a nil References by the line above — so
+// indexReason always answers and referenced returns before it reads the paths
+// testPaths built. The hunks reach neither answer, and roundHalves discards the
+// Paths they produced.
+//
+// It matters because §8.4.3 gave this derivation a second reader. `cr post`
+// composes the review body out of it, so a diff read here is a `gh` call and a
+// checkout `cr post` needs — and requiring them on a round whose profile
+// declares no symbols.lang would be requiring them for an answer the profile
+// alone already settled.
+func halfHunks(
+	owner, repo string, pr int, head string, index *symbol.Index,
+) ([]git.Hunk, error) {
+	if index == nil {
+		return nil, nil
+	}
+	return roundHunks(owner, repo, pr, head)
 }
