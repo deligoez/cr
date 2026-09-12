@@ -7885,7 +7885,7 @@
       "status": "open",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 15,
       "acceptance": "internal/mapping carries its own test file; today it has none, and gremlins reports all five of its mutants NOT COVERED because default-mode gremlins runs only the mutated package own tests, so nothing in that package can ever be killed. The package is load-bearing: 4.1.1, 4.1.2, 4.1.3 and 4.2.1 all read this one join, and 4.1.6 forbids any second opinion about which claim covers which unit. The tests drive its decode and its refusals directly rather than through internal/cli, so a defect is named at the file that holds it. A gremlins run scoped to ./internal/mapping reports zero NOT COVERED mutants, and every surviving mutant is classified in the closure reason.",
       "source_sections": [
         "## 4.1 The claim-to-unit mapping"
@@ -7902,7 +7902,7 @@
       "status": "open",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 10,
       "acceptance": "config.protectedTokens holds argued and forcing but not force, so a name like CR_POST_FORCE_FINDINGS is not refused by name even though the deny-list comment claims a setting that would override 6.3 cannot be addressed. It is inert today because fromEnv maps only known keys, so it overrides nothing; the gap is that the list is one synonym short of what it says about itself, and the next reader tests the claim rather than the list. Adding force needs carriers entries for enforce, reinforce and workforce, so the change is not a one-line addition and a test drives each carrier through unrefused. Found by argued-forcing-unoverridable, whose unit left it rather than editing a closed task with that blast radius.",
       "source_sections": [
         "## 2.7 Configuration layers"
@@ -7919,7 +7919,7 @@
       "status": "done",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 15,
       "acceptance": "brief/brief.go calls unit.Clusters with a nil SymbolIndex on every run, so the symbol branch of hunk clustering never runs outside tests and every pull request clusters by adjacency alone. The nil was deliberate while no index existed; internal/unit/symbols.go says so, calling a nil index every run until the head symbol index exists. symbol-index-build has since built that index, and nothing handed it over. It does not satisfy unit.SymbolIndex yet: Indexed can be answered, but Enclosing needs the span each symbol covers, and the index records only the line a symbol is declared on. The index gains the spans or an adapter derives them, cr brief passes the built index where it now passes nil, and a file the index cannot serve still falls through to adjacency without an error. A test drives cr brief over a diff whose hunks sit inside one function and asserts they form one unit by symbol, where adjacency alone would split them.",
       "source_sections": [
         "### 3.4 Review units"
@@ -7953,7 +7953,7 @@
       "status": "done",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 20,
       "acceptance": "cr review evaluates each rule's detect block and attaches the hits to the prompts it emits, but does not append them to rule-stats.ndjson. 2.6.1 item 6 requires every hit to be appended with the rule id, path, line, round and head, and 6.2.5 stamps a citation origin: rule only by matching it positionally against that ledger, so a citation resting on a hit cr review found and did not record grades as the agent's own. cr review records its hits through rule.RecordHits, the same writer cr rules check uses, and running cr review twice at one head leaves one ledger entry per hit. A test records a finding citing a line only cr review hit, and asserts the citation is stamped origin: rule. Found by the unit closing citation-origin-stamping, running beside the unit that built cr review.",
       "source_sections": [
         "#### 2.6.1 Detection"
@@ -7982,7 +7982,7 @@
       "status": "done",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 15,
       "acceptance": "2.6's table gives a rule a profiles list, empty meaning all, and internal/review/attach.go is the only place that reads it. cr rules check evaluates every rule regardless, so a rule scoped to another profile reports hits there that cr review, on the same pull request, never shows. The check moves into the rule package beside Rule.Applies, which already answers globs and exempt, and every command that evaluates rules asks it. A test resolves a rule scoped to profile A under profile B and asserts cr rules check and cr review both report no hit from it, and both do under profile A.",
       "source_sections": [
         "### 2.6 Rules"
@@ -8015,7 +8015,7 @@
       "status": "done",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 15,
       "acceptance": "rule-fix-suggestion closed with Matcher.Replacement, Matcher.Suggest, confirmedBy and placeable written and tested, and deadcode still lists all four as reachable from tests alone: no command generates a suggestion from a rule fix. That is the signal CLAUDE.md names, a function the closing task was meant to wire staying test-only. The command that turns a confirmed rule-produced record into one carrying suggestion_origin: rule calls Suggest, placing it where 2.6.2 item 2 and 8.2's validation run before drafting. After this closes none of the four appears in deadcode ./... output. A test drives a real rule with a fix block through the command and asserts the drafted block carries the generated suggestion and its machine-generated label.",
       "source_sections": [
         "#### 2.6.2 Fixes"
@@ -8045,7 +8045,7 @@
       "status": "done",
       "tags": [],
       "depends_on": [],
-      "estimate_minutes": 0,
+      "estimate_minutes": 10,
       "acceptance": "4.1.2 raises a unit mapped to no claim as an unmapped-unit item, and 4.1.4 makes that item a question, never a finding. cr record nonetheless accepts a record from an intent-axis role with kind: finding anchored on such a unit, and nothing downstream turns it back, so a finding with no claim to rest on reaches the draft asserting that the unit fails a requirement nobody stated. cr record refuses it with exit 1, naming the record and the unit, or forces it to a question, whichever 4.1.4 supports on reading. A test records an intent-axis finding on an unmapped unit and asserts it never reaches findings.ndjson as kind: finding. Found by the unit closing review-prompt-contract.",
       "source_sections": [
         "### 4.1 Intent coverage"
