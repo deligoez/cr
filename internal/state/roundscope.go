@@ -73,6 +73,48 @@ func ClearStamped(k *Lock, name string, round int) error {
 	return k.Write(name, kept)
 }
 
+// RewriteStamped rewrites the records of one §2.3.3 file that apply changes and
+// leaves every other line byte for byte. It refuses a file §2.3.3 does not
+// list, as WriteStamped does.
+//
+// §9.3.4's stale sweep is what it exists for, and it is the one write here that
+// crosses a round boundary. Every other writer in this file is scoped by round,
+// because §9.3.5 calls earlier rounds history and has a clearing or a
+// replacement take out the current round only. The sweep cannot be: the records
+// it moves to `stale` are exactly the ones the round now closing produced, so a
+// scoped sweep would reach none of them. Round 12's
+// closed-exemption-list-blocks-required-behaviour is that argument, and
+// round-scoping's acceptance records the resolution — §9.3.4's transition is
+// exempt from §9.3.5's scoping, or `stale` is a state nothing can reach.
+//
+// What it will not do is restamp. ReplaceStamped would move every record it
+// rewrote into the round being opened, and the round that produced them would
+// read as a round that recorded nothing; §2.3.3's pair says which run wrote the
+// record, and this changes a record's state rather than its provenance.
+//
+// A line is therefore handed to apply as the fields it supplied, exactly as
+// keptLines hands one to its drop, so a field this version does not understand
+// is carried through rather than dropped. A line apply changes is re-encoded,
+// which returns its keys in the order encoding/json writes a map: the values
+// are the values that were there, and the byte-for-byte promise is kept for
+// every line apply leaves alone.
+func RewriteStamped(k *Lock, name string, apply func(map[string]json.RawMessage) (bool, error)) error {
+	if err := checkStamped(name); err != nil {
+		return err
+	}
+	out, err := visitLines(k, name, func(fields map[string]json.RawMessage, line []byte) ([]byte, error) {
+		changed, err := apply(fields)
+		if err != nil || !changed {
+			return line, err
+		}
+		return json.Marshal(fields)
+	})
+	if err != nil {
+		return err
+	}
+	return k.Write(name, out)
+}
+
 // checkStamped refuses a file §2.3.3 does not list, so a round-scoped write
 // cannot be aimed at a file whose records carry no round to scope by.
 func checkStamped(name string) error {
@@ -203,11 +245,33 @@ func earlierRounds(k *Lock, name string, round int) ([]byte, error) {
 // there, so a record a later version wrote stays exactly as that version wrote
 // it.
 //
+// The walk itself is visitLines below, which RewriteStamped shares.
+func keptLines(k *Lock, name string, drop func(map[string]json.RawMessage) bool) ([]byte, error) {
+	return visitLines(k, name, func(fields map[string]json.RawMessage, line []byte) ([]byte, error) {
+		if drop(fields) {
+			return nil, nil
+		}
+		return line, nil
+	})
+}
+
+// visitLines walks the records of one §2.3.3 file and returns the file its
+// visitor leaves behind: each line is offered as the fields it supplied and as
+// its own bytes, and the visitor answers with the bytes to keep, or nil to drop
+// it.
+//
+// It is the one place that reads such a file apart into lines, so the two
+// writers built on it — keptLines above, which drops, and RewriteStamped, which
+// rewrites — cannot come to different conclusions about a blank line, an absent
+// file, or a line that does not decode.
+//
 // The read is unlocked-safe because the caller holds the §2.3.1 lock: no other
 // writer can be between this read and the Write that follows it. A file that is
 // not there yet holds as many records as an empty one, which is the reading
 // storeRecords already gives an absent store.
-func keptLines(k *Lock, name string, drop func(map[string]json.RawMessage) bool) ([]byte, error) {
+func visitLines(
+	k *Lock, name string, visit func(map[string]json.RawMessage, []byte) ([]byte, error),
+) ([]byte, error) {
 	path := filepath.Join(k.dir, name)
 	held, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -222,10 +286,14 @@ func keptLines(k *Lock, name string, drop func(map[string]json.RawMessage) bool)
 		if err := json.Unmarshal(line, &fields); err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
 		}
-		if drop(fields) {
+		out, err := visit(fields, line)
+		if err != nil {
+			return nil, err
+		}
+		if out == nil {
 			continue
 		}
-		kept.Write(line)
+		kept.Write(out)
 		kept.WriteByte('\n')
 	}
 	return kept.Bytes(), nil
