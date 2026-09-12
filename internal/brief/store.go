@@ -19,10 +19,12 @@ import (
 // meta write would find a round whose head says one thing and whose units were
 // computed from another — and would have no way to tell.
 //
-// Nothing else in the state directory is touched. §3.7 permits the derived
-// inputs of §3.3 through §3.6, and claims.ndjson is §3.3.1's to write and
-// mapping.ndjson §4.1.6's; clearing either is §9.3.4's business on a round
-// increment, which this does not perform.
+// Nothing else in the state directory is touched on a run that opened no
+// round. §3.7 permits the derived inputs of §3.3 through §3.6, and claims.ndjson
+// is §3.3.1's to write and mapping.ndjson §4.1.6's. On §9.3.3's increment both
+// are also §9.3.4's, along with the stale sweep over findings.ndjson, and
+// invalidate.go is where those three happen — inside this same critical
+// section, so a reader never finds a round that was opened and not invalidated.
 func persist(src *Sources, assembled *Brief) error {
 	// The whole §2.3 table is created first, and not only the three files
 	// written below. Every one of the thirteen is a file some later command
@@ -42,20 +44,35 @@ func persist(src *Sources, assembled *Brief) error {
 	return errors.Join(write(src, held, assembled), held.Unlock())
 }
 
-// write publishes the three files through the held lock.
+// write publishes the three files through the held lock, preceded on §9.3.3's
+// increment by §9.3.4's invalidation.
+//
+// meta.json is written last, and that is the whole of what makes an interrupted
+// increment recoverable. The comparison §9.3.3 makes is against the head
+// meta.json records, so while that file still names the closing round every
+// re-run reaches the same decision and redoes the invalidation; once it names
+// the opening round the comparison is equal and nothing will ever sweep again.
+// Each of the three is idempotent, so redoing them costs nothing, and the price
+// of the ordering is a round index that can skip a number after a crash —
+// cheap beside a round that says it is new over records nobody staled.
 func write(src *Sources, held *state.Lock, assembled *Brief) error {
-	meta, err := metaOf(src, assembled)
-	if err != nil {
-		return err
-	}
-	if err := held.WriteMeta(meta); err != nil {
-		return err
+	if assembled.round.opened() {
+		if err := invalidate(held, assembled); err != nil {
+			return err
+		}
 	}
 	stamp := state.Stamp{Head: assembled.Head, Round: assembled.Round}
 	if err := state.WriteStamped(held, state.FileUnits, stamp, records(assembled.Units)); err != nil {
 		return err
 	}
-	return gh.WriteThreads(held, assembled.Threads)
+	if err := gh.WriteThreads(held, assembled.Threads); err != nil {
+		return err
+	}
+	meta, err := metaOf(src, assembled)
+	if err != nil {
+		return err
+	}
+	return held.WriteMeta(meta)
 }
 
 // metaOf is the meta.json this round leaves behind: the identity, §3.2's key,

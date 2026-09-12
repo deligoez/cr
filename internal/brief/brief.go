@@ -13,13 +13,14 @@
 // head, and §3.5.3 attaches the ingested threads. Every one of them treats these
 // files as authoritative, so if `cr brief` does not write them nothing can.
 //
-// Two things are deliberately absent, and both belong to §9.3.3 rather than to
-// §3.7. This opens round 1 on a pull request no round has been opened on, and
-// on one that already has a round it keeps the round index exactly as it found
-// it while recomputing the units and the threads for the current head. It does
-// not increment the index, move records to `stale`, or clear the mapping: those
-// are §9.3.4's, they are separate tasks, and doing half of them here would leave
-// a round whose index says one thing and whose records say another.
+// §9.3 is the other half, and it is here because §9.3.2 makes `cr brief` the
+// only way forward from a moved head. §9.3.3's increment is roundOf's, and
+// §9.3.4's invalidation is invalidate.go's: on that increment, and only on it,
+// the records the closing round left open move to `stale`, mapping.ndjson is
+// cleared for the round being opened, and the claims are carried into it
+// unchanged. The three happen in one critical section with the writes below,
+// because half of them would leave a round whose index says one thing and whose
+// records say another.
 package brief
 
 import (
@@ -126,6 +127,18 @@ type Brief struct {
 	// because §4.5.1 defines the two together and one run must answer both
 	// from the same axis decision and the same resolved profile.
 	ActiveRoles []string `json:"active_roles"`
+	// round is §9.3.3's decision for this run: the round above, and the
+	// round it was opened from. §9.3.4 reads both — whether an increment
+	// happened at all, and which round's records the increment invalidates.
+	//
+	// It is unexported because it is a fact about the run rather than an
+	// item of §3.7's payload: the six items are the fields above, and a
+	// seventh on the wire would be normative surface the spec never asked
+	// for. It travels on the value all the same, because `persist` is
+	// handed that value and nothing else, and the alternative — deciding a
+	// second time from meta.json — is the second read of the round
+	// §9.3.1's door does not admit.
+	round roundState
 }
 
 // Disclosures collects §3.7.6's report as the disclosure contract §11.1 exempts
@@ -231,7 +244,10 @@ func assemble(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
-	claims, err := claimsOfRound(src, round)
+	// The claims read are the ones going in, which on an increment belong
+	// to the round being closed: §9.3.4 carries them forward unchanged, so
+	// they are this round's claims and `persist` is what re-records them.
+	claims, err := claimsOfRound(src, round.carries)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +278,8 @@ func assemble(src *Sources) (*Brief, error) {
 		Owner:       src.Owner,
 		Repo:        src.Repo,
 		PR:          src.PR,
-		Round:       round,
+		Round:       round.index,
+		round:       round,
 		Head:        pr.Head,
 		MergeBase:   mergeBase,
 		Profile:     profileReport(&selection, src.Config.String("profile")),
@@ -319,8 +336,9 @@ func headSymbols(dir, head string, p *profile.Profile) (unit.SymbolIndex, error)
 	return index, nil
 }
 
-// roundOf is the round this brief orients: the one already open, §9.3.3's
-// first, or the next one when the head has moved.
+// roundOf is §9.3.3's decision: the round this brief orients — the one already
+// open, §9.3.3's first, or the next one when the head has moved — together with
+// the round whose records §9.3.4 carries into it.
 //
 // A pull request cr holds no state for is round 1, and so is one whose
 // meta.json carries the 0 state.Layout.EnsurePR writes — §9.3.3 numbers rounds
@@ -343,19 +361,43 @@ func headSymbols(dir, head string, p *profile.Profile) (unit.SymbolIndex, error)
 // swallowed. Reading it as "no round" would have the write below publish a
 // fresh round 1 over a state directory whose history cr just failed to
 // understand.
-func roundOf(src *Sources, head string) (int, error) {
+func roundOf(src *Sources, head string) (roundState, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return 1, nil
+		return roundState{index: 1, carries: 1}, nil
 	case err != nil:
-		return 0, err
+		return roundState{}, err
 	case recorded.Round < 1:
-		return 1, nil
+		return roundState{index: 1, carries: 1}, nil
 	case recorded.Head != head:
-		return recorded.Round + 1, nil
+		return roundState{index: recorded.Round + 1, carries: recorded.Round}, nil
 	}
-	return recorded.Round, nil
+	return roundState{index: recorded.Round, carries: recorded.Round}, nil
+}
+
+// roundState is §9.3.3's decision about one brief, which §9.3.4 then reads
+// twice over.
+//
+// The two fields are one comparison, so they are returned together rather than
+// re-derived. §9.3.4 needs to know both that a round was opened — an increment
+// is what its sweep, its clearing and its carry-forward hang on — and which
+// round's claims are the ones to carry, and a second answer to either question
+// would be a second reading of `meta.json` the §9.3.1 door does not admit.
+type roundState struct {
+	// index is the round this brief orients, and the round every record
+	// it writes is stamped with.
+	index int
+	// carries is the round whose records are the current ones going in:
+	// the recorded round when this brief opened a new one, and index
+	// itself otherwise. §9.3.4 carries that round's claims forward.
+	carries int
+}
+
+// opened reports whether this brief incremented the round index per §9.3.3,
+// which is the condition every clause of §9.3.4 is written under.
+func (r roundState) opened() bool {
+	return r.index != r.carries
 }
 
 // claimsOfRound reads the claims recorded for one round, per §9.3.5: a command
