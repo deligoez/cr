@@ -205,6 +205,16 @@ func syscallUse(n ast.Node) (string, bool) {
 // whose every path is rooted at `~/.cr`. A write into the repository under
 // review then has nowhere to be written from.
 //
+// state.WriteNamedFile is the one write in that package whose path §2.2 does
+// not derive, and it changes nothing this guard asserts. §6.5.1 spells
+// `cr merge <files...> -o <out>`, so that output is the caller's file at the
+// caller's path; what keeps the sentence above true is that the write is still
+// spelled here, in the one package an audit of cr's writes has to read. A
+// command reaching for os.WriteFile itself could pass only by exempting the
+// file it sat in — and the exemption would outlive the one write that earned
+// it, leaving that file free to write anywhere while this guard reported
+// nothing.
+//
 // Two ways around a call scan are closed alongside it. An aliased import of os
 // would make every write invisible here, and a package that reaches the
 // filesystem beneath os would never mention os at all.
