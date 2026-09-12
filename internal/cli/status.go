@@ -230,19 +230,16 @@ func intentCoverageOf(
 	if err != nil {
 		return intentCoverage{}, err
 	}
-	pairs, err := state.ReadRecords[mapping.Pair](l, owner, repo, pr, state.FileMapping)
+	pairs, err := state.ReadStamped[mapping.Pair](l, owner, repo, pr, state.FileMapping, round)
 	if err != nil {
 		return intentCoverage{}, err
 	}
-	stored, err := state.ReadRecords[mapping.Gap](l, owner, repo, pr, state.FileIntentGaps)
+	stored, err := state.ReadStamped[mapping.Gap](l, owner, repo, pr, state.FileIntentGaps, round)
 	if err != nil {
 		return intentCoverage{}, err
 	}
 	report := intentCoverage{Claims: len(claims), Gaps: make([]mapping.Gap, 0, len(stored))}
 	for i := range stored {
-		if stored[i].Round != round {
-			continue
-		}
 		report.Gaps = append(report.Gaps, stored[i])
 		if stored[i].SetAsideNote != "" {
 			report.SetAside++
