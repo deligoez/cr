@@ -1,0 +1,91 @@
+package cli
+
+import (
+	"time"
+
+	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/state"
+)
+
+// settled is every record the round's draft was rendered for, each with
+// §7.3.1's outcome this run's triage made of it, in the order the records
+// arrived.
+//
+// It is one derivation rather than one per writer. §7.3.1 gives `cr draft` the
+// discards and `cr post --confirm` all four outcomes, and two walks of the same
+// triage could disagree about a single record — which is exactly the
+// contradiction round 8's triage-event-key-permits-contradiction closes at the
+// key. Closing it there and reopening it here would be no closure at all.
+func (t *triaged) settled() []finding.Settled {
+	out := make([]finding.Settled, 0, len(t.read))
+	for _, record := range t.read {
+		out = append(out, finding.Settled{Record: record, Outcome: t.Outcome(record)})
+	}
+	return out
+}
+
+// discardedSettlements are the records of those the triage discarded, which
+// are the outcomes §7.3.1 has `cr draft` write directly.
+func (t *triaged) discardedSettlements() []finding.Settled {
+	out := make([]finding.Settled, 0, len(t.Deleted)+len(t.Wrong))
+	for _, one := range t.settled() {
+		if one.Outcome == finding.OutcomeDiscardedNotHere ||
+			one.Outcome == finding.OutcomeDiscardedWrong {
+			out = append(out, one)
+		}
+	}
+	return out
+}
+
+// triageOccasion is the pull request, round, head and moment one command writes
+// its §7.3.1 events for.
+func triageOccasion(pr int, round *state.Meta) *finding.TriageOccasion {
+	return &finding.TriageOccasion{
+		PR: pr, Round: round.Round, Head: round.Head, At: time.Now(),
+	}
+}
+
+// recordDraftTriage is §7.3.1's events for one `cr draft` run: one `raised`
+// event per record it queued, and the outcome event for every record this run's
+// triage discarded.
+//
+// It runs after the draft has been published, so the events describe a document
+// that exists — a run refused on the way writes none. The events are keyed per
+// §7.3.1, so §7.1.6's regeneration rewrites each one in place rather than
+// adding a second, and a reviewer who regenerates five times leaves five
+// events rather than twenty-five.
+//
+// A softening is not written here, and neither is a keep. The record stays
+// `queued` and is still open to every verb the next reading of the draft
+// admits, so its outcome is not settled until the review is sent: §7.3.1 makes
+// `cr post --confirm` the one command that writes an outcome per queued record.
+// A discard is the exception because `cr draft` is the command that acts on it —
+// the record walks to `discarded` and its waiver is written here.
+func recordDraftTriage(
+	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	queued []*finding.Finding, triage *triaged,
+) error {
+	on := triageOccasion(pr, round)
+	if err := finding.RecordRaised(l, owner, repo, queued, on); err != nil {
+		return err
+	}
+	return finding.RecordOutcomes(l, owner, repo, triage.discardedSettlements(), on)
+}
+
+// recordPostTriage is §7.3.1's one outcome event per queued record, as
+// `cr post --confirm` owes them.
+//
+// It MUST be called after the network call has returned successfully, and it is
+// the whole of round 8's triage-event-key-permits-contradiction: a call
+// rejected per §8.4.2 leaves no outcome event behind, so the reviewer's
+// ordinary retry — mark one record `wrong` and run again — writes that
+// record's only outcome, instead of a second one contradicting a `kept` from
+// the run GitHub refused.
+//
+// `cr post` without `--confirm` calls nothing here, per §7.3.1: it changes
+// nothing, so it counts nothing.
+func recordPostTriage(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, triage *triaged,
+) error {
+	return finding.RecordOutcomes(l, owner, repo, triage.settled(), triageOccasion(pr, round))
+}
