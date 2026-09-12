@@ -7042,7 +7042,7 @@
     {
       "id": "status-coverage-report",
       "title": "Report coverage units with claim mapping",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cells-record-command",
@@ -7054,11 +7054,28 @@
       "source_sections": [
         "### 10.1 Coverage report"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T10:16:15.02808Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T10:36:25.534619Z",
+      "closed_reason": "- cr status is no longer a stub: statusOf counts §10.1.1 through coverage.RowsOf over the round's units and cells, and a dogfood run against deligoez/cr-qa PR 1 printed \"units: 5 total, 1 with a complete row of 3 active role(s), 1 with gaps, 1 oversized\" shapes for both the gap case and, once every cell was recorded, \"complete\": 5, \"gaps\": 0.\n- intentCoverageOf reports §10.1.2's three numbers — claims total, claims mapped to at least one unit, and §4.1.3's unimplemented-claim entries read whole out of intent-gaps.ndjson rather than re-derived, so the entries the report shows are the ones §10.2.3 will read.\n- The same report carries SetAside, the count of those entries still holding a §4.1.8 stamp, which is §4.1.7's carry-forward reported from the surviving side since cr map record names only the stamps a re-derivation dropped.\n- §10.1.3's first clause is roundAxes, which re-derives activation.Activate from meta.json's recorded profile and issue key through the new intent.Recorded, so the active, disabled and unavailable axes reported are the round's rather than a fresh resolution's; a dogfood run under the generic profile printed the disabled test axis with its §4.5.2 reason.\n- skippedRoles derives §4.6.4's roles as the corpus minus meta.json's active set, each carrying the axis's own §4.5.4 sentence verbatim, and the same dogfood run printed \"role test-adequacy skipped, per §4.6.4: axis test disabled, per §4.5.2: ...\".\n- TestStatusReportsCoverageIntentAndTheLensesThatDidNotRun asserts all three sections from one run against a fixture holding an oversized unit with no cells, two §4.1.3 gap entries one of which is set aside, and the test-adequacy role skipped, and TestTheStatusTextCarriesTheCountsAndEveryLensThatDidNotRun asserts the terminal rendering carries the same.\n- roundHalves completes §4.5.4's list by computing the reinvention half of §4.3.1 and the symbol half of §4.4.1 the way cr review computes them, over a symbol index at the round's head and the round's own diff, and the four kinds reach the reader through the honesty channel §11.1 exempts from --quiet.\n- unit.Unit's Oversized now renders: coverage.Rows.Oversized reaches the payload's coverage.oversized field and the text line's \"N oversized\", so a reader is told where §3.4.5's cap did not bind.\n",
+      "gate_passed_at": "2026-09-12T10:36:25.534619Z",
+      "commit_sha": "2c2d986",
+      "commit_shas": [
+        "2c2d986",
+        "0341b46"
+      ],
+      "commit_files": [
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/cli/status.go",
+        "internal/cli/status_test.go",
+        "internal/cli/surface_test.go",
+        "internal/intent/intent.go",
+        "internal/intent/key.go",
+        "internal/intent/recorded_test.go"
+      ]
     },
     {
       "id": "status-findings-report",
