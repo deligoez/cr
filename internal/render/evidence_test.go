@@ -214,6 +214,26 @@ func TestATruncatedInputIsCutOnACharacterBoundary(t *testing.T) {
 		"ö is two bytes, and the seventh byte is the middle of it")
 }
 
+// A string that is itself already cut mid-character is cut to nothing rather
+// than indexed off its own front.
+//
+// §5.5's `output_tail` is the case: internal/run keeps the last N bytes of a
+// runner's output, and a byte count can land inside a character, so a tail can
+// begin with a continuation byte through no fault of the runner. capped then
+// walks back looking for a character boundary and finds none, and the walk has
+// to stop at the front of the string. It is asserted on capped directly
+// because the region is where the consequence would be seen and the front of
+// the string is where the arithmetic is: a walk that stepped past index 0
+// would panic rather than render anything to look at.
+func TestATailThatOpensMidCharacterIsCutToNothing(t *testing.T) {
+	opening := string([]byte{0x80, 0x80, 0x80})
+
+	cut, truncated := capped(opening, 2)
+
+	assert.Empty(t, cut, "no byte of it starts a character, so none of it can be shown")
+	assert.True(t, truncated)
+}
+
 // §8.1.7's `cited` half: each stored citation as path:line, in the record's
 // order, and nothing beside them. A record with no citation has no region,
 // since the region's whole content is its citations.
