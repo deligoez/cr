@@ -107,7 +107,7 @@ func TestTheDryRunPrintsThePayloadToATerminalToo(t *testing.T) {
 	// it. §12.1 leaves the shape alone either way.
 	printed := throughATerminal(t, "post", draftPR, "--repo", draftSlug, "--no-color")
 
-	assert.Contains(t, printed, "not posted: nothing was sent to GitHub")
+	assert.Contains(t, printed, "not posted: --confirm was not given, and nothing was sent to GitHub")
 	assert.Contains(t, printed, render.Reserved+"payload-hash ",
 		"§8.4.3's body reaches the reviewer, and this is the only command that prints it")
 	assert.Contains(t, printed, "internal/api/handler.go:44 RIGHT",

@@ -86,7 +86,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	}
 	return out.emit(&postResult{
 		Round: s.round.Round, Comments: commentedRecords(s.review, s.queued),
-		Payload: s.review, Forced: s.forced, posting: posting{Posted: true},
+		Payload: s.review, Forced: s.forced, posting: posting{Posted: true, ConfirmGiven: true},
 	})
 }
 

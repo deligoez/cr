@@ -233,8 +233,15 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 
 // writeAdopted publishes the round's records with the adopted ones in `posted`,
 // the §9.3.6 entries for them, and `cr post`'s share of §10.3's round summary:
-// how many of the round's records are posted, and hash, the §8.3.3 payload
-// hash of the review they reached the author in.
+// how many of the round's records are posted, hash, the §8.3.3 payload hash of
+// the review they reached the author in, and §8.5.4's fact that `--confirm`
+// was given.
+//
+// That fact holds on the `--reconcile` path as well, and not by assumption.
+// reconcilePost adopts only while `post_unresolved` is set, and postOutcome is
+// its one setter, reached only from a send — which takes the confirmation the
+// gate minted. So a review adopted here is one a confirmed run sent. Nothing
+// else about the gate is recorded, because §8.5.4 allows nothing more.
 //
 // The index is written from the records this run moved rather than from every
 // record in `posted`: a round reconciled twice would otherwise re-append what
@@ -269,6 +276,7 @@ func writeAdopted(
 			return writeSummary(held, round.Round, ownerPost, []summaryCount{
 				{key: summaryPosted, value: posted},
 				{key: summaryPayloadHash, value: hash},
+				{key: summaryConfirmGiven, value: true},
 			})
 		},
 	}

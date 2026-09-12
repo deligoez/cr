@@ -71,6 +71,13 @@ const (
 	// summary is a valid terminal state for it rather than a gap.
 	summaryPosted      = "posted"
 	summaryPayloadHash = "payload_hash"
+	// summaryConfirmGiven is §8.5.4's one fact about the gate: that
+	// `--confirm` was given. It is written with the two above and absent
+	// on the same rounds, and it is the whole of what the summary says
+	// about the gate — §8.5.4 records that and the payload hash and nothing
+	// more, so no key here says a human read the draft or that draft.md
+	// changed.
+	summaryConfirmGiven = "confirm_given"
 )
 
 // summaryOwners is §10.3's writer list: every count the round summary holds,
@@ -97,6 +104,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryProbeCap:           ownerDraft,
 	summaryPosted:             ownerPost,
 	summaryPayloadHash:        ownerPost,
+	summaryConfirmGiven:       ownerPost,
 }
 
 // summaryCap is a cap's state as the round summary records it: what the round

@@ -234,7 +234,7 @@ func buildReview(
 	if !confirmed {
 		return out.emit(&postResult{
 			Round: round.Round, Comments: commentedRecords(review, queued),
-			Payload: review, Forced: forced, posting: posting{Posted: false},
+			Payload: review, Forced: forced, posting: posting{Posted: false, ConfirmGiven: false},
 		})
 	}
 	// §8.5.2 and §8.5.3: the permission travels as a value minted from the

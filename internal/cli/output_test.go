@@ -728,7 +728,7 @@ func TestADryRunAndAConfirmedPostAreDistinguishable(t *testing.T) {
 	rendered := func(mode Mode, sent bool) string {
 		var printed bytes.Buffer
 		out := &writer{out: &printed, mode: mode}
-		require.NoError(t, out.emit(postingPayload{posting{Posted: sent}}))
+		require.NoError(t, out.emit(postingPayload{posting{Posted: sent, ConfirmGiven: sent}}))
 		return printed.String()
 	}
 
@@ -736,8 +736,8 @@ func TestADryRunAndAConfirmedPostAreDistinguishable(t *testing.T) {
 	assert.Contains(t, rendered(ModeJSON, true), `"posted": true`)
 
 	dry, sent := rendered(ModeText, false), rendered(ModeText, true)
-	assert.Contains(t, dry, "not posted: nothing was sent to GitHub")
-	assert.Contains(t, sent, "posted: the review was sent to GitHub")
+	assert.Contains(t, dry, "not posted: --confirm was not given, and nothing was sent to GitHub")
+	assert.Contains(t, sent, "posted: --confirm was given, and the review was sent to GitHub")
 	assert.NotContains(t, sent, "not posted")
 }
 

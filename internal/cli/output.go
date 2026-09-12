@@ -62,19 +62,33 @@ type posting struct {
 	// mean: it records that cr sent the review, never that a human read
 	// the draft.
 	Posted bool `json:"posted"`
+	// ConfirmGiven is whether `--confirm` was given, which §8.5.4 names as
+	// the only fact about the gate cr can establish. It is reported beside
+	// Posted rather than folded into it, because §8.5.4 has any output
+	// describing the gate say that confirmation was given — and the
+	// document is one of those outputs, not only the terminal line. The
+	// name spells the flag rather than a past participle, which §6.2.4's
+	// fence reserves for a claim cr never makes about a record.
+	ConfirmGiven bool `json:"confirm_given"`
 }
 
 // line is §12.6's other half, which asks for a dry run to be distinguishable
 // in a terminal and not only in the JSON document.
 //
-// It says what became of the review and stops. §8.5.4 forbids cr to offer the
-// gate as evidence of human involvement, so the sentence names the write and
-// neither the confirmation, the reading, nor the draft.
+// It says whether `--confirm` was given and what became of the review, and
+// stops. §8.5.4 makes the flag the only fact about the gate cr can establish
+// and has every output describing the gate say so, so the sentence names the
+// confirmation and the write — and neither a reading nor the draft, which
+// would be offering the gate as evidence of human involvement.
 func (p posting) line(w *writer) string {
-	if p.Posted {
-		return w.accent("posted") + ": the review was sent to GitHub"
+	confirmation := "--confirm was not given"
+	if p.ConfirmGiven {
+		confirmation = "--confirm was given"
 	}
-	return w.accent("not posted") + ": nothing was sent to GitHub"
+	if p.Posted {
+		return w.accent("posted") + ": " + confirmation + ", and the review was sent to GitHub"
+	}
+	return w.accent("not posted") + ": " + confirmation + ", and nothing was sent to GitHub"
 }
 
 // writer is the single place §12's output contract is applied, and it lives

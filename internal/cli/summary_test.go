@@ -85,6 +85,12 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 				Count int    `json:"count"`
 			}](raw)
 		},
+		"confirm_given": func(raw json.RawMessage) error {
+			if string(raw) != "true" {
+				return fmt.Errorf("%s is not true: §8.5.4's fact is written only once --confirm was given", raw)
+			}
+			return nil
+		},
 		"new_classes": func(raw json.RawMessage) error { return strictly[[]string](raw) },
 		"comments":    func(raw json.RawMessage) error { return strictly[cap](raw) },
 		"probe_cap":   func(raw json.RawMessage) error { return strictly[cap](raw) },
@@ -273,6 +279,8 @@ func TestConfirmFinalisesTheRoundSummary(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `"`+hash+`"`, string(document["payload_hash"]),
 		"§10.3 records the §8.3.3 hash of the payload that was sent")
+	assert.JSONEq(t, "true", string(document["confirm_given"]),
+		"§8.5.4: the round summary records that --confirm was given")
 }
 
 // Round 8's non-idempotent-accumulation at the write: a writer that leaves one
@@ -415,5 +423,6 @@ func TestAnUnpostedRoundSummaryOmitsThePayloadHashAndStillValidates(t *testing.T
 	assert.NotContains(t, document, "payload_hash",
 		"an unposted round's summary omits the key entirely, rather than holding null")
 	assert.NotContains(t, document, "posted", "and holds no posted count either: nothing finalised it")
+	assert.NotContains(t, document, "confirm_given", "nor §8.5.4's confirmation, which is written with the other two")
 	assert.NotContains(t, string(body), dryRunHash, "the dry run's hash names a review nobody received")
 }
