@@ -204,7 +204,17 @@ func newStatsCmd(out *writer) *cobra.Command {
 			}
 			report, err := finding.Tally(events)
 			if err != nil {
-				return err
+				// §7.3.1's vocabulary is closed at five action
+				// names and the ledger is a file under ~/.cr a
+				// user can open, so a sixth is the ledger cr
+				// found and cannot use — the shape
+				// state.ContextStoreError already takes, which
+				// §11.2 codes 3. Measured 2026-09-12: a
+				// hand-edited ledger holding `retracted` exited
+				// 2, which told the reader to retype a command
+				// line that was right.
+				return state.FileFailure(
+					"use", layout.RepoTriage(owner, repo), state.UnusableHint, err)
 			}
 			over, err := statsSample(layout, owner, repo)
 			if err != nil {

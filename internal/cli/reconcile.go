@@ -128,27 +128,32 @@ func postedPayload(l state.Layout, round *state.Meta) (*post.Sent, error) {
 	if err != nil {
 		return nil, err
 	}
+	at := l.RoundFile(round.Owner, round.Repo, round.PR, round.Round, state.FilePosted)
 	sent, err := post.Decode(body)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %s: %w",
-			l.RoundFile(round.Owner, round.Repo, round.PR, round.Round, state.FilePosted), err)
+		return nil, state.FileFailure("read", at, state.UnusableHint, err)
 	}
+	// The three refusals below are one answer: posted.json is cr's own
+	// file, it was found and parsed, and it cannot be used for §8.4.4's
+	// match. §11.2 codes that 3, as it codes state.ContextStoreError — the
+	// command line is right, so code 2 would tell the reader to retype it,
+	// and the payload is not the agent's input, so code 1 would name the
+	// wrong author.
 	if len(sent.Comments) == 0 {
-		return nil, fmt.Errorf(
-			"round %d carries post_unresolved and no payload: §8.3.3 writes %s before the call, "+
-				"so there is no §8.4.3 hash to match and cr will not guess whether the review was created",
+		return nil, state.FileFailure("use", at, state.UnusableHint, fmt.Errorf(
+			"round %d carries post_unresolved and the payload holds no comment: "+
+				"§8.3.3 writes the file before the call, so there is no §8.4.3 hash "+
+				"to match and cr will not guess whether the review was created",
 			round.Round,
-			l.RoundFile(round.Owner, round.Repo, round.PR, round.Round, state.FilePosted),
-		)
+		))
 	}
 	if len(sent.Records) != len(sent.Comments) {
-		return nil, fmt.Errorf(
-			"%s holds %d comment(s) and names %d record(s): the run that could not establish its "+
-				"outcome writes both, so cr cannot say which records reached the author and will "+
-				"not mark any of them posted",
-			l.RoundFile(round.Owner, round.Repo, round.PR, round.Round, state.FilePosted),
+		return nil, state.FileFailure("use", at, state.UnusableHint, fmt.Errorf(
+			"the payload holds %d comment(s) and names %d record(s): the run that "+
+				"could not establish its outcome writes both, so cr cannot say which "+
+				"records reached the author and will not mark any of them posted",
 			len(sent.Comments), len(sent.Records),
-		)
+		))
 	}
 	return sent, nil
 }
