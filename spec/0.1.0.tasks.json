@@ -5817,7 +5817,7 @@
     {
       "id": "waivers-remove-command",
       "title": "Remove a waiver from either scope",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "waivers-list-command"
@@ -5827,11 +5827,25 @@
       "source_sections": [
         "### 7.4 Waivers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:47:37.80669Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:06:01.838584Z",
+      "closed_reason": "- cr waivers remove \u003cid\u003e --repo \u003cowner/repo\u003e [--pr \u003cnumber\u003e] deletes one waiver from either scope: internal/cli/waivers.go's removeWaiver calls finding.RemoveWaiver, which opens the file the id's prefix names (wr\u003cn\u003e the repository-wide file, wp\u003cn\u003e the pull request's waivers.ndjson, which needs --pr) and rewrites it without the line under its lock, and the command prints the removed line whole with its scope. §9.3's reading: a wp\u003cn\u003e removal writes §2.3 per-PR state, so it reads the round through briefedRound and asks RefuseStale before opening the file (movedhead_test.go gives `waivers remove wp1 --pr` owesRefusal; a hand mutant disabling RefuseStale failed that subtest), while a wr\u003cn\u003e removal writes §2.2 state and reads no round. finding.WaiverIDScope (new, internal/finding/waiverstore.go) answers which file an id names from the same predicates RemoveWaiver dispatches on. An id no file holds is finding.UnknownWaiverError, now an exit.go row coded 1 with a hint naming `cr waivers list`. Dogfooded on a scratch repo: `cr waivers remove wr1 --repo acme/lib` printed \"removed\" / \"wr1 repository wrong: unchecked-error at lib.go RIGHT aaaabbbbccccdddd (round 1, pr 1, head 4651d22...)\", a second removal exited 1 with that hint, and the next `cr merge` of the same finding reported merged 1, waived dropped 0; git status --porcelain in the repo stayed empty.\n- A test removes from each scope and asserts the finding raises again on the next round: internal/cli/waiversremove_test.go TestARemovedWaiverRaisesItsFindingAgainOnTheNextRound, for a `wrong` (repository) and a `not-here` (pull-request, removed with --pr) waiver, first merges the matching record and requires §6.4.4 to drop it, removes the waiver through the command and checks the reported id and scope and that ActiveWaivers is empty, moves the pull request to the next round, and asserts that round's merge drops nothing, merges 1 and writes f1. A hand mutant writing the removed line back into the repository-wide file failed the repository subtest on all three assertions; reverted to the identical revision. TestARemovalNamingNoWaiverIsRefused covers the unknown id and a wp id without --pr. Building the last stub with a positional left TestAStubStillValidatesItsArguments measuring nothing, so it now holds every §11 row with a positional (20 subtests) to its arity rather than stubs alone.\n",
+      "gate_passed_at": "2026-09-12T23:06:01.838584Z",
+      "commit_sha": "f3163da",
+      "commit_shas": [
+        "f3163da"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/surface_test.go",
+        "internal/cli/waivers.go",
+        "internal/cli/waiversremove_test.go",
+        "internal/finding/waiverstore.go"
+      ]
     },
     {
       "id": "draft-render-command",
