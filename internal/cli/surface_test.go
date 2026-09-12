@@ -107,7 +107,7 @@ var specSurface = []surfaceRow{
 	{path: []string{"rules", "list"}, use: "list", spec: []string{"dead", "repo"}, stub: true},
 	{path: []string{"rules", "check"}, use: "check <pr>"},
 	{path: []string{"rules", "suggest"}, use: "suggest", spec: []string{"repo"}},
-	{path: []string{"status"}, use: "status <pr>", stub: true},
+	{path: []string{"status"}, use: "status <pr>"},
 }
 
 // localFlagNames is the set of flags a command registers itself, which is what

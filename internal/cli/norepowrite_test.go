@@ -961,6 +961,12 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 		// evaluates, exactly as `cr brief` does, and it sorts after `cr
 		// brief` in the run order, so the round it reads has been opened.
 		"rules check": {"rules", "check", fixturePR, "--repo", fixtureSlug},
+		// `cr status` reads the repository twice — §4.3.1's symbol index
+		// at the round's head and §3.4.1's diff — because §10.1.3 has it
+		// report the lens halves that could not run, and reads nothing
+		// else there. It sorts after `cr brief`, so the round it counts
+		// has been opened.
+		"status": {"status", fixturePR, "--repo", fixtureSlug},
 	}
 }
 
@@ -988,8 +994,7 @@ func stubRuns(merged, out string) map[string][]string {
 			"merge", merged, "-o", out,
 			"--repo", fixtureSlug, "--pr", fixturePR,
 		},
-		"status": {"status", fixturePR, "--repo", fixtureSlug},
-		"stats":  {"stats", "--repo", fixtureSlug},
+		"stats": {"stats", "--repo", fixtureSlug},
 		"claims set-aside": {
 			"claims", "set-aside", fixturePR, fixtureIssue + "#c1",
 			"--note", fixtureIssue + "#n1", "--repo", fixtureSlug,

@@ -194,6 +194,12 @@ func movedHeadRuns(dir string) map[string]section93 {
 		"rules check": disclosesTheMove("rules", "check", fixturePR),
 		"answer": disclosesTheMove("answer", fixturePR, "f3", "the retry is deliberate",
 			"--source", "chat"),
+		// `cr status` counts §10.1's report out of files other commands
+		// wrote and writes none of its own, so §9.3.2 has nothing of its
+		// to refuse. The report is also what a reader whose head has
+		// moved most needs — it is what they decide the next round on —
+		// so §9.3.1's disclosure is the whole of what §9.3 owes it.
+		"status": disclosesTheMove("status", fixturePR),
 
 		// §9.3.2's way forward, and the commands that read no round at
 		// all.
