@@ -67,7 +67,7 @@ func TestNothingCarriesAFittedQueueBackFromTheCap(t *testing.T) {
 		"the cap decision lives in this package; finding none of it proves nothing")
 
 	for name, results := range aware {
-		assert.False(t, handsBackARecord(results),
+		assert.False(t, namesARecord(results),
 			"%s knows the cap and hands back records: §1.6.2 lets nothing fit the queue", name)
 	}
 }

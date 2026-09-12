@@ -40,6 +40,19 @@ var doors = map[string][]door{
 	},
 }
 
+// passes are the exported functions that hand back records they were handed
+// rather than records they made: §6.4's passes over a round, which take the
+// records a door already produced and return some of them.
+//
+// They are named here rather than skipped by shape, so that classifying a new
+// function as a pass stays a deliberate act with this paragraph next to it. A
+// pass may only ever return records it was given — that is what makes it
+// harmless to §1.6.1, since every record it can hand back already came through
+// a door above and was refused there if it carried no code location. A function
+// that takes records **and** reads bytes is not a pass however it is spelled,
+// and belongs in doors.
+var passes = []string{"DropWaived"}
+
 // unanchored is an item with no code location, in every shape it can take once
 // it is written as a record: the key left out, an anchor object holding
 // nothing, one carrying the rest of §9.2's fields but no path, and one naming
@@ -67,8 +80,11 @@ var unanchored = map[string]map[string]any{
 // closed. The fence is on the way in: a record on disk arrived through one of
 // these, and no reader re-checks it.
 func TestNoUnanchoredItemBecomesARecordByAnyDoor(t *testing.T) {
-	require.ElementsMatch(t, slices.Collect(maps.Keys(doors)), recordDoors(t),
+	minted, handed := recordDoors(t)
+	require.ElementsMatch(t, slices.Collect(maps.Keys(doors)), minted,
 		"a new way to obtain a record is a new way to a payload: drive it here and prove it refuses")
+	require.ElementsMatch(t, passes, handed,
+		"a function returning records it was handed is a §6.4 pass: name it in passes and say why it mints none")
 
 	for name, calls := range doors {
 		t.Run(name, func(t *testing.T) {
@@ -94,15 +110,26 @@ func TestNoUnanchoredItemBecomesARecordByAnyDoor(t *testing.T) {
 	}
 }
 
-// recordDoors returns the name of every exported function of this package whose
-// results carry a Finding, which is everything outside the package can obtain a
-// record from. A method is named by its receiver type as well.
-func recordDoors(t *testing.T) []string {
+// recordDoors reads every exported function of this package whose results carry
+// a Finding — everything outside the package can obtain a record from — and
+// splits them the way the two tables above do.
+//
+// minted are the functions that hand back a record without being handed one, so
+// the record can only have come from bytes they read: those are the doors, and
+// each has to be driven through the refusal. handed are the ones that take
+// records as well, which are §6.4's passes and can return nothing they were not
+// given.
+//
+// The split is read off the signature rather than declared, so a function
+// cannot be classified by whoever added it; what the tables above supply is the
+// name, which is what makes adding either kind visible in a diff. A method is
+// named by its receiver type as well.
+func recordDoors(t *testing.T) (minted, handed []string) {
 	t.Helper()
 	sources, err := os.ReadDir(".")
 	require.NoError(t, err)
 
-	names := make([]string, 0, len(doors))
+	minted, handed = make([]string, 0, len(doors)), make([]string, 0, len(passes))
 	for _, source := range sources {
 		name := source.Name()
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -112,23 +139,27 @@ func recordDoors(t *testing.T) []string {
 		require.NoError(t, err)
 		for _, decl := range parsed.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || !fn.Name.IsExported() || !handsBackARecord(fn.Type.Results) {
+			if !ok || !fn.Name.IsExported() || !namesARecord(fn.Type.Results) {
 				continue
 			}
-			names = append(names, doorName(fn))
+			if namesARecord(fn.Type.Params) {
+				handed = append(handed, doorName(fn))
+				continue
+			}
+			minted = append(minted, doorName(fn))
 		}
 	}
-	return names
+	return minted, handed
 }
 
-// handsBackARecord reports whether a result list names the record type at all,
-// so a *Finding, a []*Finding, and a shape nobody has written yet all count.
-func handsBackARecord(results *ast.FieldList) bool {
-	if results == nil {
+// namesARecord reports whether a field list names the record type at all, so a
+// *Finding, a []*Finding, and a shape nobody has written yet all count.
+func namesARecord(fields *ast.FieldList) bool {
+	if fields == nil {
 		return false
 	}
 	found := false
-	ast.Inspect(results, func(node ast.Node) bool {
+	ast.Inspect(fields, func(node ast.Node) bool {
 		if named, ok := node.(*ast.Ident); ok && named.Name == "Finding" {
 			found = true
 		}
