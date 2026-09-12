@@ -896,6 +896,14 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 		// renderer is likeliest to answer by writing nothing at all.
 		"draft":      {"draft", fixturePR, "--repo", fixtureSlug},
 		"map record": {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
+		// `cr post` reads the round's draft back and builds the one
+		// review §8.3.1 posts, and reads the repository only through
+		// §7.2's location row — which no marker here moves. It sorts
+		// after `cr draft`, so the draft it reads is one this run
+		// wrote, and before `cr record`, so it meets a round with
+		// nothing queued: the case a payload builder is likeliest to
+		// answer by writing something.
+		"post": {"post", fixturePR, "--repo", fixtureSlug},
 		// `cr review` reads the repository as `cr brief` does: §4.6.1
 		// carries the unit's hunks, so it takes §3.4.1's diff at the
 		// recorded head, and §4.3.1 reads the head's blobs for the
@@ -974,7 +982,6 @@ func stubRuns(merged, out string) map[string][]string {
 			"merge", merged, "-o", out,
 			"--repo", fixtureSlug, "--pr", fixturePR,
 		},
-		"post":   {"post", fixturePR, "--repo", fixtureSlug},
 		"status": {"status", fixturePR, "--repo", fixtureSlug},
 		"stats":  {"stats", "--repo", fixtureSlug},
 		"claims set-aside": {
