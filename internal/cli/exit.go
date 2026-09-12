@@ -109,7 +109,8 @@ var codes = []mapped{
 	// §2.5 item 3: a malformed profile file aborts with exit code 3, naming
 	// the file and the offending field.
 	{is[*profile.MalformedError](), ExitFile,
-		"correct the field the message names in that profile"},
+		"repair the profile file the message names: the field it names, or the " +
+			"file itself when it cannot be read"},
 	// A §2.4 field the command needs and the profile does not set —
 	// `tests.cmd` for §5.2.1's run, `tests.filter_flag` for its `--filter`
 	// — or §2.4.4's no profile at all. Nothing is malformed and the
@@ -139,8 +140,8 @@ var codes = []mapped{
 	// field or an invented one, and the invented one is the case §2.5's
 	// division of labour turns on.
 	{is[*role.MalformedError](), ExitFile,
-		"correct the key the message names in that role file; §2.5's table is " +
-			"the whole of what a role may carry"},
+		"repair the role file the message names: the key it names, or the file " +
+			"itself when it cannot be read; §2.5's table is the whole of what a role may carry"},
 	// §2.6.5: a malformed rule file aborts the command with exit code 3,
 	// alongside the profile and role files above. It covers a key outside
 	// §2.6's table too, for the reason the role one does: a rule file cr
@@ -148,8 +149,8 @@ var codes = []mapped{
 	// field or an invented one, and the invented one is the case §2.6's
 	// separation of rules from roles turns on.
 	{is[*rule.MalformedError](), ExitFile,
-		"correct the key the message names in that rule file; §2.6's table is " +
-			"the whole of what a rule may carry"},
+		"repair the rule file the message names: the key it names, or the file " +
+			"itself when it cannot be read; §2.6's table is the whole of what a rule may carry"},
 	// §2.7: a CR_ variable or config key addressing a protected decision is
 	// a configuration failure, which §11.2 codes as ExitFile. It is not a
 	// validation failure: the run never reached input data, and it is not a
