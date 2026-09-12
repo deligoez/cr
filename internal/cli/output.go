@@ -113,6 +113,12 @@ type writer struct {
 	// from stdout and `--json`, so `--compact` through a pipe is JSON and
 	// through a terminal is still text.
 	compact bool
+	// quiet is §11.1's `--quiet`. It is read in exactly one place,
+	// informational, and disclose does not read it at all: the exemption
+	// is that the method printing a disclosure has no flag it could
+	// consult, rather than that every call site remembers not to.
+	// TestQuietIsReadOnlyWhereInformationIsWritten holds both halves.
+	quiet bool
 }
 
 // settle makes §12.1's decision from stdout and `--json`, and from nothing
@@ -135,9 +141,13 @@ func (w *writer) settle(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	quiet, err := cmd.Flags().GetBool("quiet")
+	if err != nil {
+		return err
+	}
 
 	w.out = cmd.OutOrStdout()
-	w.compact = compact
+	w.compact, w.quiet = compact, quiet
 	if forceJSON || !isTerminal(w.out) {
 		w.mode, w.color = ModeJSON, false
 		return nil
@@ -402,6 +412,41 @@ func filledFields(target reflect.Value) {
 			filledFields(target.Field(i))
 		}
 	}
+}
+
+// informational is where an informational message goes: out, or nowhere under
+// `--quiet`.
+//
+// §11.1 gives the flag informational messages and nothing else. The one kind cr
+// writes is a test run's live output — `cr test` and `cr probe run` stream the
+// suite to standard error while it runs, so a long run is distinguishable from a
+// hang — and it is informational in the plain sense: §5.2.4 stores the tail
+// either way, and the result reports the counts either way. What is discarded is
+// the echo to the person watching, and only that; callers tee the stored tail
+// and the counter off the same stream beside this writer, not through it.
+func (w *writer) informational(out io.Writer) io.Writer {
+	if w.quiet {
+		return io.Discard
+	}
+	return out
+}
+
+// disclose renders §11.1's honesty disclosures for a terminal: each sentence
+// between before and after, in order.
+//
+// It is the exemption. It takes no flag and reads none, so a disclosure routed
+// through it is printed under `--quiet` because nothing here could stop it,
+// not because a call site checked. Every result's Text that prints a
+// disclosure comes through this method, and
+// TestEveryDisclosureAResultPrintsGoesThroughTheWriter reads the source to keep
+// it that way: a Text ranging over its own Honesty, or printing a Disclosure()
+// directly, is a call site that could be taught to consult the flag.
+func (w *writer) disclose(before, after string, sentences ...string) string {
+	var out strings.Builder
+	for _, sentence := range sentences {
+		out.WriteString(before + sentence + after)
+	}
+	return out.String()
 }
 
 // accent renders s in the colour a terminal rendering highlights with, and

@@ -33,15 +33,13 @@ func newRootCmd() *cobra.Command {
 
 	root.PersistentFlags().Bool("json", false, "force JSON output")
 	root.PersistentFlags().Bool("compact", false, "minimal JSON output")
-	// `--quiet` suppresses nothing, which is the decision and not an
-	// omission. §11.1 gives it informational messages and then names seven
-	// disclosures it may never touch; cr prints no informational message
-	// today, since every byte on stdout is a command's own result and §12.1
-	// settles that shape from stdout and `--json` alone. A suppression
-	// written now would have nothing to suppress and one thing to break —
-	// it would land before the exempt writer that quiet-honesty-exemptions
-	// owns, and the seven would go out with the informational messages.
-	// TestNoSuppressionUnderQuietArrivesBeforeItsExemption holds the order.
+	// `--quiet` suppresses informational messages and nothing else (§11.1).
+	// The writer reads it in one place, informational, which takes a test
+	// run's live echo to standard error; the seven disclosures §11.1 names
+	// are rendered through writer.disclose, which reads no flag, and a
+	// failure through reportFailure, which is given none. §12.1's document
+	// is the same with and without it.
+	// TestEveryDisclosureAResultPrintsGoesThroughTheWriter holds the split.
 	root.PersistentFlags().Bool("quiet", false, "suppress informational messages")
 	root.PersistentFlags().Bool("no-color", false, "disable colored output")
 	root.PersistentFlags().String("repo", "", "override repository detection (owner/repo)")
