@@ -63,6 +63,17 @@ type Round struct {
 	// all. Before one is, no unit is known to be mapped to nothing: §4.6.5
 	// says unmapped-ness is unknowable on the first pass.
 	Mapped bool
+	// SecondPass reports whether this invocation is §4.6.5's second intent
+	// pass: the intent axis re-run once the mapping is stored. It narrows
+	// the prompts to the units the mapping maps to zero claims, which is
+	// what that pass exists to emit — §4.1.2's item and §4.1.5's notes have
+	// nothing to say about a unit a claim covers.
+	//
+	// It is separate from Mapped because the two answer different
+	// questions. Mapped is a fact about the round and shapes what every
+	// prompt says about the mapping; this is a fact about the invocation
+	// and shapes which units get one at all.
+	SecondPass bool
 	// Candidates are §4.3.1's attachments over the round's diff.
 	Candidates reinvention.Attachments
 	// Rules is the round's rule corpus of §2.6, which §2.6.1.4 injects into
@@ -116,6 +127,9 @@ func Emit(r *Round) []Prompt {
 	for i := range r.Roles {
 		lens := &r.Roles[i]
 		for at := range r.Units {
+			if !r.emits(r.Units[at].ID) {
+				continue
+			}
 			output := filepath.Join(r.Units[at].FanOut, finding.FanOutFile(lens.ID))
 			prompts = append(prompts, Prompt{
 				Role:   lens.ID,
@@ -127,4 +141,16 @@ func Emit(r *Round) []Prompt {
 		}
 	}
 	return prompts
+}
+
+// emits reports whether the unit gets a prompt on this invocation.
+//
+// Every unit does, except on §4.6.5's second intent pass, which re-emits one
+// prompt per unit the round's mapping maps to zero claims. Which units those
+// are is mapping.ClaimsOf's answer rather than Round.Unmapped's: §4.1.5 leaves
+// an item unraised once a note explains the unit, and that unit is still one
+// the mapping maps to nothing — dropping it here would take away the prompt
+// carrying the note the agent is meant to weigh.
+func (r *Round) emits(id string) bool {
+	return !r.SecondPass || len(mapping.ClaimsOf(r.Pairs, r.Round, id)) == 0
 }

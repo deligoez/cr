@@ -276,6 +276,12 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 	// The pairs are the round's own, per §9.3.5, so a pair at all is a
 	// mapping this round recorded.
 	r.Mapped = len(r.Pairs) > 0
+	// §4.6.5's second pass, and the only invocation that emits over fewer
+	// than every unit. It is the intent axis re-run once the mapping is
+	// stored, which is exactly where "the units mapped to zero claims" is a
+	// question the round can answer; an unscoped `cr review` is §4.6.1's
+	// full cross product whether or not a mapping exists.
+	r.SecondPass = r.Mapped && src.Axis == axis.Intent
 	r.Unmapped, err = r.raise(src, records, notes, onAxis(active, axis.Intent))
 	return records, err
 }
