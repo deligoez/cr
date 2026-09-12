@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T23:06:35.525874Z",
+  "updated_at": "2026-09-12T23:20:59.088079Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1827,7 +1827,7 @@
     {
       "id": "rules-list-dead",
       "title": "Report rules dead across recent rounds",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rule-stats-ledger",
@@ -1838,11 +1838,32 @@
       "source_sections": [
         "#### 2.6.3 Harvesting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:13:01.319728Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:20:59.056929Z",
+      "closed_reason": "- cr rules list --dead --repo \u003cowner/repo\u003e is built in internal/cli/rules.go: it resolves rules.dead_after through the config layers (default 20, confirmed in dogfood as dead_after=20), reads the repository rule-stats.ndjson lock-free with rule.ReadStats, and internal/rule/dead.go Dead reports every effective rule with no hit and no record in the window, each with its layer and the file to prune.\n- Round 8 cross-pr-round-ordering-undefined: rule.Dead groups the ledger by distinct (pr, round) pair, dates each pair by its latest at timestamp, orders pairs by that timestamp descending (then pr, then round, for determinism), and takes the last rules.dead_after pairs, so PR 7 round 3 and PR 12 round 3 are two rounds.\n- A rule is alive when a hit or record entry of any window pair names it; a dismissal alone keeps nothing alive (TestARecordKeepsARuleAliveAndADismissalDoesNot), and a ledger holding fewer pairs than rules.dead_after calls no rule dead and discloses why (TestAShortLedgerCallsNoRuleDead), since the silence across that many rounds cannot be established.\n- cr rules list without --dead reports the effective rules, after profile scoping, with layer repo, global or profile (rule.Source.String) and path; TestRulesListReportsTheEffectiveRulesWithTheirLayer seeds all three layers plus a shadowed global and asserts each layer and a single no-panic entry.\n- TestTheDeadWindowSpansTwoPullRequestsByTimestamp seeds hits on PR 7 and PR 12 with interleaved timestamps at rules.dead_after 4 and asserts the window is PR 12 r3, PR 7 r2, PR 12 r2, PR 7 r3 and that the dead set is exactly no-panic and no-sleep; reversing the sort by hand turns it and TestAPairIsDatedByItsLatestEntry red.\n",
+      "gate_passed_at": "2026-09-12T23:20:59.056929Z",
+      "commit_sha": "a8090ac",
+      "commit_shas": [
+        "a8090ac",
+        "9d743da",
+        "dee1ace",
+        "989f5a4"
+      ],
+      "commit_files": [
+        "internal/cli/briefed_test.go",
+        "internal/cli/dryrun_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/rules.go",
+        "internal/cli/ruleslist_test.go",
+        "internal/cli/stub.go",
+        "internal/cli/surface_test.go",
+        "internal/rule/dead.go",
+        "internal/rule/dead_test.go"
+      ]
     },
     {
       "id": "intent-command-invocation",
