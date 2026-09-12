@@ -434,6 +434,24 @@ func waiverIDIsUnder(prefix, id string) bool {
 	return ok
 }
 
+// WaiverIDScope reports the scope whose file an id names, and false for an id
+// spelled under neither prefix.
+//
+// It exists for the caller that has to know which file a removal will write
+// before it makes the removal: §9.3.2 refuses a write to per-PR state over a
+// moved head, and only a pull-request-scoped id's file is per-PR state. It reads
+// the same two predicates RemoveWaiver dispatches on, so the answer and the
+// file RemoveWaiver opens cannot disagree.
+func WaiverIDScope(id string) (WaiverScope, bool) {
+	switch {
+	case waiverIDIsUnder(repositoryWaiverPrefix, id):
+		return ScopeRepository, true
+	case waiverIDIsUnder(pullRequestWaiverPrefix, id):
+		return ScopePullRequest, true
+	}
+	return WaiverScope{}, false
+}
+
 // parseWaiverID reads the n of a `<prefix><n>` waiver id.
 //
 // It accepts only the canonical spelling: wp7 is an id, wp+7, wp07 and wp-7 are

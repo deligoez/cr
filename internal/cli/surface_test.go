@@ -104,8 +104,7 @@ var specSurface = []surfaceRow{
 		added: map[string]string{"source": "§3.6.1", "pr": "§3.6.1"}},
 	{path: []string{"context"}, use: "context <ISSUE-KEY>"},
 	{path: []string{"waivers", "list"}, use: "list", spec: []string{"repo", "pr"}},
-	{path: []string{"waivers", "remove"}, use: "remove <id>", spec: []string{"repo", "pr"},
-		stub: true},
+	{path: []string{"waivers", "remove"}, use: "remove <id>", spec: []string{"repo", "pr"}},
 	{path: []string{"stats"}, use: "stats", spec: []string{"repo"}},
 	{path: []string{"rules", "list"}, use: "list", spec: []string{"dead", "repo"}, stub: true},
 	{path: []string{"rules", "check"}, use: "check <pr>"},
@@ -280,15 +279,21 @@ func configPrinting(t *testing.T, args ...string) string {
 // accepted anything would give the same message to `cr status 42` and to
 // `cr status HEAD`, and the second is a usage error §11.2 codes 2 whether or
 // not the command is built.
+//
+// It is asked of every row with a positional, built or not. It began as a
+// guard over stubs alone, and `cr waivers remove` was the last stub taking a
+// positional: building it would have left the guard measuring nothing, while
+// the property it states — §11's arity, refused below it — is one a built
+// command owes exactly as a stub does.
 func TestAStubStillValidatesItsArguments(t *testing.T) {
 	root := newRootCmd()
 
 	checked := 0
 	for _, row := range specSurface {
-		// The shape is counted off §11's own row, so a stub that takes
+		// The shape is counted off §11's own row, so a command that takes
 		// no positional argument has nothing here to get wrong.
 		positional := strings.Count(row.use, "<")
-		if !row.stub || positional == 0 {
+		if positional == 0 {
 			continue
 		}
 		checked++
@@ -314,5 +319,5 @@ func TestAStubStillValidatesItsArguments(t *testing.T) {
 	}
 
 	require.NotZero(t, checked,
-		"no stub takes a positional argument, so this guard measured nothing")
+		"no row of §11 takes a positional argument, so this guard measured nothing")
 }

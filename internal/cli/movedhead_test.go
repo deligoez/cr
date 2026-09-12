@@ -206,6 +206,12 @@ func movedHeadRuns(dir string) map[string]section93 {
 		"test":           refusesTheWrite("test", fixturePR),
 		"probe run": refusesTheWrite("probe", "run", fixturePR,
 			"--kind", "mutation", "--patch", file("mutation.patch")),
+		// Removing a `wp<n>` waiver rewrites that pull request's
+		// waivers.ndjson, which §2.3 makes per-PR state, so §9.3.2 refuses
+		// it like every other writer — before the file is opened, which is
+		// why no waiver need exist. A `wr<n>` removal writes §2.2's
+		// repository-wide file, reads no round, and is refused nothing.
+		"waivers remove": refusesTheWrite("waivers", "remove", "wp1", "--pr", fixturePR),
 
 		// §9.3.1's readers: neither writes per-PR state, so both run
 		// and both say where the head is.

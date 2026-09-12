@@ -469,6 +469,13 @@ var codes = []mapped{
 	// retraction, which §11.2 codes 1 alongside note.NoIssueKeyError.
 	{is[*note.UnknownNoteError](), ExitValidation,
 		"`cr context <ISSUE-KEY>` lists the notes and their ids"},
+	// §7.4.7 removes a waiver by id, and the id names its own file. An id
+	// spelled the way cr spells one that the file does not hold is the
+	// retraction above's fault in the other store: the invocation is right
+	// and the file read without trouble, and what fails is the removal,
+	// which §11.2 codes 1 beside it.
+	{is[*finding.UnknownWaiverError](), ExitValidation,
+		"`cr waivers list --repo <owner/repo> --pr <n>` lists the waivers of both scopes and their ids"},
 	// §3.6's store is a file cr found and could not use, which §11.2 codes
 	// 3 with its other file failures. Without this row `cr note`,
 	// `cr answer` and `cr context` all reported a corrupt store as a

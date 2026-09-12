@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -1007,6 +1008,12 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		// request's file and its round too, which is the wider of the two
 		// invocations. It sorts after `cr brief`, so there is a round.
 		"waivers list": {"waivers", "list", "--repo", fixtureSlug, "--pr", fixturePR},
+		// `cr waivers remove` rewrites one of §7.4.4's files under the
+		// state root. The prepared waiver is the pull request's, so the run
+		// reads the round and writes §2.3's waivers.ndjson — the wider of
+		// the two scopes — and it sorts after `cr waivers list`, which
+		// therefore meets the waiver still there.
+		"waivers remove": {"waivers", "remove", "wp1", "--repo", fixtureSlug, "--pr", fixturePR},
 	}
 }
 
@@ -1027,8 +1034,7 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 // half of the guard.
 func stubRuns() map[string][]string {
 	return map[string][]string{
-		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
-		"rules list":     {"rules", "list", "--repo", fixtureSlug},
+		"rules list": {"rules", "list", "--repo", fixtureSlug},
 	}
 }
 
@@ -1127,6 +1133,16 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	require.NoError(t, held.Write(state.FileUnits,
 		[]byte(`{"id":"u1","head":"`+fixtureHead+`","round":1}`+"\n")))
 	require.NoError(t, held.Unlock())
+	// `cr waivers remove` deletes a waiver that exists, so one is there to
+	// delete: a `not-here` over a file no other run anchors in, so no merge
+	// or draft here drops anything against it.
+	_, err = finding.Waive(prepared, fixtureOwner, fixtureProject, &finding.Waiver{
+		WaiverKey: finding.WaiverKey{
+			Path: "unrelated.go", Side: "RIGHT", Class: "unchecked-error", ContentHash: "fedcba9876543210",
+		},
+		Disposition: finding.DispositionNotHere,
+	}, finding.WaiverProvenance{Round: 1, PR: fixturePRNumber, Head: fixtureHead})
+	require.NoError(t, err)
 
 	// The file `cr record` is pointed at, outside the repository under
 	// review for the reason repoRuns gives. Its anchor is app.go's changed

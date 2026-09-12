@@ -15,7 +15,7 @@ import (
 // two are that door in the other direction.
 func newWaiversCmd(out *writer) *cobra.Command {
 	cmd := groupCmd("waivers", "Inspect and edit waivers in either scope")
-	cmd.AddCommand(newWaiversListCmd(out), newWaiversRemoveCmd())
+	cmd.AddCommand(newWaiversListCmd(out), newWaiversRemoveCmd(out))
 	return cmd
 }
 
@@ -65,14 +65,7 @@ func (r *waiversListResult) Text(w *writer) string {
 	lines := make([]string, 0, 2*len(r.Waivers)+1)
 	lines = append(lines, strconv.Itoa(len(r.Waivers))+" active waiver(s) in the "+scopes)
 	for i := range r.Waivers {
-		listed := &r.Waivers[i]
-		lines = append(lines, "  "+w.accent(listed.ID)+" "+listed.Scope+" "+string(listed.Disposition)+
-			": "+listed.Class+" at "+listed.Path+" "+string(listed.Side)+" "+listed.ContentHash+
-			" (round "+strconv.Itoa(listed.Round)+", pr "+strconv.Itoa(listed.PR)+
-			", head "+listed.Head+")")
-		if listed.Reason != "" {
-			lines = append(lines, "    reason: "+listed.Reason)
-		}
+		lines = append(lines, waiverLines(w, &r.Waivers[i])...)
 	}
 	return strings.Join(lines, "\n") + w.disclose("\n", "", r.Honesty...)
 }
@@ -154,25 +147,69 @@ func listWaivers(cmd *cobra.Command) (*waiversListResult, error) {
 
 // add lists each stored waiver beside the scope its disposition gives it, and
 // returns the listing it added to.
-//
-// A stored disposition §7.2 does not have is refused rather than listed under a
-// guessed scope: the line was written by something other than cr, and printing
-// it as either scope would tell the reader how far a silence reaches on the
-// strength of nothing.
 func (r *waiversListResult) add(records []finding.WaiverRecord) (*waiversListResult, error) {
 	for i := range records {
-		scope, err := records[i].Scope()
+		listed, err := listedOf(&records[i])
 		if err != nil {
 			return nil, err
 		}
-		r.Waivers = append(r.Waivers, listedWaiver{WaiverRecord: records[i], Scope: scope.String()})
+		r.Waivers = append(r.Waivers, listed)
 	}
 	return r, nil
 }
 
-// newWaiversRemoveCmd registers §11's
-// `cr waivers remove --repo <owner/repo> [--pr <n>]`, which §7.4.7 has delete
-// one waiver from either scope.
+// listedOf is one stored waiver beside the scope its disposition gives it.
+//
+// A stored disposition §7.2 does not have is refused rather than printed under
+// a guessed scope: the line was written by something other than cr, and naming
+// either scope would tell the reader how far a silence reaches on the strength
+// of nothing.
+func listedOf(record *finding.WaiverRecord) (listedWaiver, error) {
+	scope, err := record.Scope()
+	if err != nil {
+		return listedWaiver{}, err
+	}
+	return listedWaiver{WaiverRecord: *record, Scope: scope.String()}, nil
+}
+
+// waiversRemoveResult is what `cr waivers remove` reports: the waiver it
+// deleted, whole, and §9.3.1's comparison when the file it deleted from was a
+// pull request's.
+//
+// The removed line is printed rather than only its id, because an id is
+// reissued once its line is gone — finding.RemoveWaiver says why that is safe —
+// and the key, disposition and provenance are what say which silence ended.
+type waiversRemoveResult struct {
+	// Removed is the waiver as it stood in its file.
+	Removed listedWaiver `json:"removed"`
+	// Honesty carries §9.3.1's head comparison when the waiver was a pull
+	// request's, and nothing otherwise.
+	Honesty []string `json:"honesty"`
+}
+
+// Text names the waiver that was removed, then the disclosure.
+func (r *waiversRemoveResult) Text(w *writer) string {
+	return "removed\n" + strings.Join(waiverLines(w, &r.Removed), "\n") + w.disclose("\n", "", r.Honesty...)
+}
+
+// waiverLines renders one waiver: its id, scope and disposition, its key and
+// its provenance, and a second line holding its reason when one was given.
+//
+// `cr waivers list` and `cr waivers remove` both print through it, so a waiver
+// a reader saw listed is the same line they see removed.
+func waiverLines(w *writer, listed *listedWaiver) []string {
+	lines := []string{"  " + w.accent(listed.ID) + " " + listed.Scope + " " + string(listed.Disposition) +
+		": " + listed.Class + " at " + listed.Path + " " + string(listed.Side) + " " + listed.ContentHash +
+		" (round " + strconv.Itoa(listed.Round) + ", pr " + strconv.Itoa(listed.PR) +
+		", head " + listed.Head + ")"}
+	if listed.Reason != "" {
+		lines = append(lines, "    reason: "+listed.Reason)
+	}
+	return lines
+}
+
+// newWaiversRemoveCmd runs §11's `cr waivers remove --repo <owner/repo> [--pr <n>]`,
+// which §7.4.7 has delete one waiver from either scope.
 //
 // It takes the waiver id as a positional even though §11's row does not name
 // one, for the reason `cr brief` registers `--intent-file`: §7.4.7 writes the
@@ -181,10 +218,67 @@ func (r *waiversListResult) add(records []finding.WaiverRecord) (*waiversListRes
 // to remove. TestTheCommandSurfaceIsTheSpecTable records it as a deliberate
 // addition rather than letting it pass as an oversight.
 //
-// The behaviour belongs to waivers-remove-command; what is registered here is
-// the shape.
-func newWaiversRemoveCmd() *cobra.Command {
-	cmd := stubCmd("remove <id>", "Remove one waiver from either scope", cobra.ExactArgs(1))
+// The id names its own file, so `--pr` does not choose the scope: it names the
+// pull request whose file a `wp<n>` id lives in, and a `wr<n>` id ignores it.
+func newWaiversRemoveCmd(out *writer) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove <id>",
+		Short: "Remove one waiver from either scope",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			removed, err := removeWaiver(cmd, args[0])
+			if err != nil {
+				return err
+			}
+			return out.emit(removed)
+		},
+	}
 	cmd.Flags().Int("pr", 0, "look for the waiver in this pull request's scope too (§7.4.4)")
 	return cmd
+}
+
+// removeWaiver deletes the waiver id names from the file its prefix names.
+//
+// A pull-request-scoped id is removed from §2.3's per-PR state, so its round is
+// read first and §9.3.2's refusal is asked before anything is opened: a head
+// that moved stops this write as it stops every other, and `cr brief` is the
+// way forward. A repository-wide id writes §2.2's file, which no pull request
+// owns, so it reads no round whatever `--pr` says. An id under neither prefix,
+// or a `wp<n>` without `--pr`, is left to finding.RemoveWaiver, which refuses
+// both naming what would be accepted.
+func removeWaiver(cmd *cobra.Command, id string) (*waiversRemoveResult, error) {
+	owner, repo, err := repoOf(cmd)
+	if err != nil {
+		return nil, err
+	}
+	layout, err := state.Default()
+	if err != nil {
+		return nil, err
+	}
+	pr := 0
+	if cmd.Flags().Changed("pr") {
+		if pr, err = prFlagOf(cmd); err != nil {
+			return nil, err
+		}
+	}
+	honesty := make([]string, 0)
+	if scope, named := finding.WaiverIDScope(id); named && scope == finding.ScopePullRequest && pr > 0 {
+		round, err := briefedRound(layout, owner, repo, pr)
+		if err != nil {
+			return nil, err
+		}
+		if err := round.RefuseStale(); err != nil {
+			return nil, err
+		}
+		honesty = append(honesty, round.Disclosure())
+	}
+	record, err := finding.RemoveWaiver(layout, owner, repo, pr, id)
+	if err != nil {
+		return nil, err
+	}
+	listed, err := listedOf(&record)
+	if err != nil {
+		return nil, err
+	}
+	return &waiversRemoveResult{Removed: listed, Honesty: honesty}, nil
 }
