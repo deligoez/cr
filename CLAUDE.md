@@ -289,6 +289,17 @@ Two rules that make the phase-boundary run worth doing:
    `status`, which is what makes that comparison a set difference rather than an
    eyeballing exercise — and what should eventually hold a checked-in list of
    known-equivalent survivors, so "new survivor" is decided by construction.
+
+   **The coefficient is calibrated against the whole tree's suite, so it is too
+   tight to read on a small package.** Measured 2026-09-12 on
+   `./internal/mapping`, whose cold suite is 0.55s: at `--timeout-coefficient 5`
+   the run reported 3 killed and **4 TIMED OUT**; at the default 30, on the same
+   tree, 7 killed, 0 lived, 0 timed out. That is exactly the risk this rule
+   names — a legitimately slow *passing* test cut short and scored as detected —
+   and it appears when the coefficient multiplies a suite far shorter than the
+   26.7s the 5 was measured for. Scope a run to one small package and the
+   coefficient must move with it, or the timeouts are the instrument's, not the
+   code's.
 6. **`--dry-run` is a coverage instrument, not a cost estimate, and it is free.**
    It reports RUNNABLE and NOT COVERED without executing a single mutant: 25
    seconds for `./internal` against 15m32s for the real run, and `-o` writes the
@@ -543,6 +554,15 @@ do not race. Three rules make it safe, each learned by breaking it.
 - **Commit only your own hunks, chosen by content.** The task file carries the
   other unit's claim hunks beside yours, interleaved. Read `hc diff --json` and
   pick by what each hunk adds, not by position.
+- **Never `git checkout --` a file you did not verify is yours alone.** Measured
+  2026-09-12: two units edited `internal/review/run.go` in the same minutes, the
+  writes raced, and the file was left syntactically broken. The unit that
+  reverted it discarded the other's uncommitted conversion of that file — work
+  no commit held. `git status` at the start of a task is not evidence: a file
+  clean then can carry someone else's work an hour later. Re-read `git status`
+  and `hc diff --json` at the moment you revert, and if a hunk is not yours,
+  leave the file broken and say so instead. A broken build is recoverable in
+  minutes; an uncommitted hour is not.
 - **Never run a full mutation run while either unit is live.** Units do the
   25-second dry run; the full run happens in a quiet window, once.
 
