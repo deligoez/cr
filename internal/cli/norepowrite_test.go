@@ -1124,11 +1124,13 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	require.NoError(t, held.Unlock())
 
 	// The file `cr record` is pointed at, outside the repository under
-	// review for the reason repoRuns gives.
+	// review for the reason repoRuns gives. Its anchor is app.go's changed
+	// line 3, inside the one unit `cr brief` forms before `cr record` runs:
+	// `cr record` binds a record's anchor to the unit it names.
 	merged := filepath.Join(home, "merged.ndjson")
 	require.NoError(t, os.WriteFile(merged, []byte(`{"id":"f1","kind":"finding",`+
 		`"role":"correctness","class":"unchecked-error","severity":"high","unit":"u1",`+
-		`"anchor":{"path":"README.md","side":"RIGHT","start_line":1,"line":1,"content_hash":"0123456789abcdef"},`+
+		`"anchor":{"path":"app.go","side":"RIGHT","start_line":3,"line":3,"content_hash":"0123456789abcdef"},`+
 		`"summary":"The returned error is dropped.",`+
 		`"evidence":"The call's second result is assigned to the blank identifier."}`+"\n"), 0o600))
 

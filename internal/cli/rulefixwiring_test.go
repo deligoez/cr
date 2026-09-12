@@ -19,11 +19,14 @@ const panicFixRule = `{"id":"no-panic","title":"A library returns errors rather 
 	`"detect":{"mode":"regex","pattern":"panic\\("},` +
 	`"fix":{"replace":"panic\\((.*)\\)","with":"return fmt.Errorf($1)"}}`
 
-// fixingHome is detectedHome with the fix block added to its rule, so the
-// round's detection produces hits a `fix` can rewrite.
+// fixingHome is reviewedHome with the fix block added to its rule, so the
+// round's detection produces hits a `fix` can rewrite. It takes reviewedHome's
+// unit, the hunk's whole head-side range, because `cr record` binds a record's
+// anchor to its unit and a LEFT anchor's lines reach head coordinates through
+// that range.
 func fixingHome(t *testing.T) state.Layout {
 	t.Helper()
-	layout := detectedHome(t)
+	layout := reviewedHome(t)
 	require.NoError(t, os.WriteFile(layout.Rule("no-panic"), []byte(panicFixRule), 0o600))
 	return layout
 }
@@ -77,14 +80,17 @@ func TestARuleFixReachesTheDraftAsAMachineGeneratedSuggestion(t *testing.T) {
 //
 // The record cites the hit it confirms and anchors on the LEFT side, where §9.2
 // numbers lines in the merge base — a tree a replacement cannot be offered
-// against. The finding still reaches the draft, because the record says a
-// rule's standard was broken at a place and the suggestion only says what to
-// write instead.
+// against. The anchor is the base's line 3, `func Load() {}`, which the change
+// removed; the merge base has no line 4. The finding still reaches the draft,
+// because the record says a rule's standard was broken at a place and the
+// suggestion only says what to write instead.
 func TestASuggestionSection82RefusesIsDroppedAndItsRecordIsNot(t *testing.T) {
 	layout := fixingHome(t)
 	runRulesCheck(t)
 	record := confirming("f1", 4)
 	record["anchor"].(map[string]any)["side"] = "LEFT"
+	record["anchor"].(map[string]any)["start_line"] = 3
+	record["anchor"].(map[string]any)["line"] = 3
 
 	_, err := runRecord(t, fixturePR,
 		writeRecordFile(t, "merged.ndjson", record), "--repo", fixtureSlug)

@@ -390,6 +390,12 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, err
 	}
+	// Round 13's agent-chosen-grading-boundary: the unit a record names is
+	// the unit its anchor sits in, or §6.2's `cited` row is measured
+	// against a boundary the agent picked.
+	if err := refuseForeignAnchors(owner, repo, pr, round, file, body, formed, records); err != nil {
+		return nil, nil, err
+	}
 	// §9.1's first two rows, in the order stampStates walks them.
 	if err := stampStates(records); err != nil {
 		return nil, nil, err

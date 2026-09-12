@@ -37,10 +37,13 @@ const (
 // round recordRound, with two units of that round and one of the round before.
 //
 // The units are written as bytes rather than through a record type, and the
-// line carries only the id and the stamp. That is deliberate: the id and the
-// round are the whole of what `cr record` reads out of the file, and a fixture
-// built from §3.4.6's record would stop proving that a line holding no other
-// field is read correctly.
+// line carries only the id, the path, the hunk ranges and the stamp. That is
+// deliberate: those are the whole of what `cr record` reads out of the file —
+// the id for §6.1.3, and the path and ranges for the anchor binding of round
+// 13's agent-chosen-grading-boundary — and a fixture built from §3.4.6's record
+// would stop proving that a line holding no other field is read correctly. The
+// two units of the round hold disjoint ranges of one file, so a record naming
+// the wrong one is refused rather than passing on an overlap.
 func recordedHome(t *testing.T) state.Layout {
 	t.Helper()
 	layout := state.New(crHome(t))
@@ -54,24 +57,43 @@ func recordedHome(t *testing.T) state.Layout {
 		Round: recordRound, Head: recordHead,
 	}))
 	require.NoError(t, held.Write(state.FileUnits, []byte(strings.Join([]string{
-		unitLine("u1", recordHead, recordRound),
-		unitLine("u2", recordHead, recordRound),
-		unitLine(staleUnit, "1f2e3d4c5b6a79880997a6b5c4d3e2f11f2e3d4c", recordRound-1),
+		unitLine("u1", recordHead, recordRound, recordUnitStart["u1"]),
+		unitLine("u2", recordHead, recordRound, recordUnitStart["u2"]),
+		unitLine(staleUnit, "1f2e3d4c5b6a79880997a6b5c4d3e2f11f2e3d4c", recordRound-1, recordUnitStart["u1"]),
 	}, "\n")+"\n")))
 	require.NoError(t, held.Unlock())
 	return layout
 }
 
-// unitLine is one line of units.ndjson carrying the two fields this command
-// reads: §3.4.6's id, and §2.3.3's round.
-func unitLine(id, head string, round int) string {
-	return fmt.Sprintf(`{"id":%q,"head":%q,"round":%d}`, id, head, round)
+// recordPath is the file every unit of the fixture round is formed in, and the
+// file aRecord anchors on.
+const recordPath = "internal/api/handler.go"
+
+// recordUnitStart is the first head line of each fixture unit's one hunk range,
+// which runs for seven lines; aRecord anchors two lines into it.
+var recordUnitStart = map[string]int{"u1": 40, "u2": 90}
+
+// unitLine is one line of units.ndjson carrying the fields this command reads:
+// §3.4.6's id, path and hunk ranges, and §2.3.3's round.
+func unitLine(id, head string, round, start int) string {
+	return fmt.Sprintf(
+		`{"id":%q,"path":%q,"hunk_ranges":[{"start":%d,"end":%d}],"head":%q,"round":%d}`,
+		id, recordPath, start, start+6, head, round)
 }
 
 // aRecord is the §6.1 fields an agent supplies, complete and valid. A test
 // makes exactly one thing wrong with a copy of it, so what a rejection proves
 // is that one fault and not some second thing the fixture never had.
+//
+// The anchor sits inside the unit the record names, two lines into its range,
+// so the binding of round 13's agent-chosen-grading-boundary is one of the
+// things the record gets right. A unit the fixture round does not form takes
+// u1's lines, since §6.1.3 refuses it before the anchor is read.
 func aRecord(id, unit string) map[string]any {
+	start, formed := recordUnitStart[unit]
+	if !formed {
+		start = recordUnitStart["u1"]
+	}
 	return map[string]any{
 		"id":       id,
 		"kind":     "finding",
@@ -80,10 +102,10 @@ func aRecord(id, unit string) map[string]any {
 		"severity": "high",
 		"unit":     unit,
 		"anchor": map[string]any{
-			"path":         "internal/api/handler.go",
+			"path":         recordPath,
 			"side":         "RIGHT",
-			"start_line":   42,
-			"line":         44,
+			"start_line":   start + 2,
+			"line":         start + 4,
 			"content_hash": "0123456789abcdef",
 		},
 		"summary":  "The error Decode returns is dropped.",

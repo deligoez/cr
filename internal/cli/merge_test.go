@@ -105,9 +105,12 @@ func TestMergeWritesAFileCRRecordAccepts(t *testing.T) {
 
 	correctness := writeFanOut(t, dir, "correctness",
 		aRoleRecord("f1", "correctness", "unchecked-error", "u1"))
+	// f3 is on u2, so it is anchored inside u2's range: `cr record` binds a
+	// record's anchor to the unit it names.
+	onTheOtherUnit := aRoleRecord("f3", "convention", "missing-test", "u2")
+	onTheOtherUnit["anchor"] = aRecord("f3", "u2")["anchor"]
 	convention := writeFanOut(t, dir, "convention",
-		aRoleRecord("f2", "convention", "unchecked-error", "u1"),
-		aRoleRecord("f3", "convention", "missing-test", "u2"))
+		aRoleRecord("f2", "convention", "unchecked-error", "u1"), onTheOtherUnit)
 
 	printed, err := runMergeCLI(t, out, correctness, convention)
 	require.NoError(t, err)
