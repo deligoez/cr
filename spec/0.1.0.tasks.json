@@ -8252,6 +8252,44 @@
         "internal/cli/unmappedintent.go",
         "internal/cli/unmappedintent_test.go"
       ]
+    },
+    {
+      "id": "skipped-role-empty-profiles",
+      "title": "Name why a profile-less role was skipped",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "review-skipped-roles"
+      ],
+      "estimate_minutes": 10,
+      "acceptance": "- Found by quiet-honesty-exemptions dogfood (2026-09-13): coverage.skipReason renders a role skipped on an active axis as \"its profiles list names  and this round resolved profile ...\" when the role's profiles list is empty, so the §4.6.4 sentence names nothing and sends the reader to a list that is not the cause.\n- The reason says what actually excluded the role when its profiles list is empty, reusing the clause that decided rather than rewording it, and the same sentence reaches cr review's fan-out and cr status through the one shared derivation.\n- A test skips a role with an empty profiles list on an active axis and asserts the sentence carries no empty name and states the deciding reason.",
+      "source_sections": [
+        "### 4.6 Review fan-out"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "complete-verdict-empty-round",
+      "title": "Refuse a complete verdict over zero units",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "completeness-verdict-honesty"
+      ],
+      "estimate_minutes": 10,
+      "acceptance": "- Found by quiet-honesty-exemptions dogfood (2026-09-13): cr status prints \"round complete, per §10.2\" on a round with zero units, because every condition over an empty set is vacuously met, so a reader is told a review is complete that reviewed nothing.\n- A round with zero units is not reported complete, and the verdict names why through coverage.Lenses.Verdict so the sentence still cannot be produced without the lenses.\n- A test briefs a round whose diff yields no units and asserts the verdict is not complete and states the reason, in both output shapes.",
+      "source_sections": [
+        "### 10.2 Completeness"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
