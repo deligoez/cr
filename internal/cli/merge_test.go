@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -355,4 +356,182 @@ func TestMergePicksTheRepresentativeByCorpusOrder(t *testing.T) {
 				"§6.4.3 writes the representative's id into every other record of the group")
 		}
 	}
+}
+
+// tallyNames are the row names of one of §6.5.1's breakdowns, in the order the
+// breakdown holds them, so a test can say which vocabulary was counted without
+// repeating the counts.
+func tallyNames(rows []tally) []string {
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, row.Name)
+	}
+	return names
+}
+
+// tallyTotal is the sum of one breakdown's rows.
+func tallyTotal(rows []tally) int {
+	total := 0
+	for _, row := range rows {
+		total += row.Count
+	}
+	return total
+}
+
+// countIn is one row's count, and zero for a name the breakdown has no row for
+// — which a test then catches through tallyNames rather than through a
+// silently missing row.
+func countIn(rows []tally, name string) int {
+	for _, row := range rows {
+		if row.Name == name {
+			return row.Count
+		}
+	}
+	return 0
+}
+
+// mergeSummaryOf reads the two drop counts §6.5.1 writes back out of the round's
+// summary.json.
+//
+// It decodes the document as its own fields rather than through the types
+// `cr merge` stored, so what is asserted is what a reader of the file finds
+// there — a shape read back through the writer's own struct would agree with
+// the writer by construction.
+func mergeSummaryOf(t *testing.T, layout state.Layout) (waived, alreadyPosted *finding.Drops) {
+	t.Helper()
+	body, err := layout.ReadRound(recordOwner, recordRepo, recordPRNum, recordRound, state.FileSummary)
+	require.NoError(t, err)
+	var summary struct {
+		Waived        *finding.Drops `json:"waived"`
+		AlreadyPosted *finding.Drops `json:"already_posted"`
+	}
+	require.NoError(t, json.Unmarshal(body, &summary))
+	return summary.Waived, summary.AlreadyPosted
+}
+
+// §6.5.1's two halves in one run: the four breakdowns are reported, and the
+// drop counts reach the round's summary.json per §10.3.
+//
+// The breakdowns are asserted as four cuts of one set rather than as four
+// numbers. Each carries its whole vocabulary — the resolved role corpus,
+// §1.5's four axes, §6.1's severities and §6.2's grades — and each sums to the
+// merged count, which is what makes a reader able to check one against another.
+// A breakdown that listed only the values something landed in would read the
+// same whether a role found nothing or never ran.
+//
+// The §9.3.6 count is asserted present at zero rather than left out. §10.1.6
+// reads an absent count as "the merge has not run for this round", so a writer
+// that wrote the key only when it was non-zero would make every clean round
+// indistinguishable from an unmerged one.
+func TestMergeReportsFourBreakdownsAndRecordsItsDropsInTheSummary(t *testing.T) {
+	layout := recordedHome(t)
+	waiver := finding.Waiver{
+		WaiverKey: finding.WaiverKey{
+			Path: "internal/api/handler.go", Side: "RIGHT",
+			Class: "unchecked-error", ContentHash: "0123456789abcdef",
+		},
+		Disposition: finding.DispositionNotHere,
+	}
+	stored, err := finding.Waive(layout, recordOwner, recordRepo, &waiver,
+		finding.WaiverProvenance{Round: recordRound, PR: recordPRNum, Head: recordHead})
+	require.NoError(t, err)
+
+	dir, out := t.TempDir(), mergedOut(t)
+	correctness := writeFanOut(t, dir, "correctness",
+		aRoleRecord("f1", "correctness", "unchecked-error", "u1"),
+		aRoleRecord("f2", "correctness", "missing-test", "u1"))
+	convention := writeFanOut(t, dir, "convention",
+		aRoleRecord("f3", "convention", "missing-test", "u2"),
+		aRoleRecord("f4", "convention", "long-function", "u2"))
+
+	printed, err := runMergeCLI(t, out, correctness, convention)
+	require.NoError(t, err)
+	reported := decodeMergeResult(t, printed)
+	require.Equal(t, 3, reported.Merged, "§6.4.4 drops the waived finding and keeps the other three")
+
+	assert.Equal(t,
+		[]string{"convention", "correctness", "intent-coverage", "test-adequacy"},
+		tallyNames(reported.Counts.ByRole),
+		"§6.5.1's role cut carries §2.5.5's whole corpus, so a role that found nothing is a zero")
+	assert.Equal(t, []string{"intent", "correctness", "convention", "test"},
+		tallyNames(reported.Counts.ByAxis), "§1.5's four, in that section's order")
+	assert.Equal(t, []string{"critical", "high", "medium", "low"},
+		tallyNames(reported.Counts.BySeverity), "§6.1's four, highest first")
+	assert.Equal(t, []string{"probed", "cited", "argued"},
+		tallyNames(reported.Counts.ByGrade), "§6.2's three, strongest first")
+
+	for dimension, rows := range map[string][]tally{
+		"role":     reported.Counts.ByRole,
+		"axis":     reported.Counts.ByAxis,
+		"severity": reported.Counts.BySeverity,
+		"grade":    reported.Counts.ByGrade,
+	} {
+		assert.Equalf(t, reported.Merged, tallyTotal(rows),
+			"the %s cut counts the records the file holds, so it sums to the merged count", dimension)
+	}
+	assert.Equal(t, 1, countIn(reported.Counts.ByRole, "correctness"))
+	assert.Equal(t, 2, countIn(reported.Counts.ByRole, "convention"))
+	assert.Equal(t, 1, countIn(reported.Counts.ByAxis, "correctness"),
+		"§6.1 computes the axis from the role, so the two cuts agree")
+	assert.Equal(t, 2, countIn(reported.Counts.ByAxis, "convention"))
+	assert.Equal(t, 3, countIn(reported.Counts.BySeverity, "high"))
+	assert.Equal(t, 3, countIn(reported.Counts.ByGrade, "argued"),
+		"§6.5.1 computes the grade in memory for these counts, and nothing here carries evidence")
+
+	assert.Contains(t, printed, `"by_role"`)
+	assert.Contains(t, printed, `"by_grade"`)
+
+	waived, alreadyPosted := mergeSummaryOf(t, layout)
+	require.NotNil(t, waived, "§10.3: `cr merge` writes its drop counts into summary.json")
+	assert.Equal(t, 1, waived.Dropped)
+	assert.Equal(t, []string{stored.ID}, waived.Waivers)
+	require.NotNil(t, alreadyPosted,
+		"§9.3.6's drop is a key of its own, written at zero as well")
+	assert.Equal(t, 0, alreadyPosted.Dropped)
+}
+
+// §2.2 measured over the one path `cr merge` writes that §2.2 does not derive.
+//
+// `-o` is that path, and this is where the reading behind it is measured rather
+// than argued. §2.2 governs cr's own state, which is why the round summary this
+// same run writes lands under the state root; the `-o` file is the caller's own
+// choice of location, which is why pointing it inside the repository under
+// review is not refused. So the whole of what this run leaves in the checkout is
+// the file the caller named, and nothing cr derived is in there beside it.
+//
+// The command is run from inside the repository, so a relative path anywhere in
+// cr would land here and be seen.
+func TestAMergeWritesNothingCrDerivedInsideTheRepositoryUnderReview(t *testing.T) {
+	layout := recordedHome(t)
+	under := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(under, "handler.go"), []byte("package api\n"), 0o600))
+	t.Chdir(under)
+
+	dir := t.TempDir()
+	file := writeFanOut(t, dir, "correctness",
+		aRoleRecord("f1", "correctness", "unchecked-error", "u1"))
+	out := filepath.Join(under, "merged.ndjson")
+
+	_, err := runMergeCLI(t, out, file)
+	require.NoError(t, err)
+
+	left := make([]string, 0, 2)
+	require.NoError(t, filepath.WalkDir(under, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, relErr := filepath.Rel(under, path)
+		if relErr != nil {
+			return relErr
+		}
+		left = append(left, rel)
+		return nil
+	}))
+	assert.ElementsMatch(t, []string{"handler.go", "merged.ndjson"}, left,
+		"§2.2: the file `-o` named is the caller's, and nothing cr derived joins it")
+
+	waived, _ := mergeSummaryOf(t, layout)
+	require.NotNil(t, waived,
+		"§2.2 and §10.3 together: the state this run derived is under the state root")
 }
