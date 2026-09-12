@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T10:44:24.980912Z",
+  "updated_at": "2026-09-12T11:06:37.553226Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6431,7 +6431,7 @@
     {
       "id": "new-round-invalidation",
       "title": "Stale records before clearing the mapping",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "round-increment",
@@ -6443,11 +6443,26 @@
       "source_sections": [
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T10:51:14.474108Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:06:37.530089Z",
+      "closed_reason": "- internal/brief/invalidate.go's staleOpenRecords moves every record §9.1 calls open to stale through finding.MayTransition as ActorBrief, over every round rather than one, because the records the closing round produced are exactly what a round-scoped sweep would miss; it keeps each record's head and round, since §2.3.3's pair says which run wrote the record and this changes a record's state and not its provenance.\n- clearMapping clears the closing round rather than the round being opened, which is the only reading that does anything: §4.1.6's join names unit ids units.ndjson no longer holds once the units are recomputed, so a forward-looking clearing would keep rows the round would itself refuse, and clearing the opening round would clear a round that has never held a record.\n- The units and threads were already recomputed for the current head on every run by assemble, and write publishes them; meta.json moved to last so that an interrupted increment is redone by the next brief instead of being locked out by a comparison that has already been made equal.\n- carryClaims re-records the closing round's claims under the opening round's head and round, which is the reading internal/cli/mapcmd.go already documents, and it changes nothing else about them: roundOf now returns the round it orients together with the round it carries from, so claimsOfRound reads the claims that are current going in rather than an empty new round.\n- cr brief re-reads the issue text through intent.Resolve and re-runs §3.3.3 over those carried claims with intent.DetectDrift, and extracts nothing: DetectDrift takes no state.Lock, takes an iter.Seq of copies, and returns ClaimDrift rather than Claim, so §3.3.1's cr claims record stays the one door extraction comes through.\n- internal/brief/invalidate_test.go's TestAMovedHeadStalesTheOpenRecordsAndCarriesTheClaimsForward asserts off disk after a real moved head that the drafted and queued records are stale while a posted one is not, that mapping.ndjson is empty, that the units are renumbered u1 and u2 over a changed file set at the new head and round, and that the claim survives into round 2 with every field equal to round 1's and a drift report whose hash is the issue text as it now reads.\n- Three guards sit beside it: a same-head brief performs none of the three, an increment writes the rows §9.3.4 names and no others when compared against the whole §2.3 table, and a carried-forward claim follows the file rather than an issue text that no longer contains its span; internal/brief/nojudgement_test.go's same-head fence now says it is a same-head fence and names the increment's.\n- internal/state/roundscope.go's RewriteStamped is the writer that made the sweep possible without restamping, sharing keptLines' walk through visitLines so the dropping and rewriting writers cannot disagree about a blank line, an absent file, or a line that does not decode.\n- Dogfooded with the freshly built binary against a scratch checkout under an isolated CR_HOME and never --confirm: at head 9221a4b round 1 held f1 in draft, one mapping pair and one claim, and after a commit moved the head to 4f93bd3 cr brief reported round 2 while findings.ndjson read state stale with round 1 and head 9221a4b intact, mapping.ndjson held nothing, claims.ndjson held both the round 1 line and a round 2 copy with identical content, and units.ndjson held u1 at a new hash plus a new u2 for tax.go, both at round 2; git status --porcelain in the checkout stayed empty, a second brief at the same head left every row byte-identical, and cr record at the moved head refused first with §9.3.2's exit 4.\n- Gate green: go test -race -count=1 ./..., golangci-lint run 0 issues, scripts/deadcode.sh exit 0, gofmt clean; gremlins unleash --workers 4 --timeout-coefficient 5 ./internal/brief reports 38 killed, 0 lived, 4 not covered, and the run is sound by CLAUDE.md's own instrument check, gathering coverage in 1.873s against a cold go test of 1.87s, with the four NOT COVERED being rule 3's tagless-switch artifact on roundOf's case expressions.\n",
+      "gate_passed_at": "2026-09-12T11:06:37.530089Z",
+      "commit_sha": "633fb2e",
+      "commit_shas": [
+        "633fb2e",
+        "5a59a00",
+        "8dfe2f1",
+        "3749f14"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/invalidate.go",
+        "internal/brief/invalidate_test.go",
+        "internal/brief/nojudgement_test.go",
+        "internal/brief/store.go",
+        "internal/state/roundscope.go"
+      ]
     },
     {
       "id": "current-round-scoping",
