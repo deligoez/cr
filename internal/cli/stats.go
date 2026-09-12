@@ -25,6 +25,16 @@ type statsResult struct {
 	// whose classes all happen to have been raised once.
 	Events int `json:"events"`
 	finding.TriageReport
+	// FirstSeen is §7.3.3's report: every class with the pull request and
+	// round the ledger first held it on.
+	//
+	// It is here rather than as a flag, because §7.3.3 asks for the drift
+	// to be visible and a report nobody runs discloses nothing. A reader
+	// scanning it sees `unchecked-error` first seen on the repository's
+	// first reviewed pull request and `dropped-error` first seen forty
+	// rounds later, which is the comparison the section exists to make
+	// possible.
+	FirstSeen []finding.FirstSeen `json:"first_seen"`
 }
 
 // Text names what was counted and then one line per class and per rule.
@@ -51,6 +61,14 @@ func (r *statsResult) Text(w *writer) string {
 	}
 	for _, rule := range r.Rules {
 		out.WriteString("\n  " + w.accent(rule.Rule) + " " + countsLine(rule.TriageCounts))
+	}
+	out.WriteString("\nfirst seen (§7.3.3: a reworded class is a new class)")
+	if len(r.FirstSeen) == 0 {
+		out.WriteString("\n  none")
+	}
+	for _, first := range r.FirstSeen {
+		out.WriteString("\n  " + w.accent(first.Class) +
+			" pr " + strconv.Itoa(first.PR) + " round " + strconv.Itoa(first.Round))
 	}
 	return out.String()
 }
@@ -109,6 +127,7 @@ func newStatsCmd(out *writer) *cobra.Command {
 			}
 			return out.emit(&statsResult{
 				Repo: owner + "/" + repo, Events: len(events), TriageReport: report,
+				FirstSeen: finding.FirstSeenClasses(events),
 			})
 		},
 	}
