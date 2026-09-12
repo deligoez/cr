@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:12:32.26871Z",
+  "updated_at": "2026-09-12T08:18:18.54343Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6587,7 +6587,7 @@
     {
       "id": "suggestion-indentation-warning",
       "title": "Warn on mismatched suggestion indentation",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "suggestion-range-validation"
@@ -6597,11 +6597,28 @@
       "source_sections": [
         "### 8.2 Suggestion validation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:12:45.192269Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:18:18.512147Z",
+      "closed_reason": "- internal/suggestion/indent.go infers nothing: WarnIndentation compares the leading whitespace of two lines and returns a warning or nil, it never edits a suggestion or refuses one, and Validate still passes the mismatching record so §8.2.4 blocks nothing on indentation.\n- WarnIndentation reads the suggestion's first line and the first line the anchored range replaces out of the round's hunks, returns both whole on IndentationWarning, and internal/cli/indentation.go carries them into cr draft's warnings field, where String quotes both so a tab and four spaces are told apart on a terminal.\n- TestAReindentingSuggestionIsWarnedAboutAndStillDrafted drives a rule whose fix re-indents through cr rules check, cr record and cr draft, and asserts the printed warning shows both lines while draft.md still carries the suggestion block and the stored record still carries the replacement; TestASuggestionIndentedLikeItsLineIsNotWarnedAbout and TestAnIndentationMismatchDoesNotBlockPosting hold the other two halves.\n",
+      "gate_passed_at": "2026-09-12T08:18:18.512147Z",
+      "commit_sha": "cc50dbf",
+      "commit_shas": [
+        "cc50dbf",
+        "34efce1",
+        "7b9ce6b",
+        "83270e7",
+        "db2772a",
+        "6e81e32"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/indentation.go",
+        "internal/cli/indentation_test.go",
+        "internal/suggestion/indent.go",
+        "internal/suggestion/indent_test.go",
+        "internal/suggestion/validate_test.go"
+      ]
     },
     {
       "id": "single-review-batching",
