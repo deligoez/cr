@@ -37,6 +37,24 @@ func (t *triaged) discardedSettlements() []finding.Settled {
 	return out
 }
 
+// newDraftClasses is §7.3.3's report for one round: the classes among the
+// records this draft queues that the repository's ledger has not held on any
+// other occasion.
+//
+// The read is lock-free per §2.3.2 and is taken before the round's own events
+// are written, which is what makes a regeneration answer the way the first run
+// did — finding.NewClasses excludes this pull request and round for the same
+// reason, so the two guards hold whether or not this read happens to run first.
+func newDraftClasses(
+	l state.Layout, owner, repo string, pr, round int, queued []*finding.Finding,
+) ([]string, error) {
+	held, err := finding.TriageEvents(l, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	return finding.NewClasses(held, pr, round, queued), nil
+}
+
 // triageOccasion is the pull request, round, head and moment one command writes
 // its §7.3.1 events for.
 func triageOccasion(pr int, round *state.Meta) *finding.TriageOccasion {

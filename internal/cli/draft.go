@@ -52,6 +52,14 @@ type draftResult struct {
 	// payload rather than a sentence alone, so an agent reading the
 	// document gets the numbers and not only the prose.
 	Forced finding.Forcings `json:"forced_to_question"`
+	// NewClasses is §7.3.3's report for this round — the classes the
+	// repository's ledger had not held before it — which is also what
+	// reached summary.json.
+	//
+	// It is on the payload as well as in the file because §7.3.3 asks for
+	// the drift to be visible rather than silent, and the moment a
+	// reworded slug can still be caught cheaply is the run that raised it.
+	NewClasses []string `json:"new_classes"`
 	// Warnings are §8.2.3's, one per suggestion indented unlike the line it
 	// replaces. They are warnings and not refusals: the reviewer is shown
 	// both lines and decides, and a block left in place posts as written.
@@ -84,6 +92,13 @@ func (r *draftResult) Text(w *writer) string {
 	}
 	for _, warning := range r.Warnings {
 		text += warning + "\n"
+	}
+	// §7.3.3's drift report, printed only when there is drift to report:
+	// unlike the forcing line below it, an empty list is not a fact about
+	// this draft that the reader needs on every run.
+	if len(r.NewClasses) > 0 {
+		text += "§7.3.3: class(es) first seen in this round: " +
+			strings.Join(r.NewClasses, ", ") + "\n"
 	}
 	return text + r.Forced.Disclosure()
 }
@@ -193,7 +208,16 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
 		return err
 	}
-	if err := publishDraft(l, owner, repo, pr, round, records, rendered, forced); err != nil {
+	// §7.3.3's report for this round, read off the ledger as it stands
+	// before §7.3.1's events below add this round's own: a class is new
+	// against what the repository knew, and a regeneration must not be the
+	// run that tells it the class is old.
+	fresh, err := newDraftClasses(l, owner, repo, pr, round.Round, queued)
+	if err != nil {
+		return err
+	}
+	summary := draftSummary{forced: forced, newClasses: fresh}
+	if err := publishDraft(l, owner, repo, pr, round, records, rendered, summary); err != nil {
 		return err
 	}
 	// §7.3.1's events, after the draft they describe reached disk.
@@ -201,14 +225,15 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		return err
 	}
 	return out.emit(&draftResult{
-		Path:      l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
-		Round:     round.Round,
-		Queued:    len(queued),
-		Triaged:   triage.report(),
-		Retriaged: triage.retriaged(),
-		Preserved: preservedIDs(queued, triage.Preserved),
-		Forced:    forced,
-		Warnings:  warnings,
+		Path:       l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
+		Round:      round.Round,
+		Queued:     len(queued),
+		Triaged:    triage.report(),
+		Retriaged:  triage.retriaged(),
+		Preserved:  preservedIDs(queued, triage.Preserved),
+		Forced:     forced,
+		NewClasses: fresh,
+		Warnings:   warnings,
 	})
 }
 
@@ -378,8 +403,8 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 
 // publishDraft is the single write, under §2.3.1's lock: the round's records
 // carrying the states §9.1 just stamped, the draft they were rendered into,
-// §7.1.5's rendered.json beside it, and §6.3.2's forcing count in the round
-// summary.
+// §7.1.5's rendered.json beside it, and the two round-summary sections
+// `cr draft` owns — §6.3.2's forcing count and §7.3.3's newly seen classes.
 //
 // findings.ndjson is replaced for the current round rather than appended to.
 // The records being written are the ones just read back out of it, so an append
@@ -392,7 +417,7 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 // against the wrong thing or against nothing.
 func publishDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	records []*finding.Finding, out drafted, forced finding.Forcings,
+	records []*finding.Finding, out drafted, summary draftSummary,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
@@ -403,7 +428,8 @@ func publishDraft(
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
 		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(out.file)) },
 		func() error { return writeRendered(held, round.Round, out.rendered) },
-		func() error { return writeForcingCounts(held, round.Round, forced) },
+		func() error { return writeForcingCounts(held, round.Round, summary.forced) },
+		func() error { return writeNewClasses(held, round.Round, summary.newClasses) },
 	}
 	for _, write := range writes {
 		if err := write(); err != nil {
@@ -427,12 +453,33 @@ func writeRendered(held *state.Lock, round int, rendered map[string]string) erro
 	})
 }
 
+// draftSummary are the sections of the round's summary.json that `cr draft`
+// owns, gathered into one value so publishDraft takes the document's shape
+// rather than one parameter per field.
+//
+// §10.3 has `cr merge`, `cr draft` and `cr post` each accumulate their own
+// counts into one file, so what a command owns is a fixed, small set — and a
+// type that names it is what keeps the next section from arriving as a ninth
+// positional argument nobody at the call site can tell from the eighth.
+type draftSummary struct {
+	// forced is §6.3.2's count per class over the records this draft
+	// holds.
+	forced finding.Forcings
+	// newClasses is §7.3.3's report for this round: the classes the
+	// repository's ledger had not held before it.
+	newClasses []string
+}
+
 // summaryForcedToQuestion is §10.3's "forced to question" count, by the key
 // summary.json holds it under.
 const summaryForcedToQuestion = "forced_to_question"
 
+// summaryNewClasses is §7.3.3's newly seen classes, by the key summary.json
+// holds them under.
+const summaryNewClasses = "new_classes"
+
 // writeForcingCounts puts §6.3.2's count per class into the round's
-// summary.json, as the one section of that document `cr draft` owns.
+// summary.json.
 //
 // §10.3 has `cr merge`, `cr draft` and `cr post` each accumulate their own
 // counts into one file, so the write goes through UpdateRoundSection, which
@@ -440,4 +487,17 @@ const summaryForcedToQuestion = "forced_to_question"
 func writeForcingCounts(held *state.Lock, round int, forced finding.Forcings) error {
 	return state.UpdateRoundSection(
 		held, round, state.FileSummary, summaryForcedToQuestion, forced)
+}
+
+// writeNewClasses puts §7.3.3's newly seen classes into the round's
+// summary.json, which is the first of the two places the section requires the
+// drift to be reported; `cr stats` is the other.
+//
+// The list is written on every run, empty included. A round that raised no new
+// class and a round whose report was never written look the same to a reader
+// of the document otherwise, and the whole point of §7.3.3 is that silence
+// about a reworded slug is what it is trying to stop.
+func writeNewClasses(held *state.Lock, round int, classes []string) error {
+	return state.UpdateRoundSection(
+		held, round, state.FileSummary, summaryNewClasses, classes)
 }
