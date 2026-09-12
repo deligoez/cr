@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T10:03:33.79105Z",
+  "updated_at": "2026-09-12T10:04:48.973312Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1693,7 +1693,7 @@
     {
       "id": "rules-suggest-command",
       "title": "Harvest rule candidates from comment history",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "normalised-hash",
@@ -1704,11 +1704,32 @@
       "source_sections": [
         "#### 2.6.3 Harvesting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:50:48.151082Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T10:04:48.941051Z",
+      "closed_reason": "- internal/cli/rulessuggest.go's `cr rules suggest --repo \u003cowner/repo\u003e` scans every pull request under the repository's state root in ascending numeric order, takes every record that reached `posted`, reads the body its round's draft.md carries for it through the new draft.Bodies, and hands the pairs to internal/rule/harvest.go's Harvest, which groups them by class and by text.Normalise's §1.4 normal form — the dogfood run against deligoez/cr-qa PR 1 scanned three posted comments across rounds 1, 2 and 3 and grouped all three although round 3's body differed by an interior whitespace run, a doubled blank line and trailing spaces, and although rounds 1 and 2 carried a `cr:label` region that render.AgentRegion dropped.\n- A group reaching `rules.harvest_min` is reported as a candidate carrying the class, the shared normal form, the occurrence count and every comment that formed it: the same dogfood run printed one candidate, `dropped-error` at 3 occurrences with f1@round 1, f2@round 2 and f3@round 3 named and quoted, while the default of 3 left a single posted comment reporting `\"candidates\": []` and a repository config lowering the threshold to 1 turned that same comment into a candidate, so the layer resolution is the §2.4 one rather than a constant.\n- internal/cli/rulessuggest_test.go's TestThreeMatchingCommentsAcrossTwoRoundsAreOneCandidate seeds five posted comments across rounds 1 and 2 of one pull request — three that differ only in what §1.4 collapses, one of another class, one of another wording — and asserts one candidate of three naming f1@1, f2@2 and f3@2, which is the round crossing §9.3.5 would otherwise have hidden.\n",
+      "gate_passed_at": "2026-09-12T10:04:48.941051Z",
+      "commit_sha": "0a1687e",
+      "commit_shas": [
+        "0a1687e",
+        "ab9971e",
+        "3b5e95b",
+        "ae49eed",
+        "3fb949b",
+        "e400551"
+      ],
+      "commit_files": [
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/rules.go",
+        "internal/cli/rulessuggest.go",
+        "internal/cli/rulessuggest_test.go",
+        "internal/cli/surface_test.go",
+        "internal/draft/ingest.go",
+        "internal/rule/harvest.go",
+        "internal/rule/harvest_test.go"
+      ]
     },
     {
       "id": "rules-suggest-reports-only",
