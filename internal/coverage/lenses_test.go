@@ -134,3 +134,33 @@ func TestASkippedRoleReachesTheReaderAsADisclosure(t *testing.T) {
 	assert.NotContains(t, text, "unavailable")
 	assert.NotContains(t, text, "disabled")
 }
+
+// The report collects the four kinds and nothing else, in the order §4.5.4
+// names them.
+//
+// Order matters to a reader working down a list: §4.5.4 words the four as "a
+// disabled axis, an unavailable axis, the unavailable reinvention half of
+// §4.3.1, and a role skipped per §4.6.4", and §3.7.6 and §10.1.3 both name the
+// axes first. A collector that reordered them would put the roles where the
+// reader expects the axes.
+func TestTheReportCollectsTheFourKindsInSectionOrder(t *testing.T) {
+	p := builtin(t, "generic")
+	axes := activation.Activate(&p, unresolved(t))
+	half := reinvention.Attach(&p, nil, nil, reinvention.Ranking{})
+
+	lenses := Lenses{
+		Axes:   axes.Disclosures(),
+		Halves: []finding.HonestyDisclosure{half.Unavailable[0]},
+		Roles:  []SkippedRole{skippedRole},
+	}
+
+	disclosed := lenses.Disclosures()
+	require.Len(t, disclosed, 4)
+	assert.Contains(t, disclosed[0].Disclosure(), "disabled")
+	assert.Contains(t, disclosed[1].Disclosure(), "§4.5.3")
+	assert.Contains(t, disclosed[2].Disclosure(), "§4.3.1")
+	assert.Contains(t, disclosed[3].Disclosure(), "§4.6.4")
+
+	assert.NotNil(t, Lenses{}.Disclosures(),
+		"§12.3: a round with every lens running reports an empty list, never null")
+}
