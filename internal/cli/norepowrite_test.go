@@ -886,7 +886,7 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][]string {
+func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -921,6 +921,16 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 		// renderer is likeliest to answer by writing nothing at all.
 		"draft":      {"draft", fixturePR, "--repo", fixtureSlug},
 		"map record": {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
+		// `cr merge` reads the §4.6.2 fan-out output files, whose names
+		// bind their records to one role, so its input is named
+		// review-<role>.ndjson rather than merged.ndjson. Both it and
+		// the `-o` path sit outside the repository under review, like
+		// every other file here. It sorts after `cr brief`, so the unit
+		// its record names is one the round has formed.
+		"merge": {
+			"merge", perRole, "-o", mergeOut,
+			"--repo", fixtureSlug, "--pr", fixturePR,
+		},
 		// `cr post` reads the round's draft back and builds the one
 		// review §8.3.1 posts, and reads the repository only through
 		// §7.2's location row — which no marker here moves. It sorts
@@ -1004,15 +1014,8 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation string) map[string][
 // which is what forces it into repoRuns, where the fingerprint then measures a
 // command that actually does something. A stub cannot quietly stay in the weak
 // half of the guard.
-func stubRuns(merged, out string) map[string][]string {
+func stubRuns() map[string][]string {
 	return map[string][]string{
-		// The merged file is one of the round's own inputs, prepared
-		// outside the repository under review like every other input
-		// here, and `-o` names a path outside it too.
-		"merge": {
-			"merge", merged, "-o", out,
-			"--repo", fixtureSlug, "--pr", fixturePR,
-		},
 		"stats":          {"stats", "--repo", fixtureSlug},
 		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
 		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
@@ -1155,6 +1158,17 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 		"--- a/app.go\n+++ b/app.go\n@@ -1,3 +1,3 @@\n package app\n \n"+
 			"-func Retry() { backoff() }\n+func Retry() {}\n"), 0o600))
 
+	// The file `cr merge` is pointed at, outside the repository under
+	// review for the same reason, and named for the role whose §4.6.2
+	// output file it stands in for — finding.DecodePerRole refuses an
+	// input whose name binds its records to no role.
+	perRole := filepath.Join(home, "review-correctness.ndjson")
+	require.NoError(t, os.WriteFile(perRole, []byte(`{"id":"f1","kind":"finding",`+
+		`"role":"correctness","class":"unchecked-error","severity":"high","unit":"u1",`+
+		`"anchor":{"path":"README.md","side":"RIGHT","start_line":1,"line":1,"content_hash":"0123456789abcdef"},`+
+		`"summary":"The returned error is dropped.",`+
+		`"evidence":"The call's second result is assigned to the blank identifier."}`+"\n"), 0o600))
+
 	claims := filepath.Join(home, "claims.ndjson")
 	require.NoError(t, os.WriteFile(claims, []byte(`{"id":"`+fixtureIssue+`#c1",`+
 		`"text":"The retry backs off exponentially.","source":"acceptance",`+
@@ -1203,8 +1217,9 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	runs := repoRuns(merged, claims, issue, cells, pairs, mutation)
-	stubs := stubRuns(merged, filepath.Join(home, "merge-out.ndjson"))
+	runs := repoRuns(merged, claims, issue, cells, pairs, mutation,
+		perRole, filepath.Join(home, "merge-out.ndjson"))
+	stubs := stubRuns()
 	commands := leafCommands(t)
 	exercised := slices.Collect(maps.Keys(runs))
 	exercised = append(exercised, slices.Collect(maps.Keys(stubs))...)
