@@ -259,3 +259,31 @@ func TestRenderLangDefaultsToTurkishAndRejectsAnUnknownLanguage(t *testing.T) {
 		})
 	}
 }
+
+// §2.7's scan reads every key a file carries, at every depth. A key nested
+// three objects deep flattens to two dots and no underscore, and depth is not
+// an escape: a `confirm` under two parents addresses the confirmation gate
+// exactly as `post.confirm` does.
+//
+// gremlins found the other half. The capacity sizing `words` was annotated as
+// unobservable, and the annotation named the wrong `+`: with the first one
+// turned into `-`, `strings.Count(name, "_") - strings.Count(name, ".") + 1` is
+// -1 for `a.b.c`, and `make` panics with `makeslice: cap out of range` rather
+// than allocating a smaller slice. Every key the other fixtures reach carries
+// at most one dot, which is where the two spellings agree.
+func TestTheProtectedScanReadsKeysAtEveryDepth(t *testing.T) {
+	unknown := filepath.Join(t.TempDir(), "config.json")
+	require.NoError(t, os.WriteFile(unknown, []byte(`{"a": {"b": {"c": true}}}`), 0o600))
+
+	cfg, err := Resolve(Sources{GlobalConfig: unknown})
+	require.NoError(t, err)
+	assert.NotContains(t, cfg.Map(), "a.b.c", "an unknown key configures nothing")
+
+	protectedFile := filepath.Join(t.TempDir(), "config.json")
+	require.NoError(t, os.WriteFile(protectedFile, []byte(`{"post": {"gate": {"seconds": 1}}}`), 0o600))
+
+	_, err = Resolve(Sources{GlobalConfig: protectedFile})
+	var protected *ProtectedError
+	require.ErrorAs(t, err, &protected)
+	assert.Equal(t, "post.gate.seconds", protected.Name)
+}
