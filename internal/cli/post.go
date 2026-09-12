@@ -7,6 +7,7 @@ import (
 
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
@@ -28,11 +29,24 @@ type postResult struct {
 	// Comments are the comments the payload carries, in the order §8.3.1's
 	// single review holds them.
 	Comments []postedComment `json:"comments"`
+	// Payload is §8.5.1's full payload: the review as the call would send
+	// it, body and comments alike.
+	//
+	// It is the document and not a summary of it, because §8.5.1 asks for
+	// the payload and a reviewer about to give `--confirm` is deciding
+	// about exactly these bytes. It is also the only way §8.4.3's review
+	// body reaches a reader at all — it is composed at build time and
+	// nothing else prints it, so a run without this field would validate a
+	// disclosure the author will receive and show it to nobody.
+	Payload *post.Review `json:"payload"`
 	// Forced is §6.3.2's count per class over the records the payload
 	// holds. It is reported here as well as by `cr draft` because this is
 	// §6.3.1's last application — the only one that sees the payload the
 	// author will actually receive.
 	Forced finding.Forcings `json:"forced_to_question"`
+	// posting is §12.6's field, which §8.5.1 requires of the dry run in as
+	// many words: a run that sent nothing reports `"posted": false`.
+	posting
 }
 
 // postedComment is one comment of the payload: the record it was drawn from,
@@ -63,19 +77,46 @@ func (r *postResult) Text(w *writer) string {
 	for _, comment := range r.Comments {
 		text += comment.ID + ": " + string(comment.Kind) + "\n"
 	}
-	return text + r.Forced.Disclosure()
+	return text + r.payload() + r.Forced.Disclosure() + "\n" + r.line(w)
 }
 
-// unbuiltPostFlags are the §11 flags this command registers and does not yet
-// act on.
+// payload renders §8.5.1's full payload for a terminal: the review's own body,
+// then every comment with the record it was drawn from and the position it
+// would land at.
 //
-// They refuse rather than being ignored, which is the same choice `cr config
-// --resolved` made and matters more here: §8.5.2 makes `--confirm` the whole of
-// the network-write gate, and a build that accepted the flag and quietly
-// validated would teach a caller that `--confirm` is satisfied by a run that
-// sent nothing. The refusal names the flag, so the caller is told what is
-// missing rather than that the command they just used is.
-var unbuiltPostFlags = []string{"confirm"}
+// It prints the bodies whole and truncates nothing. §8.5.1 asks for the full
+// payload, and the reviewer reading it is deciding whether to send these words
+// to a colleague — a rendering that elided them would be showing a summary of
+// the thing the decision is about.
+func (r *postResult) payload() string {
+	if r.Payload == nil {
+		return ""
+	}
+	text := "\n" + r.Payload.Body + "\n"
+	for i := range r.Payload.Comments {
+		comment := &r.Payload.Comments[i]
+		text += "\n" + comment.Record + " " + comment.Path + ":" +
+			strconv.Itoa(comment.Line) + " " + string(comment.Side) + "\n" + comment.Body + "\n"
+	}
+	return text + "\n"
+}
+
+// sendReview is §8.3's network write, and it is the half of §8.5 this build
+// does not have.
+//
+// The token is what makes it a gate rather than a convention. §8.5.2 requires
+// `--confirm` for every network write and §8.5.3 forbids anything that supplies
+// it implicitly, so the permission travels as a value minted from the flag and
+// from nothing else — and the send path takes one, which means no shape of this
+// call omits it. confirm-flag-required fills the body in.
+//
+// Until then a confirmed run stops here, with §11.2's code 2 naming the flag:
+// the payload has already been validated and built by that point, which is what
+// keeps §11.2's exit 1 for an invalid payload independent of the flag, and what
+// §8.5.1's dry run is the other branch of.
+func sendReview(cmd *cobra.Command, _ gh.Confirmation, _ *post.Review) error {
+	return notImplementedFor(cmd, "confirm")
+}
 
 // newPostCmd registers §11's `cr post <pr> [--confirm] [--reconcile]`, the
 // validation of §8 and §7.2.2's recomputation before the payload is built.
@@ -90,19 +131,21 @@ var unbuiltPostFlags = []string{"confirm"}
 // `post_unresolved` for a retry. §9.3.2 exempts it from the stale-head refusal,
 // because it anchors nothing.
 //
-// Nothing here mints §8.5's confirmation. The gate's own file is the deliberate
-// widening of nowrite_test.go's mintSites, and it arrives with the behaviour
-// rather than with the surface.
+// This is the gate's own file, and nowrite_test.go's mintSites names it: §8.5.3
+// allows one mint and the flag is its only input, so the token comes into being
+// where the flag is read and nowhere else.
 func newPostCmd(out *writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "post " + prPlaceholder,
 		Short: "Validate and post the review",
 		Args:  prArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, unbuilt := range unbuiltPostFlags {
-				if asked, err := cmd.Flags().GetBool(unbuilt); err == nil && asked {
-					return notImplementedFor(cmd, unbuilt)
-				}
+			// §8.5.3: the flag is the whole of the gate's input, read
+			// here once. It is not acted on until the payload has
+			// been built, which is §8.5.1's ordering.
+			confirmed, err := cmd.Flags().GetBool("confirm")
+			if err != nil {
+				return err
 			}
 			pr, err := parsePR(args[0])
 			if err != nil {
@@ -138,7 +181,7 @@ func newPostCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
-			return buildReview(out, layout, owner, repo, pr, &round.Meta)
+			return buildReview(cmd, out, layout, owner, repo, pr, &round.Meta, confirmed)
 		},
 	}
 	cmd.Flags().Bool("confirm", false, "perform the network write (§8.5.2)")
@@ -163,7 +206,16 @@ func newPostCmd(out *writer) *cobra.Command {
 // event, §8.5.2 has it perform no network write, and the states ingestDraft
 // stamps on a discarded record stay in memory: this run reads the round,
 // validates it, and reports.
-func buildReview(out *writer, l state.Layout, owner, repo string, pr int, round *state.Meta) error {
+//
+// The gate is asked last, and that ordering is §8.5.1's and §11.2's together.
+// Every refusal above — an `argued` assertion, a suggestion GitHub could not
+// place, a comment count over §1.6.2's cap — happens before the flag is looked
+// at, so an invalid payload exits 1 whether or not `--confirm` was given, and
+// only a payload that passed all of them reaches either branch of the gate.
+func buildReview(
+	cmd *cobra.Command, out *writer, l state.Layout,
+	owner, repo string, pr int, round *state.Meta, confirmed bool,
+) error {
 	records, err := roundFindingsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return err
@@ -194,9 +246,15 @@ func buildReview(out *writer, l state.Layout, owner, repo string, pr int, round 
 	if err != nil {
 		return err
 	}
-	return out.emit(&postResult{
-		Round: round.Round, Comments: commentedRecords(review, queued), Forced: forced,
-	})
+	// §8.5.1: without `--confirm` the run prints the payload it built,
+	// reports that it sent nothing, and exits 0.
+	if !confirmed {
+		return out.emit(&postResult{
+			Round: round.Round, Comments: commentedRecords(review, queued),
+			Payload: review, Forced: forced, posting: posting{Posted: false},
+		})
+	}
+	return sendReview(cmd, gh.Confirm(confirmed), review)
 }
 
 // postedRecords are the records §8.3 posts: the ones §9.1 still holds in
