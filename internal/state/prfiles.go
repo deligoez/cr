@@ -54,6 +54,44 @@ var prFiles = []string{
 	FileCoverage, FileTransitions, FileWaivers,
 }
 
+// prFileWriter names the command that fills each file of the §2.3 table, so a
+// read that found one missing can say what would have put records in it.
+//
+// createFiles writes every row empty when the state directory is created, so a
+// file that is absent is a directory older than the row or one edited by hand,
+// and the honest next step is the command that writes it. transitions.ndjson
+// has no entry because nothing in this tree writes it yet: a hint naming the
+// wrong command costs more than one naming none.
+var prFileWriter = map[string]string{
+	FileMeta:        "cr brief",
+	FileUnits:       "cr brief",
+	FileThreads:     "cr brief",
+	FileClaims:      "cr claims record",
+	FileMapping:     "cr map record",
+	FileIntentGaps:  "cr map record",
+	FileCoverage:    "cr cells record",
+	FileFindings:    "cr record",
+	FileProbes:      "cr probe run",
+	FileRuns:        "cr test",
+	FilePostedIndex: "cr post --confirm",
+	FileWaivers:     "cr draft",
+}
+
+// readHint is §12.4's next actionable step for a file of §2.2's tree a command
+// required and could not read.
+//
+// name may carry a rounds/<n>/ prefix, so the table is consulted by base name;
+// a per-round artefact matches none of its rows and takes the general answer,
+// which is true of every file under the state directory.
+func readHint(name string) string {
+	if writes, found := prFileWriter[filepath.Base(name)]; found {
+		return "§2.2 keeps it under the pull request's state directory, and `" +
+			writes + "` is the command that writes it"
+	}
+	return "§2.2 keeps it under the pull request's state directory; " +
+		"`cr status` reports how far the round has got"
+}
+
 // PRFiles returns the §2.3 file names in table order. The result is a copy, so
 // a caller can neither widen the set nor reorder it.
 func PRFiles() []string {
