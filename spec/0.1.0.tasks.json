@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:25:33.526961Z",
+  "updated_at": "2026-09-12T14:38:40.882631Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -712,7 +712,7 @@
     {
       "id": "config-resolved-annotation",
       "title": "Annotate settings with their source layer",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "config-layer-resolution"
@@ -722,11 +722,29 @@
       "source_sections": [
         "### 2.7 Configuration layers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:25:54.421389Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:38:40.852196Z",
+      "closed_reason": "- `cr config --resolved` annotates every setting with the layer that supplied it, per §2.7: internal/config's Resolve now keeps the provenance it already settled, Config.Origins hands it back, and internal/cli's annotated joins it to the values so every key of the plain listing carries a layer.\n- Every setting is annotated and not only the overridden ones: the origins map starts with §2.7's lowest layer for each key of the table, so a setting no file, variable or flag touched reports \"built-in default\" rather than leaving a reader to infer it from an absence.\n- The annotation names the actual file path or environment variable, not just the layer's rank: a file layer carries the config.json it read, the environment layer carries the CR_-prefixed variable envName spells, and the two layers that are not a place a reader can open — the built-in defaults and the command line — carry none.\n- The flag stopped refusing, so the surface guard changed with it: TestAFlagAheadOfItsBehaviourRefuses became TestTheResolvedFlagChangesWhatConfigPrints, which holds the flag to producing a listing that differs from the plain one and names the file, and notImplementedFor was removed with the refusal it existed for.\n- A test asserts the annotation changes when the same key is moved between layers: internal/cli/config_test.go's TestTheResolvedAnnotationFollowsAKeyBetweenLayers writes post.max_comments into the global config, then the per-repository one, then the environment, and reads the annotation after each move, asserting the layer and the source each time.\n- The derivation is held at its own level too: internal/config/origin_test.go sets one key in all four layers at once, which separates recording the highest layer from recording the last one read, and adds the two file layers told apart by name and by path, an unknown name annotating nothing, and Origins handing back a copy.\n- The measurement behind those tests: dropping the file path from the recorded origin fails four of them across the two packages, and leaves nothing else in the tree red.\n- One structural guard was met rather than weakened: internal/role's TestNothingOutsideThisPackageCanNameTheLayerARoleResolvedFrom fences the bare identifier `Layer` to that package for §2.5.5's corpus order, so the new field is `From` with the JSON tag `layer`, and both declarations say why.\n- Dogfooded against an isolated CR_HOME and a local scratch repository: with the key in the global config the annotation read {\"value\": 9, \"layer\": \"global config\", \"source\": \".../.cr/config.json\"}; moved to the per-repository file it read {\"value\": 7, \"layer\": \"per-repository config\", \"source\": \".../repos/qa/shop/config.json\"}; set in the environment it read {\"value\": 5, \"layer\": \"environment\", \"source\": \"CR_POST_MAX_COMMENTS\"}; and cluster.gap_lines stayed {\"value\": 12, \"layer\": \"built-in default\", \"source\": \"\"} throughout. At a terminal the same run printed `post.max_comments = 7  (per-repository config /.../config.json)`.\n- Invariant 2 verified by hand: `git status --porcelain` in the scratch repository was empty after every run.\n- The gate is green at 6 commits: `go test -race -count=1 ./...`, `golangci-lint run` at 0 issues, `./scripts/deadcode.sh` silent, and `gofmt -l internal cmd` empty.\n",
+      "gate_passed_at": "2026-09-12T14:38:40.852196Z",
+      "commit_sha": "f12b66c",
+      "commit_shas": [
+        "f12b66c",
+        "ae3beb9",
+        "53b5211",
+        "77c8dd3",
+        "bcb7d55",
+        "3bf92d7"
+      ],
+      "commit_files": [
+        "internal/cli/config.go",
+        "internal/cli/config_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/stub.go",
+        "internal/cli/surface_test.go",
+        "internal/config/config.go",
+        "internal/config/origin_test.go"
+      ]
     },
     {
       "id": "config-protected-keys",
