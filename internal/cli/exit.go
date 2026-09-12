@@ -48,7 +48,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 51 over 154 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 52 over 157 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -267,6 +267,14 @@ func exitCodeFor(err error) int {
 		// malformed, naming the line, and §7.2 codes every marker edit
 		// it does not admit 1. The draft read; what is wrong is what
 		// the reviewer typed into it.
+		return ExitValidation
+	}
+	var markerEdit *draft.MarkerEditError
+	if errors.As(err, &markerEdit) {
+		// §7.2 codes every marker edit its table does not admit 1,
+		// naming the record id, and §7.2.3 codes an unknown id the
+		// same. The draft read and the marker parsed; what is refused
+		// is what the reviewer asked for in it.
 		return ExitValidation
 	}
 	var gapSeverity *finding.GapSeverityError
