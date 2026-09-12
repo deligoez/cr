@@ -274,3 +274,115 @@ func TestConfirmFinalisesTheRoundSummary(t *testing.T) {
 	assert.JSONEq(t, `"`+hash+`"`, string(document["payload_hash"]),
 		"§10.3 records the §8.3.3 hash of the payload that was sent")
 }
+
+// Round 8's non-idempotent-accumulation at the write: a writer that leaves one
+// of its own counts out is refused, because a section is replaced whole on
+// every run and the count it left out would keep an earlier run's value.
+func TestAWriterMustReplaceItsWholeSection(t *testing.T) {
+	layout := draftedHome(t)
+	held, err := layout.LockPR(draftOwner, draftRepo, draftPRNum)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, held.Unlock()) }()
+
+	err = writeSummary(held, draftRound, ownerRecord, []summaryCount{{key: summaryDeduplicated, value: 1}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"suppressed_by_thread"`, "the refusal names the count left out")
+	assert.Contains(t, err.Error(), "replaced whole")
+
+	_, statErr := os.Stat(layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary))
+	assert.ErrorIs(t, statErr, os.ErrNotExist, "the refusal comes before anything is written")
+}
+
+// preparedRound runs the three pre-post writers over gradedHome's round, each
+// writing command `times` times: `cr merge`, then `cr record` once — it
+// appends, and is not one of the writers round 8's finding re-runs — then
+// `cr draft`, a reviewer deleting one block, and `cr draft` again to ingest the
+// deletion. It returns the round summary the run leaves.
+func preparedRound(t *testing.T, times int) []byte {
+	t.Helper()
+	layout := gradedHome(t)
+	other := aGradedRecord("f2")
+	other["class"] = "missing-test"
+	dir := t.TempDir()
+	file := writeFanOut(t, dir, "correctness", aGradedRecord("f1"), other)
+	out := filepath.Join(dir, "merged.ndjson")
+
+	for range times {
+		_, err := runCLIPrinting(t, "merge", file, "-o", out, "--repo", fixtureSlug, "--pr", fixturePR)
+		require.NoError(t, err)
+	}
+	_, err := runRecord(t, fixturePR, out, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	for range times {
+		_, err := runDraft(t, fixturePR, "--repo", fixtureSlug)
+		require.NoError(t, err)
+	}
+	drafted := layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileDraft)
+	body, err := os.ReadFile(drafted)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(drafted, []byte(deleteBlock(t, string(body), "f2")), 0o600))
+	for range times {
+		_, err := runDraft(t, fixturePR, "--repo", fixtureSlug)
+		require.NoError(t, err)
+	}
+
+	summary, err := layout.ReadRound(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileSummary)
+	require.NoError(t, err)
+	return summary
+}
+
+// postedRound runs §8.5.1's dry run `times` times over draftedHome's round and
+// then posts it once with `--confirm`, returning the summary before the
+// confirmation and after it.
+func postedRound(t *testing.T, times int) (dry, confirmed []byte) {
+	t.Helper()
+	layout := draftedHome(t, aCitedRecord("f1"), aCitedRecord("f2"))
+	redraft(t)
+	for range times {
+		_, err := runPost(t, draftPR, "--repo", draftSlug)
+		require.NoError(t, err)
+	}
+	dry, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
+	require.NoError(t, err)
+
+	ghShimming(t, builtPayload(t))
+	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.NoError(t, err)
+	confirmed, err = layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
+	require.NoError(t, err)
+	return dry, confirmed
+}
+
+// Round 8's non-idempotent-accumulation end to end: `cr merge` twice, `cr draft`
+// twice at each of its two moments, and `cr post` twice leave every count
+// exactly where one run of each left it.
+//
+// The deletion is what gives the draft half its teeth. The second rendering
+// after it reads a draft the deleted block is already gone from, so its triage
+// discards nothing; a count of what the run discarded would fall from one to
+// zero, and a count added to on each run would climb. The count read off the
+// round's records stays at one either way.
+//
+// The dry runs are compared byte for byte, before the confirmation: §8.5.1's run
+// writes nothing, so no number of them may move the document.
+func TestRerunningEveryWriterLeavesTheRoundSummaryUnchanged(t *testing.T) {
+	var once, twice []byte
+	t.Run("once", func(t *testing.T) { once = preparedRound(t, 1) })
+	t.Run("twice", func(t *testing.T) { twice = preparedRound(t, 2) })
+	require.NotEmpty(t, once)
+	assert.JSONEq(t, string(once), string(twice),
+		"re-running cr merge and cr draft replaces their sections rather than adding to them")
+	document := assertSummaryShape(t, twice, ownerMerge, ownerRecord, ownerDraft)
+	assert.JSONEq(t, "2", string(document["raised"]))
+	assert.JSONEq(t, "1", string(document["drafted"]))
+	assert.JSONEq(t, "1", string(document["discarded_not_here"]),
+		"the deleted block is counted once, however many renderings read the draft after it")
+
+	var dryOnce, postedOnce, dryTwice, postedTwice []byte
+	t.Run("one dry run", func(t *testing.T) { dryOnce, postedOnce = postedRound(t, 1) })
+	t.Run("two dry runs", func(t *testing.T) { dryTwice, postedTwice = postedRound(t, 2) })
+	require.NotEmpty(t, dryOnce)
+	assert.Equal(t, string(dryOnce), string(dryTwice), "§8.5.1's dry run writes nothing, however often it runs")
+	assert.JSONEq(t, string(postedOnce), string(postedTwice),
+		"the confirmation after two dry runs records what it records after one")
+}
