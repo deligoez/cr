@@ -51,7 +51,7 @@ var doors = map[string][]door{
 // a door above and was refused there if it carried no code location. A function
 // that takes records **and** reads bytes is not a pass however it is spelled,
 // and belongs in doors.
-var passes = []string{"DropWaived"}
+var passes = []string{"DropWaived", "DropPosted"}
 
 // unanchored is an item with no code location, in every shape it can take once
 // it is written as a record: the key left out, an anchor object holding
