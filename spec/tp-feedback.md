@@ -146,3 +146,26 @@ other state. A `claimed_at` stamp on `tp claim` would also let `tp next` skip or
 flag a claim older than a threshold, which is the cheaper half: it does not add a
 transition, it just stops handing a stale claim to the next unit as if it were
 theirs.
+
+## `tp done` refuses a reason for deferral without naming the line
+
+Measured 2026-09-12, twice in one session by different units. `tp done <id>
+--reason-file <f>` rejected an otherwise accurate closure reason with a message
+saying deferral is forbidden, and named no line, no word, and no position. The
+reason files were four and five lines long and every line was criterion-shaped;
+the offending word was a `defer`/`deferred` substring inside prose that was
+describing what the task DID, not what it postponed.
+
+The rejection itself is right and worth keeping — a closure that says "left to
+later" is how a task closes without closing. What costs a round each time is
+that the agent has to guess which line tripped it, and the usual repair is to
+reword every line rather than the one.
+
+Contrast with the sibling check in the same command: when the reason's line
+count does not match the acceptance's part count, tp prints each part it found,
+and the fix is mechanical. That is the shape this check needs.
+
+**Proposed fix.** Name the line number and quote the matched word, the way the
+part-count error already names each part. A secondary improvement: match on a
+word boundary rather than a substring, so `deferred` in "the caller deferred the
+close" is caught while a sentence that merely contains those letters is not.
