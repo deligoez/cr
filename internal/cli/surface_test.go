@@ -74,7 +74,7 @@ var specSurface = []surfaceRow{
 		spec: []string{"note"}},
 	{path: []string{"merge"}, use: "merge <files...>",
 		spec:       []string{"output", "pr", "repo"},
-		shorthands: map[string]string{"o": "output"}, stub: true},
+		shorthands: map[string]string{"o": "output"}},
 	{path: []string{"record"}, use: "record <pr> <file>"},
 	{path: []string{"map", "record"}, use: "record <pr> <file>"},
 	{path: []string{"cells", "record"}, use: "record <pr> <file>"},
