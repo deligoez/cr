@@ -49,7 +49,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 55 over 164 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 56 over 167 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -459,6 +459,16 @@ func exitCodeFor(err error) int {
 		// state rather than an unusable file or a mistyped command
 		// line. What fails is the answer itself: §3.6.2 has no store to
 		// keep it in, which §11.2 codes 1.
+		return ExitValidation
+	}
+	var noGap *mapping.NoGapError
+	if errors.As(err, &noGap) {
+		// §4.1.8 stamps `set_aside_note` on the gap entry §4.1.3 raised,
+		// and a claim the round maps to a unit raises none. The state
+		// directory read and parsed without trouble and the command
+		// line is the shape §11 gives it; what is wrong is the claim id
+		// the caller named, which §11.2 codes 1 alongside the unknown
+		// claim id §4.1.6 refuses a mapping pair for.
 		return ExitValidation
 	}
 	var unknownNote *note.UnknownNoteError
