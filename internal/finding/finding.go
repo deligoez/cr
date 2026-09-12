@@ -55,6 +55,19 @@ const (
 	SeverityLow Severity = "low"
 )
 
+// Severities returns §6.1's four severities, highest first. The result is a
+// copy, so a caller can neither widen the set nor reorder it.
+//
+// The order is severityStrength's, which §6.4.2 ranks a duplicate group by, so
+// the vocabulary a caller holds a value to and the order cr compares two
+// records by cannot come apart. §7.2 needs the first half: it makes `severity`
+// freely editable in a draft marker, and "freely" is about cr forming no
+// opinion of its own rather than about the vocabulary — a fifth word is not a
+// severity the reviewer chose but one nothing downstream can rank.
+func Severities() []Severity {
+	return append(make([]Severity, 0, len(severityStrength)), severityStrength...)
+}
+
 // Grade is the evidence grade of §6.2, computed by cr from the record and never
 // asserted by the agent. §6.2's own rules decide which of the three a record
 // earns.
