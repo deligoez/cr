@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/deligoez/cr/internal/state"
 )
@@ -110,8 +112,8 @@ type summaryCount struct {
 	value any
 }
 
-// writeSummary writes owner's share of the round's summary.json and touches
-// nothing else.
+// writeSummary replaces owner's whole share of the round's summary.json and
+// touches nothing else.
 //
 // Each count goes through state.UpdateRoundSection, which leaves every field
 // this writer does not own byte for byte. That is the whole of what makes one
@@ -120,11 +122,22 @@ type summaryCount struct {
 // does not name, and the history §10.3 exists to make reconstructable from
 // state alone would lose whatever the writer before it put there.
 //
+// A section is replaced, never added to, and that is round 8's
+// non-idempotent-accumulation. None of the writers runs once per round: §7.1.6
+// regenerates the draft as often as the reviewer likes, §8.5.1 makes a dry run
+// the ordinary precursor to `cr post --confirm`, and re-running `cr merge`
+// after fixing one role's output is the obvious recovery. A count added to on
+// each run would inflate the waived, deduplicated and drafted counts, and the
+// round summary would be the one place a re-run silently changed the record.
+// So every writer computes its counts from the round's state and writes all of
+// them on every run, and completeOwnership refuses a run that leaves one out —
+// a count kept from an earlier run would be a count this run did not measure.
+//
 // The lock is the caller's, because every one of the four writers is already
 // holding §2.3.1's lock for its own artefacts when it gets here, and the round
 // summary has to land beside them rather than in a second window.
 func writeSummary(held *state.Lock, round int, owner summaryOwner, counts []summaryCount) error {
-	if err := ownedBy(owner, counts); err != nil {
+	if err := completeOwnership(owner, counts); err != nil {
 		return err
 	}
 	for _, count := range counts {
@@ -137,15 +150,20 @@ func writeSummary(held *state.Lock, round int, owner summaryOwner, counts []summ
 	return nil
 }
 
-// ownedBy holds a writer to its own share of §10.3's list: every count it
-// passes is one summaryOwners gives it, and no count is passed twice.
+// completeOwnership holds a writer to exactly its own share of §10.3's list:
+// every count it passes is one summaryOwners gives it, no count is passed
+// twice, and every count summaryOwners gives it is passed.
 //
 // The refusal is not defensive noise. §10.3's document is the one place two
 // commands could write the same key with different meanings, and the result
 // would be a history that reads as complete and is not — a count silently
-// overwritten by a command that had no business computing it. There is no
-// wording in a call site that catches that; a table read at the write is.
-func ownedBy(owner summaryOwner, counts []summaryCount) error {
+// overwritten by a command that had no business computing it, or a count left
+// standing from a run whose inputs no longer hold. There is no wording in a
+// call site that catches either; a table read at the write is.
+//
+// The missing count named is the first by key, so the same fault is named the
+// same way on every run, as §2.1.1 asks.
+func completeOwnership(owner summaryOwner, counts []summaryCount) error {
 	seen := make(map[string]bool, len(counts))
 	for _, count := range counts {
 		at, listed := summaryOwners[count.key]
@@ -162,6 +180,14 @@ func ownedBy(owner summaryOwner, counts []summaryCount) error {
 			return fmt.Errorf("%s writes %q twice in one run", owner, count.key)
 		}
 		seen[count.key] = true
+	}
+	for _, key := range slices.Sorted(maps.Keys(summaryOwners)) {
+		if summaryOwners[key] == owner && !seen[key] {
+			return fmt.Errorf(
+				"§10.3 gives %q to %s, and this run did not write it: a section is replaced "+
+					"whole on every run, so a count left out would keep an earlier run's value",
+				key, owner)
+		}
 	}
 	return nil
 }
