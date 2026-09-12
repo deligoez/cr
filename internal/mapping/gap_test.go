@@ -38,19 +38,22 @@ func TestAClaimMappedToZeroUnitsOfItsRoundRaisesAGap(t *testing.T) {
 		pair("CR-1#c4", "u2", 2),
 	}
 
-	gaps := Gaps([]string{"CR-1#c1", "CR-1#c2", "CR-1#c3", "CR-1#c4"}, pairs, 2, nil)
+	gaps, dropped := Gaps([]string{"CR-1#c1", "CR-1#c2", "CR-1#c3", "CR-1#c4"}, pairs, 2, nil)
 
 	assert.Equal(t, []string{"CR-1#c2/", "CR-1#c3/"}, gapsOf(gaps))
+	assert.Empty(t, dropped, "a round that recorded no set-aside can drop none")
 }
 
 // A round whose every claim is mapped raises an empty list rather than a nil
 // one, per §12.3: a caller serialising the answer prints `[]`, which is the
 // difference between no gap and a question never asked.
 func TestAFullyImplementedRoundRaisesAnEmptyGapListNotANilOne(t *testing.T) {
-	gaps := Gaps([]string{"CR-1#c1"}, []Pair{pair("CR-1#c1", "u1", 1)}, 1, nil)
+	gaps, dropped := Gaps([]string{"CR-1#c1"}, []Pair{pair("CR-1#c1", "u1", 1)}, 1, nil)
 
 	require.NotNil(t, gaps)
 	assert.Empty(t, gaps)
+	require.NotNil(t, dropped, "§12.3 holds for the report as well as for the entries")
+	assert.Empty(t, dropped)
 }
 
 // A re-derivation keeps the §4.1.8 set-aside of a claim that is still unmapped,
@@ -66,18 +69,35 @@ func TestAFullyImplementedRoundRaisesAnEmptyGapListNotANilOne(t *testing.T) {
 // c2's stamp is round 1's and c2 is unmapped in round 2, so a carry-forward
 // that ignored the round would resurrect a decision made against a different
 // diff.
+//
+// c4's entry is round 2's and carries no note, and c4 is now mapped. It is the
+// difference between a stamp and a field: §4.1.3 writes `set_aside_note` on
+// every entry, so a report that counted a vanished entry rather than a vanished
+// decision would tell the reviewer they had lost a judgement nobody made.
+//
+// c5's stamp is round 1's and round 2 has no such claim, so round 2 raises no
+// entry for it — and round 1's entry, stamp and all, is still in the file where
+// §9.3.5 leaves it. It may not be reported dropped: nothing was dropped, and a
+// report saying otherwise would send the reviewer to re-make a decision that
+// still stands.
 func TestAReDerivationKeepsTheSetAsideOfAClaimStillUnmapped(t *testing.T) {
 	recorded := []Gap{
 		{Claim: "CR-1#c1", Stamp: state.Stamp{Head: "abc123", Round: 2}, SetAsideNote: "CR-1#n1"},
 		{Claim: "CR-1#c2", Stamp: state.Stamp{Head: "0f1e2d3", Round: 1}, SetAsideNote: "CR-1#n2"},
 		{Claim: "CR-1#c3", Stamp: state.Stamp{Head: "abc123", Round: 2}, SetAsideNote: "CR-1#n3"},
+		{Claim: "CR-1#c4", Stamp: state.Stamp{Head: "abc123", Round: 2}, SetAsideNote: ""},
+		{Claim: "CR-1#c5", Stamp: state.Stamp{Head: "0f1e2d3", Round: 1}, SetAsideNote: "CR-1#n5"},
 	}
 
-	gaps := Gaps(
-		[]string{"CR-1#c1", "CR-1#c2", "CR-1#c3"},
-		[]Pair{pair("CR-1#c3", "u1", 2)}, 2, recorded)
+	gaps, dropped := Gaps(
+		[]string{"CR-1#c1", "CR-1#c2", "CR-1#c3", "CR-1#c4"},
+		[]Pair{pair("CR-1#c3", "u1", 2), pair("CR-1#c4", "u2", 2)}, 2, recorded)
 
 	assert.Equal(t, []string{"CR-1#c1/CR-1#n1", "CR-1#c2/"}, gapsOf(gaps),
 		"§4.1.8's note survives a re-recorded mapping for a claim still unmapped, "+
 			"and c3 raises no entry at all now that it is mapped")
+	assert.Equal(t, []DroppedSetAside{{Claim: "CR-1#c3", SetAsideNote: "CR-1#n3"}}, dropped,
+		"round 9's finding asks for the drop to be reported, and only for the drop: "+
+			"c1 kept its stamp, c2's was never this round's to lose, c4 never had one, "+
+			"and c5's entry is still in the file where §9.3.5 left it")
 }
