@@ -101,23 +101,6 @@ func (r *postResult) payload() string {
 	return text + "\n"
 }
 
-// sendReview is §8.3's network write, and it is the half of §8.5 this build
-// does not have.
-//
-// The token is what makes it a gate rather than a convention. §8.5.2 requires
-// `--confirm` for every network write and §8.5.3 forbids anything that supplies
-// it implicitly, so the permission travels as a value minted from the flag and
-// from nothing else — and the send path takes one, which means no shape of this
-// call omits it. confirm-flag-required fills the body in.
-//
-// Until then a confirmed run stops here, with §11.2's code 2 naming the flag:
-// the payload has already been validated and built by that point, which is what
-// keeps §11.2's exit 1 for an invalid payload independent of the flag, and what
-// §8.5.1's dry run is the other branch of.
-func sendReview(cmd *cobra.Command, _ gh.Confirmation, _ *post.Review) error {
-	return notImplementedFor(cmd, "confirm")
-}
-
 // newPostCmd registers §11's `cr post <pr> [--confirm] [--reconcile]`, the
 // validation of §8 and §7.2.2's recomputation before the payload is built.
 //
@@ -181,7 +164,7 @@ func newPostCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
-			return buildReview(cmd, out, layout, owner, repo, pr, &round.Meta, confirmed)
+			return buildReview(out, layout, owner, repo, pr, &round.Meta, confirmed)
 		},
 	}
 	cmd.Flags().Bool("confirm", false, "perform the network write (§8.5.2)")
@@ -213,7 +196,7 @@ func newPostCmd(out *writer) *cobra.Command {
 // at, so an invalid payload exits 1 whether or not `--confirm` was given, and
 // only a payload that passed all of them reaches either branch of the gate.
 func buildReview(
-	cmd *cobra.Command, out *writer, l state.Layout,
+	out *writer, l state.Layout,
 	owner, repo string, pr int, round *state.Meta, confirmed bool,
 ) error {
 	records, err := roundFindingsOf(l, owner, repo, pr, round.Round)
@@ -254,7 +237,15 @@ func buildReview(
 			Payload: review, Forced: forced, posting: posting{Posted: false},
 		})
 	}
-	return sendReview(cmd, gh.Confirm(confirmed), review)
+	// §8.5.2 and §8.5.3: the permission travels as a value minted from the
+	// flag and from nothing else, and the send path takes one — so there is
+	// no shape of this call that omits it, and no second input a setting, a
+	// variable, a profile field or an alias could arrive through.
+	sender := &sending{
+		layout: l, round: round, review: review, records: records,
+		queued: queued, forced: forced, triage: &triage,
+	}
+	return sender.send(out, gh.Confirm(confirmed))
 }
 
 // postedRecords are the records §8.3 posts: the ones §9.1 still holds in
