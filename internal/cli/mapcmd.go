@@ -200,7 +200,8 @@ func publishMapping(
 	if err := state.ReplaceStamped(held, state.FileMapping, at, pairs); err != nil {
 		return nil, err
 	}
-	recorded, err := state.ReadRecords[mapping.Gap](l, owner, repo, pr, state.FileIntentGaps)
+	recorded, err := state.ReadStamped[mapping.Gap](
+		l, owner, repo, pr, state.FileIntentGaps, at.Round)
 	if err != nil {
 		return nil, err
 	}
@@ -227,15 +228,13 @@ func storedPairs(pairs []*mapping.Pair) []mapping.Pair {
 // claims are still that round's records, and a mapping written in round 2 joins
 // round 2's claims to round 2's units.
 func roundClaimIDs(l state.Layout, owner, repo string, pr, round int) ([]string, error) {
-	stored, err := state.ReadRecords[intent.Claim](l, owner, repo, pr, state.FileClaims)
+	stored, err := state.ReadStamped[intent.Claim](l, owner, repo, pr, state.FileClaims, round)
 	if err != nil {
 		return nil, err
 	}
 	ids := make([]string, 0, len(stored))
 	for i := range stored {
-		if stored[i].Round == round {
-			ids = append(ids, stored[i].ID)
-		}
+		ids = append(ids, stored[i].ID)
 	}
 	return ids, nil
 }
