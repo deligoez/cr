@@ -263,6 +263,34 @@ func refuseUnknownBlocks(queued []*finding.Finding, blocks map[string]readBlock)
 			"GitHub after posting"}
 }
 
+// Bodies is the agent region of every block a rendered draft holds, keyed by
+// record id.
+//
+// It is what a reader after the fact needs and Ingest cannot give it: Ingest
+// answers §7.2's question — what did the reviewer change — against the records
+// the draft was rendered for and the rendered.json it was compared with, and a
+// round that has been posted and left behind has neither in hand. §2.6.3.1's
+// harvest asks the other question: what did the author actually receive. The
+// draft is where that is written, because §8.1.2 makes editing it the one input
+// path for reader-facing prose.
+//
+// Only the agent region is returned, for the reason Ingest keeps only that one:
+// §8.1.3 has cr regenerate every owned region from the record, so a label or a
+// provenance block is cr's wording and not a thing anybody said twice. Grouping
+// on it would make two comments look alike because cr rendered the same header
+// over both.
+func Bodies(file string) (map[string]string, error) {
+	blocks, err := blocksOf(file)
+	if err != nil {
+		return nil, err
+	}
+	bodies := make(map[string]string, len(blocks))
+	for id := range blocks {
+		bodies[id] = render.AgentRegion(blocks[id].text)
+	}
+	return bodies, nil
+}
+
 // blocksOf splits a draft into its blocks by record id.
 //
 // A line is a marker exactly when IsMarkerLine says so, and every such line is
