@@ -35,6 +35,14 @@ func (r *reviewResult) Text(w *writer) string {
 		prompt := &r.Prompts[i]
 		fmt.Fprintf(&out, "\n%s %s on %s\n\n%s", w.accent("prompt"), prompt.Role, prompt.Unit, prompt.Text)
 	}
+	// §4.6.3's set is printed rather than counted. A count says how many
+	// cells are owed and not which, and the reason §4.6.3 has `cr review`
+	// report the set at all is that §10.2.2 is checked against it once the
+	// roles return.
+	fmt.Fprintf(&out, "\n%s %d cell(s) for §10.2.2\n", w.accent("expects"), len(r.Expected))
+	for _, cell := range r.Expected {
+		fmt.Fprintf(&out, "  %s %s\n", cell.Unit, cell.Role)
+	}
 	for _, entry := range r.Honesty {
 		fmt.Fprintf(&out, "\n%s\n", entry)
 	}
