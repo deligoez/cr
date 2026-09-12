@@ -68,6 +68,26 @@ type TriageEvent struct {
 	Axis  string `json:"axis"`
 	Role  string `json:"role"`
 	Grade Grade  `json:"grade"`
+	// Severity is the record's severity as it stood when the event was
+	// written, which is round 8's unnameable-triage-event settled the way
+	// that finding's second option settles it.
+	//
+	// §7.2's marker table calls `severity` freely editable and says the
+	// edit is recorded as a triage event, while §7.3.1 closes the action
+	// vocabulary at five names and allows `cr post --confirm` exactly one
+	// outcome event per queued record. A record whose only draft edit is a
+	// severity change therefore had no event it could be written as: a
+	// sixth action would break the closed vocabulary, and a second outcome
+	// event would break the exactly-one rule.
+	//
+	// Carrying the value on every event closes both at once. The edit is
+	// recorded on the record's single outcome event rather than as an
+	// event of its own, because §7.2's edits are applied before that event
+	// is written — so the severity an outcome carries is the severity the
+	// reviewer settled on, and the raise beside it still carries the one
+	// the record was raised at. What changed is then readable as the
+	// difference between two events the section already required.
+	Severity Severity `json:"severity"`
 	// Rule is the rule id when a rule of §2.6 produced the record, which
 	// §7.3.2 reports per, and absent when none did.
 	Rule string `json:"rule,omitempty"`
@@ -93,7 +113,7 @@ func (o *TriageOccasion) event(action TriageAction, record *Finding) TriageEvent
 	return TriageEvent{
 		Record: record.ID, Action: action,
 		Class: record.Class, Axis: record.Axis, Role: record.Role,
-		Grade: record.Grade, Rule: record.Rule,
+		Grade: record.Grade, Severity: record.Severity, Rule: record.Rule,
 		PR: o.PR, Round: o.Round, Head: o.Head, At: o.At.UTC(),
 	}
 }
