@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T13:44:08.109554Z",
+  "updated_at": "2026-09-12T13:57:03.881649Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6115,7 +6115,7 @@
     {
       "id": "triage-event-fields",
       "title": "Carry the full field set per event",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "triage-event-writing"
@@ -6125,11 +6125,22 @@
       "source_sections": [
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T13:44:33.221167Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T13:57:03.864131Z",
+      "closed_reason": "- internal/finding/triageevent.go's TriageOccasion.event fills every one off the record and the occasion together, so no caller can write an event that carries less: class, axis, role and grade from the record, rule from it when a rule of §2.6 produced it and absent otherwise, and the PR, round and head from the occasion; TestATriageEventCarriesEverythingSection731Requires asserts the whole struct against a literal and TestTheEventsWireFormIsSection731sFieldSet asserts the wire form's key set against specEventFields, an independent transcription of §7.3.1's sentence, in both directions — so a field that is declared and never filled fails the first and a field that belongs to no sentence fails the second.\n- The representation is the value on the events §7.3.1 already requires, and it is nameable because the raise and the outcome say different things: TestASeverityEditIsObservableInExactlyOneEvent edits only the marker's severity and the ledger reads f1:raised:high then f1:kept:low, so the change is the difference between two events a reader can point at rather than an event nobody could name.\n- TriageEvent.Severity is written on every event by that one constructor, and the outcome event carries the reviewer's value because ingestDraft applies §7.2's severity row before buildReview settles anything — TestTheEditedSeverityIsTheOneTheRecordCarries holds the record, the regenerated marker and the raise to the edited value together; no sixth action name was added, TriageActions still returns the five and RecordOutcomes still refuses anything outside them, and no second outcome event is written, which TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas measures by running `cr post --confirm` twice and finding the ledger where the first run left it while the review was sent twice.\n- TriageActions is the one list, TriageAction.Valid reads only it, and RecordOutcomes refuses an action outside it before anything reaches the ledger: TestTheVocabularyIsFiveNamesAndAnOutcomeIsFourOfThem holds the list to raised, kept, softened, discarded-not-here and discarded-wrong, admits the four outcomes, refuses `hardened`, the empty action and `raised`-as-an-outcome, and asserts the ledger stayed empty through all three; TestASeverityEditIsObservableInExactlyOneEvent then walks every event a real `cr draft` and `cr post --confirm` wrote and holds each action to Valid.\n- TestASeverityEditIsObservableInExactlyOneEvent is that test: the round is drafted, the marker's severity alone is changed from high to low, `cr post --confirm` runs against a `gh` shim, and the ledger is asserted as the exact list [f1:raised:high f1:kept:low] — which says three things at once, that the new value reached exactly one of the two events, that the ledger gained no event of its own for the edit, and that no other event moved.\n",
+      "gate_passed_at": "2026-09-12T13:57:03.864131Z",
+      "commit_sha": "46e7081",
+      "commit_shas": [
+        "46e7081",
+        "8978f11",
+        "0139185"
+      ],
+      "commit_files": [
+        "internal/cli/triageseverity_test.go",
+        "internal/finding/triageevent.go",
+        "internal/finding/triageevent_test.go"
+      ]
     },
     {
       "id": "stats-command",
