@@ -3,7 +3,10 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,4 +108,135 @@ func TestTheDerivedEntriesAreScopedToTheRound(t *testing.T) {
 		mapIssue + "#c2@2/",
 		mapIssue + "#c3@2/",
 	}, rendered, "§9.3.5: round 1's entry is history and is left exactly as it was")
+}
+
+// setAside stamps §4.1.8's note onto the round's entry for one claim, by
+// writing the file `cr claims set-aside` will write once it exists.
+//
+// The command is still a stub — claims-set-aside-command owns it — so the
+// stamp is put where the command will put it rather than faked somewhere the
+// derivation does not read. Every other entry of the file is rewritten exactly
+// as it stood, because §4.1.7's carry-forward is read out of this file and a
+// helper that dropped a neighbour would be testing its own damage.
+func setAside(t *testing.T, l state.Layout, claim, note string) {
+	t.Helper()
+	stored, err := state.ReadRecords[mapping.Gap](l, mapOwner, mapRepo, mapPR, state.FileIntentGaps)
+	require.NoError(t, err)
+	var body bytes.Buffer
+	for i := range stored {
+		if stored[i].Claim == claim {
+			stored[i].SetAsideNote = note
+		}
+		line, err := json.Marshal(stored[i])
+		require.NoError(t, err)
+		body.Write(line)
+		body.WriteByte('\n')
+	}
+	held, err := l.LockPR(mapOwner, mapRepo, mapPR)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileIntentGaps, body.Bytes()))
+	require.NoError(t, held.Unlock())
+}
+
+// recordedMapping runs `cr map record` and returns the document it printed,
+// which is where §4.1.7's dropped-stamp report has to appear.
+func recordedMapping(t *testing.T, lines ...string) mapRecordResult {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mapping.ndjson")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"map", "record", strconv.Itoa(mapPR), path, "--repo", mapSlug})
+	require.NoError(t, cmd.Execute())
+	var printed mapRecordResult
+	require.NoError(t, json.Unmarshal(out.Bytes(), &printed))
+	return printed
+}
+
+// notesOf renders intent-gaps.ndjson as `claim/note`, which is the whole of
+// what a carry-forward can be right or wrong about.
+func notesOf(t *testing.T, l state.Layout) []string {
+	t.Helper()
+	stored, err := state.ReadRecords[mapping.Gap](l, mapOwner, mapRepo, mapPR, state.FileIntentGaps)
+	require.NoError(t, err)
+	rendered := make([]string, 0, len(stored))
+	for i := range stored {
+		rendered = append(rendered, stored[i].Claim+"/"+stored[i].SetAsideNote)
+	}
+	return rendered
+}
+
+// A re-recorded mapping keeps the §4.1.8 set-aside of a claim that is still
+// unmapped, and drops it — saying so — for a claim that has since become
+// mapped.
+//
+// This is round 9's `derived-state-clobbers-decision` and round 12's
+// `derived-file-erases-recorded-decision` end to end, through the command
+// §4.1.6 permits to be run again rather than through the derivation alone. Both
+// findings are about a literal re-derivation handing every claim a fresh entry
+// with no `set_aside_note`: the reviewer's judgement goes, §10.2.3's block
+// silently returns, and nothing in the run says it happened.
+//
+// The middle recording is the same mapping as the first, which is the case that
+// matters most and the one a derivation keyed on "did anything change" would
+// pass by accident: nothing about c2 changed, so nothing about c2's decision
+// may.
+//
+// The last recording asserts both halves of the drop together. The entry has to
+// go — c2 is mapped, so §4.1.3 raises nothing for it — and the run has to say
+// which decision that cost, because after the write there is nowhere left in
+// the file to read it from.
+func TestReRecordingKeepsASetAsideAndReportsTheOneItDrops(t *testing.T) {
+	layout := briefedForMapping(t)
+	first := recordedMapping(t, `{"claim":"`+mapIssue+`#c1","unit":"u1"}`)
+	require.Empty(t, first.DroppedSetAsides, "nothing was set aside yet")
+
+	setAside(t, layout, mapIssue+"#c2", mapIssue+"#n7")
+
+	unchanged := recordedMapping(t, `{"claim":"`+mapIssue+`#c1","unit":"u1"}`)
+
+	assert.Equal(t, []string{mapIssue + "#c2/" + mapIssue + "#n7", mapIssue + "#c3/"},
+		notesOf(t, layout),
+		"§4.1.6 permits the mapping to be re-recorded, so the note survives the re-derivation")
+	assert.Empty(t, unchanged.DroppedSetAsides,
+		"a stamp that was kept is not a stamp that was dropped")
+
+	mapped := recordedMapping(t,
+		`{"claim":"`+mapIssue+`#c1","unit":"u1"}`,
+		`{"claim":"`+mapIssue+`#c2","unit":"u2"}`)
+
+	assert.Equal(t, []string{mapIssue + "#c3/"}, notesOf(t, layout),
+		"§4.1.7 derives the file, so a claim that became mapped raises no entry to hold a stamp")
+	assert.Equal(t,
+		[]mapping.DroppedSetAside{{Claim: mapIssue + "#c2", SetAsideNote: mapIssue + "#n7"}},
+		mapped.DroppedSetAsides,
+		"round 9: the drop is correct, and a correct drop nothing reports is indistinguishable "+
+			"from the clobber round 12 names")
+}
+
+// The dropped-stamp report is an empty array rather than an absent key when a
+// run dropped nothing, per §12.3.
+//
+// It is read off the wire because that is the difference the reader sees: a
+// missing key reads as a command that does not report drops at all, and a
+// caller checking for the field would take the silence for the older behaviour
+// rather than for a run that revoked nothing.
+func TestARunThatDroppedNoStampReportsAnEmptyArray(t *testing.T) {
+	briefedForMapping(t)
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	path := filepath.Join(t.TempDir(), "mapping.ndjson")
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"claim":"`+mapIssue+`#c1","unit":"u1"}`+"\n"), 0o600))
+	cmd.SetArgs([]string{"map", "record", strconv.Itoa(mapPR), path, "--repo", mapSlug})
+	require.NoError(t, cmd.Execute())
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(out.Bytes(), &fields))
+	require.Contains(t, fields, "dropped_set_asides")
+	assert.Equal(t, "[]", string(fields["dropped_set_asides"]))
 }
