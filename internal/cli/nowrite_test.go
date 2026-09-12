@@ -123,14 +123,19 @@ func TestCrReachesTheNetworkThroughOneRunnerAndNoOtherWay(t *testing.T) {
 		"§2.1.2: gh is cr's only route to GitHub, so nothing may reach it around internal/gh")
 }
 
-// mintSites are the paths allowed to name gh.Confirm. §8.5's gate is the only
-// legitimate caller, and cr post does not exist yet, so today the list holds
-// only internal/gh, where the mint and the tests that exercise it live.
+// mintSites are the paths allowed to name gh.Confirm: internal/gh, where the
+// mint and the tests that exercise it live, and internal/cli/post.go, which is
+// §8.5's gate.
 //
-// The gate adds its own file here when it is written, and that is the point:
-// widening this is a deliberate act with a reviewer, not something a call site
-// does by existing. A second caller is a second gate, and §8.5.3 allows none.
-var mintSites = []string{filepath.Join("internal", "gh") + string(filepath.Separator)}
+// The second entry arrived with dry-run-posting, and it is one file rather than
+// a directory because that is the whole claim: §8.5.3 allows one gate, the flag
+// is its only input, and the token therefore comes into being where the flag is
+// read. Widening this further is a deliberate act with a reviewer, not
+// something a call site does by existing — a second caller is a second gate.
+var mintSites = []string{
+	filepath.Join("internal", "gh") + string(filepath.Separator),
+	filepath.Join("internal", "cli", "post.go"),
+}
 
 // mints are the two ways a token can come into being: the constructor, and the
 // composite literal that would set its unexported field. They are searched for
