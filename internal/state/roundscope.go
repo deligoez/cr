@@ -12,6 +12,63 @@ import (
 	"strings"
 )
 
+// ReadStamped reads one of the eight §2.3.3 files and returns the records of
+// one round, in file order. It refuses a file §2.3.3 does not list, as
+// WriteStamped does.
+//
+// It is §9.3.5's first sentence as a function: a command reads only the current
+// round's records, and earlier rounds are history. The scoping belongs at the
+// read for the reason the stamping belongs at the write — there is one place
+// that decides which records a round can see, so no command can forget the
+// filter, and none of them can come to disagree about what a round holds.
+//
+// The round is read off the stored line rather than off the decoded record, so
+// a record type needs no accessor for it and the reader here and the writers
+// below cannot key a line differently. roundOf gives a line supplying no round
+// the round 0, which §9.3.3 numbers no round, so such a line is invisible to
+// every round rather than visible to one of them.
+//
+// It takes no lock, per §2.3.2.
+func ReadStamped[T any](l Layout, owner, repo string, pr int, name string, round int) ([]T, error) {
+	if err := checkStamped(name); err != nil {
+		return nil, err
+	}
+	body, err := l.ReadPR(owner, repo, pr, name)
+	if err != nil {
+		return nil, err
+	}
+	return decodeRound[T](l.PRFile(owner, repo, pr, name), body, round)
+}
+
+// decodeRound decodes the lines of one §2.3.3 file that belong to round,
+// naming path in whatever it refuses.
+//
+// The result is never nil: a file holding none of the round's records is no
+// records rather than a null slice (§12.3). A line is decoded twice — once for
+// its round and once into the record type — which is what lets the filter run
+// over every one of the eight shapes without any of them exposing the pair.
+func decodeRound[T any](path string, body []byte, round int) ([]T, error) {
+	records := make([]T, 0)
+	for i, line := range bytes.Split(body, []byte{'\n'}) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(line, &fields); err != nil {
+			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
+		}
+		if roundOf(fields) != round {
+			continue
+		}
+		var record T
+		if err := json.Unmarshal(line, &record); err != nil {
+			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
+		}
+		records = append(records, record)
+	}
+	return records, nil
+}
+
 // ReplaceStamped replaces the current round's records in one of the eight
 // §2.3.3 files, stamping head and round onto every record it writes and leaving
 // every earlier round's line byte for byte. It refuses a file §2.3.3 does not
