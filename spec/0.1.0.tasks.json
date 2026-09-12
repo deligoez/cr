@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:02:50.609225Z",
+  "updated_at": "2026-09-12T08:12:32.26871Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7354,7 +7354,7 @@
     {
       "id": "rule-fix-suggestion-wiring",
       "title": "Give the rule fix generator a caller outside its tests",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 0,
@@ -7362,11 +7362,24 @@
       "source_sections": [
         "#### 2.6.2 Fixes"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:11:30.686096Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:12:32.243637Z",
+      "closed_reason": "- internal/cli/rulefix.go's suggestRuleFixes gives Matcher.Suggest its first caller outside a test: it collects the rules the round's records name, keeps the matchers carrying a fix block, evaluates them over the round's hunks, and hands each record the hit its own citations confirm.\n- The test-only signal is gone rather than silenced: deadcode ./... listed Matcher.Replacement, Matcher.Suggest, confirmedBy and placeable at entry and lists none of the four now, and all four still exist, with placeable reading §8.2 through internal/suggestion so the rule path and the post path cannot drift apart.\n- internal/cli/record.go calls suggestRuleFixes between acceptRecords and appendRecords, so §2.6.2 item 2's generation and §8.2's placement both run before the record is stored and long before cr draft renders it, and the record that fails validation keeps its finding and loses only the replacement.\n- deadcode ./... at exit holds 45 entries against 48 at entry, and the three that left are Matcher.Suggest, confirmedBy and placeable, with Matcher.Replacement leaving as Suggest's callee.\n- The output was read rather than counted: no line of it names internal/rule/fix.go, and the one line naming internal/suggestion is Validate, which cr post will call.\n- TestARuleFixReachesTheDraftAsAMachineGeneratedSuggestion drives a real use-of-panic rule carrying fix.replace and fix.with through cr rules check, cr record and cr draft, and asserts draft.md carries the fenced suggestion block and the machine-generated label, while TestASuggestionSection82RefusesIsDroppedAndItsRecordIsNot asserts the LEFT-anchored record reaches the draft with no block at all.\n",
+      "gate_passed_at": "2026-09-12T08:12:32.243637Z",
+      "commit_sha": "76dbba8",
+      "commit_shas": [
+        "76dbba8",
+        "607a426",
+        "a4bce5e",
+        "21713b6"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/rulefix.go",
+        "internal/cli/rulefixwiring_test.go",
+        "internal/rule/fix.go"
+      ]
     },
     {
       "id": "intent-finding-on-unmapped-unit",
