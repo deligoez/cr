@@ -500,7 +500,7 @@ var outputStructs = []result{
 	&recordResult{}, &claimsRecordResult{}, &briefResult{}, &cellsRecordResult{},
 	&rulesCheckResult{},
 	&mapRecordResult{}, &sandboxCreateResult{}, &sandboxDestroyResult{}, &testRunResult{},
-	&probeRunResult{}, &draftResult{}, &reviewResult{}, &postResult{},
+	&probeRunResult{}, &draftResult{}, &reviewResult{}, &postResult{}, &mergeResult{},
 	&rulesSuggestResult{}, &statusResult{}, &claimsSetAsideResult{}, &reconcileResult{},
 }
 
