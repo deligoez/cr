@@ -148,10 +148,7 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dropped, err := storeMapping(
-				layout, owner, repo, pr,
-				state.Stamp{Head: round.Head, Round: round.Round}, pairs, claims,
-			)
+			dropped, err := storeMapping(layout, &round.Meta, pairs, claims)
 			if err != nil {
 				return err
 			}
@@ -163,27 +160,28 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 }
 
 // storeMapping publishes one `cr map record`: §4.1.6's mapping for the round,
-// and §4.1.3's unimplemented-claim entries derived from it.
+// §4.1.3's unimplemented-claim entries derived from it, and the mapping stamp
+// on meta.json that says a mapping exists for the round and head.
 //
-// The two are one critical section under one hold of the §2.3.1 lock because
-// the second is a function of the first. A reader arriving between them would
-// find this round's mapping beside the gaps derived from the previous one, and
-// §10.2.3 would block completeness on a claim the file next to it already maps.
+// The three are one critical section under one hold of the §2.3.1 lock because
+// the second is a function of the first and the third is a fact about both. A
+// reader arriving between them would find this round's mapping beside the gaps
+// derived from the previous one, and §10.2.3 would block completeness on a
+// claim the file next to it already maps.
 func storeMapping(
-	l state.Layout, owner, repo string, pr int,
-	at state.Stamp, pairs []*mapping.Pair, claims []string,
+	l state.Layout, round *state.Meta, pairs []*mapping.Pair, claims []string,
 ) ([]mapping.DroppedSetAside, error) {
-	held, err := l.LockPR(owner, repo, pr)
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
 	if err != nil {
 		return nil, err
 	}
-	dropped, published := publishMapping(l, held, owner, repo, pr, at, pairs, claims)
+	dropped, published := publishMapping(l, held, round, pairs, claims)
 	// Joined rather than branched: the lock is released whether or not the
 	// writes succeeded, and neither failure is traded away for the other.
 	return dropped, errors.Join(published, held.Unlock())
 }
 
-// publishMapping publishes the two files through the held lock.
+// publishMapping publishes the three files through the held lock.
 //
 // The gaps are written with ReplaceStamped rather than WriteStamped for the
 // reason the mapping is: §9.3.5 scopes a replacement to the current round, and
@@ -194,20 +192,30 @@ func storeMapping(
 // which is what carries a §4.1.8 set-aside through a re-recorded mapping. The
 // read takes no lock of its own and needs none — this holds the §2.3.1 lock, so
 // no other writer can be between it and the write that follows.
+//
+// meta.json's stamp is written last, so a run that fails before it leaves a
+// round §4.6.5 still refuses rather than one it unblocks over a mapping that
+// did not land. Every other field is written as the round was read, as
+// setPostUnresolved writes its own.
 func publishMapping(
-	l state.Layout, held *state.Lock, owner, repo string, pr int,
-	at state.Stamp, pairs []*mapping.Pair, claims []string,
+	l state.Layout, held *state.Lock, round *state.Meta, pairs []*mapping.Pair, claims []string,
 ) ([]mapping.DroppedSetAside, error) {
+	at := state.Stamp{Head: round.Head, Round: round.Round}
 	if err := state.ReplaceStamped(held, state.FileMapping, at, pairs); err != nil {
 		return nil, err
 	}
 	recorded, err := state.ReadStamped[mapping.Gap](
-		l, owner, repo, pr, state.FileIntentGaps, at.Round)
+		l, round.Owner, round.Repo, round.PR, state.FileIntentGaps, at.Round)
 	if err != nil {
 		return nil, err
 	}
 	gaps, dropped := mapping.Gaps(claims, storedPairs(pairs), at.Round, recorded)
-	return dropped, state.ReplaceStamped(held, state.FileIntentGaps, at, gaps)
+	if err := state.ReplaceStamped(held, state.FileIntentGaps, at, gaps); err != nil {
+		return nil, err
+	}
+	stamped := *round
+	stamped.MappingRound, stamped.MappingHead = round.Round, round.Head
+	return dropped, held.WriteMeta(&stamped)
 }
 
 // storedPairs is the round's mapping as mapping.Gaps reads it. The pairs were
