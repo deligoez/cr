@@ -227,7 +227,7 @@ func assemble(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
-	round, err := roundOf(src)
+	round, err := roundOf(src, pr.Head)
 	if err != nil {
 		return nil, err
 	}
@@ -319,20 +319,31 @@ func headSymbols(dir, head string, p *profile.Profile) (unit.SymbolIndex, error)
 	return index, nil
 }
 
-// roundOf is the round this brief orients: the one already open, or §9.3.3's
-// first.
+// roundOf is the round this brief orients: the one already open, §9.3.3's
+// first, or the next one when the head has moved.
 //
 // A pull request cr holds no state for is round 1, and so is one whose
 // meta.json carries the 0 state.Layout.EnsurePR writes — §9.3.3 numbers rounds
 // from 1, so that 0 means no round has been opened rather than a round of its
-// own. An existing index is kept: incrementing it is §9.3.3's, and it is not
-// decided here.
+// own.
+//
+// Past that, §9.3.3 makes the comparison against the recorded head the whole of
+// the decision: the index moves if and only if the current head differs, so a
+// same-head brief returns the index it read and the round it re-orients is the
+// one already open. That is what makes the rest of the command idempotent
+// without anything else in it having to ask whether it has run before — every
+// file `persist` writes is a function of the head and the round, so an
+// unchanged pair rewrites the same bytes.
+//
+// The head is passed rather than read here because §3.7.1 has already fetched
+// it. Reading it a second time would let one run orient on one head and
+// compare against another.
 //
 // A meta.json that is there and cannot be read is neither of those and is not
 // swallowed. Reading it as "no round" would have the write below publish a
 // fresh round 1 over a state directory whose history cr just failed to
 // understand.
-func roundOf(src *Sources) (int, error) {
+func roundOf(src *Sources, head string) (int, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -341,6 +352,8 @@ func roundOf(src *Sources) (int, error) {
 		return 0, err
 	case recorded.Round < 1:
 		return 1, nil
+	case recorded.Head != head:
+		return recorded.Round + 1, nil
 	}
 	return recorded.Round, nil
 }
