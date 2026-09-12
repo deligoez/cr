@@ -8,11 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -110,32 +112,18 @@ func TestTheDerivedEntriesAreScopedToTheRound(t *testing.T) {
 	}, rendered, "§9.3.5: round 1's entry is history and is left exactly as it was")
 }
 
-// setAside stamps §4.1.8's note onto the round's entry for one claim, by
-// writing the file `cr claims set-aside` will write once it exists.
+// setAside stamps §4.1.8's note onto the round's entry for one claim, through
+// the command §4.1.8 gives the job to.
 //
-// The command is still a stub — claims-set-aside-command owns it — so the
-// stamp is put where the command will put it rather than faked somewhere the
-// derivation does not read. Every other entry of the file is rewritten exactly
-// as it stood, because §4.1.7's carry-forward is read out of this file and a
-// helper that dropped a neighbour would be testing its own damage.
-func setAside(t *testing.T, l state.Layout, claim, note string) {
+// It drove the file by hand while `cr claims set-aside` was a stub, and stopped
+// on the commit that built it. That is the whole reason to change it: what
+// §4.1.7's carry-forward has to survive is the stamp the command actually
+// writes, and a fixture writing its own would keep passing after the two had
+// drifted apart.
+func setAside(t *testing.T, claim, noteID string) {
 	t.Helper()
-	stored, err := state.ReadRecords[mapping.Gap](l, mapOwner, mapRepo, mapPR, state.FileIntentGaps)
-	require.NoError(t, err)
-	var body bytes.Buffer
-	for i := range stored {
-		if stored[i].Claim == claim {
-			stored[i].SetAsideNote = note
-		}
-		line, err := json.Marshal(stored[i])
-		require.NoError(t, err)
-		body.Write(line)
-		body.WriteByte('\n')
-	}
-	held, err := l.LockPR(mapOwner, mapRepo, mapPR)
-	require.NoError(t, err)
-	require.NoError(t, held.Write(state.FileIntentGaps, body.Bytes()))
-	require.NoError(t, held.Unlock())
+	require.NoError(t, runCLI(t,
+		"claims", "set-aside", strconv.Itoa(mapPR), claim, "--note", noteID, "--repo", mapSlug))
 }
 
 // recordedMapping runs `cr map record` and returns the document it printed,
@@ -193,11 +181,16 @@ func TestReRecordingKeepsASetAsideAndReportsTheOneItDrops(t *testing.T) {
 	first := recordedMapping(t, `{"claim":"`+mapIssue+`#c1","unit":"u1"}`)
 	require.Empty(t, first.DroppedSetAsides, "nothing was set aside yet")
 
-	setAside(t, layout, mapIssue+"#c2", mapIssue+"#n7")
+	// The note is recorded first, because §4.1.8 has the command check it
+	// exists for the pull request's issue key before it stamps anything.
+	recorded, err := note.Append(layout, mapIssue,
+		"the tax table ships in its own change", note.SourceChat, mapPR, time.Now())
+	require.NoError(t, err)
+	setAside(t, mapIssue+"#c2", recorded.ID)
 
 	unchanged := recordedMapping(t, `{"claim":"`+mapIssue+`#c1","unit":"u1"}`)
 
-	assert.Equal(t, []string{mapIssue + "#c2/" + mapIssue + "#n7", mapIssue + "#c3/"},
+	assert.Equal(t, []string{mapIssue + "#c2/" + recorded.ID, mapIssue + "#c3/"},
 		notesOf(t, layout),
 		"§4.1.6 permits the mapping to be re-recorded, so the note survives the re-derivation")
 	assert.Empty(t, unchanged.DroppedSetAsides,
@@ -210,7 +203,7 @@ func TestReRecordingKeepsASetAsideAndReportsTheOneItDrops(t *testing.T) {
 	assert.Equal(t, []string{mapIssue + "#c3/"}, notesOf(t, layout),
 		"§4.1.7 derives the file, so a claim that became mapped raises no entry to hold a stamp")
 	assert.Equal(t,
-		[]mapping.DroppedSetAside{{Claim: mapIssue + "#c2", SetAsideNote: mapIssue + "#n7"}},
+		[]mapping.DroppedSetAside{{Claim: mapIssue + "#c2", SetAsideNote: recorded.ID}},
 		mapped.DroppedSetAsides,
 		"round 9: the drop is correct, and a correct drop nothing reports is indistinguishable "+
 			"from the clobber round 12 names")
