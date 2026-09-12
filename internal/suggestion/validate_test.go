@@ -38,9 +38,9 @@ const twoHunkDiff = `--- a/app/Models/Order.php
 // hunksOf parses the fixture the way a run does, so every case is decided
 // against the hunks git.ParseHunks produces rather than against a hand-built
 // struct whose head range could be anything.
-func hunksOf(t *testing.T) []git.Hunk {
+func hunksOf(t *testing.T, patch string) []git.Hunk {
 	t.Helper()
-	hunks, err := git.ParseHunks(twoHunkDiff)
+	hunks, err := git.ParseHunks(patch)
 	require.NoError(t, err)
 	return hunks
 }
@@ -69,7 +69,7 @@ func right(path string, start, end int) finding.Anchor {
 // would still pass a range sitting strictly inside, and would then drop —
 // without a word — the suggestion on every finding anchored on an edge line.
 func TestARangeInsideOneHunkIsAdmitted(t *testing.T) {
-	hunks := hunksOf(t)
+	hunks := hunksOf(t, twoHunkDiff)
 	for _, c := range []struct {
 		name   string
 		anchor finding.Anchor
@@ -96,7 +96,7 @@ func TestARangeInsideOneHunkIsAdmitted(t *testing.T) {
 // RIGHT side, and the lines between the two hunks were never in the diff, so
 // the hunk a range starts in is what bounds how many lines it may replace.
 func TestARangeOutsideOneHunkIsRefusedNamingTheRecord(t *testing.T) {
-	hunks := hunksOf(t)
+	hunks := hunksOf(t, twoHunkDiff)
 	for _, c := range []struct {
 		name   string
 		anchor finding.Anchor
@@ -143,7 +143,7 @@ func TestARecordWithoutASuggestionIsNotHeldToSection82(t *testing.T) {
 	record := suggesting(&anchor)
 	record.Suggestion = ""
 
-	assert.NoError(t, Validate(record, hunksOf(t)))
+	assert.NoError(t, Validate(record, hunksOf(t, twoHunkDiff)))
 }
 
 // The empty side is refused beside LEFT. §9.2 gives every anchor one of two
@@ -153,5 +153,5 @@ func TestARecordWithoutASuggestionIsNotHeldToSection82(t *testing.T) {
 func TestAnAnchorWithNoSideIsRefused(t *testing.T) {
 	anchor := finding.Anchor{Path: "app/Models/Order.php", StartLine: 11, Line: 11}
 
-	assert.Error(t, Validate(suggesting(&anchor), hunksOf(t)))
+	assert.Error(t, Validate(suggesting(&anchor), hunksOf(t, twoHunkDiff)))
 }
