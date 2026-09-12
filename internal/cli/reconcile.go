@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/deligoez/cr/internal/finding"
-	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
@@ -296,11 +295,8 @@ func setPostUnresolved(l state.Layout, round *state.Meta, unresolved bool) error
 // here that could retry, because a second send is the double post §8.4.4 calls
 // the worse failure.
 func postOutcome(l state.Layout, round *state.Meta, sent *post.Review, failed error) error {
-	var ran *gh.CommandError
-	if errors.As(failed, &ran) {
-		if rejected := post.Rejection(sent, ran.Stdout); rejected != nil {
-			return rejected
-		}
+	if rejected := rejectedPost(sent, failed); rejected != nil {
+		return rejected
 	}
 	return errors.Join(fmt.Errorf(
 		"§8.4.4: the outcome of the review-creation call is unknown, so post_unresolved is set "+
