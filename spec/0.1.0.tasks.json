@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T12:51:17.465595Z",
+  "updated_at": "2026-09-12T13:16:06.470328Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7299,7 +7299,7 @@
     {
       "id": "status-findings-report",
       "title": "Report findings by state with probes",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "status-coverage-report",
@@ -7312,11 +7312,28 @@
       "source_sections": [
         "### 10.1 Coverage report"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T13:00:54.957178Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T13:16:06.439907Z",
+      "closed_reason": "- internal/cli/statusrecords.go's recordTalliesOf is §10.1.4 over the round's findings and questions, and statusResult.Records carries the total beside one tally per value of §9.1's seven states, §6.1's four severities and §6.2's three grades, zeros included, with a stored value outside a vocabulary given a row of its own so each count sums to the total.\n- probesOf is §10.1.5: Run is the round's probe records read through state.ReadStamped, and Graded is the distinct probes standing behind a record graded probed, which §6.2's table makes unreachable without one.\n- duplicateDisclosure counts §6.4.3's retained duplicates off findings.ndjson and waiverDisclosure reads §6.4.4's count out of the round summary through the new state.ReadRoundSection, both appended to statusResult.Honesty, which is the one channel §11.1 exempts; TestStatusDisclosesTheWaiverAndDuplicateCountsUnderQuiet asserts `cr status --quiet` prints the identical list.\n- internal/cli/statusnotes.go's unstandingNotesOf reports every note the round's cells or records cite that no longer stands, the cell by §4.5.5's note_id and the record through the claim §3.3.1 gave a note_id, in the round the retraction happened in per note.Standing's reading of §3.6.6.\n",
+      "gate_passed_at": "2026-09-12T13:16:06.439907Z",
+      "commit_sha": "a5631b7",
+      "commit_shas": [
+        "a5631b7",
+        "fcf040a",
+        "edf67dc",
+        "8f672ce",
+        "d689324",
+        "37a401a"
+      ],
+      "commit_files": [
+        "internal/cli/status.go",
+        "internal/cli/statusnotes.go",
+        "internal/cli/statusrecords.go",
+        "internal/cli/statusrecords_test.go",
+        "internal/finding/finding.go",
+        "internal/state/roundsection.go"
+      ]
     },
     {
       "id": "completeness-conditions",
