@@ -323,12 +323,16 @@ Two rules that make the phase-boundary run worth doing:
    it would otherwise kill. Check `pgrep -x gremlins` before starting one. Use
    `-x`: a waiter written as `until ! pgrep -qf 'gremlins unleash'` matches its
    own command line and never exits, which left an agent hanging for an hour.
-   **A subagent cannot run that check here**, so do not write it into a unit's
-   prompt as if it could: measured 2026-09-12, `pgrep` inside a subagent's
-   sandbox fails with `sysmond service not found` while the same command from
-   the orchestrator answers normally. The quiet window is therefore the
-   orchestrator's to establish and the unit's to be told about — a unit that
-   cannot see the process table cannot be the one deciding the box is free.
+   **`pgrep` itself is not reliable on this machine, and its failure reads as
+   "no run".** Measured 2026-09-12 inside a subagent, and on 2026-09-13 from the
+   orchestrator too, sandboxed and not: `pgrep` exits 3 with `sysmond service not
+   found` / `Cannot get process list`, and `pgrep -x gremlins | wc -l` prints
+   `0` — exactly what a quiet box prints. `ps` still answers, so use
+   `ps -A -o comm= | awk -F/ '$NF=="gremlins"' | wc -l` (`comm` is a full path,
+   hence the last-field match), and check the instrument before trusting a `0`:
+   the same line with `logd` in place of `gremlins` printed `1`. The quiet window
+   is the orchestrator's to establish and the unit's to be told about — a unit
+   must not be the one deciding the box is free.
 8. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
    should mutate nothing and mutated 116; a `-D HEAD~6` run mutated files absent
    from that diff and took *longer* than the unscoped run. Upstream has three
