@@ -212,32 +212,33 @@ func ResolveAnchor(trees Trees, file string, line int, anchor *Anchor) error {
 	return nil
 }
 
-// Reanchor re-validates one record's anchor after §7.2's marker edit moved it,
-// and recomputes §9.2's content hash over the lines it now names.
+// StampAnchor validates one record's anchor, resolves it against the tree its
+// side names, and records §9.2's content hash and context window over the lines
+// it names there.
 //
-// The re-validation is §7.2's own: `path`, `start_line` and `line` are checked
-// per §6.1.2 and the edit aborts when the anchor no longer resolves. That is
-// ValidateAnchor and then ResolveAnchor over the moved anchor — the shape rule
-// first, because ResolveAnchor measures only the last line of the range against
-// the file and relies on the shape having been settled.
+// It has two callers, and the anchor is cr's to complete in both. `cr record`
+// stores an anchor for the first time: §9.2.3 has the hash and the window
+// recorded even though v0.1 never migrates, and §7.4.1 keys a waiver on the
+// hash, so a value the agent typed — or left empty — would key a waiver on
+// nothing the tree holds. §7.2's marker edit moves an anchor: `path`,
+// `start_line` and `line` are re-validated per §6.1.2 and the edit aborts when
+// the anchor no longer resolves, and the hash and window are recomputed because
+// an anchor moved to other lines while still carrying those it left would waive
+// a class at code nobody has read (round 12's anchor-hash-not-recomputed).
 //
-// The hash is round 12's anchor-hash-not-recomputed finding. §7.2 names the
-// three fields it re-validates and says nothing about the content hash, which
-// §9.2 makes part of the anchor and §7.4.1 keys a waiver on: an anchor moved to
-// other lines while still carrying the hash of the lines it left would waive a
-// class at code nobody has read, and would keep doing so after the code it
-// really points at changed.
+// The shape rule runs first, because ResolveAnchor measures only the last line
+// of the range against the file and relies on the shape having been settled.
 //
-// It is computed from the tree rather than from anything the caller holds, for
-// the reason AnchorContentHash gives about its pre-image: §9.2's anchor hash,
-// §7.4.1's waiver key and §6.1's citation hash have to be comparable, so the
-// lines are read where the record's side says they live.
+// The values are computed from the tree rather than from anything the caller
+// holds, for the reason AnchorContentHash gives about its pre-image: §9.2's
+// anchor hash, §7.4.1's waiver key and §6.1's citation hash have to be
+// comparable, so the lines are read where the record's side says they live.
 //
 // The file is opened a second time, after ResolveAnchor has already opened it.
-// That is what makes the slice below total: the resolution is what establishes
+// That is what makes the slices below total: the resolution is what establishes
 // the range lies inside the file, and carrying the lines out of ResolveAnchor
-// would leave the hash's correctness to a caller that could forget to use them.
-func Reanchor(trees Trees, file string, line int, anchor *Anchor) error {
+// would leave the stamp's correctness to a caller that could forget to use them.
+func StampAnchor(trees Trees, file string, line int, anchor *Anchor) error {
 	if err := ValidateAnchor(file, line, anchor); err != nil {
 		return err
 	}
@@ -256,5 +257,7 @@ func Reanchor(trees Trees, file string, line int, anchor *Anchor) error {
 		return err
 	}
 	anchor.ContentHash = hash
+	anchor.ContextBefore = append([]string{}, lines[max(0, anchor.StartLine-1-contextWindow):anchor.StartLine-1]...)
+	anchor.ContextAfter = append([]string{}, lines[anchor.Line:min(len(lines), anchor.Line+contextWindow)]...)
 	return nil
 }

@@ -401,6 +401,11 @@ func acceptRecords(
 	if err := refuseForeignAnchors(owner, repo, pr, round, file, body, formed, records); err != nil {
 		return nil, nil, err
 	}
+	// §9.2.3: the content hash and context window, read off the round's
+	// trees, so §7.4.1's waiver key is built from the lines themselves.
+	if err := stampAnchors(owner, repo, pr, round, file, body, records); err != nil {
+		return nil, nil, err
+	}
 	// §9.1's first two rows, in the order stampStates walks them.
 	if err := stampStates(records); err != nil {
 		return nil, nil, err

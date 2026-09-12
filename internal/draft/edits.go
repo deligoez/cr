@@ -162,7 +162,7 @@ func (e *markerEdit) anchor(trees finding.Trees, file string) (*finding.Anchor, 
 	}
 	moved := e.record.Anchor
 	moved.Path, moved.StartLine, moved.Line = e.now.Path, e.now.StartLine, e.now.Line
-	if err := finding.Reanchor(trees, file, e.at, &moved); err != nil {
+	if err := finding.StampAnchor(trees, file, e.at, &moved); err != nil {
 		// A location the tree cannot answer for is this row's abort and
 		// carries the record id with it. A git that refuses is not: it
 		// is §3.1.3's external command failure, and rewriting it here

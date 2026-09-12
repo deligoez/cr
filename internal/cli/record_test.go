@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ const (
 	recordPR    = "13"
 	recordPRNum = 13
 	recordRound = 2
-	recordHead  = "9a8b7c6d5e4f30211220314f5e6d7c8b9a807162"
+	recordHead  = "103679608f0a803e39b1511f519e8e70067443c6"
 	// staleUnit is a unit of the round before, which this round did not
 	// form and no record of it may name.
 	staleUnit = "u3"
@@ -46,6 +47,10 @@ const (
 // the wrong one is refused rather than passing on an overlap.
 func recordedHome(t *testing.T) state.Layout {
 	t.Helper()
+	dir := recordCheckout(t)
+	restore := repoDir
+	repoDir = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { repoDir = restore })
 	layout := state.New(crHome(t))
 	require.NoError(t, layout.Init())
 	require.NoError(t, layout.EnsurePR(recordOwner, recordRepo, recordPRNum))
@@ -68,6 +73,41 @@ func recordedHome(t *testing.T) state.Layout {
 // recordPath is the file every unit of the fixture round is formed in, and the
 // file aRecord anchors on.
 const recordPath = "internal/api/handler.go"
+
+// recordCheckout is the repository recordHead names: one commit holding
+// recordPath, a hundred numbered lines long, so every anchor aRecord writes
+// resolves at the round's head and §9.2.3's hash and window can be read off it.
+//
+// The commit is built with a fixed identity and fixed dates, so its id is the
+// same on every machine and recordHead can stay a constant the assertions name.
+// The check below is what keeps that true: a git that wrote the object
+// differently fails here rather than as a head mismatch somewhere downstream.
+func recordCheckout(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	body := make([]string, 0, 100)
+	for n := 1; n <= 100; n++ {
+		body = append(body, fmt.Sprintf("handler line %d", n))
+	}
+	path := filepath.Join(dir, filepath.FromSlash(recordPath))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(body, "\n")+"\n"), 0o600))
+	mustGit(t, dir, "-c", "init.defaultBranch=main", "init", "--quiet")
+	mustGit(t, dir, "add", recordPath)
+	commit := exec.Command("git", "-C", dir, "-c", "commit.gpgsign=false",
+		"commit", "--quiet", "-m", "the handler under review")
+	commit.Env = []string{
+		"PATH=" + os.Getenv("PATH"), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=cr fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid",
+		"GIT_COMMITTER_NAME=cr fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid",
+		"GIT_AUTHOR_DATE=2026-09-13T00:00:00Z", "GIT_COMMITTER_DATE=2026-09-13T00:00:00Z",
+	}
+	out, err := commit.CombinedOutput()
+	require.NoError(t, err, string(out))
+	require.Equal(t, recordHead, strings.TrimSpace(mustGit(t, dir, "rev-parse", "HEAD")),
+		"the fixture commit is built deterministically so recordHead can name it")
+	return dir
+}
 
 // recordUnitStart is the first head line of each fixture unit's one hunk range,
 // which runs for seven lines; aRecord anchors two lines into it.
