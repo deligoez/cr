@@ -8,6 +8,7 @@ import (
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/post"
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -239,7 +240,50 @@ func buildPayload(
 	if err != nil {
 		return nil, err
 	}
-	return post.Build(queued, bodies), nil
+	review := post.Build(queued, bodies)
+	if err := discloseInBody(l, owner, repo, pr, round, settings.lang, review); err != nil {
+		return nil, err
+	}
+	return review, nil
+}
+
+// discloseInBody fills §8.4.3's review body: §4.5.4's disclosure, and beneath
+// it the payload hash as an HTML comment.
+//
+// The hash is taken before the body is set and over the comments alone, which
+// is §8.3.3's pre-image and what makes this orderable at all: a hash over the
+// body it is embedded in would have to contain its own digest.
+//
+// The lenses come from lensesOf and from nowhere else, and that is the point of
+// the call rather than an implementation detail. §4.5.4's disclosure now has two
+// readers — `cr status`, which prints it to the reviewer, and this, which sends
+// it to the author — and two derivations of "what did not look" that can
+// disagree is precisely the failure the section exists to prevent. The cost is
+// stated plainly: lensesOf computes §4.3.1's and §4.4.1's halves the way
+// `cr review` computes them, over a symbol index on the round's head and the
+// round's own diff, so `cr post` now needs the repository and one `gh` read on
+// every run. That is the price of the criterion, which names the reinvention
+// half as something the author is owed; the alternative is a posted body quietly
+// shorter than the terminal's, which is a dishonesty of exactly the kind §4.5.4
+// is about.
+func discloseInBody(
+	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	lang render.Lang, review *post.Review,
+) error {
+	hash, err := review.Hash()
+	if err != nil {
+		return err
+	}
+	axes, lenses, err := lensesOf(l, owner, repo, pr, round)
+	if err != nil {
+		return err
+	}
+	body, err := render.ReviewBody(lang, axes.Active, lenses.Disclosures(), hash)
+	if err != nil {
+		return err
+	}
+	review.Body = body
+	return nil
 }
 
 // commentedRecords are the payload's comments as `cr post` reports them, in
