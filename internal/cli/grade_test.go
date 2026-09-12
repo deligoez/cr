@@ -128,7 +128,7 @@ func TestRecordComputesAndStampsTheGradeSection62Names(t *testing.T) {
 
 // §6.2's `probed` row through the command: a record referencing the round's
 // mutation probe is graded on the experiment, and one referencing a probe id
-// nothing holds is not.
+// nothing holds is refused.
 //
 // The two are asserted together because the lookup has two answers and only one
 // of them is reachable from a fixture with no probes on file. Mutation testing
@@ -137,28 +137,29 @@ func TestRecordComputesAndStampsTheGradeSection62Names(t *testing.T) {
 // whole suite, and §6.2's strongest grade was unreachable through the command
 // without anything saying so.
 //
-// A record naming a probe no record holds is not refused here. §6.2.2's
-// rejection of a `probed` claim is the grading validation's, and this command
-// grades the record from what cr resolved rather than from what the record
-// says it rests on — so an unresolvable reference leaves the record with the
-// evidence it actually has, which is none.
+// The unknown reference was stored `argued` until probed-grade-validation
+// settled §6.2.2's fork: a `probe` naming no probe record cites evidence that
+// does not exist, and is refused with exit code 1, while a probe that exists at
+// this head and does not support the record still leaves it argued.
 func TestRecordGradesARecordOnTheProbeItReferences(t *testing.T) {
 	layout := gradedHome(t)
 
 	probed := aGradedRecord("f1")
 	probed["probe"] = "p1"
 	probed["severity"] = "high"
+	_, err := runRecord(t, "7", writeRecordFile(t, "merged.ndjson", probed), "--repo", fixtureSlug)
+	require.NoError(t, err)
+	assert.Equal(t, finding.GradeProbed, gradesOf(t, layout)["f1"],
+		"§6.2: the probe's head matches and §5.3.5's conditions are met")
+
 	unknown := aGradedRecord("f2")
 	unknown["probe"] = "p404"
-
-	_, err := runRecord(t, "7", writeRecordFile(t, "merged.ndjson", probed, unknown), "--repo", fixtureSlug)
-	require.NoError(t, err)
-
-	graded := gradesOf(t, layout)
-	assert.Equal(t, finding.GradeProbed, graded["f1"],
-		"§6.2: the probe's head matches and §5.3.5's conditions are met")
-	assert.Equal(t, finding.GradeArgued, graded["f2"],
-		"a probe id no record holds is no experiment, so §6.2's third row answers")
+	_, err = runRecord(t, "7", writeRecordFile(t, "unknown.ndjson", unknown), "--repo", fixtureSlug)
+	var rejected *finding.RejectedRecordError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, "probe", rejected.Field)
+	assert.Equal(t, ExitValidation, exitCodeFor(err), "§6.2.2: a probe id no record holds is refused with exit 1")
+	assert.NotContains(t, gradesOf(t, layout), "f2", "the refused record is not stored")
 }
 
 // §4.4.2 through the command: a test-adequacy record cites the same location a

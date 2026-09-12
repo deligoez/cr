@@ -50,13 +50,13 @@ func TestATestAdequacyRecordIsExactlyProbedOrArgued(t *testing.T) {
 	}
 
 	assert.Equal(t, GradeArgued, ComputeGrade(cited, Resolved(
-		theUnit, nil, gradedHead, probe.Baseline{}, theMapping(),
+		theUnit, &cited.Anchor, nil, gradedHead, probe.Baseline{}, theMapping(),
 	)), "§4.4.2: citations to test files grade a test-adequacy record nothing")
 
 	probed := *cited
 	probed.Probe = proven.ID
 	assert.Equal(t, GradeProbed, ComputeGrade(&probed, Resolved(
-		theUnit, proven, gradedHead, passing, theMapping(),
+		theUnit, &probed.Anchor, proven, gradedHead, passing, theMapping(),
 	)), "and the experiment is what lets it assert")
 }
 
@@ -73,7 +73,7 @@ func TestTheSameCitationsGradeARecordOnAnotherAxisCited(t *testing.T) {
 	}
 
 	assert.Equal(t, GradeCited, ComputeGrade(elsewhere, Resolved(
-		theUnit, nil, gradedHead, probe.Baseline{}, theMapping(),
+		theUnit, &elsewhere.Anchor, nil, gradedHead, probe.Baseline{}, theMapping(),
 	)), "§6.2's cited row reads the axis, and no rule of it reads a path")
 }
 
@@ -96,6 +96,6 @@ func TestAnAxisCrDidNotComputeCannotReachCited(t *testing.T) {
 	}
 
 	assert.Equal(t, GradeArgued, ComputeGrade(unresolved, Resolved(
-		theUnit, nil, gradedHead, probe.Baseline{}, theMapping(),
+		theUnit, &unresolved.Anchor, nil, gradedHead, probe.Baseline{}, theMapping(),
 	)))
 }

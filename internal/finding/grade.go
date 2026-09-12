@@ -54,19 +54,31 @@ type Evidence struct {
 // Resolved assembles the two inputs §6.2.1 names that the record does not carry.
 //
 // own is the unit the record sits on, read out of units.ndjson for the current
-// round. referenced is the probe record the finding's `probe` field names, nil
-// when it names none or names one no round holds; head is the round's head, and
-// baseline and claim are §5.2.6's admitted run and §4.1.6's stored mapping as
-// probe resolved them.
+// round. anchor is the record's own anchor, which §6.2.2 binds the probe's
+// target to. referenced is the probe record the finding's `probe` field names,
+// nil when it names none or names one no round holds; head is the round's head,
+// and baseline and claim are §5.2.6's admitted run and §4.1.6's stored mapping
+// as probe resolved them.
 //
 // The probe question is settled here and not at grading time, so the record and
 // the answer travel together. A grader holding an Evidence cannot ask the probe
-// a second question and cannot get a second answer.
+// a second question and cannot get a second answer — and the anchor goes into
+// that one question rather than into a field of Evidence, so §6.2.1's closed
+// input set stays the unit's boundary and the probe's answer.
 func Resolved(
-	own Containment, referenced *probe.Record, head string,
+	own Containment, anchor *Anchor, referenced *probe.Record, head string,
 	baseline probe.Baseline, claim probe.ClaimMapping,
 ) Evidence {
-	return Evidence{own: own, probed: probe.Establishes(referenced, head, baseline, claim)}
+	return Evidence{own: own, probed: probe.Establishes(referenced, head, baseline, claim, anchor.Span())}
+}
+
+// Span is the anchor as §6.2.2 reads it when binding a probe's target to it.
+// No anchor is a span that holds nothing.
+func (a *Anchor) Span() probe.Span {
+	if a == nil {
+		return probe.Span{}
+	}
+	return probe.Span{Path: a.Path, Side: a.Side, StartLine: a.StartLine, Line: a.Line}
 }
 
 // inside is §6.2.1's containment question, asked of the record's own unit.

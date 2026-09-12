@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/state"
@@ -16,6 +17,11 @@ const (
 	gradingHead = "3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f"
 	otherHead   = "aa11bb22cc33dd44ee55ff6600718293a4b5c6d7"
 )
+
+// onTarget is a record anchor whose one-line RIGHT range holds app.go:3, the
+// target every fixture probe here carries, so §6.2.2's binding is met and what
+// decides each case is the condition under test.
+var onTarget = Span{Path: "app.go", Side: git.Right, StartLine: 3, Line: 3}
 
 // passingBaseline resolves the Baseline a probe record points at, out of a
 // stored run that passed at the same head.
@@ -102,7 +108,7 @@ func TestEstablishesRoutesEachKindToItsOwnLadder(t *testing.T) {
 
 	mutationProbe := func(result Result) Record {
 		return Record{
-			ID: "p1", Kind: Mutation, Result: result, Baseline: "r1",
+			ID: "p1", Kind: Mutation, Result: result, Baseline: "r1", Target: "app.go:3",
 			Stamp: state.Stamp{Head: gradingHead, Round: round},
 		}
 	}
@@ -126,7 +132,7 @@ func TestEstablishesRoutesEachKindToItsOwnLadder(t *testing.T) {
 			record := tc.record
 			assert.Equal(t, tc.establishes, Establishes(
 				&record, gradingHead,
-				passingBaseline(t, &record, true), mapped(round, claim, unit),
+				passingBaseline(t, &record, true), mapped(round, claim, unit), onTarget,
 			))
 		})
 	}
@@ -141,21 +147,21 @@ func TestEstablishesRoutesEachKindToItsOwnLadder(t *testing.T) {
 func TestEstablishesRefusesWhatSection553AndTheBaselineConditionRefuse(t *testing.T) {
 	const round, claim, unit = 2, "CR-7#c1", "u1"
 	proving := Record{
-		ID: "p1", Kind: Mutation, Result: resultNoTestFailed, Baseline: "r1",
+		ID: "p1", Kind: Mutation, Result: resultNoTestFailed, Baseline: "r1", Target: "app.go:3",
 		Stamp: state.Stamp{Head: gradingHead, Round: round},
 	}
 	holds := mapped(round, claim, unit)
 
-	assert.False(t, Establishes(nil, gradingHead, Baseline{}, holds),
+	assert.False(t, Establishes(nil, gradingHead, Baseline{}, holds, onTarget),
 		"a record referencing no probe has not met §6.2's first row")
 
-	assert.False(t, Establishes(&proving, otherHead, passingBaseline(t, &proving, true), holds),
+	assert.False(t, Establishes(&proving, otherHead, passingBaseline(t, &proving, true), holds, onTarget),
 		"§5.5.3: a probe from another head grades no finding in this round")
 
-	assert.False(t, Establishes(&proving, gradingHead, passingBaseline(t, &proving, false), holds),
+	assert.False(t, Establishes(&proving, gradingHead, passingBaseline(t, &proving, false), holds, onTarget),
 		"§5.3.5: a suite already red at this head makes every mutation look survivable")
 
-	assert.False(t, Establishes(&proving, gradingHead, Baseline{}, holds),
+	assert.False(t, Establishes(&proving, gradingHead, Baseline{}, holds, onTarget),
 		"and a baseline §5.2.6 admitted none for did not pass either")
 }
 
@@ -173,7 +179,7 @@ func TestOnlyTheGapLadderReadsTheRoundsMapping(t *testing.T) {
 	unmapped := MapClaim(nil, round, "CR-7#c1", "u1")
 
 	proving := Record{
-		ID: "p1", Kind: Mutation, Result: resultNoTestFailed, Baseline: "r1",
+		ID: "p1", Kind: Mutation, Result: resultNoTestFailed, Baseline: "r1", Target: "app.go:3",
 		Stamp: state.Stamp{Head: gradingHead, Round: round},
 	}
 	reproducing := Record{
@@ -181,10 +187,10 @@ func TestOnlyTheGapLadderReadsTheRoundsMapping(t *testing.T) {
 		Stamp: state.Stamp{Head: gradingHead, Round: round},
 	}
 
-	assert.True(t, Establishes(&proving, gradingHead, passingBaseline(t, &proving, true), unmapped),
+	assert.True(t, Establishes(&proving, gradingHead, passingBaseline(t, &proving, true), unmapped, onTarget),
 		"§5.3.5 states two conditions and the mapping is neither of them")
 	assert.False(t, Establishes(
-		&reproducing, gradingHead, passingBaseline(t, &reproducing, true), unmapped),
+		&reproducing, gradingHead, passingBaseline(t, &reproducing, true), unmapped, onTarget),
 		"§5.4.4's second condition is unmet, so the probe supports no probed grade")
 }
 
@@ -197,9 +203,9 @@ func TestOnlyTheGapLadderReadsTheRoundsMapping(t *testing.T) {
 // record cr does not understand.
 func TestAKindOutsideSection55EstablishesNothing(t *testing.T) {
 	unknown := Record{
-		ID: "p1", Kind: "fuzz", Result: resultNoTestFailed, Baseline: "r1",
+		ID: "p1", Kind: "fuzz", Result: resultNoTestFailed, Baseline: "r1", Target: "app.go:3",
 		Stamp: state.Stamp{Head: gradingHead},
 	}
 	assert.False(t, Establishes(
-		&unknown, gradingHead, passingBaseline(t, &unknown, true), ClaimMapping{}))
+		&unknown, gradingHead, passingBaseline(t, &unknown, true), ClaimMapping{}, onTarget))
 }

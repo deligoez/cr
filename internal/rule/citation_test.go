@@ -114,7 +114,7 @@ func TestARuleCitationMayGradeCitedRatherThanDoes(t *testing.T) {
 	// is one no resolution ever reached.
 	resolved.ContentHash = "0f1e2d3c4b5a6978"
 
-	nothingProbed := finding.Resolved(nil, nil, "", probe.Baseline{}, probe.ClaimMapping{})
+	nothingProbed := finding.Resolved(nil, nil, nil, "", probe.Baseline{}, probe.ClaimMapping{})
 
 	for _, c := range []struct {
 		name      string

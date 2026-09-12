@@ -250,7 +250,7 @@ func gradeRecords(
 		}
 		claim := probe.MapClaim(found.pairs, meta.Round, record.Claim, record.Unit)
 		finding.Regrade(record, finding.Resolved(
-			unitOf(formed, record.Unit), referenced, meta.Head, baseline, claim,
+			unitOf(formed, record.Unit), &record.Anchor, referenced, meta.Head, baseline, claim,
 		))
 	}
 }

@@ -117,12 +117,12 @@ func TestAGradeTheRatchetLoweredIsForcedAtTheNextMoment(t *testing.T) {
 	record := aGradedRecord()
 	record.Kind, record.Probe = KindFinding, proven.ID
 
-	Regrade(record, Resolved(theUnit, proven, gradedHead, passing, theMapping()))
+	Regrade(record, Resolved(theUnit, &record.Anchor, proven, gradedHead, passing, theMapping()))
 	require.Equal(t, GradeProbed, record.Grade)
 	require.False(t, ForceQuestion(record), "an experiment stands behind it, so it may assert")
 	require.Equal(t, KindFinding, record.Kind)
 
-	Regrade(record, Resolved(theUnit, nil, gradedHead, probe.Baseline{}, theMapping()))
+	Regrade(record, Resolved(theUnit, &record.Anchor, nil, gradedHead, probe.Baseline{}, theMapping()))
 	require.Equal(t, GradeArgued, record.Grade, "the ratchet lowers a grade that stopped standing up")
 
 	assert.True(t, ForceQuestion(record), "and the next moment of §6.3.1 forces it")

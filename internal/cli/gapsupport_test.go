@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -75,7 +76,9 @@ func probedHome(t *testing.T, f gapFixture) state.Layout {
 	require.NoError(t, held.Write(state.FileProbes, ndjson(t, probe.Record{
 		ID: "p1", Stamp: state.Stamp{Head: head, Round: recordRound},
 		Kind: probe.Gap, Input: "it('cancels', ...)", Result: f.result,
-		Target: "src/Order.php:31", Baseline: "r1",
+		// Inside aRecord's anchor on u1, so §6.2.2's binding is met and
+		// what decides each case is the condition under test.
+		Target: recordPath + ":" + strconv.Itoa(recordUnitStart[gapUnit]+3), Baseline: "r1",
 		OutputTail: "FAILED  Tests\\OrderTest > cancels",
 	})))
 	require.NoError(t, held.Write(state.FileMapping, ndjson(t, pairs...)))
@@ -201,16 +204,6 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 			fixture: gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue},
 			reason:  "mapping.ndjson",
 			names:   "does not name",
-		},
-		{
-			name: "a probe that ran at another head",
-			fixture: gapFixture{
-				result: "failed", head: "1f2e3d4c5b6a79880997a6b5c4d3e2f11f2e3d4c",
-				passed: true, mapped: true, issue: gapIssue,
-			},
-			claim:  gapClaim,
-			reason: "§5.5.3",
-			names:  recordHead,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

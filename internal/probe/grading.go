@@ -47,13 +47,16 @@ func Proven(record *Record) bool {
 // A record referencing no probe reaches this as nil, which is the same answer
 // as a probe that supports nothing: §6.2's `argued` row is "neither of the
 // above", and a record with no experiment behind it has not met the first.
+// Whether naming a probe that does not exist is refused outright is `cr
+// record`'s question, asked before any grade.
 //
-// What is not here is §6.2.2's containment: whether the probe's `target` falls
-// inside the record's own anchor range. That is a fact about the finding rather
-// than about the probe, it is a rejection rather than a grade, and §6.2.2 is
-// the section that owns it.
-func Establishes(record *Record, head string, baseline Baseline, claim ClaimMapping) bool {
-	if record == nil || !record.Grades(head) {
+// span is the record's own anchor, and §6.2.2's binding is asked right after
+// the head: a probe supports a record only when its target falls within that
+// range on the same path, and never for a LEFT anchor. A probe that exists at
+// this head and misses the range supports nothing, and the record stays argued
+// as §5.4.4 and §5.4.5 leave a record whose probe does not support it.
+func Establishes(record *Record, head string, baseline Baseline, claim ClaimMapping, span Span) bool {
+	if record == nil || !record.Grades(head) || !span.Holds(record.Target) {
 		return false
 	}
 	switch record.Kind {

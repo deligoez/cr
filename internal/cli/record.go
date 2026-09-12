@@ -424,8 +424,10 @@ func acceptRecords(
 	}
 	rule.StampOrigins(ledger, round.Head, records)
 	// §6.2.1's stored inputs, read off files no lock is needed for
-	// (§2.3.2).
-	evidence, err := readRoundEvidence(l, owner, repo, pr)
+	// (§2.3.2), and §6.2.2's refusal of a `probe` naming evidence that does
+	// not exist at this head; one that exists and does not support is
+	// graded below.
+	evidence, err := readProbedEvidence(l, owner, repo, pr, round.Head, file, body, records)
 	if err != nil {
 		return nil, nil, err
 	}

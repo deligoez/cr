@@ -184,6 +184,12 @@ func answerGapSupport(
 			"the probe ran at %s and this round's head is %s; §5.5.3 keeps a probe from "+
 				"another head out of the current round's grading",
 			gap.Head, meta.Head)
+	case !record.Anchor.Span().Holds(gap.Target):
+		answered.Reason = fmt.Sprintf(
+			"the probe's target %s does not fall within the record's %s anchor %s:%d-%d; "+
+				"§6.2.2 lets a probe support only a record whose RIGHT anchor range holds its target, "+
+				"so the record stays argued (§6.2) and is asked as a question (§6.3)",
+			gap.Target, record.Anchor.Side, record.Anchor.Path, record.Anchor.StartLine, record.Anchor.Line)
 	case probe.Present(gap):
 		answered.Reason = "§5.4.5: the supplied test passed, so the behaviour it asserts is " +
 			"present — which is not the missing test §5.3's no-test-failed establishes; " +

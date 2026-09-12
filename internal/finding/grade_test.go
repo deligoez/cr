@@ -61,7 +61,7 @@ func aGradedRecord() *Finding {
 		Class:    "unchecked-error",
 		Severity: SeverityHigh, Unit: gradedUnit, Claim: gradedClaim,
 		Anchor: Anchor{
-			Path: "internal/api/handler.go", StartLine: 42, Line: 44,
+			Path: "internal/api/handler.go", Side: "RIGHT", StartLine: 42, Line: 44,
 			ContentHash: "0123456789abcdef",
 		},
 		Summary: "The error Decode returns is dropped.",
@@ -76,7 +76,8 @@ func provenProbe(t *testing.T, head string) (*probe.Record, probe.Baseline) {
 	t.Helper()
 	record := &probe.Record{
 		ID: "p1", Kind: probe.Mutation, Result: "no-test-failed", Baseline: "r1",
-		Stamp: state.Stamp{Head: head, Round: gradedRound},
+		Target: "internal/api/handler.go:43",
+		Stamp:  state.Stamp{Head: head, Round: gradedRound},
 	}
 	baseline, ok := record.ResolveBaseline([]run.Record{{
 		ID: "r1", Passed: true, Stamp: state.Stamp{Head: head, Round: gradedRound},
@@ -158,7 +159,7 @@ func TestTheGradeIsSection62sTableComputedFromTheEvidence(t *testing.T) {
 			record := aGradedRecord()
 			record.Citations = tc.citations
 			assert.Equal(t, tc.grade, ComputeGrade(record, Resolved(
-				theUnit, tc.probe, gradedHead, tc.baseline, theMapping(),
+				theUnit, &record.Anchor, tc.probe, gradedHead, tc.baseline, theMapping(),
 			)))
 		})
 	}
@@ -181,7 +182,7 @@ func TestARecordWhoseProseClaimsProofButCitesNothingIsArgued(t *testing.T) {
 	record := aGradedRecord()
 	require.Empty(t, record.Citations, "the fixture cites nothing; only the prose claims anything")
 
-	graded := ComputeGrade(record, Resolved(theUnit, nil, gradedHead, probe.Baseline{}, theMapping()))
+	graded := ComputeGrade(record, Resolved(theUnit, &record.Anchor, nil, gradedHead, probe.Baseline{}, theMapping()))
 
 	assert.Equal(t, GradeArgued, graded,
 		"§6.2's third row: neither of the above, whatever the evidence sentence says")
@@ -220,7 +221,7 @@ func TestGradingHasNowhereToPutAFieldSection621DoesNotName(t *testing.T) {
 // They grade alike, which is the sentence "`evidence` prose is never parsed"
 // stated as an equality rather than as an absence.
 func TestTwoRecordsAgreeingOnSection621sInputsGradeAlike(t *testing.T) {
-	evidence := Resolved(theUnit, nil, gradedHead, probe.Baseline{}, theMapping())
+	evidence := Resolved(theUnit, &aGradedRecord().Anchor, nil, gradedHead, probe.Baseline{}, theMapping())
 	cited := []Citation{resolvedCitation("internal/api/store.go", 7, OriginAgent)}
 
 	modest := aGradedRecord()
@@ -254,8 +255,9 @@ func TestTwoRecordsAgreeingOnSection621sInputsGradeAlike(t *testing.T) {
 // takes a record out of the question register behind the human's back.
 func TestARecomputationLowersAGradeAndNeverRaisesIt(t *testing.T) {
 	proven, passing := provenProbe(t, gradedHead)
-	nothing := Resolved(theUnit, nil, gradedHead, probe.Baseline{}, theMapping())
-	everything := Resolved(theUnit, proven, gradedHead, passing, theMapping())
+	anchor := &aGradedRecord().Anchor
+	nothing := Resolved(theUnit, anchor, nil, gradedHead, probe.Baseline{}, theMapping())
+	everything := Resolved(theUnit, anchor, proven, gradedHead, passing, theMapping())
 
 	raised := aGradedRecord()
 	Regrade(raised, nothing)
