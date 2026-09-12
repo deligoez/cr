@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T21:56:00.42758Z",
+  "updated_at": "2026-09-12T22:02:17.138556Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -216,7 +216,7 @@
     {
       "id": "output-error-hints",
       "title": "Attach hint to every error",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "output-json-formatting"
@@ -226,11 +226,27 @@
       "source_sections": [
         "## 12. Output contract"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T21:56:47.189987Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:02:17.112092Z",
+      "closed_reason": "- Every error carries a hint field: internal/cli/output.go's reportFailure writes {\"error\",\"hint\"} as a JSON document on stderr whenever stdout is not a terminal or --json is given, and `error:`/`hint:` lines in a terminal; measured on the built binary, `cr record 1 missing.ndjson --repo o/r` piped went from a bare `error: open ...` with no hint to a document whose hint names `cr merge`, and TestAFailureThroughAPipeIsADocumentCarryingAHint and TestAFailureInATerminalIsProseUnlessJSONIsAsked hold both shapes.\n- The hint is a required construction parameter: state.FileFailure panics on an empty hint and FileError's fields are unexported, and every row of internal/cli/exit.go's codes table carries its hint as a field that init refuses empty at package load, so neither a file failure nor a mapped error can be built without a step (TestAFileFailureWithoutAHintCannotBeBuilt, TestEveryRowOfTheExitTableNamesAStep).\n- TestEveryErrorTheCommandTreeReturnsCarriesAHint walks every leaf of newRootCmd, runs each with no arguments, four junk arguments and an unknown flag, and asserts hintFor is non-empty for every error returned; a hand mutant making reportFailure print prose through a pipe failed it and the two failure-shape tests before it was reverted.\n",
+      "gate_passed_at": "2026-09-12T22:02:17.112092Z",
+      "commit_sha": "5594e0e",
+      "commit_shas": [
+        "5594e0e",
+        "6a4ad7f",
+        "f5992bc",
+        "4c25d7c",
+        "69a83ab"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/hint_test.go",
+        "internal/cli/output.go",
+        "internal/cli/root.go",
+        "internal/cli/stub.go",
+        "internal/cli/usage_test.go"
+      ]
     },
     {
       "id": "output-compact-flag",
