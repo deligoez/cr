@@ -102,12 +102,12 @@ func TestTheEvidenceRegionLeavesTheByteExactEditDetectionIntact(t *testing.T) {
 	for id, entry := range entries {
 		assert.NotContains(t, entry, render.Reserved, "%s: rendered.json holds no cr-owned region", id)
 	}
-	untouched, err := Ingest(records, file, entries)
+	untouched, err := ingested(records, file, entries)
 	require.NoError(t, err)
 	assert.Empty(t, untouched.Preserved, "a draft nobody edited has no body to keep")
 
 	typed := strings.ReplaceAll(file, "<!-- cr:evidence -->\n", "<!-- cr:evidence -->\nI checked this myself.\n")
-	edited, err := Ingest(records, typed, entries)
+	edited, err := ingested(records, typed, entries)
 	require.NoError(t, err)
 	assert.Empty(t, edited.Preserved, "the typing sat inside a region cr owns")
 
