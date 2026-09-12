@@ -51,6 +51,22 @@ func (l Layout) CopyIntoSandbox(owner, repo string, pr int, repoDir, rel string)
 	return true, copyTree(source, filepath.Join(l.Sandbox(owner, repo, pr), rel))
 }
 
+// RemoveOrphanedSandbox deletes the sandbox directory of one pull request, for
+// a caller that has established no git registration answers for it any more.
+//
+// §5.1.5 removes the worktree through git, and git refuses a directory it no
+// longer lists — the repository under review re-cloned under a sandbox leaves
+// exactly that. The directory is then only cr's own files under §2.2's root, so
+// deleting them is the removal §5.1.5 asks for. The path is derived here, never
+// taken from a caller, for the reason Sandbox gives.
+func (l Layout) RemoveOrphanedSandbox(owner, repo string, pr int) error {
+	path := l.Sandbox(owner, repo, pr)
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("cannot remove %s: %w", path, err)
+	}
+	return nil
+}
+
 // copyTree copies one file, symlink, or directory tree from source to target.
 //
 // A symlink is recreated rather than followed. `vendor` is full of them, and

@@ -67,3 +67,32 @@ func TestDestroyPrunesARegistrationWhoseDirectoryIsAlreadyGone(t *testing.T) {
 	require.NoError(t, err, "a stranded registration would refuse the path here")
 	assert.Equal(t, created.Path, again.Path)
 }
+
+// A sandbox whose registration is gone is still destroyed, and §5.1.1 can
+// create over the path afterwards.
+//
+// This is what re-cloning the repository under review leaves: the directory
+// under ~/.cr survives and `.git/worktrees/` does not, so `worktree remove`
+// refuses the directory as not a working tree while Create refuses to build
+// over it. Measured before the fallback existed, destroy exited 3 and create
+// exited 4 on that state, with nothing in cr able to clear it.
+func TestDestroyRemovesASandboxWhoseRegistrationIsGone(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+
+	created, err := Create(src)
+	require.NoError(t, err)
+	registration := filepath.Join(dir, ".git", "worktrees", "sandbox")
+	require.DirExists(t, registration)
+	require.NoError(t, os.RemoveAll(registration), "the registration removed behind cr's back")
+
+	removed, err := Destroy(src)
+	require.NoError(t, err, "§5.1.5 has no state it cannot clear")
+	assert.True(t, removed.Existed, "there was a directory to remove")
+	assert.NoDirExists(t, created.Path)
+	assert.NoDirExists(t, registration)
+
+	again, err := Create(src)
+	require.NoError(t, err, "§5.1.1 refuses a path whose directory is still there")
+	assert.Equal(t, created.Path, again.Path)
+}

@@ -52,12 +52,12 @@ func Destroy(src *Sources) (*Removed, error) {
 // directory that is not there, and reports whether there was a worktree to
 // delete.
 //
-// It is shared with §5.1.6's recreation, which needs the same two branches for
-// the same reason and differs only in what it does afterwards.
+// It is shared with §5.1.6's recreation, which needs the same branches for the
+// same reason and differs only in what it does afterwards.
 func removeSandbox(src *Sources, path string) (bool, error) {
 	switch _, err := os.Stat(path); {
 	case err == nil:
-		return true, git.RemoveWorktree(src.RepoDir, path)
+		return true, removeDirectory(src, path)
 	case errors.Is(err, fs.ErrNotExist):
 		// No directory to remove, but possibly a registration naming
 		// one, which `worktree add` would refuse the path over.
@@ -65,4 +65,28 @@ func removeSandbox(src *Sources, path string) (bool, error) {
 	default:
 		return false, fmt.Errorf("cannot inspect %s: %w", path, err)
 	}
+}
+
+// removeDirectory removes a sandbox directory that is there, through git when
+// the repository still lists it as a worktree and as cr's own files when it
+// does not.
+//
+// The second branch is the one a re-cloned repository under review reaches: the
+// directory survives, its registration does not, and `worktree remove` refuses
+// it as "not a working tree" — while §5.1.1 refuses to create over the
+// directory. Without the fallback §5.1.5 would have a state it cannot clear and
+// the reader would be left deleting under ~/.cr by hand. The prune still runs
+// afterwards, for a registration the directory's old repository may have left.
+func removeDirectory(src *Sources, path string) error {
+	registered, err := git.WorktreeRegistered(src.RepoDir, path)
+	if err != nil {
+		return err
+	}
+	if registered {
+		return git.RemoveWorktree(src.RepoDir, path)
+	}
+	if err := src.Layout.RemoveOrphanedSandbox(src.Owner, src.Repo, src.PR); err != nil {
+		return err
+	}
+	return git.PruneWorktrees(src.RepoDir)
 }
