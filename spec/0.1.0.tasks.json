@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:12:07.308107Z",
+  "updated_at": "2026-09-12T14:19:32.750066Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5195,7 +5195,7 @@
     {
       "id": "citations-rendered-verbatim",
       "title": "Render every citation into the block",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "citation-origin-stamping"
@@ -5205,11 +5205,18 @@
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:12:57.89323Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:19:32.741103Z",
+      "closed_reason": "- cr forms no judgement about whether a citation supports the summary and claims none: internal/render/evidence.go's CitedEvidence is template substitution over the record's citations alone, and internal/cli's TestNoStringLiteralCrShipsCallsARecordVerified plus TestNoRenderingOfACitedRecordCallsItVerified already hold every literal and every rendering of a cited record off §6.2.4's three words.\n- Every citation of a cited record is rendered verbatim into the draft block, so the human makes the judgement cr cannot: CitedEvidence emits one `citation: path:line` line per stored entry, in the record's own order, and internal/draft's evidence renders that region beneath the agent body for every record graded cited.\n- That property was verified rather than assumed, and the verification found the gap: every case in internal/cli queued a record with exactly one citation, so a renderer showing only the first satisfied all of them. Applying `citations[:1]` to CitedEvidence by hand left TestTheDraftCarriesEachAssertingRecordsEvidence green; the mutation was reverted and internal/render is unchanged at HEAD.\n- A test asserts each stored citation appears in draft.md as path:line: internal/cli/citationsverbatim_test.go records a cited record carrying three citations, runs cr draft, reads rounds/2/draft.md off disk, and asserts each stored citation as `citation: \u003cpath\u003e:\u003cline\u003e`.\n- It asserts the stored citations rather than the supplied ones, since §6.2.3 resolves each entry and §6.2.5 stamps its origin, and it compares the evidence region whole from opening marker to closing so an order the record did not store, or a line cr inserted between two citations, fails it. The same `citations[:1]` mutation fails it on all three assertions.\n- Dogfooded against an isolated CR_HOME and a local scratch repository: `cr record` stored three citations as [('ship.go', 3, 'agent'), ('ship.go', 1, 'agent'), ('order.go', 1, 'agent')] and graded the record cited, and draft.md's region read \"citation: ship.go:3 / citation: ship.go:1 / citation: order.go:1\" between the evidence markers, in the recorded order.\n- Invariant 2 verified by hand: `git status --porcelain` in the scratch repository was empty after the run.\n- The gate is green for every package: `go test -race -count=1 ./...` passed, `./scripts/deadcode.sh` was silent, and the one `golangci-lint`/gofmt finding is in internal/cli/draft.go, a file the parallel unit is editing and this task did not touch.\n",
+      "gate_passed_at": "2026-09-12T14:19:32.741103Z",
+      "commit_sha": "10e17d0",
+      "commit_shas": [
+        "10e17d0"
+      ],
+      "commit_files": [
+        "internal/cli/citationsverbatim_test.go"
+      ]
     },
     {
       "id": "argued-forcing",
