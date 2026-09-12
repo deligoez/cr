@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T22:12:48.495608Z",
+  "updated_at": "2026-09-12T22:47:37.806691Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2251,7 +2251,7 @@
         "changed-line-definition"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- Files matching ignore.globs are excluded and counted as excluded, per §3.4.2.\n- Binary and generated files are listed but not clustered, per §3.4.7.\n- A test asserts both counts reach cr status without either file producing a unit.",
+      "acceptance": "- Files matching ignore.globs are excluded and counted as excluded, per §3.4.2.\n- Binary and generated files are listed but not clustered, per §3.4.7.\n- A test asserts both counts reach cr status without either file producing a unit.\n- Open before implementing, found 2026-09-13 at 093a633 and needing an orchestrator decision: (1) no row of §2.3 holds the excluded count or the binary and generated listing for cr status to read — units.ndjson holds §3.4.6 units and meta.json fields are enumerated and fenced to four readers — while re-deriving them in cr status from a fresh diff would read ignore.globs as configured now rather than as the round was formed, the re-resolution lensesOf rejects for the profile and key, and would make status need gh and a checkout on every run; (2) §3.4.7 does not say what makes a file generated (a gitattributes linguist-generated at head and a Code generated ... DO NOT EDIT header are the two mechanical candidates). Measured at the same commit: ignore.globs is defined in internal/config and read by no code, and git.ParseHunks yields no hunk for a Binary files ... differ entry, so a binary file is dropped silently rather than listed.",
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
@@ -5130,7 +5130,7 @@
     {
       "id": "unit-containment-predicate",
       "title": "Decide containment in head coordinates",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "grade-computation",
@@ -5141,11 +5141,24 @@
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:24:05.662528Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:46:54.996571Z",
+      "closed_reason": "- Containment in head coordinates was already unit.Unit.Contains (internal/unit/contains.go, from d6c90d4): path equal to the unit's path and line within one of its head-side hunk ranges, which §3.4.6 records from git.Hunk.HeadRange so a hunk adding no lines is its insertion point; the grade asks it through finding.Containment. This unit added its second use, the anchor binding in internal/cli/anchorunit.go (54473a3), which asks the same predicate for every anchored line.\n- No side is compared: Contains never reads the unit's Side, and the binding keeps it that way for a LEFT anchor by carrying its merge-base lines into head coordinates through the hunk that removed them (its head-side range) before asking Contains, so a merge-base line number is never compared with a head range; `unit`, the one agent-written field that could move the boundary, is now bound to the anchor as the last three lines record.\n- internal/unit/contains_test.go's TestContainmentIsDecidedInHeadCoordinates covers a location inside a hunk (first, middle, last line, a later hunk), outside (above, below, the gap, another file), and a delete-only hunk's one-line insertion point (in, and one line either side out), on a RIGHT and a LEFT unit alike; TestAnAnchorIsInsideItsUnitOnlyWhenEveryLineIsInHeadCoordinates in internal/cli/anchorunit_test.go adds the anchor-level cases (RIGHT within, past, another file, straddling two hunks; LEFT on removed lines, on lines no hunk removed; an unresolved unit).\n- §6.1.3's unit check in finding.Decode proves only that the unit is one of the round's: it is handed roundUnitIDs, ids alone, and never the ranges an anchor could be compared with, so on its own it cannot tell the record's unit from any other unit of the round.\n- The forgery was real before this commit: on a scratch round with u1 on app.go and u2 on lib.go, a record anchored at app.go:3 naming u2 and citing app.go:3 was stored by a binary built at 8826248 as kind finding, grade cited, because its own hunk counted as outside u2.\n- cr record now refuses it: acceptRecords calls refuseForeignAnchors straight after finding.Decode and returns finding.RejectedRecordError on field `anchor` at the file's line (exit 1) for a record any of whose anchored lines lies outside the unit it names. The rebuilt binary refuses the forged record with `forged.ndjson line 1: anchor RIGHT app.go:3-3 does not lie inside unit \"u2\", the unit this record names`; a LEFT anchor on lib.go's removed line 3 naming u2 records at exit 0, one on base line 9 no hunk removed exits 1, and `git status --porcelain` in the repository under review was identical before and after. TestARecordAnchoredInOneUnitNamingAnotherIsRefused holds the forgery through the command; hand mutants killed: skipping the binding (that test), dropping the interior-line walk (the straddle case), skipping the LEFT translation (the removed-lines case). Fixtures migrated in the same commit: recordedHome's units carry path and disjoint ranges and aRecord anchors inside the unit it names, merge_test's u2 record is anchored in u2, the §8.2 LEFT fixture anchors base line 3 (the merge base has no line 4) on reviewedHome's brief-true unit, and the repository guard anchors app.go:3, the line brief's unit covers.\nOut of scope: cr merge still admits a record whose anchor lies outside its unit, though its output only reaches findings.ndjson through cr record, which refuses it; and during the dogfood cr record stored a second record with an id already on file (f1 twice), which nothing refused.\n",
+      "gate_passed_at": "2026-09-12T22:46:54.996571Z",
+      "commit_sha": "54473a3",
+      "commit_shas": [
+        "54473a3"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/anchorunit_test.go",
+        "internal/cli/merge_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/record.go",
+        "internal/cli/record_test.go",
+        "internal/cli/rulefixwiring_test.go"
+      ]
     },
     {
       "id": "probed-grade-validation",
@@ -7967,7 +7980,7 @@
     {
       "id": "class-form-validation",
       "title": "Reject a class that is not kebab-case",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "record-command"
@@ -7977,11 +7990,19 @@
       "source_sections": [
         "### 6.1 Finding record"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:21:21.779318Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:30:50.288422Z",
+      "closed_reason": "- Reproduced with the built binary before the fix: on a scratch round, a role file carrying `\"class\":\"Not Kebab\"` on line 3 went through `cr merge` at exit 0 and `cr record` at exit 0, and findings.ndjson stored `\"class\": \"Not Kebab\"` beside a kebab-case record; ValidateClass was called only by internal/rule for a rule file, and by no record door.\n- internal/finding/validate.go's shared checker (201f239) now calls ValidateClass right after §6.1.3's required-field walk, so both doors, Decode (cr record, agent and merge sources) and DecodePerRole (cr merge), refuse the class with finding.InvalidClassError, which internal/cli/exit.go already maps to exit 1 with a hint. Measured on a binary built from that tree on the same round: `cr merge` and `cr record` both exit 1 with `review-correctness.ndjson line 3: class \"Not Kebab\" is not kebab-case; §6.1 fixes the form at [a-z0-9-]+` and hint `§6.1 wants a kebab-case class; correct that record's class in the file`, naming the file, the one-based line counting the blank line, and the field. TestEveryDoorRefusesAClassThatIsNotKebabCase drives every entry of the `doors` table that TestNoUnanchoredItemBecomesARecordByAnyDoor reconciles against the package source, so a door added later is held to the class too; making the check a no-op turns it red. The full suite ran green in a clean clone with only this change applied, so no existing fixture carried a non-kebab class.\n- §6.4.1's dedup key reads the class byte for byte, so before the fix \"Not Kebab\" and \"not-kebab\" on one anchored line would have formed two groups; after it the first spelling cannot be recorded, so one defect class stays one group.\n- The guard sits at the door and not at the key: the dedup key of §6.4.1, the waiver key of §7.4.1, the §9.3.6 posted index and cr stats' §7.3.3 first_seen report all read records that came through Decode, and none of them normalises or re-checks a class, so a record refused at the door never reaches a key in the first place.\n",
+      "gate_passed_at": "2026-09-12T22:30:50.288422Z",
+      "commit_sha": "201f239",
+      "commit_shas": [
+        "201f239"
+      ],
+      "commit_files": [
+        "internal/finding/class_test.go",
+        "internal/finding/validate.go"
+      ]
     },
     {
       "id": "unreadable-input-exit-code",
@@ -8078,7 +8099,7 @@
     {
       "id": "orphaned-sandbox-recovery",
       "title": "Destroy a sandbox whose registration is gone",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "sandbox-destroy"
@@ -8088,16 +8109,28 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:12:34.517459Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:29:31.58122Z",
+      "closed_reason": "- Reproduced with the built binary on a scratch repository whose clone was deleted and re-cloned under an existing sandbox: `cr sandbox destroy 1` exited 3 with `fatal: '.../pr-1/sandbox' is not a working tree` and `cr sandbox create 1` then exited 4 with `.../pr-1/sandbox already exists`, so the state was unrecoverable from inside cr.\n- internal/sandbox/destroy.go's removeDirectory (3709831) asks git.WorktreeRegistered (22baf72, `worktree list --porcelain -z` compared through resolved symlinks, since git lists /tmp as /private/tmp) whether the repository still lists the sandbox; a listed one is removed through git as before, an unlisted one is deleted by state.Layout.RemoveOrphanedSandbox under the state root and the registrations are pruned. removeSandbox is shared with the §5.1.6 recreation, which takes the same fallback. On the same scratch state the rebuilt binary's destroy exited 0 with `\"removed\": true`, create exited 0, a second destroy exited 0, `.git/worktrees` was gone, and `git status --porcelain` in the repository under review was byte-identical (empty) before and after.\n- TestDestroyRemovesASandboxWhoseRegistrationIsGone creates a sandbox, deletes `.git/worktrees/sandbox` behind cr's back, and asserts Destroy succeeds, leaves neither the directory nor the registration, and that Create afterwards succeeds at the same path; forcing the git branch always makes it fail with git's \"is not a working tree\". TestWorktreeRegisteredAnswersForTheRegistrationNotTheDirectory holds a worktree named through a symlink as registered, a foreign path and an orphaned directory as not, and comparing unresolved paths fails it. Forcing the fallback for a registered worktree survives: RemoveAll plus prune reaches the same end state as `worktree remove --force` for every sandbox cr creates, so that mutant is equivalent on what the tests can observe.\n",
+      "gate_passed_at": "2026-09-12T22:29:31.58122Z",
+      "commit_sha": "22baf72",
+      "commit_shas": [
+        "22baf72",
+        "3709831"
+      ],
+      "commit_files": [
+        "internal/git/worktree.go",
+        "internal/git/worktree_test.go",
+        "internal/sandbox/destroy.go",
+        "internal/sandbox/destroy_test.go",
+        "internal/state/sandbox.go"
+      ]
     },
     {
       "id": "mapping-package-tests",
       "title": "Test the mapping package where its mutants can die",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 15,
@@ -8105,11 +8138,18 @@
       "source_sections": [
         "## 4.1 The claim-to-unit mapping"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:04:59.532732Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:19:23.064235Z",
+      "closed_reason": "- internal/mapping/mapping_test.go (093a633) is the package's test file for mapping.go, the one file in it that had none: gap_test.go, join_test.go and setaside_test.go already existed, and `go test -coverprofile ./internal/mapping` measured Decode, check, id, listed, written and RejectedPairError.Error at 0.0% at entry and every one at 100% after (package 77.3% to 100.0%).\n- The acceptance's \"today it has none\" was stale when this unit started: three test files were in the package, and what nothing in the package reached was mapping.go alone, which internal/cli/mapcmd_test.go drove from outside.\n- The join the four sections read is held where it is decided: Decode refuses an unknown claim or unit id against the round's own ids, and Unmapped, ClaimsOf, Gaps and SetAside keep their existing in-package tests, all of which the hand mutants below exercise.\n- The new tests call Decode and RejectedPairError directly: the decoded order with blank lines skipped, an empty mapping as [], a missing claim or unit in all three spellings (absent, null, \"\") refused as required, an unknown id refused on its line counting blank lines with the round's ids listed and \"none\" for a round holding none, a line with both ids wrong reported by its claim, the rendered error, and a supplied stamp refused through state.DecodeStamped.\n- Every operator gremlins can mutate in internal/mapping (13 sites) was applied by hand and killed by the package's own tests: mapping.go:100 err!=nil-\u003e== by four Decode tests; :138 ==0-\u003e!=0 by TestAnUnknownIdInARoundHoldingNoneSaysNone and TestDecodeRefusesAnUnknownIdOnItsLineNamingWhatTheRoundHolds; :156 \u003e0-\u003e\u003e=0 by its absent_claim and absent_unit subtests; :156 \u003e0-\u003e\u003c=0 by four tests; join.go:22 by TestAUnitMappedToZeroClaimsOfItsRoundIsUnmapped; join.go:47 (both) by TestTheClaimsOfAUnitAreItsRoundsPairsInRecordedOrder; gap.go:68, :74 and :133 (both) by TestAReDerivationKeepsTheSetAsideOfAClaimStillUnmapped; setaside.go:58 and :62 by all four SetAside tests; dropping the null check and swapping the claim-first order were killed too. No mutant survived, so none needs classifying. gremlins itself was not run by this unit, because pgrep cannot see the process table from a subagent, so the zero NOT COVERED figure is for the orchestrator's quiet-window run to confirm.\n",
+      "gate_passed_at": "2026-09-12T22:19:23.064235Z",
+      "commit_sha": "093a633",
+      "commit_shas": [
+        "093a633"
+      ],
+      "commit_files": [
+        "internal/mapping/mapping_test.go"
+      ]
     },
     {
       "id": "protected-token-force",
