@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
-	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
@@ -307,107 +305,17 @@ func lensesOf(
 	if err != nil {
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
-	axes := roundAxes(p, round, resolved.String(intentKeyPattern))
+	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, resolved.String(intentKeyPattern))
 	return axes, coverage.Lenses{
 		Axes:   axes.Disclosures(),
 		Halves: halves,
-		Roles:  skippedRoles(axes, corpus, round),
+		Roles:  coverage.Skipped(axes, corpus, round.ActiveRoles, round.ProfileID),
 	}, nil
-}
-
-// skippedRoles is §4.5.4's fourth kind: every role of the corpus the round left
-// out, each carrying the reason it could not look.
-//
-// It is the negative of activation.ActiveRoles and it is derived rather than
-// stored, because meta.json records the active set and §4.6.4 asks for the
-// other one — "a role whose prerequisites are unmet MUST be reported as skipped
-// with its reason, never omitted silently". A reader handed only the active set
-// has to subtract two lists and then invent the reason, which is the silence
-// that sentence forbids.
-//
-// The active set is meta.json's rather than a recomputation, for the reason
-// roundCoverage gives: `cr brief` settles it once per round, and a report
-// deriving its own could call a role skipped that the round counted active —
-// which §10.2.2 then demands a cell for.
-//
-// The order is the corpus's, so a role's line here and its cells elsewhere are
-// read in the one order §2.5.5 fixes.
-func skippedRoles(
-	axes activation.Activation, corpus []role.Resolved, round *state.Meta,
-) []coverage.SkippedRole {
-	out := make([]coverage.SkippedRole, 0, len(corpus))
-	for i := range corpus {
-		// Indexed rather than ranged by value: a Resolved carries a
-		// whole Role, which is what gocritic's rangeValCopy is about.
-		r := &corpus[i].Role
-		if slices.Contains(round.ActiveRoles, r.ID) {
-			continue
-		}
-		out = append(out, coverage.SkippedRole{Role: r.ID, Reason: skipReason(axes, r, round.ProfileID)})
-	}
-	return out
-}
-
-// skipReason says why one inactive role did not look.
-//
-// The axis is asked first because activation.ActiveRoles asks it first, so the
-// reason a reader is given is the clause that actually decided. A role on an
-// axis that did not run is out however its `profiles` list reads, and sending
-// the reader to that list would send them to a fix that changes nothing.
-//
-// Where the axis did run, the axis's own entry is reused verbatim rather than
-// reworded, so a reader acting on the role's line and one acting on the axis's
-// line are sent to the same fix.
-func skipReason(axes activation.Activation, r *role.Role, profileID string) string {
-	if slices.Contains(axes.Active, r.Axis) {
-		return "its profiles list names " + strings.Join(r.Profiles, ", ") +
-			" and this round resolved profile " + namedProfile(profileID) +
-			"; the role looks only under a profile it names"
-	}
-	for _, entry := range axes.Disclosures() {
-		if strings.HasPrefix(entry.Disclosure(), "axis "+r.Axis+" ") {
-			return entry.Disclosure()
-		}
-	}
-	return "its axis " + r.Axis + " did not run this round"
-}
-
-// namedProfile names the profile the round resolved, and says plainly when
-// there was none: §2.4.4's repository matched no profile, and an empty string
-// in the sentence would read as a profile whose id is empty.
-func namedProfile(profileID string) string {
-	if profileID == "" {
-		return "none, per §2.4.4"
-	}
-	return profileID
 }
 
 // intentKeyPattern is §3.2's `intent.key_pattern`, by the key §2.7's table
 // holds it under. §4.5.3's reason names it, so the report has to read it.
 const intentKeyPattern = "intent.key_pattern"
-
-// roundAxes applies §4.5.1 to §4.5.3 to the round as meta.json recorded it.
-//
-// It is brief.axesOf's second reader and answers §2.4.4 the same way for the
-// same reason: activation.Activate requires a resolved profile, so a round
-// opened on a repository no profile matched has no axis decision to re-derive
-// and what is still true is §4.5.3 alone. A second answer for that case would
-// let `cr brief`'s report and this one disagree about which axes looked.
-func roundAxes(p *profile.Profile, round *state.Meta, pattern string) activation.Activation {
-	recorded := intent.Recorded(round.IssueKey, pattern)
-	if round.ProfileID != "" {
-		return activation.Activate(p, recorded)
-	}
-	axes := activation.Activation{
-		Active:      []string{},
-		Disabled:    []activation.Disabled{},
-		Unavailable: []intent.Unavailable{},
-	}
-	if unavailable, marked := recorded.Unavailability(); marked {
-		axes.Unavailable = append(axes.Unavailable, unavailable)
-	}
-	return axes
-}
 
 // statusProfile loads the profile the round resolved, and the empty profile for
 // §2.4.4's repository where none did.
