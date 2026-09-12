@@ -196,6 +196,10 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err := publishDraft(l, owner, repo, pr, round, records, rendered, forced); err != nil {
 		return err
 	}
+	// §7.3.1's events, after the draft they describe reached disk.
+	if err := recordDraftTriage(l, owner, repo, pr, round, queued, &triage); err != nil {
+		return err
+	}
 	return out.emit(&draftResult{
 		Path:      l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
 		Round:     round.Round,
