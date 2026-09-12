@@ -186,8 +186,19 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// whatever they name.
 		"claims set-aside": refusesTheWrite("claims", "set-aside", fixturePR,
 			fixtureIssue+"#c1", "--note", fixtureIssue+"#n1"),
-		"cells record":   refusesTheWrite("cells", "record", fixturePR, file("cells.ndjson")),
-		"map record":     refusesTheWrite("map", "record", fixturePR, file("mapping.ndjson")),
+		"cells record": refusesTheWrite("cells", "record", fixturePR, file("cells.ndjson")),
+		"map record":   refusesTheWrite("map", "record", fixturePR, file("mapping.ndjson")),
+		// §6.5.1 has `cr merge` write its drop counts into the current
+		// round's `summary.json`, which §2.3's table lists as per-PR
+		// state — so it is a writer even though the file `-o` names is
+		// the caller's rather than cr's. It would be refused for a
+		// second reason regardless: what it produces is the input to
+		// `cr record`, which is refused here too, so a merge that ran
+		// could only manufacture a file nothing downstream may accept.
+		// The pull request is a flag rather than a positional, per
+		// §6.5.1's own spelling of the invocation.
+		"merge": refusesTheWrite("merge", file("review-correctness.ndjson"),
+			"-o", file("merged-out.ndjson"), "--pr", fixturePR),
 		"draft":          refusesTheWrite("draft", fixturePR),
 		"post":           refusesTheWrite("post", fixturePR),
 		"review":         refusesTheWrite("review", fixturePR),
