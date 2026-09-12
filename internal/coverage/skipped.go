@@ -54,11 +54,22 @@ func Skipped(
 // axis that did not run is out however its `profiles` list reads, and sending
 // the reader to that list would send them to a fix that changes nothing.
 //
-// Where the axis did run, the axis's own entry is reused verbatim rather than
-// reworded, so a reader acting on the role's line and one acting on the axis's
-// line are sent to the same fix.
+// Where the axis did not run, the axis's own entry is reused verbatim rather
+// than reworded, so a reader acting on the role's line and one acting on the
+// axis's line are sent to the same fix.
+//
+// Where the axis did run, activation.ActiveRoles is asked about the role alone
+// rather than its `profiles` clause being restated here. A list that excludes
+// the resolved profile is what decided, and the sentence names that list. A
+// list that admits it — an empty one, which admits every profile, or one naming
+// it — decided nothing: the role would be counted active today, so what left it
+// out is the active-role set `cr brief` recorded for the round, and sending the
+// reader to the list would send them to a fix that changes nothing.
 func skipReason(axes activation.Activation, r *role.Role, profileID string) string {
 	if slices.Contains(axes.Active, r.Axis) {
+		if len(axes.ActiveRoles([]role.Resolved{{Role: *r}}, profileID)) != 0 {
+			return notRecordedReason(r, profileID)
+		}
 		return "its profiles list names " + strings.Join(r.Profiles, ", ") +
 			" and this round resolved profile " + namedProfile(profileID) +
 			"; the role looks only under a profile it names"
@@ -69,6 +80,24 @@ func skipReason(axes activation.Activation, r *role.Role, profileID string) stri
 		}
 	}
 	return "its axis " + r.Axis + " did not run this round"
+}
+
+// notRecordedReason is the reason for a role the definition admits and the
+// round did not count: its axis ran and its `profiles` list admits the resolved
+// profile, and meta.json's active roles, which `cr brief` settles per §4.5.1,
+// do not name it. That happens when the corpus or the profile changed after the
+// brief, and a brief run again at the same head records the set anew.
+//
+// The list is described rather than joined, because an empty list joined is an
+// empty name, and a sentence naming nothing reads as a list naming a profile.
+func notRecordedReason(r *role.Role, profileID string) string {
+	admits := "is empty, which admits every profile"
+	if len(r.Profiles) != 0 {
+		admits = "names profile " + profileID
+	}
+	return "this round's active roles, which `cr brief` recorded per §4.5.1, do not name it, " +
+		"though its axis " + r.Axis + " ran and its profiles list " + admits +
+		"; run `cr brief` again to record the round's active roles anew"
 }
 
 // namedProfile names the profile the round resolved, and says plainly when
