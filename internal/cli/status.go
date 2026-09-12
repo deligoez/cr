@@ -13,6 +13,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/role"
@@ -51,10 +52,9 @@ type intentCoverage struct {
 
 // statusResult is §10.1's coverage report for one round.
 //
-// It answers §10.1.1 through §10.1.3 and stops there. §10.1.4 to §10.1.6 —
-// findings and questions by state, probes, waivers and suppressed duplicates —
-// and §10.2's completeness verdict are the next tasks' to add here, and a
-// report that guessed at them now would be a report of counts nothing computes.
+// It answers §10.1.1 through §10.1.6 and stops there. §10.2's completeness
+// verdict is the next task's to add here, and a verdict guessed at now would be
+// a verdict about conditions nothing evaluates.
 type statusResult struct {
 	// Round and Head are the round this report is about.
 	Round int    `json:"round"`
@@ -68,9 +68,22 @@ type statusResult struct {
 	Axes activation.Activation `json:"axes"`
 	// Skipped is §4.5.4's fourth kind, §4.6.4's roles.
 	Skipped []coverage.SkippedRole `json:"skipped_roles"`
+	// Records is §10.1.4.
+	Records recordReport `json:"records"`
+	// Probes is §10.1.5.
+	Probes probeReport `json:"probes"`
+	// Unstanding is §3.6.6's report: the notes this round's cells and
+	// records rest on that no longer stand, and what rests on each.
+	//
+	// It sits beside the §10.1 counts rather than inside Honesty because
+	// §11.1 does not list it among the seven disclosures `--quiet` may
+	// never suppress, and a report that quietly widened that list would be
+	// making a claim about §11.1 rather than about the round.
+	Unstanding []unstandingNote `json:"unstanding_notes"`
 	// Honesty carries §9.3.1's comparison of the round's head against the
-	// pull request's current one, and then every entry of §4.5.4's report,
-	// rendered as the sentences §11.1 exempts from `--quiet`.
+	// pull request's current one, then every entry of §4.5.4's report, and
+	// then §10.1.6's waiver and duplicate counts — rendered as the
+	// sentences §11.1 exempts from `--quiet`.
 	//
 	// It is where §4.5.4's third kind lives and has no field of its own.
 	// The halves of §4.3.1 and §4.4.1 are declared in two packages that
@@ -88,8 +101,8 @@ type statusResult struct {
 	Honesty []string `json:"honesty"`
 }
 
-// Text prints §10.1's three sections in the order §10.1 numbers them, then the
-// honesty channel.
+// Text prints §10.1's sections in the order §10.1 numbers them, then §3.6.6's
+// report, then the honesty channel.
 func (r *statusResult) Text(w *writer) string {
 	var out strings.Builder
 	out.WriteString("round " + w.accent(strconv.Itoa(r.Round)) + " at " + r.Head + "\n")
@@ -106,10 +119,46 @@ func (r *statusResult) Text(w *writer) string {
 		out.WriteString("  " + r.Intent.Gaps[i].Claim + gapNote(&r.Intent.Gaps[i]) + "\n")
 	}
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
+	out.WriteString(r.recordLines())
+	out.WriteString(r.noteLines())
 	for _, entry := range r.Honesty {
 		out.WriteString(entry + "\n")
 	}
 	return strings.TrimRight(out.String(), "\n")
+}
+
+// recordLines is §10.1.4 and §10.1.5 for the terminal: the record total with
+// its three tallies, then the probe counts.
+//
+// The tallies are printed whole, zeros included, because that is what the
+// document holds and §12.1 gives the two shapes one payload: a terminal reader
+// shown only the non-empty buckets would be reading a different report from the
+// one a piped reader parses.
+func (r *statusResult) recordLines() string {
+	var out strings.Builder
+	out.WriteString("records: " + strconv.Itoa(r.Records.Total) + " total\n")
+	out.WriteString(tallyLine("state", r.Records.ByState) + "\n")
+	out.WriteString(tallyLine("severity", r.Records.BySeverity) + "\n")
+	out.WriteString(tallyLine("grade", r.Records.ByGrade) + "\n")
+	out.WriteString("probes: " + strconv.Itoa(r.Probes.Run) + " run, " +
+		strconv.Itoa(r.Probes.Graded) + " standing behind a graded record\n")
+	return out.String()
+}
+
+// noteLines is §3.6.6's report for the terminal, and nothing at all when every
+// note the round rests on still stands: an empty heading would read as a
+// retraction nobody made.
+func (r *statusResult) noteLines() string {
+	if len(r.Unstanding) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	out.WriteString("notes no longer standing, per §3.6.6: " +
+		strconv.Itoa(len(r.Unstanding)) + "\n")
+	for i := range r.Unstanding {
+		out.WriteString(unstandingLine(&r.Unstanding[i]) + "\n")
+	}
+	return out.String()
 }
 
 // gapNote names the §4.1.8 note a gap entry was set aside by, and nothing at
@@ -174,7 +223,8 @@ func newStatusCmd(out *writer) *cobra.Command {
 	}
 }
 
-// statusOf assembles §10.1.1 through §10.1.3 for one round.
+// statusOf assembles §10.1.1 through §10.1.6, and §3.6.6's report, for one
+// round.
 func statusOf(
 	l state.Layout, owner, repo string, pr int, round *state.Round,
 ) (*statusResult, error) {
@@ -190,30 +240,61 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
+	records, err := roundFindingsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return nil, err
+	}
+	probes, err := state.ReadStamped[probe.Record](
+		l, owner, repo, pr, state.FileProbes, round.Round)
+	if err != nil {
+		return nil, err
+	}
+	unstanding, err := unstandingNotesOf(l, owner, repo, pr, &round.Meta)
+	if err != nil {
+		return nil, err
+	}
+	disclosed, err := statusHonesty(l, owner, repo, pr, round, lenses, records)
+	if err != nil {
+		return nil, err
+	}
 	return &statusResult{
-		Round:    round.Round,
-		Head:     round.Head,
-		Coverage: rows,
-		Intent:   covered,
-		Axes:     axes,
-		Skipped:  lenses.Roles,
-		Honesty:  statusHonesty(round, lenses),
+		Round:      round.Round,
+		Head:       round.Head,
+		Coverage:   rows,
+		Intent:     covered,
+		Axes:       axes,
+		Skipped:    lenses.Roles,
+		Records:    recordTalliesOf(records),
+		Probes:     probesOf(probes, records),
+		Unstanding: unstanding,
+		Honesty:    disclosed,
 	}, nil
 }
 
 // statusHonesty is the disclosure channel §11.1 exempts from `--quiet`:
-// §9.3.1's comparison first, then every lens of §4.5.4 that did not run.
+// §9.3.1's comparison first, then every lens of §4.5.4 that did not run, then
+// §10.1.6's waiver and duplicate counts.
 //
 // The lenses are rendered through coverage.Lenses rather than appended kind by
 // kind here, so a kind added to that collector reaches this report with it.
-func statusHonesty(round *state.Round, lenses coverage.Lenses) []string {
+// §10.1.6's two are appended after them because §11.1 lists them as their own
+// pair rather than as lenses, and each is a count over the round's records
+// rather than a lens that did or did not look.
+func statusHonesty(
+	l state.Layout, owner, repo string, pr int,
+	round *state.Round, lenses coverage.Lenses, records []*finding.Finding,
+) ([]string, error) {
 	disclosed := lenses.Disclosures()
-	honesty := make([]string, 0, 1+len(disclosed))
+	honesty := make([]string, 0, 3+len(disclosed))
 	honesty = append(honesty, round.Disclosure())
 	for _, entry := range disclosed {
 		honesty = append(honesty, entry.Disclosure())
 	}
-	return honesty
+	waived, err := waiverDisclosure(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return nil, err
+	}
+	return append(honesty, waived, duplicateDisclosure(records)), nil
 }
 
 // intentCoverageOf counts §10.1.2 over the round's claims, its mapping, and
