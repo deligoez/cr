@@ -92,3 +92,24 @@ func TestAllFourKindsOfLensReachTheCompletenessVerdict(t *testing.T) {
 			"§4.5.4: %s reaches the reader with its reason", name)
 	}
 }
+
+// A verdict of false carries the exact reason, and a verdict of true carries
+// none.
+//
+// §10.2 asks for the reason only when the verdict is false, and the asymmetry
+// is the point: a round is complete when the four conditions hold and there is
+// nothing further to say, so a sentence invented for the true case would be cr
+// forming a judgement about a round it only counted.
+func TestTheVerdictCarriesItsReasonOnlyWhenItIsFalse(t *testing.T) {
+	empty := Lenses{}
+
+	complete := empty.Verdict(true, "")
+	require.Len(t, complete, 1, "every lens ran, so the verdict stands alone")
+	assert.Equal(t, "round complete, per §10.2", complete[0])
+
+	blocked := empty.Verdict(false, "u2 holds no cell for role correctness")
+	require.Len(t, blocked, 1)
+	assert.Contains(t, blocked[0], "not complete")
+	assert.Contains(t, blocked[0], "u2 holds no cell for role correctness",
+		"§10.2: a false verdict names the exact reason")
+}
