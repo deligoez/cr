@@ -1,6 +1,9 @@
 package finding
 
 import (
+	"encoding/json"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -16,7 +19,7 @@ func anEvented(id string) *Finding {
 	return &Finding{
 		ID: id, Kind: KindFinding,
 		Axis: "correctness", Role: "correctness", Class: "unchecked-error",
-		Rule: "no-dropped-error", Grade: GradeCited,
+		Rule: "no-dropped-error", Grade: GradeCited, Severity: SeverityHigh,
 		Summary: "The error is dropped.",
 	}
 }
@@ -63,9 +66,50 @@ func TestATriageEventCarriesEverythingSection731Requires(t *testing.T) {
 	assert.Equal(t, TriageEvent{
 		Record: "f1", Action: ActionRaised,
 		Class: "unchecked-error", Axis: "correctness", Role: "correctness",
-		Grade: GradeCited, Rule: "no-dropped-error",
+		Grade: GradeCited, Severity: SeverityHigh, Rule: "no-dropped-error",
 		PR: waiverPR, Round: 3, Head: "0a1b2c3", At: on.At,
 	}, held[0])
+}
+
+// specEventFields is §7.3.1's sentence read independently — class, axis, role,
+// grade, rule id when present, the PR, the round, and the head — with the three
+// the section's other sentences require beside them: the record the event is
+// about, the action it records, and round 8's severity.
+//
+// It is a second transcription of the same requirement for the reason
+// finding_test.go's specFields is one of §6.1's table: the struct-equality
+// assertion above catches a field that is declared and never filled, and this
+// catches a field that is filled and belongs to no sentence. A field with no
+// sentence behind it is a field §7.3.2 and §7.3.4 will not count and nobody
+// will notice.
+var specEventFields = []string{
+	"record", "action", "class", "axis", "role", "grade", "severity",
+	"rule", "pr", "round", "head", "at",
+}
+
+// The event's wire form carries §7.3.1's fields and no others.
+//
+// `rule` is written here because the record carries one; §7.3.1 asks for it
+// "when present", which is the `omitempty` on the field, and the absent case is
+// asserted beside the present one so the key is not simply always there.
+func TestTheEventsWireFormIsSection731sFieldSet(t *testing.T) {
+	written := anOccasion().event(ActionRaised, anEvented("f1"))
+	encoded, err := json.Marshal(written)
+	require.NoError(t, err)
+	var held map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(encoded, &held))
+	assert.ElementsMatch(t, specEventFields, slices.Collect(maps.Keys(held)),
+		"§7.3.1 names what an event carries, and this event carries something else")
+
+	unruled := anEvented("f2")
+	unruled.Rule = ""
+	encoded, err = json.Marshal(anOccasion().event(ActionRaised, unruled))
+	require.NoError(t, err)
+	// A fresh map, because json.Unmarshal merges into one it is given and
+	// the absent key would otherwise be the first document's still standing.
+	absent := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(encoded, &absent))
+	assert.NotContains(t, absent, "rule", "§7.3.1 asks for the rule id when present")
 }
 
 // §7.3.1's idempotence: a second run of the same command over the same round
