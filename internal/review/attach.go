@@ -3,6 +3,8 @@ package review
 import (
 	"time"
 
+	"github.com/deligoez/cr/internal/coverage"
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
@@ -38,12 +40,25 @@ func (r *Round) attach(src *Sources, p *profile.Profile, hunks []git.Hunk) ([]st
 	tests := testadequacy.Attach(p, nil, hunks)
 	r.Tests = testadequacy.PerUnit(r.clusters(), tests)
 
-	honesty := make([]string, 0, len(r.Candidates.Unavailable)+len(tests.Unavailable))
+	// The two halves are collected through coverage.Lenses rather than
+	// appended into a slice here, because §4.5.4's report has four kinds
+	// and this command sees two of them. A kind added to the collector
+	// reaches this caller with it; a list built here would keep reporting
+	// the two it was written against.
+	lenses := coverage.Lenses{
+		Halves: make([]finding.HonestyDisclosure, 0,
+			len(r.Candidates.Unavailable)+len(tests.Unavailable)),
+	}
 	for _, out := range r.Candidates.Unavailable {
-		honesty = append(honesty, out.Disclosure())
+		lenses.Halves = append(lenses.Halves, out)
 	}
 	for _, out := range tests.Unavailable {
-		honesty = append(honesty, out.Disclosure())
+		lenses.Halves = append(lenses.Halves, out)
+	}
+	disclosed := lenses.Disclosures()
+	honesty := make([]string, 0, len(disclosed))
+	for _, entry := range disclosed {
+		honesty = append(honesty, entry.Disclosure())
 	}
 	return honesty, nil
 }
