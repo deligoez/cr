@@ -496,7 +496,8 @@ func TestATypeThatSerialisesItselfKeepsItsOwnNull(t *testing.T) {
 // than trusted: a payload nobody listed here is a payload nobody checked, and
 // a list somebody has to remember to extend is the failure §12.3 keeps having.
 var outputStructs = []result{
-	initResult{}, configResult(nil), &noteResult{}, &retractResult{}, &answerResult{}, &contextResult{},
+	initResult{}, configResult(nil), resolvedConfigResult(nil),
+	&noteResult{}, &retractResult{}, &answerResult{}, &contextResult{},
 	&recordResult{}, &claimsRecordResult{}, &briefResult{}, &cellsRecordResult{},
 	&rulesCheckResult{},
 	&mapRecordResult{}, &sandboxCreateResult{}, &sandboxDestroyResult{}, &testRunResult{},
