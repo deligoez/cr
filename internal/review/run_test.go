@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/activation"
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/gh"
@@ -91,10 +93,37 @@ const oneHumanThread = `{"data":{"repository":{"pullRequest":{"reviewThreads":{`
 	`"id":"PRRC_1","url":"https://example.invalid/1","body":"Is the shipping arm covered?",` +
 	`"createdAt":"2026-08-30T09:00:00Z","author":{"__typename":"User","login":"reviewer"}}]}}]}}}}}`
 
-// briefed opens round 1 on the shop repository through `cr brief`'s own
-// package, records a note, a claim, and a mapping of that claim to u1, and
-// returns the fan-out's sources.
+// briefed opens round 1 on the shop repository, records a note, a claim, and a
+// mapping of that claim to u1, and returns the fan-out's sources.
+//
+// It is the round after §4.6.5's first pass has been run and its mapping
+// stored, which is the state every lens but the intent pass reads.
 func briefed(t *testing.T) *Sources {
+	t.Helper()
+	src, head := briefedWithoutMapping(t)
+	recordMapping(t, src, head)
+	return src
+}
+
+// recordMapping stores §4.1.6's mapping of the round's one claim to u1, as
+// `cr map record` stores it: replacing the round's pairs under the §2.3.1 lock.
+func recordMapping(t *testing.T, src *Sources, head string) {
+	t.Helper()
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	require.NoError(t, state.ReplaceStamped(held, state.FileMapping,
+		state.Stamp{Head: head, Round: 1},
+		[]*mapping.Pair{{Claim: runIssue + "#c1", Unit: "u1"}}))
+	require.NoError(t, held.Unlock())
+}
+
+// briefedWithoutMapping opens round 1 on the shop repository through `cr
+// brief`'s own package, records a note and a claim but no mapping, and returns
+// the fan-out's sources beside the round's head.
+//
+// That is where §4.6.5's first pass runs: the claims are recorded and the join
+// is not, because producing it is what the pass is for.
+func briefedWithoutMapping(t *testing.T) (src *Sources, head string) {
 	t.Helper()
 	dir, head, base := shop(t)
 	layout := state.New(filepath.Join(t.TempDir(), ".cr"))
@@ -128,13 +157,11 @@ func briefed(t *testing.T) *Sources {
 		ID: runIssue + "#c1", Text: "The total sums the subtotal and the shipping.",
 		Source: intent.ClaimFromAcceptance, Span: "The total sums the subtotal and the shipping.",
 	}}))
-	require.NoError(t, state.ReplaceStamped(held, state.FileMapping, stamp,
-		[]*mapping.Pair{{Claim: runIssue + "#c1", Unit: "u1"}}))
 	require.NoError(t, held.Unlock())
 
 	return &Sources{
 		Layout: layout, GH: client, Config: cfg, Owner: runOwner, Repo: runRepo, PR: runPR, RepoDir: dir,
-	}
+	}, head
 }
 
 // promptOf finds the prompt one role emitted for one unit.
