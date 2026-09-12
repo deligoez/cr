@@ -186,27 +186,32 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	records, err := ofRound(src, state.FileUnits, r.Round, func(u *unit.Record) int { return u.Round })
+	l, owner, repo, pr := src.Layout, src.Owner, src.Repo, src.PR
+	records, err := state.ReadStamped[unit.Record](l, owner, repo, pr, state.FileUnits, r.Round)
 	if err != nil {
 		return nil, err
 	}
-	if r.Claims, err = ofRound(src, state.FileClaims, r.Round, func(c *intent.Claim) int { return c.Round }); err != nil {
+	if r.Claims, err = state.ReadStamped[intent.Claim](
+		l, owner, repo, pr, state.FileClaims, r.Round); err != nil {
 		return nil, err
 	}
-	if r.Pairs, err = state.ReadRecords[mapping.Pair](src.Layout, src.Owner, src.Repo, src.PR, state.FileMapping); err != nil {
+	if r.Pairs, err = state.ReadStamped[mapping.Pair](
+		l, owner, repo, pr, state.FileMapping, r.Round); err != nil {
 		return nil, err
 	}
-	if r.Threads, err = gh.ReadThreads(src.Layout, src.Owner, src.Repo, src.PR); err != nil {
+	if r.Threads, err = gh.ReadThreads(l, owner, repo, pr); err != nil {
 		return nil, err
 	}
-	notes, err := notesOf(src.Layout, meta.IssueKey)
+	notes, err := notesOf(l, meta.IssueKey)
 	if err != nil {
 		return nil, err
 	}
 	r.Notes = standingNotes(notes)
 	r.Active = roleIDs(active)
 	r.Roles = onAxis(active, src.Axis)
-	r.Mapped = slices.ContainsFunc(r.Pairs, func(p mapping.Pair) bool { return p.Round == r.Round })
+	// The pairs are the round's own, per §9.3.5, so a pair at all is a
+	// mapping this round recorded.
+	r.Mapped = len(r.Pairs) > 0
 	r.Unmapped, err = r.raise(src, records, notes, onAxis(active, axis.Intent))
 	return records, err
 }
@@ -221,7 +226,8 @@ func (r *Round) raise(
 	if !r.Mapped {
 		return []UnmappedUnit{}, nil
 	}
-	cells, err := state.ReadRecords[coverage.Cell](src.Layout, src.Owner, src.Repo, src.PR, state.FileCoverage)
+	cells, err := state.ReadStamped[coverage.Cell](
+		src.Layout, src.Owner, src.Repo, src.PR, state.FileCoverage, r.Round)
 	if err != nil {
 		return nil, err
 	}
@@ -233,22 +239,6 @@ func (r *Round) raise(
 		Round: r.Round, Units: ids, Pairs: r.Pairs, Notes: notes, Cells: cells,
 		IntentRoles: roleIDs(intentRoles),
 	}), nil
-}
-
-// ofRound reads one of §2.3.3's stamped files and keeps the records of one
-// round, per §9.3.5. roundOf reads a record's stamped round.
-func ofRound[T any](src *Sources, name string, round int, roundOf func(*T) int) ([]T, error) {
-	stored, err := state.ReadRecords[T](src.Layout, src.Owner, src.Repo, src.PR, name)
-	if err != nil {
-		return nil, err
-	}
-	kept := make([]T, 0, len(stored))
-	for i := range stored {
-		if roundOf(&stored[i]) == round {
-			kept = append(kept, stored[i])
-		}
-	}
-	return kept, nil
 }
 
 // activeRoles is §4.5.1's active set as `cr brief` settled it in meta.json,
