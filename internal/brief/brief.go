@@ -407,19 +407,13 @@ func (r roundState) opened() bool {
 // answer an empty file gives, so an absent file is not a failure: on a first
 // brief there is nothing to read and nothing to report.
 func claimsOfRound(src *Sources, round int) ([]intent.Claim, error) {
-	stored, err := state.ReadRecords[intent.Claim](
-		src.Layout, src.Owner, src.Repo, src.PR, state.FileClaims)
+	claims, err := state.ReadStamped[intent.Claim](
+		src.Layout, src.Owner, src.Repo, src.PR, state.FileClaims, round)
 	if errors.Is(err, fs.ErrNotExist) {
 		return []intent.Claim{}, nil
 	}
 	if err != nil {
 		return nil, err
-	}
-	claims := make([]intent.Claim, 0, len(stored))
-	for i := range stored {
-		if stored[i].Round == round {
-			claims = append(claims, stored[i])
-		}
 	}
 	return claims, nil
 }
