@@ -175,6 +175,13 @@ var codes = []mapped{
 	// from state cr did not write, as a question the label table cannot
 	// label was. §11.2 codes that 3 beside it.
 	{is[*draft.MissingProbeError](), ExitFile, state.UnusableHint},
+	// A record whose rule-origin citation names a rule the corpus no longer
+	// resolves has no rationale for §8.1.6's region to quote per §2.6 item
+	// 4. The rule is a file cr required and did not find, which §11.2 codes
+	// 3 as it codes §2.6.5's unusable rule file.
+	{is[*draft.MissingRationaleError](), ExitFile,
+		"restore the rule the message names to a §2.6 layer (`cr rules list` shows the corpus), " +
+			"so the comment can quote its rationale"},
 	// §8.1.3 rejects a body that is empty or carries a `<!-- cr:` sequence
 	// with exit code 1. Every file read and parsed; what is refused is
 	// prose inside one record's block, which §11.2 codes 1 alongside the
