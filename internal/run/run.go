@@ -353,9 +353,10 @@ func (t *Tail) Write(p []byte) (int, error) {
 //
 // utf8.UTFMax bounds the search because a rune is at most that many bytes, so a
 // cut through one leaves at most UTFMax-1 continuation bytes ahead of the next
-// start. gremlins reports the bound as a surviving mutant and it is equivalent:
-// the byte it would additionally look at cannot be reached by any cut of a
-// rune.
+// start. The bound is what keeps the sentence above true: output that is not
+// UTF-8 at all can carry more continuation bytes than any cut explains, and a
+// search past the bound would trim them off the front as though they were half
+// a character.
 func (t *Tail) String() string {
 	held := t.held
 	for i := 0; i < len(held) && i < utf8.UTFMax; i++ {

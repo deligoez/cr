@@ -83,12 +83,12 @@ func (s *Selection) Missing() (MissingProfile, bool) {
 // missing profile is one cause: an entry that is out for some other reason
 // belongs in some other report.
 func (m MissingProfile) Disclosure() string {
-	// gremlins reports the `+` here as a surviving ARITHMETIC_BASE mutant.
-	// It is equivalent: the sum is a capacity hint, and a wrong one changes
-	// how often append reallocates and nothing a test can observe. The
-	// concatenation in ReinventionLens above is reported NOT COVERED for a
-	// related reason — it is a constant string expression, and the mutated
-	// form does not compile.
+	// The `+` survives mutation, and is equivalent for a narrower reason
+	// than a capacity hint: a negative capacity panics, and Missing above
+	// is the only constructor, filling the two fields one for one. The
+	// concatenation in ReinventionLens above is reported NOT COVERED for
+	// an unrelated reason — it is a constant string expression, and the
+	// mutated form does not compile.
 	lenses := make([]string, 0, len(m.Disabled)+len(m.Unavailable))
 	for _, id := range m.Disabled {
 		lenses = append(lenses, "axis "+id+" disabled, per §4.5.2")

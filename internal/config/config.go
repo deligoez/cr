@@ -167,11 +167,11 @@ func checkProtected(name, spelling string) error {
 // camelCase boundary ends a word, and every word is lower-cased, so
 // CR_POST_CONFIRM, post.confirm and postConfirm all read alike.
 //
-// Two mutants survive here and are left deliberately. The +1 on the capacity
-// hint changes only how much is allocated. And flushing on Len() >= 0 would
-// append empty words, which no protected token can match, so the deny-list
-// verdict is identical either way. Neither is observable; a test written to
-// kill them would assert an implementation detail.
+// Flushing on Len() >= 0 would append empty words, which no protected token
+// can match and no carrier is keyed by, so the deny-list verdict is identical
+// either way; that mutant is left deliberately. The separator counts are not
+// merely a capacity hint, though: subtracting one from the other is negative
+// for a key nested three deep, and `make` panics rather than allocating less.
 func words(name string) []string {
 	out := make([]string, 0, strings.Count(name, "_")+strings.Count(name, ".")+1)
 	var word strings.Builder
