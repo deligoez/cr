@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T09:23:03.837443Z",
+  "updated_at": "2026-09-12T09:50:29.314868Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2455,7 +2455,7 @@
     {
       "id": "thread-suppression-recording",
       "title": "Record a finding suppressed by thread",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "thread-proximity-attachment"
@@ -2465,11 +2465,21 @@
       "source_sections": [
         "### 3.5 Existing threads"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:23:12.124173Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:50:29.295806Z",
+      "closed_reason": "- The decision is the agent's and reaches cr as a field it never writes: internal/cli/record.go's retirement reads `suppressed_by` off the record the agent handed in, §6.1.4 does not reserve it, and nothing outside a test assigns Finding.SuppressedBy anywhere in the tree.\n- internal/cli/record.go's stampStates moves such a record on through §9.1's second row into state `suppressed`, storing the thread id as it arrived, and internal/cli/draft.go's queueRecords leaves every state but `draft` and `queued` out — the dogfood run against deligoez/cr-qa PR 1 recorded f1 as `suppressed PRRT_kwDOUJJL386dkTFE` against the real human thread on src/Money.php:14, and `cr draft` then wrote one marker, `id=\"f2\"`, with f1 absent; a record carrying `duplicate_of` as well is retired as a duplicate, since both outcomes are terminal and the representative is where §3.5.4's coverage belongs.\n- No cr-side text match stands in for that decision: internal/cli/threadsuppression_test.go's TestAFindingRepeatingAThreadWordForWordIsStillDrafted writes a thread whose body is an exact copy of the finding's summary, records the finding without `suppressed_by`, and asserts it is stamped `draft` and reaches draft.md, which is the strongest evidence a match could rest on and is deliberately not acted on per §3.5.3.\n- TestARecordNamingAThreadIsStoredSuppressedAndIsNeverDrafted runs `cr record` then `cr draft` over three records and asserts both files — findings.ndjson reads `f1/draft f2/suppressed f3/draft` and draft.md carries markers `f1` and `f3` only — and it was measured against the build before the change, where the record was stamped `draft` and the draft rendered `f1 f2 f3`.\n",
+      "gate_passed_at": "2026-09-12T09:50:29.295806Z",
+      "commit_sha": "41b1bb0",
+      "commit_shas": [
+        "41b1bb0",
+        "128a567",
+        "1a6e18d"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/threadsuppression_test.go"
+      ]
     },
     {
       "id": "author-replies-as-candidates",
