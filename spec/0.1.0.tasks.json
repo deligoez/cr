@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:19:32.750066Z",
+  "updated_at": "2026-09-12T14:25:33.526961Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1734,7 +1734,7 @@
     {
       "id": "rules-suggest-reports-only",
       "title": "Report rule candidates without writing files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rules-suggest-command"
@@ -1744,11 +1744,18 @@
       "source_sections": [
         "#### 2.6.3 Harvesting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:19:59.670461Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:25:33.518378Z",
+      "closed_reason": "- Candidates are reported only, and that was verified rather than assumed: internal/cli/rulessuggest.go's newRulesSuggestCmd reads `rules.harvest_min`, scans the posted comments, hands them to rule.Harvest and emits the report, and no path from it opens a file for writing; the result type carries no field through which a rule could be written, and the terminal rendering says so in as many words.\n- cr never writes a rule file by itself, per §2.6.3.3, and the guard on that is now one an overwrite cannot pass: TestSuggestWritesNoRuleFile seeds a rule named for the class the harvest reports into both of §2.6's on-disk layers, so a write has an existing file to land on.\n- A test asserts ~/.cr/rules/ is unchanged after cr rules suggest: rulesTree walks the global rules directory and the per-repository one and records each file's bytes, and the map is compared before and after the run, so a file added under any name and a file rewritten in place are both visible.\n- The strengthening was measured, not reasoned: a `cr rules suggest` made to write `\u003cclass\u003e.json` into the rules directory by hand passed the previous paths-only shape and fails the new one on the seeded file's contents; the hand mutation was reverted and internal/cli/rulessuggest.go is unchanged at HEAD.\n- Dogfooded against an isolated CR_HOME and a local scratch repository with three posted comments of one class: `cr rules suggest --repo qa/shop` reported \"1 candidate rule(s) from 3 posted comment(s), at 3 occurrence(s) or more / unchecked-error: 3 occurrence(s) / Candidates are reported only (§2.6.3.3); cr wrote no rule file\", and the seeded ~/.cr/rules/unchecked-error.json kept its sha256 prefix 93261784ad1c12d9 across the run.\n- Invariant 2 verified by hand: `git status --porcelain` in the scratch repository was empty after the run.\n",
+      "gate_passed_at": "2026-09-12T14:25:33.518378Z",
+      "commit_sha": "48af445",
+      "commit_shas": [
+        "48af445"
+      ],
+      "commit_files": [
+        "internal/cli/rulessuggest_test.go"
+      ]
     },
     {
       "id": "rules-list-dead",
