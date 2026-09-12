@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T23:27:56.686243Z",
+  "updated_at": "2026-09-12T23:41:54.421069Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6665,7 +6665,7 @@
     {
       "id": "transition-journal",
       "title": "Journal every transition with its actor",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "state-transition-table"
@@ -6675,11 +6675,37 @@
       "source_sections": [
         "### 9.1 States"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:28:06.637728Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:41:43.854023Z",
+      "closed_reason": "- Transitions are recorded in transitions.ndjson with a timestamp, the head SHA and the actor: internal/finding/journal.go's Journal.Move asks finding.MayTransition and keeps a Transition {record, from, to, actor, head, at (UTC)}, and Journal.Write appends one NDJSON line per move through the new state.AppendRecords, under the §2.3.1 lock that publishes the records; every §9.1 mover uses it — cr record (appendRecords), cr draft (publishDraft, queue and discard), cr post --confirm (markPosted and the draft discards, via writeAdopted), cr post --reconcile (adoptAsPosted) and cr brief (invalidate, after the §9.3.4 sweep, at the new head).\n- TestEveryTransitionOfTheTableLeavesExactlyOneJournalEntry walks every move §9.1's table expands to (all ten, drawn from the table itself) and asserts one entry each with timestamp, head and actor, and none for a refused move; TestRecordAndDraftLeaveOneJournalLinePerTransition, TestAConfirmedPostLeavesOneJournalLinePerTransition, TestAReconcileAdoptLeavesOneJournalLinePerTransition and brief's TestAnIncrementLeavesOneJournalLinePerRecordItStales reach every row through the commands and assert exactly one line per move and none for a run that moves nothing; replacing publishDraft's journal write with a no-op turns the record/draft and confirmed-post tests red.\n",
+      "gate_passed_at": "2026-09-12T23:41:43.854023Z",
+      "commit_sha": "cf52ee2",
+      "commit_shas": [
+        "cf52ee2",
+        "d35aa72",
+        "1366517",
+        "48b744a",
+        "8bc81fe",
+        "81ea241"
+      ],
+      "commit_files": [
+        "internal/brief/invalidate.go",
+        "internal/brief/invalidate_test.go",
+        "internal/brief/transitions_test.go",
+        "internal/cli/draft.go",
+        "internal/cli/draftheader_test.go",
+        "internal/cli/post.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/record.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/send.go",
+        "internal/cli/transitions_test.go",
+        "internal/cli/triageevents_test.go",
+        "internal/finding/journal.go",
+        "internal/finding/journal_test.go",
+        "internal/state/records.go"
+      ]
     },
     {
       "id": "head-comparison",
