@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:41:52.117506Z",
+  "updated_at": "2026-09-12T21:52:18.337754Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7862,7 +7862,7 @@
     {
       "id": "unreadable-input-exit-code",
       "title": "Exit 3 on input a command cannot read",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "record-command"
@@ -7872,11 +7872,47 @@
       "source_sections": [
         "### 11.2 Exit codes"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:46:35.757546Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T21:52:18.290997Z",
+      "closed_reason": "- A missing input file and a pull request whose state lacks a file now exit 3: measured on the built binary, `cr record 1 missing.ndjson --repo o/r` went from exit 2 to exit 3, and a round missing probes.ndjson from 2 to 3, because every caller-named read goes through readInput and every state read through Layout.ReadPR, both returning state.FileError.\n- state.FileError is the shared type: it carries the path, FileFailure panics on an empty hint, and the exit code table maps it to ExitFile as its last row, so cr record, cr merge, cr claims record, cr map record, cr cells record and cr probe run with --patch or --test all answer the same way.\n- Exit 2 stays the malformed invocation: exitCodeFor falls back to ExitUsage only for an error no row claims, and gh.AnswerError, which measured 2 before and 3 after, joined the table so it no longer falls through.\n- The state file a command requires inside an existing state directory is covered: `cr record` on a round with no mapping.ndjson measured exit 2 on a build of HEAD before this change.\n- It now exits 3 with `hint: ... and cr map record is the command that writes it`, held by TestAMissingStateFileExitsWithTheFileCodeAndNamesItsWriter.\n- The write side answers the same way: `cr record` against a read-only pull-request directory measured exit 2 with the bare `cannot create a temporary file` on the HEAD build, and exit 3 after.\n- Every 2.3 write failure is a file failure: writeAtomic's four failures and WriteNamedFile return state.FileError, held by TestAWriteThatCannotLandExitsWithTheFileCode and TestAWriteThatCannotLandIsAFileFailure.\n",
+      "gate_passed_at": "2026-09-12T21:52:18.290997Z",
+      "commit_sha": "dc2aea8",
+      "commit_shas": [
+        "dc2aea8",
+        "90a9c73",
+        "67c7e5e",
+        "fca0eaf",
+        "5960278",
+        "68abfe7",
+        "fb9c4ce",
+        "4da1cf1"
+      ],
+      "commit_files": [
+        "internal/cli/cells.go",
+        "internal/cli/claims.go",
+        "internal/cli/exit.go",
+        "internal/cli/input.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/merge.go",
+        "internal/cli/probe.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/record.go",
+        "internal/cli/root.go",
+        "internal/cli/stats.go",
+        "internal/cli/unreadable_test.go",
+        "internal/gh/pr.go",
+        "internal/state/fileerror.go",
+        "internal/state/fileerror_test.go",
+        "internal/state/lock.go",
+        "internal/state/meta.go",
+        "internal/state/named.go",
+        "internal/state/prfiles.go",
+        "internal/state/records.go",
+        "internal/state/rounds.go",
+        "internal/state/roundscope.go",
+        "internal/state/roundsection.go"
+      ]
     },
     {
       "id": "issue-key-rewrite-refusal",
