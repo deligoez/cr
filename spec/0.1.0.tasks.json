@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:53:09.297848Z",
+  "updated_at": "2026-09-12T08:58:45.262676Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5805,7 +5805,7 @@
     {
       "id": "marker-edit-semantics",
       "title": "Enforce the marker field edit semantics",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "triage-verb-interpretation",
@@ -5816,11 +5816,40 @@
       "source_sections": [
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:55:47.305239Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:58:45.184882Z",
+      "closed_reason": "- id row: draft.refuseUnknownBlocks aborts before any verb is read when a block names a record this round did not render, naming that id and §7.2.3's reason, so a changed id is refused rather than orphaning one record and adopting another; TestABlockOutsideTheQueuedRecordsAborts and the \"the id is changed\" case of TestAMarkerEditSection72RefusesAbortsWithTheValidationCode assert it.\n- kind row: markerEdit.kind softens a finding whose marker reads question, admits question to finding only when the grade cr computed is probed or cited, and otherwise aborts naming §6.3.3; cli.retypeForDraft renders both directions into the next draft without storing either, so the marker goes on saying what the reviewer typed.\n- path, start_line and line row: markerEdit.anchor re-validates a moved location through finding.Reanchor, which runs ValidateAnchor and then ResolveAnchor against the §6.1.2 tree the anchor's side names and aborts naming the record id when it no longer resolves, while cli.anchorTrees opens the checkout and the merge base lazily so a run where no marker moved opens neither.\n- severity row: markerEdit.severity accepts any of §6.1's four and refuses a fifth word by naming them, and cli.applyRetriage writes the reviewer's value onto the stored record, which cr draft reports as a retriaged row; the triage.ndjson event ledger itself belongs to triage-event-writing and is not written here.\n- disposition row: wrong still discards as a false positive with its repository-wide waiver, and not-here now aborts telling the reviewer to delete the block instead, both asserted through the command.\n- grade row: nothing reads the marker's grade, which TestEveryRowOfTheMarkerEditTableAcceptsWhatItAdmits shows by writing grade=\"certain\" and reading grade=\"cited\" back out, and its one abort is the kind contradiction of the kind row, supplied by §6.3.3.\n- Any other marker edit: draft.MarkerEditError carries the record id, the draft line and the field at fault, and internal/cli/exit.go maps it to ExitValidation, asserted as 1 by every case of TestAMarkerEditSection72RefusesAbortsWithTheValidationCode.\n- §7.2.1: the malformed-marker refusal is draft.ParseMarker's, reached through the one reader cr draft and cr post share, and dogfooded at exit 1 with \"draft line 11 is a malformed record marker: kind carries no JSON string\"; cr post is still a stub command, and post-recomputes-grade wires it and asserts the same refusal at that command.\n- Tests: TestEveryRowOfTheMarkerEditTableAcceptsWhatItAdmits covers six accept paths and TestEveryRowOfTheMarkerEditTableAbortsOnWhatItRefuses seven abort paths, with TestAMarkerEditSection72RefusesAbortsWithTheValidationCode and TestAMovedAnchorIsRevalidatedAgainstTheHeadAndRehashed covering the same rows through cr draft.\n- Round 12 anchor-hash-not-recomputed: §7.2 re-validates the three location fields and says nothing about the content hash, which §9.2 makes part of the anchor and §7.4.1 keys a waiver on.\n- finding.Reanchor recomputes that hash from the tree whenever the anchor lines change, asserted against finding.AnchorContentHash in both the draft and the cli test and dogfooded through the built binary, where moving a marker from 1-1 to 3-4 turned content_hash from \"staleaaaaaaaaaaa\" into \"2b81c12b4d49d424\".\nOut of scope: §9.2's context window is recomputed nowhere when a marker moves an anchor, so ContextBefore and ContextAfter still describe the lines the anchor left; round 12's finding names the content hash alone, and the same argument applies to the window.\n",
+      "gate_passed_at": "2026-09-12T08:58:45.184882Z",
+      "commit_sha": "8347bff",
+      "commit_shas": [
+        "8347bff",
+        "596ac93",
+        "dfc7a0e",
+        "34733f7",
+        "8b13f01",
+        "4b16e36",
+        "a9c14aa",
+        "3ca00e1",
+        "53a71f4",
+        "56fe110",
+        "4a7609c",
+        "7d35e0e",
+        "2a24552"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/exit.go",
+        "internal/cli/markeredits_test.go",
+        "internal/cli/regenerate.go",
+        "internal/draft/edits.go",
+        "internal/draft/edits_test.go",
+        "internal/draft/evidence_test.go",
+        "internal/draft/ingest.go",
+        "internal/draft/ingest_test.go",
+        "internal/finding/anchor.go",
+        "internal/finding/finding.go"
+      ]
     },
     {
       "id": "post-recomputes-grade",
