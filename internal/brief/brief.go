@@ -240,7 +240,7 @@ func assemble(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
-	round, err := roundOf(src, pr.Head)
+	round, err := roundOf(src, pr.Head, resolved.Key.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +361,13 @@ func headSymbols(dir, head string, p *profile.Profile) (unit.SymbolIndex, error)
 // swallowed. Reading it as "no round" would have the write below publish a
 // fresh round 1 over a state directory whose history cr just failed to
 // understand.
-func roundOf(src *Sources, head string) (roundState, error) {
+//
+// The key is taken alongside the head because refuseRekey needs the recorded
+// one, and this is the round's single reading of meta.json. It is checked
+// against every round the file records, whether or not the head moved: §9.3.3's
+// increment carries the claims forward per §9.3.4, so a re-keyed increment
+// orphans them exactly as a same-head rewrite does.
+func roundOf(src *Sources, head, key string) (roundState, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -370,10 +376,50 @@ func roundOf(src *Sources, head string) (roundState, error) {
 		return roundState{}, err
 	case recorded.Round < 1:
 		return roundState{index: 1, carries: 1}, nil
-	case recorded.Head != head:
+	}
+	if err := refuseRekey(src, recorded.IssueKey, key); err != nil {
+		return roundState{}, err
+	}
+	if recorded.Head != head {
 		return roundState{index: recorded.Round + 1, carries: recorded.Round}, nil
 	}
 	return roundState{index: recorded.Round, carries: recorded.Round}, nil
+}
+
+// refuseRekey refuses a brief that would replace a recorded issue key with a
+// different one, or with none.
+//
+// It is here because this is the round's one reading of meta.json, and the
+// decision needs the recorded key beside the resolved one. Nothing about it is
+// §9.3.3's, and it runs before that comparison for the reason §9.3.2 gives: the
+// refusal must happen before anything is written, and `persist` writes whatever
+// this returns.
+//
+// The claims are what makes the rewrite destructive rather than untidy. §3.3
+// forms every claim id as `<ISSUE-KEY>#c<n>`, so a round re-keyed under a
+// pattern that stopped matching keeps every claim recorded under the old key
+// while meta.json names another — and §3.6's notes, §4.1.6's mapping and
+// §4.1.3's gaps are all addressed through those ids. A silent rewrite orphans
+// all of them, which is the defect brief-payload's dogfood run found: an
+// `intent.key_pattern` that no longer matched blanked `issue_key` and said
+// nothing.
+//
+// A key that was never recorded is not a rewrite. §9.3.3 opens round 1 for a
+// pull request cr holds no state for, and a round opened before a key resolved
+// has nothing to orphan, so the first key to resolve is recorded as the round's.
+func refuseRekey(src *Sources, recorded, key string) error {
+	if recorded == "" || recorded == key {
+		return nil
+	}
+	return &KeyRewriteError{
+		Owner:    src.Owner,
+		Repo:     src.Repo,
+		PR:       src.PR,
+		Recorded: recorded,
+		Resolved: key,
+		Pattern:  src.Config.String("intent.key_pattern"),
+		StateDir: src.Layout.PRDir(src.Owner, src.Repo, src.PR),
+	}
 }
 
 // roundState is §9.3.3's decision about one brief, which §9.3.4 then reads
