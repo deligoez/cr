@@ -5224,7 +5224,7 @@
     {
       "id": "probed-grade-validation",
       "title": "Validate a probed record against target",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "grade-computation",
@@ -5237,10 +5237,32 @@
       ],
       "started_at": "2026-09-12T23:29:43.122364Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-12T23:55:28.574868Z",
+      "closed_reason": "- (1) A record claiming probed without a valid same-head probe is rejected with exit 1 in the decided reading: internal/cli/probeclaim.go refuseAbsentProbes, reached through readProbedEvidence in acceptRecords before any grade, refuses a probe field naming no probe record (dogfood: `rec20.ndjson line 1: probe \"p404\" names no probe record this pull request holds; §6.2.2 refuses a record resting on an experiment that does not exist`, exit 1) or one recorded at another head (TestARecordNamingAProbeFromAnotherHeadIsRefused, findings.ndjson byte-identical).\n- (2) A probe supports a record only when its target falls within anchor.start_line..anchor.line on the same path: internal/probe/span.go Span.Holds, which probe.Establishes now asks right after the head; TestASpanHoldsOnlyATargetInsideItsRightRangeOnTheSamePath covers both range ends, one line past each and another file.\n- (3) A probe target is always RIGHT, so Span.Holds answers false for any LEFT span and a LEFT-anchored record can never reach probed.\n- (4) A claim about deleted code is therefore graded by the cited and argued rows only, which ComputeGrade reaches once evidence.probed is false.\n- (5) TestAProbeGradesOnlyTheRecordWhoseRightAnchorHoldsItsTarget (internal/finding/probetarget_test.go) asserts a target one line outside the anchor range grades argued and a LEFT-anchored record grades argued, and TestAProbeTargetOneLineOutsideTheAnchorLeavesTheRecordArgued asserts the one-line-outside case through cr record.\n- (6) The open question found at 2ea2324 is answered by the orchestrator's decision in a25ccd9, with no spec text changed.\n- (7) §6.1.4's refusal of a grade field stands as it was, so probe remains the only field a record claims an experiment through, and that field is what refuseAbsentProbes reads.\n- (8) The downgrade behaviour the question described is kept where the decision keeps it: TestEachResultSection545NamesLeavesTheRecordArgued passes unchanged, while the p404 case changed as item 15 says.\n- (9) The decision follows round 7's reject-vs-downgrade-conflict suggestion: exit 1 is reserved for a probe id naming no probe record, extended by the decision to a probe from another head.\n- (10) Criteria 2 and 3 are support conditions, not a refusal beside refuseForeignAnchors, and TestGradingHasNowhereToPutAFieldSection621DoesNotName was not changed.\n- (11) No cr record refusal was added for containment or the LEFT rule; a record failing either is stored argued.\n- (12) This task's code is commit 4f1c9c2.\n- (13) Exit 1 for a probe naming no record or a probe from another head: refuseAbsentProbes' two cases, each a RejectedRecordError on field probe naming the line, and for another head both heads; a hand mutant disabling the absent case makes TestRecordGradesARecordOnTheProbeItReferences fail.\n- (14) A probe existing at this head that does not support leaves the record argued and asked as a question: a §5.4.5 result via the unchanged ladder, a target outside the range and a LEFT anchor via Span.Holds in probe.Establishes, and the gap report in internal/cli/gapsupport.go answerGapSupport names the §6.2.2 binding as its reason.\n- (15) TestRecordGradesARecordOnTheProbeItReferences's p404 case changed from stored-argued to refused with exit 1 on field probe, and the record is not stored; the gap fixture's probe target moved from src/Order.php:31 to handler.go:43 inside the fixture record's anchor, and its another-head row became the refusal test.\n- (16) Containment and the LEFT rule are computed where support is decided: finding.Resolved takes the record's anchor as a new parameter and passes anchor.Span() into probe.Establishes, so finding.Evidence keeps exactly own and probed.\n- (17) It did not prove impossible, so the guard was not widened; hand mutants on the span check and the gap report's containment case each turn their tests red.\n",
+      "gate_passed_at": "2026-09-12T23:55:28.574868Z",
+      "commit_sha": "4f1c9c2",
+      "commit_shas": [
+        "4f1c9c2"
+      ],
+      "commit_files": [
+        "internal/cli/gapsupport.go",
+        "internal/cli/gapsupport_test.go",
+        "internal/cli/grade.go",
+        "internal/cli/grade_test.go",
+        "internal/cli/probeclaim.go",
+        "internal/cli/probeclaim_test.go",
+        "internal/cli/record.go",
+        "internal/finding/forcing_test.go",
+        "internal/finding/grade.go",
+        "internal/finding/grade_test.go",
+        "internal/finding/probetarget_test.go",
+        "internal/finding/testaxis_test.go",
+        "internal/probe/grading.go",
+        "internal/probe/grading_test.go",
+        "internal/probe/span.go",
+        "internal/probe/span_test.go",
+        "internal/rule/citation_test.go"
+      ]
     },
     {
       "id": "citation-resolution",
