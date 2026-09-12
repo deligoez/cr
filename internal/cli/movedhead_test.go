@@ -244,6 +244,10 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// one round whose head §9.3.1 could compare against a current
 		// one, and no per-PR state for §9.3.2 to refuse the write of.
 		"rules suggest": readsNoRound("rules", "suggest"),
+		// `cr rules list` is repository-scoped for the reason `cr rules
+		// suggest` is: §2.6.3.4's window spans every pull request's
+		// rounds in the rule ledger, and the command writes nothing.
+		"rules list": readsNoRound("rules", "list", "--dead"),
 		// `cr stats` is repository-scoped for the same reason: §7.3.2
 		// counts and §7.3.4's rate are computed over the repository's
 		// whole triage.ndjson across its pull requests, so there is no
@@ -279,8 +283,6 @@ const (
 	// owesNothing is a command that reads no round, so §9.3 has nothing to
 	// say about it.
 	owesNothing
-	// owesNothingYet is a command whose behaviour a later task owns.
-	owesNothingYet
 )
 
 func refusesTheWrite(argv ...string) section93 { return section93{argv: argv, owed: owesRefusal} }
@@ -315,13 +317,6 @@ func TestAMovedHeadRefusesEveryWriterAndIsDisclosedToEveryReader(t *testing.T) {
 		"--- a/lib.go\n+++ b/lib.go\n@@ -4 +4 @@\n-\tpanic(\"one\")\n+\tpanic(\"two\")\n"), 0o600))
 
 	runs := movedHeadRuns(dir)
-	for _, name := range leafCommands(t) {
-		found, _, err := newRootCmd().Find(strings.Fields(name))
-		require.NoError(t, err)
-		if _, stub := found.Annotations[stubAnnotation]; stub {
-			runs[name] = section93{owed: owesNothingYet}
-		}
-	}
 	require.ElementsMatch(t, leafCommands(t), slices.Collect(maps.Keys(runs)),
 		"§9.3 binds the whole surface, so a command in the tree needs an answer here")
 
@@ -330,9 +325,6 @@ func TestAMovedHeadRefusesEveryWriterAndIsDisclosedToEveryReader(t *testing.T) {
 	// one that ran after this would meet a round that is current again.
 	for _, name := range append(withoutBrief(runs), "brief") {
 		run := runs[name]
-		if run.owed == owesNothingYet {
-			continue
-		}
 		t.Run(name, func(t *testing.T) {
 			assertSection93(t, layout, recorded, moved, run)
 		})
@@ -378,8 +370,6 @@ func assertSection93(t *testing.T, layout state.Layout, recorded, moved string, 
 		assert.Equal(t, moved, opened.Head, "§9.3.3 then stores the new head")
 	case owesNothing:
 		require.NoError(t, err, "this command reads no round, so §9.3 refuses it nothing")
-	case owesNothingYet:
-		t.Fatal("a stub is skipped by the caller")
 	}
 }
 

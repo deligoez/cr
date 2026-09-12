@@ -142,9 +142,6 @@ func TestAnInvalidPayloadExitsOneUnderBothFlagSettings(t *testing.T) {
 			require.Error(t, err)
 			assert.Equal(t, ExitValidation, exitCodeFor(err),
 				"§11.2 codes an invalid payload 1, and the gate does not move that")
-			var unbuilt *notImplementedError
-			assert.NotErrorAs(t, err, &unbuilt,
-				"the validation ran: what refused is the payload and not the unbuilt write")
 		})
 	}
 }

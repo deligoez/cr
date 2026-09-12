@@ -63,12 +63,6 @@ var section37Obliges = [][]string{
 // stillAbsent are the commands of that list §11 has not built yet, spelled the
 // way they are typed. A command drops out of here the moment it is built, and
 // the guard below then requires it to have an invocation in briefRuns.
-//
-// Registration is no longer what puts a command here. command-surface-stubs
-// registers every §11 row's argument shape ahead of its behaviour, so `cr
-// review` resolves in the tree and reads nothing at all; what the guard asks
-// instead is whether the command carries stubAnnotation, which is removed by
-// the commit that builds it.
 var stillAbsent []string
 
 // unbriefedInputs writes the files the guarded commands are pointed at and
@@ -161,15 +155,6 @@ func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
 		name := strings.Join(path, " ")
 		found, _, err := newRootCmd().Find(path)
 		if err != nil || found.Name() != path[len(path)-1] {
-			absent = append(absent, name)
-			continue
-		}
-		// A command whose surface is registered ahead of its behaviour
-		// reads no state and so cannot refuse for the reason this
-		// guard is about. It counts as absent until stubAnnotation
-		// comes off, which is exactly when it starts reading
-		// units.ndjson.
-		if _, stub := found.Annotations[stubAnnotation]; stub {
 			absent = append(absent, name)
 			continue
 		}

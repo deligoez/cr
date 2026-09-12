@@ -916,6 +916,10 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		// a rule file — so it should reach the repository neither to
 		// read nor to write, and this is where that is checked.
 		"rules suggest": {"rules", "suggest", "--repo", fixtureSlug},
+		// `cr rules list --dead` reads the corpus and the rule ledger under
+		// the state root and stats §2.4.1's marker files in the checkout to
+		// select the profile, as `cr brief` does; it writes nothing at all.
+		"rules list": {"rules", "list", "--dead", "--repo", fixtureSlug},
 		// `cr stats` reads one file under the state root — §7.3's
 		// repository-wide triage.ndjson — and §7.3.7 forbids it to act
 		// on what it finds, so it should reach the repository under
@@ -1015,27 +1019,6 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		// the two scopes — and it sorts after `cr waivers list`, which
 		// therefore meets the waiver still there.
 		"waivers remove": {"waivers", "remove", "wp1", "--repo", fixtureSlug, "--pr", fixturePR},
-	}
-}
-
-// stubRuns is the argv each command whose behaviour a later task owns is
-// exercised with, keyed by the command as it is typed.
-//
-// It is a second table rather than more rows of the one above, because the two
-// are held to opposite outcomes and that is the whole point of separating them.
-// Every run above must succeed, since a command refused at its arguments never
-// reaches the code that could write. Every run here must be refused by
-// command-surface-stubs' not-yet-implemented error and by nothing else — which
-// keeps the same guarantee for a different reason: a command that ran, parsed
-// its arguments, and returned before doing anything cannot have written either.
-//
-// The day one of them is built its run stops being refused and fails here,
-// which is what forces it into repoRuns, where the fingerprint then measures a
-// command that actually does something. A stub cannot quietly stay in the weak
-// half of the guard.
-func stubRuns() map[string][]string {
-	return map[string][]string{
-		"rules list": {"rules", "list", "--repo", fixtureSlug},
 	}
 }
 
@@ -1227,31 +1210,10 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	// A command refused before it does anything still has to be refused for
-	// the right reason: a stub that failed on a missing file, an unbriefed
-	// round, or a mistyped flag would prove nothing about the command it
-	// named, exactly as a run that exits 2 proves nothing above.
-	refuse := func(args ...string) {
-		t.Helper()
-		var stdout, stderr bytes.Buffer
-		cmd := exec.Command(binary, args...)
-		cmd.Dir = fixture
-		cmd.Env = env
-		cmd.Stdout, cmd.Stderr = &stdout, &stderr
-		require.Errorf(t, cmd.Run(),
-			"cr %s ran, so it is built and belongs in repoRuns", strings.Join(args, " "))
-		require.Containsf(t, stderr.String(), "is not implemented in this build",
-			"cr %s failed for some other reason: %s",
-			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
-	}
-
 	runs := repoRuns(merged, claims, issue, cells, pairs, mutation,
 		perRole, filepath.Join(home, "merge-out.ndjson"))
-	stubs := stubRuns()
 	commands := leafCommands(t)
-	exercised := slices.Collect(maps.Keys(runs))
-	exercised = append(exercised, slices.Collect(maps.Keys(stubs))...)
-	require.ElementsMatch(t, commands, exercised,
+	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")
 
 	before := fingerprintOf(t, fixture)
@@ -1261,10 +1223,6 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	for _, name := range runOrder(t, runs) {
 		run(append(strings.Fields(name), "--help")...)
 		run(runs[name]...)
-	}
-	for _, name := range slices.Sorted(maps.Keys(stubs)) {
-		run(append(strings.Fields(name), "--help")...)
-		refuse(stubs[name]...)
 	}
 
 	after := fingerprintOf(t, fixture)
