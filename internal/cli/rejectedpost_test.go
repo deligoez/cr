@@ -52,7 +52,7 @@ func TestARejectedCallNamesEveryPositionAndMovesNothing(t *testing.T) {
 		layout, draftOwner, draftRepo, draftPRNum, &round, queued, map[string]string{})
 	require.NoError(t, err)
 
-	refused := rejectedPost(review, theRejection(
+	refused := postOutcome(layout, &round, review, theRejection(
 		`{"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment",`+
 			`"field":"line","code":"custom","message":"line must be part of the diff"}],`+
 			`"status":"422"}`))
@@ -76,13 +76,13 @@ func TestARejectedCallNamesEveryPositionAndMovesNothing(t *testing.T) {
 	assert.Equal(t, []string{"f1:raised", "f2:raised"}, before)
 }
 
-// The two failures that are not §8.4.2's are passed through as they arrived,
-// so neither is reported as a rejection.
+// The two failures that are not §8.4.2's are not read as rejections, so the
+// caller is left free to report each as what it is.
 //
 // A response cr cannot parse is §8.4.4's unknown outcome — cr does not know
 // whether the review was created — and a gh that failed some other way is
-// §3.1.3's external command failure. Both code 3, which is what says cr is not
-// claiming the review was refused.
+// §3.1.3's external command failure. Neither is a refusal GitHub made, and
+// saying so would be cr asserting the one thing it failed to establish.
 func TestOnlyGitHubSayingNoIsARejection(t *testing.T) {
 	review := post.Build(
 		[]*finding.Finding{{ID: "f1", Anchor: finding.Anchor{Path: "a.go", Line: 1}}},
@@ -91,15 +91,11 @@ func TestOnlyGitHubSayingNoIsARejection(t *testing.T) {
 	for name, failure := range map[string]error{
 		"unparseable response": theRejection("<html>502 Bad Gateway</html>"),
 		"gh never started":     theRejection(""),
+		"not a gh failure":     errors.New("something else entirely"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			passed := rejectedPost(review, failure)
-
-			assert.Same(t, failure, passed, "the caller sees the error it would have seen")
-			assert.Equal(t, ExitFile, exitCodeFor(passed), "§3.1.3 codes an external command failure 3")
+			assert.Nil(t, rejectedPost(review, failure),
+				"§8.4.2 is GitHub saying no, and this failure is not that")
 		})
 	}
-
-	unrelated := errors.New("something else entirely")
-	assert.Same(t, unrelated, rejectedPost(review, unrelated))
 }
