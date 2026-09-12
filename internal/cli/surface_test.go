@@ -71,7 +71,7 @@ var specSurface = []surfaceRow{
 		"intent-file": "§3.1.4",
 	}},
 	{path: []string{"claims", "set-aside"}, use: "set-aside <pr> <claim-id>",
-		spec: []string{"note"}, stub: true},
+		spec: []string{"note"}},
 	{path: []string{"merge"}, use: "merge <files...>",
 		spec:       []string{"output", "pr", "repo"},
 		shorthands: map[string]string{"o": "output"}, stub: true},
@@ -266,7 +266,10 @@ func TestAStubStillValidatesItsArguments(t *testing.T) {
 
 	checked := 0
 	for _, row := range specSurface {
-		if !row.stub || !strings.Contains(row.use, prPlaceholder) {
+		// The shape is counted off §11's own row, so a stub that takes
+		// no positional argument has nothing here to get wrong.
+		positional := strings.Count(row.use, "<")
+		if !row.stub || positional == 0 {
 			continue
 		}
 		checked++
@@ -275,12 +278,22 @@ func TestAStubStillValidatesItsArguments(t *testing.T) {
 			found, _, err := root.Find(row.path)
 			require.NoError(t, err)
 			require.NotNil(t, found.Args, "`cr %s` validates no arguments", name)
-			assert.Error(t, found.Args(found, []string{"not-a-pull-request"}),
-				"`cr %s` accepted an argument that is not a pull request", name)
-			assert.NoError(t, found.Args(found,
-				slices.Repeat([]string{"42"}, strings.Count(row.use, "<"))))
+			assert.NoError(t, found.Args(found, slices.Repeat([]string{"42"}, positional)))
+			assert.Error(t, found.Args(found, slices.Repeat([]string{"42"}, positional-1)),
+				"`cr %s` accepted fewer arguments than §11 gives it", name)
+			// The pull-request check is the sharper half and is asked
+			// of the rows that have one. `cr claims set-aside` was the
+			// last stub §11 gives a pull request, and building it left
+			// no row to ask — so the arity above is what keeps the
+			// guard measuring, and this returns with the next such
+			// stub rather than being deleted with the last one.
+			if strings.Contains(row.use, prPlaceholder) {
+				assert.Error(t, found.Args(found, []string{"not-a-pull-request"}),
+					"`cr %s` accepted an argument that is not a pull request", name)
+			}
 		})
 	}
 
-	require.NotZero(t, checked, "no stub takes a pull request, so this guard measured nothing")
+	require.NotZero(t, checked,
+		"no stub takes a positional argument, so this guard measured nothing")
 }
