@@ -581,7 +581,7 @@ func probeBudget(
 	if err != nil {
 		return probe.RoundCap{}, err
 	}
-	stored, err := state.ReadRecords[probe.Record](l, owner, repo, pr, state.FileProbes)
+	stored, err := state.ReadStamped[probe.Record](l, owner, repo, pr, state.FileProbes, round)
 	if err != nil {
 		return probe.RoundCap{}, err
 	}
