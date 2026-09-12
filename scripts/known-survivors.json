@@ -38,14 +38,14 @@
     },
     {
       "file": "render/comment.go",
-      "line": 81,
+      "line": 100,
       "column": 48,
       "type": "ARITHMETIC_BASE",
       "reason": "Comment.String allocates `make([]string, 0, len(ownedRegions)+1)`, and `-1` changes only the capacity hint from 4 to 2: append grows the slice and the joined text is identical. The operand is not an input: ownedRegions is an unexported package var holding exactly the three owned regions of §8.1.3 and nothing appends to it, so the capacity is 2 on every call and never reaches the negative value that panics `make`. Verified by hand on 2026-09-11 -- applied `-1`, `go test -count=1 ./internal/render/` and `./internal/draft/` stayed green."
     },
     {
       "file": "render/comment.go",
-      "line": 123,
+      "line": 142,
       "column": 13,
       "type": "CONDITIONALS_BOUNDARY",
       "reason": "withoutRegion computes `length := strings.Index(text[start:], region.close)` where text[start:] begins with region.open, and `< 0` against `<= 0` differs only when length == 0, i.e. when the close marker matches at the very position the open marker starts. No input reaches that: each pair is `<!-- cr:NAME -->` against `<!-- cr:/NAME -->`, which differ at byte 8 ('/' against the name's first letter), inside both markers, so a string opening with one cannot open with the other. Verified by hand on 2026-09-11 -- applied `<= 0`, `go test -count=1 ./internal/render/` and `./internal/draft/` stayed green. The equivalence rests on that byte: a future region whose close marker is a prefix of its open marker would make the mutant observable."
