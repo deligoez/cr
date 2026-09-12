@@ -2251,7 +2251,7 @@
         "changed-line-definition"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- Files matching ignore.globs are excluded and counted as excluded, per §3.4.2.\n- Binary and generated files are listed but not clustered, per §3.4.7.\n- A test asserts both counts reach cr status without either file producing a unit.\n- Open before implementing, found 2026-09-13 at 093a633 and needing an orchestrator decision: (1) no row of §2.3 holds the excluded count or the binary and generated listing for cr status to read — units.ndjson holds §3.4.6 units and meta.json fields are enumerated and fenced to four readers — while re-deriving them in cr status from a fresh diff would read ignore.globs as configured now rather than as the round was formed, the re-resolution lensesOf rejects for the profile and key, and would make status need gh and a checkout on every run; (2) §3.4.7 does not say what makes a file generated (a gitattributes linguist-generated at head and a Code generated ... DO NOT EDIT header are the two mechanical candidates). Measured at the same commit: ignore.globs is defined in internal/config and read by no code, and git.ParseHunks yields no hunk for a Binary files ... differ entry, so a binary file is dropped silently rather than listed.",
+      "acceptance": "- Files matching ignore.globs are excluded and counted as excluded, per §3.4.2.\n- Binary and generated files are listed but not clustered, per §3.4.7.\n- A test asserts both counts reach cr status without either file producing a unit.\n- Open before implementing, found 2026-09-13 at 093a633 and needing an orchestrator decision: (1) no row of §2.3 holds the excluded count or the binary and generated listing for cr status to read — units.ndjson holds §3.4.6 units and meta.json fields are enumerated and fenced to four readers — while re-deriving them in cr status from a fresh diff would read ignore.globs as configured now rather than as the round was formed, the re-resolution lensesOf rejects for the profile and key, and would make status need gh and a checkout on every run; (2) §3.4.7 does not say what makes a file generated (a gitattributes linguist-generated at head and a Code generated ... DO NOT EDIT header are the two mechanical candidates). Measured at the same commit: ignore.globs is defined in internal/config and read by no code, and git.ParseHunks yields no hunk for a Binary files ... differ entry, so a binary file is dropped silently rather than listed.\n- Decided by the orchestrator 2026-09-13, no normative change: (1) cr brief applies ignore.globs and lists binary and generated files while it forms the units; cr status re-derives the excluded count and the listing from the diff at the round's RECORDED head, the same precedent lensesOf already sets for §4.3.1's halves (a repository and gh read on the status path), and when the globs resolved now would cover a path that already holds a unit of the round, cr status discloses that drift rather than silently re-counting. (2) A file is generated when git check-attr reports linguist-generated set for it at that head: a fact the repository declares, identical in every language, where a header convention is language-specific and would have cr judge file content. Record both readings in the closure reason.",
       "source_sections": [
         "### 3.4 Diff ingestion and unit clustering"
       ],
@@ -8376,6 +8376,25 @@
         "internal/coverage/completeness.go",
         "internal/coverage/completeness_test.go"
       ]
+    },
+    {
+      "id": "record-id-uniqueness",
+      "title": "Refuse a record id already held",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "record-command"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- Found by unit-containment-predicate dogfood (2026-09-13): cr record accepted a second record carrying id f1 while f1 was already held, and §6.1 makes the id stable for the life of the PR, so a draft marker, a waiver, the posted index and a triage event naming f1 could reach either record.\n- cr record refuses, with exit 1 naming the id and both lines or the stored record, a batch whose ids repeat within the file or collide with a record already stored for the pull request, and writes nothing.\n- A test records f1, then a batch carrying f1 again, and asserts the refusal and that findings.ndjson is byte-identical afterwards; a second test repeats an id inside one batch.",
+      "source_sections": [
+        "### 6.1 Record schema"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
