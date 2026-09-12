@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T13:16:06.470328Z",
+  "updated_at": "2026-09-12T13:19:38.017667Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5387,7 +5387,7 @@
     {
       "id": "merge-command",
       "title": "Merge per-role finding files",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "waived-findings-dropped",
@@ -5398,11 +5398,35 @@
       "source_sections": [
         "### 6.5 Merge"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T12:59:09.165599Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T13:19:37.973371Z",
+      "closed_reason": "- internal/cli/merge.go's runMerge and mergeRecords are §6.5.1 in the order §6.5.1 lists its passes: readPerRole decodes every named §4.6.2 fan-out file through finding.DecodePerRole, finding.DropWaived applies §6.4.4, finding.DropPosted applies §9.3.6, and finding.MarkDuplicates applies §6.4.1 and §6.4.2 last, because MarkDuplicates writes a representative's id into every other record of its group and a drop after it would leave those records naming an id nothing in the round holds; TestMergeWritesAFileCRRecordAccepts, TestMergeDropsAWaivedFinding, TestMergeDropsAnAlreadyPostedFinding and TestMergePicksTheRepresentativeByCorpusOrder hold one pass each.\n- gradeMerged reaches §6.2 through the same helpers cr record uses — rule.StampOrigins for §6.2.5, stampAxes for §6.1's axis row, gradeRecords for §6.2 — so the grade exists only in memory for §6.4.2's ranking and the counts merge-counts-reporting will report, and the representative this merge picks is the record cr record will grade highest.\n- internal/finding/merged.go's mergedFields is derived from §6.1's own table: every row the Required column does not mark Computed or Stamped, minus §6.1.4's alsoReserved, plus duplicate_of alone, so \"no computed field except duplicate_of\" cannot drift from the table it is read out of; TestAMergedLineCarriesNoComputedFieldButDuplicateOf walks finding.Reserved() against it and TestMergedRecordsDropTheStampAndEveryComputedField asserts the absent grade, axis, state and citation hashes on a record that carried all of them.\n- cr merge writes duplicate_of and no state, and TestMergeWritesAFileCRRecordAccepts runs cr record over the real merged file and reads findings.ndjson back: the suppressed record is in state duplicate naming its representative, which is §6.4.3 applied by cr record from the mark cr merge left.\n- repoOf refuses an invocation without --repo, and the repository is then used rather than recorded: role.Resolve builds §6.4.2's corpus from the repository's own roles directory beside the global one, and finding.ActiveWaivers reads §7.4.4's repository-wide file.\n- prFlagOf refuses an invocation without --pr through parsePR's own rule, and finding.ActiveWaivers reads that pull request's waivers.ndjson beside the repository-wide file while finding.PostedIndex reads its §9.3.6 index; TestMergeDropsAWaivedFinding writes a not-here waiver through finding.Waive and proves the finding it covers never reaches the output.\n- finding.DecodePerRole reports a missing required field as a RejectedRecordError naming the file, the one-based line counting blank lines, and the field, and internal/cli/exit.go already maps that onto ExitValidation so no branch joined exitCodeFor; TestMergeRefusesAMissingRequiredFieldNamingTheLine asserts line 3 for a record sitting after a blank line, exit code 1, and that the -o path does not exist afterwards.\n- The pair is still written without omitempty and state.Stamp is unchanged, because §2.3.3 requires head and round on a stored record and cr record stamps them there; internal/finding/merged.go's doc comment records that reason where the exclusion is made.\n- Confirmed by construction rather than assumed: mergedFields keeps Stamped out alongside Computed, and TestMergedRecordsDropTheStampAndEveryComputedField asserts neither key reaches a merged line from a record carrying head 0f1e2d3 and round 3.\n- mergedLine builds each line from §6.1's table instead of marshalling the Finding whole, so the pair is absent by construction; TestCRRecordAcceptsWhatCRMergeWrites drives the bytes back through finding.Decode with SourceMerge and again with SourceAgent — the second refusing on duplicate_of alone, which proves the acceptance rests on §6.5.1's exemption and not on an empty file — and TestMergeWritesAFileCRRecordAccepts runs the real cr record over the real output file.\n- The path is unchanged: the per-role outputs sit at fanout/\u003cround\u003e/\u003cunit\u003e/review-\u003crole\u003e.ndjson under state.DirFanOut, inside the pull request's state directory and beside §2.3's table.\n- rounds/\u003cn\u003e/fanout/ is not taken, and the reason is state/fanout.go's: rounds/\u003cn\u003e/ is fenced to the four artefacts §2.3 names, all of which cr writes, while these are files a role writes and cr merge reads — §4.6.3 has cr review write none of them.\n- readPerRole's doc comment cites the path and says cr merge derives none of it: the files are positionals the caller names and finding.RoleForFile binds each one's records by base name alone, so a role that wrote elsewhere merges identically and §2.3's table needs no new row.\n",
+      "gate_passed_at": "2026-09-12T13:19:37.973371Z",
+      "commit_sha": "306ecb3",
+      "commit_shas": [
+        "306ecb3",
+        "938ae10",
+        "97b8d86",
+        "56e7aef",
+        "21a8881",
+        "2179216",
+        "0fd9b5d",
+        "6a05c8a",
+        "0a2945b"
+      ],
+      "commit_files": [
+        "internal/cli/merge.go",
+        "internal/cli/merge_test.go",
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/root.go",
+        "internal/cli/surface_test.go",
+        "internal/finding/merged.go",
+        "internal/finding/merged_test.go",
+        "internal/state/named.go"
+      ]
     },
     {
       "id": "merge-counts-reporting",
