@@ -237,6 +237,13 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §2.6.2, between the acceptance and the write: a
+			// record confirming a rule's hit is where a `fix`
+			// block's suggestion is generated, and §2.6.2.2 has
+			// §8.2 refuse an unplaceable one before drafting.
+			if err := suggestRuleFixes(layout, owner, repo, pr, &round, records); err != nil {
+				return err
+			}
 			if err := appendRecords(layout, owner, repo, pr, &round, records); err != nil {
 				return err
 			}
