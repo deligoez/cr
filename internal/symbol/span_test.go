@@ -161,3 +161,74 @@ func TestABodyLongerThanTheSignatureBoundIsStillBounded(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, "Long@3", key)
 }
+
+// opensAfter builds a file whose one declaration opens its body `offset` lines
+// below the line it is declared on, by spreading its parameter list over the
+// lines in between. offset 1 is the ordinary Go shape, `func f(\n…\n) {`.
+func opensAfter(t *testing.T, offset int) *Index {
+	t.Helper()
+	lines := []string{"package a", "", "func Wide("}
+	for range offset - 1 {
+		lines = append(lines, "\ta int,")
+	}
+	return built(t, "go", "wide.go", append(lines, ") {", "}")...)
+}
+
+// The search for the opening brace gives up past signatureLines, and where
+// exactly it gives up decides whether a hunk is a unit named by its symbol or
+// one §3.4.3 falls through to adjacency for. The bound counts the declaration's
+// own line, so a brace signatureLines-1 lines below it is the last one found and
+// one line further is the first one missed.
+//
+// gremlins found the boundary open: every fixture either opened its body on the
+// declaration's own line or ran far past the bound, so nothing stood on either
+// side of it and `>=` could become `>` unobserved.
+func TestTheOpeningBraceIsSoughtOnlyWithinTheSignatureBound(t *testing.T) {
+	admitted := opensAfter(t, signatureLines-1)
+	key, found := admitted.Enclosing("wide.go", signatureLines+3)
+	require.True(t, found, "a brace on the last line the bound admits still bounds the body")
+	assert.Equal(t, "Wide@3", key)
+
+	refused := opensAfter(t, signatureLines)
+	assert.True(t, refused.Indexed("wide.go"), "§3.4.3 is asked of the file, and the file was read")
+	_, found = refused.Enclosing("wide.go", signatureLines+4)
+	assert.False(t, found, "one line further is past the bound, so the declaration gets no span")
+}
+
+// The brace scanner's comment handling has two edges, and a single `/` sits on
+// both. Each decides where a declaration's body ends, which is what §3.4.4
+// names a unit by.
+//
+// Adjacent block comments are the first. `*/` followed immediately by `/*` is
+// two comments, and the scan steps past the closing `/` rather than re-reading
+// it; a scan that re-read it would see `//` and swallow the rest of the line,
+// opening brace included.
+//
+// `/*/` is the second. It opens a comment and closes nothing, because the `/`
+// the opening consumed cannot also close it; a scan that re-read that `/` would
+// close the comment on the spot and then count the brace the comment hides.
+//
+// gremlins found both, through the index arithmetic on either side. Every
+// fixture's comments were ordinary ones, where the byte the scan steps over is
+// a space or a brace and nothing turns on reading it twice.
+func TestTheCommentScannerReadsEachDelimiterByteOnce(t *testing.T) {
+	adjacent := built(t, "go", "pair.go",
+		"package a",
+		"",
+		"func Pair() /*x*//*y*/ {",
+		"}",
+	)
+	key, found := adjacent.Enclosing("pair.go", 4)
+	require.True(t, found, "two block comments in a row are two comments, not a line comment")
+	assert.Equal(t, "Pair@3", key)
+
+	hidden := built(t, "go", "toggle.go",
+		"package a",
+		"",
+		"func Toggle() { /*/ } /*/",
+		"}",
+	)
+	key, found = hidden.Enclosing("toggle.go", 4)
+	require.True(t, found, "`/*/` opens a comment, so the brace inside it closes nothing")
+	assert.Equal(t, "Toggle@3", key)
+}
