@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -35,6 +37,25 @@ type statsResult struct {
 	// rounds later, which is the comparison the section exists to make
 	// possible.
 	FirstSeen []finding.FirstSeen `json:"first_seen"`
+	// Threshold and MinSamples are the `stats` settings the candidacies
+	// below were decided on.
+	//
+	// They are reported for the reason `cr rules suggest` reports its
+	// harvest minimum: nothing else in the document explains an empty
+	// list, and a run that found no candidate and a run whose threshold
+	// somebody raised to 0.95 print the same empty list otherwise.
+	Threshold  float64 `json:"demote_threshold"`
+	MinSamples int     `json:"min_samples"`
+	// Demotion are §7.3.4's demotion candidates, and Bound is §7.3.5's
+	// sentence about what their rate is and is not.
+	//
+	// The sentence is a field rather than prose in the terminal rendering
+	// alone, because an agent reads this document and §7.3.5 forbids the
+	// rate to be presented as a measured precision to anyone. The rate's
+	// own key says the same thing a second time, so a reader who prints
+	// one number without its document still cannot lose the caveat.
+	Demotion []finding.DemotionCandidate `json:"demotion_candidates"`
+	Bound    string                      `json:"demotion_rate_bound"`
 }
 
 // Text names what was counted and then one line per class and per rule.
@@ -70,7 +91,42 @@ func (r *statsResult) Text(w *writer) string {
 		out.WriteString("\n  " + w.accent(first.Class) +
 			" pr " + strconv.Itoa(first.PR) + " round " + strconv.Itoa(first.Round))
 	}
+	out.WriteString("\ndemotion candidates, rate over " +
+		strconv.FormatFloat(r.Threshold, 'g', -1, 64) + " across " +
+		strconv.Itoa(r.MinSamples) + " raise(s) or more")
+	if len(r.Demotion) == 0 {
+		out.WriteString("\n  none")
+	}
+	for _, candidate := range r.Demotion {
+		out.WriteString("\n  " + w.accent(candidate.Class) + " " +
+			strconv.FormatFloat(candidate.RateLowerBound, 'f', 2, 64) +
+			" over " + strconv.Itoa(candidate.Raised) + " raise(s)")
+	}
+	out.WriteString("\n" + r.Bound)
 	return out.String()
+}
+
+// statsSample resolves §7.3.4's `stats.demote_threshold` and
+// `stats.min_samples` through §2.7's layers.
+//
+// They are asked of the layers rather than read as constants because they are
+// what decides whether a class is proposed for demotion, and a project whose
+// reviewers mark false positives diligently needs a different threshold from
+// one where the `wrong` marker is rarely used — which §7.3.5 says is the
+// ordinary case.
+func statsSample(l state.Layout, owner, repo string) (finding.Sample, error) {
+	resolved, err := config.Resolve(config.Sources{
+		Environ:      os.Environ(),
+		GlobalConfig: l.Config(),
+		RepoConfig:   l.RepoConfig(owner, repo),
+	})
+	if err != nil {
+		return finding.Sample{}, err
+	}
+	return finding.Sample{
+		Threshold:  resolved.Float("stats.demote_threshold"),
+		MinSamples: resolved.Int("stats.min_samples"),
+	}, nil
 }
 
 // countsLine renders §7.3.2's five counts in the order the section names them,
@@ -125,9 +181,17 @@ func newStatsCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			over, err := statsSample(layout, owner, repo)
+			if err != nil {
+				return err
+			}
 			return out.emit(&statsResult{
 				Repo: owner + "/" + repo, Events: len(events), TriageReport: report,
-				FirstSeen: finding.FirstSeenClasses(events),
+				FirstSeen:  finding.FirstSeenClasses(events),
+				Threshold:  over.Threshold,
+				MinSamples: over.MinSamples,
+				Demotion:   finding.DemotionCandidates(report.Classes, over),
+				Bound:      finding.DemotionBound,
 			})
 		},
 	}
