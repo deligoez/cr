@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T09:17:06.822167Z",
+  "updated_at": "2026-09-12T09:23:03.837443Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3019,7 +3019,7 @@
     {
       "id": "intent-gap-derivation",
       "title": "Derive gaps preserving set-aside stamps",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "intent-gap-entries"
@@ -3029,11 +3029,24 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T09:13:19.074157Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:23:03.812404Z",
+      "closed_reason": "- internal/cli/mapcmd.go's publishMapping derives intent-gaps.ndjson on each successful `cr map record` as §4.1.7's mechanical answer — the round's claims that its mapping maps to no unit — written under the same hold of the §2.3.1 lock as the mapping it is a function of, and the dogfood run against deligoez/cr-qa PR 1 wrote entries for CR-1#c3 and CR-1#c4 from a mapping naming only c1 and c2.\n- internal/mapping/gap.go's Gaps returns the derived entries and, beside them, the §4.1.8 stamps it did not carry forward: a claim still unmapped keeps the note the round recorded against it, and a claim that has since become mapped raises no entry, so its stamp is reported through `cr map record`'s `dropped_set_asides` — `{\"claim\": \"CR-1#c3\", \"set_aside_note\": \"CR-1#n1\"}` in the dogfood run, and `recorded 4 mapping(s) in round 1; dropped the set-aside of CR-1#c4` in a terminal.\n- The literal re-derivation round 9's `derived-state-clobbers-decision` condemns is not what ships, and the difference is measured rather than argued: replacing `\u0026Gap{Claim: id, SetAsideNote: aside[id]}` with `\u0026Gap{Claim: id}` by hand fails both TestAReDerivationKeepsTheSetAsideOfAClaimStillUnmapped and TestReRecordingKeepsASetAsideAndReportsTheOneItDrops, and the dogfood re-record of an unchanged mapping left CR-1#c3's `set_aside_note` at `CR-1#n1` with `dropped_set_asides` empty.\n- The surviving-stamp count §10.1.2 reports is the entries whose `set_aside_note` is non-empty, which is why the stamp is kept on the entry rather than anywhere a reader would have to be told about; `cr status` is still stubCmd in internal/cli/status.go and the reporting belongs to status-coverage-report, whose acceptance already carries it in the words \"This includes the surviving set-aside stamp count required by the §4.1.7 carry-forward rule\".\n- internal/cli/intentgaps_test.go's TestReRecordingKeepsASetAsideAndReportsTheOneItDrops sets CR-11#c2 aside by writing the stamp where `cr claims set-aside` will write it, re-records the same mapping through the real command, and asserts intent-gaps.ndjson still reads `CR-11#c2/CR-11#n7` — the case a derivation keyed on \"did anything change\" would pass by accident, since nothing about c2 changed.\n- The same test then maps c2 to u2, re-records, and asserts both halves of the drop at once: c2 raises no entry any more, and the run's `dropped_set_asides` is exactly `{Claim: \"CR-11#c2\", SetAsideNote: \"CR-11#n7\"}`, which is the only place the decision can still be read once the entry that held it is gone.\n- Round 12's `derived-file-erases-recorded-decision` re-reports round 9's from the completeness side, and the fixture answers the part neither finding states: internal/mapping/gap_test.go's c4 is an entry of this round with no note that is now mapped, and c5 is a round 1 stamp for a claim round 2 does not have, so a report counting vanished entries rather than vanished decisions fails on the first and a report ignoring §9.3.5 fails on the second.\n- Each guard that produces that behaviour was mutated by hand and killed: dropping the round check reported c5 as lost although §9.3.5 leaves round 1's entry in the file, dropping the empty-note check reported c4 as lost although nobody judged it, and the redundant note re-read in the drop computation was removed outright rather than left as an unobservable branch.\n",
+      "gate_passed_at": "2026-09-12T09:23:03.812404Z",
+      "commit_sha": "9d1dfa5",
+      "commit_shas": [
+        "9d1dfa5",
+        "5d9a837",
+        "f45bd5e",
+        "d49a1f5"
+      ],
+      "commit_files": [
+        "internal/cli/intentgaps_test.go",
+        "internal/cli/mapcmd.go",
+        "internal/mapping/gap.go",
+        "internal/mapping/gap_test.go"
+      ]
     },
     {
       "id": "claims-set-aside-command",
