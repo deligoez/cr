@@ -164,17 +164,7 @@ type roundUnit struct {
 // wants their ids and §4.5.5 wants their hashes as well — so `cr record` and
 // `cr cells record` cannot come to disagree about which units a round formed.
 func roundUnitsOf(l state.Layout, owner, repo string, pr, round int) ([]roundUnit, error) {
-	stored, err := state.ReadRecords[roundUnit](l, owner, repo, pr, state.FileUnits)
-	if err != nil {
-		return nil, err
-	}
-	units := make([]roundUnit, 0, len(stored))
-	for i := range stored {
-		if stored[i].Round == round {
-			units = append(units, stored[i])
-		}
-	}
-	return units, nil
+	return state.ReadStamped[roundUnit](l, owner, repo, pr, state.FileUnits, round)
 }
 
 // roundUnitIDs is the set §6.1.3 checks a record's `unit` against: the ids of
@@ -445,15 +435,14 @@ func appendRecords(
 func recordRuleStats(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, recorded []*finding.Finding,
 ) error {
-	stored, err := state.ReadRecords[finding.Finding](l, owner, repo, pr, state.FileFindings)
+	stored, err := state.ReadStamped[finding.Finding](
+		l, owner, repo, pr, state.FileFindings, round.Round)
 	if err != nil {
 		return err
 	}
 	ofRound := make([]*finding.Finding, 0, len(stored))
 	for i := range stored {
-		if stored[i].Round == round.Round {
-			ofRound = append(ofRound, &stored[i])
-		}
+		ofRound = append(ofRound, &stored[i])
 	}
 	return rule.RecordRecords(l, owner, repo, recorded, ofRound, &rule.Occasion{
 		PR: pr, Round: round.Round, Head: round.Head, At: time.Now(),
