@@ -56,6 +56,16 @@ type statsResult struct {
 	// one number without its document still cannot lose the caveat.
 	Demotion []finding.DemotionCandidate `json:"demotion_candidates"`
 	Bound    string                      `json:"demotion_rate_bound"`
+	// Volume are §7.3.6's volume candidates, reported separately from the
+	// demotion ones because the remedy differs: a class here is accurate
+	// and merely rarely worth posting, so softening it would turn a true
+	// finding nobody wanted into a question nobody wanted.
+	//
+	// A class can appear on both lists, on one, or on neither, and the
+	// document says which rather than ranking them: §7.3.7 makes both
+	// candidacies reports to the user, and a single ordered list would be
+	// cr deciding which fault matters more.
+	Volume []finding.VolumeCandidate `json:"volume_candidates"`
 }
 
 // Text names what was counted and then one line per class and per rule.
@@ -103,6 +113,21 @@ func (r *statsResult) Text(w *writer) string {
 			" over " + strconv.Itoa(candidate.Raised) + " raise(s)")
 	}
 	out.WriteString("\n" + r.Bound)
+	out.WriteString("\nvolume candidates, `not-here` rate over the same sample")
+	if len(r.Volume) == 0 {
+		out.WriteString("\n  none")
+	}
+	for _, candidate := range r.Volume {
+		out.WriteString("\n  " + w.accent(candidate.Class) + " " +
+			strconv.FormatFloat(candidate.NotHereRate, 'f', 2, 64) +
+			" over " + strconv.Itoa(candidate.Raised) + " raise(s)")
+	}
+	out.WriteString("\n" + finding.VolumeRemedy)
+	// §7.3.7, said plainly for the reason `cr rules suggest` says the same
+	// thing: a command that prints a list headed "candidates" invites the
+	// reading that something has been decided, and the section makes both
+	// lists reports and forbids cr to alter a rule's kind by itself.
+	out.WriteString("\n§7.3.7: both lists are reports; cr changed no rule")
 	return out.String()
 }
 
@@ -192,6 +217,7 @@ func newStatsCmd(out *writer) *cobra.Command {
 				MinSamples: over.MinSamples,
 				Demotion:   finding.DemotionCandidates(report.Classes, over),
 				Bound:      finding.DemotionBound,
+				Volume:     finding.VolumeCandidates(report.Classes, over),
 			})
 		},
 	}
