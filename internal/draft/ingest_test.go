@@ -23,6 +23,13 @@ func renderedRound(t *testing.T, records ...*finding.Finding) (file string, entr
 	return file, entries
 }
 
+// ingested reads one draft back for the records it was rendered from, with no
+// tree behind it. §7.2's location row is the only row that opens one, so a test
+// that moves an anchor calls Ingest itself with the trees it wants read.
+func ingested(records []*finding.Finding, file string, entries map[string]string) (Triage, error) {
+	return Ingest(records, &Draft{Name: "draft.md", Body: file, Rendered: entries})
+}
+
 // fourRecords are four queued records whose bodies differ, so an edit to one
 // cannot land in another's block by accident.
 func fourRecords() []*finding.Finding {
@@ -54,7 +61,7 @@ func TestIngestReadsTheFourCasesOfSection716(t *testing.T) {
 	file = strings.Replace(file, entries["f3"], substantive, 1)
 	file = withoutBlock(t, file, "f4")
 
-	triage, err := Ingest(records, file, entries)
+	triage, err := ingested(records, file, entries)
 	require.NoError(t, err)
 
 	assert.Equal(t, []*finding.Finding{records[3]}, triage.Deleted, "the deleted block is the one discard")
@@ -89,7 +96,7 @@ func TestAnEditInsideAnOwnedRegionIsNoEditOfTheBody(t *testing.T) {
 
 	edited := strings.Replace(file, label,
 		strings.Replace(label, "\n", "\nI would rather this said something else.\n", 1), 1)
-	triage, err := Ingest([]*finding.Finding{question}, edited, entries)
+	triage, err := ingested([]*finding.Finding{question}, edited, entries)
 	require.NoError(t, err)
 
 	assert.Empty(t, triage.Preserved, "the typing sat inside a region cr owns")
@@ -104,7 +111,7 @@ func TestABlockWithNoEntryKeepsItsBody(t *testing.T) {
 	record := aRecord("f1")
 	file, _ := renderedRound(t, record)
 
-	triage, err := Ingest([]*finding.Finding{record}, file, map[string]string{})
+	triage, err := ingested([]*finding.Finding{record}, file, map[string]string{})
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]string{"f1": body(record)}, triage.Preserved)
@@ -126,7 +133,7 @@ func TestAMalformedMarkerStopsTheIngestNamingItsLine(t *testing.T) {
 	file, entries := renderedRound(t, record)
 	broken := strings.Replace(file, `kind="finding"`, `kind=finding`, 1)
 
-	triage, err := Ingest([]*finding.Finding{record}, broken, entries)
+	triage, err := ingested([]*finding.Finding{record}, broken, entries)
 
 	var malformed *MalformedMarkerError
 	require.ErrorAs(t, err, &malformed)
@@ -144,7 +151,7 @@ func TestASecondBlockForOneRecordStopsTheIngest(t *testing.T) {
 	marker := markerOf(record).String()
 	doubled := file + "\n" + marker + "\n\nA pasted copy of the block.\n"
 
-	_, err := Ingest([]*finding.Finding{record}, doubled, entries)
+	_, err := ingested([]*finding.Finding{record}, doubled, entries)
 
 	var malformed *MalformedMarkerError
 	require.ErrorAs(t, err, &malformed)
@@ -187,7 +194,7 @@ func TestAWrongMarkerDiscardsWhetherOrNotTheBodyRemains(t *testing.T) {
 	}
 	file = strings.Replace(file, entries["f2"], "", 1)
 
-	triage, err := Ingest(records, file, entries)
+	triage, err := ingested(records, file, entries)
 	require.NoError(t, err)
 
 	assert.Equal(t, records, triage.Wrong)
@@ -211,7 +218,7 @@ func TestAQuestionMarkerOnAFindingSoftensIt(t *testing.T) {
 	softened.Kind = string(finding.KindQuestion)
 	file = strings.Replace(file, marker.String(), softened.String(), 1)
 
-	triage, err := Ingest([]*finding.Finding{asserted, asked}, file, entries)
+	triage, err := ingested([]*finding.Finding{asserted, asked}, file, entries)
 	require.NoError(t, err)
 
 	assert.Equal(t, []*finding.Finding{asserted}, triage.Softened)
