@@ -504,7 +504,7 @@ type probeSetup struct {
 // after. A refused run must execute nothing in the sandbox, and `sandbox.Ensure`
 // is already execution: §5.1.3 runs the profile's setup commands, and a
 // recreation would run them for a probe cr was never going to perform.
-func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error) {
+func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*probeSetup, error) {
 	layout, err := state.Default()
 	if err != nil {
 		return nil, err
@@ -556,7 +556,11 @@ func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error
 		glob:   glob,
 		ready:  ready,
 		tests: &suite{
-			profile: resolved, file: file, path: ready.Path, log: cmd.ErrOrStderr(),
+			// §11.1: the live echo is informational and `--quiet`
+			// takes it; the tail and the counter in run() see the
+			// stream either way.
+			profile: resolved, file: file, path: ready.Path,
+			log: out.informational(cmd.ErrOrStderr()),
 		},
 		stamp:  state.Stamp{Head: round.Head, Round: round.Round},
 		capped: capped,
@@ -599,7 +603,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	if err != nil {
 		return err
 	}
-	setup, err := prepareProbe(cmd, request)
+	setup, err := prepareProbe(cmd, out, request)
 	if err != nil {
 		return err
 	}
@@ -662,7 +666,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 // that position. A file named for an id no record carries would be an artefact
 // nothing accounts for.
 func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
-	setup, err := prepareProbe(cmd, request)
+	setup, err := prepareProbe(cmd, out, request)
 	if err != nil {
 		return err
 	}

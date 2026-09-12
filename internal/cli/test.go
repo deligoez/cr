@@ -208,7 +208,10 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			log := io.MultiWriter(cmd.ErrOrStderr(), tail, counter)
+			// The echo to standard error is the informational half
+			// and `--quiet` takes it (§11.1); the tail and the
+			// counter are the stored half and see the stream either way.
+			log := io.MultiWriter(out.informational(cmd.ErrOrStderr()), tail, counter)
 			// §5.6.1's lock, taken around the run itself and
 			// nothing else. What it protects is the resource the
 			// suite touches — the test database the profile
