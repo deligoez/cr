@@ -59,10 +59,25 @@ type CommandError struct {
 
 func (e *CommandError) Error() string {
 	if e.Stderr == "" {
-		return fmt.Sprintf("%s: %v", strings.Join(e.Args, " "), e.Err)
+		return fmt.Sprintf("%s: %v%s", strings.Join(e.Args, " "), e.Err, wayPast)
 	}
-	return fmt.Sprintf("%s: %v: %s", strings.Join(e.Args, " "), e.Err, e.Stderr)
+	return fmt.Sprintf("%s: %v: %s%s", strings.Join(e.Args, " "), e.Err, e.Stderr, wayPast)
 }
+
+// wayPast names the two flags that get a run past a tracker cr cannot reach,
+// and it is on the failure rather than in a document because that is where a
+// reader meets the problem.
+//
+// It was measured rather than reasoned: a dogfood run against a scratch pull
+// request had the tracker answer 404 for a key §3.2 had read off the branch
+// name, and the message was the command line, the exit status, and the tool's
+// own stderr — none of which says that a key cr guessed is what the tool was
+// asked about. The two ways past are different fixes for different faults, so
+// both are named: `--issue` corrects the key, and §3.1.4's `--intent-file`
+// supplies the issue text when the tracker is unreachable whatever the key.
+const wayPast = "; §3.2 resolves the key from --issue before the branch, title, and body, so " +
+	"`--issue <KEY>` corrects a key cr read off the wrong one, and §3.1.4's " +
+	"`--intent-file <path>` supplies the issue text without running this command at all"
 
 // Unwrap exposes the underlying exec failure, so a caller can tell a tracker
 // command that ran and refused from one that never started.
