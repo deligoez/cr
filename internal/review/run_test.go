@@ -312,6 +312,55 @@ func TestTheRemainingAxesAreRefusedUntilAMappingExists(t *testing.T) {
 		assert.Equal(t, 1, required.Round)
 		assert.Contains(t, err.Error(), "cr review 7 --repo acme/shop --axis intent")
 	}
+
+	src.Axis = axis.Intent
+	_, err := Run(src)
+	require.NoError(t, err, "§4.6.5: the intent pass is what produces the mapping")
+
+	recordMapping(t, src, head)
+	src.Axis = axis.Correctness
+	_, err = Run(src)
+	assert.NoError(t, err, "the refusal is lifted by the mapping and by nothing else")
+}
+
+// §4.6.6: a round whose intent axis did not run has no intent role and no
+// mapping to produce, so the remaining axes wait for nothing. Refusing there
+// would be a refusal no command in v0.1 could lift — `cr map record` is not
+// accepted either — and the round would be unreviewable for want of a tracker.
+func TestAnIntentAxisThatDidNotRunIsNotAMappingToWaitFor(t *testing.T) {
+	src, _ := briefedWithoutMapping(t)
+	r := &Round{Round: 1, Head: "abc123", Claims: []intent.Claim{{ID: runIssue + "#c1"}}}
+
+	require.Error(t, refuseWithoutMapping(src, r,
+		activation.Activation{Active: []string{axis.Intent, axis.Correctness}}))
+	assert.NoError(t, refuseWithoutMapping(src, r,
+		activation.Activation{Active: []string{axis.Correctness}}),
+		"§4.6.6: no intent role, no mapping to produce, nothing to wait for")
+}
+
+// A mapping that maps nothing is a mapping. §4.1.1 lets every unit be mapped to
+// zero claims, so an empty `cr map record` is a real answer — and a refusal that
+// counted pairs would hold the round at the intent pass forever, since running
+// that pass again produces the same empty file.
+//
+// What lifts the refusal is §4.1.7's derivation: the claim the empty mapping
+// maps to no unit leaves an intent-gaps entry behind, and that entry is the
+// round's proof the pass has run.
+func TestAnEmptyMappingIsAMappingAndLiftsTheRefusal(t *testing.T) {
+	src, head := briefedWithoutMapping(t)
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	stamp := state.Stamp{Head: head, Round: 1}
+	require.NoError(t, state.ReplaceStamped(held, state.FileMapping, stamp, []*mapping.Pair{}))
+	require.NoError(t, state.ReplaceStamped(held, state.FileIntentGaps, stamp,
+		[]*mapping.Gap{{Claim: runIssue + "#c1"}}))
+	require.NoError(t, held.Unlock())
+
+	src.Axis = axis.Correctness
+	fan, err := Run(src)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, fan.Prompts)
 }
 
 // A unit the round recorded that the diff at the recorded head does not give is
