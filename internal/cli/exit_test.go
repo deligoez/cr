@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
@@ -33,6 +34,25 @@ func TestInvalidAxisExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(invalid))
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("loading roles: %w", invalid)))
 	assert.Equal(t, ExitUsage, exitCodeFor(errors.New("unknown flag")))
+}
+
+// A `cr brief` that would replace a round's recorded issue key exits 4.
+//
+// It is a state conflict and deliberately not the 3 a malformed file takes:
+// every file was read and every one of them parsed. What refuses is that
+// meta.json's key and the key §3.2 just resolved disagree, and §3.3 has built
+// every claim id of the round out of the first — so the disagreement is about
+// where the pull request stands, which is undone by naming the recorded key
+// rather than by correcting anything the user typed.
+func TestARewrittenIssueKeyExitsWithTheStateCode(t *testing.T) {
+	rewrite := error(&brief.KeyRewriteError{
+		Owner: "acme", Repo: "api", PR: 7, Recorded: "CR-7", Pattern: `[A-Z]+-[0-9]+`,
+		StateDir: "/home/.cr/state/acme/api/pr-7",
+	})
+	assert.Equal(t, ExitState, exitCodeFor(rewrite))
+	assert.Equal(t, ExitState, exitCodeFor(fmt.Errorf("orienting: %w", rewrite)))
+	assert.Contains(t, rewrite.Error(), "no key at all",
+		"the pattern that stopped matching is the case worth naming plainly")
 }
 
 // §2.5 item 3 makes a malformed profile file abort with exit code 3, and the
