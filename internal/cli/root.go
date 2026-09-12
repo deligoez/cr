@@ -81,6 +81,7 @@ func newRootCmd() *cobra.Command {
 func Execute() {
 	if err := newRootCmd().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "hint:", hintFor(err))
 		os.Exit(exitCodeFor(err))
 	}
 }
