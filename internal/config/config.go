@@ -76,6 +76,13 @@ var settings = []setting{
 	{render.Setting, render.LangTR.String()},
 	{"rules.dead_after", 20},
 	{"rules.harvest_min", 3},
+	// §7.3.4's two knobs on the demotion rate, which §7.3.6 reuses for
+	// the volume candidacy so both candidacies are drawn over the same
+	// sample. The threshold is fractional because §7.3.4 defines the rate
+	// as a ratio, for the reason reinvention.min_similarity is; the
+	// minimum is a count of raised events.
+	{"stats.demote_threshold", 0.6},
+	{"stats.min_samples", 8},
 	// §3.5.3's window: a human thread whose anchor falls within this many
 	// lines of a unit's hunks is attached to the unit.
 	{"threads.proximity_lines", 10},
