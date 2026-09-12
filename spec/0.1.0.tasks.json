@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T11:06:37.553226Z",
+  "updated_at": "2026-09-12T11:22:26.219735Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6014,7 +6014,7 @@
     {
       "id": "triage-event-writing",
       "title": "Write triage events idempotently per key",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "unknown-marker-id-aborts",
@@ -6025,11 +6025,30 @@
       "source_sections": [
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T10:47:39.643022Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:00:21.488555Z",
+      "closed_reason": "- Triage events are written idempotently per §7.3.1: internal/finding/triageevent.go's mergeTriageEvents overwrites in place the event a written one shares a key with and appends only the keys the file did not hold, so regenerating a draft per §7.1.6 or running cr post twice cannot inflate a count; TestRewritingAnEventLeavesOneOfIt drives three runs of one round and asserts two events, and the dogfood against deligoez/cr-qa PR 1 left triage.ndjson at two lines across three cr draft runs.\n- cr draft writes one raised event per record it queues: internal/cli/draft.go calls recordDraftTriage after publishDraft, and TestADraftRaisesWhatItQueuedAndSettlesOnlyItsDiscards asserts f1..f5 raised on the first run.\n- cr draft writes the outcome event directly for a record it discards at draft time: recordDraftTriage hands triaged.discardedSettlements to finding.RecordOutcomes, and the same test asserts f4:discarded-not-here and f5:discarded-wrong after the reviewer's deletion and wrong marker, while the softened f3 gets none because it stays queued.\n- cr post --confirm writes exactly one outcome event per queued record, drawn from kept, softened, discarded-not-here and discarded-wrong: internal/cli/triage.go's recordPostTriage settles every record the draft was rendered for through triaged.settled, and TestThePostSeamSettlesEveryQueuedRecordOnce asserts exactly those four actions against four raises; the send itself belongs to confirm-flag-required, which calls this seam.\n- cr post without --confirm writes none, since it changes nothing: TestAPostWithoutConfirmWritesNoTriageEvent asserts the ledger byte-identical across a run whose draft carried a discard, and the dogfood left triage.ndjson at md5 5f6765f5d9362f767ee3ba3c1fd104b2 before and after.\n- Round 8 finding triage-event-key-permits-contradiction, the key: triageKey is the record id, the pull request and the round, with the action held as a value on the event, so a later run replaces the earlier outcome.\n- Round 8 finding triage-event-key-permits-contradiction, the raise: the key's fourth field is whether the event is the raise, so raised stays a separately keyed event and survives every outcome written against it.\n- With action inside the key a record could carry both kept and discarded-wrong against a single raised, reachable through the ordinary retry after §8.4.2 and inflating §7.3.4's demotion rate on exactly the class the retry touched: TestARetriedPostLeavesOneOutcomeAgainstOneRaise writes kept and then discarded-wrong for one record and asserts the ledger holds f1:raised and f1:discarded-wrong alone.\n- Round 8 finding triage-event-key-permits-contradiction: cr post --confirm writes its outcome events after the network call, and a call rejected per §8.4.2 leaves no outcome event behind — recordPostTriage is documented and positioned as the post-call seam, and nothing on cr post's validating path reaches a triage writer.\n- A test drives a rejected post followed by a re-triage and asserts one outcome event survives: TestARetriedPostLeavesOneOutcomeAgainstOneRaise asserts the ledger holds only the raise at the point the rejected call returns, then writes the retry's outcome and asserts one outcome stands.\n",
+      "gate_passed_at": "2026-09-12T11:00:21.488555Z",
+      "commit_sha": "386cb5c",
+      "commit_shas": [
+        "386cb5c",
+        "c09a04f",
+        "b5dcfbb",
+        "4467fc9",
+        "bbc85a5",
+        "ee246ba",
+        "c9c8d32"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/triage.go",
+        "internal/cli/triageevents_test.go",
+        "internal/finding/triageevent.go",
+        "internal/finding/triageevent_test.go",
+        "internal/state/rulestats.go",
+        "internal/state/triage.go"
+      ]
     },
     {
       "id": "triage-event-fields",
@@ -6975,7 +6994,7 @@
     {
       "id": "rejected-review-reporting",
       "title": "Report rejected positions with record ids",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "pre-validate-positions",
@@ -6986,16 +7005,33 @@
       "source_sections": [
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T11:00:31.36489Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:07:19.168664Z",
+      "closed_reason": "- If the call is rejected, no state is marked posted: §9.1's only edge into posted and §7.3.1's outcome events both sit past the network call, and internal/cli/rejected.go's rejectedPost is the only thing on the rejection branch; TestARejectedCallNamesEveryPositionAndMovesNothing asserts every record of findings.ndjson still queued after a refused call.\n- cr reports every position GitHub named invalid, with the record id it belongs to, per §8.4.2: internal/post/reject.go's Rejection decodes GitHub's own document and attributes each error entry to the records it could be about — every comment of the round when the entry names a field and no comment, and the comments on the named path when its words name one — so no position is reported without a record id and none is attributed on evidence the API did not give. Measured against gh api search/issues that the document arrives on stdout, so internal/gh/run.go's CommandError now keeps it.\n- cr exits 4: exitCodeFor maps *post.RejectedError onto ExitState, deliberately ahead of the 3 a gh.CommandError takes, and TestARejectedCallNamesEveryPositionAndMovesNothing asserts the code; TestOnlyGitHubSayingNoIsARejection asserts the two failures that are not §8.4.2's still code 3.\n- A test asserts findings.ndjson holds no posted state and no triage outcome event after a rejection: TestARejectedCallNamesEveryPositionAndMovesNothing drives a real cr draft round, refuses the call with the 422 document gh would have written, and asserts both — every stored record queued, and the ledger still holding only f1:raised and f2:raised.\n",
+      "gate_passed_at": "2026-09-12T11:07:19.168664Z",
+      "commit_sha": "83e044f",
+      "commit_shas": [
+        "83e044f",
+        "b619218",
+        "968c04f",
+        "8d0f18a",
+        "20aecad",
+        "33ffecb"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/rejected.go",
+        "internal/cli/rejectedpost_test.go",
+        "internal/gh/run.go",
+        "internal/post/reject.go",
+        "internal/post/reject_test.go"
+      ]
     },
     {
       "id": "review-body-disclosure",
       "title": "Embed the hash beneath axis disclosure",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "rejected-review-reporting",
@@ -7006,11 +7042,26 @@
       "source_sections": [
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T11:07:23.749528Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:22:26.193351Z",
+      "closed_reason": "- cr embeds the payload hash as an HTML comment in the review's own body before posting, per §8.4.3: internal/render/reviewbody.go's PayloadHashComment writes `\u003c!-- cr:payload-hash \u003chash\u003e --\u003e` on the Reserved sequence §8.1.3 already refuses an agent body for, and internal/cli/post.go's discloseInBody sets it on the review the payload is marshalled from; TestTheEmbeddedHashIsThePayloadHashOfTheComments asserts the embedded value equals review.Hash(), and that moving the body leaves the hash unchanged, which is what §8.3.3's comment-only pre-image buys.\n- Above it the body carries the disclosure of §4.5.4, so the honesty obligation reaches the author and not only the reviewer's terminal: ReviewBody writes the active axes and then one line per entry that did not run, and the hash comment last; TestTheReviewBodyCarriesTheDisclosureAboveTheHash asserts the order by position rather than by presence, and TestThePostedPayloadCarriesTheBody asserts it again in the marshalled payload.\n- The review body is not a line comment and is unaffected by §1.6.1: ReviewBody takes no anchor and the body is set on the Review rather than appended to its Comments; TestTheReviewBodyIsNotOneOfTheComments asserts the payload holds one comment per queued record and none of them is the body, and TestTheDisclosureIsNotRenderedIntoAComment asserts no comment body carries the disclosure or the marker.\n- A test asserts both the disclosure and the hash comment appear in the review body: TestTheReviewBodyDisclosesEveryLensThatDidNotRun and TestTheEmbeddedHashIsThePayloadHashOfTheComments do it through buildPayload over a real cr draft round.\n- §8.4.3's disclosure is every lens of §4.5.4 that did not run with its reason, not only the disabled and unavailable axes: discloseInBody reads coverage.Lenses.Disclosures() from status.go's lensesOf, the one derivation of §4.5.4 in the tree, so the posted body and cr status cannot disagree about what did not look; the cost was paid rather than avoided, since lensesOf needs the round's head and, when a symbol index exists, the round's diff, so halfHunks now reads that diff only when the index arrived — measured byte-identical cr status output against a binary built from HEAD.\n- A skipped role and the unavailable reinvention half reach the author too: TestTheReviewBodyDisclosesEveryLensThatDidNotRun asserts an unavailable axis, §4.3.1's reinvention half, §4.4.1's symbol half and a role skipped per §4.6.4 all present in the body with their reasons, over a fixture that arranges for none of them.\n",
+      "gate_passed_at": "2026-09-12T11:22:26.193351Z",
+      "commit_sha": "afed034",
+      "commit_shas": [
+        "afed034",
+        "3fc5681",
+        "cfeaf8f",
+        "42c953a",
+        "1000fd4"
+      ],
+      "commit_files": [
+        "internal/cli/post.go",
+        "internal/cli/reviewbody_test.go",
+        "internal/cli/status.go",
+        "internal/render/reviewbody.go",
+        "internal/render/reviewbody_test.go"
+      ]
     },
     {
       "id": "post-reconcile",
