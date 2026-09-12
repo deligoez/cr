@@ -6884,7 +6884,7 @@
     {
       "id": "payload-hash-preimage",
       "title": "Compute the payload hash over preimage",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "single-review-batching",
@@ -6895,16 +6895,31 @@
       "source_sections": [
         "### 8.3 Batching"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T10:10:36.67652Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T10:17:45.016165Z",
+      "closed_reason": "- internal/cli/posted.go's writePosted publishes review.Payload()'s exact bytes to rounds/\u003cn\u003e/posted.json and answers with the path post.Request sends as --input, and adoptThreads adds the returned thread ids to that same document through state.UpdateRoundSection, which leaves the payload fields standing; the network call between them arrives with confirm-flag-required, which is the task that mints §8.5's confirmation.\n- internal/post/hash.go's Comment.preimage joins one comment's path, start_line, line, side and body with LF in that order, a single-line comment contributing the 0 the payload carries for its absent start_line.\n- compareComments orders the comments by path ascending, then start_line, then line, then side where LEFT sorts before RIGHT, then the record id through finding.IDSuffix, falling back to the whole id string so the order stays total for an id cr did not write.\n- Review.Preimage joins the per-comment texts with LF, sorting pointers into the slice so the request itself keeps the order §8.3.1 queued it in.\n- Review.Hash is text.NormalisedHash of that pre-image, which is §1.4's six steps and its sixteen-character lowercase digest, reached through the one entry point that normalises inside.\n- The pre-image reads r.Comments alone, so TestTheReviewBodyReachesNoDigest sets a body holding the hash and gets the same value back, which is what makes §8.4.3's embedding constructable at all.\n- TestThePayloadHashIsFixedAndSurvivesReordering pins 420012ebffc2b992 for the three-comment round aRound builds, a digest computed outside the tree, and asserts a reversed comment slice hashes to it unchanged.\n",
+      "gate_passed_at": "2026-09-12T10:17:45.016165Z",
+      "commit_sha": "f6402a0",
+      "commit_shas": [
+        "f6402a0",
+        "35331c3",
+        "7661928",
+        "2200b3c",
+        "b315a92"
+      ],
+      "commit_files": [
+        "internal/cli/posted.go",
+        "internal/cli/posted_test.go",
+        "internal/finding/id.go",
+        "internal/post/hash.go",
+        "internal/post/hash_test.go"
+      ]
     },
     {
       "id": "pre-validate-positions",
       "title": "Pre-validate every comment position before posting",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "payload-hash-preimage"
@@ -6914,11 +6929,22 @@
       "source_sections": [
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T10:18:00.457327Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T10:34:07.157141Z",
+      "closed_reason": "- post.Create sends one review-creation call for whatever the round holds, so the comment count reaches GitHub as the payload's length and never as a number of calls, which is the atomicity §8.4.1 rests on and which TestAMultiCommentRoundIsOneReviewCreationCall pins.\n- internal/cli/positions.go's validatePositions holds every queued record to suggestion.Validate against the round's hunks, and buildReview calls it after the forcings and the draft's discards and before buildPayload renders anything; a round carrying no suggestion reads no diff at all, which is the guard indentationWarnings already makes at draft time.\n- TestAnUnplaceablePositionStopsThePostBeforeAnythingIsSent anchors a record at line 400 of a fixture whose diff spans lines 3 to 7, runs cr post, and gets a suggestion.RangeError naming f1 at exit 1 with nothing printed, while TestAPlaceablePositionReachesThePayload posts the same record at line 4 into the payload.\n",
+      "gate_passed_at": "2026-09-12T10:34:07.157141Z",
+      "commit_sha": "e06a5f3",
+      "commit_shas": [
+        "e06a5f3",
+        "ed3625f",
+        "758be64"
+      ],
+      "commit_files": [
+        "internal/cli/positions.go",
+        "internal/cli/positions_test.go",
+        "internal/cli/post.go"
+      ]
     },
     {
       "id": "rejected-review-reporting",
