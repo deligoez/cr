@@ -30,10 +30,7 @@ type answerResult struct {
 func (r *answerResult) Text(w *writer) string {
 	text := "recorded " + w.accent(r.Note.ID) + " answering " + r.Note.Record +
 		" from " + string(r.Note.Source)
-	for _, entry := range r.Honesty {
-		text += "\n" + entry
-	}
-	return text
+	return text + w.disclose("\n", "", r.Honesty...)
 }
 
 // newAnswerCmd stores the answer to a posted question as a note (§3.6.2).

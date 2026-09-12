@@ -219,9 +219,7 @@ func resolvedState(resolved bool) string {
 // been told the count and not the fact.
 func (r *briefResult) axes(w *writer, out *strings.Builder) {
 	fmt.Fprintf(out, "\n%s active: %s\n", w.accent("axes"), listed(r.Axes.Active))
-	for _, entry := range r.Honesty {
-		fmt.Fprintf(out, "  %s\n", entry)
-	}
+	out.WriteString(w.disclose("  ", "\n", r.Honesty...))
 	if len(r.Honesty) == 0 {
 		fmt.Fprintf(out, "  every axis of §1.5 ran; nothing was disabled or unavailable\n")
 	}

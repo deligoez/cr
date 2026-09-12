@@ -66,9 +66,7 @@ func (r *recordResult) Text(w *writer) string {
 			answered.Record, w.accent(answered.Probe), supported[answered.Supports],
 			answered.Result, answered.Reason)
 	}
-	for _, disclosed := range r.Honesty {
-		fmt.Fprintf(&out, "\n%s", disclosed)
-	}
+	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
 

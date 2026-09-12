@@ -138,9 +138,7 @@ func (r *statusResult) Text(w *writer) string {
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
 	out.WriteString(r.recordLines())
 	out.WriteString(r.noteLines())
-	for _, entry := range r.Honesty {
-		out.WriteString(entry + "\n")
-	}
+	out.WriteString(w.disclose("", "\n", r.Honesty...))
 	return strings.TrimRight(out.String(), "\n")
 }
 

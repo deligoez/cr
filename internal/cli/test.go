@@ -107,9 +107,7 @@ func (r *testRunResult) Text(w *writer) string {
 	for _, warned := range r.Warnings {
 		fmt.Fprintf(&out, "\n%s", warned)
 	}
-	for _, disclosed := range r.Honesty {
-		fmt.Fprintf(&out, "\n%s", disclosed)
-	}
+	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
 

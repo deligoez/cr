@@ -54,9 +54,7 @@ func (r *rulesCheckResult) Text(w *writer) string {
 	for _, hit := range r.Hits {
 		fmt.Fprintf(&out, "\n  %s at %s:%d", hit.RuleID, hit.Path, hit.Line)
 	}
-	for _, entry := range r.Honesty {
-		fmt.Fprintf(&out, "\n%s", entry)
-	}
+	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
 

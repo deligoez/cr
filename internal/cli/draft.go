@@ -101,7 +101,7 @@ func (r *draftResult) Text(w *writer) string {
 		text += "§7.3.3: class(es) first seen in this round: " +
 			strings.Join(r.NewClasses, ", ") + "\n"
 	}
-	return text + r.Forced.Disclosure()
+	return text + w.disclose("", "", r.Forced.Disclosure())
 }
 
 // newDraftCmd renders the editable draft (§11, §7.1).

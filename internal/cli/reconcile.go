@@ -58,10 +58,7 @@ func (r *reconcileResult) Text(w *writer) string {
 		text = "adopted " + w.accent(r.Adopted) + " as round " + strconv.Itoa(r.Round) +
 			"'s review: " + strconv.Itoa(len(r.Records)) + " record(s) are posted\n"
 	}
-	for _, entry := range r.Honesty {
-		text += entry + "\n"
-	}
-	return text
+	return text + w.disclose("", "\n", r.Honesty...)
 }
 
 // reconcilePost is §8.4.4's recovery: the pull request's reviews are listed,

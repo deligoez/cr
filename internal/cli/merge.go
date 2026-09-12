@@ -59,9 +59,7 @@ func (r *mergeResult) Text(w *writer) string {
 	for _, line := range r.Counts.lines() {
 		fmt.Fprintf(&out, "\n%s", line)
 	}
-	for _, disclosed := range r.Honesty {
-		fmt.Fprintf(&out, "\n%s", disclosed)
-	}
+	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
 

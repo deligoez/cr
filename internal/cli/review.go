@@ -43,9 +43,7 @@ func (r *reviewResult) Text(w *writer) string {
 	for _, cell := range r.Expected {
 		fmt.Fprintf(&out, "  %s %s\n", cell.Unit, cell.Role)
 	}
-	for _, entry := range r.Honesty {
-		fmt.Fprintf(&out, "\n%s\n", entry)
-	}
+	out.WriteString(w.disclose("\n", "\n", r.Honesty...))
 	return strings.TrimRight(out.String(), "\n")
 }
 

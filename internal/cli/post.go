@@ -77,7 +77,7 @@ func (r *postResult) Text(w *writer) string {
 	for _, comment := range r.Comments {
 		text += comment.ID + ": " + string(comment.Kind) + "\n"
 	}
-	return text + r.payload() + r.Forced.Disclosure() + "\n" + r.line(w)
+	return text + r.payload() + w.disclose("", "\n", r.Forced.Disclosure()) + r.line(w)
 }
 
 // payload renders §8.5.1's full payload for a terminal: the review's own body,
