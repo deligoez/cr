@@ -39,6 +39,11 @@ type draftResult struct {
 	// on — the record is discarded and its waiver written — so the reviewer
 	// is owed the list of what it acted on rather than a count.
 	Triaged []triagedRecord `json:"triaged"`
+	// Retriaged are the records whose stored fields §7.2's two editable
+	// rows moved: the severity the reviewer chose, and the location they
+	// moved the anchor to. They are listed for the reason the discards are
+	// — cr acted on the value and the reviewer is owed what it acted on.
+	Retriaged []retriagedRecord `json:"retriaged"`
 	// Preserved are the records whose edited body §7.1.6 carried into the
 	// new draft in place of the one cr renders.
 	Preserved []string `json:"preserved"`
@@ -70,6 +75,9 @@ func (r *draftResult) Text(w *writer) string {
 			text += ", counted against its class"
 		}
 		text += "\n"
+	}
+	for _, edit := range r.Retriaged {
+		text += edit.ID + ": " + edit.moved() + "\n"
 	}
 	if len(r.Preserved) > 0 {
 		text += "kept the edited body of: " + strings.Join(r.Preserved, ", ") + "\n"
@@ -138,7 +146,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	queued = softenForDraft(queued, triage.Softened)
+	queued = retypeForDraft(queued, &triage.Triage)
 	// §6.3.1's second moment, applied over the records this draft holds
 	// and before they are rendered: the block a reviewer reads carries the
 	// register in its marker, so a forcing applied after the rendering
@@ -177,6 +185,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Round:     round.Round,
 		Queued:    len(queued),
 		Triaged:   triage.report(),
+		Retriaged: triage.retriaged(),
 		Preserved: preservedIDs(queued, triage.Preserved),
 		Forced:    forced,
 		Warnings:  warnings,
