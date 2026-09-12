@@ -91,6 +91,28 @@ func TestEachOfTheFourConditionsBlocksCompletenessOnItsOwn(t *testing.T) {
 	}
 }
 
+// A round that formed no unit is not complete, even with the other three
+// conditions holding and no gap to count.
+//
+// Every universal condition over an empty set is met, which is how a round that
+// reviewed nothing came to be reported complete. The reason names §10.2.2 and
+// says why, and it is the only reason, so a reader is told the one thing that
+// is wrong rather than a verdict that reads as a review.
+func TestARoundThatFormedNoUnitIsNotComplete(t *testing.T) {
+	held := completeRound()
+	held.Rows = Rows{Units: 0, Complete: 0, Gaps: 0, Oversized: 0, Roles: 3}
+
+	verdict := Complete(&held)
+
+	assert.False(t, verdict.Complete, "§10.2.2 is not met vacuously by a round with no unit")
+	require.Len(t, verdict.Reasons, 1)
+	assert.Equal(t, "§10.2.2: this round formed no unit from its diff, so no cell was filled "+
+		"and there is no row of cells its coverage could be complete over", verdict.Reason())
+
+	held.Rows = Rows{Units: 0, Roles: 0}
+	assert.False(t, Complete(&held).Complete, "nor when no role was active either")
+}
+
 // A claim carrying §4.1.3's unimplemented entry blocks until it is set aside
 // per §4.1.8, and stops blocking once it is.
 //

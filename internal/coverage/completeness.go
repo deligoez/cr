@@ -20,10 +20,12 @@ type Conditions struct {
 	// true when the pull request's current head is no longer the head the
 	// round was recorded against.
 	HeadMoved bool
-	// Rows is §10.2.2, as RowsOf counts it. Its Gaps is the whole of the
-	// condition: a row counts complete only when every active role filled
-	// a cell for the unit's current §3.4.6 hash, which is exactly what
-	// §10.2.2 asks and is why nothing here recounts it.
+	// Rows is §10.2.2, as RowsOf counts it. Its Gaps is the condition over
+	// the units the round formed: a row counts complete only when every
+	// active role filled a cell for the unit's current §3.4.6 hash, which
+	// is exactly what §10.2.2 asks and is why nothing here recounts it. Its
+	// Units is read too, because a round that formed none has no row to
+	// count and rowReason refuses to call it complete.
 	Rows Rows
 	// Unsettled is §10.2.3's blocking set: the round's claims that its
 	// mapping maps to no unit and that §4.1.8 has not set aside.
@@ -102,7 +104,18 @@ func headReason(c *Conditions) string {
 
 // rowReason is §10.2.2: every unit has a complete row of cells for every active
 // role, each cell filled for that unit's current unit hash per §3.4.6.
+//
+// A round that formed no unit is not held to it vacuously. "Every unit has a
+// complete row" is true of an empty set, so a round whose diff yielded nothing
+// would otherwise pass §10.2.2 without a single cell having been filled — and
+// `cr status` would print that a review was complete over a review of nothing,
+// the stronger claim than the round supports that §10.2's verdict exists to
+// refuse. So an empty round carries §10.2.2's reason, naming why.
 func rowReason(c *Conditions) string {
+	if c.Rows.Units == 0 {
+		return "§10.2.2: this round formed no unit from its diff, so no cell was filled " +
+			"and there is no row of cells its coverage could be complete over"
+	}
 	if c.Rows.Gaps == 0 {
 		return ""
 	}
