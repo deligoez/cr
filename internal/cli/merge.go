@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
@@ -24,9 +25,10 @@ import (
 // went missing could not tell a round that repeated itself from a round whose
 // judgements were being honoured.
 //
-// The counts by role, axis, severity and grade that §6.5.1 also asks for, and
-// the §10.3 round summary they are written into, belong to
-// merge-counts-reporting.
+// The counts by role, axis, severity and grade are §6.5.1's other half. They
+// are four cuts of one set rather than four measurements — the records the
+// output file holds, counted four ways — so each cut sums to Merged, and a
+// reader who doubts one can check it against the others and against the file.
 type mergeResult struct {
 	// Output is the path `-o` named, so the caller can hand it to
 	// `cr record` without reconstructing it.
@@ -41,17 +43,23 @@ type mergeResult struct {
 	AlreadyPosted finding.PostedDrops `json:"already_posted"`
 	// Overlaps is §6.4.3's overlap summary over the groups §6.4.1 formed.
 	Overlaps finding.Overlaps `json:"overlaps"`
+	// Counts is §6.5.1's four breakdowns over the records the file holds.
+	Counts mergeCounts `json:"counts"`
 	// Honesty carries the three counts above as the sentences §11.1
 	// exempts from `--quiet`.
 	Honesty []string `json:"honesty"`
 }
 
-// Text names the file and how many records reached it, then the three
-// disclosures. The records themselves are in the file the line names, so
-// printing them into a terminal would repeat what the caller can already read.
+// Text names the file and how many records reached it, then §6.5.1's four
+// breakdowns, then the three disclosures. The records themselves are in the
+// file the line names, so printing them into a terminal would repeat what the
+// caller can already read.
 func (r *mergeResult) Text(w *writer) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "merged %s record(s) into %s", w.accent(strconv.Itoa(r.Merged)), r.Output)
+	for _, line := range r.Counts.lines() {
+		fmt.Fprintf(&out, "\n%s", line)
+	}
 	for _, disclosed := range r.Honesty {
 		fmt.Fprintf(&out, "\n%s", disclosed)
 	}
@@ -63,19 +71,16 @@ func (r *mergeResult) Text(w *writer) string {
 // The disclosures are asked of the types that own them rather than assembled
 // here, as `cr record` asks its own: a wording built at the call site cannot
 // come to disagree with the data beside it.
-func newMergeResult(
-	output string, records []*finding.Finding,
-	waived finding.Drops, posted finding.PostedDrops, overlaps finding.Overlaps,
-) *mergeResult {
-	disclosures := []finding.HonestyDisclosure{waived, posted, overlaps}
+func newMergeResult(output string, merged *mergeOutcome) *mergeResult {
+	disclosures := []finding.HonestyDisclosure{merged.waived, merged.posted, merged.overlaps}
 	honesty := make([]string, 0, len(disclosures))
 	for _, disclosed := range disclosures {
 		honesty = append(honesty, disclosed.Disclosure())
 	}
 	return &mergeResult{
-		Output: output, Merged: len(records),
-		Waived: waived, AlreadyPosted: posted, Overlaps: overlaps,
-		Honesty: honesty,
+		Output: output, Merged: len(merged.records),
+		Waived: merged.waived, AlreadyPosted: merged.posted, Overlaps: merged.overlaps,
+		Counts: merged.counts, Honesty: honesty,
 	}
 }
 
@@ -163,8 +168,65 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 	if err := state.WriteNamedFile(output, body); err != nil {
 		return err
 	}
-	return out.emit(newMergeResult(
-		output, merged.records, merged.waived, merged.posted, merged.overlaps))
+	// §6.5.1's drop counts, into the round's summary.json per §10.3. They
+	// are written after the output file, so the summary describes a merge
+	// that produced one rather than a merge that was about to.
+	if err := writeMergeDrops(layout, owner, repo, pr, round.Round, merged); err != nil {
+		return err
+	}
+	return out.emit(newMergeResult(output, merged))
+}
+
+// summaryAlreadyPosted is §9.3.6's drop count, by the key
+// `rounds/<n>/summary.json` holds it under. §6.5.1 makes `cr merge` its author.
+//
+// It is a key of its own rather than a number added into summaryWaived. §6.4.4
+// and §9.3.6 remove a finding for different reasons — one the reviewer set
+// aside, one the author has already read — and §10.3 asks for a history that
+// can be reconstructed from state alone, which a single suppression count would
+// not give: a reader could not tell a round that repeated itself from a round
+// whose judgements were being honoured.
+const summaryAlreadyPosted = "already_posted"
+
+// writeMergeDrops puts §6.5.1's two drop counts into the round's summary.json,
+// which §10.3 has `cr merge` create.
+//
+// Both go through UpdateRoundSection, which leaves every field this command
+// does not own byte for byte: §10.3 has `cr merge`, `cr draft` and `cr post`
+// each accumulate their own counts into the one document, so a writer that
+// re-encoded it whole would drop whatever the writer before it had put there.
+//
+// They are written on every run, at zero as well, for the reason
+// finding.Drops.Disclosure is printed at zero: §10.1.6 reports an absent count
+// as "the merge has not run for this round", which is a different fact from a
+// merge that ran and matched nothing.
+func writeMergeDrops(
+	l state.Layout, owner, repo string, pr, round int, merged *mergeOutcome,
+) error {
+	held, err := l.LockPR(owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	writes := []func() error{
+		func() error {
+			return state.UpdateRoundSection(
+				held, round, state.FileSummary, summaryWaived, merged.waived)
+		},
+		func() error {
+			return state.UpdateRoundSection(
+				held, round, state.FileSummary, summaryAlreadyPosted, merged.posted)
+		},
+	}
+	for _, write := range writes {
+		if err := write(); err != nil {
+			// The lock is released on the way out of every branch,
+			// and the write's own failure is what the caller is
+			// told about.
+			_ = held.Unlock()
+			return err
+		}
+	}
+	return held.Unlock()
 }
 
 // mergeOutcome is what §6.5.1's four passes left: the records that reach the
@@ -174,6 +236,7 @@ type mergeOutcome struct {
 	waived   finding.Drops
 	posted   finding.PostedDrops
 	overlaps finding.Overlaps
+	counts   mergeCounts
 }
 
 // mergeRecords reads every per-role file and applies §6.5.1's four passes in
@@ -225,7 +288,74 @@ func mergeRecords(
 		waived:   waived,
 		posted:   posted,
 		overlaps: finding.MarkDuplicates(kept, role.Order(corpus)),
+		// §6.5.1's four breakdowns, over the records that reach the
+		// output file and after every pass that could remove one.
+		counts: mergeCountsOf(corpus, kept),
 	}, nil
+}
+
+// mergeCounts is §6.5.1's report over one merge: the records the output file
+// holds, counted by role, by axis, by severity and by grade.
+//
+// Each cut gives a row to every value of its vocabulary, at zero as well, and a
+// row of its own to a value the vocabulary does not list. That is what makes
+// the four sums equal — they are one set counted four ways — so a reader can
+// check any cut against the merged count and against the file.
+//
+// The grade is the one of the four that exists only here. §6.5.1 has `cr merge`
+// compute it in memory for these counts and keeps it out of the output, so this
+// is the only place the round's grades are visible before `cr record` stamps
+// them.
+type mergeCounts struct {
+	// ByRole counts §2.5.5's corpus order, which is the order §6.4.2
+	// picks a duplicate group's representative in.
+	ByRole []tally `json:"by_role"`
+	// ByAxis counts §1.5's four, in that section's order.
+	ByAxis []tally `json:"by_axis"`
+	// BySeverity counts §6.1's four, highest first.
+	BySeverity []tally `json:"by_severity"`
+	// ByGrade counts §6.2's three, strongest first.
+	ByGrade []tally `json:"by_grade"`
+}
+
+// mergeCountsOf counts §6.5.1's four dimensions over the merged records.
+//
+// The role vocabulary is the resolved corpus rather than the roles that filed
+// something, so a role that looked and found nothing is a row at zero instead
+// of an absence — which is the difference between a round in which a lens
+// reported nothing and a round in which it never ran.
+func mergeCountsOf(corpus []role.Resolved, records []*finding.Finding) mergeCounts {
+	roles := make([]string, 0, len(corpus))
+	for _, resolved := range corpus {
+		roles = append(roles, resolved.Role.ID)
+	}
+	filed := make([]string, 0, len(records))
+	axes := make([]string, 0, len(records))
+	severities := make([]string, 0, len(records))
+	grades := make([]string, 0, len(records))
+	for _, record := range records {
+		filed = append(filed, record.Role)
+		axes = append(axes, record.Axis)
+		severities = append(severities, string(record.Severity))
+		grades = append(grades, string(record.Grade))
+	}
+	return mergeCounts{
+		ByRole:     tallyOf(roles, filed),
+		ByAxis:     tallyOf(axis.IDs(), axes),
+		BySeverity: tallyOf(namesOf(finding.Severities()), severities),
+		ByGrade:    tallyOf(namesOf(finding.Grades()), grades),
+	}
+}
+
+// lines renders the four breakdowns for a terminal, one dimension to a line, in
+// the order §6.5.1 names them.
+func (c *mergeCounts) lines() []string {
+	return []string{
+		tallyLine("role", c.ByRole),
+		tallyLine("axis", c.ByAxis),
+		tallyLine("severity", c.BySeverity),
+		tallyLine("grade", c.ByGrade),
+	}
 }
 
 // readPerRole reads every §4.6.2 fan-out output file the caller named, in the
