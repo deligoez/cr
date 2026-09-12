@@ -121,8 +121,7 @@ func ranges(u *Unit) string {
 func (r *Round) claims(p *page, id string) {
 	p.section("Claims mapped to this unit (§4.1.6)")
 	if !r.Mapped {
-		p.line("No mapping is recorded for round %d yet, so no claim is known to be mapped to "+
-			"this unit (§4.6.5).", r.Round)
+		r.unjoined(p)
 		return
 	}
 	mapped := mapping.ClaimsOf(r.Pairs, r.Round, id)
@@ -136,6 +135,29 @@ func (r *Round) claims(p *page, id string) {
 			continue
 		}
 		p.line("- %s: %s", claimID, r.Claims[at].Text)
+	}
+}
+
+// unjoined writes §4.6.5's first pass: the round's claims whole, with no
+// mapping to narrow them to this unit.
+//
+// §4.6.5 has the first pass carry "the units and the claims but no mapping",
+// and the claims are what make it a pass rather than a formality — the intent
+// role produces the mapping, and it cannot produce one from units alone. What
+// is withheld is the join and not the claims: no line here says which claims
+// this unit is mapped to, or that it is mapped to none, because unmapped-ness
+// is unknowable before the role has answered.
+func (r *Round) unjoined(p *page) {
+	p.line("No mapping is recorded for round %d yet, so no claim is known to be mapped to "+
+		"this unit (§4.6.5). The round's claims are below, whole. Mapping them to the round's "+
+		"units is this pass's output, and `cr map record` stores it (§4.1.6).", r.Round)
+	p.line("")
+	if len(r.Claims) == 0 {
+		p.line("The round recorded no claim.")
+		return
+	}
+	for i := range r.Claims {
+		p.line("- %s: %s", r.Claims[i].ID, r.Claims[i].Text)
 	}
 }
 
