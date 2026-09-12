@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/draft"
@@ -49,7 +50,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 57 over 170 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 58 over 173 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -381,6 +382,17 @@ func exitCodeFor(err error) int {
 		// is where the round stands, which §11.2 codes 4 beside the
 		// unbriefed pull request above, and the refusal names the
 		// `cr brief` that records the units again.
+		return ExitState
+	}
+	var rekeyed *brief.KeyRewriteError
+	if errors.As(err, &rekeyed) {
+		// §9.3.5 scopes a round's records to the round, and §3.3 forms
+		// every claim id out of the issue key, so a key rewritten under
+		// a round is a round whose claims name an issue it no longer
+		// has. The command line is right and every file it named was
+		// read; what refuses is that the recorded round and the key
+		// §3.2 just resolved disagree, which §11.2 codes 4 beside the
+		// moved head above.
 		return ExitState
 	}
 	var mappingMissing *review.MappingRequiredError
