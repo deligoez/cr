@@ -371,23 +371,28 @@ func honestyOf(t *testing.T, printed string) string {
 // anchors nothing and only matches §8.4.3's payload hash against the reviews
 // the pull request already has.
 //
-// The flag's behaviour is not built, and the exemption is nonetheless
-// observable: the refusal for an unbuilt flag is raised before any state is
-// read, so a moved head produces §11.2's code 2 naming the flag rather than
-// code 4 naming the heads. That ordering is the exemption, and this is what
-// holds it in place while the behaviour is written — a `--reconcile` that
-// arrived on the other side of the round read would fail here.
+// The exemption is asserted from both sides of one state, which is what keeps
+// it a property rather than an accident of where a refusal happens to sit. The
+// flagged run completes over a head that really moved, and it still discloses
+// both heads under §9.3.1 — the exemption is from the refusal of §9.3.2 and
+// from nothing else. The same command over the same state without the flag is
+// refused with §11.2's code 4, so what the run above passed through is the
+// refusal and not an absent one.
 func TestPostReconcileIsExemptFromTheStaleHeadRefusal(t *testing.T) {
-	aRoundTheHeadOutran(t)
+	_, recorded, moved := aRoundTheHeadOutran(t)
 
-	err := runCLI(t, "post", fixturePR, "--repo", fixtureSlug, "--reconcile")
+	printed, err := runCLIPrinting(t, "post", fixturePR, "--repo", fixtureSlug, "--reconcile")
 
-	require.Error(t, err)
 	var stale *state.StaleRoundError
-	assert.NotErrorAs(t, err, &stale,
-		"§9.3.2 exempts `cr post --reconcile`, so the stale head is not what stopped it")
-	assert.Equal(t, ExitUsage, exitCodeFor(err))
-	assert.Contains(t, err.Error(), "--reconcile")
+	require.NoError(t, err,
+		"§9.3.2 exempts `cr post --reconcile`: it anchors nothing, so the moved head stops nothing")
+	assert.Contains(t, honestyOf(t, printed), recorded, "§9.3.1 is not exempted, and names the recorded head")
+	assert.Contains(t, honestyOf(t, printed), moved, "§9.3.1 names the current head")
+
+	refused := runCLI(t, "post", fixturePR, "--repo", fixtureSlug)
+	require.ErrorAs(t, refused, &stale,
+		"the exemption is the flag's: without it this command is a writer §9.3.2 refuses")
+	assert.Equal(t, ExitState, exitCodeFor(refused))
 }
 
 // aRoundTheHeadOutran is a pull request whose head really moved: two commits on
