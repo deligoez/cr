@@ -34,22 +34,34 @@ func (l Layout) RepoRuleStatsLockFile(owner, repo string) string {
 // critical section, and there is no exported way to hold the lock and do
 // anything else.
 //
-// The write publishes by rename, so §6.2.5's lock-free read at record time sees
-// one whole version of the file rather than half of two. Like LockRepoWaivers
-// it creates the directories it will write in, so a writer never depends on
-// EnsureRepo having run first. A ledger that is not there yet holds no
-// entries, for the reason storeRecords gives.
+// updateRepoStore below is the mechanism, shared with §7.3's triage ledger,
+// and holds what the two stores have in common.
 func UpdateRuleStats[T any](l Layout, owner, repo string, change func(held []T) []T) error {
-	lock := l.RepoRuleStatsLockFile(owner, repo)
-	ledger := l.RepoRuleStats(owner, repo)
-	if err := makeDirs([]string{filepath.Dir(lock), filepath.Dir(ledger)}); err != nil {
+	return updateRepoStore(
+		l.RepoRuleStatsLockFile(owner, repo), l.RepoRuleStats(owner, repo), change)
+}
+
+// updateRepoStore is the body every repository-scoped NDJSON store of §2.2 is
+// written through: rule-stats.ndjson and triage.ndjson both keep keyed entries
+// that a re-run overwrites, so both need the read, the decision and the write
+// inside one critical section, and neither has an exported way to hold the
+// lock and do anything else.
+//
+// Like LockRepoWaivers it creates the directories it will write in, so a writer
+// never depends on EnsureRepo having run first. A store that is not there yet
+// holds no entries, for the reason storeRecords gives.
+//
+// The write publishes by rename, so §2.3.2's lock-free readers see one whole
+// version of the file rather than half of two.
+func updateRepoStore[T any](lock, store string, change func(held []T) []T) error {
+	if err := makeDirs([]string{filepath.Dir(lock), filepath.Dir(store)}); err != nil {
 		return err
 	}
 	held := flock.New(lock)
 	if err := held.Lock(); err != nil {
 		return fmt.Errorf("cannot lock %s: %w", lock, err)
 	}
-	err := rewriteStore(ledger, change)
+	err := rewriteStore(store, change)
 	// The lock is released on the way out of every branch, and the write's
 	// own failure is what the caller is told about when there was one.
 	if released := held.Unlock(); err == nil && released != nil {
