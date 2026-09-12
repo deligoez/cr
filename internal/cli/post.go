@@ -178,6 +178,13 @@ func buildReview(out *writer, l state.Layout, owner, repo string, pr int, round 
 	if err := finding.RefuseArguedAssertion(queued); err != nil {
 		return err
 	}
+	// §8.4.1's pre-validation, over the comments the call would carry
+	// rather than over the records the round recorded — which is why it
+	// stands after the forcings and the draft's discards, and before
+	// anything is rendered.
+	if err := validatePositions(owner, repo, pr, round, queued); err != nil {
+		return err
+	}
 	review, err := buildPayload(l, owner, repo, pr, round, queued, triage.Preserved)
 	if err != nil {
 		return err
