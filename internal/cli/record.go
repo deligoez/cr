@@ -454,6 +454,11 @@ func acceptRecords(
 	// to no claim is a question, never a finding. It reads the axis
 	// stamped above and moves only toward the question register.
 	forceUnmappedIntent(round.Round, formed, evidence.pairs, records)
+	// §4.3.4: a reinvention item defaults to a question, before and apart
+	// from §6.3's forcing, which a cited reinvention item never meets.
+	if err := defaultReinventionQuestions(l, owner, repo, pr, round, formed, records); err != nil {
+		return nil, nil, err
+	}
 	// §6.3.1's first of three moments, and invariant 4: a record graded
 	// argued is forced to kind question. It is last because it reads the
 	// grade, and it is here rather than in a role's instructions because
