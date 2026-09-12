@@ -167,10 +167,11 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 	if err := state.WriteNamedFile(output, body); err != nil {
 		return err
 	}
-	// §6.5.1's drop counts, into the round's summary.json per §10.3. They
-	// are written after the output file, so the summary describes a merge
-	// that produced one rather than a merge that was about to.
-	if err := writeMergeDrops(layout, owner, repo, pr, round.Round, merged); err != nil {
+	// §6.5.1's drop counts and §10.3's raised count, into the round's
+	// summary.json. They are written after the output file, so the summary
+	// describes a merge that produced one rather than a merge that was
+	// about to.
+	if err := writeMergeCounts(layout, owner, repo, pr, round.Round, merged); err != nil {
 		return err
 	}
 	return out.emit(newMergeResult(output, merged))
@@ -187,43 +188,33 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 // whose judgements were being honoured.
 const summaryAlreadyPosted = "already_posted"
 
-// writeMergeDrops puts §6.5.1's two drop counts into the round's summary.json,
-// which §10.3 has `cr merge` create.
+// writeMergeCounts puts `cr merge`'s share of §10.3's counts into the round's
+// summary.json, which §10.3 has this command create.
 //
-// Both go through UpdateRoundSection, which leaves every field this command
-// does not own byte for byte: §10.3 has `cr merge`, `cr draft` and `cr post`
-// each accumulate their own counts into the one document, so a writer that
-// re-encoded it whole would drop whatever the writer before it had put there.
+// The three are the head of §10.3's list: what the roles raised, and the two
+// passes that took findings back out before anything was recorded. Every later
+// count in the document is read against them.
 //
 // They are written on every run, at zero as well, for the reason
 // finding.Drops.Disclosure is printed at zero: §10.1.6 reports an absent count
 // as "the merge has not run for this round", which is a different fact from a
 // merge that ran and matched nothing.
-func writeMergeDrops(
+func writeMergeCounts(
 	l state.Layout, owner, repo string, pr, round int, merged *mergeOutcome,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
 	}
-	writes := []func() error{
-		func() error {
-			return state.UpdateRoundSection(
-				held, round, state.FileSummary, summaryWaived, merged.waived)
-		},
-		func() error {
-			return state.UpdateRoundSection(
-				held, round, state.FileSummary, summaryAlreadyPosted, merged.posted)
-		},
-	}
-	for _, write := range writes {
-		if err := write(); err != nil {
-			// The lock is released on the way out of every branch,
-			// and the write's own failure is what the caller is
-			// told about.
-			_ = held.Unlock()
-			return err
-		}
+	if err := writeSummary(held, round, ownerMerge, []summaryCount{
+		{key: summaryRaised, value: merged.raised},
+		{key: summaryWaived, value: merged.waived},
+		{key: summaryAlreadyPosted, value: merged.posted},
+	}); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
 	}
 	return held.Unlock()
 }
@@ -231,7 +222,10 @@ func writeMergeDrops(
 // mergeOutcome is what §6.5.1's four passes left: the records that reach the
 // output file, and what each drop took out of them.
 type mergeOutcome struct {
-	records  []*finding.Finding
+	records []*finding.Finding
+	// raised is how many records the per-role files held, before any of
+	// §6.5.1's passes removed one: §10.3's `raised`.
+	raised   int
 	waived   finding.Drops
 	posted   finding.PostedDrops
 	overlaps finding.Overlaps
@@ -284,6 +278,7 @@ func mergeRecords(
 	// write. The state §6.4.3 names is `cr record`'s to stamp.
 	return &mergeOutcome{
 		records:  kept,
+		raised:   len(records),
 		waived:   waived,
 		posted:   posted,
 		overlaps: finding.MarkDuplicates(kept, role.Order(corpus)),
