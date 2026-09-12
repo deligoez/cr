@@ -47,6 +47,10 @@ type draftResult struct {
 	// payload rather than a sentence alone, so an agent reading the
 	// document gets the numbers and not only the prose.
 	Forced finding.Forcings `json:"forced_to_question"`
+	// Warnings are §8.2.3's, one per suggestion indented unlike the line it
+	// replaces. They are warnings and not refusals: the reviewer is shown
+	// both lines and decides, and a block left in place posts as written.
+	Warnings []string `json:"warnings"`
 }
 
 // Text names the count, the round, and the file to open, then what the
@@ -69,6 +73,9 @@ func (r *draftResult) Text(w *writer) string {
 	}
 	if len(r.Preserved) > 0 {
 		text += "kept the edited body of: " + strings.Join(r.Preserved, ", ") + "\n"
+	}
+	for _, warning := range r.Warnings {
+		text += warning + "\n"
 	}
 	return text + r.Forced.Disclosure()
 }
@@ -152,6 +159,13 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
+	// §8.2.3, over the records the draft is about to hold and before it is
+	// written, so the reviewer reads the warning beside the file it is
+	// about rather than after deciding what to do with it.
+	warnings, err := indentationWarnings(owner, repo, pr, round, queued)
+	if err != nil {
+		return err
+	}
 	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
 		return err
 	}
@@ -165,6 +179,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Triaged:   triage.report(),
 		Preserved: preservedIDs(queued, triage.Preserved),
 		Forced:    forced,
+		Warnings:  warnings,
 	})
 }
 
