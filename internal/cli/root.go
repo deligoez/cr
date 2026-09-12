@@ -2,7 +2,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -80,8 +79,9 @@ func newRootCmd() *cobra.Command {
 // Execute runs the root command and maps errors onto cr's exit codes.
 func Execute() {
 	if err := newRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		fmt.Fprintln(os.Stderr, "hint:", hintFor(err))
+		// A failure to report the failure has nowhere left to go; the exit
+		// code below still says what happened.
+		_ = reportFailure(os.Stdout, os.Stderr, os.Args[1:], err)
 		os.Exit(exitCodeFor(err))
 	}
 }

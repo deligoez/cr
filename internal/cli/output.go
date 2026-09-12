@@ -421,6 +421,57 @@ func (w *writer) accent(s string) string {
 	return accent.Sprint(s)
 }
 
+// failure is §12.4's error document: what refused, and the next actionable
+// step. Both are strings, so there is no slice here for §12.3 to watch.
+type failure struct {
+	// Error is the refusal as the error states it.
+	Error string `json:"error"`
+	// Hint is §12.4's next actionable step, from hintFor.
+	Hint string `json:"hint"`
+}
+
+// reportFailure writes one failed run's error to stderr in the shape §12.1
+// gives the run: a JSON document carrying `error` and `hint` when stdout is not
+// a terminal or `--json` was given, and two prose lines otherwise.
+//
+// The shape is decided here, from stdout and the arguments, rather than read
+// off the writer settle filled in, because settle runs in PersistentPreRunE and
+// a usage error — an unknown flag, a missing argument — refuses before it. A
+// failure reported in text through a pipe would be the one output of the run an
+// agent could not parse, and it is the one output that says what to do next.
+//
+// It goes to stderr in both shapes. A failed run has no result, and stdout is
+// where a command's result goes; the exit code is what tells the caller which
+// of the two to read.
+func reportFailure(stdout, stderr io.Writer, args []string, err error) error {
+	reported := failure{Error: err.Error(), Hint: hintFor(err)}
+	if !asksForJSON(args) && isTerminal(stdout) {
+		_, werr := fmt.Fprintf(stderr, "error: %s\nhint: %s\n", reported.Error, reported.Hint)
+		return werr
+	}
+	encoded, merr := json.MarshalIndent(reported, "", "  ")
+	if merr != nil {
+		return merr
+	}
+	_, werr := fmt.Fprintln(stderr, string(encoded))
+	return werr
+}
+
+// asksForJSON reports whether the arguments carry §11.1's `--json`, read the
+// way pflag reads a boolean flag: bare or as `--json=true`, and never after the
+// `--` that ends flag parsing.
+func asksForJSON(args []string) bool {
+	for _, arg := range args {
+		switch arg {
+		case "--":
+			return false
+		case "--json", "--json=true":
+			return true
+		}
+	}
+	return false
+}
+
 // isTerminal reports whether out is a terminal.
 //
 // The question is asked of the io.Writer the command will actually write to,
