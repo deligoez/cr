@@ -95,10 +95,9 @@ func numstatFields(record string) (added, removed, path string, ok bool) {
 // `--source` reads the tree rather than the worktree, so the answer is the one
 // head declares and not the one the checkout happens to hold; measured on git
 // 2.55.0, a worktree `.gitattributes` the head tree lacks leaves a path
-// `unspecified`. Two attribute sources outside the tree are still consulted,
-// because run pins neither: the per-clone `$GIT_DIR/info/attributes`, which git
-// offers no switch to exclude, and `core.attributesFile`, which the diff read
-// consults too.
+// `unspecified`. A user's `core.attributesFile` is not consulted, because run
+// pins it; the per-clone `$GIT_DIR/info/attributes` still is, since git offers no
+// switch that excludes it.
 func Generated(dir, head string, paths []string) (map[string]bool, error) {
 	generated := make(map[string]bool, len(paths))
 	if len(paths) == 0 {

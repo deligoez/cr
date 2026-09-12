@@ -71,6 +71,12 @@ var pinnedConfig = []string{
 	// Rename detection gives up above this many candidates, so the limit
 	// decides whether a rename is reported as a rename.
 	"diff.renameLimit=1000",
+	// A user's own attributes file, and the $HOME/.config/git/attributes git
+	// reads when this is unset, can mark a path `-diff` or
+	// `linguist-generated`: the first turns a text diff into "Binary files
+	// differ", the second decides what §3.4.7 lists. Pointing the setting at
+	// the null device leaves the repository's own attributes to decide.
+	"core.attributesFile=" + os.DevNull,
 }
 
 // pinnedEnv is the environment every run carries, ahead of the inherited
