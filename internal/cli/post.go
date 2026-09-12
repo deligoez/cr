@@ -17,12 +17,12 @@ import (
 // which round it was built from, which records it holds, and §6.3.2's forcing
 // count over them.
 //
-// It carries no §12.6 `posted` field, and that is the contract rather than an
-// omission. §12.6 gives the field to the commands that could have performed the
-// network write, which §8.5.2 makes exactly the commands that mint a
-// confirmation; this one mints none, so a `"posted": false` here would report a
-// decision nothing made. The field arrives with the gate, in the commit that
-// builds it.
+// It carries §12.6's `posted` field because §8.5.2 makes this the one command
+// that could have performed the network write: it is the only site that mints a
+// confirmation, so it is the only result for which `"posted": false` reports a
+// decision something actually made. §8.5.1 requires that value of the dry run in
+// as many words, and §8.5.4 bounds what the field may mean — it records that cr
+// sent the review, never that a human read the draft.
 type postResult struct {
 	// Round is the round the review was built from.
 	Round int `json:"round"`
