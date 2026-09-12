@@ -68,7 +68,7 @@ func newRootCmd() *cobra.Command {
 	// command that is misspelled, and both come back as §11.2's code 2.
 	root.AddCommand(newReviewCmd(out))
 	root.AddCommand(newMergeCmd())
-	root.AddCommand(newPostCmd())
+	root.AddCommand(newPostCmd(out))
 	root.AddCommand(newStatusCmd())
 	root.AddCommand(newStatsCmd())
 	root.AddCommand(newWaiversCmd())
