@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os/exec"
 	"path/filepath"
@@ -54,7 +55,12 @@ func TestEveryUsageErrorExitsTwoFromTheProcess(t *testing.T) {
 			var exited *exec.ExitError
 			require.True(t, errors.As(err, &exited), "the run did not fail: %v", err)
 			assert.Equal(t, ExitUsage, exited.ExitCode(), "stderr: %s", stderr.String())
-			assert.Contains(t, stderr.String(), "hint: "+usageHint)
+			// stdout is not a terminal here, so §12.1 makes the failure a
+			// document; it is decoded rather than matched, because the
+			// encoder escapes the hint's angle brackets.
+			var reported failure
+			require.NoError(t, json.Unmarshal(stderr.Bytes(), &reported), "stderr: %s", stderr.String())
+			assert.Equal(t, usageHint, reported.Hint)
 		})
 	}
 }
