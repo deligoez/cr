@@ -45,16 +45,6 @@ func notImplemented(cmd *cobra.Command, _ []string) error {
 	return &notImplementedError{Command: cmd.CommandPath(), Hint: notImplementedHint}
 }
 
-// notImplementedFor is the same refusal named at a finer grain than a command.
-//
-// `cr config` runs and `cr config --resolved` does not, and a refusal naming
-// only the command would tell the caller that the command they just used
-// successfully is missing. What is unbuilt is the flag, so the flag is what the
-// refusal names.
-func notImplementedFor(cmd *cobra.Command, flag string) error {
-	return &notImplementedError{Command: cmd.CommandPath() + " --" + flag, Hint: notImplementedHint}
-}
-
 // stubAnnotation marks a command as registered ahead of its behaviour, and
 // carries the hint its refusal will give.
 //
