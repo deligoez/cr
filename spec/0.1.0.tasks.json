@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-11T07:00:11.110732Z",
+  "updated_at": "2026-09-12T08:02:50.609225Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6554,7 +6554,7 @@
     {
       "id": "suggestion-range-validation",
       "title": "Validate suggestion ranges within one hunk",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "evidence-region",
@@ -6565,11 +6565,24 @@
       "source_sections": [
         "### 8.2 Suggestion validation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T07:54:13.657664Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:02:50.585321Z",
+      "closed_reason": "- internal/suggestion/validate.go admits a suggestion only when the record's anchored range is contiguous on the RIGHT side and falls inside the head range of one RIGHT-side hunk of that path, per §8.2.1 and §8.2.2, and TestARangeInsideOneHunkIsAdmitted asserts both hunk edges and both hunks of the fixture.\n- suggestion.Validate returns a RangeError carrying the record id, internal/cli/exit.go maps it onto ExitValidation, and TestAnUnplaceableSuggestionIsCodedOneNamingTheRecord asserts exit code 1 and the id \"f4\" in the message, per §8.2.4.\n- TestARangeOutsideOneHunkIsRefusedNamingTheRecord covers a line the diff does not carry, a file it does not touch, a LEFT-side anchor, a hunk that adds no line, a range spanning two hunks, a backwards range, and a range starting at line 0.\n- Round 12's suggestion-range-unbound is closed by binding the replaced range to anchor.start_line..anchor.line in the package doc and by bounding that range against one hunk, so a contiguous range whose ends sit in two hunks is refused rather than accepted.\n",
+      "gate_passed_at": "2026-09-12T08:02:50.585321Z",
+      "commit_sha": "247017f",
+      "commit_shas": [
+        "247017f",
+        "e6153db",
+        "59d09a2",
+        "8536593"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/suggestionrange_test.go",
+        "internal/suggestion/validate.go",
+        "internal/suggestion/validate_test.go"
+      ]
     },
     {
       "id": "suggestion-indentation-warning",
