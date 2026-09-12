@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"strconv"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -58,7 +60,7 @@ func newClaimsCmd(out *writer) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newClaimsRecordCmd(out))
-	cmd.AddCommand(newClaimsSetAsideCmd())
+	cmd.AddCommand(newClaimsSetAsideCmd(out))
 	return cmd
 }
 
@@ -76,14 +78,134 @@ func newClaimsCmd(out *writer) *cobra.Command {
 //
 // The behaviour belongs to claims-set-aside-command; what is registered here is
 // the shape.
-func newClaimsSetAsideCmd() *cobra.Command {
-	cmd := stubCmd(
-		"set-aside "+prPlaceholder+" <claim-id>",
-		"Mark an unimplemented claim out of scope",
-		prArgs(2),
-	)
-	cmd.Flags().String("note", "", "the note id recording why the claim is out of scope (§4.1.8)")
+func newClaimsSetAsideCmd(out *writer) *cobra.Command {
+	var noteID string
+
+	cmd := &cobra.Command{
+		Use:   "set-aside " + prPlaceholder + " <claim-id>",
+		Short: "Mark an unimplemented claim out of scope",
+		Args:  prArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pr, err := parsePR(args[0])
+			if err != nil {
+				return err
+			}
+			owner, repo, err := repoOf(cmd)
+			if err != nil {
+				return err
+			}
+			layout, err := state.Default()
+			if err != nil {
+				return err
+			}
+			// Briefed rather than ReadMeta, for the reason
+			// `cr map record` gives: §4.1.7 derives the entry this
+			// stamps from the round's claims and mapping, and a
+			// pull request no round has been opened on raises no
+			// entry to stamp. §11.2's code 4 names `cr brief`.
+			recorded, err := briefedRound(layout, owner, repo, pr)
+			if err != nil {
+				return err
+			}
+			// §9.3.2: this writes intent-gaps.ndjson, so a head
+			// that moved under the round refuses here. The entry
+			// being stamped was derived from that round's units,
+			// and §9.3.4 is about to clear the mapping it came
+			// from — a set-aside recorded in between would be a
+			// judgement about a diff nobody is reviewing any more.
+			if err := recorded.RefuseStale(); err != nil {
+				return err
+			}
+			if err := stampSetAside(layout, &recorded, args[1], noteID); err != nil {
+				return err
+			}
+			return out.emit(&claimsSetAsideResult{
+				Claim: args[1], Note: noteID, Round: recorded.Round,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&noteID, "note", "",
+		"the note id recording why the claim is out of scope (§4.1.8)")
+	// Required rather than defaulted, for the reason the doc comment
+	// gives: a set-aside with no note behind it is cr forming the opinion
+	// §4.1.8 denies it. A missing flag is a malformed invocation, which
+	// cobra refuses before RunE and §11.2 codes 2.
+	_ = cmd.MarkFlagRequired("note")
+
 	return cmd
+}
+
+// claimsSetAsideResult is what `cr claims set-aside` reports: the claim it set
+// aside, the note the decision rests on, and the round the entry stands in.
+//
+// The note is echoed rather than assumed. It was checked against the store
+// before anything was written, and a caller that mistyped an id learns from the
+// refusal; a caller that did not is told which note the entry now carries,
+// which is the field §10.2.3 will read when it decides whether the claim still
+// blocks completeness.
+type claimsSetAsideResult struct {
+	// Claim is the claim id §4.1.3 raised the entry for.
+	Claim string `json:"claim"`
+	// Note is the note id §4.1.8 stamped onto it.
+	Note string `json:"note"`
+	// Round is the round the entry belongs to, per §9.3.5.
+	Round int `json:"round"`
+}
+
+func (r *claimsSetAsideResult) Text(w *writer) string {
+	return "set " + w.accent(r.Claim) + " aside in round " + strconv.Itoa(r.Round) +
+		" on note " + r.Note
+}
+
+// stampSetAside is §4.1.8's check and its write.
+//
+// The note is checked before the lock is taken and the entry before anything is
+// written, which is the order `cr claims record` and `cr map record` both use:
+// §4.1.8's validation can refuse, and a refusal that had already republished
+// intent-gaps.ndjson would have rewritten the round's entries on the strength
+// of a command the caller is about to retype.
+//
+// Existence is the whole of the check, because it is the whole of what §4.1.8
+// asks for — "after checking the note exists for the PR's issue key". The store
+// is the issue key's, loaded whole: §3.6.4 gives every round the same notes and
+// §9.3.5 exempts the store from round scoping, so a slice narrowed by round or
+// by pull request would report a note somebody recorded as one that does not
+// exist. Whether the note still stands is a different question, and §3.6.6
+// spells its consequence for a record citing a note rather than for this stamp;
+// answering it here would be cr judging a set-aside, which §4.1.8 reserves for
+// the agent.
+func stampSetAside(l state.Layout, round *state.Round, claim, noteID string) error {
+	// The key is settled before the store is opened, not after: §2.2 puts
+	// the store at context/<ISSUE-KEY>.ndjson, so a load under no key names
+	// the directory plus an extension rather than asking an empty question.
+	if round.IssueKey == "" {
+		return &intent.NoIssueKeyError{Owner: round.Owner, Repo: round.Repo, PR: round.PR}
+	}
+	notes, err := note.Load(l, round.IssueKey)
+	if err != nil {
+		return err
+	}
+	if note.StandingOf(notes, noteID) == note.StandingDangling {
+		return &note.UnknownNoteError{ID: noteID, IssueKey: round.IssueKey}
+	}
+	recorded, err := state.ReadRecords[mapping.Gap](
+		l, round.Owner, round.Repo, round.PR, state.FileIntentGaps)
+	if err != nil {
+		return err
+	}
+	stamped, err := mapping.SetAside(recorded, claim, noteID, round.Round)
+	if err != nil {
+		return err
+	}
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
+	if err != nil {
+		return err
+	}
+	at := state.Stamp{Head: round.Head, Round: round.Round}
+	// Joined rather than branched: the lock is released whether or not the
+	// write succeeded, and neither failure is traded away for the other.
+	return errors.Join(
+		state.ReplaceStamped(held, state.FileIntentGaps, at, stamped), held.Unlock())
 }
 
 // newClaimsRecordCmd stores the claims the agent extracted from the issue
