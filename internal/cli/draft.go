@@ -318,7 +318,8 @@ func roundCoverage(l state.Layout, owner, repo string, pr int, round *state.Meta
 	if err != nil {
 		return coverage.Rows{}, err
 	}
-	cells, err := state.ReadRecords[coverage.Cell](l, owner, repo, pr, state.FileCoverage)
+	cells, err := state.ReadStamped[coverage.Cell](
+		l, owner, repo, pr, state.FileCoverage, round.Round)
 	if err != nil {
 		return coverage.Rows{}, err
 	}
@@ -338,17 +339,7 @@ func roundCoverage(l state.Layout, owner, repo string, pr int, round *state.Meta
 func roundFindingsOf(
 	l state.Layout, owner, repo string, pr, round int,
 ) ([]*finding.Finding, error) {
-	stored, err := state.ReadRecords[*finding.Finding](l, owner, repo, pr, state.FileFindings)
-	if err != nil {
-		return nil, err
-	}
-	current := make([]*finding.Finding, 0, len(stored))
-	for _, record := range stored {
-		if record.Round == round {
-			current = append(current, record)
-		}
-	}
-	return current, nil
+	return state.ReadStamped[*finding.Finding](l, owner, repo, pr, state.FileFindings, round)
 }
 
 // queueRecords walks §9.1's `draft` → `queued` row over the round's records and
