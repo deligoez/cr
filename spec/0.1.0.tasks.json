@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T14:00:27.892516Z",
+  "updated_at": "2026-09-12T14:12:07.308107Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7794,7 +7794,7 @@
     {
       "id": "issue-key-rewrite-refusal",
       "title": "Refuse to blank a recorded issue key",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "brief-creates-state"
@@ -7804,11 +7804,29 @@
       "source_sections": [
         "### 9.3 Rounds and staleness"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:00:42.570762Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T14:12:07.27782Z",
+      "closed_reason": "- The defect brief-payload's dogfood run found is reproduced and closed: a `cr brief` whose intent.key_pattern no longer matched rewrote meta.json's issue_key to empty and said nothing, orphaning every claim recorded as \u003cISSUE-KEY\u003e#c\u003cn\u003e per §3.3, and internal/brief's refuseRekey now refuses that write.\n- A brief that would replace a non-empty recorded issue key with a different one, or with none, refuses rather than writing: refuseRekey returns brief.KeyRewriteError from inside roundOf, before §9.3.3's comparison and before persist is reached, so nothing in the state directory is touched.\n- It refuses with exit code 4: internal/cli/exit.go maps KeyRewriteError onto ExitState, TestARewrittenIssueKeyExitsWithTheStateCode holds it there through a wrapping, and the dogfood run exited 4 for both a non-matching pattern and an `--issue OTHER-1`.\n- It refuses with a hint: the message names the recorded key, the key §3.2 resolved or \"no key at all\", the pattern in force, the `cr brief --issue CR-1` that keeps the recorded key, and the state directory to remove to start the pull request over under a new one.\n- A test records claims under one key and then briefs again with a pattern that matches nothing: internal/brief/rekey_test.go's TestABriefRefusesToReplaceARecordedIssueKey records CR-7#c1, then re-briefs under `ZZZ-[0-9]+` and under `--issue OTHER-1`.\n- That test asserts meta.json and claims.ndjson are both untouched, compared byte for byte before and after rather than field by field, so a rewrite that re-derived the same values would not pass it.\n- Also found by dogfooding and now fixed: a tracker-backed profile made `cr brief` run the tracker command and fail on a 404, and the message carried only the command line, the exit status and the tool's stderr.\n- The message names `--issue`: intent.CommandError.Error now ends with §3.2's resolution order and `--issue \u003cKEY\u003e` as what corrects a key cr read off the branch, alongside §3.1.4's `--intent-file \u003cpath\u003e` for the tracker that cannot be reached whatever the key, and TestAFailedTrackerCommandNamesTheFlagsThatGetPastIt holds both, with and without stderr.\n- Dogfooded against an isolated CR_HOME and a local scratch repository with a self-contained gh shim; the refusal printed \"round of pull request 1 is recorded under issue key CR-1 and §3.2 resolved no key at all from intent.key_pattern \\\"ZZZ-[0-9]+\\\"\", meta.issue_key stayed 'CR-1' and claim CR-1#c1 stayed recorded, and `cr brief --issue CR-1` then ran and reported round 1.\n- Invariant 2 verified by hand: `git status --porcelain` in the scratch repository was empty and both refs were unchanged after every run.\n- The gate is green at 6 commits: `go test -race -count=1 ./...`, `golangci-lint run` at 0 issues, `./scripts/deadcode.sh` silent, and `gofmt -l internal cmd` empty.\n",
+      "gate_passed_at": "2026-09-12T14:12:07.27782Z",
+      "commit_sha": "041ee3f",
+      "commit_shas": [
+        "041ee3f",
+        "7b73164",
+        "cf50360",
+        "c12064b",
+        "5a16648",
+        "4a6d8ee"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/rekey.go",
+        "internal/brief/rekey_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/intent/run.go",
+        "internal/intent/run_test.go"
+      ]
     },
     {
       "id": "orphaned-sandbox-recovery",
