@@ -171,6 +171,18 @@ Two rules that make the phase-boundary run worth doing:
    path nothing can inject. Enter it in `scripts/known-survivors.json` saying
    exactly that. Say which ones are being left and why. `gremlins` is load-sensitive — a
    run full of `TIMED OUT` is not a result.
+
+   Two habits that classification paid for, both measured 2026-09-12.
+   **A comment claiming a mutant is unobservable is a claim to check, not a
+   finding to inherit**: five annotations in this tree said a sum sizing a slice
+   was only a hint that no test could observe, and four were wrong — `make`
+   panics on a negative capacity, and ordinary input reaches one in
+   `activation`, `config`, `cli/context` and `sandbox/clean`. And **a test that
+   goes red under the mutation is not yet a test that kills it**: a first
+   attempt at `cli/record.go:350` made `findings.ndjson` a directory, which
+   failed the command under the mutant too, because the next read failed as
+   well. Isolating the mutated statement took a read-only PR directory, where
+   the write fails and every read still succeeds. Check what the red is proving.
 3. **Read `NOT COVERED` and `TIMED OUT` as their own categories, never as
    survivors.** A mutant on a tagless `switch`'s **case expression** is reported
    `NOT COVERED` however well the branch is tested: Go's cover tool starts each
