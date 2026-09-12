@@ -159,20 +159,26 @@ func TestASecondBlockForOneRecordStopsTheIngest(t *testing.T) {
 	assert.Contains(t, malformed.Problem, fmt.Sprintf("line %d", first), "and the first is named beside it")
 }
 
-// A block naming a record the draft was not rendered for is never adopted: it
-// is neither kept nor taken for anything, so the regenerated draft does not
-// carry it. That is what keeps a deleted block from being resurrected by
-// pasting it back, since a discarded record is no longer among the queued.
-func TestABlockOutsideTheQueuedRecordsIsNotAdopted(t *testing.T) {
+// §7.2's `id` row: a block naming a record the draft was not rendered for
+// aborts, naming the id, rather than being adopted.
+//
+// One refusal answers two obligations. It keeps a deleted block from being
+// resurrected by pasting it back, since a discarded record is no longer among
+// the queued; and it is §7.2.3's own, which gives v0.1 no manual-comment
+// channel because a hand-written block carries no role, axis or grade cr
+// computed.
+func TestABlockOutsideTheQueuedRecordsAborts(t *testing.T) {
 	record, discarded := aRecord("f1"), aRecord("f9")
 	file, entries := renderedRound(t, record)
 	pasted := file + "\n" + markerOf(discarded).String() + "\n\n" + body(discarded) + "\n"
 
-	triage, err := Ingest([]*finding.Finding{record}, pasted, entries)
-	require.NoError(t, err)
+	_, err := ingested([]*finding.Finding{record}, pasted, entries)
 
-	assert.Empty(t, triage.Deleted)
-	assert.Empty(t, triage.Preserved, "the pasted block is not a body cr keeps for anything")
+	var refused *MarkerEditError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, "f9", refused.ID, "the abort names the id the round does not hold")
+	assert.Equal(t, "id", refused.Field)
+	assert.Contains(t, refused.Error(), "f9")
 }
 
 // §7.2: `disposition=wrong` in the marker discards the record as a false
