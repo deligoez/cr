@@ -42,6 +42,18 @@ var stampedFiles = []string{
 	FileProbes, FileRuns, FileIntentGaps, FileCoverage,
 }
 
+// StampedFiles returns the eight §2.3.3 file names in the order §2.3.3 names
+// them. The result is a copy, so a caller can neither widen the set nor
+// reorder it.
+//
+// It is exported for the guard that holds §9.3.5's scoping over the tree:
+// which files carry a round is what decides which reads have to be scoped by
+// one, and a guard spelling that set out for itself could go on measuring
+// yesterday's table.
+func StampedFiles() []string {
+	return append(make([]string, 0, len(stampedFiles)), stampedFiles...)
+}
+
 // WriteRecords writes an NDJSON file of the locked pull request's state that
 // §2.3.3 does not list, and refuses one it does.
 func WriteRecords[T any](k *Lock, name string, records []T) error {
