@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T09:08:11.839662Z",
+  "updated_at": "2026-09-12T09:13:30.998912Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5885,7 +5885,7 @@
     {
       "id": "post-recomputes-grade",
       "title": "Recompute grades before building the payload",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "marker-edit-semantics",
@@ -5896,11 +5896,35 @@
       "source_sections": [
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:59:10.236344Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T09:13:30.953139Z",
+      "closed_reason": "- cli.buildReview is §7.2.2 in order: roundGrading.regrade recomputes every record's grade from §6.2.1's inputs, the draft is read back only afterwards so §7.2's kind row is judged against the recomputed grade, and §4.1.4's forcing, §6.3's ForceQuestions and RefuseArguedAssertion are applied over the survivors before post.Build assembles the payload; `cr post` stops being a stub for this and writes nothing at all, with `--confirm` and `--reconcile` refusing by name so no caller learns that the §8.5 gate is satisfied by a run that sent nothing.\n- TestPostRecomputesTheGradeBeforeItReadsTheMarker hardens a stored question to kind=finding in the marker and asserts `cr draft` admits it on the recorded grade while `cr post` refuses with exit 1 naming f1 and \"argued\"; dogfooded on the built binary, which printed `draft line 11, record f1: kind asks for \"finding\" on a record cr graded \"argued\"` and left findings.ndjson byte-identical.\n- Carried finding intent-finding-on-unmapped-unit: §4.1.4 ran only at `cr record`, so a mapping replaced or cleared inside a round left a recorded intent finding asserting against a claim the round no longer maps to its unit.\n- roundGrading.forceUnmapped re-applies it at `cr draft` and at `cr post` from one read of the round's units and mapping, and TestClearingTheMappingMakesARecordedIntentFindingAQuestion records the finding while u1 is mapped, clears mapping.ndjson, and asserts both the regenerated draft's marker and the payload's comment read as a question; dogfooded through the binary, where clearing the mapping turned the reported comment from {\"id\":\"f2\",\"kind\":\"finding\"} into {\"id\":\"f2\",\"kind\":\"question\"}.\n- Carried finding evidence-region: §8.1.7's regions are regenerated at post time too, and draft.commentOf was the one path building label, provenance and evidence while `cr post` had no way to reach it.\n- draft.PostBodies is that exported entry point and calls commentOf once per record rather than rendering anything itself, with §8.1.5 applied there because post time is the first moment it can honestly be required; TestAPostedBodyIsTheDraftedBlockThroughTheSamePath compares each posted comment against the drafted block byte for byte over one record of each grade, so the label, the citations and the probe region are all covered.\nOut of scope: `cr draft` does not recompute grades, only `cr post` does, which is what §7.2.2 assigns and what makes the test above meaningful; the consequence is that a hardening `cr draft` admits can be refused by `cr post`, and if that surprise is unwanted the spec section rather than the implementation is what would have to change.\n",
+      "gate_passed_at": "2026-09-12T09:13:30.953139Z",
+      "commit_sha": "430c2d5",
+      "commit_shas": [
+        "430c2d5",
+        "bf0f677",
+        "a9f0673",
+        "e1f0edc",
+        "ce1482f",
+        "1575f89",
+        "a7e75f4",
+        "55425d3",
+        "29deffc"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/grade.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/post.go",
+        "internal/cli/postgrade_test.go",
+        "internal/cli/root.go",
+        "internal/cli/surface_test.go",
+        "internal/draft/post.go",
+        "internal/draft/post_test.go"
+      ]
     },
     {
       "id": "unknown-marker-id-aborts",
