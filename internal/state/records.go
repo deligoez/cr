@@ -111,6 +111,29 @@ func AppendStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error
 	for _, record := range records {
 		record.setStamp(at)
 	}
+	return appendLines(k, name, records)
+}
+
+// AppendRecords adds records to the end of an NDJSON file of the locked pull
+// request's state that §2.3.3 does not list, leaving what the file already
+// holds byte for byte, and refuses one it does, as WriteRecords does.
+//
+// transitions.ndjson is what it exists for: §9.1.1's journal is history that
+// only grows, so a write that re-encoded the lines already there could rewrite
+// an earlier transition, and one that replaced the file would erase it.
+func AppendRecords[T any](k *Lock, name string, records []T) error {
+	if slices.Contains(stampedFiles, name) {
+		return fmt.Errorf(
+			"%s: §2.3.3 requires head and round on every record, so it is appended with AppendStamped",
+			name,
+		)
+	}
+	return appendLines(k, name, records)
+}
+
+// appendLines is the body both appends share: the records encoded as NDJSON
+// after the bytes the file already holds, published through the held lock.
+func appendLines[T any](k *Lock, name string, records []T) error {
 	added, err := encodeRecords(name, records)
 	if err != nil {
 		return err
