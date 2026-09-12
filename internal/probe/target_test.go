@@ -177,26 +177,38 @@ func headHolding(path string, lines ...string) HeadFile {
 // answers — an editor's `path:line:column`, whose line is not what cr means by
 // one.
 func TestAGapProbeTargetIsAPathAndALineNumber(t *testing.T) {
+	// A refused target carries which of the three faults it was refused
+	// for, not merely that it was refused. The three are separate
+	// instructions to the reader — supply a path, supply a line, spell the
+	// line the way cr spells one — and a colon at position zero is where two
+	// of them meet: `:3` names no path, and reading it as "not a path:line"
+	// would send the reader looking for a separator that is right there.
+	// gremlins found that one, through the boundary on the separator's
+	// index.
 	for name, tc := range map[string]struct {
-		target string
-		path   string
-		line   int
+		target  string
+		path    string
+		line    int
+		problem string
 	}{
 		"a path and a line":           {target: "app.go:3", path: "app.go", line: 3},
 		"a path with directories":     {target: "src/pkg/app.go:12", path: "src/pkg/app.go", line: 12},
 		"the first line is a line":    {target: "app.go:1", path: "app.go", line: 1},
 		"the last colon separates":    {target: "app.go:12:3", path: "app.go:12", line: 3},
 		"a colon in a path is a path": {target: "a:b/app.go:7", path: "a:b/app.go", line: 7},
-		"no colon at all":             {target: "app.go"},
-		"no path":                     {target: ":3"},
-		"no line":                     {target: "app.go:"},
-		"a line that is not a number": {target: "app.go:three"},
-		"line zero is not a line":     {target: "app.go:0"},
-		"a negative line":             {target: "app.go:-2"},
-		"a signed line":               {target: "app.go:+3"},
-		"a padded line":               {target: "app.go:03"},
-		"a spaced line":               {target: "app.go: 3"},
-		"a line beyond an int":        {target: "app.go:99999999999999999999"},
+		"no colon at all":             {target: "app.go", problem: "is not a path:line"},
+		"no path":                     {target: ":3", problem: "names no path"},
+		"only a colon":                {target: ":", problem: "names no path"},
+		"no line":                     {target: "app.go:", problem: `names line ""`},
+		"a line that is not a number": {target: "app.go:three", problem: `names line "three"`},
+		"line zero is not a line":     {target: "app.go:0", problem: `names line "0"`},
+		"a negative line":             {target: "app.go:-2", problem: `names line "-2"`},
+		"a signed line":               {target: "app.go:+3", problem: `names line "+3"`},
+		"a padded line":               {target: "app.go:03", problem: `names line "03"`},
+		"a spaced line":               {target: "app.go: 3", problem: `names line " 3"`},
+		"a line beyond an int": {
+			target: "app.go:99999999999999999999", problem: `names line "99999999999999999999"`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			path, line, err := ParseTarget(tc.target)
@@ -206,6 +218,8 @@ func TestAGapProbeTargetIsAPathAndALineNumber(t *testing.T) {
 				assert.Equal(t, tc.target, refused.Target)
 				assert.Contains(t, refused.Error(), "§6.2.3",
 					"§5.5 sends the reader to the rule the target is validated by")
+				assert.Contains(t, refused.Error(), tc.problem,
+					"the refusal names which of the three faults it is")
 				return
 			}
 			require.NoError(t, err)
