@@ -213,7 +213,11 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 		adopted = append(adopted, record)
 		ids = append(ids, record.ID)
 	}
-	if err := writeAdopted(l, round, records, adopted); err != nil {
+	hash, err := sent.Hash()
+	if err != nil {
+		return nil, err
+	}
+	if err := writeAdopted(l, round, records, adopted, hash); err != nil {
 		return nil, err
 	}
 	return ids, setPostUnresolved(l, round, false)
@@ -231,14 +235,22 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 }
 
 // writeAdopted publishes the round's records with the adopted ones in `posted`,
-// and the §9.3.6 entries for them.
+// the §9.3.6 entries for them, and `cr post`'s share of §10.3's round summary:
+// how many of the round's records are posted, and hash, the §8.3.3 payload
+// hash of the review they reached the author in.
 //
 // The index is written from the records this run moved rather than from every
 // record in `posted`: a round reconciled twice would otherwise re-append what
 // the first run already recorded, and AppendPosted's key check is a second
 // guard rather than the reason this one holds.
+//
+// The summary is finalised here because this is the one place §9.1's `posted`
+// is written, by `cr post --confirm` and `cr post --reconcile` alike. A round
+// that never reaches it — drafted and never sent, or run only through §8.5.1's
+// dry run — keeps a summary without `cr post`'s counts, which is a truer record
+// of that round than a count of zero beside a hash nothing was sent under.
 func writeAdopted(
-	l state.Layout, round *state.Meta, records, adopted []*finding.Finding,
+	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash string,
 ) error {
 	if err := recordPostedIndex(l, round, adopted); err != nil {
 		return err
@@ -248,11 +260,28 @@ func writeAdopted(
 		return err
 	}
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
-	if err := state.ReplaceStamped(held, state.FileFindings, stamp, records); err != nil {
-		// The lock is released on the way out of every branch, and the
-		// write's own failure is what the caller is told about.
-		_ = held.Unlock()
-		return err
+	posted := 0
+	for _, record := range records {
+		if record.State == finding.StatePosted {
+			posted++
+		}
+	}
+	writes := []func() error{
+		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
+		func() error {
+			return writeSummary(held, round.Round, ownerPost, []summaryCount{
+				{key: summaryPosted, value: posted},
+				{key: summaryPayloadHash, value: hash},
+			})
+		},
+	}
+	for _, write := range writes {
+		if err := write(); err != nil {
+			// The lock is released on the way out of every branch, and
+			// the write's own failure is what the caller is told about.
+			_ = held.Unlock()
+			return err
+		}
 	}
 	return held.Unlock()
 }

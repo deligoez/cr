@@ -120,7 +120,13 @@ func (s *sending) markPosted() error {
 		record.State = finding.StatePosted
 		sent = append(sent, record)
 	}
-	return writeAdopted(s.layout, s.round, s.records, sent)
+	// §8.3.3's hash of the payload that was just sent, which §10.3 records
+	// in the round summary beside the posted count.
+	hash, err := s.review.Hash()
+	if err != nil {
+		return err
+	}
+	return writeAdopted(s.layout, s.round, s.records, sent, hash)
 }
 
 // adoptReturnedThreads is §8.3.3's second half: posted.json updated with the
