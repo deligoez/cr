@@ -1001,6 +1001,12 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		// else there. It sorts after `cr brief`, so the round it counts
 		// has been opened.
 		"status": {"status", fixturePR, "--repo", fixtureSlug},
+		// `cr waivers list` reads §7.4.4's two files, both under the state
+		// root, and with `--pr` reaches GitHub for §9.3.1's head and the
+		// repository not at all. `--pr` is given so the run reads the pull
+		// request's file and its round too, which is the wider of the two
+		// invocations. It sorts after `cr brief`, so there is a round.
+		"waivers list": {"waivers", "list", "--repo", fixtureSlug, "--pr", fixturePR},
 	}
 }
 
@@ -1021,7 +1027,6 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 // half of the guard.
 func stubRuns() map[string][]string {
 	return map[string][]string{
-		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
 		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
 		"rules list":     {"rules", "list", "--repo", fixtureSlug},
 	}

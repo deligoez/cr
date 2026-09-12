@@ -68,7 +68,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newMergeCmd(out))
 	root.AddCommand(newPostCmd(out))
 	root.AddCommand(newStatsCmd(out))
-	root.AddCommand(newWaiversCmd())
+	root.AddCommand(newWaiversCmd(out))
 	root.AddCommand(newRulesCmd(out))
 
 	return root

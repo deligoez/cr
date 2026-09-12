@@ -103,7 +103,7 @@ var specSurface = []surfaceRow{
 	{path: []string{"note"}, use: "note <ISSUE-KEY> <text>", spec: []string{"remove"},
 		added: map[string]string{"source": "§3.6.1", "pr": "§3.6.1"}},
 	{path: []string{"context"}, use: "context <ISSUE-KEY>"},
-	{path: []string{"waivers", "list"}, use: "list", spec: []string{"repo", "pr"}, stub: true},
+	{path: []string{"waivers", "list"}, use: "list", spec: []string{"repo", "pr"}},
 	{path: []string{"waivers", "remove"}, use: "remove <id>", spec: []string{"repo", "pr"},
 		stub: true},
 	{path: []string{"stats"}, use: "stats", spec: []string{"repo"}},

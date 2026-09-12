@@ -218,6 +218,12 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// moved most needs — it is what they decide the next round on —
 		// so §9.3.1's disclosure is the whole of what §9.3 owes it.
 		"status": disclosesTheMove("status", fixturePR),
+		// `cr waivers list --pr` reads that pull request's waivers.ndjson,
+		// which §2.3's table makes per-PR state, and writes nothing. §9.3.5
+		// exempts waivers from being scoped to the current round and from
+		// nothing else, so §9.3.1's report is owed. Without `--pr` it reads
+		// only §2.2's repository-wide file, no round, and owes nothing.
+		"waivers list": disclosesTheMove("waivers", "list", "--pr", fixturePR),
 
 		// §9.3.2's way forward, and the commands that read no round at
 		// all.

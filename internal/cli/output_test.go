@@ -503,7 +503,7 @@ var outputStructs = []result{
 	&mapRecordResult{}, &sandboxCreateResult{}, &sandboxDestroyResult{}, &testRunResult{},
 	&probeRunResult{}, &draftResult{}, &reviewResult{}, &postResult{}, &mergeResult{},
 	&rulesSuggestResult{}, &statusResult{}, &claimsSetAsideResult{}, &reconcileResult{},
-	&statsResult{},
+	&statsResult{}, &waiversListResult{},
 }
 
 // payloadName is a payload's own type name, whether the value listed is the
