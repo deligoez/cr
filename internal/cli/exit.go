@@ -569,8 +569,10 @@ func hintFor(err error) string {
 	if row == nil {
 		return usageHint
 	}
+	// A zero *state.FileError built outside FileFailure carries no step of
+	// its own, and takes the floor's rather than an empty one.
 	var file *state.FileError
-	if row == &codes[len(codes)-1] && errors.As(err, &file) {
+	if row == &codes[len(codes)-1] && errors.As(err, &file) && file.Hint() != "" {
 		return file.Hint()
 	}
 	return row.hint
