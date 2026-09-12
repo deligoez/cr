@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T12:29:14.297531Z",
+  "updated_at": "2026-09-12T12:51:17.465595Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3772,7 +3772,7 @@
     {
       "id": "review-skipped-roles",
       "title": "Report skipped roles with their reasons",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-expects-cells",
@@ -3785,10 +3785,22 @@
       ],
       "started_at": "2026-09-12T11:27:57.680333Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-12T12:51:17.448018Z",
+      "closed_reason": "- A role whose prerequisites are unmet is reported as skipped with its reason, never omitted silently: internal/review/run.go's skippedOf derives the set through coverage.Skipped over role.Resolve's corpus and activation.OfRound's axes, and Fanout.Skipped carries every corpus role the round left out together with the reason its axis or its profiles list gives, so a reader is never handed the active set alone to subtract.\n- The report feeds §4.5.4's honesty channel and survives --quiet: Run collects the lens halves and §4.6.4's roles into one coverage.Lenses and flattens it through sentences, so Fanout.Honesty itself carries \"role test-adequacy skipped, per §4.6.4: axis test disabled, per §4.5.2: ...\" beside the two halves, and a dogfood `cr review 1 --axis intent --quiet` printed a byte-identical honesty array to the run without the flag.\n- A test skips one role and asserts it appears in both cr review's output and cr status's lens list: internal/cli/review_test.go's TestASkippedRoleReachesBothTheFanOutAndTheStatusReport runs both commands over one statusHome round, whose generic profile disables the test axis, and asserts the same coverage.SkippedRole value and the same §4.6.4 sentence out of each.\n- Carried from brief-payload, meta.json's active_roles stays [] after a brief: re-measured rather than re-implemented, and it does not stay empty — the dogfood brief against an isolated CR_HOME wrote active_roles [\"convention\",\"correctness\",\"intent-coverage\"].\n- This task owns that fill: no change was needed, because internal/brief/store.go's metaOf already writes ActiveRoles from brief.axesOf and nothing this round touched that path.\n- VERIFIED ALREADY DONE, metaOf writes ActiveRoles and TestOnlyBriefWritesTheActiveRoleList fences it to that one writer: confirmed still true, with the fence and status_test.go's filled round both green under `go test -race -count=1 ./...`.\n- The empty list seen in a scratch dogfood is §2.4.4 and not a missing fill: confirmed by construction this round — the dogfood set CR_PROFILE=generic so a profile did resolve, and the same command then returned a filled list.\n- HANDOVER, the shared derivation landed in f831a9b, 86ca1d0 and b52f707: none of it was touched or copied, because skippedOf calls the same coverage.Skipped and activation.OfRound that internal/cli/status.go's lensesOf calls, so §4.6.4 remains one derivation read twice and the new test asserts the two commands agree value for value.\n- What remains is the cr review half: restored in 8dc36af, with one deliberate divergence from the handover — Fanout gained Skipped []coverage.SkippedRole, but no Disclosures method and no edit to internal/cli/review.go, because routing the roles through Run's coverage.Lenses puts them in the `honesty` array itself, which is what criterion 2 and `cr status` both mean by the channel, whereas a Fanout.Disclosures consumed only by Text would have left the JSON `honesty` short of the kind §4.6.4 adds.\n",
+      "gate_passed_at": "2026-09-12T12:51:17.448018Z",
+      "commit_sha": "482c240",
+      "commit_shas": [
+        "482c240",
+        "8dc36af",
+        "c52a979"
+      ],
+      "commit_files": [
+        "internal/cli/review_test.go",
+        "internal/cli/roundscope_test.go",
+        "internal/cli/status_test.go",
+        "internal/review/attach.go",
+        "internal/review/run.go"
+      ]
     },
     {
       "id": "review-two-pass-intent",
