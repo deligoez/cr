@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"strconv"
 
@@ -115,26 +116,71 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			held, err := layout.LockPR(owner, repo, pr)
-			if err != nil {
-				return err
-			}
-			stamp := state.Stamp{Head: round.Head, Round: round.Round}
-			if err := state.ReplaceStamped(
-				held, state.FileMapping, stamp, pairs,
+			if err := storeMapping(
+				layout, owner, repo, pr,
+				state.Stamp{Head: round.Head, Round: round.Round}, pairs, claims,
 			); err != nil {
-				// The lock is released on the way out of every
-				// branch, and the write's own failure is what
-				// the caller is told about.
-				_ = held.Unlock()
-				return err
-			}
-			if err := held.Unlock(); err != nil {
 				return err
 			}
 			return out.emit(&mapRecordResult{Recorded: pairs, Round: round.Round})
 		},
 	}
+}
+
+// storeMapping publishes one `cr map record`: §4.1.6's mapping for the round,
+// and §4.1.3's unimplemented-claim entries derived from it.
+//
+// The two are one critical section under one hold of the §2.3.1 lock because
+// the second is a function of the first. A reader arriving between them would
+// find this round's mapping beside the gaps derived from the previous one, and
+// §10.2.3 would block completeness on a claim the file next to it already maps.
+func storeMapping(
+	l state.Layout, owner, repo string, pr int,
+	at state.Stamp, pairs []*mapping.Pair, claims []string,
+) error {
+	held, err := l.LockPR(owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	// Joined rather than branched: the lock is released whether or not the
+	// writes succeeded, and neither failure is traded away for the other.
+	return errors.Join(writeMapping(l, held, owner, repo, pr, at, pairs, claims), held.Unlock())
+}
+
+// writeMapping publishes the two files through the held lock.
+//
+// The gaps are written with ReplaceStamped rather than WriteStamped for the
+// reason the mapping is: §9.3.5 scopes a replacement to the current round, and
+// an entry raised in an earlier round is history that round's report was
+// written against.
+//
+// The previously recorded entries are read back and handed to mapping.Gaps,
+// which is what carries a §4.1.8 set-aside through a re-recorded mapping. The
+// read takes no lock of its own and needs none — this holds the §2.3.1 lock, so
+// no other writer can be between it and the write that follows.
+func writeMapping(
+	l state.Layout, held *state.Lock, owner, repo string, pr int,
+	at state.Stamp, pairs []*mapping.Pair, claims []string,
+) error {
+	if err := state.ReplaceStamped(held, state.FileMapping, at, pairs); err != nil {
+		return err
+	}
+	recorded, err := state.ReadRecords[mapping.Gap](l, owner, repo, pr, state.FileIntentGaps)
+	if err != nil {
+		return err
+	}
+	return state.ReplaceStamped(
+		held, state.FileIntentGaps, at, mapping.Gaps(claims, storedPairs(pairs), at.Round, recorded))
+}
+
+// storedPairs is the round's mapping as mapping.Gaps reads it. The pairs were
+// stamped by the write above, so they carry the round the derivation scopes by.
+func storedPairs(pairs []*mapping.Pair) []mapping.Pair {
+	stored := make([]mapping.Pair, 0, len(pairs))
+	for _, pair := range pairs {
+		stored = append(stored, *pair)
+	}
+	return stored
 }
 
 // roundClaimIDs is the set §4.1.6 checks a pair's `claim` against: the ids of
