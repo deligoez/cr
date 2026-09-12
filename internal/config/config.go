@@ -224,40 +224,88 @@ type Sources struct {
 	GlobalConfig string
 }
 
+// The five layers of §2.7, named as cr names them to a reader.
+//
+// They are constants because §2.7's own ordering is the whole of what a reader
+// is being told, and a layer spelled one way by the resolution and another way
+// by whatever prints it would make two answers out of one fact.
+const (
+	// LayerFlag is §2.7's first layer, the command line.
+	LayerFlag = "command line"
+	// LayerEnv is its second, the CR_-prefixed environment.
+	LayerEnv = "environment"
+	// LayerRepoConfig is its third, the per-repository config file.
+	LayerRepoConfig = "per-repository config"
+	// LayerGlobalConfig is its fourth, the global config file.
+	LayerGlobalConfig = "global config"
+	// LayerDefault is its fifth and lowest, the built-in defaults.
+	LayerDefault = "built-in default"
+)
+
+// Origin is where one setting's value came from: §2.7's layer, and the place a
+// reader opens or unsets to change it.
+//
+// Both are carried because the layer alone does not tell anyone what to do.
+// "per-repository config" is a rank; `~/.cr/repos/acme/web/config.json` is the
+// file, and which repository's file it was is exactly what a reader who is
+// surprised by a value needs. The same holds for the environment, where the
+// variable's name is the thing to unset and the layer's name is not.
+type Origin struct {
+	// From is the layer, one of the five constants above. It is not
+	// called Layer, and that is internal/role's fence rather than a
+	// preference: §2.5.5's corpus order is resolution layer first, and
+	// TestNothingOutsideThisPackageCanNameTheLayerARoleResolvedFrom keeps
+	// the bare identifier `Layer` inside internal/role so no other package
+	// can order a corpus by it. The reader-facing word is unaffected — the
+	// wire field and everything printed still say layer.
+	From string `json:"layer"`
+	// Source is the config file's path or the environment variable's
+	// name. It is empty for the two layers that are not a place a reader
+	// can open: the built-in defaults, which are in cr itself, and the
+	// command line, which the reader has in front of them.
+	Source string `json:"source"`
+}
+
 // Config is one resolved configuration: every key of the built-in table
-// carrying the value of the highest layer that supplied it.
+// carrying the value of the highest layer that supplied it, and the layer that
+// supplied it.
 type Config struct {
-	values map[string]any
+	values  map[string]any
+	origins map[string]Origin
 }
 
 // Resolve reads every layer and returns the effective configuration.
 func Resolve(src Sources) (Config, error) {
 	values := make(map[string]any, len(defaults))
 	maps.Copy(values, defaults)
-	// Files first and lowest layer first, so each later layer overwrites it.
-	for _, path := range []string{src.GlobalConfig, src.RepoConfig} {
-		if path == "" {
-			continue
-		}
-		overrides, err := readFile(path)
-		if err != nil {
-			return Config{}, err
-		}
-		if err := apply(values, overrides, path); err != nil {
-			return Config{}, err
-		}
+	origins := make(map[string]Origin, len(defaults))
+	for key := range defaults {
+		origins[key] = Origin{From: LayerDefault}
+	}
+	if err := resolveFiles(values, origins, src); err != nil {
+		return Config{}, err
 	}
 	fromEnvironment, err := fromEnv(src.Environ)
 	if err != nil {
 		return Config{}, err
 	}
-	if err := apply(values, fromEnvironment, "environment"); err != nil {
+	written, err := apply(values, fromEnvironment, LayerEnv)
+	if err != nil {
 		return Config{}, err
 	}
-	if err := apply(values, src.Flags, "command line"); err != nil {
+	// The variable and not the layer, per §2.7's annotation: `CR_` plus
+	// the key is what a reader unsets, and envName is where that spelling
+	// already lives.
+	for _, key := range written {
+		origins[key] = Origin{From: LayerEnv, Source: envName(key)}
+	}
+	if written, err = apply(values, src.Flags, LayerFlag); err != nil {
 		return Config{}, err
 	}
-	resolved := Config{values: values}
+	for _, key := range written {
+		origins[key] = Origin{From: LayerFlag}
+	}
+	resolved := Config{values: values, origins: origins}
 	// §8.1.1's language is the one setting with a closed domain, and it is
 	// checked here rather than wherever a body is rendered. §8.1.4 builds
 	// the question label in per language, so a language cr has no label for
@@ -271,10 +319,47 @@ func Resolve(src Sources) (Config, error) {
 	return resolved, nil
 }
 
+// resolveFiles applies §2.7's two file layers, lowest first, so the
+// per-repository file overwrites the global one.
+//
+// A path that is empty is a layer that is not in scope — `cr config` names no
+// repository unless it is given one — and supplies nothing, exactly as a
+// missing file does.
+func resolveFiles(values map[string]any, origins map[string]Origin, src Sources) error {
+	for _, file := range []struct{ layer, path string }{
+		{LayerGlobalConfig, src.GlobalConfig},
+		{LayerRepoConfig, src.RepoConfig},
+	} {
+		if file.path == "" {
+			continue
+		}
+		overrides, err := readFile(file.path)
+		if err != nil {
+			return err
+		}
+		written, err := apply(values, overrides, file.path)
+		if err != nil {
+			return err
+		}
+		for _, key := range written {
+			origins[key] = Origin{From: file.layer, Source: file.path}
+		}
+	}
+	return nil
+}
+
 // apply writes the overrides naming a known setting, coercing each value to the
-// type of that setting's default. A name that is not a setting is ignored: the
-// table is the whole surface, so an unknown key configures nothing.
-func apply(values, overrides map[string]any, origin string) error {
+// type of that setting's default, and returns the keys it wrote. A name that is
+// not a setting is ignored: the table is the whole surface, so an unknown key
+// configures nothing.
+//
+// The keys are returned rather than re-derived by the caller because the two
+// answers would have to agree about which names this layer settled — an
+// unknown key writes nothing and must annotate nothing, and a caller counting
+// the overrides instead would credit the layer with a setting it did not
+// supply.
+func apply(values, overrides map[string]any, origin string) ([]string, error) {
+	written := make([]string, 0, len(overrides))
 	for _, key := range sortedKeys(overrides) {
 		def, known := defaults[key]
 		if !known {
@@ -282,11 +367,12 @@ func apply(values, overrides map[string]any, origin string) error {
 		}
 		value, err := coerce(def, overrides[key])
 		if err != nil {
-			return fmt.Errorf("%s: %s is invalid: %w", origin, key, err)
+			return nil, fmt.Errorf("%s: %s is invalid: %w", origin, key, err)
 		}
 		values[key] = value
+		written = append(written, key)
 	}
-	return nil
+	return written, nil
 }
 
 // readFile reads one config.json and returns its dotted keys. A missing file is
@@ -507,6 +593,18 @@ func (c Config) Map() map[string]any {
 		}
 		out[key] = value
 	}
+	return out
+}
+
+// Origins returns the layer that supplied each setting, keyed as Map is.
+//
+// Every key of the table is present, because §2.7's lowest layer supplies a
+// value for each of them: a setting no file, variable or flag touched came from
+// the built-in defaults, and saying so is the annotation. A map missing those
+// keys would leave a reader to infer the commonest answer from an absence.
+func (c Config) Origins() map[string]Origin {
+	out := make(map[string]Origin, len(c.origins))
+	maps.Copy(out, c.origins)
 	return out
 }
 
