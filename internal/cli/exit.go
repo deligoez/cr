@@ -49,7 +49,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 56 over 167 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 57 over 170 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -381,6 +381,16 @@ func exitCodeFor(err error) int {
 		// is where the round stands, which §11.2 codes 4 beside the
 		// unbriefed pull request above, and the refusal names the
 		// `cr brief` that records the units again.
+		return ExitState
+	}
+	var mappingMissing *review.MappingRequiredError
+	if errors.As(err, &mappingMissing) {
+		// §4.6.5 runs the fan-out in two passes and refuses the
+		// remaining axes until the first has produced a mapping. The
+		// command line is right and nothing it named is malformed;
+		// what refuses is that the round has not been through its
+		// intent pass, which is where the round stands and §11.2 codes
+		// 4 beside the stale unit above.
 		return ExitState
 	}
 	var setupFailed *sandbox.SetupError
