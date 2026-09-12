@@ -40,6 +40,30 @@ type PullRequest struct {
 	Base string `json:"base"`
 }
 
+// AnswerError reports a `gh api graphql` call that ran, returned zero, and
+// answered something cr cannot use.
+//
+// §3.1.3 fixes the code for an external command that fails, and this is the
+// same failure one step later: gh ran and GitHub answered, but the answer names
+// no pull request or omits a revision GitHub declares non-null. §11.2 codes it
+// 3 beside CommandError. It is not a usage error, and being one is what it was
+// until unreadable-input-exit-code — measured 2026-09-13 on the built binary
+// against a local `gh` answering `{}`, `cr record 1 <file> --repo o/r` printed
+// `o/r#1: GitHub answered no pull request` and exited 2, which told the reader
+// to retype a command line that was right.
+type AnswerError struct {
+	// Owner, Repo and Number are the pull request that was asked about.
+	Owner  string
+	Repo   string
+	Number int
+	// Reason is what was wrong with the answer.
+	Reason string
+}
+
+func (e *AnswerError) Error() string {
+	return fmt.Sprintf("%s/%s#%d: %s", e.Owner, e.Repo, e.Number, e.Reason)
+}
+
 // pullRequestQuery reads the identity of one pull request.
 //
 // It is GraphQL rather than `gh pr view` because the read boundary in write.go
@@ -102,15 +126,18 @@ func (c Client) PullRequest(owner, repo string, number int) (PullRequest, error)
 	}
 	node := answer.Data.Repository.PullRequest
 	if node == nil {
-		return PullRequest{}, fmt.Errorf(
-			"%s/%s#%d: GitHub answered no pull request", owner, repo, number,
-		)
+		return PullRequest{}, &AnswerError{
+			Owner: owner, Repo: repo, Number: number,
+			Reason: "GitHub answered no pull request",
+		}
 	}
 	if node.HeadRefOid == "" || node.BaseRefOid == "" {
-		return PullRequest{}, fmt.Errorf(
-			"%s/%s#%d: GitHub answered head %q and base %q, and §3.4.1 needs both commits to take the diff",
-			owner, repo, number, node.HeadRefOid, node.BaseRefOid,
-		)
+		return PullRequest{}, &AnswerError{
+			Owner: owner, Repo: repo, Number: number,
+			Reason: fmt.Sprintf(
+				"GitHub answered head %q and base %q, and §3.4.1 needs both "+
+					"commits to take the diff", node.HeadRefOid, node.BaseRefOid),
+		}
 	}
 	return PullRequest{
 		Number:      node.Number,
