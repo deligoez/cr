@@ -6,6 +6,7 @@ import (
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/suggestion"
 )
 
 // Replacement is §2.6.2.1's generation: `fix.replace` applied to the line a
@@ -106,26 +107,13 @@ func (m *Matcher) confirmedBy(record *finding.Finding) bool {
 // lines would replace all four. Validating the line the fix was computed from
 // would answer a question nobody asks.
 //
-// The RIGHT-side test is asked of the anchor and of the hunk both. §9.2 numbers
-// a LEFT anchor in the merge base, where a replacement would rewrite a line the
-// change already removed; and a hunk that adds no line is numbered on LEFT with
-// a head range that is an insertion point rather than a line, so a suggestion
-// landing in it would replace nothing that exists at the head.
+// §8.2 itself is read in internal/suggestion and not here. Two callers ask the
+// same question at different moments — this one before drafting, per §2.6.2.2,
+// and §8.4.1's pre-validation before the review call — and a suggestion one of
+// them admitted and the other refused would be a replacement the author was
+// shown and never offered.
 func placeable(anchor *finding.Anchor, hunks []git.Hunk) bool {
-	if anchor.Side != git.Right || anchor.StartLine < 1 || anchor.Line < anchor.StartLine {
-		return false
-	}
-	for at := range hunks {
-		hunk := &hunks[at]
-		if hunk.Path != anchor.Path || hunk.Side != git.Right {
-			continue
-		}
-		start, end := hunk.HeadRange()
-		if anchor.StartLine >= start && anchor.Line <= end {
-			return true
-		}
-	}
-	return false
+	return suggestion.Placeable(anchor, hunks)
 }
 
 // compileFix holds one `fix` block to §2.6.2.1: `fix.replace` is a regular
