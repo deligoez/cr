@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
@@ -26,13 +28,10 @@ import (
 // re-renders a discarded record: queueRecords renders only `draft` and
 // `queued`, so a discarded block is never resurrected.
 //
-// A softened finding is left a finding in findings.ndjson. The draft is where
-// the reviewer said it, and it keeps saying it there: softenForDraft renders the
-// block as a question, the marker then reads `kind=question` against a stored
-// finding on every later run, and whoever interprets the draft next — this
-// command again, or `cr post` — reads the same softening out of the same file.
-// Stored, it would read as a question the agent wrote, and §7.3's `softened`
-// would have nothing left to be counted from.
+// A retyped record is left in its stored register, for the reason
+// retypeForDraft gives, and the two rows of §7.2 that move a stored field —
+// `severity` and the location — are applied by applyRetriage once every block
+// has been read and nothing in the draft has been refused.
 func ingestDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, records []*finding.Finding,
 ) (triaged, error) {
@@ -206,18 +205,75 @@ func (t *triaged) report() []triagedRecord {
 	return out
 }
 
-// softenForDraft renders each softened finding as a question, without
-// touching the stored record: the queued slice gets a copy whose kind is the
-// one the reviewer's marker asked for.
-func softenForDraft(queued, softened []*finding.Finding) []*finding.Finding {
+// retypeForDraft renders each retyped record in the register the reviewer's
+// marker asked for, without touching the stored record: the queued slice gets
+// a copy whose kind is the one §7.2's row admitted.
+//
+// Both directions are copies for the same reason. The draft is where the
+// reviewer said it and it keeps saying it there: the marker reads back against
+// the stored record on every later run, and whoever interprets the draft next —
+// this command again, or `cr post` — reads the same retyping out of the same
+// file. Stored, a softening would read as a question the agent wrote, and
+// §7.3's `softened` would have nothing left to be counted from.
+func retypeForDraft(queued []*finding.Finding, triage *draft.Triage) []*finding.Finding {
 	out := make([]*finding.Finding, 0, len(queued))
 	for _, record := range queued {
-		if slices.Contains(softened, record) {
-			asked := *record
-			asked.Kind = finding.KindQuestion
-			record = &asked
+		switch {
+		case slices.Contains(triage.Softened, record):
+			record = retyped(record, finding.KindQuestion)
+		case slices.Contains(triage.Hardened, record):
+			record = retyped(record, finding.KindFinding)
 		}
 		out = append(out, record)
+	}
+	return out
+}
+
+// retyped is one record's copy in another register.
+func retyped(record *finding.Finding, asked finding.Kind) *finding.Finding {
+	copied := *record
+	copied.Kind = asked
+	return &copied
+}
+
+// retriagedRecord is one record §7.2's two editable rows moved, as `cr draft`
+// reports it.
+//
+// §7.2 has a severity edit recorded as a triage event, and this is the run's
+// record of it: cr acted on the reviewer's value — it is in findings.ndjson and
+// will be in the next comment — so they are owed the list of what it acted on
+// rather than silence, exactly as a discard owes them one.
+type retriagedRecord struct {
+	// ID is the record's id.
+	ID string `json:"id"`
+	// Severity is §7.2's severity row where the reviewer moved it, and
+	// absent where they did not.
+	Severity finding.Severity `json:"severity,omitempty"`
+	// Anchor is the re-validated location where they moved that, and
+	// absent where they did not.
+	Anchor *finding.Anchor `json:"anchor,omitempty"`
+}
+
+// moved says what cr accepted, in the order §7.2's table lists the two rows.
+func (r *retriagedRecord) moved() string {
+	said := make([]string, 0, 2)
+	if r.Anchor != nil {
+		said = append(said, fmt.Sprintf("anchored at %s:%d-%d",
+			r.Anchor.Path, r.Anchor.StartLine, r.Anchor.Line))
+	}
+	if r.Severity != "" {
+		said = append(said, "severity "+string(r.Severity))
+	}
+	return strings.Join(said, ", ")
+}
+
+// retriaged lists them in the order the draft's blocks were read, never nil.
+func (t *triaged) retriaged() []retriagedRecord {
+	out := make([]retriagedRecord, 0, len(t.Retriaged))
+	for _, edit := range t.Retriaged {
+		out = append(out, retriagedRecord{
+			ID: edit.Record.ID, Severity: edit.Severity, Anchor: edit.Anchor,
+		})
 	}
 	return out
 }
