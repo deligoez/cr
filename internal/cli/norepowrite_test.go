@@ -914,6 +914,11 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		// a rule file — so it should reach the repository neither to
 		// read nor to write, and this is where that is checked.
 		"rules suggest": {"rules", "suggest", "--repo", fixtureSlug},
+		// `cr stats` reads one file under the state root — §7.3's
+		// repository-wide triage.ndjson — and §7.3.7 forbids it to act
+		// on what it finds, so it should reach the repository under
+		// review neither to read nor to write.
+		"stats": {"stats", "--repo", fixtureSlug},
 		// `cr draft` writes two files — the round's draft.md and the
 		// findings whose state §9.1 moved — and §2.2 puts both under
 		// the state root. It sorts before `cr record` here, so it
@@ -1016,7 +1021,6 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 // half of the guard.
 func stubRuns() map[string][]string {
 	return map[string][]string{
-		"stats":          {"stats", "--repo", fixtureSlug},
 		"waivers list":   {"waivers", "list", "--repo", fixtureSlug},
 		"waivers remove": {"waivers", "remove", "w1", "--repo", fixtureSlug},
 		"rules list":     {"rules", "list", "--repo", fixtureSlug},

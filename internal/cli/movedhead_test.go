@@ -232,6 +232,12 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// one round whose head §9.3.1 could compare against a current
 		// one, and no per-PR state for §9.3.2 to refuse the write of.
 		"rules suggest": readsNoRound("rules", "suggest"),
+		// `cr stats` is repository-scoped for the same reason: §7.3.2
+		// counts and §7.3.4's rate are computed over the repository's
+		// whole triage.ndjson across its pull requests, so there is no
+		// one round whose head §9.3.1 could compare and no per-PR
+		// state for §9.3.2 to refuse the write of.
+		"stats": readsNoRound("stats"),
 	}
 }
 
