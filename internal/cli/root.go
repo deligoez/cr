@@ -70,7 +70,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newReviewCmd(out))
 	root.AddCommand(newMergeCmd(out))
 	root.AddCommand(newPostCmd(out))
-	root.AddCommand(newStatsCmd())
+	root.AddCommand(newStatsCmd(out))
 	root.AddCommand(newWaiversCmd())
 	root.AddCommand(newRulesCmd(out))
 
