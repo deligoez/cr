@@ -275,3 +275,25 @@ func TestARunPassesOnlyWhileEveryClauseOfTheVerdictHolds(t *testing.T) {
 // count is the address of one derived test count, which is what §5.2.4's
 // "when derivable" needs a literal to be able to express.
 func count(n int) *int { return &n }
+
+// The search for the next rune start is bounded, and the bound is what keeps
+// "the tail is the runner's output as the runner wrote it" true. A cut through
+// a rune leaves at most utf8.UTFMax-1 continuation bytes ahead of the next
+// start, so a search that looked one byte further would be looking past
+// anything a cut can explain — and a suite that writes bytes which are not
+// UTF-8 at all, a binary artefact or a mangled locale, would have real output
+// silently trimmed off the front rather than a half rune.
+//
+// gremlins found the bound open: every fixture writes valid UTF-8, where the
+// search always stops within the first UTFMax-1 bytes and the byte at UTFMax is
+// never reached.
+func TestTheOutputTailTrimsNoMoreThanOneCutRune(t *testing.T) {
+	tail := NewTail(64)
+	// Four continuation bytes is one more than any cut rune can leave, so
+	// these are not the tail of a character — they are output.
+	_, err := tail.Write([]byte{0x80, 0x80, 0x80, 0x80, 'A'})
+	require.NoError(t, err)
+
+	assert.Equal(t, string([]byte{0x80, 0x80, 0x80, 0x80, 'A'}), tail.String(),
+		"the search stops at utf8.UTFMax, so output beyond a cut rune is kept")
+}
