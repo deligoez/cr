@@ -3,6 +3,8 @@
 dist/
 codedb.snapshot
 *.tasks.json.lock
+# zigrep writes an archive into the directory it runs from; it is never source.
+/.zigrep_archive
 
 # tp review and audit working files: per-role output and its merge.
 # Never committed — the durable record is .tp-review/ state plus the spec itself.
