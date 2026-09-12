@@ -67,6 +67,16 @@ func TestTheMutationTargetIsDerivedFromThePatchAlone(t *testing.T) {
 			want: "a.go:90",
 		},
 		{
+			// The two hunks share a pre-image start, which git writes
+			// when an insertion follows the line a removal replaced.
+			// Both apply, so this is a patch the probe runs on, and
+			// only the first of them holds a pre-image line to name.
+			name: "an insertion sharing a removal's start does not take the target from it",
+			patch: "--- a/app.go\n+++ b/app.go\n@@ -41 +41 @@\n-old\n+new\n" +
+				"@@ -41,0 +43,1 @@\n+added\n",
+			want: "app.go:41",
+		},
+		{
 			name:  "an add-only hunk with context names its first pre-image line",
 			patch: "--- a/app.go\n+++ b/app.go\n@@ -12,2 +12,3 @@\n one\n+two\n three\n",
 			want:  "app.go:12",
