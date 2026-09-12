@@ -386,3 +386,34 @@ func TestRerunningEveryWriterLeavesTheRoundSummaryUnchanged(t *testing.T) {
 	assert.JSONEq(t, string(postedOnce), string(postedTwice),
 		"the confirmation after two dry runs records what it records after one")
 }
+
+// Round 8's unpostable-round-summary: a round that never sent a payload has no
+// payload hash in its summary — the key is absent, not null and not the dry
+// run's hash — and the summary it has is a valid one.
+//
+// The round is taken through both ways of not posting. §8.5.1's dry run builds
+// a payload and prints the hash it would embed, which is exactly the value a
+// careless writer would record; and a `--confirm` GitHub refuses per §8.4.2
+// built one too and sent nothing that reached the author. Neither finalises the
+// round, and after both the document holds `cr draft`'s counts in their stated
+// shape and nothing of `cr post`'s.
+func TestAnUnpostedRoundSummaryOmitsThePayloadHashAndStillValidates(t *testing.T) {
+	layout := draftedHome(t, aCitedRecord("f1"))
+	redraft(t)
+	dryRunHash, err := builtPayload(t).Hash()
+	require.NoError(t, err)
+	_, err = runPost(t, draftPR, "--repo", draftSlug)
+	require.NoError(t, err)
+
+	rejectingShim(t)
+	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.Error(t, err, "§8.4.2: the refused call is this round's only confirmation")
+
+	body, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
+	require.NoError(t, err)
+	document := assertSummaryShape(t, body, ownerDraft)
+	assert.NotContains(t, document, "payload_hash",
+		"an unposted round's summary omits the key entirely, rather than holding null")
+	assert.NotContains(t, document, "posted", "and holds no posted count either: nothing finalised it")
+	assert.NotContains(t, string(body), dryRunHash, "the dry run's hash names a review nobody received")
+}
