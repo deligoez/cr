@@ -95,7 +95,8 @@ func TestTheExpectedSetIsTheWholeRoundsEvenOnAnAxisPass(t *testing.T) {
 	fan, err := Run(src)
 	require.NoError(t, err)
 
-	require.Len(t, fan.Prompts, 2, "the intent pass emits its own axis's prompts alone")
+	require.Len(t, fan.Prompts, 1,
+		"§4.6.5's second pass emits its own axis over the one unit mapped to zero claims")
 	at := make([]string, 0, len(fan.Expected))
 	for _, cell := range fan.Expected {
 		at = append(at, cell.Unit+"/"+cell.Role)
