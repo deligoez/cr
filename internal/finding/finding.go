@@ -82,6 +82,17 @@ const (
 	GradeArgued Grade = "argued"
 )
 
+// Grades returns §6.2's three grades, strongest first. The result is a copy, so
+// a caller can neither widen the set nor reorder it.
+//
+// It is Severities' counterpart and reads the same list §6.4.2 ranks a
+// duplicate group's representative by, so a report tallying records by grade
+// and the comparison that picks a representative cannot come to hold different
+// vocabularies. §10.1.4 is the first caller.
+func Grades() []Grade {
+	return append(make([]Grade, 0, len(gradeStrength)), gradeStrength...)
+}
+
 // Origin names what produced a piece of a record: cr's own rule machinery, or
 // the agent.
 //
