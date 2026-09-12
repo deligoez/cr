@@ -91,7 +91,7 @@ var specSurface = []surfaceRow{
 		"filter": "§5.2.2",
 	}},
 	{path: []string{"draft"}, use: "draft <pr>"},
-	{path: []string{"post"}, use: "post <pr>", spec: []string{"confirm", "reconcile"}, stub: true},
+	{path: []string{"post"}, use: "post <pr>", spec: []string{"confirm", "reconcile"}},
 	{path: []string{"answer"}, use: "answer <pr> <record-id> <text>", added: map[string]string{
 		// §3.6.1 requires a source on every entry in the context store,
 		// and §3.6.2 stores an answer as one of them.
