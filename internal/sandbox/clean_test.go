@@ -234,3 +234,22 @@ func TestATrackedFileSetupAlreadyTouchedIsNamedWhenItChangesAgain(t *testing.T) 
 	require.NoError(t, err)
 	assert.Nil(t, again.Recreated)
 }
+
+// The deviating set can shrink. §5.1.3's setup leaves two tracked files
+// modified, something reverts one of them, and the next check compares a
+// one-path current state against a two-path baseline — the deviation changed,
+// so §5.1.6 owes the reader the path that changed.
+//
+// gremlins found this, and what it found was a wrong annotation rather than a
+// missing assertion. The sum sizing the result was recorded here as an
+// equivalent capacity hint; it is not. `len(current)-len(recorded)` goes
+// negative as soon as the baseline lists more paths than the sandbox now does,
+// and `make` panics with `makeslice: cap out of range` instead of allocating a
+// smaller slice. Every fixture that reached `differing` had the two lists at
+// the same length, where the difference is zero and nothing shows.
+func TestDifferingNamesThePathsWhenTheDeviationSetShrinks(t *testing.T) {
+	assert.Equal(t, []string{"b.txt"}, differing([]string{"a.txt"}, []string{"a.txt", "b.txt"}),
+		"the path that stopped deviating is the one that changed")
+	assert.Equal(t, []string{"b.txt", "c.txt"}, differing(nil, []string{"b.txt", "c.txt"}),
+		"a sandbox back at HEAD still names what the baseline listed")
+}
