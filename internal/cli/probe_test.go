@@ -83,6 +83,15 @@ func probeFixture(
 	repoDir = func() (string, error) { return fixture, nil }
 	t.Cleanup(func() { repoDir = restore })
 
+	// §9.3.1 has every command that reads per-PR state compare the round's
+	// head against the one GitHub reports, so a probe now asks. The shim is
+	// put on the PATH rather than only in the in-process seam because three
+	// of these tests spawn the built binary — a real SIGKILL is what
+	// §5.3.3's second sentence is tested by — and a spawned cr has no seam
+	// to install.
+	base := strings.TrimSpace(mustGit(t, fixture, "rev-parse", "main"))
+	t.Setenv("PATH", ghShim(t, t.TempDir(), head, base)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	return prepared, fixture, prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber), log
 }
 

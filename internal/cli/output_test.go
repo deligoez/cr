@@ -33,7 +33,39 @@ func crHome(t *testing.T) string {
 	root := filepath.Join(t.TempDir(), ".cr")
 	require.NoError(t, os.MkdirAll(root, 0o700))
 	t.Setenv(state.HomeEnv, root)
+	unmovedHead(t, root)
 	return root
+}
+
+// unmovedHead installs the §9.3.1 seam every command now reads, answering with
+// the round's own recorded head.
+//
+// It is installed here, beside CR_HOME, because §9.3.1 binds every command that
+// reads per-PR state and the comparison is therefore on the path of almost every
+// test in this package — none of which is about the head. The answer is the
+// recorded head rather than a constant, so what a test gets is the not-stale
+// case whatever head its fixture chose, and a test that is about §9.3 replaces
+// the seam with a head of its own.
+func unmovedHead(t *testing.T, root string) {
+	t.Helper()
+	restore := currentHead
+	currentHead = func(owner, repo string, pr int) (string, error) {
+		recorded, err := state.New(root).ReadMeta(owner, repo, pr)
+		if err != nil {
+			return "", err
+		}
+		return recorded.Head, nil
+	}
+	t.Cleanup(func() { currentHead = restore })
+}
+
+// movedHead installs a §9.3.1 seam answering head, whatever the round recorded,
+// which is the force-push §9.3 is about.
+func movedHead(t *testing.T, head string) {
+	t.Helper()
+	restore := currentHead
+	currentHead = func(_, _ string, _ int) (string, error) { return head, nil }
+	t.Cleanup(func() { currentHead = restore })
 }
 
 // execute runs one command with its output on file.

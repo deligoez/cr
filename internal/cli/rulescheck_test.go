@@ -168,7 +168,12 @@ func TestAHitCarriesNoVerdictWhateverItsRuleDeclares(t *testing.T) {
 	for range 2 {
 		var document map[string]any
 		require.NoError(t, json.Unmarshal(runRulesCheck(t), &document))
-		assert.ElementsMatch(t, []string{"round", "head", "hits", "units"}, keysOf(document))
+		// §9.3.1's comparison rides along in `honesty`, which is the one
+		// field here that is not a hit: §11.1 exempts it from `--quiet`
+		// and it says where the head is, never what a hit means. The
+		// set is still exact, which is what this assertion is for.
+		assert.ElementsMatch(t,
+			[]string{"round", "head", "hits", "units", "honesty"}, keysOf(document))
 
 		hits, isList := document["hits"].([]any)
 		require.True(t, isList)

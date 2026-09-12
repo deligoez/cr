@@ -61,7 +61,7 @@ func TestTheExpectedSetIsExactlyWhatCompletenessDemands(t *testing.T) {
 	fan, err := Run(src)
 	require.NoError(t, err)
 
-	meta, err := src.Layout.Briefed(runOwner, runRepo, runPR)
+	meta, err := src.Layout.Briefed(runOwner, runRepo, runPR, src.currentHead)
 	require.NoError(t, err)
 	units := unitsOfRound(t, src)
 	require.Len(t, fan.Expected, len(units)*len(meta.ActiveRoles),

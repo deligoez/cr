@@ -86,8 +86,11 @@ func TestASecondBriefAtOneHeadChangesNothingAndAMovedHeadOpensTheNextRound(t *te
 	require.NoError(t, err)
 	assert.Equal(t, 2, third.Round, "§9.3.3: the head moved, so the round index moves with it")
 
-	recorded, err := src.Layout.Briefed(testOwner, testRepo, testPR)
+	recorded, err := src.Layout.Briefed(testOwner, testRepo, testPR,
+		func() (string, error) { return moved, nil })
 	require.NoError(t, err)
+	assert.False(t, recorded.Stale(),
+		"§9.3.3 stores the head it opened the round at, so the new round is not stale in its own turn")
 	assert.Equal(t, 2, recorded.Round)
 	assert.Equal(t, moved, recorded.Head, "§9.3.3 stores the new head alongside the new index")
 }

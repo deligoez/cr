@@ -146,8 +146,10 @@ func TestAFirstBriefOpensRoundOneAndRecordsTheDerivedInputs(t *testing.T) {
 	assembled, err := Run(src)
 	require.NoError(t, err)
 
-	recorded, err := src.Layout.Briefed(testOwner, testRepo, testPR)
+	recorded, err := src.Layout.Briefed(testOwner, testRepo, testPR,
+		func() (string, error) { return head, nil })
 	require.NoError(t, err, "§9.3.1 and §9.3.3 read meta.json, so a brief has to write one")
+	assert.False(t, recorded.Stale(), "§9.3.1: the head a brief just recorded is the current one")
 	assert.Equal(t, 1, recorded.Round, "§9.3.3 numbers rounds from 1")
 	assert.Equal(t, head, recorded.Head, "the recorded head is the current head")
 	assert.Equal(t, testIssue, recorded.IssueKey)

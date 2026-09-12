@@ -64,7 +64,8 @@ func TestTheActiveRoleSetIsStoredWithoutAnyFanOut(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "laravel-pest", assembled.Profile.ID, "the marker file selects the profile")
 
-	recorded, err := src.Layout.Briefed(testOwner, testRepo, testPR)
+	recorded, err := src.Layout.Briefed(testOwner, testRepo, testPR,
+		func() (string, error) { return assembled.Head, nil })
 	require.NoError(t, err)
 
 	// The definition, applied here to the same two inputs and nothing
