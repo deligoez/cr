@@ -323,6 +323,12 @@ Two rules that make the phase-boundary run worth doing:
    it would otherwise kill. Check `pgrep -x gremlins` before starting one. Use
    `-x`: a waiter written as `until ! pgrep -qf 'gremlins unleash'` matches its
    own command line and never exits, which left an agent hanging for an hour.
+   **A subagent cannot run that check here**, so do not write it into a unit's
+   prompt as if it could: measured 2026-09-12, `pgrep` inside a subagent's
+   sandbox fails with `sysmond service not found` while the same command from
+   the orchestrator answers normally. The quiet window is therefore the
+   orchestrator's to establish and the unit's to be told about — a unit that
+   cannot see the process table cannot be the one deciding the box is free.
 8. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
    should mutate nothing and mutated 116; a `-D HEAD~6` run mutated files absent
    from that diff and took *longer* than the unscoped run. Upstream has three
