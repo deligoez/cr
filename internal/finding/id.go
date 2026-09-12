@@ -20,6 +20,18 @@ func ValidID(id string) bool {
 	return ok
 }
 
+// IDSuffix reads the n of an f<n> record id, reporting whether id is spelled
+// the way §6.1 spells one.
+//
+// §8.3.3 orders the payload's comments by "record id by numeric suffix", which
+// is a reading of the id and not of the string: f2 sorts before f10, where a
+// string comparison puts f10 first. It is the same parse NextID allocates
+// against and ValidID checks, exported rather than respelled, because a second
+// reading of the id would be a second answer to what an id means.
+func IDSuffix(id string) (int, bool) {
+	return parseID(id)
+}
+
 // NextID allocates the id for a new record.
 //
 // existing MUST be every record findings.ndjson holds, not the current round's.
