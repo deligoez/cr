@@ -8271,7 +8271,7 @@
     {
       "id": "skipped-role-empty-profiles",
       "title": "Name why a profile-less role was skipped",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-skipped-roles"
@@ -8281,11 +8281,20 @@
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:32:19.536351Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:39:44.574024Z",
+      "closed_reason": "- The dogfood defect is reproduced and gone: on a local scratch repo briefed under the generic profile with a self-contained gh shim, then given a global role error-paths on the correctness axis with \"profiles\": [] after the brief, the binary before 9671aea printed \"role error-paths skipped, per §4.6.4: its profiles list names  and this round resolved profile generic; the role looks only under a profile it names\" from both `cr status` and `cr review --axis intent`; the binary at 9671aea prints \"role error-paths skipped, per §4.6.4: this round's active roles, which `cr brief` recorded per §4.5.1, do not name it, though its axis correctness ran and its profiles list is empty, which admits every profile; run `cr brief` again to record the round's active roles anew\" from both, and git status --porcelain in the repo under review stayed empty. Re-running `cr brief` at the same head was measured to record [\"error-paths\",\"convention\",\"correctness\",\"intent-coverage\"], so the sentence's fix is true.\n- The reason says what actually excluded the role, reusing the clause that decided and reaching both commands through the one derivation: internal/coverage/skipped.go's skipReason now asks activation.ActiveRoles about the role alone instead of restating its profiles clause; when the definition admits the role (an empty list, or one naming the resolved profile), what decided is meta.json's recorded active set and notRecordedReason names it, and a list excluding the profile keeps its original sentence. No second path was added: cr review (internal/review/run.go skippedOf) and cr status (internal/cli/status.go lensesOf) both still call coverage.Skipped, and TestASkippedRoleReachesBothTheFanOutAndTheStatusReport stays green.\n- A test skips a role with an empty profiles list on an active axis and asserts no empty name and the deciding reason: internal/coverage/skipped_test.go TestASkippedRoleOnARunningAxisIsGivenTheReasonThatDecided covers an empty list, a list naming the resolved profile and a list naming another, asserting the exact sentences and that the empty-list reason carries no \"names  \"; internal/cli/skippedrole_test.go TestAnEmptyProfilesRoleIsSkippedForTheReasonThatDecidedInBothReports writes the role after statusHome's brief and asserts cr review and cr status report the same SkippedRole with that reason and both honesty arrays carry its disclosure. Hand mutant `len(...) \u003c 0` in skipReason restored the old sentence and failed both tests; reverted to the identical revision.\n",
+      "gate_passed_at": "2026-09-12T22:39:44.574024Z",
+      "commit_sha": "9671aea",
+      "commit_shas": [
+        "9671aea"
+      ],
+      "commit_files": [
+        "internal/cli/skippedrole_test.go",
+        "internal/coverage/skipped.go",
+        "internal/coverage/skipped_test.go"
+      ]
     },
     {
       "id": "complete-verdict-empty-round",
