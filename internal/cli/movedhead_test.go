@@ -177,8 +177,15 @@ func movedHeadRuns(dir string) map[string]section93 {
 	file := func(name string) string { return filepath.Join(dir, name) }
 	return map[string]section93{
 		// §9.3.2's writers: every one of them writes per-PR state.
-		"record":         refusesTheWrite("record", fixturePR, file("merged.ndjson")),
-		"claims record":  refusesTheWrite("claims", "record", fixturePR, file("claims.ndjson")),
+		"record":        refusesTheWrite("record", fixturePR, file("merged.ndjson")),
+		"claims record": refusesTheWrite("claims", "record", fixturePR, file("claims.ndjson")),
+		// §4.1.8 stamps `set_aside_note` on an intent-gaps.ndjson entry,
+		// which is per-PR state, so §9.3.2 refuses it like every other
+		// writer. The note and the claim need not exist for the guard:
+		// the round is read before either is, so the refusal is reached
+		// whatever they name.
+		"claims set-aside": refusesTheWrite("claims", "set-aside", fixturePR,
+			fixtureIssue+"#c1", "--note", fixtureIssue+"#n1"),
 		"cells record":   refusesTheWrite("cells", "record", fixturePR, file("cells.ndjson")),
 		"map record":     refusesTheWrite("map", "record", fixturePR, file("mapping.ndjson")),
 		"draft":          refusesTheWrite("draft", fixturePR),
