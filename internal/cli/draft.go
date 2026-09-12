@@ -147,6 +147,16 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		return err
 	}
 	queued = retypeForDraft(queued, &triage.Triage)
+	// §4.1.4 re-applied over the records this draft holds, before
+	// §6.3's forcing and for the reason roundGrading.forceUnmapped
+	// gives: the mapping moves inside a round, and an intent finding on a
+	// unit the round no longer maps would otherwise assert in the draft
+	// the reviewer approves.
+	grading, err := readRoundGrading(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return err
+	}
+	grading.forceUnmapped(round.Round, queued)
 	// §6.3.1's second moment, applied over the records this draft holds
 	// and before they are rendered: the block a reviewer reads carries the
 	// register in its marker, so a forcing applied after the rendering
