@@ -199,36 +199,69 @@ func TestTheScanReadsPostedCommentsAcrossEveryPullRequest(t *testing.T) {
 // because the requirement is that cr writes no rule file at all and a check
 // naming the file it would have written could only refuse the one shape that
 // was imagined.
+//
+// Both directories hold a rule before the run, and the fingerprint carries each
+// file's bytes. An empty corpus can only ever catch a rule cr added — the one
+// shape a `suggest` that wrote would most plausibly take is a new file, but a
+// run that rewrote `dropped-error.json` over the rule already sitting there
+// would leave the path list identical, and that is the write a reviewer would
+// find hardest to notice: the corpus still has the rules it had, and one of
+// them now says something nobody wrote.
 func TestSuggestWritesNoRuleFile(t *testing.T) {
 	layout := harvestedHome(t,
 		aPostedComment{pr: 7, round: 1, id: "f1", class: "dropped-error", body: "Same words."},
 		aPostedComment{pr: 7, round: 2, id: "f2", class: "dropped-error", body: "Same words."},
 		aPostedComment{pr: 7, round: 3, id: "f3", class: "dropped-error", body: "Same words."},
 	)
+	seedRules(t, layout)
 	before := rulesTree(t, layout)
+	require.Len(t, before, 2, "the fixture put a rule in each of §2.6's two layers")
 
 	printed := suggested(t)
 
 	require.Len(t, printed.Candidates, 1, "a candidate was found, so there was something to write")
+	assert.Equal(t, "dropped-error", printed.Candidates[0].Class,
+		"and its class is the one the seeded rule is named for, so an overwrite had somewhere to land")
 	assert.Equal(t, before, rulesTree(t, layout),
 		"§2.6.3.3: candidates are reported only; cr must not write a rule file by itself")
 }
 
-// rulesTree is every path under both rule directories, so a file written
-// anywhere in either is visible whatever it is called.
-func rulesTree(t *testing.T, l state.Layout) []string {
+// seedRules puts one rule in each of §2.6's two on-disk layers, named for the
+// class the harvest is about to report.
+func seedRules(t *testing.T, l state.Layout) {
 	t.Helper()
-	found := make([]string, 0)
+	repoRules := l.RepoRulesDir(harvestOwner, harvestRepo)
+	require.NoError(t, os.MkdirAll(repoRules, 0o750))
+	for _, path := range []string{
+		filepath.Join(l.RulesDir(), "dropped-error.json"),
+		filepath.Join(repoRules, "dropped-error.json"),
+	} {
+		require.NoError(t, os.WriteFile(path, []byte(panicRule), 0o600))
+	}
+}
+
+// rulesTree is every path under both rule directories with the bytes it holds,
+// so a file written anywhere in either is visible whatever it is called, and a
+// file rewritten in place is visible although its name did not change.
+func rulesTree(t *testing.T, l state.Layout) map[string]string {
+	t.Helper()
+	found := make(map[string]string)
 	for _, dir := range []string{l.RulesDir(), l.RepoRulesDir(harvestOwner, harvestRepo)} {
 		require.NoError(t, filepath.WalkDir(dir,
-			func(path string, _ os.DirEntry, err error) error {
-				if os.IsNotExist(err) {
+			func(path string, entry os.DirEntry, err error) error {
+				switch {
+				case os.IsNotExist(err):
+					return nil
+				case err != nil:
+					return err
+				case entry.IsDir():
 					return nil
 				}
-				if err != nil {
-					return err
+				body, readErr := os.ReadFile(path)
+				if readErr != nil {
+					return readErr
 				}
-				found = append(found, path)
+				found[path] = string(body)
 				return nil
 			}))
 	}
