@@ -3352,7 +3352,7 @@
     {
       "id": "reinvention-defaults-to-question",
       "title": "Default reinvention items to question kind",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "reinvention-similarity-ranking"
@@ -3362,11 +3362,20 @@
       "source_sections": [
         "### 4.3 Convention and reinvention"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:37:56.629708Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T23:41:36.282498Z",
+      "closed_reason": "- A reinvention item cites the candidate as path:line per §4.3.3: internal/review/text.go already tells the role so and prints every candidate as `at path:line`, and internal/cli/reinventionkind.go now makes that citation the mechanical identity of a reinvention item — citesACandidate matches a record's citation by path and line against a §4.3.1 candidate attached to a symbol added inside the record's own RIGHT unit, recomputed by roundCandidates the way cr review computed it (symbol.Head at the round's head, roundHunks, reinvention.Attach with reinvention.min_similarity and max_candidates).\n- Reinvention items default to kind: question per §4.3.4: defaultReinventionQuestions runs in acceptRecords after the grade and before finding.ForceQuestions and sets kind question on every matching record, moving only toward the question register; it reads the repository and gh only when some record cites anything and the round's profile declares a symbols.lang cr indexes, so every earlier record fixture is untouched. Dogfood on a scratch repo with a go-indexing profile: a convention record citing money.go:3 (FormatMoney, the candidate for the added formatMoneys) was stored {'kind': 'question', 'grade': 'cited', 'axis': 'convention', 'state': 'draft'}, git status --porcelain empty.\n- TestAReinventionItemDefaultsToAQuestionBeforeTheForcing in internal/cli/reinventionkind_test.go records two convention findings graded cited, which §6.3's forcing never reaches, and asserts the one citing the candidate money.go:3 is stored as a question while the one citing money.go:1 stays a finding, so the question is the §4.3.4 default applied before the forcing rather than the forcing; removing the call from acceptRecords turns it red.\n",
+      "gate_passed_at": "2026-09-12T23:41:36.282498Z",
+      "commit_sha": "f8ef9f6",
+      "commit_shas": [
+        "f8ef9f6"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/reinventionkind.go",
+        "internal/cli/reinventionkind_test.go"
+      ]
     },
     {
       "id": "rule-hit-unit-attachment",
@@ -5215,18 +5224,19 @@
     {
       "id": "probed-grade-validation",
       "title": "Validate a probed record against target",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "grade-computation",
         "probe-record-schema"
       ],
       "estimate_minutes": 12,
-      "acceptance": "- A record claiming probed without a valid same-head probe that supports it is rejected with exit code 1, per §6.2.2.\n- A probe supports a record only when its target falls within that record's anchor.start_line..anchor.line range on the same path, so one experiment cannot grade a second finding elsewhere in the unit.\n- A probe target is always RIGHT, so a record with a LEFT anchor can never reach probed; a claim about deleted code is argued or cited, never probed.\n- A test asserts a target one line outside the anchor range fails to support, and that a LEFT-anchored record cannot reach probed.",
+      "acceptance": "- A record claiming probed without a valid same-head probe that supports it is rejected with exit code 1, per §6.2.2.\n- A probe supports a record only when its target falls within that record's anchor.start_line..anchor.line range on the same path, so one experiment cannot grade a second finding elsewhere in the unit.\n- A probe target is always RIGHT, so a record with a LEFT anchor can never reach probed; a claim about deleted code is argued or cited, never probed.\n- A test asserts a target one line outside the anchor range fails to support, and that a LEFT-anchored record cannot reach probed.\n- Open before implementing, found 2026-09-13 at 2ea2324 and needing an orchestrator decision: criterion 1 cannot be implemented as a rejection without contradicting §5.4.4 and §5.4.5, which say a record resting on a non-supporting gap probe (failed without a baseline or mapped claim, passed, timeout, error, no-tests-selected, inconclusive) falls to argued and is posted as a question, and §5.3.7, which has a failed mutation probe recorded rather than refused. §6.1.4 already rejects a record arriving with grade at exit 1, so no record can carry probed on the wire, and the only field a record can claim a probe through is probe. The code and tests implement the downgrade reading today: TestEachResultSection545NamesLeavesTheRecordArgued stores such records argued, TestRecordGradesARecordOnTheProbeItReferences stores a record naming p404 argued, and probe.Establishes' comment calls the §6.2.2 containment a rejection this task owns. The same fork is round 7's unresolved medium finding reject-vs-downgrade-conflict (review-round-7.ndjson line 31, no disposition), whose suggestion was downgrade with exit 1 reserved for a probe id naming no probe record. The reading decides where criteria 2 and 3 live: under downgrade the target containment and the LEFT rule are support conditions in finding.Evidence (and the guard TestGradingHasNowhereToPutAFieldSection621DoesNotName pins Evidence's fields to own and probed, so carrying the target needs that guard's list or the probed field's type to change); under rejection they are a cr record refusal beside refuseForeignAnchors and the grader is untouched. Nothing was committed for this task.",
       "source_sections": [
         "### 6.2 Evidence grades"
       ],
-      "started_at": null,
+      "started_at": "2026-09-12T23:29:43.122364Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
