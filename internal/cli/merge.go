@@ -1,13 +1,87 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/spf13/cobra"
+
+	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/rule"
+	"github.com/deligoez/cr/internal/state"
 )
+
+// mergeResult is what `cr merge` has to report about the file it wrote: how
+// many records reached it, and what each of §6.5.1's passes took out on the
+// way.
+//
+// The drops are reported apart rather than counted into one number. §6.4.4 and
+// §9.3.6 remove a finding for different reasons — one the reviewer set aside,
+// one the author has already read — and a reviewer told only that some findings
+// went missing could not tell a round that repeated itself from a round whose
+// judgements were being honoured.
+//
+// The counts by role, axis, severity and grade that §6.5.1 also asks for, and
+// the §10.3 round summary they are written into, belong to
+// merge-counts-reporting.
+type mergeResult struct {
+	// Output is the path `-o` named, so the caller can hand it to
+	// `cr record` without reconstructing it.
+	Output string `json:"output"`
+	// Merged is how many records the file holds.
+	Merged int `json:"merged"`
+	// Waived is §6.4.4's report: how many findings an active waiver
+	// silenced, and which waivers silenced them.
+	Waived finding.Drops `json:"waived"`
+	// AlreadyPosted is §9.3.6's report: how many findings the posted index
+	// already holds an entry for, and which records hold them.
+	AlreadyPosted finding.PostedDrops `json:"already_posted"`
+	// Overlaps is §6.4.3's overlap summary over the groups §6.4.1 formed.
+	Overlaps finding.Overlaps `json:"overlaps"`
+	// Honesty carries the three counts above as the sentences §11.1
+	// exempts from `--quiet`.
+	Honesty []string `json:"honesty"`
+}
+
+// Text names the file and how many records reached it, then the three
+// disclosures. The records themselves are in the file the line names, so
+// printing them into a terminal would repeat what the caller can already read.
+func (r *mergeResult) Text(w *writer) string {
+	var out strings.Builder
+	fmt.Fprintf(&out, "merged %s record(s) into %s", w.accent(strconv.Itoa(r.Merged)), r.Output)
+	for _, disclosed := range r.Honesty {
+		fmt.Fprintf(&out, "\n%s", disclosed)
+	}
+	return out.String()
+}
+
+// newMergeResult reports one merge, asking each pass for its own sentence.
+//
+// The disclosures are asked of the types that own them rather than assembled
+// here, as `cr record` asks its own: a wording built at the call site cannot
+// come to disagree with the data beside it.
+func newMergeResult(
+	output string, records []*finding.Finding,
+	waived finding.Drops, posted finding.PostedDrops, overlaps finding.Overlaps,
+) *mergeResult {
+	disclosures := []finding.HonestyDisclosure{waived, posted, overlaps}
+	honesty := make([]string, 0, len(disclosures))
+	for _, disclosed := range disclosures {
+		honesty = append(honesty, disclosed.Disclosure())
+	}
+	return &mergeResult{
+		Output: output, Merged: len(records),
+		Waived: waived, AlreadyPosted: posted, Overlaps: overlaps,
+		Honesty: honesty,
+	}
+}
 
 // newMergeCmd registers §11's
 // `cr merge <files...> -o <out> --repo <owner/repo> --pr <n>`, the merge of
-// §6.5: the per-role NDJSON files are deduplicated per §6.4 and the counts are
-// reported by role, axis, severity, and grade.
+// §6.5.
 //
 // It takes the pull request as a flag rather than as the positional every other
 // PR-scoped command uses, because its positionals are the files being merged
@@ -17,16 +91,235 @@ import (
 // §7.4.1 scopes `not-here` waivers to the pull request — a merge that could not
 // read them would resurface exactly what the reviewer set aside. `--repo` is
 // §11.1's global flag and is registered on the root command.
-//
-// The behaviour belongs to merge-command and merge-counts-reporting; what is
-// registered here is the shape.
-func newMergeCmd() *cobra.Command {
-	cmd := stubCmd(
-		"merge <files...>",
-		"Merge and deduplicate per-role findings",
-		cobra.MinimumNArgs(1),
-	)
+func newMergeCmd(out *writer) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "merge <files...>",
+		Short: "Merge and deduplicate per-role findings",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runMerge(cmd, out, args)
+		},
+	}
 	cmd.Flags().StringP("output", "o", "", "write the merged findings to this file")
 	cmd.Flags().Int("pr", 0, "the pull request the findings belong to")
+	_ = cmd.MarkFlagRequired("output")
+	_ = cmd.MarkFlagRequired("pr")
 	return cmd
+}
+
+// runMerge is §6.5.1: the per-role files are read, the four passes are applied,
+// and the result is written where `-o` points.
+//
+// Nothing is written until every input has been read and every pass has run,
+// which is the contract `cr record` states for the same reason: §6.5.2 rejects
+// a record with exit code 1, and a rejection that had already written half the
+// output would leave the agent a file it is about to hand back corrected.
+func runMerge(cmd *cobra.Command, out *writer, files []string) error {
+	pr, err := prFlagOf(cmd)
+	if err != nil {
+		return err
+	}
+	owner, repo, err := repoOf(cmd)
+	if err != nil {
+		return err
+	}
+	output, err := cmd.Flags().GetString("output")
+	if err != nil {
+		return err
+	}
+	layout, err := state.Default()
+	if err != nil {
+		return err
+	}
+	// Briefed rather than ReadMeta: §6.1.3 checks every record's unit
+	// against the units of the round, and §6.2 grades against the head that
+	// round was opened at.
+	round, err := briefedRound(layout, owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	// §9.3.2. §6.5.1 has `cr merge` write its drop counts into the current
+	// round's `summary.json`, which §2.3's table lists as per-PR state, so
+	// this command is one of §9.3.2's writers whichever task lands that
+	// write. It would be refused here for a second reason even without it:
+	// what it produces is the input to `cr record`, which §9.3.2 refuses at
+	// a moved head — so a merge that ran could only manufacture a file
+	// nothing downstream is allowed to accept.
+	if err := round.RefuseStale(); err != nil {
+		return err
+	}
+	merged, err := mergeRecords(layout, owner, repo, pr, &round, files)
+	if err != nil {
+		return err
+	}
+	body, err := finding.MergedRecords(merged.records)
+	if err != nil {
+		return err
+	}
+	// §2.2 keeps cr's own state under `~/.cr`. This file is not cr's state:
+	// it is the caller's, written where the caller pointed, and it is the
+	// one thing `cr merge` produces. It still goes through internal/state,
+	// which is where every write cr performs is spelled.
+	if err := state.WriteNamedFile(output, body); err != nil {
+		return err
+	}
+	return out.emit(newMergeResult(
+		output, merged.records, merged.waived, merged.posted, merged.overlaps))
+}
+
+// mergeOutcome is what §6.5.1's four passes left: the records that reach the
+// output file, and what each drop took out of them.
+type mergeOutcome struct {
+	records  []*finding.Finding
+	waived   finding.Drops
+	posted   finding.PostedDrops
+	overlaps finding.Overlaps
+}
+
+// mergeRecords reads every per-role file and applies §6.5.1's four passes in
+// the order §6.5.1 lists them.
+//
+// The order is the contract rather than the shape a function body happened to
+// take. The grade is computed first because §6.4.2 ranks a duplicate group by
+// it. §6.4.4 and §9.3.6 drop before §6.4.3 marks, because MarkDuplicates writes
+// a representative's id into every other record of its group, and dropping a
+// representative afterwards would leave those records naming an id nothing in
+// the round holds.
+func mergeRecords(
+	l state.Layout, owner, repo string, pr int, round *state.Round, files []string,
+) (*mergeOutcome, error) {
+	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return nil, err
+	}
+	records, err := readPerRole(files, roundUnitIDs(formed), round.Head)
+	if err != nil {
+		return nil, err
+	}
+	corpus, err := role.Resolve(l.RepoRolesDir(owner, repo), l.RolesDir())
+	if err != nil {
+		return nil, err
+	}
+	if err := gradeMerged(l, owner, repo, pr, round, formed, corpus, records); err != nil {
+		return nil, err
+	}
+	// §6.4.4, over both of the files §7.4.4 writes.
+	waivers, err := finding.ActiveWaivers(l, owner, repo, pr)
+	if err != nil {
+		return nil, err
+	}
+	kept, waived := finding.DropWaived(records, waivers)
+	// §9.3.6, read across rounds because that is the whole of what the
+	// index is for: a comment the author received in round 1 must not be
+	// raised again in round 2, and an index narrowed to the current round
+	// would always be empty at the moment this consults it.
+	index, err := finding.PostedIndex(l, owner, repo, pr)
+	if err != nil {
+		return nil, err
+	}
+	kept, posted := finding.DropPosted(kept, index)
+	// §6.4.1 and §6.4.2, and the `duplicate_of` §6.5.1 lets this command
+	// write. The state §6.4.3 names is `cr record`'s to stamp.
+	return &mergeOutcome{
+		records:  kept,
+		waived:   waived,
+		posted:   posted,
+		overlaps: finding.MarkDuplicates(kept, role.Order(corpus)),
+	}, nil
+}
+
+// readPerRole reads every §4.6.2 fan-out output file the caller named, in the
+// order they were named, and holds each to §6.1.3, §6.1.4 and §6.2.3.
+//
+// Every input is one role's own output, so finding.DecodePerRole refuses a name
+// that binds its records to no role: §6.1.3 rejects a record whose `role` is
+// not the role whose file it arrived in, and a file carrying no role in its
+// name leaves nothing to compare against — the whole file's `role` fields, and
+// with them the axis §6.2 grades on, would revert to being taken on the agent's
+// word.
+//
+// The paths are the caller's and are not derived here, which settles the open
+// question review-prompt-emission left: `cr review` writes those files under
+// state.DirFanOut — `fanout/<round>/<unit>/review-<role>.ndjson` inside the
+// pull request's state directory, beside §2.3's table rather than inside
+// `rounds/<n>/`, because `rounds/<n>/` holds the four artefacts §2.3 names and
+// cr writes, while these are files a role writes. `cr merge` is told which
+// files to read and binds each one's records by its base name alone, so a role
+// that wrote elsewhere is merged exactly as one that did not, and the directory
+// is `cr review`'s to fix rather than a second decision made here.
+//
+// The citations are resolved here, beside the decode, because §6.2.3's
+// rejection names the line of the file the entry arrived in and the body is
+// what counts those lines. Resolving them at all is what makes the grade
+// §6.4.2 ranks by a real answer: without the hash cr stamps, §6.2's `cited` row
+// can never match, every record would grade `argued`, and "the highest grade"
+// would silently stop distinguishing anything.
+func readPerRole(files, units []string, head string) ([]*finding.Finding, error) {
+	records := make([]*finding.Finding, 0)
+	for _, file := range files {
+		body, err := os.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		read, err := finding.DecodePerRole(file, body, units)
+		if err != nil {
+			return nil, err
+		}
+		if err := resolveCitations(file, body, head, read); err != nil {
+			return nil, err
+		}
+		records = append(records, read...)
+	}
+	return records, nil
+}
+
+// gradeMerged computes §6.2's grade over the merged records, in memory.
+//
+// §6.5.1 says why it is computed at all and how far it goes: `cr merge`
+// computes the grade for its counts, and its output carries no computed field
+// except `duplicate_of`. §6.4.2 is the second reader — a duplicate group's
+// representative is the highest grade before it is anything else — and both
+// readers are inside this command. finding.MergedRecords takes the field back
+// out on the way to the file.
+//
+// It is the same computation `cr record` makes, through the same helpers, so
+// the representative this merge picks is the record `cr record` will grade
+// highest. Two spellings of §6.2 that could disagree is exactly what one shared
+// path prevents.
+func gradeMerged(
+	l state.Layout, owner, repo string, pr int, round *state.Round,
+	formed []roundUnit, corpus []role.Resolved, records []*finding.Finding,
+) error {
+	// §6.2.5, before the grade reads it: a citation cr's own rule machinery
+	// produced counts as evidence even inside the record's own unit, and
+	// §6.1.4 refuses the field on the wire.
+	ledger, err := rule.ReadStats(l, owner, repo)
+	if err != nil {
+		return err
+	}
+	rule.StampOrigins(ledger, round.Head, records)
+	evidence, err := readRoundEvidence(l, owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	// §6.1's `axis` row, before the grade rather than after it: §6.2's
+	// `cited` row reads the axis, and §4.4.2 withholds that grade from the
+	// test axis entirely.
+	stampAxes(corpus, records)
+	gradeRecords(&round.Meta, formed, evidence, records)
+	return nil
+}
+
+// prFlagOf reads the pull request `cr merge` takes as a flag.
+//
+// It applies parsePR's rule rather than a second one. §6.5.1 spells the pull
+// request as `--pr <number>` because this command's positionals are the files
+// being merged, and a number that is not a pull request is the same fault
+// whichever way it was typed — so it is refused with the same sentence.
+func prFlagOf(cmd *cobra.Command) (int, error) {
+	n, err := cmd.Flags().GetInt("pr")
+	if err != nil {
+		return 0, err
+	}
+	return parsePR(strconv.Itoa(n))
 }

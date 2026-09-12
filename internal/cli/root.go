@@ -68,7 +68,7 @@ func newRootCmd() *cobra.Command {
 	// behaviour: a command that is absent is indistinguishable from a
 	// command that is misspelled, and both come back as §11.2's code 2.
 	root.AddCommand(newReviewCmd(out))
-	root.AddCommand(newMergeCmd())
+	root.AddCommand(newMergeCmd(out))
 	root.AddCommand(newPostCmd(out))
 	root.AddCommand(newStatsCmd())
 	root.AddCommand(newWaiversCmd())
