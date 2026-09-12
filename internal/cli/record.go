@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -331,7 +330,9 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, err
 	}
-	body, err := os.ReadFile(file)
+	body, err := readInput(file,
+		"§6.5.1 has `cr merge` write the file `cr record` reads; "+
+			"pass the path `-o` named")
 	if err != nil {
 		return nil, nil, err
 	}

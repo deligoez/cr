@@ -376,7 +376,8 @@ func mutationInput(request *probeRequest, patchFile, testFile, target string) er
 		return errors.New(
 			"--patch is required: §5.3.1 has the agent supply the mutation as a unified diff")
 	}
-	body, err := os.ReadFile(patchFile)
+	body, err := readInput(patchFile,
+		"`--patch` names the file holding §5.3.1's unified diff; check the path")
 	if err != nil {
 		return err
 	}
@@ -434,7 +435,8 @@ func gapInput(request *probeRequest, patchFile, testFile, target string) error {
 	if _, _, err := probe.ParseTarget(target); err != nil {
 		return err
 	}
-	body, err := os.ReadFile(testFile)
+	body, err := readInput(testFile,
+		"`--test` names the file holding §5.4.1's new test; check the path")
 	if err != nil {
 		return err
 	}

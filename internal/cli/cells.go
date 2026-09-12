@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"slices"
 	"strconv"
 
@@ -120,7 +119,9 @@ func newCellsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body, err := os.ReadFile(args[1])
+			body, err := readInput(args[1],
+				"§4.5.6 has the roles write the coverage cells they filled to this "+
+					"file before `cr cells record` reads it")
 			if err != nil {
 				return err
 			}

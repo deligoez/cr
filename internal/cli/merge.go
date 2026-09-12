@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -387,7 +386,9 @@ func (c *mergeCounts) lines() []string {
 func readPerRole(files, units []string, head string) ([]*finding.Finding, error) {
 	records := make([]*finding.Finding, 0)
 	for _, file := range files {
-		body, err := os.ReadFile(file)
+		body, err := readInput(file,
+			"§4.6 has each role write its findings to the output path "+
+				"`cr review` printed; pass those paths")
 		if err != nil {
 			return nil, err
 		}

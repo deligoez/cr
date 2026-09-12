@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 
@@ -139,7 +138,9 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body, err := os.ReadFile(args[1])
+			body, err := readInput(args[1],
+				"§4.1.6 has the agent write the claim-to-unit pairs to this file "+
+					"before `cr map record` reads it")
 			if err != nil {
 				return err
 			}

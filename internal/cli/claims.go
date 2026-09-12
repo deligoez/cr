@@ -274,7 +274,9 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body, err := os.ReadFile(args[1])
+			body, err := readInput(args[1],
+				"§3.3 has the agent write the claims it extracted from the issue "+
+					"to this file before `cr claims record` reads it")
 			if err != nil {
 				return err
 			}
