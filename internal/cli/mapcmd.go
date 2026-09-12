@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,14 +28,37 @@ type mapRecordResult struct {
 	// reported: it is the difference between a run that replaced this
 	// round's mapping and one that would have replaced the whole file.
 	Round int `json:"round"`
+	// DroppedSetAsides are the §4.1.8 stamps §4.1.7's derivation did not
+	// carry forward, one per claim that held one and no longer raises an
+	// entry to hold it.
+	//
+	// Round 9's `derived-state-clobbers-decision` is why it is here rather
+	// than nowhere: the drop itself is correct — a mapped claim is not an
+	// unimplemented one — but it revokes a judgement §4.1.8 reserves for
+	// the agent, and a revocation nothing states is the clobber round 12's
+	// `derived-file-erases-recorded-decision` names. This is the only
+	// place it can be stated, because the entry that carried the stamp is
+	// gone from intent-gaps.ndjson by the time the run ends.
+	DroppedSetAsides []mapping.DroppedSetAside `json:"dropped_set_asides"`
 }
 
 // Text names how many pairs were stored and the round they stand in. The pairs
 // themselves came from the caller's own file, so printing them into a terminal
 // would repeat what the caller has.
 func (r *mapRecordResult) Text(w *writer) string {
-	return "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
+	line := "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
 		" mapping(s) in round " + strconv.Itoa(r.Round)
+	if len(r.DroppedSetAsides) == 0 {
+		return line
+	}
+	// Named, not counted. A count tells the reviewer that a judgement was
+	// revoked; the claim id is what tells them which one, and re-making a
+	// set-aside needs the claim before it needs the tally.
+	claims := make([]string, 0, len(r.DroppedSetAsides))
+	for _, drop := range r.DroppedSetAsides {
+		claims = append(claims, drop.Claim)
+	}
+	return line + "; dropped the set-aside of " + w.accent(strings.Join(claims, ", "))
 }
 
 // newMapCmd groups the mapping commands of §11. It runs nothing itself, so an
@@ -116,13 +140,16 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := storeMapping(
+			dropped, err := storeMapping(
 				layout, owner, repo, pr,
 				state.Stamp{Head: round.Head, Round: round.Round}, pairs, claims,
-			); err != nil {
+			)
+			if err != nil {
 				return err
 			}
-			return out.emit(&mapRecordResult{Recorded: pairs, Round: round.Round})
+			return out.emit(&mapRecordResult{
+				Recorded: pairs, Round: round.Round, DroppedSetAsides: dropped,
+			})
 		},
 	}
 }
@@ -137,14 +164,15 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 func storeMapping(
 	l state.Layout, owner, repo string, pr int,
 	at state.Stamp, pairs []*mapping.Pair, claims []string,
-) error {
+) ([]mapping.DroppedSetAside, error) {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	dropped, published := publishMapping(l, held, owner, repo, pr, at, pairs, claims)
 	// Joined rather than branched: the lock is released whether or not the
 	// writes succeeded, and neither failure is traded away for the other.
-	return errors.Join(publishMapping(l, held, owner, repo, pr, at, pairs, claims), held.Unlock())
+	return dropped, errors.Join(published, held.Unlock())
 }
 
 // publishMapping publishes the two files through the held lock.
@@ -161,16 +189,16 @@ func storeMapping(
 func publishMapping(
 	l state.Layout, held *state.Lock, owner, repo string, pr int,
 	at state.Stamp, pairs []*mapping.Pair, claims []string,
-) error {
+) ([]mapping.DroppedSetAside, error) {
 	if err := state.ReplaceStamped(held, state.FileMapping, at, pairs); err != nil {
-		return err
+		return nil, err
 	}
 	recorded, err := state.ReadRecords[mapping.Gap](l, owner, repo, pr, state.FileIntentGaps)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return state.ReplaceStamped(
-		held, state.FileIntentGaps, at, mapping.Gaps(claims, storedPairs(pairs), at.Round, recorded))
+	gaps, dropped := mapping.Gaps(claims, storedPairs(pairs), at.Round, recorded)
+	return dropped, state.ReplaceStamped(held, state.FileIntentGaps, at, gaps)
 }
 
 // storedPairs is the round's mapping as mapping.Gaps reads it. The pairs were
