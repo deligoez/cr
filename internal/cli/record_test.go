@@ -315,3 +315,38 @@ func TestATerminalRecordNamesTheDuplicatesApartFromTheDrafts(t *testing.T) {
 	assert.Contains(t, out, "2 in state draft")
 	assert.Contains(t, out, "1 in state duplicate")
 }
+
+// §2.3.1's write is what the command is for, and a caller has to be told when
+// it fails. A findings.ndjson that is a directory refuses at exactly that
+// point: the round is briefed, the file is accepted, §2.3.1's lock is taken,
+// and only then does the store refuse to be read back and appended to.
+//
+// gremlins found this. Negating the guard on the append's error leaves
+// `cr record` reporting success on a round that reached no file — the lock is
+// released on the way out of both branches, so the whole of the difference is
+// whether the failure reaches the caller, and nothing asserted that it does.
+//
+// The second run is the other half of the same comment: the lock is released on
+// the way out of the failing branch too, so a run that follows a failed one
+// reaches the same refusal rather than a lock timeout.
+func TestAFailedAppendIsReportedRatherThanSwallowed(t *testing.T) {
+	layout := recordedHome(t)
+	dir := filepath.Dir(layout.PRFile(recordOwner, recordRepo, recordPRNum, state.FileFindings))
+	// Read-only rather than a directory in the store's place: §2.3's write is
+	// atomic, so it fails on the temporary file it cannot create, while every
+	// read of the round — the meta, the units, and the read-back the rule
+	// statistics take — still succeeds. That is what leaves the append as the
+	// only thing that failed.
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	require.NoError(t, os.Chmod(dir, 0o500))
+
+	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"))
+
+	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.Error(t, err, "a round that reached no file was not recorded")
+	assert.Contains(t, err.Error(), dir, "the refusal names where the write failed")
+
+	_, again := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.Error(t, again, "the lock was released, so the second run reaches the write too")
+	assert.Contains(t, again.Error(), dir)
+}
