@@ -13,6 +13,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/render"
@@ -48,7 +49,7 @@ const (
 // This is one flat mapping and invariant 5 pins what it returns, so it is cleared by
 // refactoring, never by raising the limit and never by renumbering to shorten it.
 //
-//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 54 over 161 statements
+//nolint:gocognit,funlen // measured 2026-09-12 at cognitive 55 over 164 statements
 func exitCodeFor(err error) int {
 	var invalidAxis *axis.InvalidError
 	if errors.As(err, &invalidAxis) {
@@ -401,6 +402,17 @@ func exitCodeFor(err error) int {
 		// what refuses is that a checkout cr did not just make is
 		// standing in the one place §5.1.1 puts one. §11.2 codes that 4
 		// alongside the illegal transition and the unbriefed round.
+		return ExitState
+	}
+	var rejectedReview *post.RejectedError
+	if errors.As(err, &rejectedReview) {
+		// §8.4.2 fixes the code itself: a rejected review-creation
+		// call exits 4, having marked nothing posted. It is deliberately
+		// not the 3 gh.CommandError takes above — the command ran and
+		// GitHub answered, and what refuses is that the positions cr
+		// pre-validated per §8.4.1 are not the positions GitHub has, a
+		// disagreement about the pull request rather than a broken
+		// tool.
 		return ExitState
 	}
 	var probeLocked *state.ProbeLockedError
