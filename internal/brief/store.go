@@ -93,6 +93,11 @@ func write(src *Sources, held *state.Lock, assembled *Brief) error {
 // back and carried through. Writing the document from the fields this package
 // computes would clear a post whose outcome cr never learned, and `cr brief` is
 // the command a user runs after exactly that.
+//
+// The mapping stamp is carried through for the same reason: `cr map record`
+// writes it, and a same-head brief that dropped it would hold a round §4.6.5
+// had already unblocked. A stamp carried past §9.3.3's increment names the
+// round being closed, which state.Meta.MappingRecorded reads as no mapping.
 func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -108,6 +113,8 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 		Round:          assembled.Round,
 		Head:           assembled.Head,
 		PostUnresolved: recorded.PostUnresolved,
+		MappingRound:   recorded.MappingRound,
+		MappingHead:    recorded.MappingHead,
 	}, nil
 }
 
