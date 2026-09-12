@@ -116,6 +116,60 @@ func resolveCitations(file string, body []byte, head string, records []*finding.
 	return nil
 }
 
+// roundGrading is everything §6.2.1 and §4.1.4 read about a round from outside
+// the records themselves: its units, and roundEvidence's three files.
+//
+// §6.3.1 applies its forcing three times over one round and §7.2.2 recomputes
+// every grade again at post time, so the two commands after `cr record` —
+// `cr draft` and `cr post` — need the same inputs more than once in a single
+// run. They are read once and handed to each application, for the reason
+// roundEvidence gives about its own files: two reads are two answers that agree
+// only while nothing writes between them, which is exactly the mutability round
+// 13's mutable-grading-input finding is about.
+type roundGrading struct {
+	// formed are the round's units, as §3.4.6 recorded them.
+	formed []roundUnit
+	// roundEvidence is the stored half of §6.2.1's input set.
+	*roundEvidence
+}
+
+// readRoundGrading reads both halves, without a lock and before any write, as
+// §2.3.2 has every read of cr's own state.
+func readRoundGrading(l state.Layout, owner, repo string, pr, round int) (*roundGrading, error) {
+	formed, err := roundUnitsOf(l, owner, repo, pr, round)
+	if err != nil {
+		return nil, err
+	}
+	found, err := readRoundEvidence(l, owner, repo, pr)
+	if err != nil {
+		return nil, err
+	}
+	return &roundGrading{formed: formed, roundEvidence: found}, nil
+}
+
+// regrade is §7.2.2's recomputation: every record's grade computed again from
+// §6.2.1's inputs as they now stand, before the payload is built.
+//
+// It is the same computation `cr record` made, through the same ratchet, so a
+// recomputation can lower a record to `argued` and never raise it within a
+// round — which is what makes the forcing below meaningful at post time rather
+// than a second chance to assert.
+func (g *roundGrading) regrade(meta *state.Meta, records []*finding.Finding) {
+	gradeRecords(meta, g.formed, g.roundEvidence, records)
+}
+
+// forceUnmapped is §4.1.4 applied again after record time.
+//
+// §4.1.6 replaces the mapping and §3.3.1 clears it, both inside a round, so a
+// unit that was mapped when an intent finding was recorded can be unmapped by
+// the time the draft is rendered or the payload built. A forcing applied only
+// at record time would leave that finding asserting against a claim the round
+// no longer maps to it — which is the finding intent-finding-on-unmapped-unit
+// carried here, and the reason §6.3.1's own three moments are not enough.
+func (g *roundGrading) forceUnmapped(round int, records []*finding.Finding) {
+	forceUnmappedIntent(round, g.formed, g.pairs, records)
+}
+
 // unitOf is the unit a record sits on, as §3.4.6 recorded it for this round,
 // and nil when the round holds no unit by that id.
 //
