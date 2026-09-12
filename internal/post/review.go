@@ -110,6 +110,46 @@ func (r *Review) Payload() ([]byte, error) {
 	return json.MarshalIndent(r, "", "  ")
 }
 
+// Sent is `rounds/<n>/posted.json` as §8.4.4 reads it back: the payload, and
+// the record ids cr wrote into the same document beside it.
+//
+// The ids are not part of the request and could not be — Comment.Record is
+// `json:"-"` because GitHub has no field for it — so a payload read back off
+// disk names no record at all. §8.4.4 needs them: adopting a review as posted
+// means moving the records that reached the author to `posted`, and inferring
+// which those were from the comments' anchors would mark a record posted on a
+// resemblance. A record wrongly marked posted takes a §9.3.6 index entry with
+// it, and the next round then drops a finding nobody ever received.
+//
+// They live in this document rather than in one of their own for the reason
+// the returned thread ids do: §2.3's table gives a round one posted.json.
+type Sent struct {
+	// Review is the payload as it was sent.
+	Review
+	// Records are the ids of the records the comments were drawn from, in
+	// payload order, as cr wrote them beside the payload.
+	Records []string `json:"records"`
+}
+
+// Decode reads `rounds/<n>/posted.json` back.
+//
+// §8.4.4 is what needs it: the hash a reconciliation matches is the hash of
+// what was sent, and what was sent is the document §8.3.3 wrote before the call
+// — so the recovery reads that file rather than rebuilding the round out of
+// whatever the draft and the records hold now.
+//
+// A field the document carries and this type does not is dropped, which is the
+// reading the round needs: §8.3.3 has the returned thread ids added to the same
+// document afterwards, and a decoder that refused them would refuse every
+// payload whose call succeeded.
+func Decode(payload []byte) (*Sent, error) {
+	var sent Sent
+	if err := json.Unmarshal(payload, &sent); err != nil {
+		return nil, err
+	}
+	return &sent, nil
+}
+
 // Sender is the write door of internal/gh, as this package uses it.
 //
 // It is an interface so the door is named rather than opened here: the only
