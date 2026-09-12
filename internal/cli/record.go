@@ -159,10 +159,14 @@ func roundUnitIDs(units []roundUnit) []string {
 // stampStates walks §9.1's first two rows over a file `cr record` has accepted.
 //
 // Every record is created in `draft` by the row naming `cr record` as the
-// producer. A record §6.4.3 marked as a suppressed duplicate is then moved on to
-// `duplicate` by the second row, which names the same actor. §6.5.1 assigns that
-// second move here and not to `cr merge`: merge's output carries `duplicate_of`
-// and no `state` at all, and `cr record` is what applies §6.4.3 from it.
+// producer. A record already spoken for is then moved on by the second row,
+// which names the same actor and offers two states: `duplicate` for the
+// suppressed duplicate §6.4.3 marked, and `suppressed` for the finding §3.5.4
+// has an ingested human thread already covering. §6.5.1 assigns the first move
+// here and not to `cr merge`: merge's output carries `duplicate_of` and no
+// `state` at all, and `cr record` is what applies §6.4.3 from it. The second is
+// here for the same reason from the other side — §3.5.4 has the agent decide,
+// and `cr record` is the command the decision arrives at.
 //
 // Both moves are asked of the transition table rather than assumed, so this
 // command writes a state only while §9.1 still has a row allowing it.
@@ -174,17 +178,45 @@ func stampStates(records []*finding.Finding) error {
 			return err
 		}
 		record.State = finding.StateDraft
-		if record.DuplicateOf == "" {
+		retired := retirement(record)
+		if retired == finding.StateDraft {
 			continue
 		}
 		if err := finding.MayTransition(
-			record.ID, finding.Existing(finding.StateDraft), finding.StateDuplicate, finding.ActorRecord,
+			record.ID, finding.Existing(finding.StateDraft), retired, finding.ActorRecord,
 		); err != nil {
 			return err
 		}
-		record.State = finding.StateDuplicate
+		record.State = retired
 	}
 	return nil
+}
+
+// retirement is which of the second row's two states a record moves on to, and
+// StateDraft when it stays where the first row put it.
+//
+// The two fields it reads are the two ways a record can already be spoken for,
+// and each is a different author's. §6.4.3's `duplicate_of` is cr's own mark,
+// carried out of `cr merge` per §6.5.1 and applied here. §3.5.4's
+// `suppressed_by` is the agent's judgement that an ingested human thread
+// already covers the finding, which is why §6.1.4 does not reserve the field:
+// cr never decides suppression, per §3.5.3, and never writes the value it is
+// reading here.
+//
+// A record carrying both is retired as a duplicate. Both outcomes are terminal
+// and neither is drafted, so the choice decides only which field explains the
+// record, and a non-representative duplicate is explained by the representative
+// it names — which is where §3.5.4's thread coverage belongs and where a reader
+// following `duplicate_of` will look.
+func retirement(record *finding.Finding) finding.State {
+	switch {
+	case record.DuplicateOf != "":
+		return finding.StateDuplicate
+	case record.SuppressedBy != "":
+		return finding.StateSuppressed
+	default:
+		return finding.StateDraft
+	}
 }
 
 // newRecordCmd records a round's merged findings (§11, §6.1.3, §9.1).
