@@ -244,15 +244,73 @@ func TestRunEmitsEveryActiveRoleOverEveryUnitOfTheRound(t *testing.T) {
 }
 
 // `--axis` narrows the fan-out to one axis's roles.
+//
+// The round is the one before a mapping is stored, so what is measured here is
+// the role narrowing alone: §4.6.5's second pass narrows the units as well, and
+// a round carrying both narrowings could pass this while emitting one axis over
+// the wrong units.
 func TestAnAxisNarrowsTheFanOutToItsRoles(t *testing.T) {
-	src := briefed(t)
-	src.Axis = "intent"
+	src, _ := briefedWithoutMapping(t)
+	src.Axis = axis.Intent
 
 	fan, err := Run(src)
 	require.NoError(t, err)
 	require.Len(t, fan.Prompts, 2)
 	for _, prompt := range fan.Prompts {
-		assert.Equal(t, "intent", prompt.Axis)
+		assert.Equal(t, axis.Intent, prompt.Axis)
+	}
+}
+
+// §4.6.5's two passes, driven in order over one round.
+//
+// The first pass emits over every unit and carries the round's claims with no
+// join, because the join is what it exists to produce. The mapping is then
+// stored the way `cr map record` stores it, and the second pass re-emits one
+// prompt for the single unit that mapping maps to zero claims — carrying
+// §4.1.2's item and §4.1.5's notes, which the first pass could not have carried
+// about any unit.
+func TestTheIntentAxisRunsInTwoPasses(t *testing.T) {
+	src, head := briefedWithoutMapping(t)
+	src.Axis = axis.Intent
+	claim := "- " + runIssue + "#c1: The total sums the subtotal and the shipping."
+
+	first, err := Run(src)
+	require.NoError(t, err)
+	require.Len(t, first.Prompts, 2, "§4.6.5: unmapped-ness is unknowable, so every unit is emitted")
+	for _, prompt := range first.Prompts {
+		assert.Contains(t, prompt.Text, claim, "§4.6.5: the first pass carries the claims")
+		assert.Contains(t, prompt.Text, "No mapping is recorded for round 1 yet",
+			"and no mapping")
+		assert.NotContains(t, prompt.Text, "Unmapped unit (§4.1.2)")
+	}
+
+	recordMapping(t, src, head)
+
+	second, err := Run(src)
+	require.NoError(t, err)
+	require.Len(t, second.Prompts, 1, "§4.6.5: one prompt per unit mapped to zero claims")
+	assert.Equal(t, "u2", second.Prompts[0].Unit, "u1 is the unit the mapping covers")
+	text := second.Prompts[0].Text
+	assert.Contains(t, text, "Unmapped unit (§4.1.2)")
+	assert.Contains(t, text, runIssue+"#n1 (chat, from pull request 7): shipping is free above 50.00",
+		"§4.1.5: the notes the agent decides against")
+	assert.NotContains(t, text, claim, "u2 is mapped to no claim, so none is shown as mapped to it")
+}
+
+// The remaining axes are refused with §11.2's code 4 until a mapping exists for
+// the round, and the intent pass is the one invocation that is not — it is what
+// produces the mapping the others are waiting for.
+func TestTheRemainingAxesAreRefusedUntilAMappingExists(t *testing.T) {
+	src, head := briefedWithoutMapping(t)
+
+	for _, only := range []string{"", axis.Correctness, axis.Convention, axis.Test} {
+		src.Axis = only
+		_, err := Run(src)
+
+		var required *MappingRequiredError
+		require.ErrorAsf(t, err, &required, "--axis %q", only)
+		assert.Equal(t, 1, required.Round)
+		assert.Contains(t, err.Error(), "cr review 7 --repo acme/shop --axis intent")
 	}
 }
 
