@@ -112,3 +112,28 @@ func TestAClaimRestingOnANoteReachesTheDraftNamingTheNoteAndItsSource(t *testing
 		"note: "+recorded.ID+" (source: meeting)\n"+
 		"<!-- cr:/provenance -->")
 }
+
+// §2.6 item 4 when the rule file is removed between `cr record` and `cr draft`:
+// the record's citation still carries `origin: rule`, the corpus no longer
+// holds its rationale, and `cr draft` refuses with §11.2's code 3 naming the
+// record and the rule instead of drawing `rule: no-panic` with no rationale
+// line — and writes no draft.
+func TestADraftWhoseRuleFileWasRemovedRefusesNamingTheRecordAndRule(t *testing.T) {
+	layout := detectedHome(t)
+	runRulesCheck(t)
+	_, err := runRecord(t, fixturePR, writeRecordFile(t, "merged.ndjson", confirming("f1", 4)),
+		"--repo", fixtureSlug)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(layout.Rule("no-panic")))
+
+	_, err = runDraft(t, fixturePR, "--repo", fixtureSlug)
+
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Contains(t, err.Error(), "f1")
+	assert.Contains(t, err.Error(), `"no-panic"`)
+	assert.Contains(t, hintFor(err), "cr rules list")
+	written, readErr := os.ReadFile(layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 1, state.FileDraft))
+	require.NoError(t, readErr)
+	assert.Empty(t, string(written), "a refused draft leaves the round's draft.md as §2.3 started it")
+}
