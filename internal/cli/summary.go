@@ -59,6 +59,16 @@ const (
 	// summaryPosted is how many of the round's records reached the author,
 	// and summaryPayloadHash §8.3.3's hash of the payload they reached
 	// them in.
+	//
+	// They are §10.3's finalisation, written only once `cr post --confirm`
+	// has built a payload and sent it, or `--reconcile` has adopted the
+	// review that carried it — and absent otherwise, never null and never
+	// the dry run's hash. A round drafted and never posted, or run only
+	// through §8.5.1's dry run, sent no payload, so there is no hash that
+	// could honestly stand there: a dry-run hash would name a review nobody
+	// received, and a null would read as a count cr failed to take. Such a
+	// round keeps a summary without either key, and that unfinalised
+	// summary is a valid terminal state for it rather than a gap.
 	summaryPosted      = "posted"
 	summaryPayloadHash = "payload_hash"
 )
