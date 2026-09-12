@@ -49,3 +49,28 @@ func TestEveryAxisThatDidNotRunReachesTheReaderAsADisclosure(t *testing.T) {
 	assert.Contains(t, unavailableText, "unavailable")
 	assert.NotContains(t, unavailableText, "disabled")
 }
+
+// A round with nothing disabled and one axis unavailable is the asymmetry
+// §4.5.4 has to survive, and it is the ordinary case rather than a corner:
+// every shipped profile but `generic` declares a `tests.cmd`, so a review of a
+// pull request that resolves no issue key reaches Disclosures with an empty
+// Disabled list beside a populated Unavailable one.
+//
+// gremlins found this, and what it found was not a missing assertion but a
+// wrong annotation. The sum sizing the result slice was recorded here as an
+// equivalent capacity hint; it is not. `len(a.Disabled)-len(a.Unavailable)` is
+// -1 in this state and `make` panics with `makeslice: cap out of range`, so the
+// brief of §3.7.6 and the report of §10.1.3 would both abort on a run whose only
+// peculiarity is an absent tracker. The one fixture that called Disclosures had
+// one entry on each side, where the difference is zero and nothing shows.
+func TestADisclosureListSurvivesMoreUnavailableAxesThanDisabledOnes(t *testing.T) {
+	p := builtin(t, "laravel-pest")
+	a := Activate(&p, unresolved(t))
+	require.Empty(t, a.Disabled, "laravel-pest enables every axis and declares tests.cmd")
+	require.Len(t, a.Unavailable, 1)
+
+	disclosures := a.Disclosures()
+	require.Len(t, disclosures, 1, "§4.5.4 owes the reader the axis that was left unavailable")
+	assert.Contains(t, disclosures[0].Disclosure(), a.Unavailable[0].Axis)
+	assert.Contains(t, disclosures[0].Disclosure(), "unavailable")
+}
