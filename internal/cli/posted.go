@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -50,6 +51,38 @@ func writePosted(
 		return "", err
 	}
 	return l.RoundFile(owner, repo, pr, round, state.FilePosted), nil
+}
+
+// recordPostedIndex is §9.3.6's writer: one entry per record this run moved to
+// `posted`, appended to `posted-index.ndjson`.
+//
+// `cr post` is the writer, and round 8's unassigned-writer is why that is
+// written down rather than inferred. The file is load-bearing in one direction
+// only — a missing entry silently re-raises a comment the author already
+// received — and §9.1 moves a record to `posted` exactly here, on `--confirm`
+// and on `--reconcile`'s adoption alike, so any other command appending would
+// be recording a state it did not cause.
+//
+// It is appended after the network write has returned, beside the thread ids:
+// an entry written before the call would suppress next round's finding about a
+// comment the author never got.
+func recordPostedIndex(l state.Layout, round *state.Meta, records []*finding.Finding) error {
+	owner, repo, pr := round.Owner, round.Repo, round.PR
+	entries := make([]finding.PostedEntry, 0, len(records))
+	for _, record := range records {
+		entries = append(entries, finding.PostedEntryFor(record))
+	}
+	held, err := l.LockPR(owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	if err := finding.AppendPosted(held, l, owner, repo, pr, entries); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
 }
 
 // adoptThreads is §8.3.3's second half: posted.json updated with the thread ids
