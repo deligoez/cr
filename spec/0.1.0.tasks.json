@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T08:31:50.135498Z",
+  "updated_at": "2026-09-12T08:33:55.145366Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2799,7 +2799,7 @@
     {
       "id": "brief-no-judgement",
       "title": "Keep brief free of judgement artefacts",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "brief-payload"
@@ -2809,11 +2809,19 @@
       "source_sections": [
         "### 3.7 Orientation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:23:32.440642Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:24:16.694808Z",
+      "closed_reason": "- internal/brief/nojudgement_test.go's TestABriefAsksGitHubForNothingButReads records every gh invocation a brief makes through the gh.Runner seam and requires each one to be `gh api` naming no mutation, subscription, --method, -X or --input, which is strictly narrower than internal/gh's own read door, and TestABriefWritesTheDerivedInputsAndNoJudgementArtefact asserts the brief creates no record in findings.ndjson, coverage.ndjson or probes.ndjson.\n- internal/brief/store.go's persist is unchanged and still writes only meta.json, units.ndjson and threads.ndjson, and the new test's derivedFiles names exactly those three as the rows a brief may differ in while every other row of state.PRFiles() is compared byte for byte, so the permission §3.7 grants is the exception the guard carves out rather than a claim nothing checks.\n- TestABriefWritesTheDerivedInputsAndNoJudgementArtefact runs a brief, asserts the three judgement rows are opened empty, seeds each with a sentinel line through the §2.3.1 lock, runs a second brief at the unchanged head, and asserts the sentinels survive byte for byte; reverting the guard against a one-line `held.Write(state.FileFindings, nil)` in store.go made it fail on findings.ndjson, and a dogfood run against deligoez/cr-qa#1 left the three rows at 0 bytes and the seeded sentinels intact.\n",
+      "gate_passed_at": "2026-09-12T08:24:16.694808Z",
+      "commit_sha": "a696776",
+      "commit_shas": [
+        "a696776",
+        "46b642b"
+      ],
+      "commit_files": [
+        "internal/brief/nojudgement_test.go"
+      ]
     },
     {
       "id": "brief-idempotent-at-head",
@@ -3351,7 +3359,7 @@
     {
       "id": "lens-honesty-reporting",
       "title": "Report every lens that never ran",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "role-activation-definition",
@@ -3362,11 +3370,25 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T08:33:18.420445Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T08:33:55.112823Z",
+      "closed_reason": "- internal/coverage/lenses.go's Lenses collects §4.5.4's four kinds in the order the section names them — the disabled and unavailable axes internal/activation settles, the unavailable reinvention half internal/reinvention reports under §4.3.1, and the new SkippedRole this task introduces for §4.6.4 — each satisfying finding.HonestyDisclosure so the entry reaches the reader through the channel §11.1 exempts from --quiet, and internal/review/attach.go now assembles `cr review`'s lens halves through that collector rather than appending into a slice of its own.\n- Lenses.Verdict is a method on the report rather than a function beside it, so §10.2's completeness sentence cannot be reached without holding every lens that did not run: it returns the verdict line followed by one line per entry, it names the exact reason only when the verdict is false, and it words the true case as \"round complete, per §10.2\" without approving the pull request or calling the review settled.\n- internal/coverage/lenses_test.go's TestAllFourKindsOfLensReachTheCompletenessVerdict builds the fixture the criterion words — the generic profile declares no tests.cmd so §4.5.2 disables the test axis, the branch carries no issue key so §4.5.3 marks the intent axis unavailable, the same profile declares no symbols.lang so §4.3.1's reinvention half cannot run, and one role is skipped per §4.6.4 — and asserts all four reasons appear in the five lines Verdict(true, \"\") returns; TestTheReportCollectsTheFourKindsInSectionOrder pins the order, TestASkippedRoleReachesTheReaderAsADisclosure pins the new kind's wording, and a dogfood run of `cr review 1 --repo deligoez/cr-qa` printed both lens halves through the collector.\n",
+      "gate_passed_at": "2026-09-12T08:33:55.112823Z",
+      "commit_sha": "0944ada",
+      "commit_shas": [
+        "0944ada",
+        "c403cbc",
+        "d97d2ae",
+        "62a8780",
+        "597531b",
+        "849b810"
+      ],
+      "commit_files": [
+        "internal/coverage/lenses.go",
+        "internal/coverage/lenses_test.go",
+        "internal/review/attach.go"
+      ]
     },
     {
       "id": "coverage-cell-schema",
