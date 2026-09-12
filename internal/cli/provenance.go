@@ -87,7 +87,8 @@ func readProbes(l state.Layout, owner, repo string, pr int, into map[string]*pro
 func readNoteClaims(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, into map[string]draft.NoteClaim,
 ) error {
-	claims, err := state.ReadRecords[intent.Claim](l, owner, repo, pr, state.FileClaims)
+	claims, err := state.ReadStamped[intent.Claim](
+		l, owner, repo, pr, state.FileClaims, round.Round)
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,7 @@ func readNoteClaims(
 	}
 	for i := range claims {
 		claim := &claims[i]
-		if claim.Round == round.Round && claim.Source == intent.ClaimFromNote {
+		if claim.Source == intent.ClaimFromNote {
 			into[claim.ID] = draft.NoteClaim{Note: claim.NoteID, Source: sources[claim.NoteID]}
 		}
 	}
