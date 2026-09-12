@@ -309,9 +309,57 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := recordRuleStats(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
+			if err := recordRetiredCounts(layout, owner, repo, pr, &round.Meta); err != nil {
+				return err
+			}
 			return out.emit(newRecordResult(records, found))
 		},
 	}
+}
+
+// recordRetiredCounts is `cr record`'s share of §10.3's round summary: the
+// deduplicated count and the thread-suppressed count, which round 8's
+// unassigned-writer gives this command.
+//
+// This command is their writer because it is what produces them. stampStates
+// moves a record to `duplicate` from the `duplicate_of` `cr merge` emitted, per
+// §6.4.3, and to `suppressed` from the thread the agent named, per §3.5.4; no
+// other command writes either state, and none that runs later can see a record
+// retire.
+//
+// Both are counted over the round's stored records rather than over the file
+// this run accepted, so a round recorded from two files carries the whole
+// round's counts and not the last file's. The read is lock-free per §2.3.2 and
+// is taken after appendRecords has released its lock, so it sees this run's
+// records as well as every earlier one of the round.
+func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *state.Meta) error {
+	stored, err := roundFindingsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return err
+	}
+	deduplicated, suppressed := 0, 0
+	for _, record := range stored {
+		switch record.State {
+		case finding.StateDuplicate:
+			deduplicated++
+		case finding.StateSuppressed:
+			suppressed++
+		}
+	}
+	held, err := l.LockPR(owner, repo, pr)
+	if err != nil {
+		return err
+	}
+	if err := writeSummary(held, round.Round, ownerRecord, []summaryCount{
+		{key: summaryDeduplicated, value: deduplicated},
+		{key: summarySuppressedByThread, value: suppressed},
+	}); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
 }
 
 // acceptRecords reads the file the agent handed the command and settles
@@ -398,9 +446,9 @@ func acceptRecords(
 	// there is no wording that reaches a field assignment.
 	//
 	// The count it hands back is §6.3.2's, and this moment is not where
-	// §6.3.2 is answered: §10.3 has `cr merge`, `cr draft` and `cr post`
-	// accumulate the round summary, and `cr record` is none of the three.
-	// The forcing is what is wanted here.
+	// §6.3.2 is answered: summaryOwners gives the forced-to-question count
+	// to `cr draft`, whose records are the ones the reviewer reads. The
+	// forcing is what is wanted here.
 	finding.ForceQuestions(records)
 	return records, found, nil
 }
