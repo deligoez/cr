@@ -8290,7 +8290,7 @@
     {
       "id": "complete-verdict-empty-round",
       "title": "Refuse a complete verdict over zero units",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "completeness-verdict-honesty"
@@ -8300,11 +8300,20 @@
       "source_sections": [
         "### 10.2 Completeness"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:28:12.519614Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:32:01.499776Z",
+      "closed_reason": "- The dogfood defect is reproduced and gone: on a local scratch repo whose head branch is one empty commit over main, briefed with a self-contained gh shim, the binary before edb3b91 printed `\"completeness\": {\"complete\": true, \"reasons\": []}` and \"round complete, per §10.2\" with \"units: 0 total\"; the binary at edb3b91 prints `\"complete\": false` and \"round not complete, per §10.2: §10.2.2: this round formed no unit from its diff, so no cell was filled and there is no row of cells its coverage could be complete over\" in both shapes, and git status --porcelain in the repo under review stayed empty.\n- A round with zero units is not reported complete and the verdict names why through coverage.Lenses.Verdict: internal/coverage/completeness.go's rowReason returns that §10.2.2 reason when Rows.Units is 0, so Complete() yields complete false with the one reason, and cr status still reaches the sentence only through lenses.Verdict(verdict.Complete, verdict.Reason()) in internal/cli/status.go, unchanged; no second path was added. This reads §10.2.2's \"every unit has a complete row\" as unmet by a round that formed no unit rather than met vacuously; the spec text is unchanged.\n- A test briefs a round whose diff yields no units and asserts both output shapes: internal/cli/emptyround_test.go's emptyRoundHome runs `cr brief` over a checkout whose head is an empty commit (requiring the brief's units to be empty), and TestARoundThatFormedNoUnitIsNotReportedComplete asserts the JSON completeness (complete false, exactly that reason), and that both the document's honesty and a real terminal (throughATerminal) carry the not-complete line, never \"round complete, per §10.2\", and still carry the lens convention/reinvention line beside it. internal/coverage/completeness_test.go TestARoundThatFormedNoUnitIsNotComplete covers the predicate with and without active roles. Hand mutant `c.Rows.Units \u003c 0` failed both tests; reverted to the identical revision.\n",
+      "gate_passed_at": "2026-09-12T22:32:01.499776Z",
+      "commit_sha": "edb3b91",
+      "commit_shas": [
+        "edb3b91"
+      ],
+      "commit_files": [
+        "internal/cli/emptyround_test.go",
+        "internal/coverage/completeness.go",
+        "internal/coverage/completeness_test.go"
+      ]
     }
   ]
 }
