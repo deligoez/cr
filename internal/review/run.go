@@ -58,6 +58,11 @@ type Fanout struct {
 	// could not run this round, rendered as the sentences §11.1 exempts
 	// from `--quiet`. It is empty, and never nil, when both ran.
 	Honesty []string `json:"honesty"`
+	// Expected is §4.6.3's set of cells the round is waiting for, so
+	// §10.2.2 can be checked once the roles return. It is the round's
+	// whole demand and not this invocation's: `--axis` narrows Prompts and
+	// leaves this alone.
+	Expected []coverage.Expected `json:"expected_cells"`
 }
 
 // StaleUnitError reports a unit units.ndjson recorded that the diff at the
@@ -123,7 +128,29 @@ func Run(src *Sources) (*Fanout, error) {
 	if err := r.fanOut(src); err != nil {
 		return nil, err
 	}
-	return &Fanout{Round: r.Round, Head: r.Head, Prompts: Emit(r), Honesty: honesty}, nil
+	return &Fanout{
+		Round: r.Round, Head: r.Head, Prompts: Emit(r), Honesty: honesty,
+		Expected: coverage.Expect(unitIDs(r.Units), r.Active),
+	}, nil
+}
+
+// unitIDs is the round's unit ids in §3.4.6's order, which is the order the
+// records were read in.
+func unitIDs(units []Unit) []string {
+	ids := make([]string, 0, len(units))
+	for i := range units {
+		ids = append(ids, units[i].ID)
+	}
+	return ids
+}
+
+// roleIDs is a role set's ids, in the order the set holds them.
+func roleIDs(roles []role.Role) []string {
+	ids := make([]string, 0, len(roles))
+	for i := range roles {
+		ids = append(ids, roles[i].ID)
+	}
+	return ids
 }
 
 // read fills the attachments that come out of the round's state: the active
@@ -152,6 +179,7 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 		return nil, err
 	}
 	r.Notes = standingNotes(notes)
+	r.Active = roleIDs(active)
 	r.Roles = onAxis(active, src.Axis)
 	r.Mapped = slices.ContainsFunc(r.Pairs, func(p mapping.Pair) bool { return p.Round == r.Round })
 	r.Unmapped, err = r.raise(src, records, notes, onAxis(active, axis.Intent))
@@ -176,12 +204,9 @@ func (r *Round) raise(
 	for i := range records {
 		ids = append(ids, records[i].ID)
 	}
-	roleIDs := make([]string, 0, len(intentRoles))
-	for i := range intentRoles {
-		roleIDs = append(roleIDs, intentRoles[i].ID)
-	}
 	return Raise(&IntentRound{
-		Round: r.Round, Units: ids, Pairs: r.Pairs, Notes: notes, Cells: cells, IntentRoles: roleIDs,
+		Round: r.Round, Units: ids, Pairs: r.Pairs, Notes: notes, Cells: cells,
+		IntentRoles: roleIDs(intentRoles),
 	}), nil
 }
 

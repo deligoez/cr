@@ -45,8 +45,14 @@ type Round struct {
 	Round int
 	Head  string
 	// Roles are the round's active roles of §4.5.1, in §2.5.5's corpus
-	// order, which is the order the prompts are emitted in.
+	// order, which is the order the prompts are emitted in. `--axis`
+	// narrows them per §4.6.5.
 	Roles []role.Role
+	// Active are the ids of §4.5.1's active set, whole and in the same
+	// corpus order, whatever `--axis` narrowed the prompts to. §10.2.2
+	// counts a row against every active role, so §4.6.3's expected set is
+	// built from this rather than from Roles.
+	Active []string
 	// Units are the round's units, in §3.4.6's id order.
 	Units []Unit
 	// Claims are the claims recorded for the round.
