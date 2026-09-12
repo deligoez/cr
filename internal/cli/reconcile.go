@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/post"
@@ -195,14 +196,14 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	}
 	adopted := make([]*finding.Finding, 0, len(sent.Records))
 	ids := make([]string, 0, len(sent.Records))
+	journal := finding.NewJournal(finding.ActorPostReconcile, round.Head, time.Now())
 	for _, sentID := range sent.Records {
 		record := recordOf(records, sentID)
 		if record == nil || record.State == finding.StatePosted {
 			continue
 		}
-		if err := finding.MayTransition(
+		if err := journal.Move(
 			record.ID, finding.Existing(record.State), finding.StatePosted,
-			finding.ActorPostReconcile,
 		); err != nil {
 			return nil, err
 		}
@@ -214,7 +215,7 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAdopted(l, round, records, adopted, hash); err != nil {
+	if err := writeAdopted(l, round, records, adopted, hash, journal); err != nil {
 		return nil, err
 	}
 	return ids, setPostUnresolved(l, round, false)
@@ -255,6 +256,7 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // of that round than a count of zero beside a hash nothing was sent under.
 func writeAdopted(
 	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash string,
+	journal *finding.Journal,
 ) error {
 	if err := recordPostedIndex(l, round, adopted); err != nil {
 		return err
@@ -271,6 +273,7 @@ func writeAdopted(
 		}
 	}
 	writes := []func() error{
+		func() error { return journal.Write(held) },
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
 		func() error {
 			return writeSummary(held, round.Round, ownerPost, []summaryCount{

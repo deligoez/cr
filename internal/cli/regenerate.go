@@ -21,9 +21,11 @@ import (
 // empty file §2.3 starts a round with — and is read as a first rendering.
 //
 // Both discard verbs take effect at this moment, as §7.1.6 has it for a
-// deletion: the record walks §9.1's `queued` → `discarded` row with `cr draft`
-// as the actor, and takes `not-here` when its block was deleted or `wrong` when
-// its marker says so. Its waiver is written by waiveDiscards once the new draft
+// deletion: the record walks §9.1's `queued` → `discarded` row with the
+// journal's actor — `cr draft`, or `cr post --confirm` for the run that sends,
+// which the same row names — keeping §9.1.1's line for the move, and takes
+// `not-here` when its block was deleted or `wrong` when its marker says so. Its
+// waiver is written by waiveDiscards once the new draft
 // has rendered, so a run refused on the way leaves nothing behind. Nothing here
 // re-renders a discarded record: queueRecords renders only `draft` and
 // `queued`, so a discarded block is never resurrected.
@@ -34,6 +36,7 @@ import (
 // has been read and nothing in the draft has been refused.
 func ingestDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, records []*finding.Finding,
+	journal *finding.Journal,
 ) (triaged, error) {
 	rendered := make([]*finding.Finding, 0, len(records))
 	for _, record := range records {
@@ -77,9 +80,8 @@ func ingestDraft(
 	for _, verb := range discards {
 		disposition := verb.disposition
 		for _, record := range verb.records {
-			if err := finding.MayTransition(
-				record.ID, finding.Existing(finding.StateQueued),
-				finding.StateDiscarded, finding.ActorDraft,
+			if err := journal.Move(
+				record.ID, finding.Existing(finding.StateQueued), finding.StateDiscarded,
 			); err != nil {
 				return triaged{}, err
 			}

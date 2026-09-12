@@ -3,6 +3,7 @@ package cli
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,7 +154,8 @@ func TestThePostSeamSettlesEveryQueuedRecordOnce(t *testing.T) {
 	}
 	stored, err := roundFindingsOf(layout, draftOwner, draftRepo, draftPRNum, draftRound)
 	require.NoError(t, err)
-	triage, err := ingestDraft(layout, draftOwner, draftRepo, draftPRNum, &round, stored)
+	triage, err := ingestDraft(layout, draftOwner, draftRepo, draftPRNum, &round, stored,
+		finding.NewJournal(finding.ActorPostConfirm, draftHead, time.Now()))
 	require.NoError(t, err)
 	require.NoError(t, recordPostTriage(layout, draftOwner, draftRepo, draftPRNum, &round, &triage))
 

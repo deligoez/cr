@@ -188,11 +188,9 @@ func roundUnitIDs(units []roundUnit) []string {
 //
 // Both moves are asked of the transition table rather than assumed, so this
 // command writes a state only while §9.1 still has a row allowing it.
-func stampStates(records []*finding.Finding) error {
+func stampStates(records []*finding.Finding, journal *finding.Journal) error {
 	for _, record := range records {
-		if err := finding.MayTransition(
-			record.ID, finding.Creation, finding.StateDraft, finding.ActorRecord,
-		); err != nil {
+		if err := journal.Move(record.ID, finding.Creation, finding.StateDraft); err != nil {
 			return err
 		}
 		record.State = finding.StateDraft
@@ -200,9 +198,7 @@ func stampStates(records []*finding.Finding) error {
 		if retired == finding.StateDraft {
 			continue
 		}
-		if err := finding.MayTransition(
-			record.ID, finding.Existing(finding.StateDraft), retired, finding.ActorRecord,
-		); err != nil {
+		if err := journal.Move(record.ID, finding.Existing(finding.StateDraft), retired); err != nil {
 			return err
 		}
 		record.State = retired
@@ -289,8 +285,11 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
+			// §9.1.1's journal of this run's moves, published with the
+			// records under appendRecords' lock.
+			journal := finding.NewJournal(finding.ActorRecord, round.Head, time.Now())
 			records, found, err := acceptRecords(
-				layout, owner, repo, pr, &round.Meta, args[1])
+				layout, owner, repo, pr, &round.Meta, args[1], journal)
 			if err != nil {
 				return err
 			}
@@ -301,7 +300,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := suggestRuleFixes(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
-			if err := appendRecords(layout, owner, repo, pr, &round.Meta, records); err != nil {
+			if err := appendRecords(layout, owner, repo, pr, &round.Meta, records, journal); err != nil {
 				return err
 			}
 			if err := recordRuleStats(layout, owner, repo, pr, &round.Meta, records); err != nil {
@@ -370,7 +369,7 @@ func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *stat
 // here happens with nothing written, and the grade is computed last because it
 // rests on what the two before it established.
 func acceptRecords(
-	l state.Layout, owner, repo string, pr int, round *state.Meta, file string,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, file string, journal *finding.Journal,
 ) ([]*finding.Finding, *gapEvidence, error) {
 	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
@@ -407,7 +406,7 @@ func acceptRecords(
 		return nil, nil, err
 	}
 	// §9.1's first two rows, in the order stampStates walks them.
-	if err := stampStates(records); err != nil {
+	if err := stampStates(records, journal); err != nil {
 		return nil, nil, err
 	}
 	// §6.2.3: every citation is resolved against the round's head and
@@ -472,17 +471,23 @@ func acceptRecords(
 	return records, found, nil
 }
 
-// appendRecords is the single write, under §2.3.1's lock: the accepted records
-// reach findings.ndjson whole, stamped with the round's head and round.
+// appendRecords is the single write, under §2.3.1's lock: §9.1.1's journal of
+// the moves stampStates made, and the accepted records reaching findings.ndjson
+// whole, stamped with the round's head and round.
 func appendRecords(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, records []*finding.Finding,
+	journal *finding.Journal,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
 	}
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
-	if err := state.AppendStamped(held, state.FileFindings, stamp, records); err != nil {
+	err = journal.Write(held)
+	if err == nil {
+		err = state.AppendStamped(held, state.FileFindings, stamp, records)
+	}
+	if err != nil {
 		// The lock is released on the way out of every branch, and
 		// the write's own failure is what the caller is told about.
 		_ = held.Unlock()

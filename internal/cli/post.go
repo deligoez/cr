@@ -2,6 +2,7 @@ package cli
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -208,7 +209,10 @@ func buildReview(
 		return err
 	}
 	grading.regrade(round, records)
-	triage, err := ingestDraft(l, owner, repo, pr, round, records)
+	// §9.1.1's journal of this run, whose actor is the one that sends: it
+	// is published only by a confirmed send, beside the records it moved.
+	journal := finding.NewJournal(finding.ActorPostConfirm, round.Head, time.Now())
+	triage, err := ingestDraft(l, owner, repo, pr, round, records, journal)
 	if err != nil {
 		return err
 	}
@@ -243,7 +247,7 @@ func buildReview(
 	// variable, a profile field or an alias could arrive through.
 	sender := &sending{
 		layout: l, round: round, review: review, records: records,
-		queued: queued, forced: forced, triage: &triage,
+		queued: queued, forced: forced, triage: &triage, journal: journal,
 	}
 	return sender.send(out, gh.Confirm(confirmed))
 }

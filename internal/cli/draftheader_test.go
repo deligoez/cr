@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +52,7 @@ func TestTheDraftHeaderReportsTheCountTheCapCheckUses(t *testing.T) {
 	stored, err := state.ReadRecords[*finding.Finding](
 		layout, draftOwner, draftRepo, draftPRNum, state.FileFindings)
 	require.NoError(t, err)
-	queued, err := queueRecords(stored)
+	queued, err := queueRecords(stored, finding.NewJournal(finding.ActorDraft, draftHead, time.Now()))
 	require.NoError(t, err)
 	capped := finding.CommentCapFor(queued, resolved.Int(settingMaxComments))
 

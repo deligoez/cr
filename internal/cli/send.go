@@ -40,6 +40,9 @@ type sending struct {
 	// triage is what the draft's verbs made of the round, which §7.3.1 has
 	// this command settle once the call has returned.
 	triage *triaged
+	// journal is §9.1.1's record of the moves this run makes, the draft's
+	// discards read above included, published with the records they moved.
+	journal *finding.Journal
 }
 
 // send performs §8.3's network write and everything §8.4, §9.1, §9.3.6 and
@@ -111,9 +114,8 @@ func (s *sending) markPosted() error {
 		if record == nil || record.State == finding.StatePosted {
 			continue
 		}
-		if err := finding.MayTransition(
+		if err := s.journal.Move(
 			record.ID, finding.Existing(record.State), finding.StatePosted,
-			finding.ActorPostConfirm,
 		); err != nil {
 			return err
 		}
@@ -126,7 +128,7 @@ func (s *sending) markPosted() error {
 	if err != nil {
 		return err
 	}
-	return writeAdopted(s.layout, s.round, s.records, sent, hash)
+	return writeAdopted(s.layout, s.round, s.records, sent, hash, s.journal)
 }
 
 // adoptReturnedThreads is §8.3.3's second half: posted.json updated with the

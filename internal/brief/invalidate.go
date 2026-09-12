@@ -2,6 +2,7 @@ package brief
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
@@ -41,7 +42,14 @@ const (
 // records were never swept, and the re-run that would have fixed it compares
 // equal and does nothing.
 func invalidate(held *state.Lock, assembled *Brief) error {
-	if err := staleOpenRecords(held); err != nil {
+	// §9.1.1: one journal line per record the sweep moves, at the head this
+	// brief moves to. The moves are decided line by line inside the sweep,
+	// so the journal is written after it and under the same lock.
+	journal := finding.NewJournal(finding.ActorBrief, assembled.Head, time.Now())
+	if err := staleOpenRecords(held, journal); err != nil {
+		return err
+	}
+	if err := journal.Write(held); err != nil {
 		return err
 	}
 	if err := clearMapping(held, assembled); err != nil {
@@ -101,7 +109,7 @@ func clearMapping(held *state.Lock, assembled *Brief) error {
 // swept silently — which is the honest failure, because §9.3.2 makes this
 // command the only way forward and a round it left half-open would go on
 // looking like a round in progress.
-func staleOpenRecords(held *state.Lock) error {
+func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 	return state.RewriteStamped(held, state.FileFindings,
 		func(fields map[string]json.RawMessage) (bool, error) {
 			var current finding.State
@@ -123,9 +131,7 @@ func staleOpenRecords(held *state.Lock) error {
 			if err := json.Unmarshal(fields[fieldID], &id); err != nil {
 				return false, err
 			}
-			if err := finding.MayTransition(
-				id, finding.Existing(current), finding.StateStale, finding.ActorBrief,
-			); err != nil {
+			if err := journal.Move(id, finding.Existing(current), finding.StateStale); err != nil {
 				return false, err
 			}
 			stale, err := json.Marshal(finding.StateStale)

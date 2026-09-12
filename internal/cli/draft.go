@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -160,11 +161,14 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	triage, err := ingestDraft(l, owner, repo, pr, round, records)
+	// §9.1.1: every move this run makes is kept here and published with
+	// the records it changed.
+	journal := finding.NewJournal(finding.ActorDraft, round.Head, time.Now())
+	triage, err := ingestDraft(l, owner, repo, pr, round, records, journal)
 	if err != nil {
 		return err
 	}
-	queued, err := queueRecords(records)
+	queued, err := queueRecords(records, journal)
 	if err != nil {
 		return err
 	}
@@ -216,7 +220,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		return err
 	}
 	summary.forced = forced
-	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary); err != nil {
+	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary, journal); err != nil {
 		return err
 	}
 	// §7.3.1's events, after the draft they describe reached disk.
@@ -385,14 +389,13 @@ func roundFindingsOf(
 // is where the row already put it. Every other state is left out of the draft
 // entirely, which is the whole of what makes the file the set of open records
 // rather than the set of records.
-func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
+func queueRecords(records []*finding.Finding, journal *finding.Journal) ([]*finding.Finding, error) {
 	queued := make([]*finding.Finding, 0, len(records))
 	for _, record := range records {
 		switch record.State {
 		case finding.StateDraft:
-			if err := finding.MayTransition(
-				record.ID, finding.Existing(finding.StateDraft),
-				finding.StateQueued, finding.ActorDraft,
+			if err := journal.Move(
+				record.ID, finding.Existing(finding.StateDraft), finding.StateQueued,
 			); err != nil {
 				return nil, err
 			}
@@ -423,7 +426,7 @@ func queueRecords(records []*finding.Finding) ([]*finding.Finding, error) {
 // against the wrong thing or against nothing.
 func publishDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	records []*finding.Finding, out drafted, summary *draftSummary,
+	records []*finding.Finding, out drafted, summary *draftSummary, journal *finding.Journal,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
@@ -431,6 +434,7 @@ func publishDraft(
 	}
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
 	writes := []func() error{
+		func() error { return journal.Write(held) },
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
 		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(out.file)) },
 		func() error { return writeRendered(held, round.Round, out.rendered) },

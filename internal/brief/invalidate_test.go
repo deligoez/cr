@@ -325,7 +325,7 @@ func TestAnIncrementWritesTheRowsSection934NamesAndNoOthers(t *testing.T) {
 			continue
 		}
 		assert.Equalf(t, before[name], after[name],
-			"§9.3.4 names three rows beside §3.7's derived inputs, and %s is not one of them", name)
+			"§9.3.4 and §9.1.1 name four rows beside §3.7's derived inputs, and %s is not one of them", name)
 	}
 	for name, line := range sentinel {
 		if slices.Contains(derivedFiles, name) {
@@ -337,11 +337,14 @@ func TestAnIncrementWritesTheRowsSection934NamesAndNoOthers(t *testing.T) {
 
 // invalidated are the rows §9.3.4 writes on top of §3.7's derived inputs:
 // findings.ndjson holds the records it moves to `stale`, mapping.ndjson is the
-// file it clears, and claims.ndjson holds the claims it carries forward.
+// file it clears, and claims.ndjson holds the claims it carries forward — plus
+// transitions.ndjson, where §9.1.1 has each of those moves to `stale` leave its
+// journal line.
 var invalidated = map[string]bool{
-	state.FileFindings: true,
-	state.FileMapping:  true,
-	state.FileClaims:   true,
+	state.FileFindings:    true,
+	state.FileMapping:     true,
+	state.FileClaims:      true,
+	state.FileTransitions: true,
 }
 
 // The claims a brief carries forward are claims and not extractions.
