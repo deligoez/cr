@@ -78,10 +78,16 @@ func writeStatusRound(t *testing.T, layout state.Layout, head string) {
 		// no tests.cmd, whatever `axes.test` says.
 		ActiveRoles: []string{"convention", "correctness", "intent-coverage"},
 	}))
+	// The range is the head-side range the round's own diff gives, context
+	// included: `@@ -1,3 +1,6 @@` over the two commits statusHome makes.
+	// `cr status` counts units and never rebuilds them, so it reads any
+	// range at all; `cr review` matches every recorded range against the
+	// diff and refuses a unit it cannot rebuild, so a fixture that invents
+	// one is a round only half the commands can run.
 	require.NoError(t, held.Write(state.FileUnits,
-		[]byte(`{"id":"u1","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":3,"end":6}],`+
+		[]byte(`{"id":"u1","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":6}],`+
 			`"hash":"h1","oversized":false,"head":"`+head+`","round":1}`+"\n"+
-			`{"id":"u2","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":3,"end":6}],`+
+			`{"id":"u2","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":6}],`+
 			`"hash":"h2","oversized":true,"head":"`+head+`","round":1}`+"\n")))
 	cells := ""
 	for _, role := range []string{"convention", "correctness", "intent-coverage"} {

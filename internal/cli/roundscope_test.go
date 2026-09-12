@@ -207,8 +207,10 @@ func openSecondRound(t *testing.T, layout state.Layout) {
 		require.NoError(t, readErr)
 		require.NoError(t, held.Write(name, append(body, []byte(lines)...)))
 	}
+	// Round 2 is opened at round 1's head, so the range is the same one
+	// statusHome records and for the same reason.
 	add(state.FileUnits,
-		`{"id":"u3","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":3,"end":6}],`+
+		`{"id":"u3","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":6}],`+
 			`"hash":"h3","oversized":false,"head":"`+head+`","round":2}`+"\n")
 	cells := ""
 	for _, role := range []string{"convention", "correctness", "intent-coverage"} {
