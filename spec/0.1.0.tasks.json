@@ -7466,7 +7466,7 @@
     {
       "id": "gate-honesty-reporting",
       "title": "Report confirmation without claiming human reading",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "confirm-flag-required"
@@ -7476,11 +7476,26 @@
       "source_sections": [
         "### 8.5 Confirmation gate"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T22:15:23.72139Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T22:26:55.446305Z",
+      "closed_reason": "- cr never claims that a human read the draft: no literal in cr post's line, its JSON document or its summary share names a reading, a reader or a human, which gatehonesty_test.go TestTheGateReportsConfirmationAndNeverAReading asserts over a real dry run and a real confirmed post against a gh shim.\n- The round summary records that --confirm was given and the payload hash and nothing more about the gate: internal/cli/summary.go adds summaryConfirmGiven (\"confirm_given\") to summaryOwners under cr post, and internal/cli/reconcile.go's writeAdopted writes it with posted and payload_hash, so it is present on exactly the rounds a sent or adopted review finalised and absent (never null) on a dry run or a refused call (summary_test.go TestAnUnpostedRoundSummaryOmitsThePayloadHashAndStillValidates); the --reconcile path writes it too because post_unresolved has one setter, postOutcome, reached only from send, which takes the gate's confirmation. The key is spelled after the flag because citedregister_test.go's §6.2.4 fence forbids the literal \"confirmed\". Before this commit summary.json held posted and payload_hash and no statement that --confirm was given; posted stays because §10.3 lists it as a count, and the test pins cr post's share to exactly those three keys.\n- cr never reports whether draft.md changed as evidence of human involvement: no summary key, document field or line mentions the draft. gatehonesty_test.go TestTheGateReportsConfirmationAndNeverAReading rewrites f1's body in draft.md (§8.1.2's agent rewrite) before both runs, then requires cr post's share of summary.json to be exactly confirm_given, payload_hash and posted, and requires none of them, the gate line, or the document to match readClaiming (which includes draft, edited, changed, modified). Hand mutant: adding `DraftChanged bool json:\"draft_changed\"` to posting made that test fail on both runs (\"the dry run's \\\"draft_changed\\\" claims a reading\"), reverted to the identical revision.\n- Output describing the gate says confirmation was given: internal/cli/output.go posting gains ConfirmGiven (json confirm_given) and line() now prints \"posted: --confirm was given, and the review was sent to GitHub\" and \"not posted: --confirm was not given, and nothing was sent to GitHub\"; post.go and send.go set it at the two emit sites. Dogfooded on a local scratch repo with a self-contained gh shim: before, the confirmed post printed \"posted: the review was sent to GitHub\" and the dry run \"not posted: nothing was sent to GitHub\"; after, the lines above, JSON `\"posted\": true, \"confirm_given\": true`, and summary.json `\"confirm_given\": true`; git status --porcelain in the repo under review stayed empty.\n- A test greps gate-related output for read-claiming wording: gatehonesty_test.go's readClaiming regex (read, reader, reviewed, approved, human, draft, edited, changed, ...) with underscore as a separator is applied to the dry and confirmed runs' gate line, their JSON documents without the payload, and cr post's summary share, and TestReadClaimingCatchesTheForbiddenWording shows it convicting five forbidden sentences including `\"draft_edited\": true` and passing the required line and \"already posted\". output_test.go and dryrun_test.go assert the new wording.\n",
+      "gate_passed_at": "2026-09-12T22:26:55.446305Z",
+      "commit_sha": "8826248",
+      "commit_shas": [
+        "8826248"
+      ],
+      "commit_files": [
+        "internal/cli/dryrun_test.go",
+        "internal/cli/gatehonesty_test.go",
+        "internal/cli/output.go",
+        "internal/cli/output_test.go",
+        "internal/cli/post.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/send.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go"
+      ]
     },
     {
       "id": "status-coverage-report",
