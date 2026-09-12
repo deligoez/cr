@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T21:52:18.337754Z",
+  "updated_at": "2026-09-12T21:53:57.592322Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -5484,7 +5484,7 @@
     {
       "id": "merge-counts-reporting",
       "title": "Report merge counts by four dimensions",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "merge-command",
@@ -5495,11 +5495,20 @@
       "source_sections": [
         "### 6.5 Merge"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T14:52:02.489469Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T15:02:54.499258Z",
+      "closed_reason": "- internal/cli/merge.go's mergeCountsOf is 6.5.1's four breakdowns over the records the output file holds: mergeCounts carries by_role over 2.5.5's resolved corpus, by_axis over 1.5's four, by_severity over 6.1's four and by_grade over 6.2's three, each through tallyOf so every vocabulary value gets a row at zero as well; they reach the caller on the mergeResult payload and, through mergeCounts.lines, as four tally lines in the text rendering.\n- internal/cli/merge.go's writeMergeDrops writes both drop counts into the current round's summary.json under one 2.3.1 lock, through state.UpdateRoundSection so every field cr merge does not own is left byte for byte: summaryWaived holds 6.4.4's finding.Drops and the new summaryAlreadyPosted holds 9.3.6's finding.PostedDrops, written on every run at zero as well because 10.1.6 reads an absent count as a merge that has not run.\n- internal/cli/merge_test.go's TestMergeReportsFourBreakdownsAndRecordsItsDropsInTheSummary asserts all four breakdowns appear with their whole vocabularies in spec order, that each sums to the merged count, and that both drop counts reach summary.json, read back by decoding the document as its own fields rather than through the types the writer stored; dogfooded against a scratch repository, where the file held exactly already_posted and waived.\n- The path -o names is still the only path cr merge writes that 2.2 does not derive, and it is measured rather than argued: TestAMergeWritesNothingCrDerivedInsideTheRepositoryUnderReview points -o inside a checkout, runs the command from inside that checkout, and walks the directory afterwards.\n- No refusal was added, and the reading is recorded in that test's own doc comment where an auditor reading 2.2 alone will find it: 2.2 governs cr-derived state, which is why the round summary the same run writes lands under the state root, while the -o path is the caller's own choice of location.\n- That test's walk leaves exactly the file the caller named and the file the fixture put there, and nothing cr derived beside them; the same run's summary.json is read back from under the state root, and git status --porcelain in the dogfood checkout was empty.\n",
+      "gate_passed_at": "2026-09-12T15:02:54.499258Z",
+      "commit_sha": "6c9dbd7",
+      "commit_shas": [
+        "6c9dbd7",
+        "af03108"
+      ],
+      "commit_files": [
+        "internal/cli/merge.go",
+        "internal/cli/merge_test.go"
+      ]
     },
     {
       "id": "record-reapplies-drops",
@@ -7562,7 +7571,7 @@
     {
       "id": "round-summary-writers",
       "title": "Assign every summary count a writer",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "completeness-verdict-honesty",
@@ -7574,11 +7583,31 @@
       "source_sections": [
         "### 10.3 Round summary"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T15:02:59.622242Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T21:53:57.556428Z",
+      "closed_reason": "- cr merge (writeMergeCounts), cr draft (publishDraft through draftSummary.counts) and cr post (writeAdopted, reached from markPosted on --confirm and adoptAsPosted on --reconcile) each write their own counts into rounds/\u003cn\u003e/summary.json through writeSummary in internal/cli/summary.go, which goes through state.UpdateRoundSection so every other field is left byte for byte; cr merge runs first and its write creates the document, and cr post's write after the network call returned is the finalisation.\n- summaryOwners records all of them: raised, waived and already_posted to cr merge; deduplicated and suppressed_by_thread to cr record; forced_to_question, new_classes, drafted, discarded_not_here, discarded_wrong, comments (count against post.max_comments) and probe_cap (count against probe.max_per_round) to cr draft; posted and payload_hash to cr post. Dogfooded on a scratch repository through merge, record, draft, two dry runs and --confirm: the final summary held all fourteen keys, and payload_hash 9381b6d7e3086b99 equalled the hash embedded in the sent review body.\n- cr record is on the writer list: recordRetiredCounts counts StateDuplicate and StateSuppressed over the round's stored records after appendRecords, and writes deduplicated and suppressed_by_thread as ownerRecord, because stampStates is the only place either state is written.\n- 9.3.6's drop count is summaryAlreadyPosted (\"already_posted\"), a key of its own beside summaryWaived (\"waived\"), both owned by cr merge; TestEverySection103CountHasANamedWriter asserts the two keys differ.\n- internal/cli/summary_test.go's TestEverySection103CountHasANamedWriter lists 10.3's counts independently of the table and asserts each has one of the four writers and a stated shape; TestTheSummaryWriterTableIsEnforcedAtTheWrite asserts writeSummary refuses another writer's key, an unlisted key and a key written twice, before anything is written; TestTheRoundSummaryCarriesEveryPrePostWritersCounts runs merge, record and draft over a real fixture and passes assertSummaryShape, which decodes every section strictly into a shape stated apart from the writers' types, with raised 3, deduplicated 1, waived 1, drafted 1, comments 1 of 20 and probe_cap 1 of 10; TestConfirmFinalisesTheRoundSummary passes the same shape assertion after --confirm with posted 2 and the sent payload's hash. labelunreachable_test.go's refused-draft check now reads draft.md as empty, since cr record's write opens the round directory and 2.3's EnsureRound creates an empty draft.md with it.\n",
+      "gate_passed_at": "2026-09-12T21:53:57.556428Z",
+      "commit_sha": "6fe8727",
+      "commit_shas": [
+        "6fe8727",
+        "dd5c0b5",
+        "a2a6ed8",
+        "bc7530b",
+        "88912a9",
+        "4fbb19f",
+        "bc0df80"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/labelunreachable_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/record.go",
+        "internal/cli/send.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go"
+      ]
     },
     {
       "id": "round-summary-idempotence",
