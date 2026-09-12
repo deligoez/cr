@@ -52,9 +52,8 @@ type intentCoverage struct {
 
 // statusResult is §10.1's coverage report for one round.
 //
-// It answers §10.1.1 through §10.1.6 and stops there. §10.2's completeness
-// verdict is the next task's to add here, and a verdict guessed at now would be
-// a verdict about conditions nothing evaluates.
+// It answers §10.1.1 through §10.1.6, §3.6.6's report of what the round rests
+// on that no longer stands, and §10.2's completeness verdict.
 type statusResult struct {
 	// Round and Head are the round this report is about.
 	Round int    `json:"round"`
@@ -80,10 +79,27 @@ type statusResult struct {
 	// never suppress, and a report that quietly widened that list would be
 	// making a claim about §11.1 rather than about the round.
 	Unstanding []unstandingNote `json:"unstanding_notes"`
+	// Completeness is §10.2's verdict and, when it is false, every
+	// condition that did not hold.
+	//
+	// It is here as well as in Honesty's sentence for the reason Axes and
+	// Skipped keep their fields: a reader of the JSON document should not
+	// have to parse prose to learn whether the round is finished. The
+	// sentence is not rendered from this field — §10.2 requires the verdict
+	// to be printed together with every lens of §4.5.4 that did not run,
+	// and coverage.Lenses.Verdict is the only thing that can say it, so
+	// there is no way to print the claim without printing the list that
+	// qualifies it.
+	Completeness coverage.Completeness `json:"completeness"`
 	// Honesty carries §9.3.1's comparison of the round's head against the
-	// pull request's current one, then every entry of §4.5.4's report, and
-	// then §10.1.6's waiver and duplicate counts — rendered as the
-	// sentences §11.1 exempts from `--quiet`.
+	// pull request's current one, then §10.2's verdict together with every
+	// entry of §4.5.4's report, and then §10.1.6's waiver and duplicate
+	// counts — rendered as the sentences §11.1 exempts from `--quiet`.
+	//
+	// The verdict is in this channel rather than beside it because §10.2
+	// has it printed together with the lenses that did not run, and §11.1
+	// is what keeps those printed: a verdict `--quiet` could suppress while
+	// the lens list stayed would break the pairing from the other side.
 	//
 	// It is where §4.5.4's third kind lives and has no field of its own.
 	// The halves of §4.3.1 and §4.4.1 are declared in two packages that
@@ -102,7 +118,8 @@ type statusResult struct {
 }
 
 // Text prints §10.1's sections in the order §10.1 numbers them, then §3.6.6's
-// report, then the honesty channel.
+// report, then the honesty channel — which is where §10.2's verdict is said,
+// beside the lenses that qualify it.
 func (r *statusResult) Text(w *writer) string {
 	var out strings.Builder
 	out.WriteString("round " + w.accent(strconv.Itoa(r.Round)) + " at " + r.Head + "\n")
@@ -232,7 +249,7 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
-	covered, err := intentCoverageOf(l, owner, repo, pr, round.Round)
+	covered, unsettled, err := intentCoverageOf(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return nil, err
 	}
@@ -253,43 +270,58 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
-	disclosed, err := statusHonesty(l, owner, repo, pr, round, lenses, records)
+	verdict := coverage.Complete(&coverage.Conditions{
+		HeadMoved: round.Stale(),
+		Rows:      rows,
+		Unsettled: unsettled,
+		Records:   records,
+	})
+	disclosed, err := statusHonesty(
+		l, owner, repo, pr, round, lenses, records, verdict)
 	if err != nil {
 		return nil, err
 	}
 	return &statusResult{
-		Round:      round.Round,
-		Head:       round.Head,
-		Coverage:   rows,
-		Intent:     covered,
-		Axes:       axes,
-		Skipped:    lenses.Roles,
-		Records:    recordTalliesOf(records),
-		Probes:     probesOf(probes, records),
-		Unstanding: unstanding,
-		Honesty:    disclosed,
+		Round:        round.Round,
+		Head:         round.Head,
+		Coverage:     rows,
+		Intent:       covered,
+		Axes:         axes,
+		Skipped:      lenses.Roles,
+		Records:      recordTalliesOf(records),
+		Probes:       probesOf(probes, records),
+		Unstanding:   unstanding,
+		Completeness: verdict,
+		Honesty:      disclosed,
 	}, nil
 }
 
 // statusHonesty is the disclosure channel §11.1 exempts from `--quiet`:
-// §9.3.1's comparison first, then every lens of §4.5.4 that did not run, then
-// §10.1.6's waiver and duplicate counts.
+// §9.3.1's comparison first, then §10.2's verdict together with every lens of
+// §4.5.4 that did not run, then §10.1.6's waiver and duplicate counts.
 //
-// The lenses are rendered through coverage.Lenses rather than appended kind by
-// kind here, so a kind added to that collector reaches this report with it.
-// §10.1.6's two are appended after them because §11.1 lists them as their own
-// pair rather than as lenses, and each is a count over the round's records
+// The verdict and the lenses arrive as one block from coverage.Lenses.Verdict,
+// and that is the whole of why §10.2's sentence is reachable nowhere else:
+// §10.2 requires a verdict of complete to be printed together with every lens
+// that did not run — completeness across three axes is not completeness across
+// four, and neither is completeness with a role that never looked — and a
+// renderer holding only the verdict could print one without the list, which
+// reads as a stronger claim than the round supports. Rendering the lenses
+// through that collector also keeps the property statusHonesty had before:
+// a kind added to it reaches this report with it.
+//
+// §10.1.6's two are appended after the block because §11.1 lists them as their
+// own pair rather than as lenses, and each is a count over the round's records
 // rather than a lens that did or did not look.
 func statusHonesty(
 	l state.Layout, owner, repo string, pr int,
 	round *state.Round, lenses coverage.Lenses, records []*finding.Finding,
+	verdict coverage.Completeness,
 ) ([]string, error) {
-	disclosed := lenses.Disclosures()
-	honesty := make([]string, 0, 3+len(disclosed))
+	said := lenses.Verdict(verdict.Complete, verdict.Reason())
+	honesty := make([]string, 0, 3+len(said))
 	honesty = append(honesty, round.Disclosure())
-	for _, entry := range disclosed {
-		honesty = append(honesty, entry.Disclosure())
-	}
+	honesty = append(honesty, said...)
 	waived, err := waiverDisclosure(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return nil, err
@@ -298,26 +330,32 @@ func statusHonesty(
 }
 
 // intentCoverageOf counts §10.1.2 over the round's claims, its mapping, and
-// the §4.1.3 entries derived from the two.
+// the §4.1.3 entries derived from the two, and returns §10.2.3's blocking set
+// beside them.
 //
 // The gaps are read rather than re-derived. §4.1.7 makes the derivation
 // `cr map record`'s, and that is also where §4.1.8's set-aside stamps are
 // carried forward — so a report deriving its own would show entries with no
 // stamp on them and would contradict the file it is reporting about.
+//
+// §10.2.3's set comes back from here rather than from a reader of its own
+// because it is settled by the same three files, read once: a second reader
+// could report a claim mapped in §10.1.2 and blocking in §10.2 out of the same
+// round.
 func intentCoverageOf(
 	l state.Layout, owner, repo string, pr, round int,
-) (intentCoverage, error) {
+) (intentCoverage, []string, error) {
 	claims, err := roundClaimIDs(l, owner, repo, pr, round)
 	if err != nil {
-		return intentCoverage{}, err
+		return intentCoverage{}, nil, err
 	}
 	pairs, err := state.ReadStamped[mapping.Pair](l, owner, repo, pr, state.FileMapping, round)
 	if err != nil {
-		return intentCoverage{}, err
+		return intentCoverage{}, nil, err
 	}
 	stored, err := state.ReadStamped[mapping.Gap](l, owner, repo, pr, state.FileIntentGaps, round)
 	if err != nil {
-		return intentCoverage{}, err
+		return intentCoverage{}, nil, err
 	}
 	report := intentCoverage{Claims: len(claims), Gaps: make([]mapping.Gap, 0, len(stored))}
 	for i := range stored {
@@ -326,8 +364,22 @@ func intentCoverageOf(
 			report.SetAside++
 		}
 	}
-	report.Mapped = mappedClaims(claims, pairs, round)
-	return report, nil
+	mapped := mappedSet(pairs, round)
+	report.Mapped = mappedClaims(claims, mapped)
+	return report, unsettledClaims(claims, mapped, stored), nil
+}
+
+// mappedSet is which of the round's claims its mapping maps to at least one
+// unit. §9.3.5 scopes it to the round, because a pair written in an earlier
+// round joined that round's claims to that round's units.
+func mappedSet(pairs []mapping.Pair, round int) map[string]bool {
+	mapped := make(map[string]bool, len(pairs))
+	for i := range pairs {
+		if pairs[i].Round == round {
+			mapped[pairs[i].Claim] = true
+		}
+	}
+	return mapped
 }
 
 // mappedClaims is §10.1.2's middle number: how many of the round's claims the
@@ -336,13 +388,7 @@ func intentCoverageOf(
 // It counts claims and not pairs. §4.1.6 lets the agent map one claim to
 // several units, and a count of pairs would report more of the issue covered
 // than the round's claims can account for.
-func mappedClaims(claims []string, pairs []mapping.Pair, round int) int {
-	mapped := make(map[string]bool, len(pairs))
-	for i := range pairs {
-		if pairs[i].Round == round {
-			mapped[pairs[i].Claim] = true
-		}
-	}
+func mappedClaims(claims []string, mapped map[string]bool) int {
 	count := 0
 	for _, id := range claims {
 		if mapped[id] {
@@ -350,6 +396,32 @@ func mappedClaims(claims []string, pairs []mapping.Pair, round int) int {
 		}
 	}
 	return count
+}
+
+// unsettledClaims is §10.2.3's blocking set: the round's claims that its
+// mapping maps to no unit and that §4.1.8 has not set aside.
+//
+// Both halves are read, and neither is inferred from the other. §10.2.3 asks
+// first that every claim be mapped, so a claim no pair names blocks whether or
+// not §4.1.3 has raised an entry for it — a round whose mapping was never
+// recorded has no entries at all, and a set derived from the entries alone
+// would report it settled. And §4.1.8's stamp is what stops an entry blocking,
+// so a claim carrying one is out of the set however little of it is
+// implemented.
+func unsettledClaims(claims []string, mapped map[string]bool, gaps []mapping.Gap) []string {
+	aside := make(map[string]bool, len(gaps))
+	for i := range gaps {
+		if gaps[i].SetAsideNote != "" {
+			aside[gaps[i].Claim] = true
+		}
+	}
+	blocking := make([]string, 0, len(claims))
+	for _, id := range claims {
+		if !mapped[id] && !aside[id] {
+			blocking = append(blocking, id)
+		}
+	}
+	return blocking
 }
 
 // lensesOf is §10.1.3: the round's axes, and §4.5.4's report of every lens that
