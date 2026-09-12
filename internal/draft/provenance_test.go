@@ -102,3 +102,28 @@ func TestTheProvenanceRegionSitsBetweenTheLabelAndTheAgentBody(t *testing.T) {
 	assert.Equal(t, body(question), render.AgentRegion(comment),
 		"the agent region recovers without the provenance cr regenerates")
 }
+
+// §2.6 item 4 through the one renderer: a rule-origin citation whose rule the
+// corpus no longer resolves is refused naming the record and the rule, by
+// Render and by PostBodies alike, rather than drawing a region that names the
+// rule with no rationale beneath it. Mutation testing on 2026-09-11 found the
+// silent version; a round whose lookups were never handed over is the same gap.
+func TestARuleCitationWhoseRationaleIsGoneIsRefusedNamingTheRecordAndRule(t *testing.T) {
+	record := cited(finding.Citation{Path: "lib.go", Line: 4, Origin: finding.OriginRule})
+	record.Rule = "no-sleep"
+	for name, sources := range map[string]*Provenances{
+		"the corpus lacks the rule": lookups(),
+		"no lookups at all":         nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			rendered, err := Render([]*finding.Finding{record}, render.LangEN, sources, nil)
+			var missing *MissingRationaleError
+			require.ErrorAs(t, err, &missing)
+			assert.Equal(t, MissingRationaleError{Record: "f1", Rule: "no-sleep"}, *missing)
+			assert.Empty(t, rendered)
+
+			_, err = PostBodies([]*finding.Finding{record}, render.LangEN, sources, nil)
+			require.ErrorAs(t, err, &missing, "cr post regenerates the region through the same path")
+		})
+	}
+}
