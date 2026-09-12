@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T11:38:34.259986Z",
+  "updated_at": "2026-09-12T12:29:14.297531Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -6512,7 +6512,7 @@
     {
       "id": "current-round-scoping",
       "title": "Read only the current round records",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "new-round-invalidation"
@@ -6522,16 +6522,47 @@
       "source_sections": [
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T11:49:21.816696Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:50:22.621304Z",
+      "closed_reason": "- state.ReadStamped is the one round-scoped read of the eight §2.3.3 files, filtering on the `round` the stored line carries, and every production reader of those files now goes through it; TestEveryStampedReadIsRoundScopedOrDeclared walks the tree and holds that set from the other end, so a reader added later is found rather than trusted.\n- Earlier rounds stay readable and stay out of the answer: ReadStamped narrows to the round asked for and leaves the file alone, and the seven readers that legitimately look past the round are declared in crossRoundReaders with the sentence exempting each, every one an identity that outlives a round (probe and run ids, a baseline at a head, §2.6.3.1's repository-wide harvest).\n- ReplaceStamped, ReplaceStampedKeys and ClearStamped take out the named round and carry every other round's line through byte for byte, and they are what `cr claims record`, `cr map record`, `cr cells record`, `cr claims set-aside`, `cr draft` and `cr brief`'s mapping clear write through; TestReplaceStampedRewritesOneRoundAndLeavesTheOthers and TestClearStampedEmptiesOneRoundAndNotTheFile assert both halves over a fixture holding three rounds.\n- The three exemptions hold by construction rather than by memory: waivers.ndjson, the §3.6 context store and posted-index.ndjson carry no §2.3.3 stamp, so ReadStamped refuses all three by name and their readers are untouched; the new test asserts each still loads a round-1 record while the pull request is in round 2, and then asserts the refusal for every unstamped file.\n- TestRoundTwoSeesNoneOfRoundOnesRecordsWhileTheExemptionsLoad drives `cr status` over a pull request in round 2 and asserts round 1's two units, its cells, its three claims, its mapping and its two §4.1.3 entries are all invisible while the waiver, the note and the posted-index entry recorded in round 1 still load.\n- Round 12's finding is answered where it lands: §9.3.4's sweep is the one write here that crosses a round boundary, because the records it moves to `stale` are exactly the ones the round now closing produced, and a scoped sweep would reach none of them.\n- staleOpenRecords makes that transition through state.RewriteStamped, which visits every line of findings.ndjson, puts each move to §9.1's table, and restamps nothing, so the `stale` state is reachable and a record keeps the round that produced it.\n",
+      "gate_passed_at": "2026-09-12T11:50:22.621304Z",
+      "commit_sha": "0368cf3",
+      "commit_shas": [
+        "0368cf3",
+        "65bed24",
+        "4e9e0c1",
+        "da46722",
+        "3597d50",
+        "7b7309d",
+        "5ed221d",
+        "329c029",
+        "2490212",
+        "32bc0c9",
+        "68292d9",
+        "cd16698",
+        "2c6d3a2"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/claims.go",
+        "internal/cli/draft.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/noproberewrite_test.go",
+        "internal/cli/probe.go",
+        "internal/cli/provenance.go",
+        "internal/cli/record.go",
+        "internal/cli/roundscope_test.go",
+        "internal/cli/status.go",
+        "internal/review/run.go",
+        "internal/state/records.go",
+        "internal/state/roundscope.go"
+      ]
     },
     {
       "id": "posted-index",
       "title": "Maintain the posted index at post",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "current-round-scoping",
@@ -6542,11 +6573,24 @@
       "source_sections": [
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T11:57:57.018583Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T11:58:37.042603Z",
+      "closed_reason": "- posted-index.ndjson holds one finding.PostedEntry per record that reached `posted`, keyed by the WaiverKey §7.4.1 defines rather than by a second spelling of it: PostedEntryFor reads the key off the record through WaiverKeyOf, the one construction the waiver §7.2 writes and the §6.5.1 lookup already share, and AppendPosted keeps one entry per key while leaving every entry already there.\n- finding.DropPosted is the §9.3.6 pass §6.5.1 lists beside §6.4.4's: it removes a matching finding from the slice the merge hands on rather than marking it, so no record is ever written to findings.ndjson in a state §9.1 does not define, and PostedDrops.Dropped is the count §6.5.1 writes into summary.json; `cr merge` is a stub whose wiring is merge-command's and whose summary write is merge-counts-reporting's, which is the position finding.DropWaived has held since §6.4.4 was implemented.\n- `cr post` is the writer and recordPostedIndex is where it writes: it is in internal/cli/posted.go beside writePosted and adoptThreads, it appends one entry per record the run moved to `posted`, and its doc comment states that §9.1 moves a record to `posted` in that command alone, on `--confirm` and on `--reconcile`'s adoption alike.\n- The ownership is written down rather than inferred because a missing entry fails silently in the expensive direction -- a comment the author already received, sent again -- and recordPostedIndex appends after the network call has returned, so an entry cannot stand for a comment that never reached anyone.\n- TestAFindingPostedInRoundOneIsDroppedInRoundTwo records a round-1 posting through recordPostedIndex, then hands DropPosted a round-2 finding identical in §7.4.1's four fields and different in everything a round changes -- a fresh id, another role, a reworded summary -- and asserts it is absent from what the merge keeps, that Dropped is 1, that the id reported is the posted record rather than the dropped finding, and that a second finding at another content hash is kept.\n",
+      "gate_passed_at": "2026-09-12T11:58:37.042603Z",
+      "commit_sha": "2fac5c4",
+      "commit_shas": [
+        "2fac5c4",
+        "bfcd21c",
+        "2c587b4",
+        "af182d1"
+      ],
+      "commit_files": [
+        "internal/cli/posted.go",
+        "internal/cli/postedindex_test.go",
+        "internal/finding/anchored_test.go",
+        "internal/finding/postedindex.go"
+      ]
     },
     {
       "id": "render-lang-domain",
@@ -7092,7 +7136,7 @@
     {
       "id": "post-reconcile",
       "title": "Reconcile an unresolved post by hash",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "review-body-disclosure",
@@ -7103,16 +7147,37 @@
       "source_sections": [
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T12:17:16.40861Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T12:17:54.677831Z",
+      "closed_reason": "- postOutcome is §8.4's fork: GitHub's error document, read off gh.CommandError's standard output by post.Rejection, is §8.4.2's refusal and is returned as it stands, while everything post.Rejection answers nil for -- a timeout, a dropped connection, a response cr cannot parse -- sets post_unresolved on meta.json through setPostUnresolved and returns an error naming `cr post \u003cpr\u003e --reconcile`; there is no branch in it that sends again, and TestARejectionIsNotAnUnknownOutcome asserts the refusal leaves the flag alone while TestAnUnresolvedPostingIsReconciledToAnAdoptAndToAClear's fixture asserts a killed call sets it.\n- `cr post \u003cpr\u003e --reconcile` is built: reconcilePost reads the payload §8.3.3 wrote before the call, takes §8.4.3's hash off it, lists the pull request's reviews through gh.Client.Reviews, and either adopts the review whose body embeds that hash -- walking §9.1's `queued` → `posted` row under ActorPostReconcile and appending §9.3.6's index entries -- or clears post_unresolved for a retry; dogfooded against a scratch pull request, where the clear run printed `\"adopted\": \"\"` with post_unresolved going True → False and the record left `queued`, and the adopt run printed `\"adopted\": \"https://github.com/deligoez/cr-qa/pull/1#pullrequestreview-2\"`, `\"records\": [\"f1\"]`, moved the record to `posted` and wrote the index entry.\n- Posting twice is guarded at three points rather than asserted: the hash is taken from the payload that was sent and never from a rebuild of the round, so an edit since the call cannot turn a posted round into an unmatched one; a round whose posted.json holds no payload, or names a different number of records than comments, is refused rather than cleared, because clearing is what invites the second post; and a second `--reconcile` over an adopted round changes nothing, since the records are already `posted` and AppendPosted keys by §7.4.1.\n- TestAnUnresolvedPostingIsReconciledToAnAdoptAndToAClear drives one fixture through both answers GitHub can give and asserts posted-index.ndjson is written on adopt and empty on clear, with the records left `queued` and post_unresolved cleared in the clear case; the timeout it starts from is produced through postOutcome rather than declared, so the §8.4.2/§8.4.4 fork is what the fixture exercises.\n",
+      "gate_passed_at": "2026-09-12T12:17:54.677831Z",
+      "commit_sha": "aec6014",
+      "commit_shas": [
+        "aec6014",
+        "dc66a89",
+        "64ca19b",
+        "2239705",
+        "2475ed6",
+        "a51168d",
+        "0fe02b0",
+        "32d4184"
+      ],
+      "commit_files": [
+        "internal/cli/movedhead_test.go",
+        "internal/cli/output_test.go",
+        "internal/cli/post.go",
+        "internal/cli/posted.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcile_test.go",
+        "internal/gh/reviews.go",
+        "internal/post/review.go"
+      ]
     },
     {
       "id": "dry-run-posting",
       "title": "Print the payload without any write",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "post-reconcile",
@@ -7123,11 +7188,24 @@
       "source_sections": [
         "### 8.5 Confirmation gate"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T12:28:15.36528Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-12T12:29:14.276401Z",
+      "closed_reason": "- `cr post` without `--confirm` validates, prints the whole payload -- §8.3.2's event, §8.4.3's review body and every comment's position and text, in the JSON document and in the terminal alike -- reports `\"posted\": false` through §12.6's embedded posting, and exits 0 without sending anything; dogfooded against a scratch pull request, where the run printed the body carrying `\u003c!-- cr:payload-hash c7df7ce5b77ec239 --\u003e`, the comment at `lib.go:5 RIGHT`, `\"posted\": false` and `exit=0`, and the terminal rendering closed with `not posted: nothing was sent to GitHub`.\n- The flag is read once at the top of newPostCmd and acted on last, at the end of buildReview, so every refusal §8 and §6.3 make stands above the gate and the gate decides what becomes of a payload rather than whether one is checked.\n- An invalid payload exits 1 under both flag settings: dogfooded on the same scratch pull request, where a question body holding no \"?\" gave §8.1.5's refusal and `exit=1` both with and without `--confirm`, and TestAnInvalidPayloadExitsOneUnderBothFlagSettings asserts the same over ExitValidation while also asserting the refusal is the payload's rather than the unbuilt flag's.\n- Only a payload that passed every validation reaches §8.5.1's branch: the valid scratch round gave `exit=0` and the printed payload without the flag, and §11.2's code 2 naming the unbuilt write with it, because §8.5.2's call is still sendReview's to fill in -- it takes the gh.Confirmation minted from the flag and from nothing else, so confirm-flag-required adds a body rather than moving a branch.\n- TestADryRunPrintsThePayloadAndSendsNothing recomputes §8.4.3's hash from the printed comments and matches it against the hash embedded in the printed body, so a document that dropped or reordered a comment could not agree with itself, and asserts over every gh invocation the run made that none carries a request body; TestAnInvalidPayloadExitsOneUnderBothFlagSettings drives one invalid round both ways and asserts exit 1 each time.\n",
+      "gate_passed_at": "2026-09-12T12:29:14.276401Z",
+      "commit_sha": "1ea6250",
+      "commit_shas": [
+        "1ea6250",
+        "256c6c3",
+        "855c9a4",
+        "6f3844d"
+      ],
+      "commit_files": [
+        "internal/cli/dryrun_test.go",
+        "internal/cli/nowrite_test.go",
+        "internal/cli/post.go",
+        "internal/cli/postgrade_test.go"
+      ]
     },
     {
       "id": "confirm-flag-required",
