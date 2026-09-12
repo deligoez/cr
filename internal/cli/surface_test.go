@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -234,23 +237,39 @@ func TestAStubRefusesWithItsPathAndAHint(t *testing.T) {
 	assert.Equal(t, ExitUsage, exitCodeFor(&notImplementedError{Command: "cr status"}))
 }
 
-// A flag registered ahead of its behaviour refuses rather than being ignored.
+// `cr config --resolved` changes what the command prints.
 //
-// `cr config --resolved` is the one place in the surface where a command that
-// works carries a flag that does not, and a silently ignored flag there is the
-// worst of the three outcomes: the caller asks which layer each setting came
-// from, gets a plain listing, and has no way to tell it apart from an annotated
-// one where every setting happened to come from the same layer.
-func TestAFlagAheadOfItsBehaviourRefuses(t *testing.T) {
-	root := newRootCmd()
-	found, _, err := root.Find([]string{"config"})
-	require.NoError(t, err)
-	require.NoError(t, found.Flags().Set("resolved", "true"))
+// It was the one place in the surface where a command that works carried a flag
+// that did not, and it refused rather than being ignored — a silently ignored
+// flag there is the worst of the three outcomes, since the caller asks which
+// layer each setting came from, gets a plain listing, and has no way to tell it
+// apart from an annotated one where every setting came from the same layer.
+// config-resolved-annotation built it, and what is left to hold is that the
+// flag is still not the third thing: a listing that differs from the plain one.
+func TestTheResolvedFlagChangesWhatConfigPrints(t *testing.T) {
+	root := crHome(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "config.json"),
+		[]byte(`{"post": {"max_comments": 9}}`), 0o600))
 
-	var refused *notImplementedError
-	require.ErrorAs(t, found.RunE(found, nil), &refused)
-	assert.Equal(t, "cr config --resolved", refused.Command,
-		"the refusal names the whole command, so it reads as `cr config` being missing")
+	plain := configPrinting(t)
+	annotated := configPrinting(t, "--resolved")
+
+	require.NotEqual(t, plain, annotated, "§2.7: the annotated listing is not the plain one")
+	assert.Contains(t, annotated, filepath.Join(root, "config.json"),
+		"and it names the file the value came from")
+}
+
+// configPrinting runs `cr config` against whatever CR_HOME points at and
+// returns the document it printed.
+func configPrinting(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs(append([]string{"config"}, args...))
+	require.NoError(t, cmd.Execute())
+	return out.String()
 }
 
 // Every command §11 marks as taking a pull request rejects an argument that is
