@@ -66,8 +66,8 @@ func (r *postResult) Text(w *writer) string {
 	return text + r.Forced.Disclosure()
 }
 
-// unbuiltPostFlags are the two §11 flags this command registers and does not
-// yet act on, in the order §11 writes them.
+// unbuiltPostFlags are the §11 flags this command registers and does not yet
+// act on.
 //
 // They refuse rather than being ignored, which is the same choice `cr config
 // --resolved` made and matters more here: §8.5.2 makes `--confirm` the whole of
@@ -75,7 +75,7 @@ func (r *postResult) Text(w *writer) string {
 // validated would teach a caller that `--confirm` is satisfied by a run that
 // sent nothing. The refusal names the flag, so the caller is told what is
 // missing rather than that the command they just used is.
-var unbuiltPostFlags = []string{"confirm", "reconcile"}
+var unbuiltPostFlags = []string{"confirm"}
 
 // newPostCmd registers §11's `cr post <pr> [--confirm] [--reconcile]`, the
 // validation of §8 and §7.2.2's recomputation before the payload is built.
@@ -127,10 +127,14 @@ func newPostCmd(out *writer) *cobra.Command {
 			// §9.3.2: `cr post` is the command that anchors, and the
 			// section exempts `--reconcile` from this refusal by
 			// name — which is what says the rest of the command is
-			// bound by it. The exemption is reached above, where
-			// every unbuilt flag refuses before any state is read,
-			// and the flag's behaviour has to keep arriving on that
-			// side of this line.
+			// bound by it. The exemption is this return standing
+			// above the refusal, and it is the whole of what makes
+			// §9.3.2's sentence true of the built flag: what
+			// §8.4.4 does anchors nothing, reads the pull request,
+			// and writes only cr's own account of what it found.
+			if reconcile, err := cmd.Flags().GetBool("reconcile"); err == nil && reconcile {
+				return reconcilePost(out, layout, &round)
+			}
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
