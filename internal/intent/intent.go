@@ -81,6 +81,25 @@ func (i Intent) Unavailability() (Unavailable, bool) {
 	}, true
 }
 
+// Recorded is a round's intent as §2.3's meta.json carries it: the key §3.2
+// resolved when the round was opened, and the `intent.key_pattern` in force.
+//
+// It exists so a command reading a recorded round can answer §4.5.3 — the
+// intent axis is unavailable when no issue key resolves — without re-running
+// §3.2. §10.1.3 is the caller: `cr status` reports the axes of the round that
+// was opened, and a fresh resolution would report the axes of a round nobody
+// opened, since a branch can be renamed and a title edited after the fact.
+//
+// Nothing is invented. An empty key is §3.2's absent one, which is exactly what
+// meta.json carries for a round that resolved none, and a key that was recorded
+// is marked KeyRecorded rather than attributed to a source this cannot know.
+func Recorded(key, pattern string) Intent {
+	if key == "" {
+		return Intent{Pattern: pattern}
+	}
+	return Intent{Key: Key{Value: key, Origin: KeyRecorded}, Pattern: pattern}
+}
+
 // Resolve carries out §3.2 and returns the round's intent: the key resolved from
 // the first source that yields a match, and the issue text read for it, or
 // §3.2's empty intent when no source yields one.

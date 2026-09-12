@@ -61,6 +61,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newTestCmd(out))
 	root.AddCommand(newProbeCmd(out))
 	root.AddCommand(newDraftCmd(out))
+	root.AddCommand(newStatusCmd(out))
 	// The rest of §11's table. These carry their argument shape and their
 	// flags and refuse to run, because the surface is the half a caller
 	// writes a script against and it is worth completing before the
@@ -69,7 +70,6 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newReviewCmd(out))
 	root.AddCommand(newMergeCmd())
 	root.AddCommand(newPostCmd(out))
-	root.AddCommand(newStatusCmd())
 	root.AddCommand(newStatsCmd())
 	root.AddCommand(newWaiversCmd())
 	root.AddCommand(newRulesCmd(out))

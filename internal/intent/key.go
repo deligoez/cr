@@ -30,6 +30,13 @@ const (
 	KeyFromTitle KeyOrigin = "title"
 	// KeyFromBody is the PR body, §3.2 item 4.
 	KeyFromBody KeyOrigin = "body"
+	// KeyRecorded is a key read back out of §2.3's state rather than
+	// resolved from a source. meta.json records the key and not where it
+	// came from, so a round read off disk can say that a key resolved and
+	// cannot say which of the four above yielded it. It is no source of
+	// §3.2's, which is the point: code branching on which source won
+	// cannot mistake one of these for a live resolution.
+	KeyRecorded KeyOrigin = "recorded"
 )
 
 // KeySources are the four §3.2 sources, held in one value so their order is a
