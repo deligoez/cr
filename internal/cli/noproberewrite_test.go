@@ -20,8 +20,14 @@ import (
 // exactly what §5.5.1 forbids here — it stamps every record it is handed, so
 // reading probes.ndjson back and passing it through would rewrite every earlier
 // probe with the round now being written.
+//
+// ReadStamped is the second read, and it is a read in exactly the sense
+// ReadRecords is: §9.3.5 has it return one round's records and it writes
+// nothing, so admitting it widens what may look at the file and not what may
+// change it. The assertion below still names one writer.
 var probeFileCalls = map[string]string{
 	"ReadRecords":   "reads",
+	"ReadStamped":   "reads one round",
 	"AppendStamped": "appends",
 }
 
