@@ -133,6 +133,42 @@ func (e *StaleUnitError) Error() string {
 		e.Unit, e.Round, e.Head, e.PR, e.Owner, e.Repo)
 }
 
+// MappingRequiredError reports §4.6.5's refusal: the remaining axes cannot be
+// emitted until the intent pass has produced a mapping for the round.
+//
+// §11.2 codes it 4 for the reason StaleUnitError is coded 4. Nothing about the
+// invocation is wrong and no file the caller named is malformed; what refuses is
+// where the round stands, and it is undone by running the intent pass rather
+// than by retyping. The message names both halves of the way forward, because a
+// reviewer who is told only that a mapping is missing has no way to know that
+// `cr review --axis intent` is what produces one.
+type MappingRequiredError struct {
+	// Round and Head are the round that holds no mapping.
+	Round int
+	Head  string
+	// Owner, Repo, and PR name the pull request, so the hint is runnable.
+	Owner string
+	Repo  string
+	PR    int
+	// Axis is the `--axis` the invocation named, and is empty for the
+	// whole fan-out.
+	Axis string
+}
+
+func (e *MappingRequiredError) Error() string {
+	// The scope is the invocation's, not the spec's phrase, so a reader who
+	// typed `--axis correctness` is told about the axis they asked for.
+	scope := "the remaining axes"
+	if e.Axis != "" {
+		scope = "axis " + e.Axis
+	}
+	return fmt.Sprintf(
+		"round %d at head %s has no mapping, so %s cannot be emitted; §4.6.5 runs the intent "+
+			"pass first: run `cr review %d --repo %s/%s --axis intent`, store what it produces "+
+			"with `cr map record %d --repo %s/%s <file.ndjson>`, and run this again",
+		e.Round, e.Head, scope, e.PR, e.Owner, e.Repo, e.PR, e.Owner, e.Repo)
+}
+
 // Run gathers one round's attachments and emits §4.6.1's prompts over them.
 //
 // The round is the one `cr brief` recorded, read through state.Layout.Briefed,
@@ -156,15 +192,15 @@ func Run(src *Sources) (*Fanout, error) {
 	if err != nil {
 		return nil, err
 	}
+	p, axes, err := gate(src, r, &meta)
+	if err != nil {
+		return nil, err
+	}
 	hunks, texts, err := diffOf(src, meta.Head)
 	if err != nil {
 		return nil, err
 	}
 	if r.Units, err = withHunks(src, &meta, records, hunks, texts); err != nil {
-		return nil, err
-	}
-	p, err := profileOf(src.Layout, meta.ProfileID)
-	if err != nil {
 		return nil, err
 	}
 	halves, err := r.attach(src, p, hunks)
@@ -174,7 +210,7 @@ func Run(src *Sources) (*Fanout, error) {
 	if err := r.fanOut(src); err != nil {
 		return nil, err
 	}
-	skipped, err := skippedOf(src, p, &meta)
+	skipped, err := skippedOf(src, axes, &meta)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +219,85 @@ func Run(src *Sources) (*Fanout, error) {
 		Honesty:  sentences(coverage.Lenses{Halves: halves, Roles: skipped}),
 		Expected: coverage.Expect(unitIDs(r.Units), r.Active), Skipped: skipped,
 	}, nil
+}
+
+// gate loads the round's profile, re-derives the axis activation every §4.5.4
+// report of this round is written from, and applies §4.6.5's refusal before a
+// single attachment is gathered.
+//
+// The three are one step because the refusal is a function of the other two: it
+// is owed only where an intent role exists to produce the mapping, and whether
+// one exists is what the activation says. Running them apart would let a caller
+// gather a round's attachments and then discover the round could not be
+// reviewed.
+func gate(src *Sources, r *Round, meta *state.Meta) (*profile.Profile, activation.Activation, error) {
+	p, err := profileOf(src.Layout, meta.ProfileID)
+	if err != nil {
+		return nil, activation.Activation{}, err
+	}
+	axes := activation.OfRound(
+		p, meta.ProfileID, meta.IssueKey, src.Config.String("intent.key_pattern"))
+	return p, axes, refuseWithoutMapping(src, r, axes)
+}
+
+// refuseWithoutMapping is §4.6.5's last sentence: the remaining axes are refused
+// until a mapping exists for the current round and head.
+//
+// Two invocations pass regardless. The intent pass itself is what produces the
+// mapping, so refusing it would leave the round with no way forward; and a round
+// whose intent axis did not run has no intent role and no mapping to produce, so
+// §4.6.6 has the mapping treated as empty and there is nothing to wait for.
+// §4.6.6 names §4.5.3's unavailability, and the activation is asked for the axis
+// rather than for that one reason because a disabled intent axis leaves the
+// round in exactly the same place: no role, no `cr map record`, and a refusal
+// that could never be lifted.
+//
+// The round scoping and the head are already settled by the time this is
+// reached. RefuseStale above refuses a round whose head moved, and every file
+// read here was read through state.ReadStamped for this round alone (§9.3.5),
+// so a mapping recorded in an earlier round is not one this round has.
+func refuseWithoutMapping(src *Sources, r *Round, axes activation.Activation) error {
+	if r.Mapped || src.Axis == axis.Intent || !slices.Contains(axes.Active, axis.Intent) {
+		return nil
+	}
+	recorded, err := mapRecordRan(src, r)
+	if err != nil || recorded {
+		return err
+	}
+	return &MappingRequiredError{
+		Round: r.Round, Head: r.Head,
+		Owner: src.Owner, Repo: src.Repo, PR: src.PR, Axis: src.Axis,
+	}
+}
+
+// mapRecordRan reports whether §4.1.6's mapping exists for the round, for a
+// round holding no pair.
+//
+// Counting pairs is not enough, and the gap is not a corner case: §4.1.1 lets
+// every unit be mapped to zero claims, so an empty mapping is a real answer and
+// a round that recorded one looks exactly like a round nobody has mapped. What
+// tells them apart is §4.1.7 — `cr map record` derives an entry for every claim
+// its mapping leaves mapped to no unit — so after the pass has run, each of the
+// round's claims has left behind either a pair or a gap.
+//
+// A round that recorded no claim at all is the third case, and there the pass
+// has nothing to produce rather than not having run: the only mapping over no
+// claims is the empty one, which leaves no trace whatever. Refusing there would
+// be a refusal no command in v0.1 could lift.
+//
+// The read is made here rather than in Round.read because this is the only
+// question that needs it, and only on the one path where the answer is still in
+// doubt: a round with a pair has answered already.
+func mapRecordRan(src *Sources, r *Round) (bool, error) {
+	if len(r.Claims) == 0 {
+		return true, nil
+	}
+	gaps, err := state.ReadStamped[mapping.Gap](
+		src.Layout, src.Owner, src.Repo, src.PR, state.FileIntentGaps, r.Round)
+	if err != nil {
+		return false, err
+	}
+	return len(gaps) > 0, nil
 }
 
 // skippedOf is §4.6.4's report for this round, derived where `cr status`
@@ -194,17 +309,17 @@ func Run(src *Sources) (*Fanout, error) {
 // and could still name different sets, and a reader has no way to see that from
 // either command alone.
 //
-// The axis decision is re-derived from what meta.json recorded rather than from
-// the repository as it reads now, for the reason activation.OfRound gives, and
-// the active set is meta.json's rather than a recomputation, for the reason
-// coverage.Skipped gives.
-func skippedOf(src *Sources, p *profile.Profile, meta *state.Meta) ([]coverage.SkippedRole, error) {
+// The activation is gate's, taken as an argument rather than re-derived here,
+// so the axes §4.6.5's refusal was decided against and the axes this report is
+// written from are one answer. The active role set is meta.json's rather than a
+// recomputation, for the reason coverage.Skipped gives.
+func skippedOf(
+	src *Sources, axes activation.Activation, meta *state.Meta,
+) ([]coverage.SkippedRole, error) {
 	corpus, err := role.Resolve(src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
 	if err != nil {
 		return nil, err
 	}
-	axes := activation.OfRound(
-		p, meta.ProfileID, meta.IssueKey, src.Config.String("intent.key_pattern"))
 	return coverage.Skipped(axes, corpus, meta.ActiveRoles, meta.ProfileID), nil
 }
 
