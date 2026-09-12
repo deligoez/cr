@@ -295,6 +295,13 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §9.3.2: this command writes findings.ndjson, stamped
+			// with the round's head, so a head that moved under the
+			// round refuses here rather than recording anchors
+			// against a tree the pull request has left behind.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
 			records, found, err := acceptRecords(
 				layout, owner, repo, pr, &round.Meta, args[1])
 			if err != nil {

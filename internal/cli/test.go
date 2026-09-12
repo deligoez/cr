@@ -153,6 +153,13 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §9.3.2: this command writes the round's run record and
+			// builds the sandbox at the round's head when §5.1.6
+			// finds none, so a head that moved under the round
+			// refuses before anything runs.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
 			dir, err := repoDir()
 			if err != nil {
 				return err

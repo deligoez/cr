@@ -513,6 +513,13 @@ func prepareProbe(cmd *cobra.Command, request *probeRequest) (*probeSetup, error
 	if err != nil {
 		return nil, err
 	}
+	// §9.3.2: a probe writes its record against the round and mutates the
+	// sandbox checked out at the round's head, so a head that moved under
+	// the round refuses here — before §5.6.4's cap is spent and before
+	// §5.1.3's setup commands can run.
+	if err := round.RefuseStale(); err != nil {
+		return nil, err
+	}
 	dir, err := repoDir()
 	if err != nil {
 		return nil, err

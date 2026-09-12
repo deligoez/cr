@@ -124,6 +124,13 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §9.3.2: this command writes mapping.ndjson and the
+			// §4.1.3 entries derived from it, both against units the
+			// round formed at its own head, so a head that moved
+			// under it refuses here.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
 			formed, err := roundUnitsOf(layout, owner, repo, pr, round.Round)
 			if err != nil {
 				return err

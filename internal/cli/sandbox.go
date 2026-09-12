@@ -93,6 +93,14 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §9.3.2: the sandbox is per-PR state under §2.2, checked
+			// out at the round's head, and §5.1.6 compares its HEAD
+			// against that head before every run. A head that moved
+			// under the round refuses here rather than after §5.1.3's
+			// setup commands have run.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
 			// The repository under review is the directory cr was run
 			// from, as it is for `cr brief`: §11.1 makes `--repo` the
 			// override for repository detection and not for the

@@ -134,6 +134,13 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §9.3.2: this command writes claims.ndjson, so a head
+			// that moved under the round refuses here rather than
+			// stamping the round's head onto claims checked against
+			// an issue read at another one.
+			if err := recorded.RefuseStale(); err != nil {
+				return err
+			}
 			if recorded.IssueKey == "" {
 				return &intent.NoIssueKeyError{Owner: owner, Repo: repo, PR: pr}
 			}

@@ -105,6 +105,13 @@ func newCellsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §9.3.2: this command writes coverage.ndjson, and
+			// §4.5.5's `unit_hash` is stamped from units the round
+			// formed at its own head. A head that moved under it
+			// refuses here.
+			if err := round.RefuseStale(); err != nil {
+				return err
+			}
 			formed, err := roundUnitsOf(layout, owner, repo, pr, round.Round)
 			if err != nil {
 				return err
