@@ -15,9 +15,10 @@ import (
 //
 // The two cases are the two the section names: a pattern that is not a Go
 // regexp, and a `mode` outside the one value v0.1 admits. Both leave
-// internal/rule as a rule.MalformedError, which is the same type §2.6.5's
-// malformed file uses — so what is asserted here is that a fault found while
-// compiling a rule reaches the file code too, not that the mapping exists.
+// internal/rule as a rule.MalformedError from the loader, which is the same
+// type §2.6.5's malformed file uses — so what is asserted here is that a fault
+// found in a detect block reaches the file code too, not that the mapping
+// exists.
 func TestAnUnusableDetectBlockExitsWithTheFileCode(t *testing.T) {
 	for _, c := range []struct{ name, pattern, mode string }{
 		{name: "a pattern that is not a Go regexp", pattern: "DB::raw(unclosed", mode: "regex"},
@@ -25,9 +26,7 @@ func TestAnUnusableDetectBlockExitsWithTheFileCode(t *testing.T) {
 		{name: "a mode left blank", pattern: `DB::raw\(`, mode: ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			corpus := corpusWithDetect(t, c.pattern, c.mode)
-
-			_, err := rule.Compile(corpus)
+			err := resolveWithDetect(t, c.pattern, c.mode)
 			require.Error(t, err)
 
 			var malformed *rule.MalformedError
@@ -38,9 +37,10 @@ func TestAnUnusableDetectBlockExitsWithTheFileCode(t *testing.T) {
 	}
 }
 
-// corpusWithDetect resolves a one-rule corpus whose rule carries the given
-// detect block, through the same path a profile's `rules` array takes.
-func corpusWithDetect(t *testing.T, pattern, mode string) []rule.Resolved {
+// resolveWithDetect resolves a one-rule corpus whose rule carries the given
+// detect block, through the same path a profile's `rules` array takes, and
+// returns what the loader said about it.
+func resolveWithDetect(t *testing.T, pattern, mode string) error {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
 		"id":        "no-raw-sql",
@@ -51,8 +51,7 @@ func corpusWithDetect(t *testing.T, pattern, mode string) []rule.Resolved {
 	})
 	require.NoError(t, err)
 
-	corpus, err := rule.Resolve(t.TempDir(), t.TempDir(), "profiles/laravel-pest.json",
+	_, err = rule.Resolve(t.TempDir(), t.TempDir(), "profiles/laravel-pest.json",
 		[]json.RawMessage{body})
-	require.NoError(t, err, "the rule file itself is well formed; only the detect block is not")
-	return corpus
+	return err
 }

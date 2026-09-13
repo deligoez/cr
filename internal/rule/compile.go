@@ -53,6 +53,29 @@ func Compile(corpus []Resolved) ([]Matcher, error) {
 	return matchers, nil
 }
 
+// compiles holds one parsed rule to the checks Compile makes, at the moment the
+// rule is loaded: its `fix.replace` compiles per §2.6.2.1, and its `detect`
+// block, when it carries one, names `regex` and a pattern that compiles per
+// §2.6.1.2. path is the file every fault is reported against.
+//
+// It runs in the loader because §2.6 item 5 aborts on a malformed rule file
+// wherever one is read, not only where its detector runs. A command that loads
+// the corpus without compiling it — `cr rules list`, `cr record`'s class check,
+// the draft's provenance — would otherwise list a rule `cr rules check` refuses
+// as effective and exit 0 over it. Compile keeps calling the same two methods,
+// so the check has one spelling and a Resolved built by hand is still refused.
+func compiles(path string, r *Rule) error {
+	resolved := Resolved{Rule: *r, Path: path}
+	if _, err := resolved.compileFix(); err != nil {
+		return err
+	}
+	if r.Detect == nil {
+		return nil
+	}
+	_, err := resolved.compile()
+	return err
+}
+
 // compile holds one `detect` block to §2.6.1.2: `mode` is `regex`, and
 // `pattern` is a regular expression in Go `regexp` syntax.
 //

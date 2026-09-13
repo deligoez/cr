@@ -326,13 +326,18 @@ func TestTheOptionalBlocksAreAbsentRatherThanEmptyWhenTheFileOmitsThem(t *testin
 
 	t.Run("empty blocks are carried as empty, not as absent", func(t *testing.T) {
 		r, err := Load(ruleFile(t, "handle-every-error", map[string]any{
-			"detect": map[string]any{},
-			"fix":    map[string]any{},
+			"fix": map[string]any{},
 		}))
 		require.NoError(t, err)
-
-		assert.NotNil(t, r.Detect, "an empty block is a detect block; §2.6.1.2 is what refuses its contents")
 		assert.NotNil(t, r.Fix)
+
+		_, err = Load(ruleFile(t, "handle-every-error", map[string]any{
+			"detect": map[string]any{},
+		}))
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed,
+			"an empty block is a detect block; §2.6.1.2 is what refuses its contents")
+		assert.Equal(t, "detect.mode", malformed.Field)
 	})
 }
 

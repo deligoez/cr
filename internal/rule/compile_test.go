@@ -60,20 +60,31 @@ func TestARuleWithoutADetectBlockProducesNoMatcher(t *testing.T) {
 	assert.Equal(t, "no-raw-sql", matchers[0].Rule.ID)
 }
 
+// refusedOne loads a single rule embedded in a profile, under the id every case
+// below shares, and returns the refusal the loader gives it. The refusal comes
+// from Resolve and not from Compile: §2.6 item 5 aborts on a malformed rule
+// wherever the corpus is read, so a command that never compiles still stops.
+func refusedOne(t *testing.T, overrides map[string]any) *MalformedError {
+	t.Helper()
+	_, err := Resolve(t.TempDir(), t.TempDir(), profileFile,
+		embedded(t, ruleDoc("no-raw-sql", overrides)))
+	var malformed *MalformedError
+	require.ErrorAs(t, err, &malformed)
+	return malformed
+}
+
 // §2.6.1.2: a pattern that fails to compile aborts, naming the rule. It is not
 // a rule cr may quietly leave out — its author wrote it to enforce a standard,
 // and a corpus that dropped it would review the change against every rule but
 // that one and then report full coverage.
 func TestAPatternThatDoesNotCompileAbortsNamingTheRule(t *testing.T) {
-	_, err := Compile(resolveOne(t, regexDetect(map[string]any{
+	malformed := refusedOne(t, regexDetect(map[string]any{
 		"pattern": `DB::raw(unclosed`,
-	})))
+	}))
 
-	var malformed *MalformedError
-	require.ErrorAs(t, err, &malformed)
-	assert.Equal(t, "detect.pattern", malformed.Field)
+	assert.Equal(t, element(0)+".detect.pattern", malformed.Field)
 	assert.Contains(t, malformed.Problem, `"no-raw-sql"`, "§2.6.1.2 names the rule")
-	assert.Contains(t, err.Error(), profileFile, "and the file it is written in")
+	assert.Contains(t, malformed.Error(), profileFile, "and the file it is written in")
 }
 
 // §2.6.1.2 closes `detect.mode` at `regex` in v0.1.
@@ -90,12 +101,9 @@ func TestAPatternThatDoesNotCompileAbortsNamingTheRule(t *testing.T) {
 func TestAModeOtherThanRegexAborts(t *testing.T) {
 	for _, mode := range []string{"glob", "literal", "substring", "REGEX", "Regex", " regex", ""} {
 		t.Run("mode "+mode, func(t *testing.T) {
-			_, err := Compile(resolveOne(t,
-				regexDetect(map[string]any{"mode": mode})))
+			malformed := refusedOne(t, regexDetect(map[string]any{"mode": mode}))
 
-			var malformed *MalformedError
-			require.ErrorAs(t, err, &malformed)
-			assert.Equal(t, "detect.mode", malformed.Field)
+			assert.Equal(t, element(0)+".detect.mode", malformed.Field)
 			assert.Contains(t, malformed.Problem, `"no-raw-sql"`)
 			assert.Contains(t, malformed.Problem, ModeRegex,
 				"the refusal names the one value it would have accepted")
@@ -109,14 +117,12 @@ func TestAModeOtherThanRegexAborts(t *testing.T) {
 // pattern valid in one dialect and not in Go's would be reported as a broken
 // regular expression rather than as an unsupported mode.
 func TestAnUnsupportedModeIsReportedBeforeThePatternIsRead(t *testing.T) {
-	_, err := Compile(resolveOne(t, regexDetect(map[string]any{
+	malformed := refusedOne(t, regexDetect(map[string]any{
 		"mode":    "glob",
 		"pattern": "app/**/[Order",
-	})))
+	}))
 
-	var malformed *MalformedError
-	require.ErrorAs(t, err, &malformed)
-	assert.Equal(t, "detect.mode", malformed.Field)
+	assert.Equal(t, element(0)+".detect.mode", malformed.Field)
 }
 
 // §2.6.1.2's abort names the file, and the file differs by layer: a rule file
@@ -126,24 +132,40 @@ func TestTheAbortNamesTheFileTheRuleIsWrittenIn(t *testing.T) {
 	t.Run("a rule file", func(t *testing.T) {
 		dir := rulesDir(t, ruleDoc("no-raw-sql",
 			regexDetect(map[string]any{"mode": "glob"})))
-		corpus, err := Resolve(dir, t.TempDir(), profileFile, nil)
-		require.NoError(t, err)
-
-		_, err = Compile(corpus)
+		_, err := Resolve(dir, t.TempDir(), profileFile, nil)
 
 		var malformed *MalformedError
 		require.ErrorAs(t, err, &malformed)
 		assert.Equal(t, filepath.Join(dir, "no-raw-sql"+fileExt), malformed.File)
+		assert.Equal(t, "detect.mode", malformed.Field)
 	})
 
 	t.Run("a rule embedded in a profile", func(t *testing.T) {
-		_, err := Compile(resolveOne(t,
-			regexDetect(map[string]any{"mode": "glob"})))
+		malformed := refusedOne(t, regexDetect(map[string]any{"mode": "glob"}))
 
-		var malformed *MalformedError
-		require.ErrorAs(t, err, &malformed)
 		assert.Equal(t, profileFile, malformed.File)
 	})
+}
+
+// Compile keeps the guard the loader applies, through the same check, so a
+// corpus that did not come out of Resolve cannot hand detection a pattern that
+// never compiled.
+func TestCompileStillRefusesADetectBlockTheLoaderWouldHaveRefused(t *testing.T) {
+	for _, c := range []struct{ name, field string }{
+		{name: "glob", field: "detect.mode"},
+		{name: "regex", field: "detect.pattern"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := Compile([]Resolved{{
+				Rule: Rule{ID: "no-raw-sql", Detect: &Detect{Pattern: `DB::raw(`, Mode: c.name}},
+				Path: profileFile,
+			}})
+
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, &MalformedError{File: profileFile, Field: c.field, Problem: malformed.Problem}, malformed)
+		})
+	}
 }
 
 // Resolve records the file each rule was read out of, which is what makes the

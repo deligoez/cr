@@ -271,11 +271,9 @@ func TestAFixPatternThatDoesNotCompileMakesTheRuleFileMalformed(t *testing.T) {
 		{name: "with no detect block", doc: map[string]any{"fix": fixBlock(map[string]any{"replace": `DB::raw(`})}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := Compile(resolveOne(t, c.doc))
+			malformed := refusedOne(t, c.doc)
 
-			var malformed *MalformedError
-			require.ErrorAs(t, err, &malformed)
-			assert.Equal(t, "fix.replace", malformed.Field)
+			assert.Equal(t, element(0)+".fix.replace", malformed.Field)
 			assert.Contains(t, malformed.Error(), "no-raw-sql")
 		})
 	}

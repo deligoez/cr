@@ -240,6 +240,9 @@ func parse(path string, data []byte, stemmed bool) (Rule, error) {
 	if err := r.validate(path, stemmed); err != nil {
 		return Rule{}, err
 	}
+	if err := compiles(path, &r); err != nil {
+		return Rule{}, err
+	}
 	r.Globs, r.Exempt, r.Profiles = list(r.Globs), list(r.Exempt), list(r.Profiles)
 	return r, nil
 }
