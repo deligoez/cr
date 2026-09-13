@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T01:27:24.136963Z",
+  "updated_at": "2026-09-13T01:33:46.448856Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8875,7 +8875,7 @@
     {
       "id": "post-enforces-comment-cap",
       "title": "Refuse a post over post.max_comments",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "dry-run-posting"
@@ -8885,11 +8885,19 @@
       "source_sections": [
         "### 1.6 Comment economy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T01:21:59.150862Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T01:33:46.423626Z",
+      "closed_reason": "- CommentCap.Err now has a production caller, internal/cli/post.go's refuseOverCap called from buildReview, so the refusal buildReview's doc comment promised before the gate exists; a go/types sweep of the pre-fix tree 7ed5fa4 lists CommentCap.Err with zero production references and eight test references, and does not list it on this tree.\n- The scratch round whose header read over the cap and which cr post had carried whole now refuses: with post.max_comments 0 and one queued comment, cr post 1 exits 1 with \"1 comments queued against post.max_comments 0, 1 over the cap: triage the draft down to 0, or raise post.max_comments; cr will not drop 1 to fit\", and the same round at 1 of 1 exits 0, so §1.6.2 is met.\n- comment-cap-blocks-posting's finding-package tests stand unchanged, and the command-level tests it could not write before cr post existed are internal/cli/postcap_test.go's two tests, which drive cr post itself.\n- cr post refuses a round over post.max_comments through refuseOverCap, which resolves the cap with resolveDraftSettings from the same layers the draft header counts against and runs after RefuseArguedAssertion and before validatePositions, buildPayload and the confirmation gate, so it lands with or without --confirm and before any network write; its message names the count and the cap and the hint names the triage-to-fit edit; the only gh call before it is §9.3.1's head read in RefuseStale, which precedes every cr post refusal and writes nothing.\n- The refusal is finding.CommentCapExceededError, mapped by the exit table's existing row to exit code 1 with the hint \"discard records in the draft until the count is within `post.max_comments`, or raise the cap\", and both tests assert exitCodeFor gives ExitValidation and hintFor carries that step.\n- TestPostingOverTheCommentCapIsRefusedWithAndWithoutConfirm queues three cited records against a repository-layer cap of 2 and, for no flag and for --confirm, asserts CommentCapExceededError with Cap {3, 2}, exit 1, the count and cap in the message and the triage hint, then asserts the recording gh shim received no POST and all three records stay queued; TestPostingAtExactlyTheCommentCapProceeds queues two against a cap of 2 and asserts the dry run exits 0 carrying both comments with no POST; with refuseOverCap made to return nil by hand both flag runs went red and the confirmed run's POST to the reviews endpoint appeared in the shim transcript, then it was reverted; dogfooded on a local scratch repository, cr post 1 and cr post 1 --confirm both exited 1 with zero POST lines in the shim log and git status --porcelain empty.\n",
+      "gate_passed_at": "2026-09-13T01:33:46.423626Z",
+      "commit_sha": "12af87f",
+      "commit_shas": [
+        "12af87f"
+      ],
+      "commit_files": [
+        "internal/cli/post.go",
+        "internal/cli/postcap_test.go"
+      ]
     }
   ]
 }
