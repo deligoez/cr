@@ -68,26 +68,44 @@ func (g *ghShimTranscript) writes(t *testing.T) []string {
 	return sent
 }
 
+// createdReviewID is the node id the shim's review-creation call answers with,
+// which is the review each comment the shim lists for it names.
+const createdReviewID = "PRR_shim"
+
 // ghShimming installs a `gh` on PATH that records every invocation, answers
 // §3.5.1's review-thread query with one thread per comment of review, and
 // answers everything else with an empty document.
 //
 // The threads are built from the payload the dry run printed, so their bodies
 // are the bodies the confirmed run will send — which is what §8.3.3's read-back
-// matches on. Nothing about the shim is steerable from the environment:
-// internal/gh's allowlist passes PATH, HOME, TMPDIR and SystemRoot and nothing
-// else, so every answer is written into the script itself.
+// matches on — and they belong to the review the call creates. Nothing about
+// the shim is steerable from the environment: internal/gh's allowlist passes
+// PATH, HOME, TMPDIR and SystemRoot and nothing else, so every answer is
+// written into the script itself.
 func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
+	t.Helper()
+	return ghShimmingAs(t, createdReviewID, listedReview{id: createdReviewID, review: review})
+}
+
+// ghShimmingAs is ghShimming whose review-creation call answers with created as
+// the review's `node_id`, or with no `node_id` when created is empty, and whose
+// thread query lists the threads of every review in listed.
+func ghShimmingAs(t *testing.T, created string, listed ...listedReview) *ghShimTranscript {
 	t.Helper()
 	dir := t.TempDir()
 	transcript := filepath.Join(dir, "transcript")
 	threads := filepath.Join(dir, "threads.json")
-	created := filepath.Join(dir, "review.json")
+	answer := filepath.Join(dir, "review.json")
 	body := filepath.Join(dir, "body.json")
 
-	require.NoError(t, os.WriteFile(threads, threadsPage(t, review), 0o600))
-	require.NoError(t, os.WriteFile(created, []byte(
-		`{"id":1,"node_id":"PRR_shim","state":"COMMENTED"}`+"\n"), 0o600))
+	response := map[string]any{"id": 1, "state": "COMMENTED"}
+	if created != "" {
+		response["node_id"] = created
+	}
+	document, err := json.Marshal(response)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(threads, threadsPage(t, listed...), 0o600))
+	require.NoError(t, os.WriteFile(answer, append(document, '\n'), 0o600))
 
 	shim := filepath.Join(dir, "gh")
 	require.NoError(t, os.WriteFile(shim, []byte(
@@ -103,40 +121,59 @@ func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
 			"      previous=$argument\n"+
 			"    done\n"+
 			"    if [ \"$input\" = - ]; then cat > "+body+"; else cat \"$input\" > "+body+"; fi\n"+
-			"    exec cat "+created+" ;;\n"+
+			"    exec cat "+answer+" ;;\n"+
 			"  *) echo '{}' ;;\n"+
 			"esac\n"), 0o700))
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return &ghShimTranscript{path: transcript, body: body}
 }
 
+// listedReview is one review whose threads a shim's thread query lists: the
+// node id GitHub gives the review, and the payload whose comments each opened
+// one thread in it. An empty id is a review GitHub names for none of them.
+type listedReview struct {
+	id     string
+	review *post.Review
+}
+
 // threadsPage is §3.5.1's review-thread answer holding one thread per comment of
-// review, each carrying the comment's body, which is what §8.3.3's read-back
-// matches on, and hanging on the comment's range, as GitHub reports a thread a
-// review comment opened: a one-line comment's start lines are null.
-func threadsPage(t *testing.T, review *post.Review) []byte {
+// each listed review, in order, numbered across the whole listing by
+// threadIDFor. Each carries the comment's body, which is what §8.3.3's
+// read-back matches on, hangs on the comment's range, as GitHub reports a thread
+// a review comment opened — a one-line comment's start lines are null — and
+// opens with a comment whose `pullRequestReview` is the listed review, as
+// GitHub reports the review a comment was posted in.
+func threadsPage(t *testing.T, listed ...listedReview) []byte {
 	t.Helper()
-	nodes := make([]any, 0, len(review.Comments))
-	for i := range review.Comments {
-		comment := &review.Comments[i]
-		var start any
-		if comment.StartLine > 0 {
-			start = comment.StartLine
+	nodes := make([]any, 0)
+	for _, reviewed := range listed {
+		var review any
+		if reviewed.id != "" {
+			review = map[string]any{"id": reviewed.id}
 		}
-		nodes = append(nodes, map[string]any{
-			"id": threadIDFor(i), "isResolved": false, "isOutdated": false,
-			"path": comment.Path, "line": comment.Line, "startLine": start,
-			"originalLine": comment.Line, "originalStartLine": start,
-			"diffSide": comment.Side,
-			"comments": map[string]any{
-				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
-				"nodes": []any{map[string]any{
-					"id": "PRRC_" + threadIDFor(i), "url": "https://example.invalid/c",
-					"body": comment.Body, "createdAt": "2026-09-12T00:00:00Z",
-					"author": map[string]any{"__typename": "Bot", "login": "cr"},
-				}},
-			},
-		})
+		for i := range reviewed.review.Comments {
+			comment := &reviewed.review.Comments[i]
+			at := len(nodes)
+			var start any
+			if comment.StartLine > 0 {
+				start = comment.StartLine
+			}
+			nodes = append(nodes, map[string]any{
+				"id": threadIDFor(at), "isResolved": false, "isOutdated": false,
+				"path": comment.Path, "line": comment.Line, "startLine": start,
+				"originalLine": comment.Line, "originalStartLine": start,
+				"diffSide": comment.Side,
+				"comments": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+					"nodes": []any{map[string]any{
+						"id": "PRRC_" + threadIDFor(at), "url": "https://example.invalid/c",
+						"body": comment.Body, "createdAt": "2026-09-12T00:00:00Z",
+						"author":            map[string]any{"__typename": "Bot", "login": "cr"},
+						"pullRequestReview": review,
+					}},
+				},
+			})
+		}
 	}
 	page, err := json.Marshal(map[string]any{"data": map[string]any{
 		"repository": map[string]any{"pullRequest": map[string]any{

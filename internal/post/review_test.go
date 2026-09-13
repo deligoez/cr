@@ -89,6 +89,16 @@ func TestAMultiCommentRoundIsOneReviewCreationCall(t *testing.T) {
 	assert.Equal(t, [][]byte{payload}, sender.bodies, "the payload is the call's whole body")
 }
 
+// The review a created call names is its `node_id`, the id GraphQL gives each
+// of its comments' `pullRequestReview`, and an answer that names none — or
+// cannot be read — names no review at all.
+func TestTheCreatedReviewIsTheNodeIDTheCallAnswers(t *testing.T) {
+	assert.Equal(t, "PRR_kwDOAbCd",
+		CreatedReview(`{"id":991,"node_id":"PRR_kwDOAbCd","state":"COMMENTED"}`))
+	assert.Empty(t, CreatedReview(`{"id":991}`))
+	assert.Empty(t, CreatedReview(`not json`))
+}
+
 // The payload carries every queued record as its own comment, and GitHub's own
 // distinction between a one-line and a multi-line comment: `start_line` is
 // present for the range and absent for the single line.

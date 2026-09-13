@@ -233,3 +233,21 @@ func Request(owner, repo string, pr int) []string {
 func Create(sender Sender, owner, repo string, pr int, payload []byte) (string, error) {
 	return sender.Write(payload, Request(owner, repo, pr)...)
 }
+
+// CreatedReview is the node id of the review a successful Create answered
+// with, and the empty string when the answer names none.
+//
+// GitHub's review-creation call answers with the review it created, and its
+// `node_id` is the id GraphQL gives the same review — the one each of its
+// comments names as `pullRequestReview`. That is what lets §8.3.3's read-back
+// take the threads of this review and no other. An answer cr cannot read names
+// no review, and a read-back given none pairs nothing rather than guessing.
+func CreatedReview(response string) string {
+	var created struct {
+		NodeID string `json:"node_id"`
+	}
+	if json.Unmarshal([]byte(response), &created) != nil {
+		return ""
+	}
+	return created.NodeID
+}

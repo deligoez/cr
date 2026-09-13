@@ -26,13 +26,14 @@ func briefingShim(t *testing.T, review *post.Review, head, base string) *ghShimT
 	reviews := filepath.Join(dir, "reviews.json")
 	pr := filepath.Join(dir, "pr.json")
 
-	require.NoError(t, os.WriteFile(threads, threadsPage(t, review), 0o600))
+	require.NoError(t, os.WriteFile(threads,
+		threadsPage(t, listedReview{id: adoptedReviewID, review: review}), 0o600))
 	page, err := json.Marshal(map[string]any{"data": map[string]any{
 		"repository": map[string]any{"pullRequest": map[string]any{
 			"reviews": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 				"nodes": []map[string]string{
-					{"id": "PRR_ours", "url": adoptedReviewURL, "body": review.Body},
+					{"id": adoptedReviewID, "url": adoptedReviewURL, "body": review.Body},
 				},
 			},
 		}},

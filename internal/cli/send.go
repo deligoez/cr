@@ -110,7 +110,8 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := setPostUnresolved(s.layout, s.round, true); err != nil {
 		return err
 	}
-	if _, err := post.Create(confirmation, owner, repo, pr, payload); err != nil {
+	created, err := post.Create(confirmation, owner, repo, pr, payload)
+	if err != nil {
 		// §8.4: GitHub's refusal is §8.4.2 and everything else is
 		// §8.4.4's unknown outcome. Neither marks anything posted nor
 		// waives anything, so every write below is on this function's
@@ -134,7 +135,9 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := recordPostTriage(s.layout, owner, repo, pr, s.round, s.triage.settled()); err != nil {
 		return err
 	}
-	if err := adoptReturnedThreads(s.layout, s.round, s.records, s.review); err != nil {
+	if err := adoptReturnedThreads(
+		s.layout, s.round, s.records, s.review, post.CreatedReview(created),
+	); err != nil {
 		return err
 	}
 	return out.emit(&postResult{
@@ -204,14 +207,21 @@ func (s *sending) markPosted() error {
 // map short by one is a truer answer than a map holding an id for a comment cr
 // could not identify.
 //
-// `cr post --reconcile` calls it too, once it has adopted a review as posted:
-// §8.3.3 asks for the ids of the review the round became, and a review adopted
-// after an unknown outcome is that review exactly as a returned one is. Both
-// callers read through this one function, so the two paths cannot key a
-// record's thread differently. It performs a read and nothing else on the
-// network.
+// reviewID is the node id of the review the round became, and only its threads
+// are read as the round's: `cr post --confirm` passes the review its call
+// created, as the call's answer names it. The pull request's threads are every
+// round's, and one an earlier round opened with the same body at the same place
+// is not this round's thread.
+//
+// `cr post --reconcile` calls it too, once it has adopted a review as posted,
+// with the id of the review it adopted: §8.3.3 asks for the ids of the review
+// the round became, and a review adopted after an unknown outcome is that
+// review exactly as a returned one is. Both callers read through this one
+// function, so the two paths cannot key a record's thread differently. It
+// performs a read and nothing else on the network.
 func adoptReturnedThreads(
 	l state.Layout, round *state.Meta, records []*finding.Finding, review *post.Review,
+	reviewID string,
 ) error {
 	threads, err := ghClient().Threads(round.Owner, round.Repo, round.PR)
 	if err != nil {
@@ -222,7 +232,7 @@ func adoptReturnedThreads(
 			round.Round, round.PR, err,
 		)
 	}
-	found := threadsByRecord(threads, review)
+	found := threadsByRecord(threads, review, reviewID)
 	if err := adoptThreads(l, round.Owner, round.Repo, round.PR, round.Round, found); err != nil {
 		return err
 	}
@@ -271,7 +281,16 @@ func storeThreadIDs(
 // the thread on their own line whatever order GitHub lists the threads in. A
 // comment no such thread is left for then takes the first unclaimed thread with
 // its body, which is the body match alone.
-func threadsByRecord(threads []gh.Thread, review *post.Review) map[string]string {
+//
+// Only a thread the review named by reviewID opened is a candidate at all. The
+// pull request's threads are every round's, and an earlier round that said the
+// same thing at the same place opened a thread both matches above would take —
+// so without the review, this round's record could be keyed onto the thread the
+// author answered a round ago. A reviewID that is empty names no review, and no
+// thread is claimed for it.
+func threadsByRecord(
+	threads []gh.Thread, review *post.Review, reviewID string,
+) map[string]string {
 	claimed := make([]bool, len(threads))
 	found := make(map[string]string, len(review.Comments))
 	pair := func(atItsPosition bool) {
@@ -282,7 +301,7 @@ func threadsByRecord(threads []gh.Thread, review *post.Review) map[string]string
 			}
 			for j := range threads {
 				thread := &threads[j]
-				if claimed[j] || thread.Comment.Body != comment.Body ||
+				if claimed[j] || !openedBy(thread, reviewID) || thread.Comment.Body != comment.Body ||
 					(atItsPosition && !postedAt(thread, comment)) {
 					continue
 				}
@@ -310,4 +329,12 @@ func postedAt(thread *gh.Thread, comment *post.Comment) bool {
 	anchor := &thread.Anchor
 	return anchor.Path == comment.Path && anchor.Side == comment.Side &&
 		anchor.OriginalLine == comment.Line && anchor.OriginalStartLine == start
+}
+
+// openedBy reports whether thread was opened by the review reviewID names: its
+// opening comment, the one a review comment becomes, was posted in that review.
+// An empty reviewID names no review, so it opened nothing — including a thread
+// whose opening comment GitHub names no review for.
+func openedBy(thread *gh.Thread, reviewID string) bool {
+	return reviewID != "" && thread.Comment.Review == reviewID
 }

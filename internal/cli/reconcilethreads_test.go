@@ -17,6 +17,10 @@ import (
 // adoptedReviewURL is the url the reconciling shim lists cr's review under.
 const adoptedReviewURL = "https://github.com/acme/web/pull/7#pullrequestreview-9"
 
+// adoptedReviewID is the node id the reconciling shim lists cr's review under,
+// which is the review each comment the shim lists for it names.
+const adoptedReviewID = "PRR_ours"
+
 // reconcilingShim installs a `gh` on PATH that records every invocation, lists
 // one review whose body is review's own — so it carries §8.4.3's embedded
 // payload hash — answers §3.5.1's thread query with one thread per comment of
@@ -25,19 +29,26 @@ const adoptedReviewURL = "https://github.com/acme/web/pull/7#pullrequestreview-9
 // outcome rather than §8.4.2's refusal.
 func reconcilingShim(t *testing.T, review *post.Review) *ghShimTranscript {
 	t.Helper()
+	return reconcilingShimListing(t, review, listedReview{id: adoptedReviewID, review: review})
+}
+
+// reconcilingShimListing is reconcilingShim whose thread query lists the
+// threads of every review in listed rather than review's alone.
+func reconcilingShimListing(t *testing.T, review *post.Review, listed ...listedReview) *ghShimTranscript {
+	t.Helper()
 	dir := t.TempDir()
 	transcript := filepath.Join(dir, "transcript")
 	threads := filepath.Join(dir, "threads.json")
 	reviews := filepath.Join(dir, "reviews.json")
 
-	require.NoError(t, os.WriteFile(threads, threadsPage(t, review), 0o600))
+	require.NoError(t, os.WriteFile(threads, threadsPage(t, listed...), 0o600))
 	page, err := json.Marshal(map[string]any{"data": map[string]any{
 		"repository": map[string]any{"pullRequest": map[string]any{
 			"reviews": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 				"nodes": []map[string]string{
 					{"id": "PRR_other", "url": adoptedReviewURL + "0", "body": "looks good to me"},
-					{"id": "PRR_ours", "url": adoptedReviewURL, "body": review.Body},
+					{"id": adoptedReviewID, "url": adoptedReviewURL, "body": review.Body},
 				},
 			},
 		}},

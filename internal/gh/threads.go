@@ -28,6 +28,13 @@ type Comment struct {
 	CreatedAt string `json:"created_at"`
 	// URL is where a human can read it.
 	URL string `json:"url"`
+	// Review is the node id of the review the comment was posted in, and
+	// empty when GitHub names none. It is the id GitHub's review-creation
+	// call answers as `node_id` and §8.4.4's review listing reads as `id`,
+	// so §8.3.3's read-back can tell the threads of the review a round
+	// created from threads an earlier round's review opened with the same
+	// words at the same place.
+	Review string `json:"review"`
 }
 
 // Anchor is where a thread sits in the diff.
@@ -147,7 +154,7 @@ const threadsQuery = `query($owner:String!,$repo:String!,$number:Int!,$threads:I
           id isResolved isOutdated path line startLine originalLine originalStartLine diffSide
           comments(first:$comments){
             pageInfo{hasNextPage endCursor}
-            nodes{id url body createdAt author{__typename login}}
+            nodes{id url body createdAt author{__typename login} pullRequestReview{id}}
           }
         }
       }
@@ -161,7 +168,7 @@ const repliesQuery = `query($thread:ID!,$comments:Int!,$cursor:String){
     ... on PullRequestReviewThread{
       comments(first:$comments,after:$cursor){
         pageInfo{hasNextPage endCursor}
-        nodes{id url body createdAt author{__typename login}}
+        nodes{id url body createdAt author{__typename login} pullRequestReview{id}}
       }
     }
   }
@@ -192,6 +199,12 @@ type commentNode struct {
 		Typename string `json:"__typename"`
 		Login    string `json:"login"`
 	} `json:"author"`
+	// PullRequestReview is null when GitHub names no review for the
+	// comment, which the schema allows, and a missing review must not take
+	// the comment out of the ingest either.
+	PullRequestReview *struct {
+		ID string `json:"id"`
+	} `json:"pullRequestReview"`
 }
 
 // threadNode is a review thread as the API answers it. Every line is a
@@ -367,7 +380,7 @@ func (c Client) query(out any, args []string) error {
 }
 
 // comment converts one comment of the answer into the record that is stored.
-func (n commentNode) comment() Comment {
+func (n *commentNode) comment() Comment {
 	comment := Comment{
 		ID:        n.ID,
 		Body:      n.Body,
@@ -376,6 +389,9 @@ func (n commentNode) comment() Comment {
 	}
 	if n.Author != nil {
 		comment.Author, comment.AuthorTypename = n.Author.Login, n.Author.Typename
+	}
+	if n.PullRequestReview != nil {
+		comment.Review = n.PullRequestReview.ID
 	}
 	return comment
 }

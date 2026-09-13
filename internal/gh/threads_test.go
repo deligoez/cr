@@ -279,6 +279,30 @@ func TestOnlyGitHubsOwnBotTypeIsTaggedBot(t *testing.T) {
 	assert.Equal(t, AuthorBot, threads[3].AuthorType, "GitHub itself reports a bot")
 }
 
+// §8.3.3's read-back pairs a comment only with a thread the review a round
+// created opened, so each comment carries the review GitHub names for it, a
+// reply included, and a comment GitHub names no review for carries none.
+func TestEachCommentCarriesTheReviewItWasPostedIn(t *testing.T) {
+	const reviewed = `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+		"pageInfo":{"hasNextPage":false},"nodes":[
+		{"id":"PRRT_1","diffSide":"RIGHT","comments":{"pageInfo":{"hasNextPage":false},
+			"nodes":[{"id":"c1","pullRequestReview":{"id":"PRR_round1"}},
+				{"id":"c2","pullRequestReview":{"id":"PRR_round2"}}]}},
+		{"id":"PRRT_2","diffSide":"RIGHT","comments":{"pageInfo":{"hasNextPage":false},
+			"nodes":[{"id":"c3","pullRequestReview":null}]}}
+		]}}}}}`
+
+	threads, err := WithRunner(func(...string) (string, error) { return reviewed, nil }).
+		Threads("acme", "web", 42)
+	require.NoError(t, err)
+	require.Len(t, threads, 2)
+
+	assert.Equal(t, "PRR_round1", threads[0].Comment.Review)
+	require.Len(t, threads[0].Replies, 1)
+	assert.Equal(t, "PRR_round2", threads[0].Replies[0].Review)
+	assert.Empty(t, threads[1].Comment.Review, "a review GitHub answers null for")
+}
+
 // §3.5.3 forbids cr to assign a class to an ingested thread. A class is §6.1's
 // defect class, which drives dedup, triage statistics, and waivers; an
 // ingested thread is somebody else's comment, and cr has no basis to say what
@@ -316,6 +340,7 @@ var threadFields = []string{
 	"comment.body",
 	"comment.created_at",
 	"comment.url",
+	"comment.review",
 	"author_type",
 	"replies",
 }

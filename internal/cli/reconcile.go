@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
@@ -91,17 +92,19 @@ func reconcilePost(out *writer, l state.Layout, round *state.Round) error {
 	if result.PayloadHash, err = sent.Hash(); err != nil {
 		return err
 	}
-	if result.Adopted, err = reviewCarrying(&round.Meta, result.PayloadHash); err != nil {
+	adopted, err := reviewCarrying(&round.Meta, result.PayloadHash)
+	if err != nil {
 		return err
 	}
-	if result.Adopted == "" {
+	if adopted == nil {
 		if err := setPostUnresolved(l, &round.Meta, false); err != nil {
 			return err
 		}
 		result.Unresolved = false
 		return out.emit(result)
 	}
-	if result.Records, err = adoptAsPosted(l, &round.Meta, sent); err != nil {
+	result.Adopted = adopted.URL
+	if result.Records, err = adoptAsPosted(l, &round.Meta, sent, adopted.ID); err != nil {
 		return err
 	}
 	result.Unresolved = false
@@ -165,24 +168,25 @@ func postedPayload(l state.Layout, round *state.Meta) (*post.Sent, error) {
 	return sent, nil
 }
 
-// reviewCarrying is §8.4.4's match: the url of the pull request's review whose
-// body embeds hash, and the empty string when none does.
+// reviewCarrying is §8.4.4's match: the pull request's review whose body embeds
+// hash, and nil when none does. Its url names the adoption in the report, and
+// its id names the review whose threads §8.3.3's read-back takes.
 //
 // The first match wins and the walk stops there. Two reviews carrying one hash
 // would mean the round was posted twice already, which nothing this run does
 // can undo; adopting the earlier one is the answer that names the review the
 // author read first.
-func reviewCarrying(round *state.Meta, hash string) (string, error) {
+func reviewCarrying(round *state.Meta, hash string) (*gh.Review, error) {
 	reviews, err := ghClient().Reviews(round.Owner, round.Repo, round.PR)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	for _, review := range reviews {
-		if embedded, found := render.PayloadHashIn(review.Body); found && embedded == hash {
-			return review.URL, nil
+	for i := range reviews {
+		if embedded, found := render.PayloadHashIn(reviews[i].Body); found && embedded == hash {
+			return &reviews[i], nil
 		}
 	}
-	return "", nil
+	return nil, nil
 }
 
 // adoptAsPosted walks §9.1's `queued` → `posted` row over the records the
@@ -224,8 +228,11 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 //
 // The thread ids go last, through the adoptReturnedThreads the send uses, once
 // the flag is cleared — a read that fails there costs the field and never
-// reopens the round to a second send. It is a read: nothing here posts.
-func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string, error) {
+// reopens the round to a second send. It is a read: nothing here posts. The
+// threads read are those of reviewID, the review this adoption matched.
+func adoptAsPosted(
+	l state.Layout, round *state.Meta, sent *post.Sent, reviewID string,
+) ([]string, error) {
 	records, err := roundFindingsOf(l, round.Owner, round.Repo, round.PR, round.Round)
 	if err != nil {
 		return nil, err
@@ -271,7 +278,7 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	); err != nil {
 		return nil, err
 	}
-	return ids, adoptReturnedThreads(l, round, records, &sent.Review)
+	return ids, adoptReturnedThreads(l, round, records, &sent.Review, reviewID)
 }
 
 // settleAsSent writes onto each record posted.json's outcomes name the
