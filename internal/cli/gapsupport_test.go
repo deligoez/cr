@@ -105,6 +105,11 @@ func ndjson[T any](t *testing.T, records ...T) []byte {
 // worth checking against a file the agent does not write.
 func aProbedRecord(claim string) map[string]any {
 	record := aRecord("f1", gapUnit)
+	// A gap probe is the test axis's experiment (§4.4), and a test-adequacy
+	// record may name a claim the mapping does not join to its unit, which is
+	// the condition §5.4.4 reads; a correctness record doing so is refused
+	// outright by §4.2.2 before the probe is looked at.
+	record["role"] = "test-adequacy"
 	record["probe"] = "p1"
 	if claim != "" {
 		record["claim"] = claim

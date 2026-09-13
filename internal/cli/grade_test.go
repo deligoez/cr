@@ -53,6 +53,11 @@ func gradedHome(t *testing.T) state.Layout {
 		`{"id":"r1","head":"`+head+`","round":2,"exit_code":0,"timed_out":false,`+
 			`"tests_run":12,"tests_failed":0,"passed":true,"duration_ms":410,`+
 			`"output_tail":"Tests:  12 passed\n"}`+"\n")))
+	// §4.1.6's mapping joins the fixture claim every aGradedRecord cites to
+	// the unit it sits on: §4.2.2 refuses a correctness record citing a claim
+	// its own unit is not mapped to.
+	require.NoError(t, held.Write(state.FileMapping, []byte(
+		`{"claim":"`+fixtureIssue+`#c1","unit":"u1","head":"`+head+`","round":2}`+"\n")))
 	require.NoError(t, held.Write(state.FileProbes, []byte(
 		`{"id":"p1","kind":"mutation","head":"`+head+`","round":2,`+
 			`"input":"--- a/app.go\n+++ b/app.go\n","result":"no-test-failed",`+

@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/finding"
-	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
@@ -440,6 +439,12 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
+	// §6.1's `axis` row, before the grade rather than after it: §6.2's
+	// `cited` row reads the axis, and §4.4.2 withholds that grade from the
+	// test axis entirely. Then §4.2.2's refusal, which reads the axis.
+	if err := stampAxesAndClaims(l, owner, repo, round.Round, file, body, evidence.pairs, records); err != nil {
+		return nil, nil, recordDrops{}, err
+	}
 	// §6.4.4 and §9.3.6 again, after the last refusal that names an input
 	// line, and then §9.1's first two rows over what remains.
 	records, dropped, err := dropRecorded(l, owner, repo, pr, records, journal)
@@ -454,14 +459,6 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	// §6.1's `axis` row, before the grade rather than after it: §6.2's
-	// `cited` row reads the axis, and §4.4.2 withholds that grade from the
-	// test axis entirely.
-	corpus, err := role.Resolve(l.RepoRolesDir(owner, repo), l.RolesDir())
-	if err != nil {
-		return nil, nil, recordDrops{}, err
-	}
-	stampAxes(corpus, records)
 	// §6.2, last of them all, because it rests on what the others
 	// established: the citations are resolved and stamped, the axis is
 	// computed, and §5.4's bounds have already refused what they refuse.
