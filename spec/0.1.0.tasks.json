@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T05:55:08.624043Z",
+  "updated_at": "2026-09-13T06:55:02.180906Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1075,7 +1075,7 @@
         "profile-schema"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- tests.count_pattern is a regex with exactly two capture groups yielding the executed and failed test counts, in that order, per §2.4.\n- Any other group count aborts with exit code 3 naming the profile.\n- Tested with zero, one, two, and three groups.",
+      "acceptance": "- tests.count_pattern and tests.failed_pattern are each a regex with exactly one capture group, yielding the executed and the failed test count, per §2.4.\n- Any other group count aborts with exit code 3 naming the profile.\n- Tested with zero, one, two, and three groups.",
       "source_sections": [
         "### 2.4 Profiles"
       ],
@@ -8310,7 +8310,7 @@
         "record-command"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- Found by record-command's dogfood run: a missing input file, or a pull request with no state directory, exits 2 rather than §11.2's 3, because os.ReadFile and state.ReadPR return bare errors that exitCodeFor does not map.\n- A shared unreadable-input error type carries the path and maps to ExitFile, so every command that reads a caller-named file answers the same way.\n- Exit 2 stays what §11.2 says it is: the command line was wrong, not the file.\n- The same holds for a state file a command requires inside an existing state directory: measured, `cr record` on a round with no mapping.ndjson exits 2; it exits 3 and the hint names the command that writes the file (`cr map record`).\n- The write side answers the same way: measured 2026-09-12 by the mutation slice, `cr record` against a read-only pull-request directory fails inside state.writeAtomic with a bare `cannot create a temporary file in \u003cdir\u003e` and exits 2, telling the user to retype a command line that was right. Every §2.3 write failure is a file failure and exits 3.",
+      "acceptance": "- Found by record-command's dogfood run: a missing input file exits 2 rather than §11.2's 3, because os.ReadFile returns a bare error that exitCodeFor does not map; a pull request with no round is §11.2's state conflict and exits 4 with a hint naming cr brief.\n- A shared unreadable-input error type carries the path and maps to ExitFile, so every command that reads a caller-named file answers the same way.\n- Exit 2 stays what §11.2 says it is: the command line was wrong, not the file.\n- The same holds for a state file a command requires inside an existing state directory: measured, `cr record` on a round with no mapping.ndjson exits 2; it exits 3 and the hint names the command that writes the file (`cr map record`).\n- The write side answers the same way: measured 2026-09-12 by the mutation slice, `cr record` against a read-only pull-request directory fails inside state.writeAtomic with a bare `cannot create a temporary file in \u003cdir\u003e` and exits 2, telling the user to retype a command line that was right. Every §2.3 write failure is a file failure and exits 3.",
       "source_sections": [
         "### 11.2 Exit codes"
       ],
@@ -8996,6 +8996,234 @@
         "internal/cli/recordids.go",
         "internal/cli/triagetofit_test.go"
       ]
+    },
+    {
+      "id": "post-writes-triage-waivers",
+      "title": "Write draft waivers on cr post",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- A block deleted or dispositioned in draft.md and posted with cr post --confirm without a cr draft in between writes the same waiver cr draft would: not-here scoped to the pull request and wrong scoped to the repository, per §7.4.1; audit round 1 rows table-10-3 and table-10-4.\n- When cr post adopts the review, every posted record's thread_id is set in findings.ndjson from the returned thread ids, so §6.1's thread_id row is written by cr; audit round 1 row table-8-21.\n- Tests drive cr post --confirm after deleting a block and after setting disposition wrong without redrafting, and assert the waiver in its scope; a test asserts thread_id on the stored record after a successful post.",
+      "source_sections": [
+        "### 7.4 Waivers",
+        "### 7.2 Triage verbs"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "post-rechecks-severity-and-positions",
+      "title": "Recheck gap severity and positions at post",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- cr post re-checks §5.4.4 and §5.4.5's severity bound on every queued record after triage, so a severity edited in draft.md outside the bound is refused with exit 1 naming the record before any network call; audit round 1 rows list-29-5 and task-gap-severity-enforcement.\n- cr post pre-validates every queued record's position against the round's diff, not only records carrying a suggestion, so a plain comment moved outside the diff in draft.md is refused before the atomic call per §8.4.1; audit round 1 row task-pre-validate-positions.\n- Tests drive cr post for both refusals, and TestTheSameBoundIsCheckedAtRecordTimeAndAtPostTime or its replacement goes through the command.",
+      "source_sections": [
+        "### 5.4 Gap probe",
+        "### 8.4 Partial failure"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "note-retraction-reaches-draft",
+      "title": "Stop drafting records on retracted notes",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- A record whose claim or citation rests on a note that has since been retracted or removed is not drafted as an assertion: it is forced to a question or held from the draft, as task note-retraction's acceptance requires, and the forcing is reported; audit round 1 row task-note-retraction.\n- The provenance region emits no note id that no longer resolves to a standing note.\n- A test drives cr record, retracts the note, then cr draft, and asserts the record's kind or absence and the provenance region.",
+      "source_sections": [
+        "### 3.6 Context store"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "honesty-disclosure-no-profile",
+      "title": "Disclose every axis a round does not run",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- With no profile matched, cr brief discloses every axis and role that does not run with its reason, not only the test axis and the reinvention lens, per §2.4.4 and §4.5.4; a test asserts the active set and the disclosure together; audit round 1 row list-6-4.\n- cr review's honesty list carries the disabled and unavailable axes as cr status does; audit round 1 row list-24-4.\n- The §4.6.2 output contract in every emitted role prompt states that summary and evidence are written in English, per §6.1.1; audit round 1 row list-32-1.",
+      "source_sections": [
+        "### 4.5 Axis activation and honest reporting",
+        "### 4.6 Review fan-out"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "refuse-case-folded-computed-keys",
+      "title": "Refuse computed fields in any key case",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- A record, claim or stamped state line carrying a computed or stamped field under any letter case (Grade, Thread_ID, Span_Hash, Head) is refused with exit 1 exactly as the lowercase key is, because encoding/json binds keys case-insensitively; audit round 1 security rows for finding/validate.go and intent/claimvalidate.go.\n- The ignored json.Unmarshal errors described as impossible in finding/validate.go and finding/attribution.go are either handled or their comments state the real condition.\n- Tests cover a mixed-case key for each fence.",
+      "source_sections": [
+        "### 6.1 Record schema",
+        "### 3.3 Claim extraction"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "validate-record-enum-values",
+      "title": "Validate record enum values on the way in",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- kind outside finding and question, severity outside §6.1's four, suggestion_origin outside agent and rule, and an id not of the form f\u003cn\u003e are refused with exit 1 naming the file and line; audit round 1 rows table-8-0, table-8-1, table-8-6, table-8-16.\n- duplicate_of is accepted only on input that cr merge produced, per §6.1.4, not on an agent-written file handed straight to cr record; audit round 1 row list-32-4.\n- Tests drive cr record for each refusal.",
+      "source_sections": [
+        "### 6.1 Record schema",
+        "### 6.5 Merge"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "rule-window-and-class",
+      "title": "Count silent rounds and enforce rule class",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- cr rules list --dead counts every recorded round in the window, including rounds in which no rule hit, so a rule silent over rules.dead_after rounds is reported dead; audit round 1 row list-11-4.\n- A record carrying a rule id takes that rule's class, per §2.6's class row: cr refuses or assigns a differing class and says which; audit round 1 row table-5-4.\n- The rule-id test in cli/ruleid_test.go drives the real cr merge instead of a stand-in, and its stale comments are corrected; audit round 1 row task-rule-id-on-records.",
+      "source_sections": [
+        "### 2.6 Rules"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "note-claim-span-is-body",
+      "title": "Require a note claim span equal the body",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A claim sourced from a note is refused with exit 1 unless its span equals the note's normalised body, per §3.3.2, not merely occurs inside it; audit round 1 row list-15-2.\n- A test drives cr claims record with a partial span and with the full body.",
+      "source_sections": [
+        "### 3.3 Claim extraction"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "test-symbol-references",
+      "title": "Attach symbols a test file references",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 60,
+      "acceptance": "- When the profile sets symbols.lang and the head symbol index is built, cr review and cr status attach the symbols each attached test file references, per §4.4.1, instead of passing a nil References; audit round 1 rows list-23-1 and task-test-file-attachment.\n- When the index is unavailable, the disclosure names the real reason, and the stale comment in testadequacy/attach.go is corrected.\n- A test drives cr review on a fixture with a test file referencing a head symbol and asserts the attachment.",
+      "source_sections": [
+        "### 4.4 Test adequacy"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "indent-warning-context-lines",
+      "title": "Warn on re-indented context lines",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- The §8.2.3 indentation warning is computed against every head line a suggestion replaces, including context lines Validate admits, so a suggestion re-indenting a context line is warned; audit round 1 row list-42-3.\n- A test covers a replaced context line with changed indentation.",
+      "source_sections": [
+        "### 8.2 Suggestion validation"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "state-lock-errors-and-containment",
+      "title": "Classify lock failures and contain state paths",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- LockPR's directory and flock failures, Remove and Unlock return file failures that exit 3 with a hint, not exit 2 with the usage hint; ProbeLockedError and its exit.go hint name one and the same actionable step; audit round 1 maintainability rows for state/lock.go and state/probelock.go.\n- --repo owner or name containing a path separator or dot-dot is refused as a usage error, and state paths are checked to stay under the state root; audit round 1 no-model-invariant row for state/lock.go.\n- The test helper lockedPR is renamed to say it takes no lock, and state/prfiles.go's comment about transitions.ndjson and its missing-file hint name the writer; audit round 1 rows for lock_test.go and task-per-pr-state-files.",
+      "source_sections": [
+        "### 2.3 Per-PR state",
+        "### 11.2 Exit codes"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "brief-invalidate-error-context",
+      "title": "Name the file when brief invalidation fails",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A findings.ndjson line that fails to decode during cr brief's invalidation on a moved head is reported with the file and line and exits per §11.2 rather than 2 with the usage hint; audit round 1 maintainability row for brief/invalidate.go.\n- A test drives cr brief over a bad stored line on a moved head.",
+      "source_sections": [
+        "### 2.3 Per-PR state"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "command-level-tests-and-comments",
+      "title": "Drive named behaviours through commands",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- Tests drive cr claims record, cr map record and cr record with a supplied head and a supplied round; a test asserts cr cells record and cr status agree on the stored active-role set; a test drives a rejected post through send and a re-triage to one outcome; audit round 1 rows task-stamp-head-round-fields, task-role-activation-definition, task-triage-event-writing.\n- Stale comments are corrected: cli/root.go on commands that refuse to run, cli/output.go's reference to TestQuietIsReadOnlyWhereInformationIsWritten, and cli/unoverridable_test.go on cr post not being built; audit round 1 rows task-command-surface-stubs and task-quiet-honesty-exemptions.\n- A pull request with no round exits 4 with a hint naming cr brief, and a test asserts it; audit round 1 row task-unreadable-input-exit-code.",
+      "source_sections": [
+        "### 11.2 Exit codes",
+        "### 7.3 Triage statistics"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
