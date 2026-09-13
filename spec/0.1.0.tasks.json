@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T01:33:46.448856Z",
+  "updated_at": "2026-09-13T01:41:27.698199Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8858,7 +8858,7 @@
     {
       "id": "killed-probe-test-flake",
       "title": "Make the killed-probe recreation tests deterministic",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 20,
@@ -8866,11 +8866,19 @@
       "source_sections": [
         "### 5.1 Sandbox"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T01:27:53.106392Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T01:41:27.687515Z",
+      "closed_reason": "- The recorded failures were re-read from what each run printed in the units' transcripts: two runs on 2026-09-12 (09:39 and 09:45) failed both tests at 60.33s to 60.38s with only \"Condition never satisfied: the probe never applied its mutation / never placed its test file\"; the rest (2026-09-12 22:44 and 23:45, 2026-09-13 00:09 and 00:38) failed within 0.21s to 0.46s, and a 2026-09-12 14:23 one printed go build's own \"internal/cli/stats.go:159:17: undefined: statsSample\".\n- A gate that goes red this way is now self-describing: the spawned process's exit status and output are printed the moment it exits, and a deliberately bad --target made the gap test fail in 0.41s quoting cr's own refusal JSON instead of waiting a minute, so a failure there can no longer be read as the flake.\n- The signature shared by every recorded failure: each ran on a working tree holding uncommitted edits, the short ones beside other failing tests in the same package run (TestNoCommandTouchesTheRepositoryUnderReview, the other test that builds cr from the tree, among them), and the long ones in the runs where the unit then added the gh shim to probeFixture's PATH because the spawned cr had begun asking gh. None was a slow probe; the old wait could not tell a dead child from a slow one.\n- No timeout was lengthened and no retry added: the 60s budget is unchanged, and 60 loaded runs reached the state on disk in 452ms to 979ms. The fix (3e7f75f) re-executes the test binary as cr through TestMain and Execute, so the spawned process runs exactly the code the test was compiled with instead of a `go build ./cmd/cr` of the tree at that moment, and awaitOnDisk fails as soon as the process exits.\n- Both tests passed 30 consecutive runs of `go test -race -count=1 -run` on the two names, 30 of 30 runs and 60 of 60 PASS lines, on the committed fix.\n- A `go test -count=1 ./...` loop ran in parallel for the whole of those 30 runs (three complete iterations, each exit 0); load averages sampled before and after each run were 5.09 to 7.58 (1m), 5.25 to 5.80 (5m) and 4.67 to 4.89 (15m). The instrumented version before the re-exec also passed 30 of 30 at 6.06 to 7.73 (1m) and 4.26 to 4.53 (15m).\n",
+      "gate_passed_at": "2026-09-13T01:41:27.687515Z",
+      "commit_sha": "3e7f75f",
+      "commit_shas": [
+        "3e7f75f"
+      ],
+      "commit_files": [
+        "internal/cli/noghbinary_test.go",
+        "internal/cli/probe_test.go"
+      ]
     },
     {
       "id": "post-enforces-comment-cap",
