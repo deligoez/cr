@@ -23,6 +23,18 @@ func recordedFindings(t *testing.T, layout state.Layout) []finding.Finding {
 	return stored
 }
 
+// recordedHash is the §9.2 content hash cr stamps on aRecord's anchor in one
+// unit: recordPath's lines two to four into the unit's range, at recordHead.
+// A waiver or posted-index fixture keyed on anything else matches no record cr
+// stamped.
+func recordedHash(t *testing.T, unit string) string {
+	t.Helper()
+	start := recordUnitStart[unit]
+	hash, err := finding.AnchorContentHash(handlerLines(start+2, start+4))
+	require.NoError(t, err)
+	return hash
+}
+
 // handlerLines is recordCheckout's file between two line numbers, inclusive.
 func handlerLines(from, to int) []string {
 	lines := make([]string, 0, to-from+1)

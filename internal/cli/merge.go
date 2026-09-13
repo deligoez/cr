@@ -246,7 +246,7 @@ func mergeRecords(
 	if err != nil {
 		return nil, err
 	}
-	records, err := readPerRole(files, roundUnitIDs(formed), round.Head)
+	records, err := readPerRole(owner, repo, pr, &round.Meta, files, roundUnitIDs(formed))
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +376,15 @@ func (c *mergeCounts) lines() []string {
 // §6.4.2 ranks by a real answer: without the hash cr stamps, §6.2's `cited` row
 // can never match, every record would grade `argued`, and "the highest grade"
 // would silently stop distinguishing anything.
-func readPerRole(files, units []string, head string) ([]*finding.Finding, error) {
+//
+// The anchors are stamped here too, for the reason the citations are: §6.4.4
+// and §9.3.6 match on the anchor's content hash, and a waiver or posted-index
+// entry `cr record` wrote carries the hash of the lines at the head. A record
+// matched on the hash its role typed would match none of them, and an
+// already-posted finding would reach the draft again.
+func readPerRole(
+	owner, repo string, pr int, round *state.Meta, files, units []string,
+) ([]*finding.Finding, error) {
 	records := make([]*finding.Finding, 0)
 	for _, file := range files {
 		body, err := readInput(file,
@@ -389,7 +397,10 @@ func readPerRole(files, units []string, head string) ([]*finding.Finding, error)
 		if err != nil {
 			return nil, err
 		}
-		if err := resolveCitations(file, body, head, read); err != nil {
+		if err := stampAnchors(owner, repo, pr, round, file, body, read); err != nil {
+			return nil, err
+		}
+		if err := resolveCitations(file, body, round.Head, read); err != nil {
 			return nil, err
 		}
 		records = append(records, read...)

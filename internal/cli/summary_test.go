@@ -207,13 +207,17 @@ func TestTheSummaryWriterTableIsEnforcedAtTheWrite(t *testing.T) {
 // count on the way from raised to drafted moves.
 func TestTheRoundSummaryCarriesEveryPrePostWritersCounts(t *testing.T) {
 	layout := gradedHome(t)
+	// The hash cr stamps on aGradedRecord's anchor: line 3 of app.go at the
+	// fixture's head. A waiver keyed on the hash the role typed matches nothing.
+	stamped, err := finding.AnchorContentHash([]string{"func Retry() { backoff() }"})
+	require.NoError(t, err)
 	waiver := finding.Waiver{
 		WaiverKey: finding.WaiverKey{
-			Path: "app.go", Side: "RIGHT", Class: "long-function", ContentHash: "0123456789abcdef",
+			Path: "app.go", Side: "RIGHT", Class: "long-function", ContentHash: stamped,
 		},
 		Disposition: finding.DispositionWrong,
 	}
-	_, err := finding.Waive(layout, fixtureOwner, fixtureProject, &waiver,
+	_, err = finding.Waive(layout, fixtureOwner, fixtureProject, &waiver,
 		finding.WaiverProvenance{Round: 2, PR: fixturePRNumber, Head: "0a1b2c3"})
 	require.NoError(t, err)
 

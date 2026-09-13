@@ -42,9 +42,16 @@ type recordResult struct {
 	// whether that probe supports it, and which condition decided. It is
 	// empty, and never nil, when no record names one.
 	Probes []gapSupport `json:"probes"`
-	// Honesty carries §4.5.4's disclosure when the intent axis being
-	// unavailable is what kept a gap probe from supporting a finding,
-	// rendered as the sentences §11.1 exempts from `--quiet`.
+	// Waived and AlreadyPosted are §6.4.4's and §9.3.6's drops as `cr
+	// record` re-applied them: findings its input still held that an active
+	// waiver or the posted index covers, and which were not stored. Over
+	// `cr merge`'s own output both are zero.
+	Waived        finding.Drops       `json:"waived"`
+	AlreadyPosted finding.PostedDrops `json:"already_posted"`
+	// Honesty carries the two drop counts, and §4.5.4's disclosure when the
+	// intent axis being unavailable is what kept a gap probe from
+	// supporting a finding, rendered as the sentences §11.1 exempts from
+	// `--quiet`.
 	Honesty []string `json:"honesty"`
 }
 
@@ -105,8 +112,17 @@ func (r *recordResult) states(w *writer) string {
 // The duplicate count is read off the stored records rather than passed in, so
 // it counts what §9.1 actually stamped and not what a caller believed §6.4.3 had
 // marked.
-func newRecordResult(records []*finding.Finding, found *gapEvidence) *recordResult {
-	honesty := make([]string, 0, len(found.unmappable))
+func newRecordResult(records []*finding.Finding, found *gapEvidence, dropped recordDrops) *recordResult {
+	honesty := make([]string, 0, 2+len(found.unmappable))
+	// The drops are disclosed only when this run took something out. Over
+	// `cr merge`'s own output they are always zero, and `cr merge` already
+	// said so; a drop here means the input skipped that pass.
+	if dropped.waived.Dropped > 0 {
+		honesty = append(honesty, dropped.waived.Disclosure())
+	}
+	if dropped.posted.Dropped > 0 {
+		honesty = append(honesty, dropped.posted.Disclosure())
+	}
 	for _, entry := range found.unmappable {
 		honesty = append(honesty, entry.Disclosure())
 	}
@@ -121,7 +137,7 @@ func newRecordResult(records []*finding.Finding, found *gapEvidence) *recordResu
 	}
 	return &recordResult{
 		Recorded: records, Duplicates: duplicates, Suppressed: suppressed,
-		Probes: found.support, Honesty: honesty,
+		Probes: found.support, Waived: dropped.waived, AlreadyPosted: dropped.posted, Honesty: honesty,
 	}
 }
 
@@ -288,7 +304,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			// §9.1.1's journal of this run's moves, published with the
 			// records under appendRecords' lock.
 			journal := finding.NewJournal(finding.ActorRecord, round.Head, time.Now())
-			records, found, err := acceptRecords(
+			records, found, dropped, err := acceptRecords(
 				layout, owner, repo, pr, &round.Meta, args[1], journal)
 			if err != nil {
 				return err
@@ -309,7 +325,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := recordRetiredCounts(layout, owner, repo, pr, &round.Meta); err != nil {
 				return err
 			}
-			return out.emit(newRecordResult(records, found))
+			return out.emit(newRecordResult(records, found, dropped))
 		},
 	}
 }
@@ -362,7 +378,7 @@ func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *stat
 // acceptRecords reads the file the agent handed the command and settles
 // everything §6 has to say about it before a lock is taken: §6.1.3's and
 // §6.1.4's refusals, §9.1's first two rows, §6.2.3's resolution, §6.2.5's
-// origin, §5.4's severity bounds, and §6.2's grade.
+// origin, §6.4.4's and §9.3.6's drops, §5.4's severity bounds, and §6.2's grade.
 //
 // It is the whole of the validation, in one place, so the ordering above is a
 // contract rather than the shape a command body happens to have. Every refusal
@@ -370,16 +386,16 @@ func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *stat
 // rests on what the two before it established.
 func acceptRecords(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, file string, journal *finding.Journal,
-) ([]*finding.Finding, *gapEvidence, error) {
+) ([]*finding.Finding, *gapEvidence, recordDrops, error) {
 	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	body, err := readInput(file,
 		"§6.5.1 has `cr merge` write the file `cr record` reads; "+
 			"pass the path `-o` named")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	// §6.5.1: the input is `cr merge`'s output, which is the one file
 	// allowed to carry `duplicate_of` — §6.4.3 has `cr merge` mark a
@@ -387,40 +403,33 @@ func acceptRecords(
 	// Every other computed field is refused whatever the source says.
 	records, err := finding.Decode(file, body, roundUnitIDs(formed), finding.SourceMerge)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	// §6.1's id row: stable for the life of the pull request, so an id
 	// repeated in this file or held by a stored record is refused here.
 	if err := refuseHeldIDs(l, owner, repo, pr, file, body, records); err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	// Round 13's agent-chosen-grading-boundary: the unit a record names is
 	// the unit its anchor sits in, or §6.2's `cited` row is measured
-	// against a boundary the agent picked.
-	if err := refuseForeignAnchors(owner, repo, pr, round, file, body, formed, records); err != nil {
-		return nil, nil, err
-	}
-	// §9.2.3: the content hash and context window, read off the round's
-	// trees, so §7.4.1's waiver key is built from the lines themselves.
-	if err := stampAnchors(owner, repo, pr, round, file, body, records); err != nil {
-		return nil, nil, err
-	}
-	// §9.1's first two rows, in the order stampStates walks them.
-	if err := stampStates(records, journal); err != nil {
-		return nil, nil, err
+	// against a boundary the agent picked. Then §9.2.3: the content hash
+	// and context window, read off the round's trees, so §7.4.1's waiver
+	// key is built from the lines themselves.
+	if err := settleAnchors(owner, repo, pr, round, file, body, formed, records); err != nil {
+		return nil, nil, recordDrops{}, err
 	}
 	// §6.2.3: every citation is resolved against the round's head and
 	// stamped with the hash of the line it names, and one the head cannot
 	// open refuses the whole file.
 	if err := resolveCitations(file, body, round.Head, records); err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	// §6.2.5: every citation's origin is computed against cr's own
 	// detection output, positionally, before the grade reads it. The
 	// ledger is read without a lock (§2.3.2).
 	ledger, err := rule.ReadStats(l, owner, repo)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	rule.StampOrigins(ledger, round.Head, records)
 	// §6.2.1's stored inputs, read off files no lock is needed for
@@ -429,7 +438,13 @@ func acceptRecords(
 	// graded below.
 	evidence, err := readProbedEvidence(l, owner, repo, pr, round.Head, file, body, records)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
+	}
+	// §6.4.4 and §9.3.6 again, after the last refusal that names an input
+	// line, and then §9.1's first two rows over what remains.
+	records, dropped, err := dropRecorded(l, owner, repo, pr, records, journal)
+	if err != nil {
+		return nil, nil, recordDrops{}, err
 	}
 	// §5.4.4 and §5.4.5. They are asked of the records rather than of the
 	// probes because the question is about a finding: a gap probe's support
@@ -437,14 +452,14 @@ func acceptRecords(
 	// run` cannot answer it at the experiment.
 	found, err := resolveGapSupport(evidence, round, records)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	// §6.1's `axis` row, before the grade rather than after it: §6.2's
 	// `cited` row reads the axis, and §4.4.2 withholds that grade from the
 	// test axis entirely.
 	corpus, err := role.Resolve(l.RepoRolesDir(owner, repo), l.RolesDir())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	stampAxes(corpus, records)
 	// §6.2, last of them all, because it rests on what the others
@@ -458,7 +473,7 @@ func acceptRecords(
 	// §4.3.4: a reinvention item defaults to a question, before and apart
 	// from §6.3's forcing, which a cited reinvention item never meets.
 	if err := defaultReinventionQuestions(l, owner, repo, pr, round, formed, records); err != nil {
-		return nil, nil, err
+		return nil, nil, recordDrops{}, err
 	}
 	// §6.3.1's first of three moments, and invariant 4: a record graded
 	// argued is forced to kind question. It is last because it reads the
@@ -470,7 +485,7 @@ func acceptRecords(
 	// to `cr draft`, whose records are the ones the reviewer reads. The
 	// forcing is what is wanted here.
 	finding.ForceQuestions(records)
-	return records, found, nil
+	return records, found, dropped, nil
 }
 
 // appendRecords is the single write, under §2.3.1's lock: §9.1.1's journal of

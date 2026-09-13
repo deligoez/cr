@@ -59,7 +59,7 @@ func TestEveryHonestyDisclosureSurvivesQuiet(t *testing.T) {
 		waived := finding.Waiver{
 			WaiverKey: finding.WaiverKey{
 				Path: "internal/api/handler.go", Side: "RIGHT",
-				Class: "unchecked-error", ContentHash: "0123456789abcdef",
+				Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
 			},
 			Disposition: finding.DispositionNotHere,
 		}
