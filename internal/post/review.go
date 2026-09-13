@@ -151,6 +151,15 @@ type Settlement struct {
 	Record string `json:"record"`
 	// Outcome is the outcome action the draft's triage settled on.
 	Outcome finding.Outcome `json:"outcome"`
+	// Kind, Grade, Severity and Anchor are the record's as the send held it
+	// when the payload was built: §7.2.2's recomputed grade, the forcings
+	// applied over it, and §7.2's severity and location rows. A successful
+	// send stores those values; §8.4.4's adoption reads them from here,
+	// because the send never stored them when its outcome was unknown.
+	Kind     finding.Kind     `json:"kind"`
+	Grade    finding.Grade    `json:"grade"`
+	Severity finding.Severity `json:"severity"`
+	Anchor   finding.Anchor   `json:"anchor"`
 }
 
 // Discard is one record the draft discarded, as posted.json names it.

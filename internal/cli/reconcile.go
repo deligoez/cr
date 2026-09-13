@@ -201,6 +201,11 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 // asking for one would refuse the whole adoption on the strength of the first
 // one having worked.
 //
+// Before anything is written, the records the send read are given the values it
+// held them at, as posted.json's outcomes name them, so every write below —
+// the waivers, findings.ndjson through writeAdopted, and the outcome events —
+// draws on the records a successful send would have drawn on.
+//
 // The waivers go first, in send's order and for its reason: the send that set
 // `post_unresolved` wrote none, because a call GitHub might have refused must
 // leave none behind, and a waiver write that fails here leaves the flag set so
@@ -221,6 +226,7 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	if err != nil {
 		return nil, err
 	}
+	settleAsSent(records, sent)
 	if err := waiveDiscards(
 		l, round.Owner, round.Repo, round.PR, sentDiscards(records, sent),
 	); err != nil {
@@ -261,6 +267,26 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	return ids, adoptReturnedThreads(l, round, records, &sent.Review)
 }
 
+// settleAsSent writes onto each record posted.json's outcomes name the
+// register, grade, severity and anchor the send held it at when it built the
+// payload: §7.2.2's recomputed grade, the forcings, and §7.2's severity and
+// location rows, which a successful send stores and an unknown outcome left in
+// memory.
+//
+// Every named record takes them, whatever state it now holds, for the reason
+// sentSettlements gives: they are the send's reading of its draft, and a
+// successful send stores them on every record it read. A record the round no
+// longer holds is passed over.
+func settleAsSent(records []*finding.Finding, sent *post.Sent) {
+	for i := range sent.Outcomes {
+		outcome := &sent.Outcomes[i]
+		if record := recordOf(records, outcome.Record); record != nil {
+			record.Kind, record.Grade = outcome.Kind, outcome.Grade
+			record.Severity, record.Anchor = outcome.Severity, outcome.Anchor
+		}
+	}
+}
+
 // sentSettlements are the outcomes posted.json names for the send's triage,
 // each paired with the round's record it names, which is what recordPostTriage
 // writes §7.3.1's events from.
@@ -272,7 +298,8 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 // holds is passed over, since there is nothing to draw an event's fields from.
 func sentSettlements(records []*finding.Finding, sent *post.Sent) []finding.Settled {
 	settled := make([]finding.Settled, 0, len(sent.Outcomes))
-	for _, outcome := range sent.Outcomes {
+	for i := range sent.Outcomes {
+		outcome := &sent.Outcomes[i]
 		if record := recordOf(records, outcome.Record); record != nil {
 			settled = append(settled, finding.Settled{Record: record, Outcome: outcome.Outcome})
 		}

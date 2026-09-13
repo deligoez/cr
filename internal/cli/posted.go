@@ -106,12 +106,22 @@ const postedOutcomesSection = "outcomes"
 // payload may be §6.3.2's forcing rather than the reviewer's, so §8.4.4's
 // adoption can read the outcomes from here and from nowhere else.
 //
+// Each outcome carries the record's register, grade, severity and anchor as
+// this run holds it, which is what a successful send stores: §7.2.2's
+// recomputation, the forcings and §7.2's two editable rows are applied in
+// memory before the payload is built and reach findings.ndjson only after the
+// call, so they too survive an unknown outcome only here.
+//
 // The section is written on every send, empty or not, so an outcome from an
 // earlier send of the round is never read as one of this send's.
 func recordSentOutcomes(l state.Layout, round *state.Meta, settled []finding.Settled) error {
 	outcomes := make([]post.Settlement, 0, len(settled))
 	for _, one := range settled {
-		outcomes = append(outcomes, post.Settlement{Record: one.Record.ID, Outcome: one.Outcome})
+		outcomes = append(outcomes, post.Settlement{
+			Record: one.Record.ID, Outcome: one.Outcome,
+			Kind: one.Record.Kind, Grade: one.Record.Grade,
+			Severity: one.Record.Severity, Anchor: one.Record.Anchor,
+		})
 	}
 	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
 	if err != nil {
