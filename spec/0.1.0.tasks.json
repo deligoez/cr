@@ -8856,6 +8856,25 @@
       "closed_reason": null,
       "gate_passed_at": null,
       "commit_sha": null
+    },
+    {
+      "id": "post-enforces-comment-cap",
+      "title": "Refuse a post over post.max_comments",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "dry-run-posting"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- Found by triage-to-fit-non-destructive (3a6ef63, 2026-09-13): finding.CommentCapFor(...).Err() has no caller outside tests, while buildReview's doc comment says the cap refusal happens before the gate; on a scratch round the draft header read \"2 comments queued against post.max_comments 1, 1 over the cap\" and cr post exited 0 carrying both comments, so §1.6.2 is unmet. The closed task comment-cap-blocks-posting tested only the finding package, before cr post existed.\n- cr post refuses a round whose queued comments exceed post.max_comments, before the confirmation gate and before any network call, with or without --confirm, naming the count and the cap and hinting at the triage-to-fit edit; exit code 1, as §1.6.2 fixes it, through the exit table’s CommentCapExceededError row or a new row carrying a hint.\n- A test queues one comment over the cap and asserts the refusal under both flag settings with no POST reaching the gh shim, and a second test at exactly the cap asserts the dry run proceeds.",
+      "source_sections": [
+        "### 1.6 Comment economy"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
