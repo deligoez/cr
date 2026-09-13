@@ -8145,7 +8145,7 @@
     {
       "id": "repository-detection",
       "title": "Detect the repository from its remote",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "diff-against-merge-base"
@@ -8155,11 +8155,25 @@
       "source_sections": [
         "### 11.1 Global flags"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:36:30.460598Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:43:16.292833Z",
+      "closed_reason": "- cr derives owner/repo from the repository under review, so §11.1's --repo is an override rather than the only source: internal/cli/pr.go repoOf calls detectRepo (internal/cli/repodetect.go) when --repo is empty, which is every PR-scoped command's path, and a named --repo still wins. Dogfood: `cr status 1` with no --repo in a scratch checkout with remote git@github.com:o/r.git printed round 1 at head d2fe88e29e24, exit 0.\n- The remote is read through internal/git's pinned runner (internal/git/remote.go Remotes runs `git remote -v` via run, and `remote` joined norepowrite_test.go's gitReads as a read); no remote, more than one remote, and a remote whose host is not github.com are each refused as a RepositoryDetectionError with exit 2 and the hint \"run cr inside a clone whose one remote is its GitHub repository, or pass --repo \u003cowner/repo\u003e\" (dogfood without a remote: `cannot detect the repository under review: …/repo declares no remote`, exit 2), never guessed.\n- internal/cli/repodetect_test.go: TestTheRepositoryIsDetectedFromItsGitHubRemoteAndRepoOverridesIt covers an scp-style ssh remote, an ssh URL and two https spellings each detecting acme/api, with --repo octocat/hello winning over every one; TestRepositoryDetectionRefusesWhatItCannotName covers no remote, two remotes and a gitlab.com remote, each exit 2 with the --repo hint. internal/git/remote_test.go covers the fetch-URL listing and a malformed line; TestAnswerRefusesWithTheCodeItsCauseCarries now runs in a remoteless checkout so its no-repository row is hermetic.\n",
+      "gate_passed_at": "2026-09-13T00:43:16.292833Z",
+      "commit_sha": "0914fd2",
+      "commit_shas": [
+        "0914fd2"
+      ],
+      "commit_files": [
+        "internal/cli/answer_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/pr.go",
+        "internal/cli/repodetect.go",
+        "internal/cli/repodetect_test.go",
+        "internal/git/remote.go",
+        "internal/git/remote_test.go"
+      ]
     },
     {
       "id": "class-form-validation",
