@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T08:03:04.496671Z",
+  "updated_at": "2026-09-13T09:05:54.508919Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9060,7 +9060,7 @@
     {
       "id": "note-retraction-reaches-draft",
       "title": "Stop drafting records on retracted notes",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 45,
@@ -9068,16 +9068,33 @@
       "source_sections": [
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T07:57:55.511186Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T08:27:44.905962Z",
+      "closed_reason": "- A record whose claim rests on a note that was retracted or is no longer held is now forced to a question at draft time and again at post time and the forcing is reported: internal/cli/grade.go's readRoundGrading reads the round's withdrawn claims through withdrawnClaims in internal/cli/provenance.go (note.StandingOf over the whole store), roundGrading.holdWithdrawn applies finding.ForceWithdrawn in internal/finding/forcing.go in produceDraft and buildReview before the payload is built, keeping the computed grade and the record, and the count per class reaches both payloads and summary.json as forced_by_retraction (a new summaryOwners row owned by cr draft) plus a §3.6.6 disclosure line through writer.disclose; citations are path:line and cannot rest on a note, so the claim is the only route.\n- Audit round 1 row task-note-retraction is closed on the path it probed: the dogfood binary against a scratch repository with a gh shim drafted f1 as kind finding, grade cited, with a region naming CR-7#n1 before the retraction, and after cr note --remove CR-7#n1 the cr post dry run built f1 as kind question with forced_by_retraction panic-in-library 1 and no CR-7#n1 in the body, and the redraft wrote kind question, grade cited, and no provenance region.\n- The provenance region emits no note id that no longer resolves to a standing note: readNoteClaims in internal/cli/provenance.go now fills draft.Provenances.NoteClaims only for a claim whose note the store holds and has not retracted, replacing the deliberate naming of retracted and dangling notes, and the NoteClaim doc in internal/draft/provenance.go says so.\n- TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion in internal/cli/retractiondraft_test.go drives cr record, withdraws the note by cr note --remove and by emptying the store, runs cr post before any redraft and then cr draft, and asserts parsed fields: the post comments equal f1 question, forced_by_retraction equals panic-in-library 1 in both payloads and summary.json, the stored f1 is question and still cited, the draft marker is kind question with no provenance region, and both terminals print the §3.6.6 line; go test -overlay mutants removing the post forcing, the draft forcing, the standing check in readNoteClaims, and dangling handling in withdrawnClaims each turn it red, and internal/finding/withdrawn_test.go pins ForceWithdrawn and its disclosure.\n",
+      "gate_passed_at": "2026-09-13T08:27:44.905962Z",
+      "commit_sha": "41c5648",
+      "commit_shas": [
+        "41c5648"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/grade.go",
+        "internal/cli/post.go",
+        "internal/cli/provenance.go",
+        "internal/cli/retractiondraft_test.go",
+        "internal/cli/send.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go",
+        "internal/draft/provenance.go",
+        "internal/finding/forcing.go",
+        "internal/finding/withdrawn_test.go"
+      ]
     },
     {
       "id": "honesty-disclosure-no-profile",
       "title": "Disclose every axis a round does not run",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 40,
@@ -9086,11 +9103,32 @@
         "### 4.5 Axis activation and honest reporting",
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T08:29:11.527134Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:05:11.925734Z",
+      "closed_reason": "- With no profile matched cr brief now runs every axis that needs no profile and discloses every axis and role that does not run with its reason: spec 2.4.4 disables only \"every axis that requires one\", so internal/activation/recorded.go's new Unprofiled disables exactly profile.Unmatched's axes (test, per 4.5.2), leaves intent to 4.5.3 and keeps correctness and convention active, brief's axesOf and activation.OfRound (cr review, cr status) both call it, and Brief.Disclosures in internal/brief/brief.go lists the axes, the 2.4.4 report naming the test axis and the reinvention half, then each skipped role from coverage.Skipped; the dogfood binary on a keyless no-profile scratch repo recorded active_roles convention and correctness and printed \"role test-adequacy skipped, per §4.6.4: axis test disabled, per §4.5.2: no profile matched this repository\".\n- TestARepositoryNoProfileMatchesRunsEveryAxisThatNeedsNone (internal/brief/noprofile_test.go), the no-key subtest of TestNotesAreLoadedForTheResolvedKeyAndForNoKeyAtAll and TestWithNoProfileEveryCommandRunsTheAxesThatNeedNoneAndSaysWhichDidNot (internal/cli/noprofilehonesty_test.go, driving cr brief, cr review and cr status) assert the whole active axis set, the active roles in meta.json and the whole honesty list together; go test -overlay mutants restoring the old empty axesOf, dropping the skipped roles, and dropping the de-duplication each turn them red.\n- Audit round 1 row list-6-4 is closed on its probe: the overlay-style state it measured (selected=false active=[] disabled=[] roles=[]) now reads active intent, correctness, convention with test disabled and three active roles when a key resolves.\n- cr review's honesty list now carries the disabled and unavailable axes as cr status does: the new coverage.RoundLenses in internal/coverage/lenses.go builds the axes, halves and skipped roles, and review/run.go's lensesOf and cli/status.go's lensesOf both call it, so Fanout.Honesty and Fanout.Skipped come from the one assembly.\n- Audit round 1 row list-24-4 is closed: the CLI test asserts cr review's honesty starts with the test-disabled and intent-unavailable sentences and equals the matching run of cr status's honesty, and overlay mutants removing Axes from RoundLenses or restoring review's Lenses without Axes each turn it red.\n- The 4.6.2 output contract every role prompt carries (internal/review/contract.go) now has the line \"Write summary and evidence in English (§6.1.1), whatever language the issue, the threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1).\" and TestEveryPromptNamesItsOutputAndStatesTheRecordContract asserts that whole line in every emitted prompt; no golden or prompt-size test exists, and the dogfood cr review prompt carries it.\n- Audit round 1 row list-32-1 is closed: an overlay mutant deleting the line turns the emit test red.\nOut of scope: the reinvention and test-symbols half disclosures print profile \"\" for a repository no profile matched (internal/reinvention/unavailable.go and internal/testadequacy), a sentence naming an empty profile id.\n",
+      "gate_passed_at": "2026-09-13T09:05:11.925734Z",
+      "commit_sha": "9a92189",
+      "commit_shas": [
+        "9a92189"
+      ],
+      "commit_files": [
+        "internal/activation/activation.go",
+        "internal/activation/recorded.go",
+        "internal/activation/roles.go",
+        "internal/activation/unprofiled_test.go",
+        "internal/brief/brief.go",
+        "internal/brief/brief_test.go",
+        "internal/brief/noprofile_test.go",
+        "internal/brief/roles_test.go",
+        "internal/cli/noprofilehonesty_test.go",
+        "internal/cli/status.go",
+        "internal/coverage/lenses.go",
+        "internal/profile/none.go",
+        "internal/review/contract.go",
+        "internal/review/emit_test.go",
+        "internal/review/run.go"
+      ]
     },
     {
       "id": "refuse-case-folded-computed-keys",
@@ -9163,7 +9201,7 @@
     {
       "id": "rule-window-and-class",
       "title": "Count silent rounds and enforce rule class",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 40,
@@ -9171,11 +9209,25 @@
       "source_sections": [
         "### 2.6 Rules"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T08:32:30.986015Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:03:44.105884Z",
+      "closed_reason": "- cr rules list --dead now counts every recorded round, including rounds no rule hit in: internal/cli/rules.go windowRounds adds every round triage.ndjson holds an event for (dated by the latest) and every round whose rounds/\u003cn\u003e/summary.json holds cr record's section (undated, found by listing the round directories, so meta.json is not read), and internal/rule/dead.go ledgerRounds orders an undated round at the latest moment of an earlier round of its pull request with dated false and puts a pull request's later round first on a tie, a bound that can only place a silent round older than it was, so it never calls a live rule dead.\n- Audit round 1 row list-11-4 is proven through the commands: TestTheDeadWindowCountsARoundNoRuleHitIn runs cr record on an empty file and cr rules list --dead, and at rules.dead_after 2 the window is PR 7 round 1 (triage, dated) and PR 13 round 2 (recorded, undated) with no-todo dead, where a ledger-only window holds one round and calls nothing dead; a merge-only round 3 is not counted; TestARoundNoRuleHitInEntersTheWindowDatedOrNot covers the bound, the tie order and the dated merge; six overlay mutants (no triage source, no summary source, merge-only counted, no bound, ascending tie, first moment wins) each turn a test red.\n- A record naming a rule whose class differs from that rule's class is refused, not assigned: internal/cli/ruleclass.go refuseRuleClasses, called from acceptRecords in internal/cli/record.go before any drop, resolves the round corpus only when a record names a rule and returns finding.RejectedRecordError on the class field (exit 1), because both fields are the agent's under §6.1 and assigning would be cr deciding the rule id is the right one (P5); a rule id outside the corpus has no class to compare and is accepted.\n- Audit round 1 row table-5-4 is proven through cr record: TestARecordWhoseClassIsNotItsRulesIsRefused asserts the whole error value (file, line 2, field class, problem naming both classes), exit code 1 and an empty store, then accepts a record naming an unknown rule; an overlay mutant that skips the comparison turns it red.\n- The rule-id test in internal/cli/ruleid_test.go now drives the real cr merge through runMergeCLI and then cr record, the hand-rolled merged and unstamped helpers and their stub comments are gone, and it writes the rule file so both stored records carry rule handle-every-error and its class, with f1 suppressed as a duplicate of f2.\n- Audit round 1 row task-rule-id-on-records is closed by that rewrite: the file cr record reads is the one cr merge wrote, whose digest in summary.json is what lets duplicate_of through, and the gate (go test -race -count=1 over every package, golangci-lint run, scripts/deadcode.sh, gofmt -l) is green.\n",
+      "gate_passed_at": "2026-09-13T09:03:44.105884Z",
+      "commit_sha": "5dcc1ed",
+      "commit_shas": [
+        "5dcc1ed",
+        "f4b807c"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/ruleclass.go",
+        "internal/cli/ruleid_test.go",
+        "internal/cli/rules.go",
+        "internal/cli/ruleslist_test.go",
+        "internal/rule/dead.go",
+        "internal/rule/dead_test.go"
+      ]
     },
     {
       "id": "note-claim-span-is-body",
@@ -9201,7 +9253,7 @@
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 60,
-      "acceptance": "- When the profile sets symbols.lang and the head symbol index is built, cr review and cr status attach the symbols each attached test file references, per §4.4.1, instead of passing a nil References; audit round 1 rows list-23-1 and task-test-file-attachment.\n- When the index is unavailable, the disclosure names the real reason, and the stale comment in testadequacy/attach.go is corrected.\n- A test drives cr review on a fixture with a test file referencing a head symbol and asserts the attachment.",
+      "acceptance": "- When the profile sets symbols.lang and the head symbol index is built, cr review and cr status attach the symbols each attached test file references, per §4.4.1, instead of passing a nil References; audit round 1 rows list-23-1 and task-test-file-attachment.\n- When the index is unavailable, the disclosure names the real reason, and the stale comment in testadequacy/attach.go is corrected.\n- A test drives cr review on a fixture with a test file referencing a head symbol and asserts the attachment.\n- In a repository with no profile matched, the reinvention and test-symbols honesty lines name the missing profile instead of printing profile \"\" (internal/reinvention, internal/testadequacy), found while closing honesty-disclosure-no-profile.",
       "source_sections": [
         "### 4.4 Test adequacy"
       ],
@@ -9231,7 +9283,7 @@
     {
       "id": "state-lock-errors-and-containment",
       "title": "Classify lock failures and contain state paths",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 40,
@@ -9242,10 +9294,39 @@
       ],
       "started_at": "2026-09-13T08:05:49.659951Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-13T08:30:57.385439Z",
+      "closed_reason": "- LockPR's directory creation (makeDirs in internal/state/layout.go) and flock failure, Lock.Remove and Lock.Unlock (internal/state/lock.go), and the probe lock's flock and release (internal/state/probelock.go) now return state.FileError through FileFailure with dirHint, lockHint or removeHint, so exit.go's file-failure floor codes them 3 with that hint instead of 2 with the usage hint: TestRecordWhoseLockCannotBeTakenExitsWithTheFileCode drives cr record into both failures, and the dogfood binary running cr brief against an unopenable lock file printed \"cannot lock .../locks/acme/web/pr-1.lock: open ...: permission denied\" with the lockHint at exit 3.\n- ProbeLockedError's message no longer names a step (it said to raise the setting with `cr config`, which only prints), and its one step is the exported state.ProbeLockedHint, which exit.go's row now prints, so the two cannot disagree; TestAHeldProbeLockNamesOneStep asserts the whole message and hintFor's whole value.\n- Audit round 1 rows file-maintainability-conventions-internal-state-lock-go and file-maintainability-conventions-internal-state-probelock-go are addressed by those changes, with TestALockThatCannotBeTakenIsAFileFailure, TestAProbeLockThatCannotBeTakenIsAFileFailure and TestARemovalThatCannotLandIsAFileFailure in internal/state/lockfailure_test.go, each proven to kill its mutant through go test -overlay.\n- splitRepo (internal/cli/config.go) refuses an owner or repository that is . or .. or holds / or a backslash as a usage error at exit 2, and TestRecordRefusesARepositoryThatIsNotTwoPathSegments and TestConfigRefusesARepositoryThatIsNotTwoPathSegments drive cr record and cr config with ../.., acme/.., ./api, acme/api/extra and a backslash, asserting the whole message, exit 2 and that nothing is created beside the state root; the dogfood binary printed \"invalid repository \\\"../..\\\": pass it as owner/repo, where neither half is . or .. or holds a separator\" at exit 2.\n- internal/state now checks state paths stay inside their tree under the root with contain and containRepo at LockPR, ReadPR, EnsureRepo, LockRepoWaivers, UpdateTriage, UpdateRuleStats, CopyIntoSandbox and RemoveOrphanedSandbox, plus Lock.Write, Lock.Remove and ReadPR's file name against the pull request's directory, returning OutsideRootError, which a new exit.go row codes 2 with a --repo hint; TestAnOwnerAndRepositoryOutsideTheStateTreeAreRefused runs every door with five escaping pairs and asserts the directory holding the root stays empty, closing audit round 1's no-model-invariant row for state/lock.go.\n- The lock_test.go helper lockedPR is renamed unlockedPR across every internal/state test, with a doc comment saying it holds no lock, closing audit round 1's maintainability row for lock_test.go.\n- internal/state/prfiles.go's comment now says finding.Journal appends transitions.ndjson from cr record, cr draft, cr post and cr brief, and prFileWriter maps it to cr record, so its missing-file hint names that writer (TestAMissingTransitionsFileNamesItsWriter asserts the whole hint), closing audit round 1's task-per-pr-state-files row.\nOut of scope: LockRepoWaivers, WaiverLock.Unlock and updateRepoStore (internal/state/waivers.go, rulestats.go) still return bare fmt.Errorf lock failures that exit 2 with the usage hint, and LockProbe does not contain its repository path under the probe locks directory.\n",
+      "gate_passed_at": "2026-09-13T08:30:57.385439Z",
+      "commit_sha": "10bf082",
+      "commit_shas": [
+        "10bf082"
+      ],
+      "commit_files": [
+        "internal/cli/config.go",
+        "internal/cli/exit.go",
+        "internal/cli/statelock_test.go",
+        "internal/state/briefed_test.go",
+        "internal/state/fanout_test.go",
+        "internal/state/fileerror_test.go",
+        "internal/state/layout.go",
+        "internal/state/lock.go",
+        "internal/state/lock_test.go",
+        "internal/state/lockfailure_test.go",
+        "internal/state/meta_test.go",
+        "internal/state/prfiles.go",
+        "internal/state/prfiles_test.go",
+        "internal/state/probelock.go",
+        "internal/state/probelock_test.go",
+        "internal/state/records_test.go",
+        "internal/state/rounds_test.go",
+        "internal/state/roundscope_test.go",
+        "internal/state/roundsection_test.go",
+        "internal/state/rulestats.go",
+        "internal/state/sandbox.go",
+        "internal/state/triage.go",
+        "internal/state/waivers.go",
+        "spec/0.1.0.tasks.json"
+      ]
     },
     {
       "id": "brief-invalidate-error-context",
@@ -9309,6 +9390,24 @@
         "internal/cli/release_test.go",
         "spec/0.1.0.tasks.json"
       ]
+    },
+    {
+      "id": "repo-store-lock-errors",
+      "title": "Classify repository store lock failures",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- LockRepoWaivers, WaiverLock.Unlock and updateRepoStore in internal/state return file failures that exit 3 with a hint, as LockPR's do since 10bf082, instead of bare errors that exit 2 with the usage hint.\n- LockProbe refuses a repository path that would leave the probe locks directory, as the other state entry points do.\n- Tests drive a command into a waiver lock failure and assert the exit code and hint.",
+      "source_sections": [
+        "### 2.3 Per-PR state",
+        "### 11.2 Exit codes"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
