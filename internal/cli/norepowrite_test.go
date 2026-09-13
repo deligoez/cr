@@ -927,9 +927,8 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		"stats": {"stats", "--repo", fixtureSlug},
 		// `cr draft` writes two files — the round's draft.md and the
 		// findings whose state §9.1 moved — and §2.2 puts both under
-		// the state root. It sorts before `cr record` here, so it
-		// meets a round with nothing queued, which is the case a
-		// renderer is likeliest to answer by writing nothing at all.
+		// the state root. runOrder puts it after `cr record`, so it
+		// queues and renders the record that run stored.
 		"draft":      {"draft", fixturePR, "--repo", fixtureSlug},
 		"map record": {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
 		// `cr merge` reads the §4.6.2 fan-out output files, whose names
@@ -944,11 +943,11 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		},
 		// `cr post` reads the round's draft back and builds the one
 		// review §8.3.1 posts, and reads the repository only through
-		// §7.2's location row — which no marker here moves. It sorts
-		// after `cr draft`, so the draft it reads is one this run
-		// wrote, and before `cr record`, so it meets a round with
-		// nothing queued: the case a payload builder is likeliest to
-		// answer by writing something.
+		// §7.2's location row — which no marker here moves. runOrder
+		// puts it after `cr draft`, so the draft it reads is one this
+		// run wrote, holding the record `cr record` stored: a round
+		// with nothing queued is refused before a payload is built,
+		// and building one is the step likeliest to write something.
 		"post": {"post", fixturePR, "--repo", fixtureSlug},
 		// `cr review` reads the repository as `cr brief` does: §4.6.1
 		// carries the unit's hunks, so it takes §3.4.1's diff at the
@@ -1044,7 +1043,11 @@ func runOrder(t *testing.T, runs map[string][]string) []string {
 	// order puts it before both — so it goes last rather than earlier.
 	// It is the mirror of a hoist and not a second kind of exception:
 	// both say that one command's input is another command's output.
-	deferred := []string{"claims set-aside"}
+	// `cr draft` and `cr post` go after it for the same reason: the draft
+	// queues the record `cr record` stores, and `cr post` builds its review
+	// from that draft, since a round with nothing queued is refused before
+	// any payload is built.
+	deferred := []string{"claims set-aside", "draft", "post"}
 	for _, name := range append(slices.Clone(hoisted), deferred...) {
 		require.Contains(t, runs, name, "the ordered %s has no invocation to run", name)
 	}
@@ -1136,7 +1139,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	require.NoError(t, os.WriteFile(merged, []byte(`{"id":"f1","kind":"finding",`+
 		`"role":"correctness","class":"unchecked-error","severity":"high","unit":"u1",`+
 		`"anchor":{"path":"app.go","side":"RIGHT","start_line":3,"line":3,"content_hash":"0123456789abcdef"},`+
-		`"summary":"The returned error is dropped.",`+
+		`"summary":"Is the returned error dropped?",`+
 		`"evidence":"The call's second result is assigned to the blank identifier."}`+"\n"), 0o600))
 
 	// The two files `cr claims record` reads, outside the repository under

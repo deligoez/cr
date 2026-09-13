@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -225,6 +226,9 @@ func buildReview(
 		return err
 	}
 	queued := retypeForDraft(postedRecords(records), &triage.Triage)
+	if len(queued) == 0 {
+		return emptyReview(round, records)
+	}
 	grading.forceUnmapped(round.Round, queued)
 	// §3.6.6 again, immediately before the payload is built: a note
 	// retracted after the draft was rendered takes the assertion register
@@ -291,6 +295,55 @@ func postedRecords(records []*finding.Finding) []*finding.Finding {
 		}
 	}
 	return queued
+}
+
+// EmptyReviewError is the refusal of a review that would carry no comment: the
+// round holds no record in `queued` once §7.2's discards are read out of the
+// draft — every one is posted or discarded, or none was ever drafted.
+//
+// §8.3.1 sends a round's comments as one review, and a round whose review
+// already went out would send a second one notifying the author of nothing.
+// §8.4.4 is the other reason: a review holding no comment has a hash any other
+// empty review shares, so a send of one whose outcome cr never learned could not
+// be reconciled at all.
+//
+// It is refused whether or not `--confirm` was given, before the gate, so the
+// dry run says what the confirmed run would. §11.2 codes it 4: the command line
+// is right, and what refuses is where the round's records stand.
+type EmptyReviewError struct {
+	// Owner, Repo, and PR name the pull request whose round was refused.
+	Owner string
+	Repo  string
+	PR    int
+	// Round is the round that holds nothing to post.
+	Round int
+	// Posted and Discarded are how many of its records §9.1 holds in each
+	// state, as this run read them with the draft's discards applied.
+	Posted    int
+	Discarded int
+}
+
+func (e *EmptyReviewError) Error() string {
+	return fmt.Sprintf(
+		"%s/%s#%d round %d holds no queued record, so its review would carry no comment "+
+			"(%d posted, %d discarded): §8.3.1 sends a round's comments as one review and "+
+			"cr sends no review without one",
+		e.Owner, e.Repo, e.PR, e.Round, e.Posted, e.Discarded,
+	)
+}
+
+// emptyReview is the EmptyReviewError for a round, counting its records.
+func emptyReview(round *state.Meta, records []*finding.Finding) error {
+	refused := &EmptyReviewError{Owner: round.Owner, Repo: round.Repo, PR: round.PR, Round: round.Round}
+	for _, record := range records {
+		switch record.State {
+		case finding.StatePosted:
+			refused.Posted++
+		case finding.StateDiscarded:
+			refused.Discarded++
+		}
+	}
+	return refused
 }
 
 // refuseOverCap is §1.6.2's block at posting: the queued comments measured

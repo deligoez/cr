@@ -73,9 +73,11 @@ func TestASeverityEditIsObservableInExactlyOneEvent(t *testing.T) {
 //
 // §7.3.1 keys an event idempotently and round 8's
 // triage-event-key-permits-contradiction holds the action as a value, so a
-// second `cr post --confirm` over the same draft rewrites the one outcome
-// rather than adding a second — which is what keeps §7.3.4's rate a ratio of
-// two counts rather than of one count and a number of runs.
+// second `cr post --confirm` over the same draft adds no second outcome — which
+// is what keeps §7.3.4's rate a ratio of two counts rather than of one count
+// and a number of runs. Once the first run has posted the round's one record
+// the second is refused before it writes anything, since §8.3.1 has no second
+// review to send, and the ledger stands as the first run wrote it.
 func TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas(t *testing.T) {
 	layout := draftedHome(t, aCitedRecord("f1"))
 	redraft(t)
@@ -83,14 +85,14 @@ func TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas(t *testing.T) {
 		markerEdit(t, readDraft(t, layout), "f1", `severity="high"`, `severity="low"`))
 	shim := ghShimming(t, builtPayload(t))
 
-	for range 2 {
-		_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
-		require.NoError(t, err)
-	}
+	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.NoError(t, err)
+	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	var empty *EmptyReviewError
+	require.ErrorAs(t, err, &empty)
 
 	assert.Equal(t, []string{"f1:raised:high", "f1:kept:low"}, severitiesIn(t, layout))
-	assert.Len(t, shim.writes(t), 2,
-		"the idempotence is the ledger's; two confirmed runs are two reviews")
+	assert.Len(t, shim.writes(t), 1, "the round's one review was sent once")
 }
 
 // The severity a marker edit moves is the severity the payload is built from,

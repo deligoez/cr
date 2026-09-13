@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -154,6 +153,15 @@ func postedPayload(l state.Layout, round *state.Meta) (*post.Sent, error) {
 			len(sent.Comments), len(sent.Records),
 		))
 	}
+	// Comment.Record is not in the document, so a decoded payload names no
+	// record until the ids written beside it are paired back, by position:
+	// they are in payload order and the counts were just held equal. The
+	// hash needs them, because §8.3.3 orders two comments at one position by
+	// record id, and a pre-image built without ids would order them as the
+	// payload does and miss the hash the send embedded.
+	for i := range sent.Comments {
+		sent.Comments[i].Record = sent.Records[i]
+	}
 	return sent, nil
 }
 
@@ -198,7 +206,8 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 // leave none behind, and a waiver write that fails here leaves the flag set so
 // the next `--reconcile` writes it again. The discards themselves stay queued:
 // §9.1 lets `cr draft` and `cr post --confirm` store a discard, and not this
-// command.
+// command. The next `cr draft` stores them, reading the draft the send read,
+// and ingestDraft lets the adopted records' blocks stand in that draft.
 //
 // The thread ids go last, through the adoptReturnedThreads the send uses, once
 // the flag is cleared — a read that fails there costs the field and never
@@ -240,7 +249,7 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	if err := setPostUnresolved(l, round, false); err != nil {
 		return nil, err
 	}
-	return ids, adoptReturnedThreads(l, round, records, attributed(sent))
+	return ids, adoptReturnedThreads(l, round, records, &sent.Review)
 }
 
 // sentDiscards are the records posted.json names as the draft's discards, each
@@ -264,23 +273,6 @@ func sentDiscards(records []*finding.Finding, sent *post.Sent) []*finding.Findin
 		discarded = append(discarded, &copied)
 	}
 	return discarded
-}
-
-// attributed is the payload read back with each comment naming the record it
-// was drawn from, which threadsByRecord keys its answer by.
-//
-// Comment.Record is not in the document, so a decoded payload names no record;
-// posted.json's record ids are in payload order and postedPayload refused any
-// count that differs from the comments', so the pairing is by position. The
-// comments are cloned rather than attributed in place, so the hash this run
-// matched on stays the hash of the document as it was read.
-func attributed(sent *post.Sent) *post.Review {
-	review := sent.Review
-	review.Comments = slices.Clone(sent.Comments)
-	for i := range review.Comments {
-		review.Comments[i].Record = sent.Records[i]
-	}
-	return &review
 }
 
 // recordOf is the round's record with one id, and nil when the round holds

@@ -40,9 +40,13 @@ func ingestDraft(
 	journal *finding.Journal,
 ) (triaged, error) {
 	rendered := make([]*finding.Finding, 0, len(records))
+	posted := make(map[string]bool)
 	for _, record := range records {
-		if record.State == finding.StateQueued {
+		switch record.State {
+		case finding.StateQueued:
 			rendered = append(rendered, record)
+		case finding.StatePosted:
+			posted[record.ID] = true
 		}
 	}
 	if len(rendered) == 0 {
@@ -65,6 +69,7 @@ func ingestDraft(
 		Body:     string(file),
 		Rendered: entries,
 		Trees:    anchorTrees(owner, repo, pr, round.Head),
+		Posted:   posted,
 	})
 	if err != nil {
 		return triaged{}, err

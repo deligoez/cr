@@ -444,6 +444,14 @@ var codes = []mapped{
 	{is[*UnresolvedPostError](), ExitState,
 		"run `cr post <pr> --reconcile` to adopt the review the earlier call created, " +
 			"or to clear post_unresolved for a retry"},
+	// §8.3.1 and §8.4.4: a round holding no queued record has no review to
+	// send, and a second, empty one would notify the author of nothing. The
+	// command line is right and nothing is malformed; what refuses is where
+	// the round's records stand, which §11.2 codes 4.
+	{is[*EmptyReviewError](), ExitState,
+		"nothing in this round is left to post; `cr status <pr>` reports where its records " +
+			"stand, `cr draft <pr>` queues records recorded since, and `cr brief <pr>` opens " +
+			"the next round once the head moves"},
 	// §5.6.2 codes the lock timeout itself: cr waits up to
 	// `probe.lock_timeout_seconds` and then fails with exit code 4, which
 	// §11.2's table names in as many words — "state conflict, including

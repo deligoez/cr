@@ -2,6 +2,7 @@ package draft
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -28,6 +29,11 @@ type Draft struct {
 	// Trees are §6.1.2's two revisions, read only when a marker moves an
 	// anchor. Nothing here opens either otherwise.
 	Trees finding.Trees
+	// Posted are the ids of the round's records §9.1 already holds in
+	// `posted`. Their blocks are records this round rendered, so a draft
+	// still holding one is not refused as naming an unknown id, and nothing
+	// is read off it: §9.1 lists no move out of `posted`.
+	Posted map[string]bool
 }
 
 // Retriage is one admitted marker edit that changes what findings.ndjson holds:
@@ -147,7 +153,7 @@ func Ingest(queued []*finding.Finding, in *Draft) (Triage, error) {
 	if err != nil {
 		return Triage{}, err
 	}
-	if err := refuseUnknownBlocks(queued, blocks); err != nil {
+	if err := refuseUnknownBlocks(queued, in.Posted, blocks); err != nil {
 		return Triage{}, err
 	}
 	triage := Triage{
@@ -236,12 +242,21 @@ func (t *Triage) retype(record *finding.Finding, asked finding.Kind) {
 // role, an axis and a grade cr computed, and a hand-written block can carry
 // none of them.
 //
+// A block naming a record the round has posted is neither reading: its id is
+// the one cr wrote, for a record this round rendered. A draft holds such blocks
+// after `cr post --reconcile` adopts a review whose send also carried a discard,
+// which stays queued for the next `cr draft` to store, so refusing them would
+// leave that discard unstorable.
+//
 // It runs before the verbs rather than after, so a draft holding an unknown
 // block is refused without any of its other blocks being acted on — a reviewer
 // who mistyped an id would otherwise have the record they renamed discarded as
 // deleted by the same run that told them about the typo.
-func refuseUnknownBlocks(queued []*finding.Finding, blocks map[string]readBlock) error {
-	known := make(map[string]bool, len(queued))
+func refuseUnknownBlocks(
+	queued []*finding.Finding, posted map[string]bool, blocks map[string]readBlock,
+) error {
+	known := make(map[string]bool, len(queued)+len(posted))
+	maps.Copy(known, posted)
 	for _, record := range queued {
 		known[record.ID] = true
 	}
