@@ -8661,11 +8661,49 @@
       "source_sections": [
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:07:16.991827Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:20:29.545429Z",
+      "closed_reason": "- The defect found by mapping-stamp-on-meta is reproduced before the fix: setPostUnresolved (internal/cli/reconcile.go) and publishMapping (internal/cli/mapcmd.go) wrote back the caller's pre-lock copy, and TestPostUnresolvedKeepsWhatABriefWroteAfterTheRoundWasRead failed with issue_key CR-2 reverted to CR-7 while TestTheMappingStampKeepsWhatABriefWroteAfterTheRoundWasRead failed with round 2 reverted to round 1.\n- Every writer of meta.json now reads the file after acquiring the lock and writes it before releasing it: the two single-field writers call Lock.SetPostUnresolved and Lock.StampMapping (internal/state/meta.go), which read meta.json through the held lock in updateMeta, and brief's metaOf already read under the lock inside write (internal/brief/store.go); raw ReadMeta still has exactly its four readers.\n- internal/cli/metalock_test.go interleaves a brief's meta.json write between each writer's read of the round and its write by handing the writer the copy read before the brief, and asserts the whole file carries both commands' fields.\n- Both tests failed without the fix (issue key, profile, roles, round and head lost) and pass with it.\n- The assertion is on what reached meta.json, read back with ReadMeta, since flock gives -race no happens-before edge.\n",
+      "gate_passed_at": "2026-09-13T00:20:29.545429Z",
+      "commit_sha": "4d0537c",
+      "commit_shas": [
+        "4d0537c"
+      ],
+      "commit_files": [
+        "internal/cli/mapcmd.go",
+        "internal/cli/metalock_test.go",
+        "internal/cli/reconcile.go",
+        "internal/state/meta.go"
+      ]
+    },
+    {
+      "id": "orphaned-duplicate-representative",
+      "title": "Re-elect a duplicate group whose representative dropped",
+      "status": "done",
+      "tags": [],
+      "depends_on": [
+        "record-reapplies-drops"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- Found by record-reapplies-drops (e5e9ca8, 2026-09-13): when a waiver appears between cr merge and cr record and cr record's re-applied drop removes a duplicate group's representative, the group's other records keep a duplicate_of naming a record that was never stored, and because duplicate is terminal they are neither drafted nor reported, so a finding the waiver did not cover disappears silently.\n- After cr record's drops, no stored record carries a duplicate_of naming a record absent from the round: the group is re-elected by §6.4.2's own ranking among its surviving members, or, where every member was dropped, nothing of the group is stored.\n- A test merges a two-record group, adds a waiver matching only the representative, records, and asserts the surviving record is stored in draft with no duplicate_of, and a second test asserts a group whose every member is waived stores nothing.",
+      "source_sections": [
+        "### 6.4 Dedup"
+      ],
+      "started_at": "2026-09-13T00:30:33.058298Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:36:06.050592Z",
+      "closed_reason": "- (1) The defect record-reapplies-drops found is closed: internal/cli/recorddrops.go orphaned clears the duplicate_of of every kept record naming a representative that is neither kept in the batch nor already stored in the round, so a waiver added between cr merge and cr record can no longer leave a terminal duplicate pointing at a record never stored.\n- (2) After cr record's drops no stored record carries a duplicate_of naming a record absent from the round: settleStates, after gradeRecords, re-elects §6.4.2's representative among each orphaned group's survivors with finding.MarkDuplicates and role.Order over the resolved corpus, and only then walks §9.1's first two rows, so state duplicate is read off the re-elected field; a group whose every member was dropped leaves no orphan and nothing of it is stored. Dogfood: merged f50 (representative) and f51 (duplicate_of f50) with the waiver set aside, restored the waiver, recorded: `[('f51', 'draft', None)] {'dropped': 1, 'waivers': ['wp1']}`, git status --porcelain empty.\n- (3) internal/cli/orphanedduplicate_test.go: TestADroppedRepresentativeLeavesItsDuplicateStoredInDraft merges a two-record group whose members differ in anchor start (so only f1's waiver key matches), waives the representative f1, records, and asserts f2 stored in draft with no duplicate_of; TestAGroupWhoseEveryMemberIsWaivedStoresNothing asserts a group whose members share the waived key stores nothing and findings.ndjson stays empty. A hand mutant never clearing orphans stores f2 in state duplicate and turns the first test red.\n",
+      "gate_passed_at": "2026-09-13T00:36:06.050592Z",
+      "commit_sha": "091c721",
+      "commit_shas": [
+        "091c721"
+      ],
+      "commit_files": [
+        "internal/cli/orphanedduplicate_test.go",
+        "internal/cli/record.go",
+        "internal/cli/recorddrops.go"
+      ]
     }
   ]
 }
