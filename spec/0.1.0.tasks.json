@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T05:44:59.039447Z",
+  "updated_at": "2026-09-13T05:55:08.624043Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8969,7 +8969,7 @@
     {
       "id": "merge-refuses-repeated-record-id",
       "title": "Refuse a repeated id across merge inputs",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "record-id-refusal-names-next-free"
@@ -8980,11 +8980,22 @@
         "### 6.5 Merge",
         "### 6.4 Dedup"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T05:45:30.847453Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T05:55:08.615007Z",
+      "closed_reason": "- cr merge now refuses two records carrying one id across its input files: internal/cli/recordids.go's refuseHeldIDs takes every input as an idInput and internal/cli/merge.go's readPerRole calls it after reading all files and before mergeRecords returns, so the refusal exits 1 through RejectedRecordError naming the later file, the line within that file, the first file and line, and the next free id from finding.NextID over the store and every input, and neither the output file nor summary.json is written; the dogfood binary against a scratch repo and gh shim merged review-correctness and review-concurrency both carrying f1 at exit 0 before the change, and after it printed \"review-concurrency.ndjson line 1: id \"f1\" repeats the id of review-correctness.ndjson line 1; the next free id is f2\" at exit 1 with no output file and no rounds directory\n- An id a stored record of the pull request holds is refused by the same call with the same next-free-id sentence, which the dogfood binary showed after recording review-security's f1: merging review-concurrency's f1 exited 0 before the change and after it printed \"id \"f1\" is already held by the record stored for this pull request in round 1 at head c48baa7; the next free id is f2\" at exit 1, and TestMergeRefusesAnIDAStoredRecordHolds asserts file, line 2, field id, next free id f7, no output file, and summary.json unchanged\n- internal/cli/mergeids_test.go's TestMergeRefusesAnIDTwoPerRoleFilesBothCarry drives cr merge with two per-role files both carrying f1, once as different classes and once as a duplicate group, asserting exit 1, the second file, line 2, a regexp over the whole first-file-and-line clause, next free id f4, and os.Stat absence of both the output and summary.json; go test -overlay mutants removing the call, passing only the last input, dropping or forcing the file clause, and computing the next id over the first input only each turned a test red, and internal/cli/triagetofit_test.go's fixture that reused recordPR's stored f1 now uses f3\n",
+      "gate_passed_at": "2026-09-13T05:55:08.615007Z",
+      "commit_sha": "1d771e6",
+      "commit_shas": [
+        "1d771e6"
+      ],
+      "commit_files": [
+        "internal/cli/merge.go",
+        "internal/cli/mergeids_test.go",
+        "internal/cli/record.go",
+        "internal/cli/recordids.go",
+        "internal/cli/triagetofit_test.go"
+      ]
     }
   ]
 }
