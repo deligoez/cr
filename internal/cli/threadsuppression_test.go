@@ -3,14 +3,48 @@ package cli
 import (
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
 )
+
+// ingestedThread is the thread id the suppression fixtures ingest and name.
+const ingestedThread = "PRRT_kwDOA1b2c3"
+
+// ingestThreads is §3.5.1's ingestion of the threads ids name: threads.ndjson
+// written through gh.WriteThreads, the one writer `cr brief` stores the file
+// with, so the fixture holds exactly the shape cr reads back.
+//
+// Each thread hangs inside u2's range and a human opened it, which is what
+// §3.5.3 attaches to a unit, so a suppression naming it is the agent's judgement
+// on a thread it was actually shown.
+func ingestThreads(t *testing.T, l state.Layout, ids ...string) {
+	t.Helper()
+	threads := make([]gh.Thread, 0, len(ids))
+	for _, id := range ids {
+		threads = append(threads, gh.Thread{
+			ID: id,
+			Anchor: gh.Anchor{
+				Path: recordPath, Side: git.Right,
+				StartLine: recordUnitStart["u2"] + 2, Line: recordUnitStart["u2"] + 4,
+			},
+			Comment:    gh.Comment{Body: "The error Decode returns is dropped here."},
+			AuthorType: gh.AuthorHuman,
+			Replies:    []gh.Comment{},
+		})
+	}
+	held, err := l.LockPR(recordOwner, recordRepo, recordPRNum)
+	require.NoError(t, err)
+	require.NoError(t, gh.WriteThreads(held, threads))
+	require.NoError(t, held.Unlock())
+}
 
 // storedRound is findings.ndjson as `id/state` pairs, which is the whole of
 // what §3.5.4 and §9.1 can be right or wrong about here.
@@ -53,8 +87,9 @@ func draftedRound(t *testing.T, l state.Layout) string {
 // a fixture with one of each reads the same whichever state is being counted.
 func TestARecordNamingAThreadIsStoredSuppressedAndIsNeverDrafted(t *testing.T) {
 	layout := recordedHome(t)
+	ingestThreads(t, layout, ingestedThread)
 	covered := aRecord("f2", "u2")
-	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	covered["suppressed_by"] = ingestedThread
 	file := writeRecordFile(t, "merged.ndjson",
 		aRecord("f1", "u1"), covered, aRecord("f3", "u2"))
 
@@ -82,9 +117,9 @@ func TestARecordNamingAThreadIsStoredSuppressedAndIsNeverDrafted(t *testing.T) {
 // them, or joined by a `0 in state duplicate` the line exists not to print, and
 // no test said so.
 func TestATerminalRecordNamesTheSuppressedApartFromTheDrafts(t *testing.T) {
-	recordedHome(t)
+	ingestThreads(t, recordedHome(t), ingestedThread)
 	covered := aRecord("f2", "u2")
-	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	covered["suppressed_by"] = ingestedThread
 	file := writeRecordFile(t, "merged.ndjson",
 		aRecord("f1", "u1"), covered, aRecord("f3", "u2"))
 
@@ -103,8 +138,9 @@ func TestATerminalRecordNamesTheSuppressedApartFromTheDrafts(t *testing.T) {
 // up went unnoticed.
 func TestRecordCountsTheThreadSuppressedRecordsInTheRoundSummary(t *testing.T) {
 	layout := recordedHome(t)
+	ingestThreads(t, layout, ingestedThread)
 	covered := aRecord("f2", "u2")
-	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	covered["suppressed_by"] = ingestedThread
 	file := writeRecordFile(t, "merged.ndjson",
 		aRecord("f1", "u1"), covered, aRecord("f3", "u2"))
 
@@ -121,10 +157,15 @@ func TestRecordCountsTheThreadSuppressedRecordsInTheRoundSummary(t *testing.T) {
 // The thread id the agent supplied is stored as it arrived, and cr writes none
 // of it: §6.1.4 does not reserve `suppressed_by`, because §3.5.3 forbids cr to
 // decide suppression at all.
+//
+// Two threads are ingested and the record names the second, so a check that
+// took the first thread of the file, or stored an id of its own choosing,
+// stores something else.
 func TestTheThreadIdIsStoredAsTheAgentSuppliedIt(t *testing.T) {
 	layout := recordedHome(t)
-	covered := aRecord("f1", "u1")
-	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	ingestThreads(t, layout, "PRRT_kwDOA1b2c2", ingestedThread)
+	covered := aRecord("f1", "u2")
+	covered["suppressed_by"] = ingestedThread
 	file := writeRecordFile(t, "merged.ndjson", covered)
 
 	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
@@ -134,8 +175,55 @@ func TestTheThreadIdIsStoredAsTheAgentSuppliedIt(t *testing.T) {
 		layout, recordOwner, recordRepo, recordPRNum, state.FileFindings)
 	require.NoError(t, err)
 	require.Len(t, stored, 1) //nolint:testifylint // one record is the fixture
-	assert.Equal(t, "PRRT_kwDOA1b2c3", stored[0].SuppressedBy,
+	assert.Equal(t, ingestedThread, stored[0].SuppressedBy,
 		"§3.5.4's field holds the agent's judgement, and cr stores it rather than forming it")
+}
+
+// §6.1's `suppressed_by` row through the command: a thread id that no thread
+// ingested for the pull request carries is refused with exit code 1, naming the
+// file, the line and the id, and nothing of the file is stored.
+//
+// Without the refusal a mistyped id retires the record exactly as a real one
+// does, and a finding leaves the draft on a thread that does not exist. The
+// mistyped id is a prefix of an ingested one, so a check matching by prefix or
+// by containment would accept it; it sits on the third line of three, after a
+// record naming a real thread, so the refusal names its own line and not the
+// first record that carries the field. The second case is the round the old
+// fixture stood in: no thread ingested at all.
+func TestRecordRefusesASuppressedByNamingNoIngestedThread(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		ingested []string
+	}{
+		{name: "a mistyped id beside ingested threads", ingested: []string{"PRRT_kwDOA1b2c2", ingestedThread}},
+		{name: "a pull request with no ingested thread", ingested: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layout := recordedHome(t)
+			ingestThreads(t, layout, tc.ingested...)
+			named := aRecord("f1", "u2")
+			if len(tc.ingested) > 0 {
+				named["suppressed_by"] = ingestedThread
+			}
+			mistyped := aRecord("f3", "u2")
+			mistyped["suppressed_by"] = "PRRT_kwDOA1b2c"
+			file := writeRecordFile(t, "merged.ndjson", named, aRecord("f2", "u1"), mistyped)
+
+			_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+			require.Error(t, err)
+			assert.Equal(t, ExitValidation, exitCodeFor(err), "§6.1.3's refusals exit with code 1")
+			var rejected *finding.RejectedRecordError
+			require.ErrorAs(t, err, &rejected)
+			assert.Equal(t, file, rejected.File, "the refusal names the file")
+			assert.Equal(t, 3, rejected.Line, "and the line the mistyped id sits on")
+			assert.Equal(t, "suppressed_by", rejected.Field, "and the field")
+			quoted, _, _ := strings.Cut(strings.TrimPrefix(rejected.Problem, "reads "), ",")
+			assert.Equal(t, strconv.Quote("PRRT_kwDOA1b2c"), quoted, "and the id no ingested thread carries")
+
+			assert.Equal(t, []string{}, storedRound(t, layout),
+				"the whole file is refused, the record naming a real thread with it")
+		})
+	}
 }
 
 // A finding whose summary repeats an ingested thread word for word is drafted

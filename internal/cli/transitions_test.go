@@ -57,10 +57,11 @@ func journalOf(t *testing.T, l state.Layout, of journaled) []string {
 // the second, once its block was deleted.
 func TestRecordAndDraftLeaveOneJournalLinePerTransition(t *testing.T) {
 	layout := recordedHome(t)
+	ingestThreads(t, layout, ingestedThread)
 	duplicate := aRecord("f2", "u2")
 	duplicate["duplicate_of"] = "f1"
 	covered := aRecord("f3", "u2")
-	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	covered["suppressed_by"] = ingestedThread
 	_, err := runRecord(t, recordPR, asMergeOutput(t, layout, writeRecordFile(t, "merged.ndjson",
 		aRecord("f1", "u1"), duplicate, covered)), "--repo", recordSlug)
 	require.NoError(t, err)

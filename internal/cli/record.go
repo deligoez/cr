@@ -230,7 +230,9 @@ func stampStates(records []*finding.Finding, journal *finding.Journal) error {
 // `suppressed_by` is the agent's judgement that an ingested human thread
 // already covers the finding, which is why §6.1.4 does not reserve the field:
 // cr never decides suppression, per §3.5.3, and never writes the value it is
-// reading here.
+// reading here. refuseUnknownThreads has already held the value to a thread
+// ingested for the pull request, so the id this retires a record by names a
+// thread cr ingested, whatever the agent judged of it.
 //
 // A record carrying both is retired as a duplicate. Both outcomes are terminal
 // and neither is drafted, so the choice decides only which field explains the
@@ -502,6 +504,11 @@ func acceptRecords(
 // from the agent, so a role's file or a file the agent wrote itself is read as
 // the agent's own and has §6.1.4 refuse the field. Every other computed field
 // is refused whatever the source.
+//
+// §6.1's `suppressed_by` row is held at the same door: the field is the
+// agent's to write, and refuseUnknownThreads refuses a value naming no thread
+// ingested for the pull request, so a record retires by §3.5.4 only on a thread
+// that exists.
 func decodeInput(
 	l state.Layout, owner, repo string, pr, round int, file string, body []byte, units []string,
 ) ([]*finding.Finding, error) {
@@ -509,7 +516,14 @@ func decodeInput(
 	if err != nil {
 		return nil, err
 	}
-	return finding.Decode(file, body, units, from)
+	records, err := finding.Decode(file, body, units, from)
+	if err != nil {
+		return nil, err
+	}
+	if err := refuseUnknownThreads(l, owner, repo, pr, file, body, records); err != nil {
+		return nil, err
+	}
+	return records, nil
 }
 
 // sourceOf answers finding.Decode's question about one input: is it the file
