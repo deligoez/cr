@@ -246,7 +246,7 @@ func mergeRecords(
 	if err != nil {
 		return nil, err
 	}
-	records, err := readPerRole(owner, repo, pr, &round.Meta, files, roundUnitIDs(formed))
+	records, err := readPerRole(l, owner, repo, pr, &round.Meta, files, roundUnitIDs(formed))
 	if err != nil {
 		return nil, err
 	}
@@ -382,10 +382,17 @@ func (c *mergeCounts) lines() []string {
 // entry `cr record` wrote carries the hash of the lines at the head. A record
 // matched on the hash its role typed would match none of them, and an
 // already-posted finding would reach the draft again.
+//
+// The ids are held to §6.1 last, across every input and against the pull
+// request's stored records, through the check `cr record` makes: two roles'
+// files both carrying f1 would otherwise merge into a file where
+// `duplicate_of` can name an id two records hold, and a refusal here comes
+// before the output file and summary.json are written.
 func readPerRole(
-	owner, repo string, pr int, round *state.Meta, files, units []string,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, files, units []string,
 ) ([]*finding.Finding, error) {
 	records := make([]*finding.Finding, 0)
+	inputs := make([]idInput, 0, len(files))
 	for _, file := range files {
 		body, err := readInput(file,
 			"§4.6 has each role write its findings to the output path "+
@@ -404,6 +411,10 @@ func readPerRole(
 			return nil, err
 		}
 		records = append(records, read...)
+		inputs = append(inputs, idInput{file: file, body: body, records: read})
+	}
+	if err := refuseHeldIDs(l, owner, repo, pr, inputs); err != nil {
+		return nil, err
 	}
 	return records, nil
 }

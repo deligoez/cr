@@ -406,7 +406,7 @@ func acceptRecords(
 	}
 	// §6.1's id row: stable for the life of the pull request, so an id
 	// repeated in this file or held by a stored record is refused here.
-	if err := refuseHeldIDs(l, owner, repo, pr, file, body, records); err != nil {
+	if err := refuseHeldIDs(l, owner, repo, pr, []idInput{{file: file, body: body, records: records}}); err != nil {
 		return nil, nil, recordDrops{}, err
 	}
 	// §4.5.6's cells against the records: a record meeting a `pass` its

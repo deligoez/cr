@@ -71,7 +71,9 @@ func TestADiscardForVolumeOnOnePullRequestStillRaisesOnAnother(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, finding.ScopePullRequest, scope, "§7.4.1 scopes not-here to the pull request")
 
-	fanOut := writeFanOut(t, t.TempDir(), "correctness", aRoleRecord("f1", "correctness", "unchecked-error", "u1"))
+	// f3, not f1: §6.1 holds recordPR's f1 and f2 for the life of that pull
+	// request, so the merge on it refuses a record reusing either.
+	fanOut := writeFanOut(t, t.TempDir(), "correctness", aRoleRecord("f3", "correctness", "unchecked-error", "u1"))
 	control, err := runMergeCLI(t, mergedOut(t), fanOut)
 	require.NoError(t, err)
 	require.Equal(t, 1, decodeMergeResult(t, control).Waived.Dropped,
@@ -94,7 +96,7 @@ func TestADiscardForVolumeOnOnePullRequestStillRaisesOnAnother(t *testing.T) {
 	stored, err := state.ReadRecords[finding.Finding](layout, recordOwner, recordRepo, otherPR, state.FileFindings)
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
-	assert.Equal(t, "f1", stored[0].ID)
+	assert.Equal(t, "f3", stored[0].ID)
 	assert.Equal(t, finding.StateDraft, stored[0].State, "recorded on the other pull request, not dropped")
 	assert.Equal(t, recordedHash(t, "u1"), stored[0].Anchor.ContentHash, "under the key the discard waived")
 }
