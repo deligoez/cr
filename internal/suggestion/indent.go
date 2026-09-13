@@ -44,18 +44,23 @@ func (w *IndentationWarning) String() string {
 // judgement. A record with no suggestion replaces nothing; a record §8.2.1
 // refuses outright is the business of Validate, whose refusal says more than a
 // warning would; and a first replaced line cr cannot read is a line cr has no
-// indentation to compare against — the hunks carry §3.4.1's changed lines, so a
-// range beginning on a context line is such a case.
+// indentation to compare against.
+//
+// texts is git.HunkTexts over the patch hunks were parsed from, index for index.
+// A hunk holds §3.4.1's changed lines alone, while Validate admits any line of
+// a hunk's head range, and that range carries the diff's context lines too. A
+// suggestion replacing a context line replaces a head line all the same, so its
+// text is read from the hunk's own body, where the context lines are.
 //
 // The comparison is of the leading whitespace alone and of the first line
 // alone, in those words, because that is what §8.2.3 names. A suggestion whose
 // later lines are indented differently is a suggestion about a block, and the
 // first line is where GitHub anchors the replacement.
-func WarnIndentation(record *finding.Finding, hunks []git.Hunk) *IndentationWarning {
+func WarnIndentation(record *finding.Finding, hunks []git.Hunk, texts []string) *IndentationWarning {
 	if record.Suggestion == "" || !Placeable(&record.Anchor, hunks) {
 		return nil
 	}
-	replaced, found := replacedLine(&record.Anchor, hunks)
+	replaced, found := replacedLine(&record.Anchor, hunks, texts)
 	if !found {
 		return nil
 	}
@@ -67,18 +72,39 @@ func WarnIndentation(record *finding.Finding, hunks []git.Hunk) *IndentationWarn
 }
 
 // replacedLine returns the text of the first line the anchored range replaces,
-// reporting whether the diff carries it.
-func replacedLine(anchor *finding.Anchor, hunks []git.Hunk) (string, bool) {
+// reporting whether the diff carries it. The hunk's text is read for a changed
+// line and a context line alike, so the two cannot be told apart by which of
+// them the warning can see.
+func replacedLine(anchor *finding.Anchor, hunks []git.Hunk, texts []string) (string, bool) {
 	for at := range hunks {
-		hunk := &hunks[at]
-		if hunk.Path != anchor.Path {
+		if hunks[at].Path != anchor.Path || at >= len(texts) {
 			continue
 		}
-		for _, line := range hunk.Changed {
-			if line.Side == git.Right && line.Line == anchor.StartLine {
-				return line.Text, true
-			}
+		if text, found := headLine(&hunks[at], texts[at], anchor.StartLine); found {
+			return text, true
 		}
+	}
+	return "", false
+}
+
+// headLine returns head line n as a hunk's text carries it, without the diff's
+// leading marker, reporting whether the hunk covers it.
+//
+// The text is the hunk's header and then its body, as git.HunkTexts gives it.
+// A context line and an added line each stand for one head line, counted from
+// the header's head start; a removed line and git's "\ No newline" annotation
+// stand for none.
+func headLine(hunk *git.Hunk, text string, n int) (string, bool) {
+	_, body, _ := strings.Cut(text, "\n")
+	at := hunk.HeadStart
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "+") {
+			continue
+		}
+		if at == n {
+			return line[1:], true
+		}
+		at++
 	}
 	return "", false
 }

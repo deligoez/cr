@@ -168,17 +168,27 @@ func roundCorpus(l state.Layout, owner, repo, profileID string) ([]rule.Resolved
 // roundHunks takes §3.4.1's diff at the round's head, against the merge base
 // with the base GitHub reports for the pull request, and parses its hunks.
 func roundHunks(owner, repo string, pr int, head string) ([]git.Hunk, error) {
-	dir, err := repoDir()
+	patch, err := roundPatch(owner, repo, pr, head)
 	if err != nil {
 		return nil, err
+	}
+	return git.ParseHunks(patch)
+}
+
+// roundPatch takes the unified diff roundHunks parses, for the reader that
+// needs a hunk's context lines as well as its changed ones.
+func roundPatch(owner, repo string, pr int, head string) (string, error) {
+	dir, err := repoDir()
+	if err != nil {
+		return "", err
 	}
 	opened, err := ghClient().PullRequest(owner, repo, pr)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	diff, err := git.DiffAgainstMergeBase(dir, opened.Base, head)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return git.ParseHunks(diff.Patch)
+	return diff.Patch, nil
 }

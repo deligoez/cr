@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/suggestion"
 )
@@ -24,13 +25,22 @@ func indentationWarnings(
 	if !anySuggestion(queued) {
 		return make([]string, 0), nil
 	}
-	hunks, err := roundHunks(owner, repo, pr, round.Head)
+	patch, err := roundPatch(owner, repo, pr, round.Head)
 	if err != nil {
 		return nil, err
 	}
+	hunks, err := git.ParseHunks(patch)
+	if err != nil {
+		return nil, err
+	}
+	// The hunks' texts carry the context lines the hunks do not, and a
+	// suggestion may replace one of those: Validate admits the whole head
+	// range of a hunk. HunkTexts reads the patch through the one parse
+	// ParseHunks just accepted, so it has no error left to return.
+	texts, _ := git.HunkTexts(patch)
 	warnings := make([]string, 0)
 	for _, record := range queued {
-		if warning := suggestion.WarnIndentation(record, hunks); warning != nil {
+		if warning := suggestion.WarnIndentation(record, hunks, texts); warning != nil {
 			warnings = append(warnings, warning.String())
 		}
 	}
