@@ -214,3 +214,23 @@ from the round with nothing in the output saying a non-`PASS` row was dropped.**
 **Proposed fix.** Number a nested list item under its parent (`list-28-4-1`), or
 number every list item in document order. Either keeps ids unique; a check at
 emission that refuses a checklist with a repeated id would have caught this one.
+
+## `tp validate` passes a task whose `source_sections` names no heading
+
+Measured 2026-09-13 with tp v1.1.1, on a scratch copy of `spec/0.1.0.tasks.json`
+with one task's `source_sections` set to `["### 8.1 Comment rendering"]` — the
+spec's heading is `### 8.1 Render contract`. `tp validate --json` exited **0**
+with `"valid": true` and `"errors": 0`, and reported the entry only among the
+warnings: `rule: "section-anchor"`, `source_sections entry "### 8.1 Comment
+rendering" not found in spec`, with a correct "Did you mean" list.
+
+The warning is accurate; the severity is the problem. A task whose only anchor
+resolves to nothing is exactly the task CLAUDE.md's rule means by "a task with
+neither anchor fails validation" — it is anchored to no section — yet it passes,
+and a driver that reads the exit code (here `tp validate >/dev/null; echo $?`)
+sees a clean file. The same run carried dozens of atomicity warnings, so one
+anchor warning among them is easy to miss even when the output is read.
+
+**Proposed fix.** Make a `source_sections` entry that matches no heading an error
+when the task has no `source_lines` to fall back on, or at least exit non-zero
+under a `--strict` flag, so the anchor check can gate a script.
