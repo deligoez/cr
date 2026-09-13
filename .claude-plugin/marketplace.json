@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "cr",
+  "description": "Code Review: review lifecycle for AI agents",
+  "owner": {
+    "name": "Yunus Emre Deligöz"
+  },
+  "plugins": [
+    {
+      "name": "cr",
+      "description": "Code review lifecycle manager for AI coding agents. Orients on a pull request, fans review out per unit and role, grades findings by evidence, runs mutation and gap probes, and drafts a review a human edits before cr posts it on --confirm.",
+      "source": "./",
+      "strict": false,
+      "category": "development"
+    }
+  ]
+}
