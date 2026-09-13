@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T01:13:13.046404Z",
+  "updated_at": "2026-09-13T01:19:07.929325Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -902,7 +902,7 @@
     {
       "id": "agent-only-judgement-guard",
       "title": "Guard the six agent-only judgements",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "network-write-boundary-guard"
@@ -912,11 +912,19 @@
       "source_sections": [
         "### 2.1 Division of labour"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T01:00:49.834945Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T01:12:35.963023Z",
+      "closed_reason": "- internal/cli/judgement_test.go names the six judgements of §2.1.3 and where each decision lives: a rule hit is confirmed by a record's rule and citations and a reinvention candidate by a record's citations (both finding.Finding), a note explaining an unmapped unit by coverage.Cell.NoteID, a covering thread by finding.Finding.SuppressedBy, and test adequacy by testadequacy.Coverage's unexported classification; TestEveryAgentJudgementIsRecordedOnAFieldTheAgentSupplies asserts each field exists, arrives under a JSON key finding.Reserved does not reserve or, for the classification, is unexported behind UnmarshalJSON, so every one is the agent's to write and none is cr's.\n- For each, cr locates and supplies the candidate (rule hits, reinvention candidates, notes, attached threads and test files are the existing attachments) and records the decision from the agent's line, and has no code path producing a verdict: TestNoCodePathProducesAVerdictForAnAgentJudgement walks every production file and refuses any assignment or keyed carrier literal writing one of those fields with anything but a copy of the same field, outside the carrier's decoder, and was measured red against a hand mutant adding record.SuppressedBy = \"PRRT_mutant\" and a Rule-keyed elided record literal to internal/cli/recordpass.go, then reverted; TestNothingInCrBuildsARecord refuses any finding.Finding literal, elided literal or new outside a test tree-wide, and went red on the same mutant; TestNoCommandSettlesWhetherAPostedConcernWasAddressed covers the sixth, which has no field in v0.1: posted is terminal, finding.MayTransition refuses every state and actor out of it, and the note package cr answer writes through calls no transition.\n- Reproducibility per §2.1.1 is taken as: given the same state directory, head SHA and inputs, a command prints the same bytes and leaves the same state tree, and the one exclusion is the at field of transitions.ndjson, because §9.1.1 stamps the wall clock there and the clock is not among the three inputs §2.1.1 names; triage.ndjson and rule-stats.ndjson are not masked since none of the commands measured writes them, and dropping transitions.ndjson from the mask turned the writer subtest red on cr record; no production change was needed, and cr status run twice by hand against a local scratch pull request gave two byte-identical 3644-byte outputs with git status --porcelain empty.\n- internal/cli/reproducible_test.go's TestACommandRunTwiceOverTheSameStateProducesTheSameBytes runs cr cells record, cr record and cr status each twice over byte-identical state, restoring the captured CR_HOME tree between the two runs so a writer's second run starts from the same state as its first, and compares the printed output byte for byte and the resulting state tree byte for byte with only that masked field excepted; a reader must leave the tree unchanged and a writer must have changed it.\n",
+      "gate_passed_at": "2026-09-13T01:12:35.963023Z",
+      "commit_sha": "b7583a6",
+      "commit_shas": [
+        "b7583a6"
+      ],
+      "commit_files": [
+        "internal/cli/judgement_test.go",
+        "internal/cli/reproducible_test.go"
+      ]
     },
     {
       "id": "profile-schema",
@@ -5833,7 +5841,7 @@
     {
       "id": "triage-to-fit-non-destructive",
       "title": "Keep volume triage scoped per request",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "comment-cap-blocks-posting",
@@ -5844,11 +5852,18 @@
       "source_sections": [
         "### 1.6 Comment economy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T01:12:47.189456Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T01:19:07.918987Z",
+      "closed_reason": "- Triaging to fit under the cap is not destructive, and no production change was needed: the draft is where the round is triaged, deleting a block there is cr draft's not-here discard (internal/cli/regenerate.go waiveDiscards through finding.Waive), and that verb writes a waiver and silences nothing beyond the pull request it was written on.\n- finding.Waiver.Scope in internal/finding/waiver.go binds DispositionNotHere to ScopePullRequest per §7.4.1, so the waiver lands in that pull request's own waivers.ndjson and finding.ActiveWaivers of any other pull request never reads it, which is §1.6.3's guarantee that a true finding set aside for volume is not silenced repository-wide; the hand mutant returning ScopeRepository for not-here turned four assertions of the test below red and was reverted.\n- internal/cli/triagetofit_test.go's TestADiscardForVolumeOnOnePullRequestStillRaisesOnAnother queues two comments on PR 13 against post.max_comments 1 with the draft header naming 2 comments queued, 1 over the cap, deletes f1's block and re-runs cr draft until the header reads 1 comment against the cap, asserts one not-here pull-request-scoped waiver, then merges the same finding on PR 13 as the control (dropped, 1) and on PR 14 of the same repository (0 dropped, 1 merged) and records it there in draft under the same content hash; dogfooded on a local scratch repository with a gh shim: after deleting f1's block, cr waivers list --pr 1 showed wp1 not-here pull-request and the repository scope listed none, cr merge on PR 2 reported merged 1 and waived dropped 0, cr record 2 stored f1 in draft with content_hash 92f405d89f4c52d5, the control merge on PR 1 reported dropped 1 naming wp1, and git status --porcelain was empty.\n- Out of scope, reported to the orchestrator rather than fixed: cr post does not block on post.max_comments at all; finding.CommentCapFor(...).Err() has no production caller, buildReview's doc comment claims the cap refusal happens before the gate, and on the scratch round cr post 1 without --confirm exited 0 with two comments while the draft header said 2 comments queued against post.max_comments 1, 1 over the cap.\n",
+      "gate_passed_at": "2026-09-13T01:19:07.918987Z",
+      "commit_sha": "3a6ef63",
+      "commit_shas": [
+        "3a6ef63"
+      ],
+      "commit_files": [
+        "internal/cli/triagetofit_test.go"
+      ]
     },
     {
       "id": "waiver-key",
@@ -8799,7 +8814,7 @@
     {
       "id": "record-after-pass-cell",
       "title": "Refuse a record that contradicts a pass cell",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cell-record-consistency"
@@ -8808,6 +8823,33 @@
       "acceptance": "- Found by cell-record-consistency (7922e85, 2026-09-13): cr cells record refuses a pass cell at a (unit, role) where the round already holds a record from that role on that unit, but the reverse order is unchecked, so a pass cell recorded first and a contradicting record recorded afterwards both stand and cr status reports a complete row over a unit a role raised a finding on.\n- cr record refuses, with exit 1 naming the record, the unit, the role and the cell, a record whose role and unit meet a pass cell of the current round, before anything is written, and the check reads the round's cells through the same round-scoped read cr status uses.\n- A test records a pass cell, then a record from that role on that unit, and asserts the refusal and that findings.ndjson is byte-identical afterwards.",
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
+      ],
+      "started_at": "2026-09-13T00:52:18.1653Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T01:00:44.323305Z",
+      "closed_reason": "- The gap cell-record-consistency (7922e85) left is closed: coverage.Decode's consistent check still refuses a pass cell recorded after a record from its role on its unit, and internal/cli/recordpass.go's refusePassedSeats now refuses the reverse order, a record recorded after a pass cell of its role on its unit, so the two orders can no longer leave a complete row with a clean verdict standing over a unit the role raised a finding on; the finding-cell direction stays unenforced exactly as TestAFindingCellWithNoSurvivingRecordIsAccepted pins, because the waiver and posted-index drops remove records and leave the cell behind.\n- cr record refuses such a record with a finding.RejectedRecordError, which exitCodeFor maps to exit 1 through its existing row and hint, whose message names the record id, the unit, the role and the pass cell of the round; refusePassedSeats reads the cells through state.ReadStamped[coverage.Cell] on state.FileCoverage for the round, the same round-scoped read roundCoverage gives cr status, and acceptRecords runs it immediately after refuseHeldIDs, so it sits before settleAnchors' tree reads, before dropRecorded's waiver and posted-index drops, and before appendRecords, the only write.\n- internal/cli/recordpass_test.go's TestARecordMeetingAPassCellOfItsRoleOnItsUnitIsRefused records f1 on u2, records a pass cell for correctness on u1 through cr cells record, then hands cr record a file of f2 on u2 and f3 on u1, and asserts exit 1, line 2, field role, the record, unit, role and cell named, and findings.ndjson byte-identical afterwards; TestARecordBesideAPassAtAnotherSeatOrAFindingCellIsAccepted keeps the seat the pair; the hand mutant flipping the pass comparison turned both red and was reverted; TestNoCommandTouchesTheRepositoryUnderReview's fixture cell now says finding because its own run records that role's record on that unit; dogfooded against a local scratch pull request with a gh shim, the record after a pass cell exited 1 with findings.ndjson and transitions.ndjson unchanged by shasum, and git status --porcelain in the scratch repository was empty.\n",
+      "gate_passed_at": "2026-09-13T01:00:44.323305Z",
+      "commit_sha": "20e510e",
+      "commit_shas": [
+        "20e510e"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/record.go",
+        "internal/cli/recordpass.go",
+        "internal/cli/recordpass_test.go"
+      ]
+    },
+    {
+      "id": "killed-probe-test-flake",
+      "title": "Make the killed-probe recreation tests deterministic",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- Measured 2026-09-12 and 2026-09-13 across three units: TestAKilledProbeLeavesASandboxTheNextRunRecreates failed once and TestAKilledGapProbeLeavesAFileTheNextRunRecreates failed three times in full internal/cli runs at load averages of about 3.9 to 4.5, and each passed when run alone; a gate that goes red at random teaches a unit to read a real failure as that flake.\n- The cause is established from what the failing run printed before any fix, and stated in the closure reason as a signature rather than a guessed mechanism; a fix that only lengthens a timeout or adds a retry is not accepted unless the measurement shows the wait is the legitimate duration of the operation.\n- Both tests pass 30 consecutive runs of go test -race -count=1 -run on those two names while another go test ./... runs in parallel to load the machine, and the closure reason quotes the pass count and the load average measured during it.",
+      "source_sections": [
+        "### 5.1 Sandbox"
       ],
       "started_at": null,
       "closed_at": null,
