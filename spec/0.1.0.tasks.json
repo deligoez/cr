@@ -8779,6 +8779,25 @@
         "internal/cli/record.go",
         "internal/cli/recorddrops.go"
       ]
+    },
+    {
+      "id": "record-after-pass-cell",
+      "title": "Refuse a record that contradicts a pass cell",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "cell-record-consistency"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- Found by cell-record-consistency (7922e85, 2026-09-13): cr cells record refuses a pass cell at a (unit, role) where the round already holds a record from that role on that unit, but the reverse order is unchecked, so a pass cell recorded first and a contradicting record recorded afterwards both stand and cr status reports a complete row over a unit a role raised a finding on.\n- cr record refuses, with exit 1 naming the record, the unit, the role and the cell, a record whose role and unit meet a pass cell of the current round, before anything is written, and the check reads the round's cells through the same round-scoped read cr status uses.\n- A test records a pass cell, then a record from that role on that unit, and asserts the refusal and that findings.ndjson is byte-identical afterwards.",
+      "source_sections": [
+        "### 4.5 Axis activation and honest reporting"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
