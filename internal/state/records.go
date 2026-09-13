@@ -169,6 +169,31 @@ func (e *ReservedFieldError) Error() string {
 	)
 }
 
+// MalformedLineError reports a line of the file a caller handed a recording
+// command that is not one JSON object, or that gives a field a value of the
+// wrong type. It carries the file and the line so the user can open it, and the
+// decode's own error, which says what is wrong there.
+//
+// It is the caller's input that is wrong, not cr's state: DecodeStamped reads
+// only the files an agent hands `cr record`, `cr merge`, `cr claims record`,
+// `cr map record` and `cr cells record`, while a line of cr's own stored file
+// that does not decode is refused through unusableLine as a file cr cannot use.
+// The cli layer maps this onto exit code 1.
+type MalformedLineError struct {
+	// File is the NDJSON file the caller handed the command.
+	File string
+	// Line is the one-based line that did not decode, counting blank lines.
+	Line int
+	// Err is the decode's refusal of the line.
+	Err error
+}
+
+func (e *MalformedLineError) Error() string {
+	return fmt.Sprintf("%s line %d: %v", e.File, e.Line, e.Err)
+}
+
+func (e *MalformedLineError) Unwrap() error { return e.Err }
+
 // stampFields are the two fields of §2.3.3, in the order it names them, so a
 // record supplying both is always reported by the same one.
 var stampFields = []string{"head", "round"}
@@ -207,7 +232,7 @@ func DecodeStamped[E any, T interface {
 			return nil, &RepeatedKeyError{File: file, Line: line.at, Key: repeated.Key}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", file, line.at, err)
+			return nil, &MalformedLineError{File: file, Line: line.at, Err: err}
 		}
 		for _, field := range stampFields {
 			if _, written := supplied[field]; written {
@@ -216,7 +241,7 @@ func DecodeStamped[E any, T interface {
 		}
 		record := T(new(E))
 		if err := json.Unmarshal(line.text, record); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", file, line.at, err)
+			return nil, &MalformedLineError{File: file, Line: line.at, Err: err}
 		}
 		if check != nil {
 			if err := check(line.at, supplied, record); err != nil {

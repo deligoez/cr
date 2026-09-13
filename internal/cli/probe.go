@@ -380,6 +380,10 @@ func mutationInput(request *probeRequest, patchFile, testFile, target string) er
 		return err
 	}
 	files, err := git.ParsePatch(string(body))
+	if malformed := (*git.MalformedPatchError)(nil); errors.As(err, &malformed) {
+		// ParsePatch never learns the file; §11.2's refusal names it.
+		malformed.File = patchFile
+	}
 	if err != nil {
 		return err
 	}
@@ -390,11 +394,10 @@ func mutationInput(request *probeRequest, patchFile, testFile, target string) er
 		// output, which is not a diff at all. cr's own reads pin
 		// `--no-ext-diff` for the same reason, and the agent writing
 		// the patch is outside that fence.
-		return fmt.Errorf(
-			"%s holds no hunk: §5.3.1's mutation is a unified diff against a sandbox file; "+
-				"if it came from `git diff`, re-run it with --no-ext-diff, "+
-				"which is what a configured diff.external replaces",
-			patchFile)
+		return &git.MalformedPatchError{File: patchFile, Problem: "holds no hunk: " +
+			"§5.3.1's mutation is a unified diff against a sandbox file; " +
+			"if it came from `git diff`, re-run it with --no-ext-diff, " +
+			"which is what a configured diff.external replaces"}
 	}
 	request.kind, request.patch, request.files = probe.Mutation, string(body), files
 	return nil

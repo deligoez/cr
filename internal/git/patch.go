@@ -48,6 +48,35 @@ type PatchHunk struct {
 	Body []string
 }
 
+// MalformedPatchError reports a patch that is not a unified diff cr can apply:
+// a line no hunk or file header can be, or a patch holding no hunk at all.
+//
+// ParsePatch reads a string and never learns where it came from, so it leaves
+// File empty; the caller that read the patch out of a file fills it in, as
+// state.RepeatedKeyError's caller fills in its file. The cli layer maps it onto
+// exit code 1: the file was found and read, and what is wrong is the data in it.
+type MalformedPatchError struct {
+	// File is the file the patch was read from, and empty until a caller
+	// that knows it says.
+	File string
+	// Line is the one-based line of the patch refused, and zero for a
+	// refusal about the patch as a whole.
+	Line int
+	// Problem says what is wrong there.
+	Problem string
+}
+
+func (e *MalformedPatchError) Error() string {
+	name := e.File
+	if name == "" {
+		name = "patch"
+	}
+	if e.Line == 0 {
+		return name + ": " + e.Problem
+	}
+	return fmt.Sprintf("%s line %d: %s", name, e.Line, e.Problem)
+}
+
 // ParsePatch reads a unified diff as something to apply.
 //
 // It is strict about the shape and forgiving about nothing. A patch cr is
@@ -89,8 +118,8 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 		}
 		if open {
 			if line == "" {
-				return nil, fmt.Errorf(
-					"patch line %d: a hunk holds no empty line, because a blank context line keeps its leading space", n+1)
+				return nil, &MalformedPatchError{Line: n + 1,
+					Problem: "a hunk holds no empty line, because a blank context line keeps its leading space"}
 			}
 			switch line[0] {
 			case ' ':
@@ -104,7 +133,7 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 				// belongs to neither version, so it consumes
 				// nothing.
 			default:
-				return nil, fmt.Errorf("patch line %d: %q is not a hunk line", n+1, line)
+				return nil, &MalformedPatchError{Line: n + 1, Problem: fmt.Sprintf("%q is not a hunk line", line)}
 			}
 			current.Body = append(current.Body, line)
 			continue
@@ -120,8 +149,8 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 				named = basePath
 			}
 			if named == "" {
-				return nil, fmt.Errorf(
-					"patch line %d: the file header names no path on either side", n+1)
+				return nil, &MalformedPatchError{Line: n + 1,
+					Problem: "the file header names no path on either side"}
 			}
 			files = append(files, PatchedFile{
 				Path: named, BasePath: basePath, HeadPath: headPath,
@@ -129,12 +158,12 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 			})
 		case strings.HasPrefix(line, "@@ "):
 			if len(files) == 0 {
-				return nil, fmt.Errorf(
-					"patch line %d: a hunk arrives before any --- and +++ file header", n+1)
+				return nil, &MalformedPatchError{Line: n + 1,
+					Problem: "a hunk arrives before any --- and +++ file header"}
 			}
 			fields := hunkHeader.FindStringSubmatch(line)
 			if fields == nil {
-				return nil, fmt.Errorf("patch line %d: %q is not a hunk header", n+1, line)
+				return nil, &MalformedPatchError{Line: n + 1, Problem: fmt.Sprintf("%q is not a hunk header", line)}
 			}
 			current = PatchHunk{
 				BaseStart: headerNumber(fields[1]),
@@ -144,7 +173,8 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 				Body:      make([]string, 0),
 			}
 			if current.BaseLines == 0 && current.HeadLines == 0 {
-				return nil, fmt.Errorf("patch line %d: %q covers no line on either side", n+1, line)
+				return nil, &MalformedPatchError{Line: n + 1,
+					Problem: fmt.Sprintf("%q covers no line on either side", line)}
 			}
 			baseLeft, headLeft = current.BaseLines, current.HeadLines
 			open = true
@@ -152,7 +182,7 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 	}
 	if open {
 		if baseLeft > 0 || headLeft > 0 {
-			return nil, fmt.Errorf("the patch ends inside a hunk")
+			return nil, &MalformedPatchError{Problem: "the patch ends inside a hunk"}
 		}
 		// The patch ended on the hunk's last line, which is the
 		// ordinary shape: a diff of one hunk stops there.
