@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T00:02:54.84265Z",
+  "updated_at": "2026-09-13T00:48:59.583323Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2631,7 +2631,7 @@
     {
       "id": "author-replies-as-candidates",
       "title": "Offer author replies as candidate notes",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "thread-suppression-recording"
@@ -2641,11 +2641,24 @@
       "source_sections": [
         "### 3.5 Existing threads"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:25:17.703566Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:36:04.938122Z",
+      "closed_reason": "- Author replies inside ingested threads are offered as candidate context notes per §3.6, per §3.5.5: gh.PullRequest now reads the pull request's author login (internal/gh/pr.go), and brief.candidateNotes (internal/brief/candidates.go) puts every reply that login wrote inside the ingested threads into the brief's candidate_notes, printed in JSON and in the terminal beside §3.7.5's threads and notes (internal/cli/brief.go); dogfooded, `cr brief` offered PRRC_92 by prauthor and not the colleague's opener.\n- They are offered, never written: each candidate carries `cr note \u003cKEY\u003e \"\u003ctext\u003e\" --source thread --pr \u003cn\u003e` as the way to record it, and the brief writes nothing to the context store; the dogfood run left $CR_HOME/context empty and notes [].\n- TestAnAuthorReplyIsOfferedAsACandidateNoteAndNoNoteIsWritten (internal/brief/candidates_test.go) asserts the author's reply appears as the one candidate and that no note file exists for the issue key; a hand mutant offering every reply turned it red.\n",
+      "gate_passed_at": "2026-09-13T00:36:04.938122Z",
+      "commit_sha": "9f7e2e9",
+      "commit_shas": [
+        "9f7e2e9"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/candidates.go",
+        "internal/brief/candidates_test.go",
+        "internal/cli/brief.go",
+        "internal/gh/pr.go",
+        "internal/gh/pr_test.go",
+        "internal/gh/testdata/pull-request.json"
+      ]
     },
     {
       "id": "note-command",
@@ -3157,7 +3170,7 @@
     {
       "id": "intent-gap-never-posted",
       "title": "Keep intent gaps out of findings",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "intent-gap-entries"
@@ -3167,11 +3180,18 @@
       "source_sections": [
         "### 4.1 Intent coverage"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:22:52.711074Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:34:49.719031Z",
+      "closed_reason": "- An unimplemented-claim entry never becomes a record in findings.ndjson and is never drafted or posted: intent-gaps.ndjson is read only by cr map record, cr claims set-aside and cr status, and TestOnlyTheMappingTheSetAsideAndStatusNameTheIntentGaps (internal/cli/intentgapposted_test.go) fences that set so no record, draft or payload writer can name the file; adding a reference in draft.go turned it red.\n- v0.1 has no unanchored comment channel per §1.6.1, per §4.1.3, so cr status is the only place an entry surfaces; dogfooded on a scratch PR, `cr status` listed {\"claim\":\"CR-1#c2\",\"round\":1,\"set_aside_note\":\"\"} while draft.md and the dry-run payload of `cr post` held zero occurrences of CR-1#c2 or its text.\n- The reviewer raises it with the author out of band and may record the answer as a note per §3.6: the test records `cr note CR-7 ... --source chat --pr 7` and asserts the note moves neither gap into the draft, the payload or findings.ndjson.\n- TestAnIntentGapReachesStatusAndNeverTheDraftOrThePayload asserts both gap entries reach cr status and that neither claim id nor claim text reaches draft.md, the payload cr post prints, or findings.ndjson.\n",
+      "gate_passed_at": "2026-09-13T00:34:49.719031Z",
+      "commit_sha": "a43f0dc",
+      "commit_shas": [
+        "a43f0dc"
+      ],
+      "commit_files": [
+        "internal/cli/intentgapposted_test.go"
+      ]
     },
     {
       "id": "intent-gap-derivation",
@@ -3738,7 +3758,7 @@
     {
       "id": "cell-record-consistency",
       "title": "Reject a pass cell contradicting records",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "cell-computed-fields"
@@ -3748,11 +3768,23 @@
       "source_sections": [
         "### 4.5 Axis activation and honest reporting"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:13:18.268488Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:33:34.364438Z",
+      "closed_reason": "- Round 8's cell-record-consistency-unchecked is closed by rejection: coverage.Decode's new consistent check (internal/coverage/cell.go) refuses a pass cell at a (unit, role) where the current round holds a record from that role on that unit with a RejectedCellError, exit code 1, naming the file line, the unit, the role and the record ids; cr cells record reads the round's records for it through roundFindingsOf (internal/cli/cells.go decodeCells, raisedSeats).\n- Without it a role could file a pass cell beside its own record on the unit and cr status would count a complete row; dogfooded on a scratch PR, a recorded question f1 on u1 from correctness made `cr cells record` refuse `{\"unit\":\"u1\",\"role\":\"correctness\",\"result\":\"pass\"}` with exit 1.\n- The consistent doc comment states this direction admits no legitimate exception, because a waiver drop per §6.4.4 and a posted-index drop per §9.3.6 can only remove records, never create them.\n- The same comment states the opposite direction is left unenforced deliberately: a finding cell with no surviving record is the expected outcome of §6.4.4 and §9.3.6, and TestAFindingCellWithNoSurvivingRecordIsAccepted pins that asymmetry.\n- TestAPassCellBesideARecordFromItsRoleOnItsUnitIsRefused (internal/cli/cellrecord_test.go) files a pass cell alongside a record from the same role on the same unit and asserts exit 1, the line, the field, both names and that nothing was written; a hand mutant disabling the check turned it red.\n",
+      "gate_passed_at": "2026-09-13T00:33:34.364438Z",
+      "commit_sha": "7922e85",
+      "commit_shas": [
+        "7922e85"
+      ],
+      "commit_files": [
+        "internal/cli/cellrecord_test.go",
+        "internal/cli/cells.go",
+        "internal/coverage/cell.go",
+        "internal/coverage/cell_test.go",
+        "internal/coverage/computed_test.go",
+        "internal/review/explained_test.go"
+      ]
     },
     {
       "id": "review-prompt-emission",
@@ -4031,7 +4063,7 @@
     {
       "id": "intent-unavailable-escape",
       "title": "Skip mapping when intent is unavailable",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mapping-stamp-on-meta",
@@ -4042,11 +4074,23 @@
       "source_sections": [
         "### 4.6 Review fan-out"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:36:08.753593Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:44:54.622195Z",
+      "closed_reason": "- When the intent axis is unavailable per §4.5.3 there is no intent role and no mapping to produce: a keyless round's active roles hold no intent role, and `cr review --axis intent` emits zero prompts (dogfooded on a keyless scratch PR: \"intent prompts: 0\").\n- cr map record is then neither required nor accepted: review.refuseWithoutMapping already let the remaining axes through, and refuseMapping (internal/cli/mapcmd.go) now refuses the command with mapping.NotAcceptedError, exit code 4 and a hint (row in internal/cli/exit.go), before any line is read or any stamp written; dogfooded, `cr map record 1 ... empty.ndjson` printed \"§4.6.6 accepts no mapping\" and exited 4.\n- The mapping is treated as empty: Round.IntentUnavailable (internal/review/emit.go, run.go) makes every prompt's claims section say the mapping is empty under §4.6.6 instead of asking for `cr map record`, and §4.1.2 and §4.1.3 raise no items: raise returns no unmapped-unit item for such a round even over a stale mapping stamp, and no intent-gap entry is derived because map record is the only derivation and it refuses.\n- An absent tracker is not an unmapped unit, per §4.6.6: cr status on the keyless scratch PR reported {'claims': 0, 'mapped': 0, 'gaps': [], 'set_aside': 0}.\n- TestAKeylessPullRequestRaisesNoUnmappedUnitAndNoIntentGap (internal/cli/keylessfanout_test.go) drives a keyless PR through cr brief, cr review, cr review --axis intent, a refused cr map record, cr cells record, a second cr review over a stale stamp and cr status, and asserts no prompt carries an unmapped-unit item, status lists no gap and intent-gaps.ndjson is empty; hand mutants disabling the refusal and the empty-mapping wording each turned it red.\n",
+      "gate_passed_at": "2026-09-13T00:44:54.622195Z",
+      "commit_sha": "10fd718",
+      "commit_shas": [
+        "10fd718"
+      ],
+      "commit_files": [
+        "internal/cli/keylessfanout_test.go",
+        "internal/cli/mapcmd.go",
+        "internal/mapping/mapping.go",
+        "internal/review/emit.go",
+        "internal/review/run.go",
+        "internal/review/text.go"
+      ]
     },
     {
       "id": "sandbox-create",
@@ -8361,7 +8405,7 @@
     {
       "id": "protected-token-force",
       "title": "Refuse a force-named setting the way argued and forcing are refused",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 10,
@@ -8369,11 +8413,19 @@
       "source_sections": [
         "## 2.7 Configuration layers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:44:58.470876Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:48:59.571107Z",
+      "closed_reason": "- config.protectedTokens (internal/config/config.go) now holds force beside argued and forcing, so CR_POST_FORCE_FINDINGS is refused by name: dogfooded, `CR_POST_FORCE_FINDINGS=1 cr config` printed \"\\\"CR_POST_FORCE_FINDINGS\\\" is not a setting: it addresses the argued forcing of §6.3\" and exited 3, and TestProtectedNamesAreRejected now carries post.force_findings from the environment and both config files.\n- It was inert before because fromEnv maps only known keys, and it stays so; the change closes the gap between the list and what its deny-list comment says about itself rather than any override that was reachable.\n- The list is no longer one synonym short: force is protected through the same checkProtected word scan, so the next reader testing the comment's claim finds the list agrees with it.\n- Adding force needed carriers entries for enforce, reinforce and workforce, added to config.carriers, and TestForceIsProtectedAndItsCarriersAreNot (internal/config/config_test.go) drives rules.enforce_min, intent.reinforce and stats.workforce through the environment, the global config and the per-repository config unrefused; hand mutants dropping the token or the workforce carrier each turned a test red.\n- Found by argued-forcing-unoverridable and implemented here as its own task, using the existing protected-token fence rather than a second one.\n",
+      "gate_passed_at": "2026-09-13T00:48:59.571107Z",
+      "commit_sha": "594b281",
+      "commit_shas": [
+        "594b281"
+      ],
+      "commit_files": [
+        "internal/config/config.go",
+        "internal/config/config_test.go"
+      ]
     },
     {
       "id": "symbol-index-clustering-wiring",
@@ -8674,7 +8726,7 @@
     {
       "id": "meta-writes-under-lock",
       "title": "Read meta.json under the lock that writes it",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "mapping-stamp-on-meta"
