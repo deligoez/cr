@@ -11,8 +11,14 @@ import "slices"
 // reaches the author and not only the reviewer's terminal. A body written for
 // the author in a language the author may not read reaches them no better than
 // a terminal they never see, so it is written in Setting's language like every
-// other author-facing body, and the set below says so where the renderer will
-// read it rather than in a sentence the renderer's author may never see.
+// other author-facing body, and the set below says so where the renderer reads
+// it rather than in a sentence the renderer's author may never see.
+//
+// The renderer reads it through AuthorFacing: every lookup of a built-in text
+// keyed by language asks its body first, and a body outside the set has no text
+// in any language. TestEveryLanguageKeyedTextIsReadThroughTheBodySet holds each
+// such lookup to that, so a third author-facing body cannot be rendered without
+// joining the set.
 //
 // The type is closed the way Lang is, and for the same reason: a body that is
 // not one of the two below is unrepresentable, so a third author-facing body
@@ -32,22 +38,12 @@ var (
 )
 
 // bodies is the closed set, in the order the spec reaches them: the comment
-// body of §8.1 before the review body of §8.4.
+// body of §8.1 before the review body of §8.4. Nothing outside this package can
+// reach it, so no caller can widen it or reorder it.
 var bodies = []Body{BodyComment, BodyReview}
-
-// String returns the body's name.
-func (b Body) String() string {
-	return b.name
-}
 
 // AuthorFacing reports whether b is one of the bodies Setting's language
 // governs. The zero Body is not.
 func (b Body) AuthorFacing() bool {
 	return slices.Contains(bodies, b)
-}
-
-// Bodies returns the set in spec order. The result is a copy, so a caller can
-// neither widen it nor reorder it.
-func Bodies() []Body {
-	return append(make([]Body, 0, len(bodies)), bodies...)
 }

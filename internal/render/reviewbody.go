@@ -143,7 +143,13 @@ func ReviewBody(
 // has a row for it. The zero Lang has none, which is the case lang.go's
 // enumeration exists to keep out of a renderer, so it is reported rather than
 // answered with a default.
+//
+// The table is the review body's, so BodyReview is asked first whether
+// Setting's language governs it, as QuestionLabel asks BodyComment.
 func reviewBodyOf(lang Lang) (reviewBodyText, bool) {
+	if !BodyReview.AuthorFacing() {
+		return reviewBodyText{}, false
+	}
 	for _, text := range reviewBodyTexts {
 		if text.lang == lang {
 			return text, true

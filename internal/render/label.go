@@ -51,7 +51,14 @@ var questionLabels = []questionLabel{
 // reached one has no built-in label to prepend — which is precisely the case
 // the enumeration of lang.go exists to keep out of the renderer, so it is
 // reported rather than papered over with a default.
+//
+// The table is the comment body's, so BodyComment is asked first whether
+// Setting's language governs it: a label is text of §8.1's body, and a body the
+// set does not name has none in any language.
 func QuestionLabel(lang Lang, grade finding.Grade) (string, bool) {
+	if !BodyComment.AuthorFacing() {
+		return "", false
+	}
 	for _, label := range questionLabels {
 		if label.lang == lang && label.grade == grade {
 			return label.text, true
