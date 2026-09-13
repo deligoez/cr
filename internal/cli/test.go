@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
@@ -295,19 +295,22 @@ func recreationNotice(ready *sandbox.Ready) []string {
 // lockProbe takes §5.6.1's advisory lock for the repository under review and
 // the round's profile, waiting up to `probe.lock_timeout_seconds`.
 //
-// repoDir is the checkout cr was run in, resolved to an absolute path. §5.6.1
-// names the lock after that path, and a relative one would name a different
-// lock for every directory the command happened to be invoked from — which is
-// the same repository sharing a test database with itself under two names.
+// repoDir is the directory cr was run in, and the lock is named after the root
+// of the repository it lies in, which git.Toplevel answers. §5.6.1 names the
+// lock after the absolute path of the repository under review, and the
+// directory itself would name a different lock for every directory the command
+// happened to be invoked from — audit round 5 took a second lock for
+// `<root>/internal` while the root's was held — which is the same repository
+// sharing a test database with itself under two names.
 //
 // The profile id comes from meta.json, for the reason the test command and
 // `cr sandbox create` both read it there: §3.7 makes `cr brief` its one writer,
 // and a run that re-selected a profile could take a different lock than the run
 // it is racing.
 func lockProbe(l state.Layout, owner, repo, repoDir, profileID string) (*state.ProbeLock, error) {
-	absolute, err := filepath.Abs(repoDir)
+	root, err := git.Toplevel(repoDir)
 	if err != nil {
-		return nil, fmt.Errorf("cannot resolve %s: %w", repoDir, err)
+		return nil, err
 	}
 	resolved, err := config.Resolve(config.Sources{
 		Environ:      os.Environ(),
@@ -318,7 +321,7 @@ func lockProbe(l state.Layout, owner, repo, repoDir, profileID string) (*state.P
 		return nil, err
 	}
 	wait := time.Duration(resolved.Int("probe.lock_timeout_seconds")) * time.Second
-	return l.LockProbe(absolute, profileID, wait)
+	return l.LockProbe(root, profileID, wait)
 }
 
 // recordRun stores §5.2.4's run record and returns the id it was given.
