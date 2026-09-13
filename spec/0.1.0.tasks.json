@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T12:00:52.147862Z",
+  "updated_at": "2026-09-13T12:18:42.962364Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9700,7 +9700,7 @@
     {
       "id": "reconcile-keeps-send-edits",
       "title": "Keep the send's edits when reconcile adopts",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 35,
@@ -9709,11 +9709,21 @@
         "### 8.4 Partial failure",
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T12:01:28.92934Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T12:18:42.94716Z",
+      "closed_reason": "- When cr post --reconcile adopts a review after an unknown-outcome send, every adopted record is now stored with the kind, grade, severity and anchor the send posted: internal/cli/posted.go's recordSentOutcomes writes those four values beside each outcome in posted.json before the call (post.Settlement in internal/post/review.go), and internal/cli/reconcile.go's adoptAsPosted calls settleAsSent first, writing them onto the round's records so waiveDiscards, writeAdopted (the storing path the confirmed send's markPosted uses) and recordPostTriage all draw on them, with no POST added and nothing changed on the successful send path, and the dogfood binary on a scratch repository with f2's severity medium to low and anchor 3-3 to 3-5 in draft.md left findings.ndjson identical after an unknown-outcome send plus reconcile to the one a successful cr post --confirm left, reading f2 posted low cited 3-5 content_hash 60a13b110252e635 PRRT_dogfood1, with one POST in each shim transcript.\n- The reconcile's outcome events carry those values because recordPostTriage reads the same settled records, and the dogfood triage.ndjson of both homes was identical with timestamps removed, f2 raised medium then kept low.\n- TestReconcileStoresTheRecordsAConfirmedSendStores in internal/cli/reconcileedits_test.go lowers f1's severity and moves its anchor in draft.md against a real checkout and has f2 regraded to argued and forced to a question at post time, settles one state root with a successful cr post --confirm and an identical one with a send whose gh shim exits 1 on the POST followed by cr post --reconcile, and asserts the stored records and the outcome events equal whole with At cleared, red at HEAD on severity, anchor and grade and red under six overlay mutants (no settleAsSent call, each of the four field assignments dropped, and severity left out of posted.json).\n",
+      "gate_passed_at": "2026-09-13T12:18:42.94716Z",
+      "commit_sha": "b0f0c80",
+      "commit_shas": [
+        "b0f0c80"
+      ],
+      "commit_files": [
+        "internal/cli/posted.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcileedits_test.go",
+        "internal/post/review.go"
+      ]
     }
   ]
 }
