@@ -41,6 +41,51 @@ func TestARecordAnchoredInOneUnitNamingAnotherIsRefused(t *testing.T) {
 	assert.Empty(t, stored, "a refused file stores none of its records")
 }
 
+// The binding holds for every record of a file, and a LEFT anchor ahead of the
+// forgery does not end the walk.
+//
+// A LEFT anchor is the one case that reads the round's diff, and gremlins found
+// that nothing asserted what happens after that read succeeds: negating the
+// guard on its error returned from the walk at the first LEFT record, so every
+// record after it went unmeasured. The first record here is a genuine LEFT
+// anchor on the base line the change rewrote, inside u1 through its hunk; the
+// second is the forgery of the test above, anchored in u1 and naming u2. It is
+// refused on its own line and field, which is what pins the refusal to the walk
+// reaching it rather than to anything about the first record.
+func TestAForgeryAfterALeftAnchorIsStillRefused(t *testing.T) {
+	layout := reviewedHome(t)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileUnits, []byte(
+		`{"id":"u1","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":7}],`+
+			`"head":"`+meta.Head+`","round":1}`+"\n"+
+			`{"id":"u2","path":"other.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":1}],`+
+			`"head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	anchored := func(id, unit, side string, line int) map[string]any {
+		record := aRecord(id, unit)
+		record["anchor"] = map[string]any{
+			"path": "lib.go", "side": side, "start_line": line, "line": line,
+			"content_hash": "0123456789abcdef",
+		}
+		return record
+	}
+	file := writeRecordFile(t, "merged.ndjson",
+		anchored("f1", "u1", "LEFT", 3), anchored("f2", "u2", "RIGHT", 4))
+
+	_, err = runRecord(t, fixturePR, file, "--repo", fixtureSlug)
+
+	var rejected *finding.RejectedRecordError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, 2, rejected.Line, "the refusal is the second record's")
+	assert.Equal(t, "anchor", rejected.Field)
+	assert.Contains(t, rejected.Problem, `unit "u2"`)
+	assert.Empty(t, storedFindings(t, layout), "a refused file stores none of its records")
+}
+
 // Containment of a whole anchor, in head coordinates, over every shape the
 // binding has to answer.
 //
