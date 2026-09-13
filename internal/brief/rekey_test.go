@@ -126,3 +126,22 @@ func TestARoundRecordsItsFirstKeyAndReBriefsUnderIt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, second.Round, third.Round)
 }
+
+// The refusal names the key that would have replaced the recorded one, and says
+// plainly when §3.2 resolved none. The subtests above reach both cases and read
+// neither sentence, so a refusal saying "no key at all" beside a key that did
+// resolve would send the reader to fix an `intent.key_pattern` that is not
+// broken, and one saying "resolved  from" would name nothing.
+func TestTheRefusalNamesTheResolvedKeyOrSaysThereIsNone(t *testing.T) {
+	refusal := &KeyRewriteError{
+		Owner: testOwner, Repo: testRepo, PR: testPR,
+		Recorded: testIssue, Pattern: `[A-Z]+-[0-9]+`, StateDir: "/state/pr",
+	}
+
+	refusal.Resolved = "OTHER-1"
+	assert.Contains(t, refusal.Error(), "§3.2 resolved OTHER-1 from")
+	assert.NotContains(t, refusal.Error(), "no key at all")
+
+	refusal.Resolved = ""
+	assert.Contains(t, refusal.Error(), "§3.2 resolved no key at all from")
+}
