@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T05:31:00.653126Z",
+  "updated_at": "2026-09-13T05:34:53.227485Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8938,6 +8938,25 @@
         "internal/cli/reconcile.go",
         "internal/cli/send.go"
       ]
+    },
+    {
+      "id": "record-id-refusal-names-next-free",
+      "title": "Name the next free id on refusal",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "finding-record-schema"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- When cr record refuses a record id that a stored record holds or that the file repeats, the refusal names the next free id computed by finding.NextID over every stored record and the file's records, so an agent renumbers without guessing which ids earlier rounds spent, per §6.1's id row.\n- finding.NextID has a caller outside tests, and deadcode ./... no longer lists it.\n- A test drives cr record with two records sharing f1 and with a round-2 record reusing a round-1 id, and asserts the named next free id in both refusals.",
+      "source_sections": [
+        "### 6.1 Record schema"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
