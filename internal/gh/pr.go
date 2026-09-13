@@ -38,6 +38,10 @@ type PullRequest struct {
 	// Base is that branch's commit, which §3.4.1's merge base is taken
 	// against.
 	Base string `json:"base"`
+	// Author is the login that opened the pull request, empty when the
+	// account is gone. §3.5.5 offers that login's replies inside the
+	// ingested threads as candidate context notes.
+	Author string `json:"author"`
 }
 
 // AnswerError reports a `gh api graphql` call that ran, returned zero, and
@@ -74,7 +78,7 @@ func (e *AnswerError) Error() string {
 const pullRequestQuery = `query($owner:String!,$repo:String!,$number:Int!){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$number){
-      number title body headRefName headRefOid baseRefName baseRefOid
+      number title body headRefName headRefOid baseRefName baseRefOid author{login}
     }
   }
 }`
@@ -88,6 +92,11 @@ type pullRequestNode struct {
 	HeadRefOid  string `json:"headRefOid"`
 	BaseRefName string `json:"baseRefName"`
 	BaseRefOid  string `json:"baseRefOid"`
+	// Author is null when the account that opened the pull request is
+	// gone, as a comment's is.
+	Author *struct {
+		Login string `json:"login"`
+	} `json:"author"`
 }
 
 // pullRequestResponse wraps that node the way the API answers it. The pull
@@ -139,7 +148,7 @@ func (c Client) PullRequest(owner, repo string, number int) (PullRequest, error)
 					"commits to take the diff", node.HeadRefOid, node.BaseRefOid),
 		}
 	}
-	return PullRequest{
+	opened := PullRequest{
 		Number:      node.Number,
 		Title:       node.Title,
 		Body:        node.Body,
@@ -147,5 +156,9 @@ func (c Client) PullRequest(owner, repo string, number int) (PullRequest, error)
 		Head:        node.HeadRefOid,
 		BaseRefName: node.BaseRefName,
 		Base:        node.BaseRefOid,
-	}, nil
+	}
+	if node.Author != nil {
+		opened.Author = node.Author.Login
+	}
+	return opened, nil
 }

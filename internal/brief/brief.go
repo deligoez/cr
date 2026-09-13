@@ -124,6 +124,10 @@ type Brief struct {
 	// §3.7.5: the ingested threads of §3.5 and the notes of §3.6.
 	Threads []gh.Thread `json:"threads"`
 	Notes   []note.Note `json:"notes"`
+	// CandidateNotes are §3.5.5's offer beside them: the pull request
+	// author's replies inside those threads, which a human may record as
+	// §3.6 notes and cr never does.
+	CandidateNotes []CandidateNote `json:"candidate_notes"`
 	// §3.7.6: the active, disabled, and unavailable axes with their
 	// reasons.
 	Axes activation.Activation `json:"axes"`
@@ -280,23 +284,24 @@ func assemble(src *Sources) (*Brief, error) {
 	}
 	axes := axesOf(&selection, resolved)
 	return &Brief{
-		Owner:       src.Owner,
-		Repo:        src.Repo,
-		PR:          src.PR,
-		Round:       round.index,
-		round:       round,
-		Head:        pr.Head,
-		MergeBase:   mergeBase,
-		Profile:     profileReport(&selection, src.Config.String("profile")),
-		Issue:       issueReport(resolved),
-		Claims:      claims,
-		Drift:       drift,
-		Units:       units,
-		Files:       files,
-		Threads:     threads,
-		Notes:       notes,
-		Axes:        axes,
-		ActiveRoles: axes.ActiveRoles(corpus, selection.Profile.ID),
+		Owner:          src.Owner,
+		Repo:           src.Repo,
+		PR:             src.PR,
+		Round:          round.index,
+		round:          round,
+		Head:           pr.Head,
+		MergeBase:      mergeBase,
+		Profile:        profileReport(&selection, src.Config.String("profile")),
+		Issue:          issueReport(resolved),
+		Claims:         claims,
+		Drift:          drift,
+		Units:          units,
+		Files:          files,
+		Threads:        threads,
+		Notes:          notes,
+		CandidateNotes: candidateNotes(threads, pr.Author, resolved.Key.Value, src.PR),
+		Axes:           axes,
+		ActiveRoles:    axes.ActiveRoles(corpus, selection.Profile.ID),
 	}, nil
 }
 

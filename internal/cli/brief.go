@@ -201,7 +201,9 @@ func oversized(flagged bool) string {
 //
 // A thread is printed with its author type and its anchor and with no class:
 // §3.5.3 forbids cr to assign one or to decide suppression, so what is shown is
-// where the thread hangs and who wrote it, and the agent decides the rest.
+// where the thread hangs and who wrote it, and the agent decides the rest. The
+// author's replies follow as §3.5.5's candidate notes, each with the command
+// that would record it, because recording one is a human's call and not cr's.
 func (r *briefResult) threadsAndNotes(w *writer, out *strings.Builder) {
 	fmt.Fprintf(out, "\n%s %d\n", w.accent("threads"), len(r.Threads))
 	for i := range r.Threads {
@@ -214,6 +216,13 @@ func (r *briefResult) threadsAndNotes(w *writer, out *strings.Builder) {
 	for i := range r.Notes {
 		fmt.Fprintf(out, "  %s  %s\n", r.Notes[i].ID, provenanceOf(&r.Notes[i]))
 		fmt.Fprintf(out, "    %s\n", r.Notes[i].Text)
+	}
+	fmt.Fprintf(out, "\n%s %d\n", w.accent("candidate notes"), len(r.CandidateNotes))
+	for i := range r.CandidateNotes {
+		offered := &r.CandidateNotes[i]
+		fmt.Fprintf(out, "  %s  reply %s by %s\n", offered.Thread, offered.Reply.ID, offered.Reply.Author)
+		fmt.Fprintf(out, "    %s\n", strings.TrimSpace(offered.Reply.Body))
+		fmt.Fprintf(out, "    record with: %s\n", offered.Record)
 	}
 }
 

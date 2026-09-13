@@ -27,6 +27,7 @@ func TestReadingAPullRequestAnswersTheIdentitySection371Prints(t *testing.T) {
 	assert.Equal(t, "5e6d7c8b9a807162534455667788990a1b2c3d4e", pr.Head)
 	assert.Equal(t, "main", pr.BaseRefName)
 	assert.Equal(t, "1f2e3d4c5b6a798071625344556677889900aabb", pr.Base)
+	assert.Equal(t, "octocat", pr.Author, "§3.5.5 needs the author to tell the author's replies apart")
 
 	require.Len(t, recorded.calls, 1)
 	owner, ok := field(recorded.calls[0], "owner")
