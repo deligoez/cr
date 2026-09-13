@@ -397,6 +397,13 @@ var codes = []mapped{
 	// §11.2 codes 4 beside the stale unit above.
 	{is[*review.MappingRequiredError](), ExitState,
 		"run the intent pass and record its mapping with `cr map record` first"},
+	// §4.6.6 is the other side of that refusal: a round whose intent axis
+	// is unavailable has no mapping to record, so `cr map record` is not
+	// accepted. The command line is right and the file may be well formed;
+	// what refuses is that the round resolved no issue key, which §11.2
+	// codes 4 beside it.
+	{is[*mapping.NotAcceptedError](), ExitState,
+		"record nothing: run `cr review <pr>`, or `cr brief <pr> --issue <KEY>` if the pull request has an issue"},
 	// §5.1.3 runs the commands the profile names, and cr has never heard of
 	// any of them. A refusal is therefore the external command failure
 	// §3.1.3 fixes the shape of — exit code 3 with the command's stderr
@@ -541,6 +548,12 @@ var codes = []mapped{
 	// §11.2 codes 1 rather than the 3 a malformed profile gets.
 	{is[*state.ReservedFieldError](), ExitValidation,
 		"drop the field the message names from that record; §6.1.4 has cr write it"},
+	// §11.1 makes `--repo` the override for repository detection, so a
+	// repository detection cannot name is answered by the flag. The command
+	// line lacked the one argument that would have settled it, which §11.2
+	// codes 2.
+	{is[*RepositoryDetectionError](), ExitUsage,
+		"run cr inside a clone whose one remote is its GitHub repository, or pass --repo <owner/repo>"},
 	// A file cr had to read, write or use and could not: an input the
 	// caller named, a file of §2.2's tree a command required, or a §2.3
 	// write that did not land. §11.2 codes all three 3.

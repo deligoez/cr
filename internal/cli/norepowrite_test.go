@@ -350,6 +350,7 @@ var gitReads = map[string]string{
 	"rev-parse":  "§5.1.6's check that the sandbox HEAD is still the round's head",
 	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked",
 	"check-attr": "§3.4.7's question of whether the head declares a file generated",
+	"remote":     "§11.1's repository detection, which reads `git remote -v` and nothing else",
 }
 
 // gitSourceFiles parses internal/git's own source, tests excluded.
@@ -564,10 +565,10 @@ func TestEveryGitSubcommandCrRunsIsARead(t *testing.T) {
 		"§2.2: cr must not modify the repository's tracked files, index, HEAD, stash, or any branch")
 }
 
-// The pull request the fixture repository stands in for. Nothing resolves it —
-// cr does not detect a repository yet — so it is named on the command line and
-// its §2.3 state is prepared under CR_HOME, which is where every command that
-// takes a `--repo` looks.
+// The pull request the fixture repository stands in for. The fixture checkout
+// declares no remote, so §11.1's detection has nothing to read and the
+// repository is named on the command line; its §2.3 state is prepared under
+// CR_HOME, which is where every command that takes a `--repo` looks.
 const (
 	fixtureOwner    = "octocat"
 	fixtureProject  = "hello"

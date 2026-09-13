@@ -192,6 +192,10 @@ func TestAnswerRefusesWithTheCodeItsCauseCarries(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			// A checkout with no remote, so the row that names no
+			// repository meets §11.1's detection refusing rather than
+			// whatever remote the test binary's working directory has.
+			checkoutWithRemotes(t)
 			var layout state.Layout
 			if refusal.briefed {
 				layout = briefedHome(t, refusal.issueKey)
