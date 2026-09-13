@@ -241,6 +241,11 @@ func TestEveryPromptNamesItsOutputAndStatesTheRecordContract(t *testing.T) {
 		}
 		assert.Contains(t, prompt.Text, "You may not write axis, grade, state, disposition, duplicate_of, "+
 			"thread_id, span_hash, issue_hash, a citation's content_hash, a citation's origin, round, head.")
+		// §6.1.1's language rule is a whole line of the contract, so a
+		// prompt stating it only in passing, or not at all, fails here.
+		assert.Contains(t, prompt.Text, "\nWrite summary and evidence in English (§6.1.1), whatever language "+
+			"the issue, the threads or the code comments are in; reader-facing prose is produced from them "+
+			"at draft time (§8.1).\n")
 
 		claims := strings.Contains(prompt.Text, "## Claim record (§3.3)")
 		assert.Equal(t, prompt.Axis == axis.Intent, claims, "%s on %s", prompt.Role, prompt.Unit)

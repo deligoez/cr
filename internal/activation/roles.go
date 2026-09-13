@@ -28,8 +28,8 @@ import (
 // profileID is the resolved profile of §2.4, empty for §2.4.4's repository
 // where none matched. An empty id matches no `profiles` entry, which is the
 // answer that falls out rather than one written here: a role scoped to a
-// profile cannot be active where there is no profile to scope it to, and every
-// axis is off in that state anyway.
+// profile cannot be active where there is no profile to scope it to, while a role
+// with an empty list on an axis Unprofiled leaves running still looks.
 func (a Activation) ActiveRoles(corpus []role.Resolved, profileID string) []string {
 	active := make([]string, 0, len(corpus))
 	for i := range corpus {

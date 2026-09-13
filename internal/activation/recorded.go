@@ -1,6 +1,9 @@
 package activation
 
 import (
+	"slices"
+
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/profile"
 )
@@ -15,11 +18,9 @@ import (
 // have moved since the round was opened; an axis decision drawn from them would
 // be a decision about a round nobody opened.
 //
-// §2.4.4's repository is answered here and not by a second caller. Activate
-// requires a resolved profile, so a round opened where none matched has no axis
-// decision to re-derive and what is still true is §4.5.3 alone — and two
-// readers answering that case for themselves is two ways for `cr review` and
-// `cr status` to disagree with `cr brief` about which axes looked.
+// §2.4.4's repository is answered by Unprofiled, the one answer `cr brief` gives
+// it too, so `cr review` and `cr status` cannot disagree with the brief about
+// which axes looked.
 //
 // profileID is taken beside p because they answer different questions: p is the
 // profile as it loads today, and profileID is whether the round resolved one at
@@ -30,13 +31,42 @@ func OfRound(p *profile.Profile, profileID, issueKey, keyPattern string) Activat
 	if profileID != "" {
 		return Activate(p, recorded)
 	}
-	axes := Activation{
-		Active:      []string{},
-		Disabled:    []Disabled{},
-		Unavailable: []intent.Unavailable{},
+	return Unprofiled(recorded)
+}
+
+// Unprofiled applies §4.5.1 to §4.5.3 to §2.4.4's repository, where no profile
+// matched: "disable every axis that requires one, rather than guessing".
+//
+// Which axes require one is profile.Unmatched's list, read rather than restated,
+// so the §2.4.4 report and the axes it describes are one answer. Every axis that
+// list does not name still runs: the intent axis turns on an issue key, which
+// §4.5.3 still asks for, and correctness and convention ask a profile for
+// nothing — convention loses only its reinvention half, which §4.5.4 reports as
+// a half rather than as an axis. Reporting those as not run would be the guess
+// §2.4.4 forbids, aimed at the review instead of at the language.
+func Unprofiled(i intent.Intent) Activation {
+	missing := profile.Unmatched()
+	ids := axis.IDs()
+	a := Activation{
+		Active:      make([]string, 0, len(ids)),
+		Disabled:    make([]Disabled, 0, len(ids)),
+		Unavailable: make([]intent.Unavailable, 0, len(ids)),
 	}
-	if unavailable, marked := recorded.Unavailability(); marked {
-		axes.Unavailable = append(axes.Unavailable, unavailable)
+	unavailable, marked := i.Unavailability()
+	for _, id := range ids {
+		switch {
+		case id == axis.Intent && marked:
+			a.Unavailable = append(a.Unavailable, unavailable)
+		case slices.Contains(missing.Disabled, id):
+			a.Disabled = append(a.Disabled, Disabled{
+				Axis: id,
+				Rule: RuleNoTestCommand,
+				Reason: "no profile matched this repository, so no tests.cmd is declared for this axis to run; " +
+					"set `profile` in the per-repository config to name the profile this repository is",
+			})
+		default:
+			a.Active = append(a.Active, id)
+		}
 	}
-	return axes
+	return a
 }

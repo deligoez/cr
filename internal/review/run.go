@@ -8,6 +8,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
@@ -73,9 +74,10 @@ type Fanout struct {
 	// Prompts are §4.6.1's prompts, in emission order.
 	Prompts []Prompt `json:"prompts"`
 	// Honesty is §4.5.4's report of every lens that did not run this
-	// round — the halves of §4.3.1 and §4.4.1, and §4.6.4's skipped roles
-	// — rendered as the sentences §11.1 exempts from `--quiet`. It is
-	// empty, and never nil, when every lens looked.
+	// round — the disabled and unavailable axes, the halves of §4.3.1 and
+	// §4.4.1, and §4.6.4's skipped roles — rendered as the sentences §11.1
+	// exempts from `--quiet`. It is empty, and never nil, when every lens
+	// looked.
 	//
 	// It holds the same kinds `cr status` puts in its own `honesty`,
 	// because the two are one channel: a reader parsing that array is
@@ -210,14 +212,14 @@ func Run(src *Sources) (*Fanout, error) {
 	if err := r.fanOut(src); err != nil {
 		return nil, err
 	}
-	skipped, err := skippedOf(src, axes, &meta)
+	lenses, err := lensesOf(src, axes, halves, &meta)
 	if err != nil {
 		return nil, err
 	}
 	return &Fanout{
 		Round: r.Round, Head: r.Head, Prompts: Emit(r),
-		Honesty:  sentences(coverage.Lenses{Halves: halves, Roles: skipped}),
-		Expected: coverage.Expect(unitIDs(r.Units), r.Active), Skipped: skipped,
+		Honesty:  sentences(lenses),
+		Expected: coverage.Expect(unitIDs(r.Units), r.Active), Skipped: lenses.Roles,
 	}, nil
 }
 
@@ -274,27 +276,26 @@ func refuseWithoutMapping(src *Sources, r *Round, axes activation.Activation) er
 	}
 }
 
-// skippedOf is §4.6.4's report for this round, derived where `cr status`
-// derives its own.
+// lensesOf is §4.5.4's report for this round, assembled by the constructor
+// `cr status` assembles its own with.
 //
-// coverage.Skipped is the one derivation and internal/activation answers the
-// axis half, so the roles this reports and the roles §10.1.3 reports are one
-// answer to one question. Two derivations would each be internally consistent
-// and could still name different sets, and a reader has no way to see that from
-// either command alone.
+// coverage.RoundLenses is the one assembly, so the axes, halves and roles this
+// reports and the ones §10.1.3 reports are one answer to one question. Two
+// assemblies would each be internally consistent and could still carry
+// different kinds, and a reader has no way to see that from either command alone.
 //
 // The activation is gate's, taken as an argument rather than re-derived here,
 // so the axes §4.6.5's refusal was decided against and the axes this report is
 // written from are one answer. The active role set is meta.json's rather than a
 // recomputation, for the reason coverage.Skipped gives.
-func skippedOf(
-	src *Sources, axes activation.Activation, meta *state.Meta,
-) ([]coverage.SkippedRole, error) {
+func lensesOf(
+	src *Sources, axes activation.Activation, halves []finding.HonestyDisclosure, meta *state.Meta,
+) (coverage.Lenses, error) {
 	corpus, err := role.Resolve(src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
 	if err != nil {
-		return nil, err
+		return coverage.Lenses{}, err
 	}
-	return coverage.Skipped(axes, corpus, meta.ActiveRoles, meta.ProfileID), nil
+	return coverage.RoundLenses(axes, halves, corpus, meta.ActiveRoles, meta.ProfileID), nil
 }
 
 // sentences renders §4.5.4's report as the lines §11.1 exempts from `--quiet`.

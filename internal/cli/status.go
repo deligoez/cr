@@ -464,11 +464,7 @@ func lensesOf(
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
 	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, resolved.String(intentKeyPattern))
-	return axes, coverage.Lenses{
-		Axes:   axes.Disclosures(),
-		Halves: halves,
-		Roles:  coverage.Skipped(axes, corpus, round.ActiveRoles, round.ProfileID),
-	}, nil
+	return axes, coverage.RoundLenses(axes, halves, corpus, round.ActiveRoles, round.ProfileID), nil
 }
 
 // intentKeyPattern is §3.2's `intent.key_pattern`, by the key §2.7's table

@@ -63,10 +63,18 @@ func (s *Selection) Missing() (MissingProfile, bool) {
 	if s.Selected || len(s.Tied) > 0 {
 		return MissingProfile{Disabled: []string{}, Unavailable: []string{}}, false
 	}
+	return Unmatched(), true
+}
+
+// Unmatched is §2.4.4's report on its own, for a reader that holds no Selection:
+// a round whose meta.json recorded no profile is the same repository Missing
+// reports on, and answering it from a second list would let `cr review` and
+// `cr status` name different lenses than `cr brief` did.
+func Unmatched() MissingProfile {
 	return MissingProfile{
 		Disabled:    []string{axis.Test},
 		Unavailable: []string{ReinventionLens},
-	}, true
+	}
 }
 
 // Disclosure is the §11.1 honesty disclosure of §2.4.4, and satisfies the

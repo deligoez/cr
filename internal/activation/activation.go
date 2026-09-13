@@ -133,9 +133,9 @@ func (a Activation) Disclosures() []finding.HonestyDisclosure {
 // Activate applies §4.5.1 to §4.5.3 over the four axes of §1.5.
 //
 // p is the resolved profile of §2.4 and must not be nil. The repository no
-// profile matched is §2.4.4's state, and profile.Selection.Missing already
-// reports it — deriving a second answer here would give one run two reports that
-// can disagree about which axes looked.
+// profile matched is §2.4.4's state and Unprofiled's to answer: the empty
+// profile would read every axis as not enabled by §4.5.1, when §2.4.4 disables
+// only the axes that require a profile.
 //
 // i is the round's §3.2 resolution. Whether the intent axis is unavailable is
 // asked of it rather than recomputed, so there is no Intent carrying issue text

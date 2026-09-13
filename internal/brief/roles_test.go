@@ -24,8 +24,8 @@ const noThreads = `{"data":{"repository":{"pullRequest":{"reviewThreads":{` +
 // profiled is repository() with the marker file §2.4.1 selects `laravel-pest`
 // by, so a round runs with a profile resolved and every axis of §1.5 enabled.
 // The fixture the other tests share carries no marker at all, which is §2.4.4's
-// repository — a state where no axis runs and therefore no role is active,
-// which would let a broken definition pass by returning nothing.
+// repository — a state where the test axis is off and test-adequacy with it,
+// which would let a definition that dropped that role pass unnoticed.
 func profiled(t *testing.T) (dir, head, base string) {
 	t.Helper()
 	dir, _, base = repository(t)

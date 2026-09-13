@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -243,15 +244,30 @@ func TestNotesAreLoadedForTheResolvedKeyAndForNoKeyAtAll(t *testing.T) {
 		assert.Equal(t, axis.Intent, assembled.Axes.Unavailable[0].Axis)
 
 		// The fixture repository carries no marker file, so §2.4.4
-		// applies as well, and its report is the second disclosure.
-		// The two are separate on purpose: activation.Activate is asked
-		// only when a profile was resolved, so profile.MissingProfile
-		// is what speaks for the repository no profile matched.
+		// applies as well: the test axis is off and the axes that need no
+		// profile still run. The report lists the unavailable intent axis,
+		// §2.4.4's situation, and then each role that does not look,
+		// reusing the axis sentence that decided it.
 		assert.False(t, assembled.Profile.Selected)
 		require.NotNil(t, assembled.Profile.Missing)
-		disclosed := assembled.Disclosures()
-		require.Len(t, disclosed, 2)
-		assert.Contains(t, disclosed[0].Disclosure(), "§4.5.3")
-		assert.Contains(t, disclosed[1].Disclosure(), "no profile matched this repository")
+		assert.Equal(t, []string{axis.Correctness, axis.Convention}, assembled.Axes.Active)
+		assert.Equal(t, []string{"convention", "correctness"}, assembled.ActiveRoles)
+		intentOut := assembled.Axes.Unavailable[0].Disclosure()
+		assert.Equal(t, []string{
+			intentOut,
+			profile.Unmatched().Disclosure(),
+			"role intent-coverage skipped, per §4.6.4: " + intentOut,
+			"role test-adequacy skipped, per §4.6.4: " + assembled.Axes.Disabled[0].Disclosure(),
+		}, rendered(assembled))
 	})
+}
+
+// rendered is a brief's disclosures as the sentences a reader is shown.
+func rendered(b *Brief) []string {
+	disclosed := b.Disclosures()
+	out := make([]string, 0, len(disclosed))
+	for _, entry := range disclosed {
+		out = append(out, entry.Disclosure())
+	}
+	return out
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/deligoez/cr/internal/activation"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
@@ -148,22 +149,41 @@ type Brief struct {
 	// second time from meta.json — is the second read of the round
 	// §9.3.1's door does not admit.
 	round roundState
+	// skipped is §4.6.4's report over the same corpus and the same axis
+	// decision ActiveRoles was taken from: every role that does not look this
+	// round, with its reason. It reaches the reader through Disclosures and is
+	// unexported for the reason round is: §3.7 names no such item, and
+	// `cr review` and `cr status` carry it typed.
+	skipped []coverage.SkippedRole
 }
 
 // Disclosures collects §3.7.6's report as the disclosure contract §11.1 exempts
 // from `--quiet`, so the writer that holds the exemption is handed one slice and
 // cannot forget a category.
 //
-// §2.4.4's report comes last and separately because it is not an axis report.
-// activation.Activate is only asked when a profile was resolved — its own
-// documentation says deriving a second answer for the repository no profile
-// matched would give one run two reports that can disagree — so when nothing
-// matched, profile.MissingProfile is the report, and the intent axis's own
-// unavailability is added to Axes beside it.
+// The order is §4.5.4's: the axes that did not run, then §2.4.4's report, which
+// names the situation and is the only place a brief reports the reinvention half
+// of §4.3.1, then the roles that do not look. An axis §2.4.4's report already
+// names as disabled is left out of the axis entries, because
+// activation.Unprofiled disabled it for that one cause and the reader would
+// otherwise be told it twice.
 func (b *Brief) Disclosures() []finding.HonestyDisclosure {
-	out := b.Axes.Disclosures()
-	if b.Profile.Missing != nil {
-		out = append(out, *b.Profile.Missing)
+	missing := b.Profile.Missing
+	out := make([]finding.HonestyDisclosure, 0,
+		len(b.Axes.Disabled)+len(b.Axes.Unavailable)+1+len(b.skipped))
+	for _, d := range b.Axes.Disabled {
+		if missing == nil || !slices.Contains(missing.Disabled, d.Axis) {
+			out = append(out, d)
+		}
+	}
+	for _, u := range b.Axes.Unavailable {
+		out = append(out, u)
+	}
+	if missing != nil {
+		out = append(out, *missing)
+	}
+	for _, s := range b.skipped {
+		out = append(out, s)
 	}
 	return out
 }
@@ -283,6 +303,7 @@ func assemble(src *Sources) (*Brief, error) {
 		return nil, err
 	}
 	axes := axesOf(&selection, resolved)
+	active := axes.ActiveRoles(corpus, selection.Profile.ID)
 	return &Brief{
 		Owner:          src.Owner,
 		Repo:           src.Repo,
@@ -301,7 +322,8 @@ func assemble(src *Sources) (*Brief, error) {
 		Notes:          notes,
 		CandidateNotes: candidateNotes(threads, pr.Author, resolved.Key.Value, src.PR),
 		Axes:           axes,
-		ActiveRoles:    axes.ActiveRoles(corpus, selection.Profile.ID),
+		ActiveRoles:    active,
+		skipped:        coverage.Skipped(axes, corpus, active, selection.Profile.ID),
 	}, nil
 }
 
@@ -525,21 +547,13 @@ func issueReport(resolved intent.Intent) IssueReport {
 // axesOf answers §3.7.6.
 //
 // activation.Activate is asked only when a profile was resolved, because that
-// is what its own contract requires: §2.4.4's repository is profile.Selection's
-// to report, and a second answer derived here could disagree with it about
-// which axes looked. What is still true with no profile is §4.5.3, so the
-// intent axis's unavailability is carried whichever branch runs.
+// is what its own contract requires. §2.4.4's repository is
+// activation.Unprofiled's, which `cr review` and `cr status` reach through
+// activation.OfRound too, so the three commands give that repository one answer:
+// the axes that require a profile disabled, and every other axis still running.
 func axesOf(selection *profile.Selection, resolved intent.Intent) activation.Activation {
 	if selection.Selected {
 		return activation.Activate(&selection.Profile, resolved)
 	}
-	axes := activation.Activation{
-		Active:      []string{},
-		Disabled:    []activation.Disabled{},
-		Unavailable: []intent.Unavailable{},
-	}
-	if unavailable, marked := resolved.Unavailability(); marked {
-		axes.Unavailable = append(axes.Unavailable, unavailable)
-	}
-	return axes
+	return activation.Unprofiled(resolved)
 }

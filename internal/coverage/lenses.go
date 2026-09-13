@@ -1,6 +1,10 @@
 package coverage
 
-import "github.com/deligoez/cr/internal/finding"
+import (
+	"github.com/deligoez/cr/internal/activation"
+	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/role"
+)
 
 // SkippedRole is §4.6.4's entry in §4.5.4's report: a role whose prerequisites
 // were unmet, named together with the reason it could not look.
@@ -55,6 +59,25 @@ type Lenses struct {
 	Halves []finding.HonestyDisclosure
 	// Roles holds §4.6.4's skipped roles.
 	Roles []SkippedRole
+}
+
+// RoundLenses assembles §4.5.4's report for one round out of its three
+// producers: the axis activation, the halves that could not run, and the corpus
+// against meta.json's recorded active roles, from which §4.6.4's skipped roles
+// are derived.
+//
+// It is the one constructor `cr review` and `cr status` both call, so neither
+// can carry a kind the other drops — which is how `cr review` once stated the
+// halves and the roles and left a disabled or unavailable axis unsaid.
+func RoundLenses(
+	axes activation.Activation, halves []finding.HonestyDisclosure,
+	corpus []role.Resolved, active []string, profileID string,
+) Lenses {
+	return Lenses{
+		Axes:   axes.Disclosures(),
+		Halves: halves,
+		Roles:  Skipped(axes, corpus, active, profileID),
+	}
 }
 
 // Disclosures collects the four kinds in the order §4.5.4 names them: the

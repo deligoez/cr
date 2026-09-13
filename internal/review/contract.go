@@ -64,6 +64,12 @@ func contract(p *page, lens *role.Role, output string) {
 		p.line("- %s: %s", field.Name, findingWords[field.Requirement])
 	}
 	p.line("")
+	// §6.1.1 is a MUST cr cannot check, since reading a language is a
+	// judgement and cr forms none; the prompt is the only place it can be
+	// stated to the one writing the record.
+	p.line("Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
+		"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1).")
+	p.line("")
 	p.line("You may not write %s. cr computes or stamps them, and a record arriving with one is "+
 		"rejected with exit code 1 (§6.1.4, §2.3.3).", strings.Join(forbidden(), ", "))
 }
