@@ -6,6 +6,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/probe"
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -78,15 +79,16 @@ func readProbes(l state.Layout, owner, repo string, pr int, into map[string]*pro
 }
 
 // readNoteClaims fills into the note behind every claim of the round drawn
-// from the context store whose note still stands, with the source the store
-// records for that note.
+// from the context store, with the source the store records for that note and
+// whether it still stands.
 //
-// The notes are the issue key's, as §3.6.4 loads them. A claim whose note was
-// retracted, or whose note the store no longer holds, is left out, so §8.1.6's
-// region never names a note id that no longer resolves to a standing note:
-// note.Standing.Stands is the one predicate both the region and the register
-// read, and a record resting on such a claim is held as a question by
-// withdrawnClaims' caller and reported under §3.6.6 instead.
+// The notes are the issue key's, as §3.6.4 loads them. §8.1.6 names the note
+// behind every such claim with no exception for a withdrawn one, so a claim
+// whose note was retracted keeps its note and source marked retracted, and a
+// claim whose note the store no longer holds keeps its note id marked missing,
+// with no source to name. The register is withdrawnClaims' business: a record
+// resting on either is held as a question and reported under §3.6.6, and the
+// region beside it says why.
 func readNoteClaims(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, into map[string]draft.NoteClaim,
 ) error {
@@ -95,10 +97,14 @@ func readNoteClaims(
 		return err
 	}
 	for i := range claims {
-		held, found := note.Find(notes, claims[i].NoteID)
-		if found && held.Standing().Stands() {
-			into[claims[i].ID] = draft.NoteClaim{Note: held.ID, Source: string(held.Source)}
+		rests := draft.NoteClaim{Note: claims[i].NoteID, Standing: render.NoteMissing}
+		if held, found := note.Find(notes, claims[i].NoteID); found {
+			rests.Source, rests.Standing = string(held.Source), render.NoteStands
+			if held.Retracted() {
+				rests.Standing = render.NoteRetracted
+			}
 		}
+		into[claims[i].ID] = rests
 	}
 	return nil
 }

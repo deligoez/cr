@@ -20,11 +20,12 @@ type Provenance struct {
 	Suggestion bool
 	// Claim is the second: the id of the claim with `source: note` the
 	// record rests on, and Note and NoteSource the note it came from and
-	// that note's §3.6.3 source. NoteSource is empty when the context store
-	// no longer holds the note.
-	Claim      string
-	Note       string
-	NoteSource string
+	// that note's §3.6.3 source. NoteStanding is whether that note still
+	// stands, and NoteSource is empty when it is NoteMissing.
+	Claim        string
+	Note         string
+	NoteSource   string
+	NoteStanding NoteStanding
 	// Rule is the third: the rule id a stored citation's `origin: rule`
 	// was matched against, and Rationale that rule's `rationale` per §2.6
 	// item 4. draft refuses a rule-origin record whose rationale the corpus
@@ -41,7 +42,8 @@ type Provenance struct {
 // stored it, so the author checks the disclosure against the state rather
 // than against a phrasing cr chose, and nothing in it is prose cr composed —
 // which is also what lets it stand in a body `render.lang` governs. A value
-// that is absent contributes no line rather than a line saying so.
+// that is absent contributes no line rather than a line saying so, with one
+// exception noteLine gives: a note that no longer stands.
 //
 // Being cr-owned, the region is generated from the record and never read back:
 // AgentRegion discards whatever stands between its pair. So a value carrying
@@ -56,12 +58,7 @@ func ProvenanceRegion(record string, p *Provenance) (string, error) {
 		lines = append(lines, "suggestion_origin: rule")
 	}
 	if p.Claim != "" {
-		lines = append(lines, "claim: "+p.Claim+" (source: note)")
-		note := "note: " + p.Note
-		if p.NoteSource != "" {
-			note += " (source: " + p.NoteSource + ")"
-		}
-		lines = append(lines, note)
+		lines = append(lines, "claim: "+p.Claim+" (source: note)", noteLine(p))
 	}
 	if p.Rule != "" {
 		lines = append(lines, "rule: "+p.Rule)
@@ -79,4 +76,36 @@ func ProvenanceRegion(record string, p *Provenance) (string, error) {
 				"cr's own delimiters; edit the rule's rationale", Reserved)}
 	}
 	return provenanceRegion.wrap(content), nil
+}
+
+// NoteStanding is whether the note a record's claim rests on still stands when
+// the region is rendered. §3.6.6 can withdraw it after `cr record`, and §8.1.6
+// names the note all the same, so the region says which way it went.
+type NoteStanding int
+
+const (
+	// NoteStands is a note the context store holds and nobody has retracted.
+	NoteStands NoteStanding = iota
+	// NoteRetracted is a note §3.6.6 retracted. The store still holds it,
+	// source and all.
+	NoteRetracted
+	// NoteMissing is a note id the store holds no note for, so there is no
+	// source to name.
+	NoteMissing
+)
+
+// noteLine is the region's line for the note behind a note-sourced claim: the
+// id and §3.6.3's source, and for a note that no longer stands a fixed phrase
+// saying why, rather than no source — a reader who looks the id up must not
+// find a withdrawn note the region presented as standing, and a note the store
+// does not hold has no source cr could name.
+func noteLine(p *Provenance) string {
+	switch p.NoteStanding {
+	case NoteRetracted:
+		return "note: " + p.Note + " (source: " + p.NoteSource + "; retracted)"
+	case NoteMissing:
+		return "note: " + p.Note + " (not in the context store, so its source is unknown)"
+	default:
+		return "note: " + p.Note + " (source: " + p.NoteSource + ")"
+	}
 }

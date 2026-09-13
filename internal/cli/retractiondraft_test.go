@@ -61,47 +61,63 @@ func storedRecord(t *testing.T, layout state.Layout, id string) finding.Finding 
 	return finding.Finding{}
 }
 
-// §3.6.6 and round 9's retracted-provenance-still-posts through the commands:
-// `cr record` stores f1 on a claim drawn from a note, the note is then withdrawn
-// in the same round — retracted through `cr note --remove`, or gone from the
-// store — and `cr post`, run before any redraft, builds f1 as a question with
-// no provenance region naming the note, so the assertion cannot be sent. `cr
-// draft` then holds f1 as a question, reports the forcing in its payload and in
-// summary.json, and emits no region naming the note either.
+// §3.6.6, §8.1.6 and round 9's retracted-provenance-still-posts through the
+// commands: `cr record` stores f1 on a claim drawn from a note, the note is then
+// withdrawn in the same round — retracted through `cr note --remove`, or gone
+// from the store — and `cr post`, run before any redraft, builds f1 as a
+// question, so the assertion cannot be sent. `cr draft` then holds f1 as a
+// question and reports the forcing in its payload and in summary.json.
+//
+// Audit round 2's list-41-6: §8.1.6 makes no exception for a withdrawn note, so
+// both the posted body and the draft still carry the provenance region naming
+// the note, and the region says how it was withdrawn — retracted with its
+// source, or absent from the store with no source to name.
 //
 // Before the withdrawal the same draft carries f1 as a cited finding with the
-// region naming the note, which is what proves the withdrawal is what moved it.
+// region naming the standing note, which is what proves the withdrawal is what
+// moved it.
 func TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion(t *testing.T) {
 	for _, withdrawal := range []struct {
 		name     string
 		withdraw func(t *testing.T, layout state.Layout, id string)
+		// noteLine is the region's note line once the note is withdrawn,
+		// given the note's id.
+		noteLine func(id string) string
 	}{
 		{name: "retracted by cr note remove", withdraw: func(t *testing.T, _ state.Layout, id string) {
 			t.Helper()
 			_, err := runIn(t, "note", "--remove", id)
 			require.NoError(t, err)
+		}, noteLine: func(id string) string {
+			return "note: " + id + " (source: meeting; retracted)"
 		}},
 		{name: "no longer held by the store", withdraw: func(t *testing.T, layout state.Layout, _ string) {
 			t.Helper()
 			require.NoError(t, os.WriteFile(layout.ContextFile(fixtureIssue), nil, 0o600))
+		}, noteLine: func(id string) string {
+			return "note: " + id + " (not in the context store, so its source is unknown)"
 		}},
 	} {
 		t.Run(withdrawal.name, func(t *testing.T) {
 			layout := detectedHome(t)
 			noteID := noteRestingRound(t, layout)
-			region := "<!-- cr:provenance -->\n" +
-				"claim: " + fixtureIssue + "#c1 (source: note)\n" +
-				"note: " + noteID + " (source: meeting)\n" +
-				"<!-- cr:/provenance -->"
+			regionNaming := func(noteLine string) string {
+				return "<!-- cr:provenance -->\n" +
+					"claim: " + fixtureIssue + "#c1 (source: note)\n" +
+					noteLine + "\n" +
+					"<!-- cr:/provenance -->"
+			}
 
 			before := blockOf(t, draftedFixture(t, layout), "f1")
 			require.True(t, strings.HasPrefix(before, `kind="finding" `),
 				"the control: a cited record on a standing note asserts")
 			require.Equal(t, finding.GradeCited, storedRecord(t, layout, "f1").Grade)
-			require.Contains(t, before, region, "the control: the region names the standing note")
+			require.Equal(t, regionNaming("note: "+noteID+" (source: meeting)"), provenanceRegionOf(t, before),
+				"the control: the region names the standing note")
 
 			withdrawal.withdraw(t, layout, noteID)
 			reported := finding.Withdrawn{{Class: "panic-in-library", Count: 1}}
+			withdrawn := regionNaming(withdrawal.noteLine(noteID))
 
 			// `cr post` first, before any redraft: findings.ndjson and the
 			// draft's marker still say finding, so only post's own
@@ -123,8 +139,8 @@ func TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion(t *testing.T) {
 				"cr post cannot send the assertion")
 			assert.Equal(t, reported, built.Withdrawn, "and reports the forcing")
 			require.Len(t, built.Payload.Comments, 1)
-			assert.NotContains(t, built.Payload.Comments[0].Body, "<!-- cr:provenance -->")
-			assert.NotContains(t, built.Payload.Comments[0].Body, noteID)
+			assert.Equal(t, withdrawn, provenanceRegionOf(t, built.Payload.Comments[0].Body),
+				"§8.1.6: the posted body names the note and how it was withdrawn")
 
 			printed, err := runDraft(t, fixturePR, "--repo", fixtureSlug)
 			require.NoError(t, err)
@@ -146,9 +162,8 @@ func TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion(t *testing.T) {
 
 			after := blockOf(t, readDraftOf(t, layout), "f1")
 			assert.True(t, strings.HasPrefix(after, `kind="question" `), "the draft's marker is a question")
-			assert.NotContains(t, after, "<!-- cr:provenance -->",
-				"§8.1.6: no region names a note that no longer stands")
-			assert.NotContains(t, after, noteID)
+			assert.Equal(t, withdrawn, provenanceRegionOf(t, after),
+				"§8.1.6: the draft names the note and how it was withdrawn")
 
 			disclosed := "§3.6.6: 1 records resting on a withdrawn note held as question — panic-in-library 1"
 			for _, command := range []string{"draft", "post"} {
@@ -157,6 +172,22 @@ func TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion(t *testing.T) {
 			}
 		})
 	}
+}
+
+// provenanceRegionOf is the one §8.1.6 provenance region text carries, from its
+// opening delimiter through its closing one, or the empty string when it
+// carries none.
+func provenanceRegionOf(t *testing.T, text string) string {
+	t.Helper()
+	const open, closing = "<!-- cr:provenance -->", "<!-- cr:/provenance -->"
+	require.LessOrEqual(t, strings.Count(text, open), 1, "a comment carries at most one provenance region")
+	start := strings.Index(text, open)
+	if start < 0 {
+		return ""
+	}
+	length := strings.Index(text[start:], closing)
+	require.GreaterOrEqual(t, length, 0, "a region that opens closes by its own pair")
+	return text[start : start+length+len(closing)]
 }
 
 // readSummaryOf reads the fixture round's summary.json as its raw fields.

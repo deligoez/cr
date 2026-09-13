@@ -38,10 +38,13 @@ type Provenances struct {
 type NoteClaim struct {
 	// Note is the claim's `note_id`.
 	Note string
-	// Source is that note's §3.6.3 source. `cr draft` and `cr post` hand
-	// over only claims whose note still stands, so a retracted or missing
-	// note is never named here.
+	// Source is that note's §3.6.3 source, empty when the store no longer
+	// holds the note.
 	Source string
+	// Standing is whether the note still stands. `cr draft` and `cr post`
+	// hand over every note-sourced claim, a withdrawn note's included, so
+	// §8.1.6's region names the note and says it was withdrawn.
+	Standing render.NoteStanding
 }
 
 // of is §8.1.6's three triggers read over one record, with what each names.
@@ -63,6 +66,7 @@ func (p *Provenances) of(record *finding.Finding) (*render.Provenance, error) {
 	if p != nil && record.Claim != "" {
 		if rests, found := p.NoteClaims[record.Claim]; found {
 			disclosed.Claim, disclosed.Note, disclosed.NoteSource = record.Claim, rests.Note, rests.Source
+			disclosed.NoteStanding = rests.Standing
 		}
 	}
 	for at := range record.Citations {

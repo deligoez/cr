@@ -23,6 +23,15 @@ func TestEachTriggerAloneNamesWhatSection816Requires(t *testing.T) {
 		{"a claim resting on a note", Provenance{Claim: "CR-7#c2", Note: "CR-7#n1", NoteSource: "chat"},
 			"<!-- cr:provenance -->\nclaim: CR-7#c2 (source: note)\nnote: CR-7#n1 (source: chat)\n" +
 				"<!-- cr:/provenance -->"},
+		{"a claim resting on a retracted note",
+			Provenance{Claim: "CR-7#c2", Note: "CR-7#n1", NoteSource: "chat", NoteStanding: NoteRetracted},
+			"<!-- cr:provenance -->\nclaim: CR-7#c2 (source: note)\nnote: CR-7#n1 (source: chat; retracted)\n" +
+				"<!-- cr:/provenance -->"},
+		{"a claim resting on a note the store does not hold",
+			Provenance{Claim: "CR-7#c2", Note: "CR-7#n1", NoteStanding: NoteMissing},
+			"<!-- cr:provenance -->\nclaim: CR-7#c2 (source: note)\n" +
+				"note: CR-7#n1 (not in the context store, so its source is unknown)\n" +
+				"<!-- cr:/provenance -->"},
 		{"a citation of rule origin", Provenance{Rule: "no-panic", Rationale: "A panic takes the caller down."},
 			"<!-- cr:provenance -->\nrule: no-panic\nrationale: A panic takes the caller down.\n" +
 				"<!-- cr:/provenance -->"},
