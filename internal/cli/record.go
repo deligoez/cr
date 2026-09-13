@@ -409,6 +409,12 @@ func acceptRecords(
 	if err := refuseHeldIDs(l, owner, repo, pr, file, body, records); err != nil {
 		return nil, nil, recordDrops{}, err
 	}
+	// §4.5.6's cells against the records: a record meeting a `pass` its
+	// role filed on its unit this round is refused, the reverse order of
+	// coverage.Decode's check, and ahead of the drops below.
+	if err := refusePassedSeats(l, owner, repo, pr, round.Round, file, body, records); err != nil {
+		return nil, nil, recordDrops{}, err
+	}
 	// Round 13's agent-chosen-grading-boundary: the unit a record names is
 	// the unit its anchor sits in, or §6.2's `cited` row is measured
 	// against a boundary the agent picked. Then §9.2.3: the content hash

@@ -1148,10 +1148,12 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 		[]byte("The retry must back off exponentially.\n"), 0o600))
 	// The file `cr cells record` is pointed at, outside the repository for
 	// the same reason. It names the round's one unit and its one active
-	// role, so §4.5.6 accepts it.
+	// role, so §4.5.6 accepts it, and it says `finding` because `cr record`
+	// in the run below stores that role's record on that unit, which a
+	// `pass` there would contradict in either order.
 	cells := filepath.Join(home, "cells.ndjson")
 	require.NoError(t, os.WriteFile(cells,
-		[]byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"), 0o600))
+		[]byte(`{"unit":"u1","role":"correctness","result":"finding"}`+"\n"), 0o600))
 
 	// The file `cr map record` is pointed at. It is empty rather than a
 	// pair, because §4.1.6 checks every claim id against the round's
