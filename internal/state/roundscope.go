@@ -166,7 +166,15 @@ func ClearStamped(k *Lock, name string, round int) error {
 // which returns its keys in the order encoding/json writes a map: the values
 // are the values that were there, and the byte-for-byte promise is kept for
 // every line apply leaves alone.
-func RewriteStamped(k *Lock, name string, apply func(map[string]json.RawMessage) (bool, error)) error {
+//
+// before runs once every line has been applied and before the file is
+// published, and a failure it returns publishes nothing. It is where §9.1.1's
+// journal is written: the moves are decided line by line inside apply, and a
+// move published ahead of its journal line would be one a failed append leaves
+// unjournaled for good, since the re-run finds the record already moved.
+func RewriteStamped(
+	k *Lock, name string, apply func(map[string]json.RawMessage) (bool, error), before func() error,
+) error {
 	if err := checkStamped(name); err != nil {
 		return err
 	}
@@ -178,6 +186,9 @@ func RewriteStamped(k *Lock, name string, apply func(map[string]json.RawMessage)
 		return json.Marshal(fields)
 	})
 	if err != nil {
+		return err
+	}
+	if err := before(); err != nil {
 		return err
 	}
 	return k.Write(name, out)

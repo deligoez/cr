@@ -44,12 +44,11 @@ const (
 func invalidate(held *state.Lock, assembled *Brief) error {
 	// §9.1.1: one journal line per record the sweep moves, at the head this
 	// brief moves to. The moves are decided line by line inside the sweep,
-	// so the journal is written after it and under the same lock.
+	// and the journal is written under the same lock after every move is
+	// decided and before findings.ndjson publishes them — the order `cr
+	// record`, `cr draft` and `cr post` write theirs in.
 	journal := finding.NewJournal(finding.ActorBrief, assembled.Head, time.Now())
 	if err := staleOpenRecords(held, journal); err != nil {
-		return err
-	}
-	if err := journal.Write(held); err != nil {
 		return err
 	}
 	if err := clearMapping(held, assembled); err != nil {
@@ -146,7 +145,13 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 			}
 			fields[fieldState] = stale
 			return true, nil
-		})
+		},
+		// The journal is appended once every move is decided and before
+		// findings.ndjson is published, so an append that fails leaves
+		// every record where it was and the re-run moves and journals
+		// them again. Publishing first would leave the records stale
+		// with no line, and the re-run would find nothing left to move.
+		func() error { return journal.Write(held) })
 }
 
 // unusable is the refusal of one stored findings.ndjson field the sweep could
