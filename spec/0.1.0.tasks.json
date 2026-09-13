@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T12:18:42.962364Z",
+  "updated_at": "2026-09-13T13:01:42.561024Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -2828,7 +2828,7 @@
         "context-command"
       ],
       "estimate_minutes": 15,
-      "acceptance": "- A note is unverified hearsay and stays revocable. cr note --remove \u003cnote-id\u003e retracts one, and any coverage cell or record citing a retracted note is reported as needing re-evaluation in the next round rather than silently retained, per §3.6.6.\n- Round 9 finding retracted-provenance-still-posts: retraction takes effect in the round it happens, not only in the next one. On cr note --remove, every current-round record or cell citing that note is re-evaluated immediately — the record is forced to kind: question or blocked from drafting, so a reviewer who retracts a note precisely because they learned it was wrong cannot still have cr draft and cr post --confirm send the assertion built on it. Because v0.1 ends at posting, the next round may never arrive for this pull request.\n- Round 9 finding retracted-provenance-still-posts: a record resting on a retracted note no longer has provenance to disclose, so it no longer qualifies for the assertion register and §8.1.6's provenance region is not emitted for a dangling note id.\n- The retraction is reported by cr status and in the round summary, in addition to the next-round report §3.6.6 already requires. The record itself is retained so the decision stays auditable.\n- A test retracts a note mid-round and asserts the dependent record is a question, is reported, and cannot be posted as a finding.\n- Found by context-command, assigned here: a corrupt context NDJSON exits 2 rather than §11.2's 3, shared by cr note, cr answer and cr context because no typed error exists to map. This task touches the same store, so it adds that error and its exitCodeFor branch; a file cr read and could not parse is a file failure, not a malformed invocation.",
+      "acceptance": "- A note is unverified hearsay and stays revocable. cr note --remove \u003cnote-id\u003e retracts one, and any coverage cell or record citing a retracted note is reported as needing re-evaluation in the next round rather than silently retained, per §3.6.6.\n- Round 9 finding retracted-provenance-still-posts: retraction takes effect in the round it happens, not only in the next one. On cr note --remove, every current-round record or cell citing that note is re-evaluated immediately — the record is forced to kind: question or blocked from drafting, so a reviewer who retracts a note precisely because they learned it was wrong cannot still have cr draft and cr post --confirm send the assertion built on it. Because v0.1 ends at posting, the next round may never arrive for this pull request.\n- Round 9 finding retracted-provenance-still-posts: a record resting on a retracted note no longer qualifies for the assertion register; §8.1.6's provenance region is still emitted for it and names the note as retracted or no longer in the store, as task provenance-names-withdrawn-note settled against §8.1.6.\n- The retraction is reported by cr status and in the round summary, in addition to the next-round report §3.6.6 already requires. The record itself is retained so the decision stays auditable.\n- A test retracts a note mid-round and asserts the dependent record is a question, is reported, and cannot be posted as a finding.\n- Found by context-command, assigned here: a corrupt context NDJSON exits 2 rather than §11.2's 3, shared by cr note, cr answer and cr context because no typed error exists to map. This task touches the same store, so it adds that error and its exitCodeFor branch; a file cr read and could not parse is a file failure, not a malformed invocation.",
       "source_sections": [
         "### 3.6 Context store"
       ],
@@ -9064,7 +9064,7 @@
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 45,
-      "acceptance": "- A record whose claim or citation rests on a note that has since been retracted or removed is not drafted as an assertion: it is forced to a question or held from the draft, as task note-retraction's acceptance requires, and the forcing is reported; audit round 1 row task-note-retraction.\n- The provenance region emits no note id that no longer resolves to a standing note.\n- A test drives cr record, retracts the note, then cr draft, and asserts the record's kind or absence and the provenance region.",
+      "acceptance": "- A record whose claim or citation rests on a note that has since been retracted or removed is not drafted as an assertion: it is forced to a question or held from the draft, as task note-retraction's acceptance requires, and the forcing is reported; audit round 1 row task-note-retraction.\n- The provenance region for a record resting on a withdrawn note names that note as retracted or missing rather than as standing, per §8.1.6 and task provenance-names-withdrawn-note (439b6c9).\n- A test drives cr record, retracts the note, then cr draft, and asserts the record's kind or absence and the provenance region.",
       "source_sections": [
         "### 3.6 Context store"
       ],
@@ -9724,6 +9724,43 @@
         "internal/cli/reconcileedits_test.go",
         "internal/post/review.go"
       ]
+    },
+    {
+      "id": "post-request-body-review-only",
+      "title": "Send only the review in the request body",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- The body gh sends to GitHub's review-creation endpoint carries only the review payload (body, event, comments) and none of cr's own posted.json sections (records, discards, outcomes), so no grade, severity, anchor or disposition of any record, discarded ones included, leaves the machine; audit round 3 rows table-2-15 and task-reconcile-writes-triage-outcomes.\n- posted.json keeps every section cr --reconcile reads, and the payload hash embedded in the review body is unchanged.\n- A test captures the request body at the gh shim and asserts its top-level keys are exactly the review payload's.",
+      "source_sections": [
+        "### 8.3 Batching",
+        "### 8.4 Partial failure"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "round-posts-one-review",
+      "title": "Post a round at most once and settle discards",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- Once a round has a review created or adopted by cr post --confirm or cr post --reconcile, a later cr post --confirm on that round sends nothing and exits with a hint naming the state, per §8.3.1's one review per round; audit round 3 row task-reconcile-adopts-thread-ids, where reconcile waived f2, the reviewer cleared wrong, and a second review posted f2 under the standing waiver.\n- A record whose waiver reconcile writes is stored in the discarded state that waiver describes, so no waiver stands for a record that later posts.\n- When every queued block is discarded, cr post --confirm settles the discards, their waivers and outcome events without sending a review, or refuses with a hint naming the command that does; audit round 3 row task-post-writes-triage-waivers.\n- Tests drive each case through a gh shim and assert the POST count and the stored states and waivers.",
+      "source_sections": [
+        "### 8.3 Batching",
+        "### 9.1 States",
+        "### 7.4 Waivers"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
