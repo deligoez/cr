@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T01:41:27.698199Z",
+  "updated_at": "2026-09-13T05:16:41.96614Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8906,6 +8906,26 @@
         "internal/cli/post.go",
         "internal/cli/postcap_test.go"
       ]
+    },
+    {
+      "id": "post-local-write-failure-no-double-post",
+      "title": "Refuse a repost after a failed local write",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "pre-validate-positions"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- When cr post --confirm creates the review and a local write after the call fails, the next cr post --confirm sends no second review, per §8.4.4's rule that posting twice is worse than posting late.\n- A round whose posted.json holds a payload neither adopted nor cleared is refused by cr post --confirm with a hint naming cr post --reconcile, per §8.3.3's write-before-the-call rule.\n- A test drives a gh shim that makes the PR state directory read-only on the POST and asserts exactly one POST across two cr post --confirm runs.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 8.3 Batching"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
