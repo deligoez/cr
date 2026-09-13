@@ -93,6 +93,21 @@ func TestPairsSharingAMomentAreOrderedByPullRequestThenRound(t *testing.T) {
 	assert.Equal(t, []LedgerRound{{7, 1, at}, {7, 2, at}, {12, 1, at}}, report.Window)
 }
 
+// A ledger holding exactly deadAfter pairs fills the window. Every round
+// §2.6.3.4 asks about is there, so a rule silent across all of them is dead from
+// that round on, and not from one round later.
+func TestALedgerHoldingExactlyTheWindowFillsIt(t *testing.T) {
+	ledger := []Stat{
+		entry(EventHit, "a", 7, 1, 0),
+		entry(EventRecord, "a", 7, 2, 1),
+	}
+
+	report := Dead(corpusOf("a", "b"), ledger, 2)
+
+	assert.True(t, report.Full)
+	assert.Equal(t, []string{"b"}, idsOf(report))
+}
+
 // §11's layer names, in §2.6 item 1's order.
 func TestALayerIsNamedTheWayRulesListReportsIt(t *testing.T) {
 	assert.Equal(t, []string{"repo", "global", "profile", "unknown"},
