@@ -337,11 +337,24 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 //
 // Each half is scoped to the round per §9.3.5, which is what state's replace
 // and clear are for; neither touches a line of any other round.
+//
+// What the mapping carries goes with it. meta.json's mapping stamp is what
+// §4.6.5's gate reads as a mapping recorded for the round, and intent-gaps.ndjson
+// is §4.1.7's derivation from the mapping just cleared: left standing, the one
+// unblocks `cr review` over no mapping and the other reports gaps of a claim set
+// that is gone. The stamp is cleared first, so a run that fails part way leaves
+// a round §4.6.5 refuses rather than one it unblocks.
 func storeClaims(k *state.Lock, at state.Stamp, claims []*intent.Claim) error {
+	if err := k.ClearMapping(); err != nil {
+		return err
+	}
 	if err := state.ReplaceStamped(k, state.FileClaims, at, claims); err != nil {
 		return err
 	}
-	return state.ClearStamped(k, state.FileMapping, at.Round)
+	if err := state.ClearStamped(k, state.FileMapping, at.Round); err != nil {
+		return err
+	}
+	return state.ClearStamped(k, state.FileIntentGaps, at.Round)
 }
 
 // intentSource is §3.1's choice of where one run's issue text comes from,

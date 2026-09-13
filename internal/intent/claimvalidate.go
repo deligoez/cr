@@ -59,7 +59,38 @@ func (e *RejectedClaimError) Error() string {
 // moved, so there is no file being decoded when it runs.
 func DecodeClaims(file string, body []byte, issueKey string, spans SpanTexts) ([]*Claim, error) {
 	against := claimChecker{file: file, issueKey: issueKey, spans: spans}
-	return state.DecodeStamped[Claim](file, body, against.check)
+	seen := make(map[string]int)
+	return state.DecodeStamped[Claim](file, body,
+		func(line int, supplied map[string]json.RawMessage, claim *Claim) error {
+			if err := against.check(line, supplied, claim); err != nil {
+				return err
+			}
+			return refuseRepeatedID(file, seen, line, claim)
+		})
+}
+
+// refuseRepeatedID refuses a claim whose id an earlier line of the same file
+// already gave, naming the file, this line, the id and the line that gave it
+// first, as `cr record` refuses a repeated record id. seen maps each id met so
+// far to its line, and the claim's id is added to it when it is not refused.
+//
+// §4.1.6's mapping, §4.1.3's gap entries and §6.1's `claim` row all name a claim
+// by its id alone, so two claims holding one id let a mapping of either settle
+// both: the other claim would reach no gap and block no completeness. It runs
+// after check, so the id it reads has already been held to §3.3's spelling.
+func refuseRepeatedID(file string, seen map[string]int, line int, claim *Claim) error {
+	if first, repeated := seen[claim.ID]; repeated {
+		return &RejectedClaimError{
+			File: file, Line: line, Field: "id",
+			Problem: fmt.Sprintf(
+				"%q repeats the id of line %d; a mapping names a claim by its id alone, "+
+					"so give each claim an id of its own",
+				claim.ID, first,
+			),
+		}
+	}
+	seen[claim.ID] = line
+	return nil
 }
 
 // claimChecker holds what one file's claims are checked against: the file they

@@ -99,6 +99,15 @@ func (k *Lock) StampMapping(round int, head string) error {
 	return k.updateMeta(func(m *Meta) { m.MappingRound, m.MappingHead = round, head })
 }
 
+// ClearMapping takes the mapping stamp off meta.json, back to the zero round and
+// empty head it holds before any `cr map record`, and leaves every other field
+// as the file holds it under the lock. `cr claims record` calls it: §3.3.1
+// clears the mapping, and a stamp left naming the round would have §4.6.5's
+// gate read the cleared file as a mapping this round recorded.
+func (k *Lock) ClearMapping() error {
+	return k.StampMapping(0, "")
+}
+
 // updateMeta is the read-modify-write of one meta.json field, with the read
 // taken through the held lock.
 //
