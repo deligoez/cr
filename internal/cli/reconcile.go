@@ -239,10 +239,11 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // was given.
 //
 // That fact holds on the `--reconcile` path as well, and not by assumption.
-// reconcilePost adopts only while `post_unresolved` is set, and postOutcome is
-// its one setter, reached only from a send — which takes the confirmation the
-// gate minted. So a review adopted here is one a confirmed run sent. Nothing
-// else about the gate is recorded, because §8.5.4 allows nothing more.
+// reconcilePost adopts only while `post_unresolved` is set, and send and
+// postOutcome are its only setters, reached only from a send — which takes the
+// confirmation the gate minted. So a review adopted here is one a confirmed run
+// sent. Nothing else about the gate is recorded, because §8.5.4 allows nothing
+// more.
 //
 // The index is written from the records this run moved rather than from every
 // record in `posted`: a round reconciled twice would otherwise re-append what
@@ -326,8 +327,9 @@ func setPostUnresolved(l state.Layout, round *state.Meta, unresolved bool) error
 //
 // GitHub saying no is §8.4.2, and post.Rejection reads its error document off
 // gh.CommandError's standard output — where a failed `gh api` writes it. That
-// refusal is returned as it stands: §8.4.2 marks nothing posted, so nothing is
-// written here.
+// refusal is returned with `post_unresolved` cleared again: send set it before
+// the call, §8.4.2 marks nothing posted, and a rejection is an outcome cr did
+// learn, so the round is left postable.
 //
 // Everything else is §8.4.4's unknown outcome — a timeout, a dropped
 // connection, or a response cr cannot parse — and post.Rejection answers nil
@@ -338,7 +340,7 @@ func setPostUnresolved(l state.Layout, round *state.Meta, unresolved bool) error
 // the worse failure.
 func postOutcome(l state.Layout, round *state.Meta, sent *post.Review, failed error) error {
 	if rejected := rejectedPost(sent, failed); rejected != nil {
-		return rejected
+		return errors.Join(rejected, setPostUnresolved(l, round, false))
 	}
 	return errors.Join(fmt.Errorf(
 		"§8.4.4: the outcome of the review-creation call is unknown, so post_unresolved is set "+
@@ -346,4 +348,31 @@ func postOutcome(l state.Layout, round *state.Meta, sent *post.Review, failed er
 			"§8.4.3's payload hash against the pull request's reviews: %w",
 		round.PR, failed,
 	), recordSentRecords(l, round, sent), setPostUnresolved(l, round, true))
+}
+
+// UnresolvedPostError is §8.4.4's refusal of a second send: the round carries
+// `post_unresolved`, so a payload §8.3.3 wrote before the call may already have
+// become a review, and cr has not learned whether it did.
+//
+// §11.2 codes it 4. The command line is right and nothing it named is
+// malformed; what refuses is where the round stands, and the only way forward
+// is `cr post --reconcile`, which adopts the review the call created or clears
+// the flag for a retry.
+type UnresolvedPostError struct {
+	// Owner, Repo, and PR name the pull request whose round was refused.
+	Owner string
+	Repo  string
+	PR    int
+	// Round is the round whose posting was never settled.
+	Round int
+}
+
+func (e *UnresolvedPostError) Error() string {
+	return fmt.Sprintf(
+		"%s/%s#%d round %d carries post_unresolved: its payload was written before a "+
+			"review-creation call whose outcome cr never recorded, and §8.4.4 refuses a "+
+			"second send that could post the review twice; run `cr post %d --reconcile "+
+			"--repo %s/%s`",
+		e.Owner, e.Repo, e.PR, e.Round, e.PR, e.Owner, e.Repo,
+	)
 }

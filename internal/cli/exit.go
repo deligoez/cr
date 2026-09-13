@@ -430,6 +430,14 @@ var codes = []mapped{
 	{is[*post.RejectedError](), ExitState,
 		"nothing was posted; correct or discard the records GitHub named in the " +
 			"draft and run `cr post` again"},
+	// §8.4.4 refuses a second send while a round's posting is unsettled. The
+	// command line is right and the payload may be valid; what refuses is
+	// that the earlier call may have created the review, which §11.2 codes 4
+	// beside the rejection above — and the step is the reconciliation, never
+	// a retry.
+	{is[*UnresolvedPostError](), ExitState,
+		"run `cr post <pr> --reconcile` to adopt the review the earlier call created, " +
+			"or to clear post_unresolved for a retry"},
 	// §5.6.2 codes the lock timeout itself: cr waits up to
 	// `probe.lock_timeout_seconds` and then fails with exit code 4, which
 	// §11.2's table names in as many words — "state conflict, including

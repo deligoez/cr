@@ -28,9 +28,11 @@ const postedRecordsSection = "records"
 // recordSentRecords writes the ids the payload's comments were drawn from into
 // posted.json, beside the payload.
 //
-// It runs when the outcome is unknown and not on every send, because that is
-// the only outcome that ever reads them back: §8.4.2's rejection marks nothing
-// posted, and a call that returned marks its records posted there and then.
+// It runs before every send, beside `post_unresolved`, because any call whose
+// records are not marked posted afterwards — an unknown outcome, or a write
+// that failed after GitHub created the review — is one §8.4.4's adoption has to
+// read them back for, and a write placed after the call is the write that may
+// not land.
 func recordSentRecords(l state.Layout, round *state.Meta, sent *post.Review) error {
 	ids := make([]string, 0, len(sent.Comments))
 	for i := range sent.Comments {

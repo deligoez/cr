@@ -175,6 +175,10 @@ func TestConfirmSendsOneReviewAndSettlesTheRound(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, index, 1,
 		"§9.3.6 holds one entry per key, and both records share §7.4.1's key")
+	meta, err := layout.ReadMeta(draftOwner, draftRepo, draftPRNum)
+	require.NoError(t, err)
+	assert.False(t, meta.PostUnresolved,
+		"§8.4.4: the flag set before the call is cleared once the records are posted")
 
 	// §8.3.3's thread ids, keyed by the record each comment came from.
 	document := readPosted(t, layout)

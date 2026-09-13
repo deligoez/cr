@@ -66,10 +66,26 @@ type sending struct {
 // §8.3.3's thread ids come last: they are provenance for a v0.2 that migrates
 // anchors, and losing them costs a reader one lookup rather than costing the
 // author a duplicate comment.
+//
+// `post_unresolved` is set before the call and cleared only once the records
+// are marked posted, so the refusal send opens with rests on a write that
+// landed before anything was sent. A write after a successful call can fail —
+// the disk, the lock, a process killed mid-call — and a flag that only such a
+// write could set would leave the round looking unsent, which §8.4.4 calls the
+// worse failure.
 func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	owner, repo, pr := s.round.Owner, s.round.Repo, s.round.PR
+	if s.round.PostUnresolved {
+		return &UnresolvedPostError{Owner: owner, Repo: repo, PR: pr, Round: s.round.Round}
+	}
 	payload, err := writePosted(s.layout, owner, repo, pr, s.round.Round, s.review)
 	if err != nil {
+		return err
+	}
+	if err := recordSentRecords(s.layout, s.round, s.review); err != nil {
+		return err
+	}
+	if err := setPostUnresolved(s.layout, s.round, true); err != nil {
 		return err
 	}
 	if _, err := post.Create(confirmation, owner, repo, pr, payload); err != nil {
@@ -79,6 +95,9 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 		return postOutcome(s.layout, s.round, s.review, err)
 	}
 	if err := s.markPosted(); err != nil {
+		return err
+	}
+	if err := setPostUnresolved(s.layout, s.round, false); err != nil {
 		return err
 	}
 	if err := recordPostTriage(s.layout, owner, repo, pr, s.round, s.triage); err != nil {
