@@ -46,7 +46,7 @@ func TestACellCarriesEveryFieldSection455Names(t *testing.T) {
 		`{"unit":"u1","role":"test-adequacy","result":"finding",` +
 		`"coverage":{"classification":"partially-covered","test_paths":["tests/OrderTest.php"]}}` + "\n")
 
-	cells, err := Decode(cellsFile, body, units(), active())
+	cells, err := Decode(cellsFile, body, units(), active(), nil)
 	require.NoError(t, err)
 	require.Len(t, cells, 4)
 
@@ -96,7 +96,7 @@ func TestAnNaCellWithoutAReasonIsRejected(t *testing.T) {
 		{"an empty reason", `{"unit":"u1","role":"correctness","result":"na","reason":""}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active(), nil)
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
@@ -114,7 +114,7 @@ func TestAnNaCellWithoutAReasonIsRejected(t *testing.T) {
 	t.Run("a reason on a verdict that is not na", func(t *testing.T) {
 		_, err := Decode(cellsFile,
 			[]byte(`{"unit":"u1","role":"correctness","result":"pass","reason":"looked fine"}`+"\n"),
-			units(), active())
+			units(), active(), nil)
 
 		var rejected *RejectedCellError
 		require.ErrorAs(t, err, &rejected)
@@ -158,7 +158,7 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
+			_, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active(), nil)
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
@@ -177,7 +177,7 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		_, err := Decode(cellsFile,
 			[]byte(`{"unit":"u1","role":"test-adequacy","result":"pass",`+
 				`"coverage":{"classification":"mostly","test_paths":[]}}`+"\n"),
-			units(), active())
+			units(), active(), nil)
 
 		var invalid *testadequacy.InvalidClassificationError
 		require.ErrorAs(t, err, &invalid)
@@ -191,7 +191,7 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 	t.Run("an uncovered unit names no test path", func(t *testing.T) {
 		cells, err := Decode(cellsFile,
 			[]byte(`{"unit":"u1","role":"test-adequacy","result":"question",`+
-				`"coverage":{"classification":"uncovered"}}`+"\n"), units(), active())
+				`"coverage":{"classification":"uncovered"}}`+"\n"), units(), active(), nil)
 		require.NoError(t, err)
 		require.Len(t, cells, 1)
 
@@ -217,7 +217,7 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 func TestATestAxisRoleCanRecordAnNaCell(t *testing.T) {
 	cells, err := Decode(cellsFile,
 		[]byte(`{"unit":"u1","role":"test-adequacy","result":"na",`+
-			`"reason":"the unit is the test file itself"}`+"\n"), units(), active())
+			`"reason":"the unit is the test file itself"}`+"\n"), units(), active(), nil)
 	require.NoError(t, err, "§4.5.5 gives na to every role, the test axis included")
 	require.Len(t, cells, 1)
 	assert.Nil(t, cells[0].Coverage, "an na reached no classification to record")
@@ -225,7 +225,7 @@ func TestATestAxisRoleCanRecordAnNaCell(t *testing.T) {
 
 	_, err = Decode(cellsFile,
 		[]byte(`{"unit":"u1","role":"test-adequacy","result":"na","reason":"nothing to judge",`+
-			`"coverage":{"classification":"uncovered","test_paths":[]}}`+"\n"), units(), active())
+			`"coverage":{"classification":"uncovered","test_paths":[]}}`+"\n"), units(), active(), nil)
 
 	var rejected *RejectedCellError
 	require.ErrorAs(t, err, &rejected)
@@ -281,7 +281,7 @@ func TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active(), nil)
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
@@ -327,7 +327,7 @@ func TestACellNamingAnUnknownUnitOrAnInactiveRoleIsRejected(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active(), nil)
 
 			var rejected *RejectedCellError
 			require.ErrorAs(t, err, &rejected)
@@ -340,12 +340,12 @@ func TestACellNamingAnUnknownUnitOrAnInactiveRoleIsRejected(t *testing.T) {
 
 	t.Run("the refusal names what the round would have accepted", func(t *testing.T) {
 		_, err := Decode(cellsFile,
-			[]byte(`{"unit":"u9","role":"security","result":"pass"}`+"\n"), units(), active())
+			[]byte(`{"unit":"u9","role":"security","result":"pass"}`+"\n"), units(), active(), nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "u1, u2, u3", "§12.4: the refusal names the round's units")
 
 		_, err = Decode(cellsFile,
-			[]byte(`{"unit":"u1","role":"security","result":"pass"}`+"\n"), units(), active())
+			[]byte(`{"unit":"u1","role":"security","result":"pass"}`+"\n"), units(), active(), nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "correctness, test-adequacy",
 			"§12.4: and the round's active roles")

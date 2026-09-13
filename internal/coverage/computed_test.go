@@ -60,7 +60,7 @@ func TestACellMayNotSupplyTheFieldsCrComputes(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active())
+			cells, err := Decode(cellsFile, []byte(tc.line+"\n"), units(), active(), nil)
 
 			var reserved *state.ReservedFieldError
 			require.ErrorAs(t, err, &reserved)
@@ -85,7 +85,7 @@ func TestASuppliedUnitHashIsRefusedBeforeTheLineIsRead(t *testing.T) {
 	body := []byte(`{"unit":"u1","role":"correctness","result":"pass"}` + "\n" +
 		`{"unit":"u9","role":"security","result":"nonsense","unit_hash":"38372bc96eb4010e"}` + "\n")
 
-	cells, err := Decode(cellsFile, body, units(), active())
+	cells, err := Decode(cellsFile, body, units(), active(), nil)
 
 	var reserved *state.ReservedFieldError
 	require.ErrorAs(t, err, &reserved)

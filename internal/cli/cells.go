@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/coverage"
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -71,7 +72,8 @@ func newCellsCmd(out *writer) *cobra.Command {
 //
 // Nothing here re-reads §4.5.5's field list. coverage.Decode is the one door:
 // it holds every line to the fields, to §4.5.6's two rejections, to §2.3.3's
-// reserved head and round, and to §4.5.5's computed `unit_hash`, naming the
+// reserved head and round, to §4.5.5's computed `unit_hash`, and to the
+// round's records beside a `pass`, naming the
 // file, the one-based line and the field in what it refuses, and internal/cli
 // maps that onto §11.2's code 1.
 func newCellsRecordCmd(out *writer) *cobra.Command {
@@ -111,21 +113,7 @@ func newCellsRecordCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
-			formed, err := roundUnitsOf(layout, owner, repo, pr, round.Round)
-			if err != nil {
-				return err
-			}
-			active, err := activeRoles(layout, owner, repo, round.ActiveRoles)
-			if err != nil {
-				return err
-			}
-			body, err := readInput(args[1],
-				"§4.5.6 has the roles write the coverage cells they filled to this "+
-					"file before `cr cells record` reads it")
-			if err != nil {
-				return err
-			}
-			cells, err := coverage.Decode(args[1], body, roundUnitIDs(formed), active)
+			cells, formed, err := decodeCells(layout, &round.Meta, args[1])
 			if err != nil {
 				return err
 			}
@@ -185,6 +173,45 @@ func activeRoles(l state.Layout, owner, repo string, active []string) ([]role.Ro
 		}
 	}
 	return roles, nil
+}
+
+// decodeCells reads the file an agent handed `cr cells record` and holds it to
+// the round: its units, its active roles, and the records it holds. It returns
+// the round's units beside the cells, for the `unit_hash` stamped next.
+func decodeCells(
+	l state.Layout, round *state.Meta, file string,
+) ([]*coverage.Cell, []roundUnit, error) {
+	formed, err := roundUnitsOf(l, round.Owner, round.Repo, round.PR, round.Round)
+	if err != nil {
+		return nil, nil, err
+	}
+	active, err := activeRoles(l, round.Owner, round.Repo, round.ActiveRoles)
+	if err != nil {
+		return nil, nil, err
+	}
+	body, err := readInput(file,
+		"§4.5.6 has the roles write the coverage cells they filled to this "+
+			"file before `cr cells record` reads it")
+	if err != nil {
+		return nil, nil, err
+	}
+	records, err := roundFindingsOf(l, round.Owner, round.Repo, round.PR, round.Round)
+	if err != nil {
+		return nil, nil, err
+	}
+	cells, err := coverage.Decode(file, body, roundUnitIDs(formed), active, raisedSeats(records))
+	return cells, formed, err
+}
+
+// raisedSeats is the round's records by the `(unit, role)` each was raised at,
+// which coverage.Decode holds a `pass` cell to.
+func raisedSeats(records []*finding.Finding) coverage.Raised {
+	raised := make(coverage.Raised, len(records))
+	for _, record := range records {
+		seat := coverage.Seat{Unit: record.Unit, Role: record.Role}
+		raised[seat] = append(raised[seat], record.ID)
+	}
+	return raised
 }
 
 // stampUnitHashes writes §4.5.5's `unit_hash` onto every cell from the unit it

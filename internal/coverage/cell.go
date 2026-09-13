@@ -125,20 +125,38 @@ func (e *RejectedCellError) Error() string {
 // role ids alone could enforce one and not the other — and one given a second,
 // separate list of test roles could be handed two lists that disagree.
 //
+// raised is the current round's records by the seat each was raised at, which
+// a `pass` cell is held to; see consistent.
+//
 // The checks run inside the decode rather than after it because
 // state.DecodeStamped is the one place that counts lines, blank ones included,
 // and every refusal here has to name the line the user must open.
-func Decode(file string, body []byte, units []string, active []role.Role) ([]*Cell, error) {
-	against := cellChecker{file: file, units: units, active: active}
+func Decode(
+	file string, body []byte, units []string, active []role.Role, raised Raised,
+) ([]*Cell, error) {
+	against := cellChecker{file: file, units: units, active: active, raised: raised}
 	return state.DecodeStamped[Cell](file, body, against.check)
 }
 
+// Seat is the `(unit, role)` a cell sits at, and the unit and role a record was
+// raised at.
+type Seat struct {
+	Unit string
+	Role string
+}
+
+// Raised names the ids of the current round's records at each seat, in the
+// order findings.ndjson holds them. A seat no record was raised at is absent.
+type Raised map[Seat][]string
+
 // cellChecker holds what one file's cells are checked against: the file they
-// arrived in, and the active roles of the round.
+// arrived in, the units and active roles of the round, and the records the
+// round holds.
 type cellChecker struct {
 	file   string
 	units  []string
 	active []role.Role
+	raised Raised
 }
 
 // check holds one line to §4.5.5 and to §4.5.6's role half.
@@ -164,6 +182,9 @@ func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *
 		return err
 	}
 	if err := c.result(line, supplied, cell); err != nil {
+		return err
+	}
+	if err := c.consistent(line, cell); err != nil {
 		return err
 	}
 	return c.coverage(line, &filled, cell)
@@ -305,6 +326,37 @@ func (c cellChecker) result(line int, supplied map[string]json.RawMessage, cell 
 		}
 	}
 	return nil
+}
+
+// consistent refuses a `pass` cell at a seat where the current round holds a
+// record from that role on that unit, naming the cell's line, unit and role and
+// the records beside it.
+//
+// Without it a role could file a record and a `pass` for the same unit in the
+// same round, and `cr status` would count a complete row with a clean verdict
+// over a unit the role had found something on.
+//
+// This direction admits no legitimate exception. §6.4.4's waiver drop and
+// §9.3.6's posted-index drop can only remove records, never create them, so a
+// record standing at a seat is one the role raised there.
+//
+// The opposite direction is left unenforced deliberately: a `finding` or
+// `question` cell at a seat holding no record is the expected outcome of those
+// same two drops, which remove the record and leave the cell the role filled
+// when it raised it.
+func (c cellChecker) consistent(line int, cell *Cell) error {
+	ids := c.raised[Seat{Unit: cell.Unit, Role: cell.Role}]
+	if cell.Result != ResultPass || len(ids) == 0 {
+		return nil
+	}
+	return &RejectedCellError{
+		File: c.file, Line: line, Field: "result",
+		Problem: fmt.Sprintf(
+			"is %s at unit %q and role %q, and this round holds record(s) %s from that role on "+
+				"that unit; a role that raised a record there did not find nothing, so file "+
+				"the cell as %s or %s",
+			ResultPass, cell.Unit, cell.Role, listed(ids), ResultFinding, ResultQuestion),
+	}
 }
 
 // coverage holds one cell to §4.5.5's conditional `coverage` object.

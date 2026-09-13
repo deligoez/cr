@@ -38,7 +38,7 @@ func intentRoles() []role.Role {
 // cell coverage.Decode accepted, with the round the writer stamps onto it.
 func recorded(t *testing.T, round int, line string) coverage.Cell {
 	t.Helper()
-	cells, err := coverage.Decode("cells.ndjson", []byte(line+"\n"), []string{"u1", "u2", "u3"}, intentRoles())
+	cells, err := coverage.Decode("cells.ndjson", []byte(line+"\n"), []string{"u1", "u2", "u3"}, intentRoles(), nil)
 	require.NoError(t, err)
 	require.Len(t, cells, 1)
 	cells[0].Round = round
