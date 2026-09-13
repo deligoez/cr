@@ -121,3 +121,32 @@ func TestARegeneratedRoundReportsTheSameNewClasses(t *testing.T) {
 	assert.Equal(t, first, draftedNewClasses(t), "and a third")
 	assert.Equal(t, first, summaryNewClassesOf(t, layout))
 }
+
+// §12.1's terminal shape for §7.3.3's report: a round that raised a class the
+// repository has never seen names it on a line of its own, and a round that
+// raised none prints no such line.
+//
+// The JSON document carries the list either way, so the tests above could not
+// see the terminal line at all, and gremlins found both of its conditions
+// unasserted: printed at an empty list, and printed only when empty.
+func TestATerminalDraftNamesTheNewClassesOnlyWhenThereAreSome(t *testing.T) {
+	t.Run("a class never seen", func(t *testing.T) {
+		draftedHome(t, aStoredRecord("f1", finding.StateDraft))
+
+		out := throughATerminal(t, "draft", draftPR, "--repo", draftSlug)
+
+		assert.Contains(t, out, "\n§7.3.3: class(es) first seen in this round: unchecked-error\n")
+	})
+	t.Run("a class already raised", func(t *testing.T) {
+		layout := draftedHome(t, aStoredRecord("f1", finding.StateDraft))
+		require.NoError(t, finding.RecordRaised(layout, draftOwner, draftRepo,
+			[]*finding.Finding{aStoredRecord("e1", finding.StateDraft)}, &finding.TriageOccasion{
+				PR: 3, Round: 1, Head: "0a1b2c3",
+				At: time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+			}))
+
+		out := throughATerminal(t, "draft", draftPR, "--repo", draftSlug)
+
+		assert.NotContains(t, out, "§7.3.3", "no drift, so no drift report")
+	})
+}
