@@ -78,6 +78,22 @@ func TestAnAnchorIsInsideItsUnitOnlyWhenEveryLineIsInHeadCoordinates(t *testing.
 		"a LEFT anchor on lines a hunk removed": {
 			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 30, Line: 32}, own, true,
 		},
+		// The hunk's first and last merge-base lines are its own, and the line
+		// after the last is the next hunk's or no hunk's: a record anchored
+		// there has no head location, so it is refused rather than measured
+		// against a unit it was never in.
+		"a LEFT anchor on a hunk's first merge-base line": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 28, Line: 28}, own, true,
+		},
+		"a LEFT anchor on a hunk's last merge-base line": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 34, Line: 34}, own, true,
+		},
+		"a LEFT anchor one line past a hunk's merge-base lines": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 35, Line: 35}, own, false,
+		},
+		"a LEFT anchor running one line past a hunk's merge-base lines": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 30, Line: 35}, own, false,
+		},
 		"a LEFT anchor on lines no hunk removed": {
 			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 10, Line: 10}, own, false,
 		},
