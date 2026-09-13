@@ -391,7 +391,7 @@ source of truth; this table is a map, not a promise.
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
 | `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
-| `cr merge <files...> -o <out> --repo <r> --pr <n>` | Merge and deduplicate per-role findings |
+| `cr merge <files...> -o <out> [--repo <r>] --pr <n>` | Merge and deduplicate per-role findings |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
 | `cr test <pr> [--filter]` | Run the suite inside the sandbox |
@@ -402,8 +402,8 @@ source of truth; this table is a map, not a promise.
 | `cr note <ISSUE-KEY> <text>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
 | `cr rules list\|check\|suggest` | Inspect, run, and harvest project rules |
-| `cr waivers list\|remove --repo <r> [--pr <n>]` | Inspect and edit waivers in either scope |
-| `cr stats --repo <r>` | Triage statistics, demotion and volume candidates |
+| `cr waivers list\|remove [--repo <r>] [--pr <n>]` | Inspect and edit waivers in either scope |
+| `cr stats [--repo <r>]` | Triage statistics, demotion and volume candidates |
 | `cr status <pr>` | Coverage, states, and completeness |
 | `cr config [--resolved]` | Effective configuration and its layers |
 
