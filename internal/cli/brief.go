@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -321,7 +322,7 @@ func newBriefCmd(out *writer) *cobra.Command {
 				Intent:    source,
 			})
 			if err != nil {
-				return err
+				return unsettledBrief(err)
 			}
 			return out.emit(newBriefResult(assembled))
 		},
@@ -332,4 +333,20 @@ func newBriefCmd(out *writer) *cobra.Command {
 		"read the issue text from this file instead of running the tracker command")
 
 	return cmd
+}
+
+// unsettledBrief reports brief.UnsettledPostError as §8.4.4's
+// UnresolvedPostError, so a brief refused over an unsettled send takes the code
+// and the hint `cr post --confirm` and `cr draft` take for the same round: exit
+// 4, and `cr post --reconcile` named as the way forward. The brief's own words,
+// which name both heads per §9.3.1, go in front. Every other error is returned
+// as it came.
+func unsettledBrief(err error) error {
+	var unsettled *brief.UnsettledPostError
+	if !errors.As(err, &unsettled) {
+		return err
+	}
+	return fmt.Errorf("%s: %w", unsettled.Error(), &UnresolvedPostError{
+		Owner: unsettled.Owner, Repo: unsettled.Repo, PR: unsettled.PR, Round: unsettled.Round,
+	})
 }

@@ -407,6 +407,13 @@ func headSymbols(dir, head string, p *profile.Profile) (unit.SymbolIndex, error)
 // against every round the file records, whether or not the head moved: §9.3.3's
 // increment carries the claims forward per §9.3.4, so a re-keyed increment
 // orphans them exactly as a same-head rewrite does.
+//
+// A moved head over a round carrying `post_unresolved` is refused with
+// UnsettledPostError rather than incremented. §8.4.4 has `cr post --reconcile`
+// adopt the review the send may have created, which moves the payload's records
+// from `queued` to `posted`, and §9.3.4's sweep would first make them `stale`,
+// which §9.1 lists no move out of. A same-head brief moves no record and still
+// carries the flag.
 func roundOf(src *Sources, head, key string) (roundState, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	switch {
@@ -421,6 +428,12 @@ func roundOf(src *Sources, head, key string) (roundState, error) {
 		return roundState{}, err
 	}
 	if recorded.Head != head {
+		if recorded.PostUnresolved {
+			return roundState{}, &UnsettledPostError{
+				Owner: src.Owner, Repo: src.Repo, PR: src.PR, Round: recorded.Round,
+				Recorded: recorded.Head, Current: head,
+			}
+		}
 		return roundState{index: recorded.Round + 1, carries: recorded.Round}, nil
 	}
 	return roundState{index: recorded.Round, carries: recorded.Round}, nil

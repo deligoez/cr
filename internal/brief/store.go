@@ -92,7 +92,9 @@ func write(src *Sources, held *state.Lock, assembled *Brief) error {
 // only a reconciliation clears it, so whatever the file already carried is read
 // back and carried through. Writing the document from the fields this package
 // computes would clear a post whose outcome cr never learned, and `cr brief` is
-// the command a user runs after exactly that.
+// the command a user runs after exactly that. Only a same-head brief carries a
+// set flag: roundOf refuses §9.3.3's increment over one, so a new round never
+// opens under a send it holds no payload of.
 //
 // The mapping stamp is carried through for the same reason: `cr map record`
 // writes it, and a same-head brief that dropped it would hold a round §4.6.5
