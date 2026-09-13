@@ -118,6 +118,19 @@ func TestARangeOutsideOneHunkIsRefusedNamingTheRecord(t *testing.T) {
 			anchor: right("app/Models/Order.php", 12, 10), cites: "§8.2.1"},
 		{name: "§8.2.1: a range starting above the first line of the file",
 			anchor: right("app/Models/Order.php", 0, 11), cites: "§8.2.1"},
+		// The edges of the §8.2.2 case: which clause refuses a range turns on
+		// whether each end sits in some hunk, so each end is put on a hunk's
+		// edge line, and each end once in lines no hunk carries.
+		{name: "§8.2.2: a range spanning two hunks from the first one's first line",
+			anchor: right("app/Models/Order.php", 10, 41), cites: "§8.2.2"},
+		{name: "§8.2.2: a range spanning two hunks from the first one's last line",
+			anchor: right("app/Models/Order.php", 12, 41), cites: "§8.2.2"},
+		{name: "§8.2.2: a range spanning two hunks to the second one's first line",
+			anchor: right("app/Models/Order.php", 11, 40), cites: "§8.2.2"},
+		{name: "§8.2.1: a range running out of a hunk into lines the diff does not carry",
+			anchor: right("app/Models/Order.php", 11, 30), cites: "§8.2.1"},
+		{name: "§8.2.1: a range running into a hunk from lines the diff does not carry",
+			anchor: right("app/Models/Order.php", 30, 41), cites: "§8.2.1"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			err := Validate(suggesting(&c.anchor), hunks)
