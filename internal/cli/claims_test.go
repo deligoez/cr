@@ -285,7 +285,8 @@ func TestATerminalClaimsRecordNamesTheCountAndTheRound(t *testing.T) {
 // things the provenance region can be built from.
 //
 // The note's body is a sentence that occurs nowhere in the issue text, so the
-// claim can only have been accepted by being checked against the note.
+// claim can only have been accepted by being checked against the note. Its span
+// is that whole body, because §3.3.2 sets it there.
 func TestANoteSourcedClaimIsStoredLikeAnyOther(t *testing.T) {
 	layout := claimedHome(t)
 	recorded, err := note.Append(layout, claimsIssue,
@@ -297,7 +298,7 @@ func TestANoteSourcedClaimIsStoredLikeAnyOther(t *testing.T) {
 		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
 			`"span":"backs off exponentially"}`,
 		`{"id":"`+claimsIssue+`#c2","text":"Retain for thirty days.","source":"note",`+
-			`"span":"a 30-day retention window","note_id":"`+recorded.ID+`"}`,
+			`"span":"Legal confirmed a 30-day retention window in chat.","note_id":"`+recorded.ID+`"}`,
 	)
 	require.NoError(t, runClaimsRecord(t, claimsPR, file,
 		"--repo", claimsSlug, "--intent-file", anIssueFile(t)))
@@ -317,6 +318,45 @@ func TestANoteSourcedClaimIsStoredLikeAnyOther(t *testing.T) {
 	assert.Equal(t, tracker.Head, fromNote.Head, "§2.3.3 stamps it like any other claim")
 	assert.Equal(t, tracker.Round, fromNote.Round)
 	assert.Empty(t, tracker.NoteID, "and a tracker claim beside it names no note")
+}
+
+// §3.3.2 sets a note-sourced claim's span to that note's body, so a claim that
+// quotes part of its note is refused through the command with exit code 1,
+// naming the file, the line and the field, and the round's previous extraction
+// stands. The quoted part occurs in the note, so only the equality rule refuses
+// it: the substring rule §3.3.1 keeps for the issue text would pass it.
+func TestANoteSourcedClaimQuotingPartOfItsNoteIsRefused(t *testing.T) {
+	layout := claimedHome(t)
+	recorded, err := note.Append(layout, claimsIssue,
+		"Legal confirmed a 30-day retention window in chat.",
+		note.SourceChat, claimsPRNum, time.Now())
+	require.NoError(t, err)
+	claims := layout.PRFile(claimsOwner, claimsRepo, claimsPRNum, state.FileClaims)
+	claimsBefore, err := os.ReadFile(claims)
+	require.NoError(t, err)
+
+	file := aClaimFile(t,
+		`{"id":"`+claimsIssue+`#c1","text":"Back off.","source":"acceptance",`+
+			`"span":"backs off exponentially"}`,
+		`{"id":"`+claimsIssue+`#c2","text":"Retain for thirty days.","source":"note",`+
+			`"span":"a 30-day retention window","note_id":"`+recorded.ID+`"}`,
+	)
+	err = runClaimsRecord(t, claimsPR, file,
+		"--repo", claimsSlug, "--intent-file", anIssueFile(t))
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err), "§3.3 rejects with exit code 1")
+	var rejected *intent.RejectedClaimError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, intent.RejectedClaimError{
+		File: file, Line: 2, Field: "span",
+		Problem: "is not the body of note " + recorded.ID +
+			"; §3.3.2 sets the span of a claim drawn from a note to that note's body",
+	}, *rejected)
+
+	claimsAfter, err := os.ReadFile(claims)
+	require.NoError(t, err)
+	assert.Equal(t, string(claimsBefore), string(claimsAfter),
+		"the refused file replaces nothing")
 }
 
 // §3.3.1's second half on its own: this round's mapping entries go.

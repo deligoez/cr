@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // The two texts §3.3 validates a span against, made disjoint on purpose.
@@ -68,21 +69,33 @@ func TestAClaimIsCheckedAgainstOneTextAndNeverTheOther(t *testing.T) {
 	assert.Equal(t, "retries on a 5xx", accepted[0].Span)
 
 	accepted, err = DecodeClaims(
-		claimsFile, aClaimLine("note", "ten-second cap", noteOne), "CR-1", spans,
+		claimsFile, aClaimLine("note", noteText, noteOne), "CR-1", spans,
 	)
-	require.NoError(t, err, "§3.3.2: a note span that occurs in the named note stands")
+	require.NoError(t, err, "§3.3.2: a note span that is the named note's body stands")
 	assert.Equal(t, noteOne, accepted[0].NoteID,
 		"§8.1.6 discloses the note, so the claim keeps naming it")
 
-	for name, tc := range map[string]struct{ source, span, noteID, in string }{
+	notTheBody := "claims.ndjson line 1: span is not the body of note " + noteOne +
+		"; §3.3.2 sets the span of a claim drawn from a note to that note's body"
+	for name, tc := range map[string]struct{ source, span, noteID, want string }{
 		"a tracker span that is in neither text": {
-			source: "acceptance", span: "refunded within a day", in: "the issue text",
+			source: "acceptance", span: "refunded within a day",
+			want: "claims.ndjson line 1: span does not occur in the issue text" +
+				"; §3.3 draws a claim from a verbatim substring of its source",
 		},
 		"a tracker span that is only in the note": {
-			source: "acceptance", span: "ten-second cap", in: "the issue text",
+			source: "acceptance", span: "ten-second cap",
+			want: "claims.ndjson line 1: span does not occur in the issue text" +
+				"; §3.3 draws a claim from a verbatim substring of its source",
 		},
 		"a note span that is only in the issue text": {
-			source: "note", span: "retries on a 5xx", noteID: noteOne, in: "note " + noteOne,
+			source: "note", span: "retries on a 5xx", noteID: noteOne, want: notTheBody,
+		},
+		"a note span that is part of the named note": {
+			source: "note", span: "ten-second cap", noteID: noteOne, want: notTheBody,
+		},
+		"a note span that is the named note with a sentence added": {
+			source: "note", span: noteText + " It was twice.", noteID: noteOne, want: notTheBody,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -92,13 +105,29 @@ func TestAClaimIsCheckedAgainstOneTextAndNeverTheOther(t *testing.T) {
 			var rejected *RejectedClaimError
 			require.ErrorAs(t, err, &rejected, "§3.3 rejects a span its source does not hold")
 			assert.Equal(t, "span", rejected.Field)
-			assert.Equal(t,
-				"claims.ndjson line 1: span does not occur in "+tc.in+
-					"; §3.3 draws a claim from a verbatim substring of its source",
-				err.Error(),
-				"the refusal names the one text the claim was checked in")
+			assert.Equal(t, tc.want, err.Error(),
+				"the refusal names the one text the claim was checked in, and the rule")
 		})
 	}
+}
+
+// §3.3.2 sets a note-sourced claim's span to the note's body, and "normalised"
+// is §1.4's one comparison of text: a span that differs from the body only in
+// the whitespace §1.4 folds is that body, and its span_hash is the body's.
+func TestANoteSpanIsComparedToTheBodyNormalised(t *testing.T) {
+	spaced := "The customer  confirmed a ten-second\\tcap in chat.  \\n\\n"
+	accepted, err := DecodeClaims(
+		claimsFile, aClaimLine("note", spaced, noteOne), "CR-1", disjointSpans(),
+	)
+	require.NoError(t, err, "§1.4 folds the spacing, so the span is the note's body")
+	require.Len(t, accepted, 1)
+	assert.Equal(t, "The customer  confirmed a ten-second\tcap in chat.  \n\n", accepted[0].Span,
+		"the span is stored as the agent wrote it")
+
+	require.NoError(t, ComputeClaimHashes(accepted, trackerText))
+	bodyHash, err := text.NormalisedHash(noteText)
+	require.NoError(t, err)
+	assert.Equal(t, bodyHash, accepted[0].SpanHash, "an accepted span hashes as the body does")
 }
 
 // §3.3.2 validates a note-sourced claim against "the named note", so an id
@@ -144,7 +173,7 @@ func TestARetractedNoteStillFoundsItsClaim(t *testing.T) {
 		"the fixture's note is retracted, which is what this case is about")
 
 	accepted, err := DecodeClaims(
-		claimsFile, aClaimLine("note", "ten-second cap", noteOne), "CR-1", spans,
+		claimsFile, aClaimLine("note", noteText, noteOne), "CR-1", spans,
 	)
 	require.NoError(t, err,
 		"§3.6.6 reports a citation of a retracted note; it does not refuse the extraction")

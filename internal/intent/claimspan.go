@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // SpanTexts are the texts §3.3 validates a claim's span against.
@@ -31,7 +32,7 @@ type SpanTexts struct {
 }
 
 // spanSource is the one text one claim's span is checked against, together
-// with the name the rejection calls it by.
+// with the name the rejection calls it by and the rule the span is held to.
 //
 // It exists so that choosing the text and searching it are not the same step.
 // The choice is made once, in against below, out of the claim's `source` and
@@ -41,14 +42,41 @@ type SpanTexts struct {
 // convention that the note branch remembers not to look at the issue text, but
 // a shape in which it has no issue text to look at.
 type spanSource struct {
-	// text is what the span must occur in.
+	// text is what the span is checked against.
 	text string
 	// name is what that text is called in a rejection, so the user is told
 	// which of §3.3's two rules refused the claim.
 	name string
+	// whole is true when the span must be the whole of text rather than
+	// occur somewhere inside it. §3.3.1 asks the second of a claim drawn
+	// from the issue text; §3.3.2 asks the first of a claim drawn from a
+	// note, whose span it sets to that note's body.
+	whole bool
 }
 
-// SpanOccursIn reports whether span occurs in text.
+// holds reports whether span satisfies the rule this source was chosen under.
+func (s spanSource) holds(span string) (bool, error) {
+	if s.whole {
+		return spanIsBody(s.text, span)
+	}
+	return SpanOccursIn(s.text, span), nil
+}
+
+// problem is what a rejection under this source's rule says is wrong.
+func (s spanSource) problem() string {
+	if s.whole {
+		return fmt.Sprintf(
+			"is not the body of %s; §3.3.2 sets the span of a claim drawn from a note to that note's body",
+			s.name,
+		)
+	}
+	return fmt.Sprintf(
+		"does not occur in %s; §3.3 draws a claim from a verbatim substring of its source",
+		s.name,
+	)
+}
+
+// SpanOccursIn reports whether span occurs in source.
 //
 // It is one function because two sections ask the same question of the same
 // pair. §3.3.1 rejects a claim whose span does not occur in the issue text, and
@@ -61,8 +89,29 @@ type spanSource struct {
 // substring of the source text the claim was drawn from". Normalising first
 // would accept a span that is not in the text, which is exactly the claim
 // §3.3.1 exists to refuse.
-func SpanOccursIn(text, span string) bool {
-	return strings.Contains(text, span)
+func SpanOccursIn(source, span string) bool {
+	return strings.Contains(source, span)
+}
+
+// spanIsBody reports whether span is the note body §3.3.2 sets it to.
+//
+// The two are compared normalised, per §1.4. §3.3.2 does not ask for a
+// substring, so the verbatim-substring reason SpanOccursIn gives for a literal
+// comparison does not reach this rule; what it asks is that the span be the
+// body, and the one place a span is read as text afterwards is §3.3's
+// `span_hash`, a normalised hash. Equal normalised forms are exactly the spans
+// whose `span_hash` is the body's own, and any part of a note, or any note with
+// a word added, normalises to something else.
+func spanIsBody(body, span string) (bool, error) {
+	normalBody, err := text.Normalise(body)
+	if err != nil {
+		return false, err
+	}
+	normalSpan, err := text.Normalise(span)
+	if err != nil {
+		return false, err
+	}
+	return normalBody == normalSpan, nil
 }
 
 // span holds one claim to §3.3.1's occurrence rule or to §3.3.2's, whichever
@@ -72,13 +121,14 @@ func (c claimChecker) span(line int, claim *Claim) error {
 	if err != nil {
 		return err
 	}
-	if !SpanOccursIn(against.text, claim.Span) {
+	held, err := against.holds(claim.Span)
+	if err != nil {
+		return err
+	}
+	if !held {
 		return &RejectedClaimError{
 			File: c.file, Line: line, Field: "span",
-			Problem: fmt.Sprintf(
-				"does not occur in %s; §3.3 draws a claim from a verbatim substring of its source",
-				against.name,
-			),
+			Problem: against.problem(),
 		}
 	}
 	return nil
@@ -125,5 +175,5 @@ func (c claimChecker) against(line int, claim *Claim) (spanSource, error) {
 			),
 		}
 	}
-	return spanSource{text: named.Text, name: "note " + named.ID}, nil
+	return spanSource{text: named.Text, name: "note " + named.ID, whole: true}, nil
 }
