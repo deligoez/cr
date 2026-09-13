@@ -234,3 +234,30 @@ anchor warning among them is easy to miss even when the output is read.
 **Proposed fix.** Make a `source_sections` entry that matches no heading an error
 when the task has no `source_lines` to fall back on, or at least exit non-zero
 under a `--strict` flag, so the anchor check can gate a script.
+
+## The scope fence refuses a read-only codedbpro batch under `.tp-review/`
+
+Reported twice on 2026-09-13 by cr audit units running under tp v1.1.1's plugin
+hooks: a codedbpro `batch` whose operations only read
+`spec/.tp-review/0.1.0/audit-round-5.ndjson` was refused as a hand edit of tp's
+state, so the unit could not read the previous audit round's rows through the
+tool CLAUDE.md makes mandatory and fell back to `git grep`.
+
+The source shows why. `hooks/hooks.json` puts `mcp__codedbpro__batch` in the
+`PreToolUse` matcher of `pre-tool-use-write-deny.sh` beside the write tools, and
+the hook (lines 84-98) extracts every `file`, `file_path`, `path` and `paths`
+value from the payload without looking at which operation carries it. A batch is
+a list of operations of any kind, so `{"ops":[{"tool":"read","file":".../.tp-review/..."}]}`
+yields a fenced path exactly as a write would, and the hook exits 2.
+
+The fence is right to hold writes, and `batch` can carry writes, so dropping it
+from the matcher would reopen the hole the comment at lines 79-83 records. The
+cost is only on the read side: an auditor or reviewer unit is told to read the
+prior round and cannot, which is the opposite of what Workflow D's delta
+re-grade asks of it.
+
+**Proposed fix.** For `mcp__codedbpro__batch`, judge each operation by its
+`tool`: extract paths only from `create`, `edit`, `patch` and `replace`
+operations, and let `read`, `faster_search`, `meta_search`, `diff`, `lint` and
+`memo` through. A payload whose operation kinds cannot be read stays refused, as
+the backslash rule already fails closed.
