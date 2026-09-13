@@ -56,8 +56,8 @@ func decodeRound[T any](path string, body []byte, round int) ([]T, error) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(line, &fields); err != nil {
+		fields, err := storedFields(line)
+		if err != nil {
 			return nil, unusableLine(path, i+1, err)
 		}
 		if roundOf(fields) != round {
@@ -184,20 +184,17 @@ func RewriteStamped(
 	if err := checkStamped(name); err != nil {
 		return err
 	}
-	out, err := visitLines(k, name, func(supplied map[string]json.RawMessage, line []byte) ([]byte, error) {
-		fields, err := FoldedFields(line)
-		// §11.2 codes a repeated key 1 in a file a caller hands cr, and this
-		// is cr's own stored file, so the refusal carries the key and not
-		// the error type that would code it 1.
-		if repeated := (*RepeatedKeyError)(nil); errors.As(err, &repeated) {
-			err = fmt.Errorf("%s is given more than once", repeated.Key)
-		}
-		if err != nil {
-			return nil, FileFailure("use", name, UnusableHint, err)
-		}
+	out, err := visitLines(k, name, func(fields map[string]json.RawMessage, line []byte) ([]byte, error) {
 		changed, err := apply(fields)
 		if err != nil || !changed {
 			return line, err
+		}
+		// visitLines has decoded the line already, so this reads the
+		// spellings of a well-formed object and its error is returned
+		// rather than expected.
+		var supplied map[string]json.RawMessage
+		if err := json.Unmarshal(line, &supplied); err != nil {
+			return nil, err
 		}
 		return json.Marshal(respelled(supplied, fields))
 	})
@@ -326,12 +323,33 @@ func keyOf(keyFields []string, fields map[string]json.RawMessage) string {
 // §9.3.3 numbers rounds from 1, so 0 is no round at all and such a line is kept
 // by every round-scoped write. Keeping it is the conservative half: a line this
 // version cannot read is history it has no licence to delete.
+//
+// fields are keyed by storedFields, so `"Round"` supplies the round `"round"`
+// does, as it does to the struct every read decodes the line into.
 func roundOf(fields map[string]json.RawMessage) int {
 	var round int
 	if err := json.Unmarshal(fields["round"], &round); err != nil {
 		return 0
 	}
 	return round
+}
+
+// storedFields is the one reading of a stored §2.3.3 line's fields that
+// ReadStamped and every writer here share: FoldedFields, keying each field the
+// way encoding/json binds it, so the round a line is scoped by is the round
+// every decode of the line reads.
+//
+// A line giving one key twice under that folding has no one value a decode
+// binds, so it is refused. §11.2 codes a repeated key 1 in a file a caller
+// hands cr, and this is cr's own stored file, so the refusal carries the key
+// and not the error type that would code it 1; the caller names the file and
+// the line.
+func storedFields(line []byte) (map[string]json.RawMessage, error) {
+	fields, err := FoldedFields(line)
+	if repeated := (*RepeatedKeyError)(nil); errors.As(err, &repeated) {
+		return nil, fmt.Errorf("%s is given more than once", repeated.Key)
+	}
+	return fields, err
 }
 
 // earlierRounds returns the lines of one §2.3.3 file that do not belong to
@@ -400,8 +418,8 @@ func visitLines(
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(line, &fields); err != nil {
+		fields, err := storedFields(line)
+		if err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", path, i+1, FileFailure("use", name, UnusableHint, err))
 		}
 		out, err := visit(fields, line)
