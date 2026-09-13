@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T09:05:54.508919Z",
+  "updated_at": "2026-09-13T09:54:55.55414Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9232,7 +9232,7 @@
     {
       "id": "note-claim-span-is-body",
       "title": "Require a note claim span equal the body",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 20,
@@ -9240,16 +9240,25 @@
       "source_sections": [
         "### 3.3 Claim extraction"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T09:06:47.448639Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:19:39.832045Z",
+      "closed_reason": "- A claim sourced from a note is now refused with exit 1 unless its span equals the named note's body compared normalised per §1.4, per §3.3.2, where internal/intent/claimspan.go routes a note claim to spanIsBody (text.Normalise on both sides, then equality) and an issue-text claim to the unchanged SpanOccursIn substring rule, and the RejectedClaimError names the file, the line and the span field; overlay mutants restoring the substring rule and comparing literally each turned internal/intent tests red.\n- Audit round 1 row list-15-2 is repaired: a span quoting only part of its note (\"ten-second cap\" of \"The customer confirmed a ten-second cap in chat.\") is refused, as TestAClaimIsCheckedAgainstOneTextAndNeverTheOther in internal/intent/claimspan_test.go asserts beside a span with a sentence added, and TestANoteSpanIsComparedToTheBodyNormalised asserts a whitespace-only variant is accepted with the body's span_hash.\n- TestANoteSourcedClaimQuotingPartOfItsNoteIsRefused in internal/cli/claims_test.go drives cr claims record with a partial span and asserts exit 1, the whole RejectedClaimError and an unchanged claims.ndjson, and TestANoteSourcedClaimIsStoredLikeAnyOther now drives it with the full body and asserts it is stored; the dogfood binary printed \"partial.ndjson line 2: span is not the body of note CR-1#n1; §3.3.2 sets the span of a claim drawn from a note to that note's body\" at exit 1 and recorded the full-body claim at exit 0.\n",
+      "gate_passed_at": "2026-09-13T09:19:39.832045Z",
+      "commit_sha": "6645473",
+      "commit_shas": [
+        "6645473"
+      ],
+      "commit_files": [
+        "internal/cli/claims_test.go",
+        "internal/intent/claimspan.go",
+        "internal/intent/claimspan_test.go"
+      ]
     },
     {
       "id": "test-symbol-references",
       "title": "Attach symbols a test file references",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 60,
@@ -9257,16 +9266,35 @@
       "source_sections": [
         "### 4.4 Test adequacy"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T09:21:47.327338Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:40:13.708946Z",
+      "closed_reason": "- cr review and cr status now attach the head symbols each attached test file references per §4.4.1: internal/symbol/refs.go's Index.Referenced names a file's identifiers that some head declaration is named, in first-appearance order, skipping comment lines and a declaration's own name on its own line, and internal/testadequacy/head.go's HeadReferences reads each attached test file at the head through git.FileAtRevision and answers from that index, which internal/review/attach.go and internal/cli/status.go roundHalves now pass in place of nil; the dogfood binary on a scratch Go repository whose head adds lib_test.go calling Load printed \"Symbols they reference: Load.\" with an empty honesty list.\n- Audit round 1 rows list-23-1 and task-test-file-attachment are closed by that wiring: the References interface at internal/testadequacy/attach.go now has an implementation, and neither caller passes nil any more.\n- When no index answers, the disclosure names the real cause through indexReason in internal/testadequacy/attach.go (no profile matched, no symbols.lang, a symbols.lang cr has no scanner for, or no index built), a test file the head does not hold is reported as \"cr could not read legacy_test.go at the head\" instead of a missing index, and the References comment no longer says symbol-index-build will supply an implementation; TestEachWayTheSymbolIndexIsMissingHasItsOwnReason asserts all four whole reasons and TestStatusOnAnIndexedRoundDisclosesOnlyTheHalfThatDidNotRun asserts the unread-file line through cr status, red under an overlay mutant passing nil References in status.go.\n- TestReviewAttachesTheHeadSymbolsATestFileReferences in internal/cli/testsymbols_test.go drives cr review on a fixture whose head adds lib_test.go calling Load under a Go profile and asserts every emitted prompt carries the whole lines \"Changed or added by the pull request: lib_test.go.\" and \"Symbols they reference: Load.\" with no test/symbols disclosure, red under an overlay mutant passing nil References in review/attach.go and under one dropping the declaration-site exclusion in refs.go.\n- With no profile matched, the reinvention and test-symbols honesty lines now read \"no profile matched this repository, so §4.3.1's symbol index cannot be built; set `profile` in the per-repository config to name the profile this repository is\" instead of profile \"\" (internal/reinvention/unavailable.go and internal/testadequacy/attach.go), asserted as whole body lines by TestTheReviewBodyDisclosesEveryLensThatDidNotRun and by package tests, each red under an overlay mutant removing the no-profile case, and seen verbatim in the dogfood binary's cr review honesty list on a scratch repository no profile matched.\n",
+      "gate_passed_at": "2026-09-13T09:40:13.708946Z",
+      "commit_sha": "61e870f",
+      "commit_shas": [
+        "61e870f"
+      ],
+      "commit_files": [
+        "internal/cli/reviewbody_test.go",
+        "internal/cli/status.go",
+        "internal/cli/status_test.go",
+        "internal/cli/testsymbols_test.go",
+        "internal/reinvention/unavailable.go",
+        "internal/reinvention/unavailable_test.go",
+        "internal/review/attach.go",
+        "internal/review/run_test.go",
+        "internal/symbol/refs.go",
+        "internal/symbol/refs_test.go",
+        "internal/testadequacy/attach.go",
+        "internal/testadequacy/attach_test.go",
+        "internal/testadequacy/head.go"
+      ]
     },
     {
       "id": "indent-warning-context-lines",
       "title": "Warn on re-indented context lines",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 20,
@@ -9274,11 +9302,22 @@
       "source_sections": [
         "### 8.2 Suggestion validation"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T09:21:04.992945Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:38:46.043791Z",
+      "closed_reason": "- The §8.2.3 indentation warning now reads the head line a suggestion replaces from the hunk's own text (git.HunkTexts over the same patch), counting context and added lines from the header's head start, so a changed line and a context line Validate admits are compared alike in internal/suggestion/indent.go, and cr draft passes the hunks and their texts through roundPatch in internal/cli/indentation.go and rulescheck.go with no new git read; the dogfood binary drafting a scratch pull request warned \"suggestion: \\\"\\\\tpackage lib\\\" replaces: \\\"package lib\\\"\" on context line 1 beside the unchanged warning on changed line 4.\n- Audit round 1 row list-42-3's probe line, context line 11 of indentedDiff, now draws the warning when a four-space suggestion replaces it, with Replaced \"$tail = 3;\", asserted whole by TestASuggestionReindentingAContextLineIsWarnedAbout.\n- TestASuggestionReindentingAContextLineIsWarnedAbout in internal/suggestion/indent_test.go covers context lines 11 and 40 of indentedDiff with changed indentation and TestADraftWarnsAboutASuggestionReindentingAContextLine in internal/cli/indentationcontext_test.go drives cr record and cr draft and asserts the whole warning list, and go test -overlay mutants restoring the changed-lines-only lookup, passing nil texts from cr draft, counting removed lines, starting the count one line late and loosening the texts bound each turned them red.\n",
+      "gate_passed_at": "2026-09-13T09:38:46.043791Z",
+      "commit_sha": "879c753",
+      "commit_shas": [
+        "879c753"
+      ],
+      "commit_files": [
+        "internal/cli/indentation.go",
+        "internal/cli/indentationcontext_test.go",
+        "internal/cli/rulescheck.go",
+        "internal/suggestion/indent.go",
+        "internal/suggestion/indent_test.go"
+      ]
     },
     {
       "id": "state-lock-errors-and-containment",
@@ -9331,7 +9370,7 @@
     {
       "id": "brief-invalidate-error-context",
       "title": "Name the file when brief invalidation fails",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 20,
@@ -9339,11 +9378,20 @@
       "source_sections": [
         "### 2.3 Per-PR state"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T09:40:08.247131Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:54:19.273731Z",
+      "closed_reason": "- cr brief on a moved head now refuses a stored findings.ndjson line its sweep cannot decode with exit 3 and state.UnusableHint, naming the file path and the line counted with blank lines, instead of exit 2 with the usage hint: internal/brief/invalidate.go wraps the state and id decode failures as state.FileFailure(\"use the \u003cfield\u003e field of\", findings.ndjson, UnusableHint) and internal/state/roundscope.go visitLines prefixes every visitor refusal with \"\u003cpath\u003e line \u003cn\u003e: \" and codes a line that is not JSON the same unusable file, following the precedent that a corrupt stored cr file is 3 (state.ContextStoreError, the triage ledger in stats.go, posted.json in reconcile.go, meta.json); the dogfood binary printed \"…/pr-7/findings.ndjson line 3: cannot use the state field of findings.ndjson: \\\"bogus\\\" is not a record state; …\" and exited 3.\n- The audit round 1 maintainability-conventions row for internal/brief/invalidate.go (staleOpenRecords returning decode errors bare at 117-119 and 131-133, RewriteStamped passing them on unwrapped, no exit.go row claiming *finding.UnknownStateError) is repaired at its source, so no new exit.go row was needed: the refusal is a *state.FileError that the file-failure floor codes 3 and whose own hint is state.UnusableHint.\n- TestABriefOnAMovedHeadNamesTheStoredLineItCannotUse in internal/cli/briefinvalidate_test.go drives cr brief over aRoundTheHeadOutran with a bad third line behind a blank one (a state named bogus, a numeric id, a line that is not JSON) and asserts the whole error string, exit code 3, the UnusableHint hint and findings.ndjson left byte-identical; go test -overlay mutants restoring each bare return, dropping the line prefix, dropping the FileFailure on a non-JSON line and counting the line off by one each turned it red.\nOut of scope: the lock-free readers (state.decodeRound and decodeRecords, reached by cr status and cr draft) still exit 2 with the usage hint over the same stored line — measured with cr status on the dogfood state, which named the file and line 3 and exited 2.\n",
+      "gate_passed_at": "2026-09-13T09:54:19.273731Z",
+      "commit_sha": "92b2d50",
+      "commit_shas": [
+        "92b2d50"
+      ],
+      "commit_files": [
+        "internal/brief/invalidate.go",
+        "internal/cli/briefinvalidate_test.go",
+        "internal/state/roundscope.go"
+      ]
     },
     {
       "id": "command-level-tests-and-comments",
@@ -9352,7 +9400,7 @@
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 45,
-      "acceptance": "- Tests drive cr claims record, cr map record and cr record with a supplied head and a supplied round; a test asserts cr cells record and cr status agree on the stored active-role set; a test drives a rejected post through send and a re-triage to one outcome; audit round 1 rows task-stamp-head-round-fields, task-role-activation-definition, task-triage-event-writing.\n- Stale comments are corrected: cli/root.go on commands that refuse to run, cli/output.go's reference to TestQuietIsReadOnlyWhereInformationIsWritten, and cli/unoverridable_test.go on cr post not being built; audit round 1 rows task-command-surface-stubs and task-quiet-honesty-exemptions.\n- A pull request with no round exits 4 with a hint naming cr brief, and a test asserts it; audit round 1 row task-unreadable-input-exit-code.",
+      "acceptance": "- Tests drive cr claims record, cr map record and cr record with a supplied head and a supplied round; a test asserts cr cells record and cr status agree on the stored active-role set; a test drives a rejected post through send and a re-triage to one outcome; audit round 1 rows task-stamp-head-round-fields, task-role-activation-definition, task-triage-event-writing.\n- Stale comments are corrected: cli/root.go on commands that refuse to run, cli/output.go's reference to TestQuietIsReadOnlyWhereInformationIsWritten, and cli/unoverridable_test.go on cr post not being built; audit round 1 rows task-command-surface-stubs and task-quiet-honesty-exemptions.\n- A pull request with no round exits 4 with a hint naming cr brief, and a test asserts it; audit round 1 row task-unreadable-input-exit-code.\n- Read-only commands such as cr status that meet a stored findings.ndjson line cr cannot decode exit 3 with state.UnusableHint and the file and line, as cr brief does since 92b2d50, instead of 2 with the usage hint; a test drives cr status over such a line.",
       "source_sections": [
         "### 11.2 Exit codes",
         "### 7.3 Triage statistics"
@@ -9394,7 +9442,7 @@
     {
       "id": "repo-store-lock-errors",
       "title": "Classify repository store lock failures",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 20,
@@ -9403,11 +9451,23 @@
         "### 2.3 Per-PR state",
         "### 11.2 Exit codes"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T09:06:56.388934Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T09:20:08.541521Z",
+      "closed_reason": "- LockRepoWaivers and WaiverLock.Unlock (internal/state/waivers.go) and updateRepoStore's flock and release (internal/state/rulestats.go, the door UpdateTriage and UpdateRuleStats share) now return state.FileError through FileFailure with lockHint, as LockPR's have since 10bf082, so exit.go's file-failure floor codes them 3 with that hint instead of 2 with the usage hint: TestARepositoryStoreLockThatCannotBeTakenIsAFileFailure in internal/state/lockfailure_test.go drives all three doors into an unopenable lock file and asserts the whole hint, the lock path and os.ErrPermission, and go test -overlay mutants reverting each lock failure to the bare error turned it red.\n- LockProbe (internal/state/probelock.go) refuses a repository path or profile id whose lock file would leave the probe locks directory with ProbeLockOutsideError, which unwraps to the OutsideRootError the other doors refuse with and creates nothing: TestAProbeLockOutsideTheProbeLocksDirectoryIsRefused covers a relative path and two climbing profile ids and asserts the directory holding the root stays empty, TestAProbeLockInsideTheProbeLocksDirectoryIsTaken is the boundary control, and a mutant skipping the check turned every case red; a new exit.go row codes it 3 with a step naming meta.json's profile_id plus state.UnusableHint rather than the OutsideRootError row's --repo step, since filepath.Abs leaves only the profile id able to climb out, pinned by TestAProbeLockOutsideItsDirectoryNamesTheProfileIDAndNotTheFlag.\n- TestAWaiverRemovalWhoseLockCannotBeTakenExitsWithTheFileCode in internal/cli/statelock_test.go drives cr waivers remove into a repository waiver lock file nobody may open and asserts the whole message, exit 3, the whole lockHint and that the waiver is still stored; the dogfood binary /tmp/cr-dev/cr-repo-store-lock-errors running cr waivers remove wr1 --repo acme/web against an unopenable locks/waivers/acme/web.lock printed \"cannot lock .../locks/waivers/acme/web.lock: open ...: permission denied\" with that hint at exit 3.\n",
+      "gate_passed_at": "2026-09-13T09:20:08.541521Z",
+      "commit_sha": "b6cf421",
+      "commit_shas": [
+        "b6cf421"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/statelock_test.go",
+        "internal/state/lockfailure_test.go",
+        "internal/state/probelock.go",
+        "internal/state/rulestats.go",
+        "internal/state/waivers.go"
+      ]
     }
   ]
 }
