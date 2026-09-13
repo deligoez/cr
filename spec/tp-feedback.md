@@ -190,3 +190,27 @@ for.
 non-space character. That one rule covers `./...`, `go.mod`, `v1.1.1` and
 `internal/cli.version`; skipping a `.` inside backticks also covers a quoted
 path that ends a clause.
+
+## `tp audit` gives a nested list's items the ids of the list that holds them
+
+Measured 2026-09-13 with tp v1.1.1 on `tp audit spec/0.1.0.md --affected-from-tasks`,
+round 1. The spec-coverage checklist held 731 items and **719 distinct
+`item_id`s**. The twelve repeated ids are `list-28-1` through `list-28-7` and
+`list-29-1` through `list-29-5`: §5.3.4 and §5.4.3 are numbered items that each
+introduce a nested numbered ladder, and every rung of the ladder took the id of
+the outer item with the same number. `list-28-4` names both §5.3's "The result
+MUST be determined by the first matching rung" (spec line 686) and that ladder's
+fourth rung (line 691).
+
+`tp audit --merge` dedups by `role` + `item_id`, so twelve of the auditor's rows
+collapse into the other twelve, and whichever survives the merge decides both
+requirements' status. It bit in this round: the auditor recorded `list-29-5`
+`PASS` for §5.4.3's fifth rung and, eight lines later, `PARTIAL` for §5.4.5 (a
+severity bound `cr post` never re-checks). `tp audit --merge` on that one file
+reported `"duplicates_removed": 9`, `merged_count` 109 of 118, and the merged
+`list-29-5` row is the `PASS` — **the first row wins, and the finding is gone
+from the round with nothing in the output saying a non-`PASS` row was dropped.**
+
+**Proposed fix.** Number a nested list item under its parent (`list-28-4-1`), or
+number every list item in document order. Either keeps ids unique; a check at
+emission that refuses a checklist with a repeated id would have caught this one.
