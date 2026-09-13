@@ -25,9 +25,8 @@ import (
 // run by hand; it produced exactly the four archives this matrix predicts.
 
 // goreleaserConfig is the slice of .goreleaser.yml that §14 constrains. Every
-// other key — the archive name template, the changelog filters, the brews block
-// that §14.3 owns — is deliberately absent, so this test fails only on the
-// fields it is about.
+// other key — the archive name template, the changelog filters — is deliberately
+// absent, so this test fails only on the fields it is about.
 type goreleaserConfig struct {
 	Before struct {
 		Hooks []string `yaml:"hooks"`
@@ -45,6 +44,18 @@ type goreleaserConfig struct {
 			Goos string `yaml:"goos"`
 		} `yaml:"format_overrides"`
 	} `yaml:"archives"`
+	HomebrewCasks []struct {
+		Name       string   `yaml:"name"`
+		Binaries   []string `yaml:"binaries"`
+		Repository struct {
+			Owner string `yaml:"owner"`
+			Name  string `yaml:"name"`
+			Token string `yaml:"token"`
+		} `yaml:"repository"`
+	} `yaml:"homebrew_casks"`
+	// Brews is GoReleaser's deprecated formula block, read only so its
+	// absence can be asserted.
+	Brews []any `yaml:"brews"`
 }
 
 // workflow is the slice of a GitHub Actions file these tests read: what fires
@@ -61,6 +72,7 @@ type workflow struct {
 			Uses string         `yaml:"uses"`
 			Run  string         `yaml:"run"`
 			With map[string]any `yaml:"with"`
+			Env  map[string]any `yaml:"env"`
 		} `yaml:"steps"`
 	} `yaml:"jobs"`
 }
@@ -152,4 +164,32 @@ func TestTheReleaseBinaryIsTheOneGoInstallNames(t *testing.T) {
 
 	assert.Contains(t, build.Ldflags, "-X github.com/deligoez/cr/internal/cli.version={{.Version}}",
 		"§14.6 injects the tagged version into internal/cli.version at build time")
+}
+
+// §14.3 through the release configuration: one Homebrew cask named cr, carrying
+// the binary as cr, published to deligoez/homebrew-tap with a token the release
+// workflow supplies — so `brew install deligoez/tap/cr` installs `cr` and the
+// cask is written by the release, never by hand. GoReleaser's deprecated
+// `brews` block is gone, because `goreleaser check` fails while it stands.
+func TestAReleasePublishesTheCaskToTheTapFromTheWorkflow(t *testing.T) {
+	cfg := readGoreleaser(t)
+
+	assert.Empty(t, cfg.Brews, "`brews` is deprecated and fails `goreleaser check`")
+	require.Len(t, cfg.HomebrewCasks, 1, "§14.3 names one tap entry")
+	cask := cfg.HomebrewCasks[0]
+	assert.Equal(t, "cr", cask.Name, "`brew install deligoez/tap/cr` resolves the cask by this name")
+	assert.Equal(t, []string{"cr"}, cask.Binaries, "the cask installs the binary as cr")
+	assert.Equal(t, "deligoez", cask.Repository.Owner)
+	assert.Equal(t, "homebrew-tap", cask.Repository.Name, "`deligoez/tap` is the homebrew-tap repository")
+	assert.Equal(t, "{{ .Env.HOMEBREW_TAP_TOKEN }}", cask.Repository.Token)
+
+	supplied := false
+	for _, job := range readWorkflow(t, ".github/workflows/release.yml").Jobs {
+		for _, step := range job.Steps {
+			if strings.HasPrefix(step.Uses, "goreleaser/goreleaser-action@") {
+				supplied = fmt.Sprint(step.Env["HOMEBREW_TAP_TOKEN"]) == "${{ secrets.HOMEBREW_TAP_TOKEN }}"
+			}
+		}
+	}
+	assert.True(t, supplied, "the release workflow's GoReleaser step is what holds the tap token, so the tag publishes the cask")
 }
