@@ -3,12 +3,14 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -96,4 +98,77 @@ func TestTheReturnedThreadIdsJoinThePayloadRatherThanReplacingIt(t *testing.T) {
 	assert.Len(t, comments, 2, "the payload is still in the document the ids were added to")
 	assert.JSONEq(t, `"COMMENT"`, string(document["event"]),
 		"§8.3.2's event is still the one the round was posted with")
+}
+
+// readOnly makes dir unwritable for the rest of the test and writable again
+// after it, so a §2.3 write into it fails on the temporary file it cannot
+// create while every read of it still succeeds.
+func readOnly(t *testing.T, dir string) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through a read-only directory")
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	require.NoError(t, os.Chmod(dir, 0o500))
+}
+
+// The three writes `cr post` makes after its network call report their own
+// failure rather than swallowing it.
+//
+// gremlins found each guard unasserted: negated, the lock was released and the
+// write's error dropped, so the caller was told nothing. What is lost differs.
+// A posted index that did not land re-raises, next round, a comment the author
+// already received — the failure §9.3.6 exists to prevent. The records section
+// is what §8.4.4's reconciliation reads back to adopt a review whose outcome
+// was unknown. The thread ids are §8.3.3's provenance. Each is driven directly,
+// as the tests above drive writePosted and adoptThreads, with only the
+// directory its write lands in made read-only.
+func TestTheWritesAfterThePostReportTheirOwnFailure(t *testing.T) {
+	t.Run("the posted index", func(t *testing.T) {
+		layout := draftedHome(t)
+		posted := aStoredRecord("f1", finding.StatePosted)
+		dir := layout.PRDir(draftOwner, draftRepo, draftPRNum)
+		readOnly(t, dir)
+
+		err := recordPostedIndex(layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted})
+
+		require.Error(t, err, "§9.3.6's entry did not land, and the caller has to know")
+		assert.Contains(t, err.Error(), dir)
+	})
+	t.Run("the thread ids", func(t *testing.T) {
+		layout := draftedHome(t)
+		_, err := writePosted(layout, draftOwner, draftRepo, draftPRNum, draftRound, aPostedReview())
+		require.NoError(t, err)
+		dir := layout.RoundDir(draftOwner, draftRepo, draftPRNum, draftRound)
+		readOnly(t, dir)
+
+		err = adoptThreads(layout, draftOwner, draftRepo, draftPRNum, draftRound,
+			map[string]string{"f1": "PRRT_kwDOAbCd"})
+
+		require.Error(t, err, "§8.3.3's ids did not land, and the caller has to know")
+		assert.Contains(t, err.Error(), dir)
+	})
+	t.Run("the records an unknown outcome was drawn from", func(t *testing.T) {
+		layout := draftedHome(t,
+			aStoredRecord("f1", finding.StateQueued), aStoredRecord("f2", finding.StateQueued))
+		review := aPostedReview()
+		_, err := writePosted(layout, draftOwner, draftRepo, draftPRNum, draftRound, review)
+		require.NoError(t, err)
+		round, err := layout.ReadMeta(draftOwner, draftRepo, draftPRNum)
+		require.NoError(t, err)
+		dir := layout.RoundDir(draftOwner, draftRepo, draftPRNum, draftRound)
+		readOnly(t, dir)
+
+		err = postOutcome(layout, &round, review, &gh.CommandError{
+			Args: post.Request(draftOwner, draftRepo, draftPRNum, "posted.json"),
+			Err:  &exec.ExitError{},
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), dir,
+			"§8.4.4's reconciliation reads these ids back, so a write that failed is named")
+		stored, readErr := layout.ReadMeta(draftOwner, draftRepo, draftPRNum)
+		require.NoError(t, readErr)
+		assert.True(t, stored.PostUnresolved, "meta.json is outside the directory that refused")
+	})
 }
