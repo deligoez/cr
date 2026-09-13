@@ -37,6 +37,8 @@ type sending struct {
 	// forced is §6.3.2's count over them, reported after the send exactly
 	// as §8.5.1's dry run reports it.
 	forced finding.Forcings
+	// withdrawn is §3.6.6's count over them, reported beside it.
+	withdrawn finding.Withdrawn
 	// triage is what the draft's verbs made of the round, which §7.3.1 has
 	// this command settle once the call has returned.
 	triage *triaged
@@ -119,7 +121,8 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	}
 	return out.emit(&postResult{
 		Round: s.round.Round, Comments: commentedRecords(s.review, s.queued),
-		Payload: s.review, Forced: s.forced, posting: posting{Posted: true, ConfirmGiven: true},
+		Payload: s.review, Forced: s.forced, Withdrawn: s.withdrawn,
+		posting: posting{Posted: true, ConfirmGiven: true},
 	})
 }
 

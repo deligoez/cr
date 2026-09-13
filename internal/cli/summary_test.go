@@ -85,6 +85,12 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 				Count int    `json:"count"`
 			}](raw)
 		},
+		"forced_by_retraction": func(raw json.RawMessage) error {
+			return strictly[[]struct {
+				Class string `json:"class"`
+				Count int    `json:"count"`
+			}](raw)
+		},
 		"confirm_given": func(raw json.RawMessage) error {
 			if string(raw) != "true" {
 				return fmt.Errorf("%s is not true: §8.5.4's fact is written only once --confirm was given", raw)

@@ -46,6 +46,10 @@ type postResult struct {
 	// §6.3.1's last application — the only one that sees the payload the
 	// author will actually receive.
 	Forced finding.Forcings `json:"forced_to_question"`
+	// Withdrawn is §3.6.6's count per class of the records the payload
+	// holds as questions because the note their claim rests on no longer
+	// stands, as this run read the context store.
+	Withdrawn finding.Withdrawn `json:"forced_by_retraction"`
 	// posting is §12.6's field, which §8.5.1 requires of the dry run in as
 	// many words: a run that sent nothing reports `"posted": false`.
 	posting
@@ -80,7 +84,7 @@ func (r *postResult) Text(w *writer) string {
 	for _, comment := range r.Comments {
 		text.WriteString(comment.ID + ": " + string(comment.Kind) + "\n")
 	}
-	return text.String() + r.payload() + w.disclose("", "\n", r.Forced.Disclosure()) + r.line(w)
+	return text.String() + r.payload() + w.disclose("", "\n", r.Forced.Disclosure(), r.Withdrawn.Disclosure()) + r.line(w)
 }
 
 // payload renders §8.5.1's full payload for a terminal: the review's own body,
@@ -208,7 +212,7 @@ func buildReview(
 	if err != nil {
 		return err
 	}
-	grading, err := readRoundGrading(l, owner, repo, pr, round.Round)
+	grading, err := readRoundGrading(l, owner, repo, pr, round)
 	if err != nil {
 		return err
 	}
@@ -222,6 +226,10 @@ func buildReview(
 	}
 	queued := retypeForDraft(postedRecords(records), &triage.Triage)
 	grading.forceUnmapped(round.Round, queued)
+	// §3.6.6 again, immediately before the payload is built: a note
+	// retracted after the draft was rendered takes the assertion register
+	// away from the records resting on it in this payload too.
+	held := grading.holdWithdrawn(queued)
 	forced := finding.ForceQuestions(queued)
 	if err := finding.RefuseArguedAssertion(queued); err != nil {
 		return err
@@ -253,7 +261,8 @@ func buildReview(
 	if !confirmed {
 		return out.emit(&postResult{
 			Round: round.Round, Comments: commentedRecords(review, queued),
-			Payload: review, Forced: forced, posting: posting{Posted: false, ConfirmGiven: false},
+			Payload: review, Forced: forced, Withdrawn: held,
+			posting: posting{Posted: false, ConfirmGiven: false},
 		})
 	}
 	// §8.5.2 and §8.5.3: the permission travels as a value minted from the
@@ -262,7 +271,7 @@ func buildReview(
 	// variable, a profile field or an alias could arrive through.
 	sender := &sending{
 		layout: l, round: round, review: review, records: records,
-		queued: queued, forced: forced, triage: &triage, journal: journal,
+		queued: queued, forced: forced, withdrawn: held, triage: &triage, journal: journal,
 	}
 	return sender.send(out, gh.Confirm(confirmed))
 }

@@ -38,8 +38,9 @@ type Provenances struct {
 type NoteClaim struct {
 	// Note is the claim's `note_id`.
 	Note string
-	// Source is that note's §3.6.3 source, empty when the context store no
-	// longer holds the note.
+	// Source is that note's §3.6.3 source. `cr draft` and `cr post` hand
+	// over only claims whose note still stands, so a retracted or missing
+	// note is never named here.
 	Source string
 }
 

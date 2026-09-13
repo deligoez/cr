@@ -131,12 +131,17 @@ type roundGrading struct {
 	formed []roundUnit
 	// roundEvidence is the stored half of §6.2.1's input set.
 	*roundEvidence
+	// withdrawn are the round's claim ids whose note no longer stands, as
+	// withdrawnClaims read the context store for this run. They are not a
+	// grading input — §6.2.1 closes that set — but they take the same
+	// register away within a round, so they are read once beside it.
+	withdrawn map[string]bool
 }
 
-// readRoundGrading reads both halves, without a lock and before any write, as
-// §2.3.2 has every read of cr's own state.
-func readRoundGrading(l state.Layout, owner, repo string, pr, round int) (*roundGrading, error) {
-	formed, err := roundUnitsOf(l, owner, repo, pr, round)
+// readRoundGrading reads both halves, and §3.6.6's withdrawn claims, without a
+// lock and before any write, as §2.3.2 has every read of cr's own state.
+func readRoundGrading(l state.Layout, owner, repo string, pr int, round *state.Meta) (*roundGrading, error) {
+	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +149,22 @@ func readRoundGrading(l state.Layout, owner, repo string, pr, round int) (*round
 	if err != nil {
 		return nil, err
 	}
-	return &roundGrading{formed: formed, roundEvidence: found}, nil
+	withdrawn, err := withdrawnClaims(l, owner, repo, pr, round)
+	if err != nil {
+		return nil, err
+	}
+	return &roundGrading{formed: formed, roundEvidence: found, withdrawn: withdrawn}, nil
+}
+
+// holdWithdrawn is §3.6.6 applied over the records a draft or a payload holds:
+// every one resting on a claim whose note was retracted or is no longer held
+// is held as a question, and the count per class is returned for the report.
+//
+// The store was read when the command ran, so a retraction after `cr record`
+// bites the next `cr draft` and the next `cr post` of the same round, and the
+// record itself is retained so the decision stays auditable.
+func (g *roundGrading) holdWithdrawn(records []*finding.Finding) finding.Withdrawn {
+	return finding.ForceWithdrawn(records, g.withdrawn)
 }
 
 // regrade is §7.2.2's recomputation: every record's grade computed again from

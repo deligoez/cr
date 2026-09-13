@@ -178,3 +178,63 @@ func ForceQuestions(records []*Finding) Forcings {
 	}
 	return forced
 }
+
+// Withdrawn is §3.6.6's report over one round, in Forcings' shape: per class,
+// how many of the round's records rest on a claim whose note no longer stands
+// and are therefore held in the question register.
+//
+// It is a report of its own rather than rows of §6.3.2's, because the cause is
+// a different one and §6.3.2 counts a grade. A record resting on a withdrawn
+// note keeps the grade §6.2 computed for it — §6.2.1 closes the grade's inputs
+// and the context store is not among them — while the register is taken away
+// from it, since hearsay a reviewer has withdrawn is no provenance to assert on.
+// It counts the records the rule holds rather than the moves one run made, for
+// the reason Forcings gives: the rule is applied at draft time and again at post
+// time, and the second application moves nothing.
+type Withdrawn []Forcing
+
+// Disclosure is the report for a terminal, printed at zero for the reason
+// Forcings.Disclosure is: a line that appeared only when something was held
+// would leave a reader unable to tell a round with no withdrawn note from a
+// round where the rule never ran.
+func (w Withdrawn) Disclosure() string {
+	if len(w) == 0 {
+		return "§3.6.6: 0 records resting on a withdrawn note held as question"
+	}
+	named := make([]string, 0, len(w))
+	for _, held := range w {
+		named = append(named, fmt.Sprintf("%s %d", held.Class, held.Count))
+	}
+	return fmt.Sprintf("§3.6.6: %d records resting on a withdrawn note held as question — %s",
+		Forcings(w).Total(), strings.Join(named, ", "))
+}
+
+// ForceWithdrawn holds in the question register every record whose claim rests
+// on a note that no longer stands, and reports §3.6.6's count per class.
+//
+// withdrawn is the set of the round's claim ids whose note the context store
+// reports retracted or no longer holds, as note.StandingOf answers it at the
+// moment the caller asks. It is handed in because internal/note imports this
+// package, and because the standing is read from the store every time rather
+// than stamped onto a record: a note retracted after `cr record` bites the next
+// draft and the next post of the same round, which is the only round v0.1 is
+// sure to have.
+//
+// Nothing here raises the register or touches the grade, and the record is
+// retained rather than dropped, so the decision stays auditable and a reviewer
+// still reads what was raised — as a question.
+func ForceWithdrawn(records []*Finding, withdrawn map[string]bool) Withdrawn {
+	counts := make(map[string]int, len(records))
+	for _, record := range records {
+		if !withdrawn[record.Claim] {
+			continue
+		}
+		record.Kind = KindQuestion
+		counts[record.Class]++
+	}
+	held := make(Withdrawn, 0, len(counts))
+	for _, class := range slices.Sorted(maps.Keys(counts)) {
+		held = append(held, Forcing{Class: class, Count: counts[class]})
+	}
+	return held
+}

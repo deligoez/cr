@@ -97,6 +97,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryDeduplicated:       ownerRecord,
 	summarySuppressedByThread: ownerRecord,
 	summaryForcedToQuestion:   ownerDraft,
+	summaryForcedByRetraction: ownerDraft,
 	summaryNewClasses:         ownerDraft,
 	summaryDrafted:            ownerDraft,
 	summaryDiscardedNotHere:   ownerDraft,

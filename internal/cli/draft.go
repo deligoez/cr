@@ -54,6 +54,10 @@ type draftResult struct {
 	// payload rather than a sentence alone, so an agent reading the
 	// document gets the numbers and not only the prose.
 	Forced finding.Forcings `json:"forced_to_question"`
+	// Withdrawn is §3.6.6's count per class of the records this draft
+	// holds as questions because the note their claim rests on no longer
+	// stands, which is also what reached summary.json.
+	Withdrawn finding.Withdrawn `json:"forced_by_retraction"`
 	// NewClasses is §7.3.3's report for this round — the classes the
 	// repository's ledger had not held before it — which is also what
 	// reached summary.json.
@@ -70,7 +74,7 @@ type draftResult struct {
 
 // Text names the count, the round, and the file to open, then what the
 // regeneration took from the draft it replaced, and then §6.3.2's forcing
-// count.
+// count and §3.6.6's.
 //
 // The forcing line is printed on every run, whatever the flags say. §11.1
 // exempts it from `--quiet` by name, and a disclosure that is only printed
@@ -103,7 +107,7 @@ func (r *draftResult) Text(w *writer) string {
 		text.WriteString("§7.3.3: class(es) first seen in this round: " +
 			strings.Join(r.NewClasses, ", ") + "\n")
 	}
-	return text.String() + w.disclose("", "", r.Forced.Disclosure())
+	return text.String() + w.disclose("", "\n", r.Forced.Disclosure()) + w.disclose("", "", r.Withdrawn.Disclosure())
 }
 
 // newDraftCmd renders the editable draft (§11, §7.1).
@@ -179,11 +183,13 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	// gives: the mapping moves inside a round, and an intent finding on a
 	// unit the round no longer maps would otherwise assert in the draft
 	// the reviewer approves.
-	grading, err := readRoundGrading(l, owner, repo, pr, round.Round)
+	grading, err := readRoundGrading(l, owner, repo, pr, round)
 	if err != nil {
 		return err
 	}
 	grading.forceUnmapped(round.Round, queued)
+	// §3.6.6 over the same records, for the reason holdWithdrawn gives.
+	held := grading.holdWithdrawn(queued)
 	// §6.3.1's second moment, applied over the records this draft holds
 	// and before they are rendered: the block a reviewer reads carries the
 	// register in its marker, so a forcing applied after the rendering
@@ -220,7 +226,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	summary.forced = forced
+	summary.forced, summary.withdrawn = forced, held
 	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary, journal); err != nil {
 		return err
 	}
@@ -236,6 +242,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Retriaged:  triage.retriaged(),
 		Preserved:  preservedIDs(queued, triage.Preserved),
 		Forced:     forced,
+		Withdrawn:  held,
 		NewClasses: summary.newClasses,
 		Warnings:   warnings,
 	})
@@ -475,6 +482,9 @@ type draftSummary struct {
 	// forced is §6.3.2's count per class over the records this draft
 	// holds.
 	forced finding.Forcings
+	// withdrawn is §3.6.6's count per class over the records this draft
+	// holds as questions for resting on a note that no longer stands.
+	withdrawn finding.Withdrawn
 	// newClasses is §7.3.3's report for this round: the classes the
 	// repository's ledger had not held before it. It is written on every
 	// run, empty included, because silence about a reworded slug is what
@@ -496,6 +506,7 @@ type draftSummary struct {
 func (s *draftSummary) counts() []summaryCount {
 	return []summaryCount{
 		{key: summaryForcedToQuestion, value: s.forced},
+		{key: summaryForcedByRetraction, value: s.withdrawn},
 		{key: summaryNewClasses, value: s.newClasses},
 		{key: summaryDrafted, value: s.drafted},
 		{key: summaryDiscardedNotHere, value: s.discardedNotHere},
@@ -508,6 +519,10 @@ func (s *draftSummary) counts() []summaryCount {
 // summaryForcedToQuestion is §10.3's "forced to question" count, by the key
 // summary.json holds it under.
 const summaryForcedToQuestion = "forced_to_question"
+
+// summaryForcedByRetraction is §3.6.6's count of records held as questions for
+// resting on a withdrawn note, by the key summary.json holds it under.
+const summaryForcedByRetraction = "forced_by_retraction"
 
 // summaryNewClasses is §7.3.3's newly seen classes, by the key summary.json
 // holds them under.
