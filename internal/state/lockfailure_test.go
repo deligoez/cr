@@ -83,6 +83,102 @@ func TestAProbeLockThatCannotBeTakenIsAFileFailure(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrPermission)
 }
 
+// The repository-wide stores of §2.2 — §7.4.4's waivers, §7.3's triage ledger
+// and §2.6.1.6's rule ledger — lock through files of their own, and a lock file
+// nobody may open fails each the way it fails LockPR: a file failure naming the
+// lock, which §11.2 codes 3, rather than the bare error that exited 2 with the
+// usage hint.
+func TestARepositoryStoreLockThatCannotBeTakenIsAFileFailure(t *testing.T) {
+	keep := func(held []map[string]any) []map[string]any { return held }
+	for door, tc := range map[string]struct {
+		lock func(l Layout) string
+		call func(t *testing.T, l Layout) error
+	}{
+		"LockRepoWaivers": {
+			lock: func(l Layout) string { return l.RepoWaiverLockFile("acme", "web") },
+			call: func(t *testing.T, l Layout) error {
+				held, err := l.LockRepoWaivers("acme", "web")
+				assert.Nil(t, held)
+				return err
+			},
+		},
+		"UpdateTriage": {
+			lock: func(l Layout) string { return l.RepoTriageLockFile("acme", "web") },
+			call: func(_ *testing.T, l Layout) error { return UpdateTriage(l, "acme", "web", keep) },
+		},
+		"UpdateRuleStats": {
+			lock: func(l Layout) string { return l.RepoRuleStatsLockFile("acme", "web") },
+			call: func(_ *testing.T, l Layout) error { return UpdateRuleStats(l, "acme", "web", keep) },
+		},
+	} {
+		t.Run(door, func(t *testing.T) {
+			l := New(filepath.Join(t.TempDir(), ".cr"))
+			require.NoError(t, l.Init())
+			unopenable(t, tc.lock(l))
+
+			err := tc.call(t, l)
+
+			var file *FileError
+			require.ErrorAs(t, err, &file)
+			assert.Equal(t, lockHint, file.Hint())
+			assert.Equal(t, tc.lock(l), file.path)
+			assert.Equal(t, "lock", file.doing)
+			assert.ErrorIs(t, err, os.ErrPermission)
+		})
+	}
+}
+
+// §5.6.1's probe lock is laid out under the probe locks directory as the
+// repository's path followed by the profile id, and filepath.Join resolves a
+// `..` in either rather than refusing it. LockProbe refuses a pair whose lock
+// file would leave that directory, as the repository-keyed doors refuse a pair
+// that leaves the state tree, before it creates anything: the directory the
+// root sits in stays empty.
+func TestAProbeLockOutsideTheProbeLocksDirectoryIsRefused(t *testing.T) {
+	for name, halves := range map[string][2]string{
+		"a relative repository path climbing out of the root": {"../../..", "laravel-pest"},
+		"a profile id climbing into the locks directory":      {"/src/acme/web", "../../../../web"},
+		"a profile id climbing out of the root":               {"/src/acme/web", "../../../../../../../x"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			outer := t.TempDir()
+			l := New(filepath.Join(outer, "crhome"))
+
+			held, err := l.LockProbe(halves[0], halves[1], time.Second)
+
+			assert.Nil(t, held)
+			var refused *ProbeLockOutsideError
+			require.ErrorAs(t, err, &refused)
+			assert.Equal(t, halves[0], refused.RepoPath)
+			assert.Equal(t, halves[1], refused.ProfileID)
+			var outside *OutsideRootError
+			require.ErrorAs(t, err, &outside)
+			assert.Equal(t, &OutsideRootError{
+				Path:  l.ProbeLockFile(halves[0], halves[1]),
+				Under: filepath.Join(l.LocksDir(), DirProbeLocks),
+			}, outside)
+			entries, err := os.ReadDir(outer)
+			require.NoError(t, err)
+			assert.Empty(t, entries, "a refused probe lock creates nothing, in the root or beside it")
+		})
+	}
+}
+
+// A repository path and profile id that stay inside the probe locks directory
+// are not refused, however deep the path: the boundary is the directory, not
+// the shape of the halves.
+func TestAProbeLockInsideTheProbeLocksDirectoryIsTaken(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	require.NoError(t, l.Init())
+
+	held, err := l.LockProbe("/src/acme/../acme/web", "laravel-pest", time.Second)
+
+	require.NoError(t, err)
+	assert.NoError(t, held.Unlock())
+	_, err = os.Stat(filepath.Join(l.LocksDir(), DirProbeLocks, "src", "acme", "web", "laravel-pest.lock"))
+	assert.NoError(t, err)
+}
+
 // §5.1.6's removal is a file failure too. A non-empty directory under the name
 // makes os.Remove refuse while the lock, the directory and every read succeed.
 func TestARemovalThatCannotLandIsAFileFailure(t *testing.T) {

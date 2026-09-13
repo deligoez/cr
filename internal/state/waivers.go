@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/gofrs/flock"
@@ -64,7 +63,7 @@ func (l Layout) LockRepoWaivers(owner, repo string) (*WaiverLock, error) {
 	}
 	held := flock.New(lock)
 	if err := held.Lock(); err != nil {
-		return nil, fmt.Errorf("cannot lock %s: %w", lock, err)
+		return nil, FileFailure("lock", lock, lockHint, err)
 	}
 	return &WaiverLock{held: held, path: store}, nil
 }
@@ -73,7 +72,7 @@ func (l Layout) LockRepoWaivers(owner, repo string) (*WaiverLock, error) {
 // Lock.Unlock does: an advisory lock binds to an inode and not to a path.
 func (k *WaiverLock) Unlock() error {
 	if err := k.held.Unlock(); err != nil {
-		return fmt.Errorf("cannot release %s: %w", k.held.Path(), err)
+		return FileFailure("release", k.held.Path(), lockHint, err)
 	}
 	return nil
 }

@@ -561,6 +561,16 @@ var codes = []mapped{
 	// §11.2 codes 1 rather than the 3 a malformed profile gets.
 	{is[*state.ReservedFieldError](), ExitValidation,
 		"drop the field the message names from that record; §6.1.4 has cr write it"},
+	// §5.6.1's probe lock is named after the checkout's absolute path and
+	// the profile id meta.json records, and internal/state refuses a pair
+	// whose lock file would leave the probe locks directory. filepath.Abs
+	// has cleaned the path, so what climbs out is the profile id, read from
+	// cr's own state as a file cr cannot use as written: §11.2's 3. It is
+	// above *state.OutsideRootError, which it carries, because `--repo`
+	// answers neither half.
+	{is[*state.ProbeLockOutsideError](), ExitFile,
+		"the probe lock is named after the profile_id in the pull request's meta.json, " +
+			"which is one profile's file name; " + state.UnusableHint},
 	// §2.2 keeps all of cr's state under one root, and internal/state
 	// refuses an owner and repository whose paths would leave it. splitRepo
 	// refuses such a `--repo` first, so what reaches this row came from

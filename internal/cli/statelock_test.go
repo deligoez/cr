@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -136,6 +137,60 @@ func TestRecordWhoseLockCannotBeTakenExitsWithTheFileCode(t *testing.T) {
 			assert.Empty(t, recordStore(t, layout))
 		})
 	}
+}
+
+// §7.4.4's repository-wide waiver store locks through a file of its own, and
+// `cr waivers remove` meeting a lock file nobody may open is a file failure:
+// §11.2's code 3 with the step that names the lock, not the exit 2 and usage
+// hint a bare error took. The waiver is still in the store afterwards, so the
+// refusal removed nothing.
+func TestAWaiverRemovalWhoseLockCannotBeTakenExitsWithTheFileCode(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root opens a file whatever its mode")
+	}
+	layout := recordedHome(t)
+	stored, err := finding.Waive(layout, recordOwner, recordRepo, &finding.Waiver{
+		WaiverKey: finding.WaiverKey{
+			Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
+		},
+		Disposition: finding.DispositionWrong,
+	}, finding.WaiverProvenance{Round: recordRound, PR: recordPRNum, Head: recordHead})
+	require.NoError(t, err)
+	lock := layout.RepoWaiverLockFile(recordOwner, recordRepo)
+	require.NoError(t, os.Chmod(lock, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(lock, 0o600) })
+
+	err = runCLI(t, "waivers", "remove", stored.ID, "--repo", recordSlug)
+
+	var failure *state.FileError
+	require.ErrorAs(t, err, &failure)
+	assert.Equal(t, "cannot lock "+lock+": open "+lock+": permission denied", err.Error())
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, "cr locks through a file under the state root's locks directory; "+
+		"check that the path the message names is a regular file cr can open for writing", hintFor(err))
+	held, err := finding.RepositoryWaivers(layout, recordOwner, recordRepo)
+	require.NoError(t, err)
+	require.Len(t, held, 1)
+	assert.Equal(t, stored.ID, held[0].ID)
+}
+
+// A probe lock internal/state refuses as outside the probe locks directory
+// climbed out through meta.json's profile id, which `--repo` does not name, so
+// it takes §11.2's 3 and a step naming that field rather than the flag the
+// repository-keyed refusal sends the reader to.
+func TestAProbeLockOutsideItsDirectoryNamesTheProfileIDAndNotTheFlag(t *testing.T) {
+	refused := fmt.Errorf("running the suite: %w", &state.ProbeLockOutsideError{
+		RepoPath: "/src/acme/web", ProfileID: "../../../x",
+		Outside: &state.OutsideRootError{Path: "/h/.cr/locks/x.lock", Under: "/h/.cr/locks/probe"},
+	})
+
+	assert.Equal(t, ExitFile, exitCodeFor(refused))
+	assert.Equal(t, "the probe lock is named after the profile_id in the pull request's meta.json, "+
+		"which is one profile's file name; this is cr's own state under ~/.cr, and a hand edit is "+
+		"the usual cause; repair the file or re-run the round that wrote it", hintFor(refused))
+	assert.Equal(t, "running the suite: the probe lock for /src/acme/web under profile \"../../../x\": "+
+		"refusing /h/.cr/locks/x.lock: it resolves outside /h/.cr/locks/probe, "+
+		"and §2.2 keeps all of cr's state under one root", refused.Error())
 }
 
 // §5.6.2's timeout names one step, and it is the same one on both sides: the

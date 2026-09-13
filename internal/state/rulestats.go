@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/gofrs/flock"
@@ -62,13 +61,13 @@ func updateRepoStore[T any](lock, store string, change func(held []T) []T) error
 	}
 	held := flock.New(lock)
 	if err := held.Lock(); err != nil {
-		return fmt.Errorf("cannot lock %s: %w", lock, err)
+		return FileFailure("lock", lock, lockHint, err)
 	}
 	err := rewriteStore(store, change)
 	// The lock is released on the way out of every branch, and the write's
 	// own failure is what the caller is told about when there was one.
 	if released := held.Unlock(); err == nil && released != nil {
-		err = fmt.Errorf("cannot release %s: %w", lock, released)
+		err = FileFailure("release", lock, lockHint, released)
 	}
 	return err
 }

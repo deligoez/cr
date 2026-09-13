@@ -75,6 +75,33 @@ func (e *ProbeLockedError) Error() string {
 	)
 }
 
+// ProbeLockOutsideError reports a probe lock whose file would resolve outside
+// §5.6.1's probe locks directory, and carries the OutsideRootError the other
+// doors of §2.2's tree refuse such a path with.
+//
+// It is a type of its own for the step it takes. Those doors are keyed by an
+// owner and a repository, which `--repo` names, so their refusal sends the
+// reader to the flag. This one is keyed by the checkout's absolute path, which
+// filepath.Abs has already cleaned, and by the profile id meta.json records,
+// and `--repo` answers neither.
+type ProbeLockOutsideError struct {
+	// RepoPath and ProfileID are the two halves of the lock's name.
+	RepoPath  string
+	ProfileID string
+	// Outside is the refusal itself: the path the halves led to and the
+	// directory it had to stay inside.
+	Outside *OutsideRootError
+}
+
+func (e *ProbeLockOutsideError) Error() string {
+	return fmt.Sprintf("the probe lock for %s under profile %q: %v",
+		e.RepoPath, e.ProfileID, e.Outside)
+}
+
+// Unwrap exposes the OutsideRootError, so a caller asking whether a path left
+// the state tree is told that this one did.
+func (e *ProbeLockOutsideError) Unwrap() error { return e.Outside }
+
 // ProbeLock is the advisory lock of §5.6.1, held for the length of one probe or
 // test run.
 //
@@ -99,8 +126,17 @@ type ProbeLock struct {
 // is a refusal rather than a run that proceeds anyway, because the whole point
 // of the lock is that the second run would measure a suite the first one is
 // already inside.
+//
+// A repository path or profile id whose lock file would leave the probe locks
+// directory is refused with ProbeLockOutsideError before anything is created,
+// as every repository-keyed door of §2.2's tree refuses a path that leaves it.
 func (l Layout) LockProbe(repoPath, profileID string, timeout time.Duration) (*ProbeLock, error) {
 	path := l.ProbeLockFile(repoPath, profileID)
+	under := filepath.Join(l.LocksDir(), DirProbeLocks)
+	if contain(under, path) != nil {
+		return nil, &ProbeLockOutsideError{RepoPath: repoPath, ProfileID: profileID,
+			Outside: &OutsideRootError{Path: path, Under: under}}
+	}
 	if err := makeDirs([]string{filepath.Dir(path)}); err != nil {
 		return nil, err
 	}
