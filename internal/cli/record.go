@@ -407,6 +407,10 @@ func acceptRecords(
 	if err := refuseHeldIDs(l, owner, repo, pr, []idInput{{file: file, body: body, records: records}}); err != nil {
 		return nil, nil, recordDrops{}, err
 	}
+	// §2.6's class row: a record naming a rule carries that rule's class.
+	if err := refuseRuleClasses(l, owner, repo, round.ProfileID, file, body, records); err != nil {
+		return nil, nil, recordDrops{}, err
+	}
 	// §4.5.6's cells against the records: a record meeting a `pass` its
 	// role filed on its unit this round is refused, the reverse order of
 	// coverage.Decode's check, and ahead of the drops below.
