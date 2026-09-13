@@ -9,10 +9,10 @@
 // with exit code 3 naming the setting, and the label text for each is fixed
 // here rather than left to whatever renders it.
 //
-// Nothing in this package renders. It is the domain, the built-in label table,
-// and the set of bodies the language governs. §7.1's draft, §8.1.2's body
-// composition, §8.1.6's provenance line, and §8.4.3's review body are written
-// against it later.
+// The package holds the domain, the built-in label table, the set of bodies the
+// language governs, and the cr-owned regions rendered from them: the question
+// label, the §8.1.6 provenance region, the §8.1.7 evidence region, and the
+// §8.4.3 review body.
 package render
 
 import (
