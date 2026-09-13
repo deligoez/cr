@@ -30,7 +30,7 @@ func stored(t *testing.T, l state.Layout, issueKey string) []Note {
 	require.NoError(t, err)
 
 	notes := make([]Note, 0)
-	for _, line := range strings.Split(strings.TrimRight(string(body), "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(string(body), "\n"), "\n") {
 		if line == "" {
 			continue
 		}

@@ -96,7 +96,7 @@ func lines(t *testing.T, src *Sources, name string) []map[string]json.RawMessage
 	body, err := os.ReadFile(src.Layout.PRFile(testOwner, testRepo, testPR, name))
 	require.NoError(t, err)
 	out := make([]map[string]json.RawMessage, 0)
-	for _, line := range strings.Split(string(body), "\n") {
+	for line := range strings.SplitSeq(string(body), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}

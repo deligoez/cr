@@ -77,7 +77,7 @@ func TestEveryGateStepRunsInCIAndAtRelease(t *testing.T) {
 // request that touched none of it.
 func TestEveryGateToolIsPinned(t *testing.T) {
 	for _, workflow := range []string{".github/workflows/ci.yml", ".github/workflows/release.yml"} {
-		for _, line := range strings.Split(string(repoFile(t, workflow)), "\n") {
+		for line := range strings.SplitSeq(string(repoFile(t, workflow)), "\n") {
 			line = strings.TrimSpace(line)
 			if !strings.HasPrefix(line, "go install ") {
 				continue

@@ -63,7 +63,7 @@ func storedAt(t *testing.T, path string) []WaiverRecord {
 	require.NoError(t, err)
 
 	stored := make([]WaiverRecord, 0)
-	for _, line := range strings.Split(string(body), "\n") {
+	for line := range strings.SplitSeq(string(body), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -347,9 +347,7 @@ func TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest(t *testing.T) {
 	const triages = 8
 	var running sync.WaitGroup
 	for i := range triages {
-		running.Add(1)
-		go func() {
-			defer running.Done()
+		running.Go(func() {
 			// One class and one pull request each, so the waivers are
 			// distinct records rather than one record written eight
 			// times, which the idempotence above would collapse.
@@ -361,7 +359,7 @@ func TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest(t *testing.T) {
 			assert.NoError(t, err)
 			_, err = Waive(layout, waiverOwner, waiverRepo, &waiver, prov)
 			assert.NoError(t, err)
-		}()
+		})
 	}
 	running.Wait()
 

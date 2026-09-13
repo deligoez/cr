@@ -88,7 +88,7 @@ func namesATreeEntry(path string) bool {
 	if path == "" || strings.HasPrefix(path, "/") {
 		return false
 	}
-	for _, segment := range strings.Split(path, "/") {
+	for segment := range strings.SplitSeq(path, "/") {
 		if segment == "" || segment == "." || segment == ".." {
 			return false
 		}

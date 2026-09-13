@@ -77,32 +77,33 @@ type draftResult struct {
 // sometimes is a disclosure the reader cannot rely on: it is how they tell a
 // draft whose questions cr forced from one whose questions the agent chose.
 func (r *draftResult) Text(w *writer) string {
-	text := "drafted " + w.accent(strconv.Itoa(r.Queued)) + " record(s) for round " +
-		strconv.Itoa(r.Round) + " to " + r.Path + "\n"
+	var text strings.Builder
+	text.WriteString("drafted " + w.accent(strconv.Itoa(r.Queued)) + " record(s) for round " +
+		strconv.Itoa(r.Round) + " to " + r.Path + "\n")
 	for _, triaged := range r.Triaged {
-		text += triaged.ID + ": " + string(triaged.Outcome)
+		text.WriteString(triaged.ID + ": " + string(triaged.Outcome))
 		if triaged.CountsAgainstClass {
-			text += ", counted against its class"
+			text.WriteString(", counted against its class")
 		}
-		text += "\n"
+		text.WriteString("\n")
 	}
 	for _, edit := range r.Retriaged {
-		text += edit.ID + ": " + edit.moved() + "\n"
+		text.WriteString(edit.ID + ": " + edit.moved() + "\n")
 	}
 	if len(r.Preserved) > 0 {
-		text += "kept the edited body of: " + strings.Join(r.Preserved, ", ") + "\n"
+		text.WriteString("kept the edited body of: " + strings.Join(r.Preserved, ", ") + "\n")
 	}
 	for _, warning := range r.Warnings {
-		text += warning + "\n"
+		text.WriteString(warning + "\n")
 	}
 	// §7.3.3's drift report, printed only when there is drift to report:
 	// unlike the forcing line below it, an empty list is not a fact about
 	// this draft that the reader needs on every run.
 	if len(r.NewClasses) > 0 {
-		text += "§7.3.3: class(es) first seen in this round: " +
-			strings.Join(r.NewClasses, ", ") + "\n"
+		text.WriteString("§7.3.3: class(es) first seen in this round: " +
+			strings.Join(r.NewClasses, ", ") + "\n")
 	}
-	return text + w.disclose("", "", r.Forced.Disclosure())
+	return text.String() + w.disclose("", "", r.Forced.Disclosure())
 }
 
 // newDraftCmd renders the editable draft (§11, §7.1).

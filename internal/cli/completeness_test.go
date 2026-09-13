@@ -44,20 +44,20 @@ func completeStatusHome(t *testing.T) {
 
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
-	cells := ""
+	var cells strings.Builder
 	for _, unit := range []struct{ id, hash string }{{"u1", "h1"}, {"u2", "h2"}} {
 		for _, role := range meta.ActiveRoles {
-			cells += `{"unit":"` + unit.id + `","role":"` + role + `","result":"pass",` +
-				`"unit_hash":"` + unit.hash + `","head":"` + meta.Head + `","round":1}` + "\n"
+			cells.WriteString(`{"unit":"` + unit.id + `","role":"` + role + `","result":"pass",` +
+				`"unit_hash":"` + unit.hash + `","head":"` + meta.Head + `","round":1}` + "\n")
 		}
 	}
-	require.NoError(t, held.Write(state.FileCoverage, []byte(cells)))
-	pairs := ""
+	require.NoError(t, held.Write(state.FileCoverage, []byte(cells.String())))
+	var pairs strings.Builder
 	for _, claim := range []string{"#c1", "#c2", "#c3"} {
-		pairs += `{"claim":"` + fixtureIssue + claim + `","unit":"u1",` +
-			`"head":"` + meta.Head + `","round":1}` + "\n"
+		pairs.WriteString(`{"claim":"` + fixtureIssue + claim + `","unit":"u1",` +
+			`"head":"` + meta.Head + `","round":1}` + "\n")
 	}
-	require.NoError(t, held.Write(state.FileMapping, []byte(pairs)))
+	require.NoError(t, held.Write(state.FileMapping, []byte(pairs.String())))
 	require.NoError(t, held.Unlock())
 }
 

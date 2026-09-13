@@ -258,7 +258,7 @@ func TestDestroyingTheSandboxLeavesNoWorktreeRegistrationBehind(t *testing.T) {
 	// Counted rather than compared against the fixture's own path, which
 	// git reports with its symlinks resolved.
 	listed := 0
-	for _, line := range strings.Split(mustGit(t, fixture, "worktree", "list", "--porcelain"), "\n") {
+	for line := range strings.SplitSeq(mustGit(t, fixture, "worktree", "list", "--porcelain"), "\n") {
 		if strings.HasPrefix(line, "worktree ") {
 			listed++
 		}

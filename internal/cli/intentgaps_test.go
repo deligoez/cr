@@ -30,7 +30,7 @@ func storedGapFields(t *testing.T, l state.Layout) []map[string]json.RawMessage 
 	body, err := l.ReadPR(mapOwner, mapRepo, mapPR, state.FileIntentGaps)
 	require.NoError(t, err)
 	lines := make([]map[string]json.RawMessage, 0)
-	for _, line := range bytes.Split(body, []byte{'\n'}) {
+	for line := range bytes.SplitSeq(body, []byte{'\n'}) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}

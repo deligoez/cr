@@ -184,8 +184,8 @@ var _ = checkRecordFields()
 // check requires that they arrive promoted from the embedded state.Stamp,
 // which is the only type state.WriteStamped can write through.
 func checkRecordFields() bool {
-	record := reflect.TypeOf(Record{})
-	stamp := reflect.TypeOf(state.Stamp{})
+	record := reflect.TypeFor[Record]()
+	stamp := reflect.TypeFor[state.Stamp]()
 	declared := make([]field, 0, len(fields))
 	for _, visible := range reflect.VisibleFields(record) {
 		// The embedded struct itself carries no JSON name; the fields

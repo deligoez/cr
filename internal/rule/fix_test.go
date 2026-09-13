@@ -1,6 +1,7 @@
 package rule
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -30,9 +31,7 @@ const twoHunkDiff = `--- a/app/Models/Order.php
 // capture group's expansion observable rather than assumed.
 func fixBlock(overrides map[string]any) map[string]any {
 	block := map[string]any{"replace": `DB::raw\('([^']*)'\)`, "with": `DB::selectRaw('$1')`}
-	for key, value := range overrides {
-		block[key] = value
-	}
+	maps.Copy(block, overrides)
 	return block
 }
 

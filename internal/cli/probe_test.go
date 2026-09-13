@@ -112,7 +112,7 @@ func storedRecords(t *testing.T, l state.Layout, name string) []map[string]any {
 	body, err := os.ReadFile(l.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, name))
 	require.NoError(t, err)
 	records := make([]map[string]any, 0)
-	for _, line := range strings.Split(strings.TrimSpace(string(body)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(body)), "\n") {
 		if line == "" {
 			continue
 		}

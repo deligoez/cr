@@ -202,8 +202,8 @@ func TestARecordWhoseProseClaimsProofButCitesNothingIsArgued(t *testing.T) {
 func TestGradingHasNowhereToPutAFieldSection621DoesNotName(t *testing.T) {
 	inputs := reflect.TypeFor[Evidence]()
 	named := make([]string, 0, inputs.NumField())
-	for i := range inputs.NumField() {
-		named = append(named, inputs.Field(i).Name)
+	for field := range inputs.Fields() {
+		named = append(named, field.Name)
 	}
 	assert.Equal(t, []string{"own", "probed"}, named,
 		"§6.2.1: the unit's boundary and the referenced probe's answer, and nothing else")

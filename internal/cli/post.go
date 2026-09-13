@@ -2,6 +2,7 @@ package cli
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -73,12 +74,13 @@ type postedComment struct {
 // prints it: §11.1 exempts it from `--quiet`, and it is how the reader tells a
 // review whose questions cr forced from one whose questions the agent chose.
 func (r *postResult) Text(w *writer) string {
-	text := "built a review of " + w.accent(strconv.Itoa(len(r.Comments))) +
-		" comment(s) for round " + strconv.Itoa(r.Round) + "\n"
+	var text strings.Builder
+	text.WriteString("built a review of " + w.accent(strconv.Itoa(len(r.Comments))) +
+		" comment(s) for round " + strconv.Itoa(r.Round) + "\n")
 	for _, comment := range r.Comments {
-		text += comment.ID + ": " + string(comment.Kind) + "\n"
+		text.WriteString(comment.ID + ": " + string(comment.Kind) + "\n")
 	}
-	return text + r.payload() + w.disclose("", "\n", r.Forced.Disclosure()) + r.line(w)
+	return text.String() + r.payload() + w.disclose("", "\n", r.Forced.Disclosure()) + r.line(w)
 }
 
 // payload renders §8.5.1's full payload for a terminal: the review's own body,
@@ -93,13 +95,14 @@ func (r *postResult) payload() string {
 	if r.Payload == nil {
 		return ""
 	}
-	text := "\n" + r.Payload.Body + "\n"
+	var text strings.Builder
+	text.WriteString("\n" + r.Payload.Body + "\n")
 	for i := range r.Payload.Comments {
 		comment := &r.Payload.Comments[i]
-		text += "\n" + comment.Record + " " + comment.Path + ":" +
-			strconv.Itoa(comment.Line) + " " + string(comment.Side) + "\n" + comment.Body + "\n"
+		text.WriteString("\n" + comment.Record + " " + comment.Path + ":" +
+			strconv.Itoa(comment.Line) + " " + string(comment.Side) + "\n" + comment.Body + "\n")
 	}
-	return text + "\n"
+	return text.String() + "\n"
 }
 
 // newPostCmd registers §11's `cr post <pr> [--confirm] [--reconcile]`, the

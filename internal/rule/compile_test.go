@@ -1,6 +1,7 @@
 package rule
 
 import (
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -12,9 +13,7 @@ import (
 // case can state exactly the one field it is about.
 func regexDetect(overrides map[string]any) map[string]any {
 	block := map[string]any{"pattern": `DB::raw\(`, "mode": ModeRegex}
-	for key, value := range overrides {
-		block[key] = value
-	}
+	maps.Copy(block, overrides)
 	return map[string]any{"detect": block}
 }
 

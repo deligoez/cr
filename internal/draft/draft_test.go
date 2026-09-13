@@ -120,7 +120,7 @@ func TestAPathCannotBreakOutOfTheMarker(t *testing.T) {
 			rendered := renderOf(t, record)
 
 			markers := 0
-			for _, line := range strings.Split(rendered, "\n") {
+			for line := range strings.SplitSeq(rendered, "\n") {
 				if strings.HasPrefix(line, "<!-- cr:record ") {
 					markers++
 					assert.True(t, strings.HasSuffix(line, " -->"),

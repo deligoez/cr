@@ -23,8 +23,8 @@ func TestARunRecordCarriesExactlyTheFieldsSection524Names(t *testing.T) {
 		ExitCode:    1,
 		TimedOut:    true,
 		DurationMS:  1420,
-		TestsRun:    count(4),
-		TestsFailed: count(1),
+		TestsRun:    new(4),
+		TestsFailed: new(1),
 		OutputTail:  "Tests:  1 failed, 3 passed (5 assertions)\n",
 		Passed:      false,
 		Probe:       "p1",
@@ -110,7 +110,7 @@ func TestAKilledRunIsDistinguishableFromARunnerThatExitedNonZero(t *testing.T) {
 // run never passes and so can never be a baseline — so the two states have to
 // survive the round trip through the file rather than collapsing into 0.
 func TestAnUndeterminedCountIsAbsentFromTheRecordAndAZeroOneIsNot(t *testing.T) {
-	passing := &Record{ID: "r1", TestsRun: count(4), TestsFailed: count(0)}
+	passing := &Record{ID: "r1", TestsRun: new(4), TestsFailed: new(0)}
 	unreadable := &Record{ID: "r2"}
 
 	var stored [2]map[string]any
@@ -247,7 +247,7 @@ func TestTheOutputTailDoesNotEndAHalfRuneAtTheFrontOfTheOutput(t *testing.T) {
 // hand the repository's pre-existing failures to the probe.
 func TestARunPassesOnlyWhileEveryClauseOfTheVerdictHolds(t *testing.T) {
 	passing := func() *Record {
-		return &Record{ID: "r1", ExitCode: 0, TestsRun: count(4), TestsFailed: count(0)}
+		return &Record{ID: "r1", ExitCode: 0, TestsRun: new(4), TestsFailed: new(0)}
 	}
 	require.True(t, passing().Verdict(), "the starting point has to be a run that passes")
 
@@ -259,8 +259,8 @@ func TestARunPassesOnlyWhileEveryClauseOfTheVerdictHolds(t *testing.T) {
 			r.ExitCode, r.TimedOut = -1, true
 		},
 		"an undetermined executed count": func(r *Record) { r.TestsRun = nil },
-		"an executed count of zero":      func(r *Record) { r.TestsRun = count(0) },
-		"a non-zero failed count":        func(r *Record) { r.TestsFailed = count(1) },
+		"an executed count of zero":      func(r *Record) { r.TestsRun = new(0) },
+		"a non-zero failed count":        func(r *Record) { r.TestsFailed = new(1) },
 		"an undetermined failed count":   func(r *Record) { r.TestsFailed = nil },
 	}
 	for name, breaks := range broken {
@@ -271,10 +271,6 @@ func TestARunPassesOnlyWhileEveryClauseOfTheVerdictHolds(t *testing.T) {
 		})
 	}
 }
-
-// count is the address of one derived test count, which is what §5.2.4's
-// "when derivable" needs a literal to be able to express.
-func count(n int) *int { return &n }
 
 // The search for the next rune start is bounded, and the bound is what keeps
 // "the tail is the runner's output as the runner wrote it" true. A cut through

@@ -2,6 +2,7 @@ package finding
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/deligoez/cr/internal/state"
@@ -36,12 +37,7 @@ func TriageActions() []TriageAction {
 
 // Valid reports whether the action is one of the five.
 func (a TriageAction) Valid() bool {
-	for _, known := range TriageActions() {
-		if a == known {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(TriageActions(), a)
 }
 
 // TriageEvent is one entry of a repository's triage.ndjson: what happened to

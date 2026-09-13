@@ -343,7 +343,7 @@ func TestMergePicksTheRepresentativeByCorpusOrder(t *testing.T) {
 	body, err := os.ReadFile(out)
 	require.NoError(t, err)
 	marked := map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(string(body)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(body)), "\n") {
 		var held struct {
 			ID          string `json:"id"`
 			DuplicateOf string `json:"duplicate_of"`

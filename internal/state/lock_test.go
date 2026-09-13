@@ -59,15 +59,13 @@ func TestConcurrentWritersSerialise(t *testing.T) {
 	const writers, each = 8, 25
 	var wg sync.WaitGroup
 	for range writers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range each {
 				if !increment(t, l) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -119,9 +117,7 @@ func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer close(done)
 		for round := range 200 {
 			held, err := l.LockPR("acme", "web", 42)
@@ -131,12 +127,10 @@ func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
 			assert.NoError(t, held.Write("findings.ndjson", docs[round%2]))
 			assert.NoError(t, held.Unlock())
 		}
-	}()
+	})
 
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-done:
@@ -152,7 +146,7 @@ func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

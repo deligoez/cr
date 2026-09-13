@@ -630,8 +630,8 @@ func sliceLayers(structure reflect.Type, seen map[reflect.Type]bool) int {
 		return sliceLayers(structure.Elem(), seen)
 	case reflect.Struct:
 		deepest := 0
-		for i := range structure.NumField() {
-			if field := structure.Field(i); field.IsExported() {
+		for field := range structure.Fields() {
+			if field.IsExported() {
 				deepest = max(deepest, sliceLayers(field.Type, seen))
 			}
 		}
@@ -1041,8 +1041,7 @@ func TestEveryPlaceAnIngestedThreadKeepsABodyIsOmitted(t *testing.T) {
 
 	thread := reflect.TypeFor[gh.Thread]()
 	holders := make([]string, 0, 2)
-	for i := range thread.NumField() {
-		field := thread.Field(i)
+	for field := range thread.Fields() {
 		held := field.Type
 		if held.Kind() == reflect.Slice {
 			held = held.Elem()

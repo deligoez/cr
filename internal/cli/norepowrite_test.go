@@ -286,8 +286,7 @@ func TestEveryPathTheStateLayoutHandsOutIsUnderItsRoot(t *testing.T) {
 	surface := layout.Type()
 
 	checked := 0
-	for i := range surface.NumMethod() {
-		method := surface.Method(i)
+	for method := range surface.Methods() {
 		signature := method.Type
 		if signature.NumOut() != 1 || signature.Out(0).Kind() != reflect.String {
 			continue

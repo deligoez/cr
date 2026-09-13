@@ -155,7 +155,7 @@ func TestTheGapLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 		},
 		{
 			name:     "a timeout outranks every reading of the counts",
-			measured: GapMeasured{TimedOut: true, TestsRun: count(12), TestsFailed: count(3)},
+			measured: GapMeasured{TimedOut: true, TestsRun: new(12), TestsFailed: new(3)},
 			result:   resultTimeout,
 			rung:     gapRungs[0].name,
 		},
@@ -167,19 +167,19 @@ func TestTheGapLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 		},
 		{
 			name:     "a runner that crashed after printing a count the ladder could read",
-			measured: GapMeasured{ExitCode: -11, TestsRun: count(4), TestsFailed: count(1)},
+			measured: GapMeasured{ExitCode: -11, TestsRun: new(4), TestsFailed: new(1)},
 			result:   ResultError,
 			rung:     gapRungs[1].name,
 		},
 		{
 			name:     "a filter that selected nothing reports no failures and is still empty",
-			measured: GapMeasured{TestsRun: count(0), TestsFailed: count(0)},
+			measured: GapMeasured{TestsRun: new(0), TestsFailed: new(0)},
 			result:   resultNoTestsSelected,
 			rung:     gapRungs[2].name,
 		},
 		{
 			name:     "a known executed count of zero, with no failed count at all",
-			measured: GapMeasured{TestsRun: count(0)},
+			measured: GapMeasured{TestsRun: new(0)},
 			result:   resultNoTestsSelected,
 			rung:     gapRungs[2].name,
 		},
@@ -191,25 +191,25 @@ func TestTheGapLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 		},
 		{
 			name:     "an executed count the runner printed, with no failed count",
-			measured: GapMeasured{TestsRun: count(12)},
+			measured: GapMeasured{TestsRun: new(12)},
 			result:   resultInconclusive,
 			rung:     gapRungs[3].name,
 		},
 		{
 			name:     "a failed count of zero is worth nothing while the executed count is undetermined",
-			measured: GapMeasured{TestsFailed: count(0)},
+			measured: GapMeasured{TestsFailed: new(0)},
 			result:   resultInconclusive,
 			rung:     gapRungs[3].name,
 		},
 		{
 			name:     "the supplied test ran and nothing failed, so the behaviour is present",
-			measured: GapMeasured{TestsRun: count(5), TestsFailed: count(0)},
+			measured: GapMeasured{TestsRun: new(5), TestsFailed: new(0)},
 			result:   resultPassed,
 			rung:     gapRungs[4].name,
 		},
 		{
 			name:     "the supplied test ran and failed",
-			measured: GapMeasured{TestsRun: count(5), TestsFailed: count(1)},
+			measured: GapMeasured{TestsRun: new(5), TestsFailed: new(1)},
 			result:   resultFailed,
 			rung:     gapRungs[5].name,
 		},
@@ -232,7 +232,7 @@ func TestTheGapLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 // GapLadder must return that rung's result — so a rung condition widened by one
 // boundary, or an order swapped by one place, has nowhere to hide.
 func TestEveryRunTheGapLadderCanSeeMatchesOneRung(t *testing.T) {
-	counts := []*int{nil, count(0), count(7)}
+	counts := []*int{nil, new(0), new(7)}
 	for _, timedOut := range []bool{false, true} {
 		for _, unstarted := range []bool{false, true} {
 			for _, code := range []int{-9, 0, 1} {
@@ -266,7 +266,7 @@ func TestEveryRunTheGapLadderCanSeeMatchesOneRung(t *testing.T) {
 // so a ladder that borrowed the other's value would license an assertion the
 // experiment did not support.
 func TestNeitherLadderProducesTheOtherKindsResult(t *testing.T) {
-	counts := []*int{nil, count(0), count(7)}
+	counts := []*int{nil, new(0), new(7)}
 	for _, code := range []int{-9, 0, 1} {
 		for _, executed := range counts {
 			for _, failed := range counts {

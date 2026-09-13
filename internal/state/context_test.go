@@ -135,15 +135,13 @@ func TestConcurrentContextWritersSerialise(t *testing.T) {
 	const writers, each = 8, 25
 	var wg sync.WaitGroup
 	for range writers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range each {
 				if !appendNumbered(t, l) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

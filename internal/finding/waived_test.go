@@ -2,6 +2,7 @@ package finding
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,13 +31,13 @@ func waiverOver(id string, record *Finding, disposition Disposition) WaiverRecor
 // trace" can be asserted against text rather than against a slice length.
 func ndjson(t *testing.T, records []*Finding) string {
 	t.Helper()
-	out := ""
+	var out strings.Builder
 	for _, record := range records {
 		line, err := json.Marshal(record)
 		require.NoError(t, err)
-		out += string(line) + "\n"
+		out.WriteString(string(line) + "\n")
 	}
-	return out
+	return out.String()
 }
 
 // §6.4.4: a finding an active waiver covers is dropped, counted, and leaves no

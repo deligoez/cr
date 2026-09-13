@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,9 +90,9 @@ func flagsNamed(flags []string) string {
 	if len(flags) == 0 {
 		return "with no flags"
 	}
-	named := ""
+	var named strings.Builder
 	for _, flag := range flags {
-		named += flag + " "
+		named.WriteString(flag + " ")
 	}
-	return named[:len(named)-1]
+	return named.String()[:len(named.String())-1]
 }

@@ -156,8 +156,8 @@ func fieldsInCommon(left, right reflect.Value, prefix string) []string {
 // everyFieldExported reports whether a struct type hands all of its fields to a
 // reader outside its own package.
 func everyFieldExported(typ reflect.Type) bool {
-	for i := range typ.NumField() {
-		if !typ.Field(i).IsExported() {
+	for field := range typ.Fields() {
+		if !field.IsExported() {
 			return false
 		}
 	}
@@ -297,10 +297,10 @@ func TestNotWorthSayingHereSilencesNothingBeyondItsPullRequest(t *testing.T) {
 	assert.NotEqual(t, ScopeRepository, scope,
 		"§7.4.3: not worth saying here must not silence the finding anywhere else")
 
-	scopeType := reflect.TypeOf(WaiverScope{})
-	waiverType := reflect.TypeOf(Waiver{})
-	for i := range waiverType.NumField() {
-		assert.NotEqual(t, scopeType, waiverType.Field(i).Type,
+	scopeType := reflect.TypeFor[WaiverScope]()
+	waiverType := reflect.TypeFor[Waiver]()
+	for field := range waiverType.Fields() {
+		assert.NotEqual(t, scopeType, field.Type,
 			"a waiver carrying a scope of its own could hold one that disagrees with its disposition")
 	}
 

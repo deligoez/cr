@@ -106,7 +106,7 @@ func merged(t *testing.T, layout state.Layout, files ...string) string {
 func unstamped(t *testing.T, body []byte) []byte {
 	t.Helper()
 	var out bytes.Buffer
-	for _, line := range bytes.Split(bytes.TrimSpace(body), []byte("\n")) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(body), []byte("\n")) {
 		var record map[string]json.RawMessage
 		require.NoError(t, json.Unmarshal(line, &record))
 		delete(record, "head")

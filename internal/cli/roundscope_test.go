@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -215,12 +216,12 @@ func openSecondRound(t *testing.T, layout state.Layout) {
 	add(state.FileUnits,
 		`{"id":"u3","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":6}],`+
 			`"hash":"h3","oversized":false,"head":"`+head+`","round":2}`+"\n")
-	cells := ""
+	var cells strings.Builder
 	for _, role := range []string{"convention", "correctness", "intent-coverage"} {
-		cells += `{"unit":"u3","role":"` + role + `","result":"pass","unit_hash":"h3",` +
-			`"head":"` + head + `","round":2}` + "\n"
+		cells.WriteString(`{"unit":"u3","role":"` + role + `","result":"pass","unit_hash":"h3",` +
+			`"head":"` + head + `","round":2}` + "\n")
 	}
-	add(state.FileCoverage, cells)
+	add(state.FileCoverage, cells.String())
 	add(state.FileClaims,
 		`{"id":"`+fixtureIssue+`#c4","text":"Load stores.","source":"acceptance",`+
 			`"span":"stores","head":"`+head+`","round":2}`+"\n")

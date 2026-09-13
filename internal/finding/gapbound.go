@@ -2,6 +2,7 @@ package finding
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/deligoez/cr/internal/probe"
 )
@@ -63,12 +64,7 @@ var (
 // whichever half the comparison happened to put it. §6.1.3 checks the field's
 // presence alone, so an unrecognised value does reach here.
 func (b GapBound) permits(severity Severity) bool {
-	for _, allowed := range b.allowed {
-		if severity == allowed {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(b.allowed, severity)
 }
 
 // GapSeverityError reports a record whose severity violates one of §5.4's two

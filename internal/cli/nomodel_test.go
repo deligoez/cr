@@ -172,7 +172,7 @@ func TestNothingCrBuildsImportsAModelSDK(t *testing.T) {
 	require.NoError(t, list.Run(), "go list failed: %s", strings.TrimSpace(stderr.String()))
 
 	var found []string
-	for _, pkg := range strings.Fields(stdout.String()) {
+	for pkg := range strings.FieldsSeq(stdout.String()) {
 		for _, sdk := range modelSDKPaths {
 			if strings.Contains(strings.ToLower(pkg), sdk) {
 				found = append(found, fmt.Sprintf("%s names %q", pkg, sdk))
@@ -251,12 +251,12 @@ func embeddedAssets(t *testing.T, gofile string) []string {
 	require.NoError(t, err)
 
 	var assets []string
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		pattern, ok := strings.CutPrefix(strings.TrimSpace(line), "//go:embed ")
 		if !ok {
 			continue
 		}
-		for _, glob := range strings.Fields(pattern) {
+		for glob := range strings.FieldsSeq(pattern) {
 			// `all:` and `-` only change which files inside a
 			// directory are taken; the directory is the same one.
 			glob = strings.TrimPrefix(strings.Trim(glob, `"`), "all:")

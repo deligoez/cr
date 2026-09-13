@@ -23,10 +23,9 @@ import (
 // convenient fails here, which is the point: this test guards the shape, not a
 // particular caller's restraint.
 func TestNothingInCrCanFillInAClassification(t *testing.T) {
-	value := reflect.TypeOf(Coverage{})
+	value := reflect.TypeFor[Coverage]()
 	require.Positive(t, value.NumField())
-	for i := range value.NumField() {
-		field := value.Field(i)
+	for field := range value.Fields() {
 		assert.False(t, field.IsExported(), "Coverage.%s is exported, so cr can classify a unit", field.Name)
 	}
 

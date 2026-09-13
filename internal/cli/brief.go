@@ -112,7 +112,7 @@ func (r *briefResult) issue(w *writer, out *strings.Builder) {
 		return
 	}
 	fmt.Fprintf(out, "\n%s %s, from the %s\n", w.accent("issue"), r.Issue.Key, r.Issue.Origin)
-	for _, line := range strings.Split(strings.TrimRight(r.Issue.Text, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(r.Issue.Text, "\n"), "\n") {
 		fmt.Fprintf(out, "  | %s\n", line)
 	}
 }

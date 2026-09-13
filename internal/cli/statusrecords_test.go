@@ -258,16 +258,16 @@ func restNoteRound(t *testing.T, layout state.Layout, head, noteID string) {
 	t.Helper()
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
-	cells := ""
+	var cells strings.Builder
 	for _, role := range []string{"convention", "correctness", "intent-coverage"} {
 		cited := ""
 		if role == "intent-coverage" {
 			cited = `,"note_id":"` + noteID + `"`
 		}
-		cells += `{"unit":"u1","role":"` + role + `","result":"pass","unit_hash":"h1"` +
-			cited + `,"head":"` + head + `","round":1}` + "\n"
+		cells.WriteString(`{"unit":"u1","role":"` + role + `","result":"pass","unit_hash":"h1"` +
+			cited + `,"head":"` + head + `","round":1}` + "\n")
 	}
-	require.NoError(t, held.Write(state.FileCoverage, []byte(cells)))
+	require.NoError(t, held.Write(state.FileCoverage, []byte(cells.String())))
 
 	claims, err := layout.ReadPR(fixtureOwner, fixtureProject, fixturePRNumber, state.FileClaims)
 	require.NoError(t, err)

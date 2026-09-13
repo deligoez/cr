@@ -87,7 +87,7 @@ func TestTheRuleIDIsCarriedOnTheRecordAndNotInTheCitation(t *testing.T) {
 // added here would be the hole, and it fails this rather than a grading test
 // three sections away.
 func TestTheOriginIsStampedByCrAndCannotBeSupplied(t *testing.T) {
-	method := reflect.TypeOf((*Hit).Citation)
+	method := reflect.TypeFor[func(*Hit) finding.Citation]()
 
 	require.Equal(t, 1, method.NumIn(), "the receiver is the only input; nothing is passed in")
 	assert.Equal(t, reflect.TypeFor[*Hit](), method.In(0))

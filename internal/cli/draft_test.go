@@ -105,7 +105,7 @@ func readDraft(t *testing.T, layout state.Layout) string {
 // depending on the rest of the grammar.
 func markersIn(rendered string) []string {
 	ids := make([]string, 0)
-	for _, line := range strings.Split(rendered, "\n") {
+	for line := range strings.SplitSeq(rendered, "\n") {
 		if !strings.HasPrefix(line, "<!-- cr:record ") {
 			continue
 		}

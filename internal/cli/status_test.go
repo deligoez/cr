@@ -92,12 +92,12 @@ func writeStatusRound(t *testing.T, layout state.Layout, head string) {
 			`"hash":"h1","oversized":false,"head":"`+head+`","round":1}`+"\n"+
 			`{"id":"u2","path":"lib.go","side":"RIGHT","hunk_ranges":[{"start":1,"end":6}],`+
 			`"hash":"h2","oversized":true,"head":"`+head+`","round":1}`+"\n")))
-	cells := ""
+	var cells strings.Builder
 	for _, role := range []string{"convention", "correctness", "intent-coverage"} {
-		cells += `{"unit":"u1","role":"` + role + `","result":"pass","unit_hash":"h1",` +
-			`"head":"` + head + `","round":1}` + "\n"
+		cells.WriteString(`{"unit":"u1","role":"` + role + `","result":"pass","unit_hash":"h1",` +
+			`"head":"` + head + `","round":1}` + "\n")
 	}
-	require.NoError(t, held.Write(state.FileCoverage, []byte(cells)))
+	require.NoError(t, held.Write(state.FileCoverage, []byte(cells.String())))
 	require.NoError(t, held.Write(state.FileClaims,
 		[]byte(`{"id":"`+fixtureIssue+`#c1","text":"Load parses.","source":"acceptance",`+
 			`"span":"parses","head":"`+head+`","round":1}`+"\n"+

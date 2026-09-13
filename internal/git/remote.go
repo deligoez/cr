@@ -32,7 +32,7 @@ func Remotes(dir string) ([]Remote, error) {
 // parseRemotes reads `git remote -v` lines: `<name>\t<url> (fetch|push)`.
 func parseRemotes(listing string) ([]Remote, error) {
 	remotes := make([]Remote, 0)
-	for _, line := range strings.Split(strings.TrimSuffix(listing, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSuffix(listing, "\n"), "\n") {
 		if line == "" {
 			continue
 		}

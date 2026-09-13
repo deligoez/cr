@@ -139,10 +139,6 @@ func counted(n *int) string {
 	return fmt.Sprintf("%d", *n)
 }
 
-// count is a derivable test count, which §5.2.1 leaves undetermined by handing
-// back no pointer at all.
-func count(n int) *int { return &n }
-
 // §5.3.4's seven rungs, each driven by a run that reaches it, and each checked
 // against the whole ladder rather than against its own arm alone.
 //
@@ -173,8 +169,8 @@ func TestTheLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 				TimedOut:    true,
 				Unstarted:   true,
 				ExitCode:    -9,
-				TestsRun:    count(12),
-				TestsFailed: count(3),
+				TestsRun:    new(12),
+				TestsFailed: new(3),
 			},
 			result: ResultError,
 			rung:   rungs[0].name,
@@ -193,21 +189,21 @@ func TestTheLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 		},
 		{
 			name:     "a runner that exited on a signal",
-			measured: Measured{Applied: true, ExitCode: -11, TestsRun: count(4)},
+			measured: Measured{Applied: true, ExitCode: -11, TestsRun: new(4)},
 			result:   ResultError,
 			rung:     rungs[2].name,
 		},
 		{
 			name: "a filter that selected nothing reports no failures and is still empty",
 			measured: Measured{
-				Applied: true, TestsRun: count(0), TestsFailed: count(0),
+				Applied: true, TestsRun: new(0), TestsFailed: new(0),
 			},
 			result: resultNoTestsSelected,
 			rung:   rungs[3].name,
 		},
 		{
 			name:     "a known executed count of zero, with no failed count at all",
-			measured: Measured{Applied: true, TestsRun: count(0)},
+			measured: Measured{Applied: true, TestsRun: new(0)},
 			result:   resultNoTestsSelected,
 			rung:     rungs[3].name,
 		},
@@ -219,20 +215,20 @@ func TestTheLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 		},
 		{
 			name:     "an executed count the runner printed, with no failed count",
-			measured: Measured{Applied: true, TestsRun: count(12)},
+			measured: Measured{Applied: true, TestsRun: new(12)},
 			result:   resultInconclusive,
 			rung:     rungs[4].name,
 		},
 		{
 			name:     "a failed count of zero is worth nothing while the executed count is undetermined",
-			measured: Measured{Applied: true, TestsFailed: count(0)},
+			measured: Measured{Applied: true, TestsFailed: new(0)},
 			result:   resultInconclusive,
 			rung:     rungs[4].name,
 		},
 		{
 			name: "the suite ran and nothing failed, which is the only rung that proves a gap",
 			measured: Measured{
-				Applied: true, TestsRun: count(12), TestsFailed: count(0),
+				Applied: true, TestsRun: new(12), TestsFailed: new(0),
 			},
 			result: resultNoTestFailed,
 			rung:   rungs[5].name,
@@ -240,7 +236,7 @@ func TestTheLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 		{
 			name: "a test caught the mutation",
 			measured: Measured{
-				Applied: true, TestsRun: count(12), TestsFailed: count(1),
+				Applied: true, TestsRun: new(12), TestsFailed: new(1),
 			},
 			result: resultFailed,
 			rung:   rungs[6].name,
@@ -264,7 +260,7 @@ func TestTheLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 // Ladder must return that rung's result — so a rung condition widened by one
 // boundary, or an order swapped by one place, has nowhere to hide.
 func TestEveryRunTheLadderCanSeeMatchesOneRung(t *testing.T) {
-	counts := []*int{nil, count(0), count(7)}
+	counts := []*int{nil, new(0), new(7)}
 	for _, applied := range []bool{false, true} {
 		for _, timedOut := range []bool{false, true} {
 			for _, unstarted := range []bool{false, true} {
