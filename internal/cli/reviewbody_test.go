@@ -62,6 +62,59 @@ func TestTheReviewBodyDisclosesEveryLensThatDidNotRun(t *testing.T) {
 	assert.Contains(t, lines, "- lens test/symbols unavailable, per §4.5.4: "+noProfile)
 }
 
+// The review body of §8.4.3 is English whatever render.lang says, per the
+// user's 2026-09-13 decision: `cr post` run under tr and under en prints the
+// same body, byte for byte, and it is the English framing around every kind of
+// §4.5.4's entries — a disabled axis, an unavailable axis, both unavailable lens
+// halves, and a skipped role.
+//
+// The run under each language first proves the language took effect, by
+// reading the settings `cr post` resolves, so two equal bodies cannot come from
+// two runs that both ignored the variable.
+func TestTheReviewBodyIsTheSameEnglishUnderEitherRenderLanguage(t *testing.T) {
+	bodies := make(map[string]string, 2)
+	for _, lang := range []render.Lang{render.LangTR, render.LangEN} {
+		t.Setenv("CR_RENDER_LANG", lang.String())
+		layout := draftedHome(t, aCitedRecord("f1"))
+		redraft(t)
+		recordedGH(t)
+
+		settings, err := resolveDraftSettings(layout, draftOwner, draftRepo)
+		require.NoError(t, err)
+		require.Equal(t, lang, settings.lang, "the run reads render.lang as %s", lang)
+
+		printed, err := runPost(t, draftPR, "--repo", draftSlug)
+		require.NoError(t, err)
+		var report dryRun
+		require.NoError(t, json.Unmarshal([]byte(printed), &report))
+		require.NotNil(t, report.Payload)
+		bodies[lang.String()] = report.Payload.Body
+	}
+
+	assert.Equal(t, bodies["en"], bodies["tr"], "render.lang does not reach §8.4.3's review body")
+
+	lines := strings.Split(bodies["tr"], "\n")
+	assert.Equal(t, []string{"**cr — review coverage**", "", "Axes reviewed: correctness, convention", "",
+		"Lenses that did not run, and why:"}, lines[:5])
+	heads := make([]string, 0, len(lines))
+	for _, line := range lines[5:] {
+		if entry, ok := strings.CutPrefix(line, "- "); ok {
+			head, _, _ := strings.Cut(entry, ":")
+			heads = append(heads, head)
+		}
+	}
+	assert.Equal(t, []string{
+		"axis test disabled, per §4.5.2",
+		"axis intent unavailable, per §4.5.3",
+		"lens convention/reinvention unavailable, per §4.3.1",
+		"lens test/symbols unavailable, per §4.5.4",
+		"role convention skipped, per §4.6.4",
+		"role correctness skipped, per §4.6.4",
+		"role intent-coverage skipped, per §4.6.4",
+		"role test-adequacy skipped, per §4.6.4",
+	}, heads, "entries of every kind §4.5.4 names, in English")
+}
+
 // The hash embedded in the body is the payload hash of §8.3.3, and the body it
 // sits in reached no part of computing it.
 //

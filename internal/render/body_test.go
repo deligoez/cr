@@ -25,26 +25,19 @@ func namesOf(set []Body) []string {
 	return names
 }
 
-// Round 12's finding unspecified-render-language: §8.4.3 has cr write a review
-// body carrying §4.5.4's disclosure — the active axes and every lens that did
-// not run, with its reason — expressly so the honesty obligation reaches the
-// author rather than only the reviewer's terminal, and then names no language
-// for it. §8.1.1 names one for the comment body alone.
-//
-// The answer is that there is nothing special about the review body: it is
-// author-facing, so it is written in render.lang like the comment body. A body
-// written for an author who cannot read it discloses no more than the terminal
-// they never see.
-func TestTheReviewBodyIsAnAuthorFacingBodyLikeTheComment(t *testing.T) {
-	assert.Equal(t, []string{"comment", "review"}, namesOf(bodies),
-		"the comment body of §8.1.1 and the review body of §8.4.3, in spec order")
+// Round 12's finding unspecified-render-language asked which language §8.4.3's
+// review body is written in. The user's 2026-09-13 decision answers it: English,
+// whatever render.lang says. So the set of bodies Setting's language governs is
+// the comment body of §8.1.1 alone, and the review body is not in it.
+func TestOnlyTheCommentBodyIsWrittenInTheConfiguredLanguage(t *testing.T) {
+	assert.Equal(t, []string{"comment"}, namesOf(bodies),
+		"the comment body of §8.1.1 is the one body render.lang governs; §8.4.3's review body is English")
 
 	for _, body := range bodies {
 		assert.Truef(t, body.AuthorFacing(), "%s is written in the configured language", body.name)
 	}
-	assert.True(t, BodyReview.AuthorFacing(),
-		"§8.4.3's review body is rendered in render.lang like every other author-facing body")
-
+	assert.False(t, Body{"review"}.AuthorFacing(),
+		"§8.4.3's review body is not governed by render.lang")
 	assert.False(t, Body{}.AuthorFacing(), "a body nothing named is no body")
 }
 
@@ -66,31 +59,23 @@ func withoutBody(body Body, within func()) {
 // out of the set is rendered in no language at all, and the same call renders
 // once the body is back.
 //
-// Each body is driven through the entry point its caller uses — §8.1.4's label
-// region, which internal/draft places in every question's comment, and §8.4.3's
-// review body, which cr post writes — and the refusal is the one each already
-// gives for a language it has no built-in text for.
+// The comment body is driven through §8.1.4's label region, which
+// internal/draft places in every question's comment, and the refusal is the one
+// it already gives for a language it has no built-in text for. §8.4.3's review
+// body reads no language, so emptying the set leaves it byte for byte as it was.
 func TestABodyOutsideTheSetIsRenderedInNoLanguage(t *testing.T) {
 	const hash = "420012ebffc2b992"
+	before := ReviewBody(nil, nil, hash)
 
 	withoutBody(BodyComment, func() {
 		_, err := QuestionLabelRegion(LangEN, finding.GradeArgued)
 		assert.Equal(t, &NoLabelError{Lang: LangEN, Grade: finding.GradeArgued}, err,
 			"the comment body's label is looked up through the set")
-		_, err = ReviewBody(LangEN, nil, nil, hash)
-		assert.NoError(t, err, "taking the comment body out leaves the review body alone")
-	})
-	withoutBody(BodyReview, func() {
-		_, err := ReviewBody(LangEN, nil, nil, hash)
-		assert.Equal(t, &UnknownLangError{Value: "en"}, err,
-			"the review body's framing is looked up through the set")
-		_, err = QuestionLabelRegion(LangEN, finding.GradeArgued)
-		assert.NoError(t, err, "taking the review body out leaves the comment body alone")
+		assert.Equal(t, before, ReviewBody(nil, nil, hash),
+			"the review body is not language-governed, so the set does not reach it")
 	})
 
 	_, err := QuestionLabelRegion(LangEN, finding.GradeArgued)
-	require.NoError(t, err)
-	_, err = ReviewBody(LangEN, nil, nil, hash)
 	require.NoError(t, err)
 }
 

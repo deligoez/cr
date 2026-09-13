@@ -577,7 +577,7 @@ func buildPayload(
 		return nil, err
 	}
 	review := post.Build(queued, bodies)
-	if err := discloseInBody(l, owner, repo, pr, round, settings.lang, review); err != nil {
+	if err := discloseInBody(l, owner, repo, pr, round, review); err != nil {
 		return nil, err
 	}
 	return review, nil
@@ -603,8 +603,7 @@ func buildPayload(
 // shorter than the terminal's, which is a dishonesty of exactly the kind §4.5.4
 // is about.
 func discloseInBody(
-	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	lang render.Lang, review *post.Review,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, review *post.Review,
 ) error {
 	hash, err := review.Hash()
 	if err != nil {
@@ -614,11 +613,7 @@ func discloseInBody(
 	if err != nil {
 		return err
 	}
-	body, err := render.ReviewBody(lang, axes.Active, lenses.Disclosures(), hash)
-	if err != nil {
-		return err
-	}
-	review.Body = body
+	review.Body = render.ReviewBody(axes.Active, lenses.Disclosures(), hash)
 	return nil
 }
 

@@ -47,54 +47,30 @@ func PayloadHashIn(body string) (string, bool) {
 	return hash, true
 }
 
-// reviewBodyText is one language's framing for the review body: the lines cr
-// writes around §4.5.4's entries.
+// The review body's framing: the lines cr writes around §4.5.4's entries.
 //
-// The entries themselves are not in the table. Each is produced by the package
-// that knows why its lens did not run — activation.Disabled, intent.Unavailable,
-// reinvention.Unavailable, testadequacy.Unavailable, coverage.SkippedRole — and
-// derives its own sentence from its own fields, which is what keeps what a
-// reader is told and what a caller reads as data from drifting apart. Rewording
-// them here would be a second answer to a question those packages already
-// answered, and §4.5.4's reason is the half a reader acts on.
-type reviewBodyText struct {
-	lang Lang
-	// heading opens the region, so the author can see whose block it is.
-	heading string
-	// axes introduces the active axes of §4.5.1.
-	axes string
-	// noAxes stands where the list would, when no axis ran at all.
-	noAxes string
-	// lenses introduces §4.5.4's entries.
-	lenses string
-	// noLenses stands where that list would, when every lens looked.
-	noLenses string
-}
-
-// reviewBodyTexts is the built-in table, every language of langs written out.
-//
-// Written out rather than assembled, for the reason questionLabels is: §8.4.3
-// makes this body cr's own, the author reads it as cr's statement about what was
-// examined, and a composition a later caller can drive to a different result
-// with a different argument is not a statement cr made.
-var reviewBodyTexts = []reviewBodyText{
-	{
-		lang:     LangTR,
-		heading:  "**cr — inceleme kapsamı**",
-		axes:     "Bakılan eksenler:",
-		noAxes:   "Bu turda hiçbir eksen çalışmadı.",
-		lenses:   "Bakılmayan mercekler ve nedenleri:",
-		noLenses: "Bakılmayan mercek yok.",
-	},
-	{
-		lang:     LangEN,
-		heading:  "**cr — review coverage**",
-		axes:     "Axes reviewed:",
-		noAxes:   "No axis ran this round.",
-		lenses:   "Lenses that did not run, and why:",
-		noLenses: "No lens was left unexamined.",
-	},
-}
+// They are English whatever render.lang says, and so is every entry beneath
+// them. render.lang governs the comment bodies of §8.1.1, which the agent
+// rewrites per §8.1.2; the review body has no such path, and a body cr composed
+// in a second language would be a second, built-in rendering of §4.5.4's
+// reasons that nothing keeps in step with the English each producing package
+// writes. The entries are produced by the package that knows why its lens did
+// not run — activation.Disabled, intent.Unavailable, reinvention.Unavailable,
+// testadequacy.Unavailable, coverage.SkippedRole — and are appended as those
+// packages word them.
+const (
+	// reviewBodyHeading opens the region, so the author can see whose block
+	// it is.
+	reviewBodyHeading = "**cr — review coverage**"
+	// reviewBodyAxes introduces the active axes of §4.5.1.
+	reviewBodyAxes = "Axes reviewed:"
+	// reviewBodyNoAxes stands where the list would, when no axis ran at all.
+	reviewBodyNoAxes = "No axis ran this round."
+	// reviewBodyLenses introduces §4.5.4's entries.
+	reviewBodyLenses = "Lenses that did not run, and why:"
+	// reviewBodyNoLenses stands where that list would, when every lens looked.
+	reviewBodyNoLenses = "No lens was left unexamined."
+)
 
 // ReviewBody is §8.4.3's review body: §4.5.4's disclosure, and beneath it the
 // payload hash of §8.3.3 as an HTML comment.
@@ -115,45 +91,23 @@ var reviewBodyTexts = []reviewBodyText{
 // category, so a kind added to coverage.Lenses reaches the author without this
 // function being touched — and so no caller can hand it three of the four.
 //
+// It takes no language: the body is English, per the framing above, so no
+// render.lang value can change a byte of it.
+//
 // The body is not a line comment. §8.4.3 says so, and it is why nothing here
 // takes an anchor: §1.6.1 anchors every posted comment to a line of the diff and
 // §1.6.2's cap counts comments, neither of which this is.
-func ReviewBody(
-	lang Lang, active []string, disclosed []finding.HonestyDisclosure, hash string,
-) (string, error) {
-	text, known := reviewBodyOf(lang)
-	if !known {
-		return "", &UnknownLangError{Value: lang.String()}
-	}
-	lines := []string{text.heading, "", text.noAxes}
+func ReviewBody(active []string, disclosed []finding.HonestyDisclosure, hash string) string {
+	lines := []string{reviewBodyHeading, "", reviewBodyNoAxes}
 	if len(active) > 0 {
-		lines[2] = text.axes + " " + strings.Join(active, ", ")
+		lines[2] = reviewBodyAxes + " " + strings.Join(active, ", ")
 	}
-	lines = append(lines, "", text.noLenses)
+	lines = append(lines, "", reviewBodyNoLenses)
 	if len(disclosed) > 0 {
-		lines[len(lines)-1] = text.lenses
+		lines[len(lines)-1] = reviewBodyLenses
 		for _, entry := range disclosed {
 			lines = append(lines, "- "+entry.Disclosure())
 		}
 	}
-	return strings.Join(lines, "\n") + regionSeparator + PayloadHashComment(hash), nil
-}
-
-// reviewBodyOf finds the built-in framing for lang, reporting whether the table
-// has a row for it. The zero Lang has none, which is the case lang.go's
-// enumeration exists to keep out of a renderer, so it is reported rather than
-// answered with a default.
-//
-// The table is the review body's, so BodyReview is asked first whether
-// Setting's language governs it, as QuestionLabel asks BodyComment.
-func reviewBodyOf(lang Lang) (reviewBodyText, bool) {
-	if !BodyReview.AuthorFacing() {
-		return reviewBodyText{}, false
-	}
-	for _, text := range reviewBodyTexts {
-		if text.lang == lang {
-			return text, true
-		}
-	}
-	return reviewBodyText{}, false
+	return strings.Join(lines, "\n") + regionSeparator + PayloadHashComment(hash)
 }

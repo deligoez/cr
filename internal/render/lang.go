@@ -11,8 +11,8 @@
 //
 // The package holds the domain, the built-in label table, the set of bodies the
 // language governs, and the cr-owned regions rendered from them: the question
-// label, the §8.1.6 provenance region, the §8.1.7 evidence region, and the
-// §8.4.3 review body.
+// label, the §8.1.6 provenance region and the §8.1.7 evidence region. It also
+// holds the §8.4.3 review body, which is English whatever the language is.
 package render
 
 import (
