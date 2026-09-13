@@ -96,3 +96,31 @@ func TestDestroyRemovesASandboxWhoseRegistrationIsGone(t *testing.T) {
 	require.NoError(t, err, "§5.1.1 refuses a path whose directory is still there")
 	assert.Equal(t, created.Path, again.Path)
 }
+
+// A sandbox whose registration is gone and whose directory cannot be deleted is
+// a destruction that failed, and it is reported as one. The directory is still
+// there, so an answer of success would tell the reader §5.1.5 holds while
+// §5.1.1 goes on refusing the path.
+func TestAnOrphanedSandboxThatCannotBeRemovedFailsTheDestruction(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root deletes through a read-only directory")
+	}
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+
+	created, err := Create(src)
+	require.NoError(t, err)
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, ".git", "worktrees", "sandbox")),
+		"the registration removed behind cr's back")
+	locked := filepath.Join(created.Path, "locked")
+	require.NoError(t, os.MkdirAll(locked, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(locked, "held"), []byte("x"), 0o600))
+	require.NoError(t, os.Chmod(locked, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+
+	removed, err := Destroy(src)
+
+	require.Error(t, err, "§5.1.5: the sandbox directory is still there")
+	assert.Nil(t, removed)
+	assert.DirExists(t, created.Path)
+}
