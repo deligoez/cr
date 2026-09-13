@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T01:21:33.941538Z",
+  "updated_at": "2026-09-13T01:27:24.136963Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8174,7 +8174,7 @@
     {
       "id": "skill-marketplace-manifest",
       "title": "Expose the skill through the manifest",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "skill-triage-documentation",
@@ -8187,10 +8187,17 @@
       ],
       "started_at": "2026-09-13T01:21:33.941538Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-13T01:27:24.126979Z",
+      "closed_reason": "- The skill ships inside this repository at skills/cr/SKILL.md, and .claude-plugin/marketplace.json (dda32cb) exposes it as an installable plugin: one non-strict plugin entry named cr whose source is ./, so the runtime discovers skills/cr by convention, with no component keys that would declare it twice; `claude plugin validate --strict .claude-plugin/marketplace.json` passed.\n- TestTheMarketplaceExposesTheSkillAtItsDeclaredPath in internal/cli/marketplace_test.go reads the manifest, requires exactly one plugin named cr with source ./, and asserts that the declared source's skills/cr/SKILL.md exists and is a file.\n",
+      "gate_passed_at": "2026-09-13T01:27:24.126979Z",
+      "commit_sha": "dda32cb",
+      "commit_shas": [
+        "dda32cb"
+      ],
+      "commit_files": [
+        ".claude-plugin/marketplace.json",
+        "internal/cli/marketplace_test.go"
+      ]
     },
     {
       "id": "record-command",
