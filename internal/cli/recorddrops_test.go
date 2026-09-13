@@ -119,3 +119,36 @@ func TestRecordingMergesOwnOutputDropsNothingTwice(t *testing.T) {
 	assert.Zero(t, reported.AlreadyPosted.Dropped)
 	assert.NotContains(t, reported.Honesty, reported.Waived.Disclosure())
 }
+
+// A group whose representative the file does not carry and the round has not
+// stored is re-elected among the records that remain, per §6.4.2, rather than
+// left with every member in `draft`.
+//
+// gremlins found the re-election unasserted: skipping it when there were
+// orphans left both records of one anchored line and class in `draft`, so the
+// round would draft the same finding twice — which §6.4.3's suppression exists
+// to prevent. f2 and f3 sit on one anchored line in one class and both name f1,
+// which no file handed in and no earlier run stored.
+func TestAGroupWhoseRepresentativeIsAbsentIsReElectedAmongTheRest(t *testing.T) {
+	layout := recordedHome(t)
+	orphan := func(id string) map[string]any {
+		record := aRecord(id, "u1")
+		record["duplicate_of"] = "f1"
+		return record
+	}
+	file := writeRecordFile(t, "merged.ndjson", orphan("f2"), orphan("f3"))
+
+	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.NoError(t, err)
+
+	stored, err := state.ReadRecords[finding.Finding](
+		layout, recordOwner, recordRepo, recordPRNum, state.FileFindings)
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+	states := []finding.State{stored[0].State, stored[1].State}
+	assert.ElementsMatch(t, []finding.State{finding.StateDraft, finding.StateDuplicate}, states,
+		"§6.4.2: one of the two speaks for the group and the other is retired for it")
+	for i := range stored {
+		assert.NotEqual(t, "f1", stored[i].DuplicateOf, "no stored record names a representative that is not there")
+	}
+}
