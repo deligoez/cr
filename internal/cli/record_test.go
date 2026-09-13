@@ -413,3 +413,35 @@ func TestAFailedAppendIsReportedRatherThanSwallowed(t *testing.T) {
 	require.Error(t, again, "the lock was released, so the second run reaches the write too")
 	assert.Contains(t, again.Error(), dir)
 }
+
+// The same for §10.3's round summary, which `cr record` writes after the append:
+// a summary that did not land is a failure the caller is told about, not a run
+// that reports the round recorded.
+//
+// gremlins found this one too, beside the append's. Negating the guard on
+// writeSummary's error left the command succeeding with the round's
+// `deduplicated` and `suppressed_by_thread` counts written nowhere. The round's
+// own directory is made read-only and the pull request's is not, so the append
+// to findings.ndjson lands and only the summary refuses — which is what makes
+// the refusal this statement's and not the append's.
+func TestAFailedRoundSummaryWriteIsReportedRatherThanSwallowed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through a read-only directory")
+	}
+	layout := recordedHome(t)
+	dir := layout.RoundDir(recordOwner, recordRepo, recordPRNum, recordRound)
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	require.NoError(t, os.Chmod(dir, 0o500))
+
+	file := writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"))
+
+	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.Error(t, err, "a round whose summary reached no file was not wholly recorded")
+	assert.Contains(t, err.Error(), dir, "the refusal names where the write failed")
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	stored, readErr := state.ReadRecords[finding.Finding](
+		layout, recordOwner, recordRepo, recordPRNum, state.FileFindings)
+	require.NoError(t, readErr)
+	assert.Len(t, stored, 1, "the append before the summary landed, so the summary is what refused")
+}
