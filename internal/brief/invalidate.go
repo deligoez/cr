@@ -2,6 +2,7 @@ package brief
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -111,7 +112,10 @@ func clearMapping(held *state.Lock, assembled *Brief) error {
 //
 // A field it cannot decode is refused as the stored file cr cannot use that it
 // is: §6.1.4 has cr write `state`, so a line naming no state of §9.1, or an id
-// that is not a string, is cr's own state edited by hand, which §11.2 codes 3.
+// that is not a string — null included — is cr's own state edited by hand,
+// which §11.2 codes 3. The fields arrive keyed as RewriteStamped documents, the
+// way encoding/json binds them, so a line spelling a key `"State"` is swept as
+// every read of it decodes it.
 // RewriteStamped puts the file's path and the line's number in front, because
 // the line is what the user has to open and only the walk knows which it was.
 func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
@@ -132,11 +136,16 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 			if !current.Open() {
 				return false, nil
 			}
-			var id string
+			// A pointer, because a JSON null decodes into a string
+			// as "" with no error, and a record named "" is no id.
+			var id *string
 			if err := json.Unmarshal(fields[fieldID], &id); err != nil {
 				return false, unusable(fieldID, err)
 			}
-			if err := journal.Move(id, finding.Existing(current), finding.StateStale); err != nil {
+			if id == nil {
+				return false, unusable(fieldID, errNullID)
+			}
+			if err := journal.Move(*id, finding.Existing(current), finding.StateStale); err != nil {
 				return false, err
 			}
 			stale, err := json.Marshal(finding.StateStale)
@@ -160,6 +169,9 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 func unusable(field string, err error) error {
 	return state.FileFailure("use the "+field+" field of", state.FileFindings, state.UnusableHint, err)
 }
+
+// errNullID is the refusal of an open record whose id is JSON null.
+var errNullID = errors.New("null is not a string")
 
 // carryClaims is §9.3.4's "claims are carried forward unchanged": the claims
 // the closing round recorded become the opening round's, with nothing about

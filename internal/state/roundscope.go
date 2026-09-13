@@ -160,9 +160,15 @@ func ClearStamped(k *Lock, name string, round int) error {
 // read as a round that recorded nothing; §2.3.3's pair says which run wrote the
 // record, and this changes a record's state rather than its provenance.
 //
-// A line is therefore handed to apply as the fields it supplied, exactly as
-// keptLines hands one to its drop, so a field this version does not understand
-// is carried through rather than dropped. A line apply changes is re-encoded,
+// A line is therefore handed to apply as the fields it supplied rather than as
+// a decoded record, so a field this version does not understand is carried
+// through rather than dropped. The fields are keyed by FoldedFields, the way
+// encoding/json binds a key to a field: every read of a stored record decodes
+// into its struct, which binds `"State"` exactly as it binds `"state"`, so a
+// sweep that looked a key up by its exact spelling would leave a record open
+// that every reader calls open. A line giving one key twice under that folding
+// is refused as a file cr cannot use, since no one value is the one a read
+// binds. A line apply changes is re-encoded under the spellings it supplied,
 // which returns its keys in the order encoding/json writes a map: the values
 // are the values that were there, and the byte-for-byte promise is kept for
 // every line apply leaves alone.
@@ -178,12 +184,22 @@ func RewriteStamped(
 	if err := checkStamped(name); err != nil {
 		return err
 	}
-	out, err := visitLines(k, name, func(fields map[string]json.RawMessage, line []byte) ([]byte, error) {
+	out, err := visitLines(k, name, func(supplied map[string]json.RawMessage, line []byte) ([]byte, error) {
+		fields, err := FoldedFields(line)
+		// §11.2 codes a repeated key 1 in a file a caller hands cr, and this
+		// is cr's own stored file, so the refusal carries the key and not
+		// the error type that would code it 1.
+		if repeated := (*RepeatedKeyError)(nil); errors.As(err, &repeated) {
+			err = fmt.Errorf("%s is given more than once", repeated.Key)
+		}
+		if err != nil {
+			return nil, FileFailure("use", name, UnusableHint, err)
+		}
 		changed, err := apply(fields)
 		if err != nil || !changed {
 			return line, err
 		}
-		return json.Marshal(fields)
+		return json.Marshal(respelled(supplied, fields))
 	})
 	if err != nil {
 		return err
@@ -192,6 +208,24 @@ func RewriteStamped(
 		return err
 	}
 	return k.Write(name, out)
+}
+
+// respelled returns folded, the fields apply left, under the spellings supplied
+// gave them, so a rewrite changes a record's values and never its keys. A field
+// the line did not supply keeps foldKey's spelling.
+func respelled(supplied, folded map[string]json.RawMessage) map[string]json.RawMessage {
+	spelling := make(map[string]string, len(supplied))
+	for key := range supplied {
+		spelling[foldKey(key)] = key
+	}
+	out := make(map[string]json.RawMessage, len(folded))
+	for key, value := range folded {
+		if given, spelt := spelling[key]; spelt {
+			key = given
+		}
+		out[key] = value
+	}
+	return out
 }
 
 // checkStamped refuses a file §2.3.3 does not list, so a round-scoped write
