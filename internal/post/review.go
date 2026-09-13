@@ -16,6 +16,7 @@ package post
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -235,19 +236,33 @@ func Create(sender Sender, owner, repo string, pr int, payload []byte) (string, 
 }
 
 // CreatedReview is the node id of the review a successful Create answered
-// with, and the empty string when the answer names none.
+// with, and an error when the answer cannot be read or names no review.
 //
 // GitHub's review-creation call answers with the review it created, and its
 // `node_id` is the id GraphQL gives the same review — the one each of its
 // comments names as `pullRequestReview`. That is what lets §8.3.3's read-back
-// take the threads of this review and no other. An answer cr cannot read names
-// no review, and a read-back given none pairs nothing rather than guessing.
-func CreatedReview(response string) string {
+// take the threads of this review and no other.
+//
+// An answer cr cannot read, or one naming no review, is §8.4.4's "a response cr
+// cannot parse" even though gh exited 0: it does not establish that the review
+// exists, so the error is the caller's unknown outcome and never a success.
+func CreatedReview(response string) (string, error) {
 	var created struct {
 		NodeID string `json:"node_id"`
 	}
-	if json.Unmarshal([]byte(response), &created) != nil {
-		return ""
+	if err := json.Unmarshal([]byte(response), &created); err != nil {
+		return "", fmt.Errorf(
+			"gh reported the review-creation call as successful and its answer cannot be read "+
+				"as the review it created: %w", err)
 	}
-	return created.NodeID
+	if created.NodeID == "" {
+		return "", errUnnamedReview
+	}
+	return created.NodeID, nil
 }
+
+// errUnnamedReview is CreatedReview's answer to a response that parses and
+// names no review.
+var errUnnamedReview = errors.New(
+	"gh reported the review-creation call as successful and its answer names no review: " +
+		"it carries no node_id")

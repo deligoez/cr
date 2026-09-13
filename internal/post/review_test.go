@@ -91,12 +91,17 @@ func TestAMultiCommentRoundIsOneReviewCreationCall(t *testing.T) {
 
 // The review a created call names is its `node_id`, the id GraphQL gives each
 // of its comments' `pullRequestReview`, and an answer that names none — or
-// cannot be read — names no review at all.
+// cannot be read — is an error rather than an empty id a caller could post
+// under.
 func TestTheCreatedReviewIsTheNodeIDTheCallAnswers(t *testing.T) {
-	assert.Equal(t, "PRR_kwDOAbCd",
-		CreatedReview(`{"id":991,"node_id":"PRR_kwDOAbCd","state":"COMMENTED"}`))
-	assert.Empty(t, CreatedReview(`{"id":991}`))
-	assert.Empty(t, CreatedReview(`not json`))
+	id, err := CreatedReview(`{"id":991,"node_id":"PRR_kwDOAbCd","state":"COMMENTED"}`)
+	require.NoError(t, err)
+	assert.Equal(t, "PRR_kwDOAbCd", id)
+	for _, response := range []string{`{"id":991}`, `{"id":991,"node_id":""}`, `null`, `not json`} {
+		id, err := CreatedReview(response)
+		require.Error(t, err, response)
+		assert.Empty(t, id, response)
+	}
 }
 
 // The payload carries every queued record as its own comment, and GitHub's own

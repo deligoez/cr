@@ -133,23 +133,3 @@ func TestAThreadAnEarlierRoundOpenedIsNotClaimedForThisRound(t *testing.T) {
 		})
 	}
 }
-
-// §8.3.3's read-back when the review cannot be named: a created call whose
-// answer carries no `node_id` names no review, so no thread is claimed for the
-// round — not even one whose opening comment GitHub names no review for, which
-// would match an empty id if the two were compared. The records are still
-// posted, and they carry no thread id rather than a guessed one.
-func TestAReviewTheCallDoesNotNameClaimsNoThread(t *testing.T) {
-	layout := draftedHome(t, aCitedRecord("f1"))
-	redraft(t)
-	payload := builtPayload(t)
-	ghShimmingAs(t, "", listedReview{review: payload})
-
-	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
-	require.NoError(t, err)
-
-	stored, posted := threadsOfRound(t, layout, draftRound)
-	assert.Equal(t, map[string]string{"f1": ""}, stored,
-		"§6.1: a thread cr could not tie to the review is not recorded")
-	assert.Empty(t, posted, "§8.3.3: posted.json names no thread it could not tie to the review")
-}

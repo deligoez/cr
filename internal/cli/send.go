@@ -111,6 +111,13 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 		return err
 	}
 	created, err := post.Create(confirmation, owner, repo, pr, payload)
+	reviewID := ""
+	if err == nil {
+		// §8.4.4's "a response cr cannot parse" does not need gh to have
+		// failed: an answer that cannot be read, or names no review,
+		// establishes nothing about whether the review exists.
+		reviewID, err = post.CreatedReview(created)
+	}
 	if err != nil {
 		// §8.4: GitHub's refusal is §8.4.2 and everything else is
 		// §8.4.4's unknown outcome. Neither marks anything posted nor
@@ -135,9 +142,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := recordPostTriage(s.layout, owner, repo, pr, s.round, s.triage.settled()); err != nil {
 		return err
 	}
-	if err := adoptReturnedThreads(
-		s.layout, s.round, s.records, s.review, post.CreatedReview(created),
-	); err != nil {
+	if err := adoptReturnedThreads(s.layout, s.round, s.records, s.review, reviewID); err != nil {
 		return err
 	}
 	return out.emit(&postResult{
