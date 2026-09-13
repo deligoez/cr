@@ -469,12 +469,21 @@ citation is rendered verbatim for the human to judge.
 A review comment spends the reviewer's standing with the author, so volume is a
 cost in itself.
 
-- **Fewer comments.** `post.max_comments` (default 20) is the round's comment
-  budget. cr never drops a comment to fit it; every `cr draft` header measures
-  the queue against it, and triage in the draft is how a round comes under it:
+- **Fewer comments.** `post.max_comments` (default 20) caps a round. Every
+  `cr draft` header measures the queue against it:
 
   ```
-  comments: 0 comments queued against post.max_comments 1
+  comments: 3 comments queued against post.max_comments 1, 2 over the cap
+  ```
+
+  Over the cap, `cr post` refuses with exit 1, with or without `--confirm`, and
+  never drops a comment to fit; triage the draft down instead:
+
+  ```json
+  {
+    "error": "3 comments queued against post.max_comments 1, 2 over the cap: triage the draft down to 1, or raise post.max_comments; cr will not drop 2 to fit",
+    "hint": "discard records in the draft until the count is within `post.max_comments`, or raise the cap"
+  }
   ```
 - **Each anchored to the line it concerns.** Every posted comment sits on a line
   of the diff; there is no unanchored channel. An item with no code location, such
@@ -679,7 +688,7 @@ cr config --resolved
 | Code | Meaning | Seen when |
 |---|---|---|
 | 0 | success | every step of the loop above |
-| 1 | validation failure | a question body with no `?` at `cr post`; a marker edit §7.2 does not admit; an unknown waiver id |
+| 1 | validation failure | a question body with no `?` at `cr post`; a marker edit §7.2 does not admit; a round over `post.max_comments`; an unknown waiver id |
 | 2 | usage error | no detectable repository and no `--repo`; `cr note` without `--pr` |
 | 3 | file, configuration or external command failure | a config key addressing the argued forcing; a malformed role or rule file; a profile tie |
 | 4 | state conflict, lock timeout, partial post | a write after the head moved |
