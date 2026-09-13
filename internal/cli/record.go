@@ -446,8 +446,8 @@ func acceptRecords(
 		return nil, nil, recordDrops{}, err
 	}
 	// §6.4.4 and §9.3.6 again, after the last refusal that names an input
-	// line, and then §9.1's first two rows over what remains.
-	records, dropped, err := dropRecorded(l, owner, repo, pr, records, journal)
+	// line, keeping the records a dropped representative orphaned.
+	records, orphans, dropped, err := dropRecorded(l, owner, repo, pr, round.Round, records)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
@@ -462,11 +462,11 @@ func acceptRecords(
 	// §6.2, last of them all, because it rests on what the others
 	// established: the citations are resolved and stamped, the axis is
 	// computed, and §5.4's bounds have already refused what they refuse.
-	gradeRecords(round, formed, evidence, records)
-	// §4.1.4: an intent-axis record on a unit the round's mapping maps
-	// to no claim is a question, never a finding. It reads the axis
-	// stamped above and moves only toward the question register.
-	forceUnmappedIntent(round.Round, formed, evidence.pairs, records)
+	// Then §4.1.4, §6.4.2's re-election of any group a drop orphaned, and
+	// §9.1's first two rows over the records that will be stored.
+	if err := settleStates(l, owner, repo, round, formed, evidence, orphans, records, journal); err != nil {
+		return nil, nil, recordDrops{}, err
+	}
 	// §4.3.4: a reinvention item defaults to a question, before and apart
 	// from §6.3's forcing, which a cited reinvention item never meets.
 	if err := defaultReinventionQuestions(l, owner, repo, pr, round, formed, records); err != nil {
