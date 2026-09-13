@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T06:55:02.180906Z",
+  "updated_at": "2026-09-13T08:03:04.496671Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9000,7 +9000,7 @@
     {
       "id": "post-writes-triage-waivers",
       "title": "Write draft waivers on cr post",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 40,
@@ -9009,16 +9009,26 @@
         "### 7.4 Waivers",
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T06:56:37.262638Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T07:10:48.721096Z",
+      "closed_reason": "- cr post --confirm now writes the waiver cr draft would for every discard it reads out of draft.md: internal/cli/send.go's send calls the same waiveDiscards cr draft calls (internal/cli/regenerate.go), over triage.discarded(), after the post_unresolved refusal and before posted.json is written and the call is made, so a deleted block gets a not-here waiver in the pull request's waivers.ndjson and a wrong marker gets a repository-wide waiver, with finding.Waive deriving the scope from the disposition.\n- Audit rows table-10-3 and table-10-4 re-probed with the dogfood binary against a scratch repo and gh shim: after cr draft, deleting f2's block and marking f3 wrong with no redraft, cr post --confirm left no waiver before the change and after it cr waivers list showed wr1 scope repository disposition wrong class silent-retry and wp1 scope pull-request disposition not-here class dead-helper.\n- After the review is created and its threads are read back, internal/cli/send.go's storeThreadIDs sets Finding.ThreadID on each posted record from the same map adoptThreads writes to posted.json and republishes findings.ndjson under the PR lock, after post_unresolved is cleared and the records are marked posted, so a failed write there cannot reopen a second send.\n- Audit row table-8-21 re-probed in the same dogfood run: f1 was stored posted with thread_id PRRT_dogfood0 after the change and with no thread_id before it, with one POST in each run.\n- internal/cli/postwaivers_test.go's TestPostConfirmWaivesTheDraftsDiscardsWithoutARedraft drives cr post --confirm through a gh shim after deleting a block and, in a separate home, after setting disposition wrong with no redraft, asserting the waiver in the pull request and repository scope respectively, no waiver for the posted record, and the stored discarded state and disposition; it goes red under a go test -overlay mutant removing the waiveDiscards call.\n- TestPostConfirmStoresEachPostedRecordsThreadID in the same file asserts the whole stored thread_id map after a successful cr post --confirm, and goes red under a go test -overlay mutant removing the storeThreadIDs call.\n",
+      "gate_passed_at": "2026-09-13T07:10:48.721096Z",
+      "commit_sha": "3ced01c",
+      "commit_shas": [
+        "3ced01c"
+      ],
+      "commit_files": [
+        "internal/cli/post.go",
+        "internal/cli/postwaivers_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/send.go"
+      ]
     },
     {
       "id": "post-rechecks-severity-and-positions",
       "title": "Recheck gap severity and positions at post",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 40,
@@ -9027,11 +9037,25 @@
         "### 5.4 Gap probe",
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T07:12:24.772297Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T07:51:02.377664Z",
+      "closed_reason": "- cr post now re-checks §5.4.4's floor and §5.4.5's ceiling on every queued record after triage: internal/cli/post.go's buildReview calls refuseGapSeverities (internal/cli/gapsupport.go) after RefuseArguedAssertion and before the cap, position check, payload and gate, and it asks the same checkGapBound that resolveGapSupport now calls for cr record, which wraps finding.CheckGapSeverity over the regrade's roundEvidence, so a severity edited in draft.md outside the bound exits 1 through finding.GapSeverityError naming the record, probe and result, with or without --confirm, and posted.json is left as it was.\n- Audit round 1 rows list-29-5 and task-gap-severity-enforcement are closed by that wiring: finding.CheckGapSeverity now has a second non-test caller reached from cr post, and an overlay mutant making refuseGapSeverities return nil turns TestPostRefusesASeverityTriageMovedOutsideTheGapBound (4 subtests) and TestTheSameBoundIsCheckedAtRecordTimeAndAtPostTime (2 subtests) red.\n- internal/cli/positions.go's validatePositions now reads the round's diff whenever any record is queued and holds every queued record, not only one carrying a suggestion, to positionInDiff (suggestion.Placeable for RIGHT, removedHeadRange for LEFT) after suggestion.Validate, refusing with the new PositionError, coded 1 in exit.go's table with a hint, before the payload is built and before the atomic call per §8.4.1; the dogfood binary against a scratch repo and gh shim, with a question's marker moved in draft.md from lib.go:4 to lib.go:25 outside the one hunk, built a payload carrying line 25 at HEAD and after the change printed \"the comment on record f1 is anchored at RIGHT lib.go:25-25, which no one hunk of this round's diff carries on that side\" at exit 1 for both the dry run and --confirm, with no --input call reaching the shim.\n- Audit round 1 row task-pre-validate-positions is closed by that check: an overlay mutant restoring the suggestion-only guard turns TestACommentMovedOutsideTheDiffIsRefusedBeforeTheCall red, and one dropping the LEFT branch turns TestOnlyACommentTheDiffCarriesOnItsSideReachesThePayload red.\n- Tests drive cr post for both refusals (internal/cli/positions_test.go against a real git diff and gh shim, internal/cli/postgapbound_test.go through cr record, cr draft, a draft.md severity edit and cr post), TestTheSameBoundIsCheckedAtRecordTimeAndAtPostTime is now the internal/cli test that drives cr record and cr post and asserts the two refusals are equal except for By, the package-level one in internal/finding/gapbound_test.go is renamed TestTheRefusalNamesTheMomentItCameFrom, and draftedHome stands in a diff through the positionHunks seam because its head is no commit, replacing TestAPostWithNoSuggestionAsksForNoDiff whose behaviour this task removes.\n",
+      "gate_passed_at": "2026-09-13T07:51:02.377664Z",
+      "commit_sha": "229f05b",
+      "commit_shas": [
+        "229f05b"
+      ],
+      "commit_files": [
+        "internal/cli/draft_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/gapsupport.go",
+        "internal/cli/positions.go",
+        "internal/cli/positions_test.go",
+        "internal/cli/post.go",
+        "internal/cli/postgapbound_test.go",
+        "internal/finding/gapbound_test.go"
+      ]
     },
     {
       "id": "note-retraction-reaches-draft",
@@ -9071,7 +9095,7 @@
     {
       "id": "refuse-case-folded-computed-keys",
       "title": "Refuse computed fields in any key case",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 35,
@@ -9080,16 +9104,30 @@
         "### 6.1 Record schema",
         "### 3.3 Claim extraction"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T06:56:57.211561Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T07:14:42.250479Z",
+      "closed_reason": "- A record, claim or stamped line carrying a computed or stamped field under any letter case is now refused with exit 1 exactly as the lowercase key is: internal/state/records.go's new FoldedFields keys a line's fields the way encoding/json binds them (EqualFold, Unicode orbits included, later spelling kept) and DecodeStamped hands those keys to the head/round fence and to every check, so finding/validate.go, finding/attribution.go and intent/claimvalidate.go refuse Grade, Thread_ID, Content_Hash, Span_Hash, ISSUE_HASH, Note_ID and Head with no per-field change.\n- Both audit round 1 security rows (file-security-internal-finding-validate-go-apply-the-s and file-security-internal-intent-claimvalidate-go-apply-t) are answered at the key-lookup level, and the unprobed head/round claim was checked first: an overlay probe at HEAD accepted Head and rOuNd with the value set, and the dogfood binary against a scratch repo and gh shim stored thread_id PRRT_forged at exit 0 with folding removed and printed \"line 1: thread_id is written by cr and must not be supplied\" at exit 1 with an empty findings.ndjson after the fix.\n- The two ignored json.Unmarshal errors in finding/validate.go and finding/attribution.go are gone: both now read citations through checker.citationEntries, which treats an absent key as no entries (the case that made the old error fire on every line without citations) and returns any other decode error naming the line.\n- Tests cover a mixed-case key for each fence: TestHeadAndRoundAreRefusedUnderAnyKeyCase and TestFoldedFieldsKeyALineTheWayTheDecodeBindsIt in internal/state, TestAComputedFieldIsRefusedUnderAnyKeyCase and TestARequiredFieldIsReadAsTheDecodeKeepsIt in internal/finding, TestTheClaimFenceHoldsUnderAnyKeyCase in internal/intent, and TestRecordRefusesAComputedFieldUnderAnyKeyCase driving cr record in internal/cli; overlay mutants that drop the fold, drop the Unicode orbit, or leave citation entries unfolded each turn those tests red.\n",
+      "gate_passed_at": "2026-09-13T07:14:42.250479Z",
+      "commit_sha": "36dfe56",
+      "commit_shas": [
+        "36dfe56"
+      ],
+      "commit_files": [
+        "internal/cli/casefoldrecord_test.go",
+        "internal/finding/attribution.go",
+        "internal/finding/validate.go",
+        "internal/finding/validate_test.go",
+        "internal/intent/claimvalidate.go",
+        "internal/intent/claimvalidate_test.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go"
+      ]
     },
     {
       "id": "validate-record-enum-values",
       "title": "Validate record enum values on the way in",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 35,
@@ -9098,11 +9136,29 @@
         "### 6.1 Record schema",
         "### 6.5 Merge"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T07:16:59.806728Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T07:56:26.770818Z",
+      "closed_reason": "- finding.Decode's checker (internal/finding/validate.go) now holds a present id to finding.ValidID, kind to finding or question, severity to finding.Severities() and a supplied suggestion_origin to agent or rule through the new closedValue, refusing any other value with RejectedRecordError naming the file, the one-based line, the field and the allowed values, which exit.go codes 1; the dogfood binary against a scratch repo and gh shim printed \"kinds.ndjson line 1: kind reads \\\"assertion\\\", and §6.1 allows only \\\"finding\\\", \\\"question\\\"\" at exit 1, and since the checker is shared, cr merge's per-role inputs are held to the same rows.\n- Audit round 1 rows table-8-0 (id \"x9\"), table-8-1 (kind \"assertion\"), table-8-6 (severity \"urgent\") and table-8-16 (suggestion_origin \"human\") are each refused by that check, and internal/finding/dedup.go's rankIn comment no longer claims the door lets an unknown severity through.\n- cr record no longer decodes every input as SourceMerge: cr merge writes the §1.4 normalised hash of its output under a new merged_hash key in its own section of rounds/n/summary.json (summaryOwners row, merge.go's mergedDigest), and record.go's decodeInput reads SourceMerge only when the input's hash equals that digest, so a file the agent wrote, a role's fan-out file handed straight in, or an edited merge output carrying duplicate_of is refused by state.ReservedFieldError at exit 1, chosen over the file name because -o and the input path are both the agent's to name and over a new state file because summary.json is already the round document cr merge creates; the dogfood binary stored an agent-forged f2 as duplicate of f1 before the change and after it refused \"forged.ndjson line 2: duplicate_of is written by cr and must not be supplied\" both before and after a merge ran, then accepted the merge output and stored f1 duplicate of f2.\n- Audit round 1 row list-32-4 is closed by that mechanism, and skills/cr/SKILL.md now says only the file cr merge last wrote, unchanged, may carry duplicate_of.\n- internal/cli/recordvalues_test.go drives cr record for each refusal: TestRecordRefusesAValueSection61DoesNotName asserts the whole RejectedRecordError on line 2 for id, kind, severity and suggestion_origin with nothing stored, and TestRecordReadsDuplicateOfOnlyOnTheFileCRMergeWrote asserts the whole ReservedFieldError for an agent file before any merge, a role's fan-out file, a reordered merge output and the agent file after a merge, then accepts the real cr merge output; go test -overlay mutants widening closedValue, dropping the ValidID check, ignoring the digest, always answering SourceMerge and never answering it each turned those tests red, and four existing tests that hand-write merged files with duplicate_of now stamp the digest through asMergeOutput.\n",
+      "gate_passed_at": "2026-09-13T07:56:26.770818Z",
+      "commit_sha": "e6af03e",
+      "commit_shas": [
+        "e6af03e"
+      ],
+      "commit_files": [
+        "internal/cli/merge.go",
+        "internal/cli/record.go",
+        "internal/cli/record_test.go",
+        "internal/cli/recorddrops_test.go",
+        "internal/cli/recordvalues_test.go",
+        "internal/cli/ruleid_test.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go",
+        "internal/cli/transitions_test.go",
+        "internal/finding/dedup.go",
+        "internal/finding/validate.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "rule-window-and-class",
@@ -9228,7 +9284,7 @@
     {
       "id": "release-homebrew-formula-like-tp",
       "title": "Publish a Homebrew formula as tp does",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 30,
@@ -9238,10 +9294,20 @@
       ],
       "started_at": "2026-09-13T07:52:49.319488Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-13T08:03:04.487531Z",
+      "closed_reason": "- The release configuration now publishes cr to deligoez/homebrew-tap as a Homebrew formula under Formula in the brews block shape of tp's v1.1.1 release (repository owner deligoez, name homebrew-tap, token from HOMEBREW_TAP_TOKEN, directory Formula, the goreleaser commit_author, homepage, description, MIT license, install bin.install \"cr\", test assert_match \"cr version\" on cr --version), replacing the homebrew_casks block and its quarantine hook, per §14.3 which names a formula; cr keeps its own §14.2 darwin and linux matrix and gate before-hooks, and root.go's version template prints \"cr version \u003cv\u003e\", which the formula test matches (the snapshot binary printed \"cr version 0.0.0-SNAPSHOT-none\").\n- Audit round 1 row list-53-3 (spec-coverage PARTIAL, homebrew-cask-not-formula: §14.3 says formula while the config published a cask) is answered at HEAD, since the tap entry is now the formula §14.3 names.\n- internal/cli/release_test.go's TestAReleasePublishesTheFormulaToTheTapFromTheWorkflow asserts the one brews entry field by field (owner, name, token, directory Formula, the exact install and test strings), asserts homebrew_casks is empty, asserts the release workflow's GoReleaser step supplies the tap token, and asserts no step in release.yml or ci.yml runs goreleaser check, with a rationale stating the measured fact that goreleaser check exits 2 on the deprecated brews key while the release workflow runs goreleaser release; in a scratch copy, a cask block plus directory Casks turned it red on both assertions, and a test string of \"tp version\" plus a CI step running goreleaser check turned it red on both assertions, and nothing in CI runs goreleaser check today.\n- CLAUDE.md's Distribution item 2 and README.md's install line now say formula; locally, GoReleaser 2.17.1 at /opt/homebrew/bin/goreleaser ran goreleaser check, which printed \"DEPRECATED: brews should not be used anymore\" and \"check failed\" at exit 2 (it exited 0 on the cask config before the change), and goreleaser release --snapshot --clean --skip=publish in a scratch copy of the tree ran all four before-hooks and ended \"release succeeded after 1m23s\" with the four archives macOS_x86_64, macOS_arm64, linux_x86_64 and linux_arm64 tar.gz and dist/homebrew/Formula/cr.rb declaring class Cr \u003c Formula with bin.install \"cr\" and the cr version test, dist/ being ignored by .gitignore line 3 and never committed.\nOut of scope: go.mod at HEAD is not tidy, because internal/cli tests import github.com/spf13/pflag directly while go.mod marks it indirect, so the release before-hook go mod tidy rewrote go.mod in the snapshot copy.\n",
+      "gate_passed_at": "2026-09-13T08:03:04.487531Z",
+      "commit_sha": "6598ffa",
+      "commit_shas": [
+        "6598ffa"
+      ],
+      "commit_files": [
+        ".goreleaser.yml",
+        "CLAUDE.md",
+        "README.md",
+        "internal/cli/release_test.go",
+        "spec/0.1.0.tasks.json"
+      ]
     }
   ]
 }
