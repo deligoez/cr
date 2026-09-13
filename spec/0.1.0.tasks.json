@@ -8064,7 +8064,7 @@
     {
       "id": "version-injection",
       "title": "Inject the tagged version at build",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "goreleaser-release"
@@ -8074,11 +8074,20 @@
       "source_sections": [
         "## 14. Distribution"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:43:29.081506Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:48:34.608731Z",
+      "closed_reason": "- (1) cr --version prints the tagged version injected at build time via -X github.com/deligoez/cr/internal/cli.version per §14.6: .goreleaser.yml already carries that ldflag, internal/cli/root.go now leaves version empty for injection and hands it to versionOf (internal/cli/version.go), which prints an injected value first; dogfood `go build -ldflags \"-X github.com/deligoez/cr/internal/cli.version=v0.1.0-dogfood\"` printed `cr version v0.1.0-dogfood`.\n- (2) TestAnUnsetVersionRendersTheDevelopmentMarker in internal/cli/version_test.go asserts that with nothing injected and build information that is absent, empty, or \"(devel)\", cr prints the development marker \"dev\" and never an empty string.\n- (3) The gap goreleaser-release measured is closed rather than relying on the -X path alone: a go install applies no ldflags, so versionOf no longer stops at the injected value, and a local untagged build now prints its pseudo-version instead of dev (dogfood: `cr version v0.0.0-20260913004324-74c1e5c1a90a+dirty`).\n- (4) With no injected version versionOf reads runtime/debug.ReadBuildInfo's main module version; TestAGoInstallOfATagPrintsTheTag copies this module into a repository of its own, commits and tags it v0.9.9, runs a real `go install ./cmd/cr` with no ldflags, GOPROXY=off and GOWORK=off, and asserts `cr version v0.9.9`, and a hand mutant ignoring the build information prints `cr version dev` and turns it red. Measured first: a tag that is not a valid module version for the path (v9.9.9 without a /v9 suffix) is not stamped, which is why the test tags v0.9.9.\n",
+      "gate_passed_at": "2026-09-13T00:48:34.608731Z",
+      "commit_sha": "fac1189",
+      "commit_shas": [
+        "fac1189"
+      ],
+      "commit_files": [
+        "internal/cli/root.go",
+        "internal/cli/version.go",
+        "internal/cli/version_test.go"
+      ]
     },
     {
       "id": "skill-marketplace-manifest",
