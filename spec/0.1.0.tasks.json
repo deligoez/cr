@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T10:16:25.93151Z",
+  "updated_at": "2026-09-13T11:43:11.672001Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -1075,7 +1075,7 @@
         "profile-schema"
       ],
       "estimate_minutes": 8,
-      "acceptance": "- tests.count_pattern and tests.failed_pattern are each a regex with exactly one capture group, yielding the executed and the failed test count, per §2.4.\n- Any other group count aborts with exit code 3 naming the profile.\n- Tested with zero, one, two, and three groups.",
+      "acceptance": "- tests.count_pattern and tests.failed_pattern are each a regex with exactly one capture group, yielding the executed and the failed test count, per §2.4.\n- Any other group count aborts with exit code 3 naming the profile.\n- Tested with zero, one and two groups, which covers both sides of the one-group rule.",
       "source_sections": [
         "### 2.4 Profiles"
       ],
@@ -8125,7 +8125,7 @@
         "goreleaser-release"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- A release updates the Homebrew formula in the deligoez/homebrew-tap repository so that brew install deligoez/tap/cr installs the binary as cr, per §14.3.\n- The formula is published by the release workflow, not by hand.\n- Measured by goreleaser-release, assigned here: goreleaser check fails with \"DEPRECATED: brews should not be used anymore\", so .goreleaser.yml's brews block must migrate to homebrew_casks; goreleaser check exits 0 afterwards and a snapshot run still produces the four §14.2 archives.",
+      "acceptance": "- A release updates the Homebrew formula in the deligoez/homebrew-tap repository so that brew install deligoez/tap/cr installs the binary as cr, per §14.3.\n- The formula is published by the release workflow, not by hand.\n- Measured by goreleaser-release: goreleaser check fails on the deprecated brews key, and the user decided on 2026-09-13 to release as tp does, so .goreleaser.yml keeps tp's brews formula block (release-homebrew-formula-like-tp, 6598ffa) and the release workflow runs goreleaser release, never goreleaser check; a snapshot run still produces the four §14.2 archives and a Formula/cr.rb.",
       "source_sections": [
         "## 14. Distribution"
       ],
@@ -8285,7 +8285,7 @@
       "estimate_minutes": 10,
       "acceptance": "- Found by record-command's dogfood run: finding.ValidateClass exists but Decode never calls it, so cr record stores a class like \"Not Kebab\" without complaint.\n- Every door that admits a record rejects a class outside [a-z0-9-]+ with exit code 1, naming the file, the one-based line and the field.\n- §6.4's dedup key is built from the class, so a non-canonical class silently splits one group in two; the guard belongs at the door, not at the key.",
       "source_sections": [
-        "### 6.1 Finding record"
+        "### 6.1 Record schema"
       ],
       "started_at": "2026-09-12T22:21:21.779318Z",
       "duration_source": "claimed",
@@ -8367,7 +8367,7 @@
       "estimate_minutes": 10,
       "acceptance": "- Found by brief-payload's dogfood run: a cr brief whose intent.key_pattern no longer matches silently rewrites meta.json's issue_key to empty, orphaning every claim already recorded under the old key, since §3.3 forms each claim id as \u003cISSUE-KEY\u003e#c\u003cn\u003e.\n- A brief that would replace a non-empty recorded issue key with a different one, or with none, refuses with exit code 4 and a hint, rather than writing.\n- A test records claims under one key, then briefs again with a pattern that matches nothing, and asserts meta.json and claims.ndjson are both untouched.\n- Also found by dogfooding: with a tracker-backed profile, cr brief runs the tracker command and fails on a 404 before --intent-file can help, and the error never says --issue is what would have avoided it. The message names it.",
       "source_sections": [
-        "### 9.3 Rounds and staleness"
+        "### 9.3 A changed head"
       ],
       "started_at": "2026-09-12T14:00:42.570762Z",
       "duration_source": "claimed",
@@ -8433,7 +8433,7 @@
       "estimate_minutes": 15,
       "acceptance": "internal/mapping carries its own test file; today it has none, and gremlins reports all five of its mutants NOT COVERED because default-mode gremlins runs only the mutated package own tests, so nothing in that package can ever be killed. The package is load-bearing: 4.1.1, 4.1.2, 4.1.3 and 4.2.1 all read this one join, and 4.1.6 forbids any second opinion about which claim covers which unit. The tests drive its decode and its refusals directly rather than through internal/cli, so a defect is named at the file that holds it. A gremlins run scoped to ./internal/mapping reports zero NOT COVERED mutants, and every surviving mutant is classified in the closure reason.",
       "source_sections": [
-        "## 4.1 The claim-to-unit mapping"
+        "### 4.1 Intent coverage"
       ],
       "started_at": "2026-09-12T22:04:59.532732Z",
       "duration_source": "claimed",
@@ -8457,7 +8457,7 @@
       "estimate_minutes": 10,
       "acceptance": "config.protectedTokens holds argued and forcing but not force, so a name like CR_POST_FORCE_FINDINGS is not refused by name even though the deny-list comment claims a setting that would override 6.3 cannot be addressed. It is inert today because fromEnv maps only known keys, so it overrides nothing; the gap is that the list is one synonym short of what it says about itself, and the next reader tests the claim rather than the list. Adding force needs carriers entries for enforce, reinforce and workforce, so the change is not a one-line addition and a test drives each carrier through unrefused. Found by argued-forcing-unoverridable, whose unit left it rather than editing a closed task with that blast radius.",
       "source_sections": [
-        "## 2.7 Configuration layers"
+        "### 2.7 Configuration layers"
       ],
       "started_at": "2026-09-13T00:44:58.470876Z",
       "duration_source": "claimed",
@@ -8482,7 +8482,7 @@
       "estimate_minutes": 15,
       "acceptance": "brief/brief.go calls unit.Clusters with a nil SymbolIndex on every run, so the symbol branch of hunk clustering never runs outside tests and every pull request clusters by adjacency alone. The nil was deliberate while no index existed; internal/unit/symbols.go says so, calling a nil index every run until the head symbol index exists. symbol-index-build has since built that index, and nothing handed it over. It does not satisfy unit.SymbolIndex yet: Indexed can be answered, but Enclosing needs the span each symbol covers, and the index records only the line a symbol is declared on. The index gains the spans or an adapter derives them, cr brief passes the built index where it now passes nil, and a file the index cannot serve still falls through to adjacency without an error. A test drives cr brief over a diff whose hunks sit inside one function and asserts they form one unit by symbol, where adjacency alone would split them.",
       "source_sections": [
-        "### 3.4 Review units"
+        "### 3.4 Diff ingestion and unit clustering"
       ],
       "started_at": "2026-09-11T06:38:32.145063Z",
       "duration_source": "claimed",
@@ -9485,6 +9485,204 @@
         "internal/state/rulestats.go",
         "internal/state/waivers.go"
       ]
+    },
+    {
+      "id": "refuse-repeated-json-keys",
+      "title": "Refuse a key repeated within one record line",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A record, claim or stamped state line that spells the same key twice, compared as encoding/json folds keys, at the top level or inside a citation entry, is refused with exit 1 naming the file, the line and the key, because json.Unmarshal keeps values from the first copy and the computed-field fence reads only the last; audit round 2 security rows for finding/validate.go and intent/claimvalidate.go.\n- A rule key inside a citation entry is refused rather than silently dropped.\n- Tests drive cr record and cr claims record with a repeated citations key and a repeated note_id key, and the comment in finding/validate_test.go that counts the mixed-case keys matches its table.",
+      "source_sections": [
+        "### 6.1 Record schema",
+        "### 3.3 Claim extraction"
+      ],
+      "started_at": "2026-09-13T10:28:12.527076Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T10:44:55.41487Z",
+      "closed_reason": "- A record, claim or mapping/cells line giving one key twice, compared under foldKey's spelling, is now refused with exit 1: state.FoldedFields (internal/state/records.go) returns a state.RepeatedKeyError when two keys fold to one spelling, DecodeStamped fills in the file and line, finding's citationEntries names an entry's key as citations[i].key, and exit.go codes the type 1 with a hint; TestALineGivingOneKeyTwiceIsRefused and TestAKeyGivenTwiceIsRefused assert the whole error, and the dogfood binary printed \"…/claims.ndjson line 1: note_id is given more than once\" at exit 1 for the auditor's note_id then Note_ID null claim, where the same claim without note_id recorded at exit 0.\n- The audit round 2 security rows are closed at their sources: finding/validate.go's computedCitations no longer sees only the last citations copy because DecodeStamped refuses the repeat before it runs, and intent/claimvalidate.go's noteID no longer sees only the last note_id for the same reason, with no change to either fence.\n- A rule key inside a citation entry is refused, not dropped: TestRecordRefusesARuleInsideACitation drives cr record with a citation carrying rule once, which gives the whole RejectedRecordError for citations[0].rule, and twice, which gives the RepeatedKeyError for citations[0].rule, both at exit 1 with findings.ndjson byte-identical.\n- TestRecordRefusesTheCitationsKeyGivenTwice and TestClaimsRecordRefusesNoteIDGivenTwice in internal/cli/repeatedkey_test.go drive cr record with the citations key repeated behind a content_hash and behind an origin beside a rule, and cr claims record with note_id repeated as null under one and two spellings, each asserting the whole RepeatedKeyError, exit 1 and the stored file unchanged beside a control that records; a go test -overlay mutant disabling the repeat check in FoldedFields turned all of those refusals red, the two tests that had relied on a repeated key being accepted were rewritten, and the comment in finding/validate_test.go now counts two mixed-case keys as its table holds.\n",
+      "gate_passed_at": "2026-09-13T10:44:55.41487Z",
+      "commit_sha": "123a63d",
+      "commit_shas": [
+        "123a63d"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/repeatedkey_test.go",
+        "internal/finding/validate.go",
+        "internal/finding/validate_test.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go"
+      ]
+    },
+    {
+      "id": "reconcile-adopts-thread-ids",
+      "title": "Adopt thread ids and waivers on reconcile",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- When cr post --reconcile adopts a review as posted, it reads that review's threads and sets each adopted record's thread_id in findings.ndjson and posted.json, as cr post --confirm does through storeThreadIDs; audit round 2 row table-8-21.\n- A reconcile that adopts a review also leaves the draft's discards waived, as cr post --confirm does since 3ced01c, or the closure states the measured reason it cannot.\n- Tests drive cr post --reconcile through a gh shim that lists the review and its threads, and assert thread_id on the adopted records.\n- A waiver cr post --confirm writes for the draft's discards does not outlive a review-creation call GitHub rejects: either it is written only once the call succeeds or the rejection withdraws it, so a wrong disposition later cleared does not leave a repository-wide waiver behind; audit round 2 row table-10-4, with a test driving a rejected post, a cleared disposition and a successful post.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 6.1 Record schema"
+      ],
+      "started_at": "2026-09-13T10:40:01.712285Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T11:04:14.130841Z",
+      "closed_reason": "- When cr post --reconcile adopts a review, internal/cli/reconcile.go's adoptAsPosted now clears post_unresolved and then calls adoptReturnedThreads, the function the confirmed send calls (lifted from a sending method in internal/cli/send.go together with storeThreadIDs), over the payload read back with posted.json's record ids attributed to its comments, so each adopted record's thread_id lands in findings.ndjson and the same map in posted.json through one gh thread read and no write.\n- Audit round 2 row table-8-21 re-probed with the dogfood binary: after an unknown-outcome send and a reconcile, f1 was stored posted with PRRT_dogfood0 and f2 with PRRT_dogfood1, posted.json threads named the same ids, and the gh transcript held one POST.\n- A reconcile that adopts a review now leaves the draft's discards waived: send names the discards and their dispositions in posted.json's new discards section before the call (recordSentDiscards in internal/cli/posted.go, post.Sent.Discards), and adoptAsPosted passes them to the same waiveDiscards before writing the adoption, while the records stay queued because the §9.1 table lets only cr draft and cr post --confirm move queued to discarded; the dogfood reconcile listed wr1 scope repository disposition wrong class silent-retry where the unknown-outcome send had left no waiver.\n- TestReconcileAdoptsTheThreadIDsAndTheWaiversAConfirmedSendOwed in internal/cli/reconcilethreads_test.go drives cr post --confirm into a /bin/sh gh shim that dies silently, then cr post --reconcile through the same shim listing the review with the embedded payload hash and its threads, asserting the adopted records f1 and f2 posted with their thread ids, the whole posted.json threads map, the discard queued with its repository waiver, and one POST; go test -overlay mutants dropping the adoptReturnedThreads call, the record attribution, the waiveDiscards call and the recordSentDiscards input each turned it red.\n- The waivers for the draft's discards are now written only after post.Create succeeds (internal/cli/send.go), ahead of the walk that stores the discards, so a rejected or unknown-outcome call leaves none and a waiver write failing after success leaves post_unresolved set for the reconcile to repeat; the dogfood binary showed a rejected send exit 4 with no waiver, then after clearing wrong an accepted send exit 0 with f3 posted PRRT_dogfood2 and an empty waiver list.\n- Audit round 2 row table-10-4: TestARejectedPostLeavesNoWaiverForADispositionClearedBeforeTheRetry drives a rejected cr post --confirm with f2 marked wrong, clears the disposition, posts again through an accepting shim and asserts no waiver after the rejection and an empty repository waiver file after f2 is posted, going red under a go test -overlay mutant that restores the pre-call waiveDiscards.\n- Out of scope: after cr post --reconcile adopts a round whose draft discarded a record, that record stays queued and both cr draft and a dry cr post then refuse with \"draft line 11, record f1: id names no record this round rendered\", because ingestion runs over the draft still holding the posted blocks; this predates the change and was measured with the dogfood binary.\n",
+      "gate_passed_at": "2026-09-13T11:04:14.130841Z",
+      "commit_sha": "b5b4d48",
+      "commit_shas": [
+        "b5b4d48"
+      ],
+      "commit_files": [
+        "internal/cli/confirmgate_test.go",
+        "internal/cli/posted.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcilethreads_test.go",
+        "internal/cli/send.go",
+        "internal/post/review.go"
+      ]
+    },
+    {
+      "id": "provenance-names-withdrawn-note",
+      "title": "Keep provenance for a withdrawn note",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A record resting on a claim with source note carries §8.1.6's provenance region in the draft and the posted body even when that note has been retracted or is missing from the store: the region names the note id and says it was withdrawn, instead of being omitted as 41c5648 made it; audit round 2 row list-41-6.\n- The withdrawal forcing of note-retraction-reaches-draft is unchanged: the record is still held as a question and reported.\n- TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion or its successor asserts the region's presence and wording for a retracted and for a missing note.",
+      "source_sections": [
+        "### 8.1 Render contract",
+        "### 3.6 Context store"
+      ],
+      "started_at": "2026-09-13T10:46:22.995556Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T11:02:27.891794Z",
+      "closed_reason": "- A record resting on a claim with source note now carries §8.1.6's provenance region in the draft and the posted body when its note was retracted or is missing from the store: readNoteClaims in internal/cli/provenance.go hands every note-sourced claim to draft.NoteClaim with a render.NoteStanding, and render's noteLine in internal/render/provenance.go writes \"note: \u003cid\u003e (source: \u003csource\u003e; retracted)\" for a retracted note and \"note: \u003cid\u003e (not in the context store, so its source is unknown)\" for a missing one, and the dogfood binary on a scratch repository printed \"note: CR-7#n1 (source: meeting; retracted)\" in the cr post dry-run body and in draft.md after cr note --remove, then \"note: CR-7#n1 (not in the context store, so its source is unknown)\" in both after the store was emptied.\n- Audit round 2 row list-41-6 is closed on the path it named: the region is no longer omitted for a withdrawn note, and the assertion in retractiondraft_test.go that pinned the omission is replaced by one pinning the region.\n- The withdrawal forcing of note-retraction-reaches-draft is unchanged: withdrawnClaims and finding.ForceWithdrawn were not touched, and the same test still asserts f1 posted and stored as a question with grade cited and forced_by_retraction panic-in-library 1 in both payloads, summary.json and the §3.6.6 terminal line.\n- TestAWithdrawnNoteHoldsTheRecordRestingOnItAsAQuestion in internal/cli/retractiondraft_test.go now asserts the whole region, cut out by provenanceRegionOf, in the cr post payload body and the redrafted block for a retracted and for a missing note, beside two new TestEachTriggerAloneNamesWhatSection816Requires rows in internal/render/provenance_test.go, and go test -overlay mutants restoring the 41c5648 omission, dropping the retracted standing, dropping the standing hand-over in draft, and swapping either note-line wording each turned it red.\n",
+      "gate_passed_at": "2026-09-13T11:02:27.891794Z",
+      "commit_sha": "439b6c9",
+      "commit_shas": [
+        "439b6c9"
+      ],
+      "commit_files": [
+        "internal/cli/provenance.go",
+        "internal/cli/retractiondraft_test.go",
+        "internal/draft/provenance.go",
+        "internal/render/provenance.go",
+        "internal/render/provenance_test.go"
+      ]
+    },
+    {
+      "id": "post-summary-discard-counts",
+      "title": "Update summary discard counts on post",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- When cr post --confirm ingests discards from draft.md with no cr draft in between, rounds/\u003cn\u003e/summary.json's discarded_not_here and discarded_wrong counts match what findings.ndjson stores, instead of keeping the last cr draft's counts; audit round 2 row task-round-summary-writers.\n- A test drives cr draft, deletes a block and marks another wrong, runs cr post --confirm, and asserts the summary counts against the stored records.\n- A test drives cr cells record with a supplied round field and asserts exit 1 and an unchanged cells file; audit round 2 row task-stamp-head-round-fields.",
+      "source_sections": [
+        "### 7.2 Triage verbs",
+        "### 2.3 Per-PR state"
+      ],
+      "started_at": "2026-09-13T11:05:48.904631Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T11:18:36.200364Z",
+      "closed_reason": "- cr post --confirm now rewrites rounds/\u003cn\u003e/summary.json's discarded_not_here and discarded_wrong over the records it stores: the two keys moved in summaryOwners (internal/cli/summary.go) to ownerDiscards, one computation both commands run, and discardCounts is written by publishDraft in internal/cli/draft.go and by writeAdopted in internal/cli/reconcile.go under the same lock as findings.ndjson, so every key keeps a single owner and cr post's own share stays posted, payload_hash and confirm_given; the dogfood binary on a scratch repository (cr brief, cr record of three records, cr draft, f2's block deleted and f3 marked wrong in draft.md, cr post --confirm with no redraft) left summary.json reading drafted 3, discarded_not_here 1, discarded_wrong 1, posted 1 beside findings.ndjson holding f2 discarded not-here and f3 discarded wrong, where HEAD read 0 and 0.\n- This closes audit round 2 row task-round-summary-writers: a go test -overlay mutant of internal/cli/reconcile.go dropping the ownerDiscards write reproduced the row's stale 0 and 0 and failed the new test on both counts.\n- TestConfirmCountsTheDiscardsItStores in internal/cli/summary_test.go drives cr draft, deletes f2's block, marks f3 wrong, runs cr post --confirm through the gh shim, counts the discarded records findings.ndjson stores by disposition (requiring one of each), and asserts summary.json's discarded_not_here and discarded_wrong equal those counts, with posted 1; TestEverySection103CountHasANamedWriter now names ownerDiscards as the owner of both keys.\n- TestACellSupplyingAFieldCrComputesExitsOne in internal/cli/cellcomputed_test.go now drives cr cells record with a line supplying round beside the head and unit_hash cases, asserting exit 1, the filled cells unchanged, and coverage.ndjson byte for byte identical before and after.\n- This closes audit round 2 row task-stamp-head-round-fields: a go test -overlay mutant of internal/state/records.go letting a supplied round through DecodeStamped turned only the new round subtest red.\n",
+      "gate_passed_at": "2026-09-13T11:18:36.200364Z",
+      "commit_sha": "500ddce",
+      "commit_shas": [
+        "500ddce"
+      ],
+      "commit_files": [
+        "internal/cli/cellcomputed_test.go",
+        "internal/cli/draft.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go",
+        "internal/cli/triageverbs_test.go"
+      ]
+    },
+    {
+      "id": "reconcile-round-follow-through",
+      "title": "Settle a round after reconcile adopts it",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- After cr post --reconcile adopts a review whose send carried draft discards, the round is not left stuck: a later cr draft or dry cr post does not refuse with id names no record this round rendered, and the discarded records reach the state §9.1 gives a posted round's discards (measured in b5b4d48's dogfood: f1 stayed queued and both commands refused).\n- The payload hash cr post --reconcile recomputes from posted.json equals the one cr post embedded even when two comments share path, start_line, line and side, per §8.3.3's record-id tie-break; a test covers that case.\n- A cr post --confirm on a round whose records are all posted sends no second, empty review and exits with a hint naming the state, per §8.3.1 and §8.4.4; a test asserts no POST reaches the gh shim.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 9.1 States",
+        "### 8.3 Batching"
+      ],
+      "started_at": "2026-09-13T11:19:59.21775Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T11:42:27.902495Z",
+      "closed_reason": "- A round adopted by cr post --reconcile after a send carrying a draft discard is no longer stuck, under the reading that §9.1's row \"queued -\u003e discarded: cr draft, cr post --confirm\" leaves the discard to the next cr draft and §7.2's id row (\"a changed or unknown id aborts\") does not refuse a block whose record the round has posted: internal/cli/regenerate.go's ingestDraft passes the round's posted ids as draft.Draft.Posted and internal/draft/ingest.go's refuseUnknownBlocks counts them as known, so TestAnAdoptedRoundWithADiscardIsNotLeftStuck (internal/cli/reconcilefollowthrough_test.go, subtests marked wrong and deleted) drives send with unknown outcome, reconcile, a dry cr post and cr draft and asserts f1 posted, f2 discarded with disposition wrong or not-here and its waiver scope, red at HEAD with the MarkerEditError and red under an overlay mutant dropping the posted ids; the dogfood binary printed draft triaged f2 \"discarded-wrong\" and findings.ndjson held f2 state discarded disposition wrong beside f1 posted PRRT_dogfood0.\n- The probe was red at HEAD: two records at one path, start_line, line and side stored f2 before f1 made cr post --reconcile recompute c70993c182878a56 against the embedded 149409c965cd0ee9, adopt nothing and clear post_unresolved for a second send, so internal/cli/reconcile.go's postedPayload now pairs posted.json's record ids onto the decoded comments before hashing (the attributed clone is removed) and the recomputed hash follows §8.3.3's record-id tie-break.\n- TestReconcileMatchesTheHashOfTwoCommentsAtOnePosition in internal/cli/reconcilefollowthrough_test.go covers that case end to end through cr post --confirm and --reconcile, asserting the recomputed hash equals the embedded one, the review adopted and both records posted, and it goes red under an overlay mutant dropping the pairing.\n- The probe was red at HEAD: a second cr post --confirm on a fully posted round exited 0 and sent a second, empty review, so internal/cli/post.go's buildReview now refuses a round with no queued record with EmptyReviewError (owner, repo, pr, round, posted and discarded counts) before the gate, coded 4 with a hint naming where the round's records stand in internal/cli/exit.go, and the dogfood binary's second confirm exited 4 with \"acme/web#1 round 1 holds no queued record, so its review would carry no comment (1 posted, 1 discarded)\".\n- TestConfirmOnAPostedRoundSendsNoEmptyReview asserts the whole error, exit 4, the hint and exactly one POST in the /bin/sh gh shim transcript for both --confirm and the dry run, red under an overlay mutant disabling the check, and TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas, which had asserted the empty second review, now asserts the refusal and one POST; the dogfood transcript also held one POST.\nOut of scope: cr post --reconcile writes no §7.3.1 outcome events for the records it adopts (adoptAsPosted never calls recordPostTriage), so an adopted round's kept records have a raised event and no outcome.\n",
+      "gate_passed_at": "2026-09-13T11:42:27.902495Z",
+      "commit_sha": "dd10e1e",
+      "commit_shas": [
+        "dd10e1e"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/post.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcilefollowthrough_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/triageseverity_test.go",
+        "internal/draft/ingest.go"
+      ]
+    },
+    {
+      "id": "render-body-language-wiring",
+      "title": "Wire render.Body into body rendering",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- render.Body, Body.AuthorFacing and Bodies are consulted by the code that renders the §8.1 comment body and the §8.4.3 review body, so the set that says which author-facing bodies render.lang governs is the one the renderer reads, or the type is removed and the closure states why a declaration with no reader is not kept.\n- deadcode ./... no longer lists Body.String, Body.AuthorFacing or Bodies unless one remains deliberately test-only and the closure names why.\n- A test fails if a new author-facing body is rendered without passing through the set.",
+      "source_sections": [
+        "### 8.1 Render contract",
+        "### 8.4 Partial failure"
+      ],
+      "started_at": "2026-09-13T11:06:22.876671Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T11:21:07.271109Z",
+      "closed_reason": "- render.Body and Body.AuthorFacing are now read by the code that renders both author-facing bodies: internal/render/label.go's QuestionLabel, which QuestionLabelRegion calls for the label region internal/draft places in every question comment of §8.1, asks BodyComment.AuthorFacing() before reading questionLabels, and internal/render/reviewbody.go's reviewBodyOf, which ReviewBody calls for the §8.4.3 review body cr post writes, asks BodyReview.AuthorFacing() before reading reviewBodyTexts, so a body taken out of internal/render/body.go's set renders in no language; output is unchanged, and the dogfood binary and a HEAD binary on the same scratch round wrote the same draft.md (sha1 1f23242) and the same cr post dry-run payload (sha1 967e7dd) opening \"**cr — inceleme kapsamı**\" with the question labelled \"**Soru** — kanıt düzeyi: kaynak gösterilmiş (cited)\".\n- deadcode ./... was run after the change, from the repository root at a7b0bb9.\n- It no longer lists Body.String, Body.AuthorFacing or Bodies: AuthorFacing is reachable from both renderers, and Body.String and Bodies were removed rather than kept, because the renderer asks only membership and never the enumeration or a body's name, and the same-package tests read the unexported set directly; the list is 11 lines after, 14 before, with internal/render/lang.go's Langs still listed and untouched.\n- TestEveryLanguageKeyedTextIsReadThroughTheBodySet in internal/render/body_test.go parses the package and requires every function reading a table whose row type carries a Lang field to ask exactly one named Body, and the bodies asked to equal the set; in a scratch clone it went red for a new summaryTexts table read without asking a body, for one asking a BodySummary outside the set, and for QuestionLabel with its check deleted, while TestABodyOutsideTheSetIsRenderedInNoLanguage, which drives QuestionLabelRegion and ReviewBody with each body removed from the set and asserts the whole NoLabelError and UnknownLangError, went red under go test -overlay mutants deleting either check or making QuestionLabel ask BodyReview.\n",
+      "gate_passed_at": "2026-09-13T11:21:07.271109Z",
+      "commit_sha": "a7b0bb9",
+      "commit_shas": [
+        "a7b0bb9"
+      ],
+      "commit_files": [
+        "internal/render/body.go",
+        "internal/render/body_test.go",
+        "internal/render/label.go",
+        "internal/render/reviewbody.go"
+      ]
+    },
+    {
+      "id": "reconcile-writes-triage-outcomes",
+      "title": "Write triage outcomes for adopted records",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- When cr post --reconcile adopts a review, each adopted record gets the §7.3.1 outcome event cr post --confirm writes after a successful call, keyed the same way, so the triage ledger holds one outcome against each raise whichever path settled the round (found while closing reconcile-round-follow-through, dd10e1e).\n- A test drives an unknown-outcome send and a reconcile, and asserts the ledger's outcome events equal those of a successful cr post --confirm on the same round.",
+      "source_sections": [
+        "### 7.3 Triage statistics",
+        "### 8.4 Partial failure"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
