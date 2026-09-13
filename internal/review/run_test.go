@@ -333,6 +333,48 @@ func TestTheRemainingAxesAreRefusedUntilAMappingExists(t *testing.T) {
 	assert.NoError(t, err, "the refusal is lifted by the mapping and by nothing else")
 }
 
+// The refusal names the scope the invocation asked for: the axis typed with
+// `--axis`, or the remaining axes when none was.
+func TestTheMappingRefusalNamesTheScopeThatWasAskedFor(t *testing.T) {
+	refusal := &MappingRequiredError{Round: 1, Head: "abc123", Owner: runOwner, Repo: runRepo, PR: runPR}
+	assert.Contains(t, refusal.Error(), "so the remaining axes cannot be emitted")
+
+	refusal.Axis = axis.Correctness
+	assert.Contains(t, refusal.Error(), "so axis correctness cannot be emitted")
+	assert.NotContains(t, refusal.Error(), "the remaining axes")
+}
+
+// §4.6.4: a role the corpus resolves and the round did not activate reaches the
+// fan-out as a skipped role, in the report and among the honesty lines.
+//
+// The round is briefed with every role active and then has one taken out of the
+// active set meta.json records, which is where a corpus role added after
+// `cr brief` stands: resolved, and absent from the round.
+func TestARoleTheRoundDidNotActivateIsReportedSkipped(t *testing.T) {
+	src := briefed(t)
+	meta, err := src.Layout.ReadMeta(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	kept := make([]string, 0, len(meta.ActiveRoles))
+	for _, id := range meta.ActiveRoles {
+		if id != "convention" {
+			kept = append(kept, id)
+		}
+	}
+	require.Len(t, kept, len(meta.ActiveRoles)-1, "the round had convention active")
+	meta.ActiveRoles = kept
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Unlock())
+
+	fan, err := Run(src)
+	require.NoError(t, err)
+
+	require.Len(t, fan.Skipped, 1)
+	assert.Equal(t, "convention", fan.Skipped[0].Role)
+	assert.Contains(t, fan.Honesty, fan.Skipped[0].Disclosure())
+}
+
 // §4.6.6: a round whose intent axis did not run has no intent role and no
 // mapping to produce, so the remaining axes wait for nothing. Refusing there
 // would be a refusal no command in v0.1 could lift — `cr map record` is not
