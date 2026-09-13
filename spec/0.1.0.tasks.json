@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T09:54:55.55414Z",
+  "updated_at": "2026-09-13T10:16:25.93151Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9396,7 +9396,7 @@
     {
       "id": "command-level-tests-and-comments",
       "title": "Drive named behaviours through commands",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 45,
@@ -9405,11 +9405,28 @@
         "### 11.2 Exit codes",
         "### 7.3 Triage statistics"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T09:55:59.205126Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T10:16:25.92011Z",
+      "closed_reason": "- TestTheRecordingCommandsRefuseASuppliedHeadOrRound in internal/cli/stampedfields_test.go drives cr claims record, cr map record and cr record each with a line supplying head and a line supplying round, asserting the whole state.ReservedFieldError (file, line 1, field), exit 1 and the stored file byte-identical, beside a control run of the same line without either field that succeeds; a go test -overlay mutant disabling the stamp-field check in state.DecodeStamped turned all six refusal subtests red.\n- TestCellsRecordAndStatusAgreeOnTheStoredActiveRoles in internal/cli/storedroles_test.go stores an active set dropping convention from what generic yields, then cr cells record refuses a convention cell with a role RejectedCellError and exit 1 and accepts correctness and intent-coverage cells, and cr status reports coverage.Rows{Units 2, Complete 2, Gaps 0, Oversized 1, Roles 2}; overlay mutants feeding the definition set to cells.go and to draft.go's RowsOf each turned it red.\n- TestARejectedCallMarksNothingPosted in internal/cli/confirmgate_test.go now drives cr post --confirm against a gh shim that rejects the review (exit 4, ledger f1:raised f2:raised), marks f1 wrong in the draft, and runs cr post --confirm again against a gh shim that accepts, asserting one review sent and the ledger f1:raised f2:raised f1:discarded-wrong f2:kept; an overlay mutant writing the outcome events before post.Create turned it red, and with the action added to the triage key both assertions failed.\n- Audit round 1 rows task-stamp-head-round-fields, task-role-activation-definition and task-triage-event-writing are answered by those three tests, and the finding package comment of TestARetriedPostLeavesOneOutcomeAgainstOneRaise no longer claims it is driven end to end but names the cli test that drives it.\n- Stale comments are corrected: internal/cli/root.go no longer says the review, merge, post, stats, waivers and rules commands refuse to run, internal/cli/output.go cites TestEveryDisclosureAResultPrintsGoesThroughTheWriter (the source walk holding both halves of the quiet exemption) instead of the non-existent TestQuietIsReadOnlyWhereInformationIsWritten, and internal/cli/unoverridable_test.go says cr draft and cr post both run RefuseArguedAssertion after ForceQuestions instead of saying cr post is not built.\n- Audit round 1 rows task-command-surface-stubs and task-quiet-honesty-exemptions are closed by those comment corrections, which change no code.\n- A pull request with no round exits 4 with the hint \"run `cr brief \u003cpr\u003e` to open a round on the pull request\": TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief in internal/cli/briefed_test.go now asserts that whole hint for every guarded command and adds the case cr record naming a missing input on a pull request with no round, and the dev binary on an empty CR_HOME ran cr record 1 missing.ndjson --repo o/r and exited 4 with that hint.\n- Audit round 1 row task-unreadable-input-exit-code is answered: exit 4 through the has-no-round refusal is the intended code, since the round is refused before the input is read, and the test pins it.\n- Read-only commands meeting a stored findings.ndjson line cr cannot decode now exit 3 with state.UnusableHint naming the file and the line: internal/state/roundscope.go adds unusableLine, which decodeRound and decodeRecords in internal/state/records.go both refuse through as a state.FileError under \"path line n: cannot use findings.ndjson: cause\", the shape visitLines gives cr brief since 92b2d50, and the dev binary printed \"…/pr-7/findings.ndjson line 2: cannot use findings.ndjson: \\\"bogus\\\" is not a record state; …\" for cr status and exited 3.\n- TestStatusNamesTheStoredFindingsLineItCannotUse in internal/cli/statusunusable_test.go drives cr status over a bad state, a non-string id and a non-JSON line behind a blank line and asserts the whole message, exit 3 and UnusableHint (it exited 2 with the usage hint before the fix), and TestRecordNamesAnEarlierRoundsStoredLineItCannotUse covers the whole-file read; overlay mutants restoring the bare fmt.Errorf in decodeRound and in decodeRecords each turned its test red, and the gate (go test -race, golangci-lint, deadcode, gofmt -l) is green.\n",
+      "gate_passed_at": "2026-09-13T10:16:25.92011Z",
+      "commit_sha": "16e67d1",
+      "commit_shas": [
+        "16e67d1"
+      ],
+      "commit_files": [
+        "internal/cli/briefed_test.go",
+        "internal/cli/confirmgate_test.go",
+        "internal/cli/output.go",
+        "internal/cli/root.go",
+        "internal/cli/stampedfields_test.go",
+        "internal/cli/statusunusable_test.go",
+        "internal/cli/storedroles_test.go",
+        "internal/cli/unoverridable_test.go",
+        "internal/finding/triageevent_test.go",
+        "internal/state/records.go",
+        "internal/state/roundscope.go"
+      ]
     },
     {
       "id": "release-homebrew-formula-like-tp",
