@@ -57,29 +57,39 @@ func detectRepo() (owner, repo string, err error) {
 			"%s declares %d remotes (%s), and cr does not choose between them",
 			dir, len(remotes), strings.Join(names, ", "))}
 	}
-	owner, repo, ok := githubSlug(remotes[0].URL)
+	slug, ok := githubSlug(remotes[0].URL)
 	if !ok {
 		return "", "", &RepositoryDetectionError{Reason: fmt.Sprintf(
 			"remote %s is %s, which is not a %s owner/repo", remotes[0].Name, remotes[0].URL, githubHost)}
 	}
+	// The slug becomes two directories of §2.2's tree exactly as a `--repo`
+	// does, so it meets the one rule splitRepo holds `--repo` to: an owner of
+	// `.` would file this pull request's state under another repository's.
+	owner, repo, err = splitRepo(slug)
+	if err != nil {
+		return "", "", &RepositoryDetectionError{Reason: fmt.Sprintf(
+			"remote %s is %s: %v", remotes[0].Name, remotes[0].URL, err)}
+	}
 	return owner, repo, nil
 }
 
-// githubSlug reads owner and repo out of a GitHub remote URL in any of the
+// githubSlug reads the owner/repo path out of a GitHub remote URL in any of the
 // forms git accepts: `git@github.com:owner/repo.git`, and `ssh://`, `https://`
-// or `git://` URLs, with or without a user, a port or the `.git` suffix.
-func githubSlug(remote string) (owner, repo string, ok bool) {
+// or `git://` URLs, with or without a user, a port or the `.git` suffix. It
+// judges only the host; whether the path is one owner and one repository is
+// splitRepo's to say.
+func githubSlug(remote string) (slug string, ok bool) {
 	var host, path string
 	if strings.Contains(remote, "://") {
 		parsed, err := url.Parse(remote)
 		if err != nil {
-			return "", "", false
+			return "", false
 		}
 		host, path = parsed.Hostname(), parsed.Path
 	} else {
 		address, rest, found := strings.Cut(remote, ":")
 		if !found {
-			return "", "", false
+			return "", false
 		}
 		_, host, _ = strings.Cut(address, "@")
 		if !strings.Contains(address, "@") {
@@ -88,12 +98,7 @@ func githubSlug(remote string) (owner, repo string, ok bool) {
 		path = rest
 	}
 	if !strings.EqualFold(host, githubHost) {
-		return "", "", false
+		return "", false
 	}
-	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
-	owner, repo, found := strings.Cut(path, "/")
-	if !found || owner == "" || repo == "" || strings.Contains(repo, "/") {
-		return "", "", false
-	}
-	return owner, repo, true
+	return strings.TrimSuffix(strings.Trim(path, "/"), ".git"), true
 }
