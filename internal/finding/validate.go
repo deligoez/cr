@@ -195,6 +195,9 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 // key the agent wrote, and the field has the same author whatever value sits
 // under it; a validator reading the value would be deciding what to make of the
 // agent's answer to a question the agent may not answer.
+//
+// supplied is keyed as state.FoldedFields keys it, so `"Grade"` is found here
+// under `grade`: encoding/json binds both spellings to the one field.
 func (c checker) computed(line int, supplied map[string]json.RawMessage) error {
 	for _, field := range reserved {
 		if field == "duplicate_of" && c.from == SourceMerge {
@@ -222,12 +225,10 @@ func (c checker) computed(line int, supplied map[string]json.RawMessage) error {
 // The entry is named by its index, so a record carrying several citations still
 // points at the one at fault.
 func (c checker) computedCitations(line int, citations json.RawMessage) error {
-	var entries []map[string]json.RawMessage
-	// The line decoded into a Finding before this ran, and every value its
-	// Citations field accepts unmarshals into this shape too, so the error
-	// cannot happen. Nothing decodes to no entries and so to nothing to
-	// check, which is the answer a record with no citations wants anyway.
-	_ = json.Unmarshal(citations, &entries)
+	entries, err := c.citationEntries(line, citations)
+	if err != nil {
+		return err
+	}
 	for i, entry := range entries {
 		for _, field := range citationFields {
 			if field.Requirement != Computed {
@@ -242,6 +243,33 @@ func (c checker) computedCitations(line int, citations json.RawMessage) error {
 		}
 	}
 	return nil
+}
+
+// citationEntries is one line's citations array, each entry's fields keyed as
+// state.FoldedFields keys a line's, so a field inside an entry is found under
+// any letter case encoding/json binds to it.
+//
+// A line with no citations key hands this a nil value, and one holding null
+// decodes to no entries; both have nothing to check. Any other value decoded
+// into a Finding's citations before this ran, so an error here would mean the
+// two decodes disagree, and it is returned naming the line rather than dropped.
+func (c checker) citationEntries(line int, citations json.RawMessage) ([]map[string]json.RawMessage, error) {
+	if len(citations) == 0 {
+		return nil, nil
+	}
+	var raw []json.RawMessage
+	if err := json.Unmarshal(citations, &raw); err != nil {
+		return nil, fmt.Errorf("%s line %d: %s: %w", c.file, line, citationsField, err)
+	}
+	entries := make([]map[string]json.RawMessage, 0, len(raw))
+	for at, entry := range raw {
+		fields, err := state.FoldedFields(entry)
+		if err != nil {
+			return nil, fmt.Errorf("%s line %d: %s[%d]: %w", c.file, line, citationsField, at, err)
+		}
+		entries = append(entries, fields)
+	}
+	return entries, nil
 }
 
 // The two values a JSON object can hold under a key and still supply nothing.

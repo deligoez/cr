@@ -179,6 +179,50 @@ func TestAnAgentMayNotSupplyTheClaimHashes(t *testing.T) {
 	}
 }
 
+// §3.3's fence under any letter case. encoding/json binds `"Span_Hash"` to the
+// span hash exactly as it binds `"span_hash"`, and `"Note_ID"` to the note id,
+// so a fence that looked keys up by their exact spelling would take a hash, or
+// a provenance nothing checked, on the agent's word. Each refusal names the
+// field by §3.3's own spelling, and a note-sourced claim naming its note under
+// another spelling still names it.
+func TestTheClaimFenceHoldsUnderAnyKeyCase(t *testing.T) {
+	for name, tc := range map[string]struct{ line, field string }{
+		"a span hash, capitalised": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","Span_Hash":"0123"}`,
+			field: "span_hash",
+		},
+		"an issue hash, upper-cased": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","ISSUE_HASH":"0123"}`,
+			field: "issue_hash",
+		},
+		"a head, capitalised": {
+			line:  `{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","Head":"0f1e2d3"}`,
+			field: "head",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := DecodeClaims(claimsFile, []byte(tc.line+"\n"), "CR-1", claimSpans)
+			var reserved *state.ReservedFieldError
+			require.ErrorAs(t, err, &reserved)
+			assert.Equal(t, &state.ReservedFieldError{File: claimsFile, Line: 1, Field: tc.field}, reserved)
+		})
+	}
+
+	_, err := DecodeClaims(claimsFile,
+		[]byte(`{"id":"CR-1#c1","text":"t","source":"acceptance","span":"s","Note_ID":"CR-1#n2"}`+"\n"),
+		"CR-1", claimSpans)
+	var rejected *RejectedClaimError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, "note_id", rejected.Field, "a claim drawn from the issue text names no note under any spelling")
+
+	accepted, err := DecodeClaims(claimsFile,
+		[]byte(`{"id":"CR-1#c1","text":"t","source":"note","span":"s","NOTE_ID":"CR-1#n2"}`+"\n"),
+		"CR-1", claimSpans)
+	require.NoError(t, err)
+	require.Len(t, accepted, 1)
+	assert.Equal(t, "CR-1#n2", accepted[0].NoteID)
+}
+
 // §3.3 forms every claim id as `<ISSUE-KEY>#c<n>`, so the id is a foreign key
 // into the key §3.2 resolved for this run — and the run is the only side that
 // knows what that key is. A claim whose id names some other issue was extracted

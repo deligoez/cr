@@ -3,6 +3,7 @@ package finding
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -270,6 +271,80 @@ func TestARecordArrivingWithAComputedFieldIsRejected(t *testing.T) {
 				"the entry at fault is named by its index")
 		})
 	}
+}
+
+// §6.1.4's fence under any letter case. encoding/json binds `"Grade"` to the
+// grade field exactly as it binds `"grade"`, so a fence that looked keys up by
+// their exact spelling would let a record set its own grade by capitalising a
+// letter. Every reserved field is supplied upper-cased, one mixed-case and one
+// under a Unicode letter the decode folds (U+017F long s), and each refusal
+// names the field by §6.1's own spelling. The citations entry is held to the
+// same reading for its computed fields and for §2.6.1.3's rule id.
+func TestAComputedFieldIsRefusedUnderAnyKeyCase(t *testing.T) {
+	values := map[string]any{
+		"axis": "correctness", "grade": "cited", "state": "queued",
+		"disposition": "wrong", "duplicate_of": "f1", "thread_id": "PRRT_kwDOAbCd",
+		"span_hash": "9f2a1c", "issue_hash": "4b7e00",
+	}
+	require.Len(t, values, len(reserved), "a value for every field of the fence")
+	for _, field := range reserved {
+		t.Run(field, func(t *testing.T) {
+			supplied := aRecord()
+			supplied[strings.ToUpper(field)] = values[field]
+			assert.Equal(t, field, oversteps(t, supplied).Field)
+		})
+	}
+	for key, field := range map[string]string{
+		"Thread_ID":    "thread_id",
+		"Duplicate_Of": "duplicate_of",
+		"\u017ftate":   "state",
+	} {
+		t.Run(key, func(t *testing.T) {
+			supplied := aRecord()
+			supplied[key] = values[field]
+			assert.Equal(t, field, oversteps(t, supplied).Field)
+		})
+	}
+
+	for key, field := range map[string]string{"Content_Hash": "content_hash", "ORIGIN": "origin"} {
+		t.Run("citations."+key, func(t *testing.T) {
+			stamped := aRecord()
+			stamped["citations"] = []any{
+				map[string]any{"path": "app/Models/User.php", "line": 12},
+				map[string]any{"path": "app/Models/User.php", "line": 20, key: "rule"},
+			}
+			assert.Equal(t, "citations[1]."+field, oversteps(t, stamped).Field)
+		})
+	}
+
+	ruled := aRecord()
+	ruled["rule"] = "no-panic"
+	ruled["citations"] = []any{map[string]any{"path": "app/Models/User.php", "line": 12, "Rule": "no-panic"}}
+	assert.Equal(t, "citations[0].rule", rejects(t, ruled).Field,
+		"§2.6.1.3 keeps the rule id off a citation under any spelling of it")
+}
+
+// A field spelt twice in one line holds the value the decode keeps, the later
+// one, and §6.1.3 reads that value: a record whose evidence ends as the empty
+// string has no evidence, whatever an earlier spelling of the key held.
+func TestARequiredFieldIsReadAsTheDecodeKeepsIt(t *testing.T) {
+	first, err := json.Marshal(aRecord())
+	require.NoError(t, err)
+	spelt := string(first[:len(first)-1])
+
+	records, err := Decode(FanOutFile("test"),
+		[]byte(spelt+`,"Evidence":"The guard has no test."}`+"\n"), roundUnits, SourceAgent)
+	require.NoError(t, err, "a later spelling that supplies the field supplies it")
+	require.Len(t, records, 1)
+	assert.Equal(t, "The guard has no test.", records[0].Evidence)
+
+	var rejected *RejectedRecordError
+	_, err = Decode(FanOutFile("test"), []byte(spelt+`,"EVIDENCE":""}`+"\n"), roundUnits, SourceAgent)
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, &RejectedRecordError{
+		File: FanOutFile("test"), Line: 1, Field: "evidence",
+		Problem: "is required by §6.1 and this record does not supply it",
+	}, rejected)
 }
 
 // §6.1.4 exempts duplicate_of on `cr merge` output and nowhere else, so the

@@ -130,6 +130,9 @@ func (c claimChecker) check(line int, supplied map[string]json.RawMessage, claim
 // §3.3.3's: drift is detected by comparing a stored `issue_hash` against a
 // fresh one, so an agent that could write it could make a changed issue report
 // no drift at all.
+//
+// supplied is keyed as state.FoldedFields keys it, so `"Span_Hash"` is found
+// here under `span_hash`: encoding/json binds both spellings to the one field.
 func (c claimChecker) computed(line int, supplied map[string]json.RawMessage) error {
 	for _, field := range claimFields {
 		if field.Requirement != Computed {

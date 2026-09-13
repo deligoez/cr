@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -156,6 +157,65 @@ func TestAnAgentMayNotSupplyHeadOrRound(t *testing.T) {
 			)
 		})
 	}
+}
+
+// encoding/json binds an object key to a struct field whatever its letter case,
+// so `"Head"` sets Stamp.Head exactly as `"head"` does. The fence reads a key
+// the way the decode binds it, or a line would get past §2.3.3 by capitalising
+// one letter; the refusal names the field by §2.3.3's own spelling.
+func TestHeadAndRoundAreRefusedUnderAnyKeyCase(t *testing.T) {
+	for _, tc := range []struct{ line, field string }{
+		{line: `{"id":"c2","Head":"deadbee"}`, field: "head"},
+		{line: `{"id":"c2","HEAD":""}`, field: "head"},
+		{line: `{"id":"c2","rOuNd":9}`, field: "round"},
+	} {
+		t.Run(tc.line, func(t *testing.T) {
+			_, err := DecodeStamped[stampedRecord](
+				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"), nil,
+			)
+			var reserved *ReservedFieldError
+			require.ErrorAs(t, err, &reserved)
+			assert.Equal(t, &ReservedFieldError{File: FileClaims, Line: 3, Field: tc.field}, reserved)
+		})
+	}
+}
+
+// FoldedFields keys a line's fields the way encoding/json binds them to a
+// struct: one key per field whatever case each spelling used, folding the
+// Unicode letters the decode folds too (U+017F long s is an s, U+212A Kelvin
+// sign a k), and holding the value the decode keeps, which is the last one
+// written. A check reading an earlier spelling would judge a value the record
+// does not hold.
+func TestFoldedFieldsKeyALineTheWayTheDecodeBindsIt(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		id   string
+	}{
+		{line: `{"ID":"c1","id":"c2","I\u017f":"x","\u212aind":"y","Note_Id":null}`, id: "c2"},
+		{line: `{"id":"c2","I\u017f":"x","\u212aind":"y","Note_Id":null,"iD":"c1"}`, id: "c1"},
+	} {
+		t.Run(tc.line, func(t *testing.T) {
+			fields, err := FoldedFields([]byte(tc.line))
+			require.NoError(t, err)
+			assert.Equal(t, map[string]json.RawMessage{
+				"id":      json.RawMessage(`"` + tc.id + `"`),
+				"is":      json.RawMessage(`"x"`),
+				"kind":    json.RawMessage(`"y"`),
+				"note_id": json.RawMessage(`null`),
+			}, fields)
+
+			var decoded plainRecord
+			require.NoError(t, json.Unmarshal([]byte(tc.line), &decoded))
+			assert.Equal(t, tc.id, decoded.ID, "the decode keeps the spelling the fold keeps")
+		})
+	}
+
+	nothing, err := FoldedFields([]byte("null"))
+	require.NoError(t, err)
+	assert.Nil(t, nothing, "null is no object and no fields, exactly as json.Unmarshal reads it")
+
+	_, err = FoldedFields([]byte("[1, 2]"))
+	assert.Error(t, err, "a line that is not an object has no fields to key")
 }
 
 // Decoding is the road from an agent's file to the writer: what it returns is

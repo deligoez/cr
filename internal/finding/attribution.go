@@ -84,12 +84,10 @@ const citationsField = "citations"
 // The entry is named by its index, as checker.computedCitations names one, so a
 // record carrying several citations still points at the one at fault.
 func (c checker) citationCarriesNoRule(line int, citations json.RawMessage) error {
-	var entries []map[string]json.RawMessage
-	// The line decoded into a Finding before this ran, and every value its
-	// Citations field accepts unmarshals into this shape too, so the error
-	// cannot happen. Nothing decodes to no entries, which is the answer a
-	// record with no citations wants anyway.
-	_ = json.Unmarshal(citations, &entries)
+	entries, err := c.citationEntries(line, citations)
+	if err != nil {
+		return err
+	}
 	for at, entry := range entries {
 		if _, carried := entry[ruleField]; !carried {
 			continue

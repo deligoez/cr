@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"unicode"
 )
 
 // Stamp is the head and round pair §2.3.3 requires on every record of the eight
@@ -191,17 +193,17 @@ var stampFields = []string{"head", "round"}
 // line it refused, so the check runs inside this loop rather than after it:
 // there is one place that counts lines, and a second pass could not agree with
 // it about a blank one. It is given the one-based line number, the line's
-// fields by JSON key — so a check can tell a field the agent omitted from one
-// it wrote empty — and the decoded record. A command with nothing to add passes
-// nil.
+// fields as FoldedFields keys them — so a check can tell a field the agent
+// omitted from one it wrote empty, under whatever letter case the decode binds
+// — and the decoded record. A command with nothing to add passes nil.
 func DecodeStamped[E any, T interface {
 	*E
 	Stamped
 }](file string, body []byte, check func(int, map[string]json.RawMessage, T) error) ([]T, error) {
 	records := make([]T, 0)
 	for _, line := range numberedRecords(body) {
-		var supplied map[string]json.RawMessage
-		if err := json.Unmarshal(line.text, &supplied); err != nil {
+		supplied, err := FoldedFields(line.text)
+		if err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", file, line.at, err)
 		}
 		for _, field := range stampFields {
@@ -221,6 +223,72 @@ func DecodeStamped[E any, T interface {
 		records = append(records, record)
 	}
 	return records, nil
+}
+
+// FoldedFields decodes one JSON object into its fields, keyed the way
+// encoding/json binds an object key to a struct field.
+//
+// That binding is case-insensitive: the decode matches a key to a field's name
+// under bytes.EqualFold, which folds Unicode letters as well as ASCII ones, so
+// `"Grade"` sets the field `"grade"` sets. A fence that looked a key up by its
+// exact spelling would refuse the one and let the other through carrying the
+// value it refuses. So every key is held under foldKey's spelling, which for
+// every field name cr's records use is the name itself. Where two spellings of
+// one field appear the later is kept, because the decode keeps the later value.
+//
+// A line holding null has no fields and gives a nil map, as json.Unmarshal
+// reads it; a line that is not an object gives json.Unmarshal's own error.
+func FoldedFields(object []byte) (map[string]json.RawMessage, error) {
+	var exact map[string]json.RawMessage
+	if err := json.Unmarshal(object, &exact); err != nil || exact == nil {
+		return nil, err
+	}
+	// The object decoded above, so the walk below reads a well-formed
+	// object and its errors are returned rather than expected.
+	folded := make(map[string]json.RawMessage, len(exact))
+	walk := json.NewDecoder(bytes.NewReader(object))
+	if _, err := walk.Token(); err != nil {
+		return nil, err
+	}
+	for walk.More() {
+		token, err := walk.Token()
+		if err != nil {
+			return nil, err
+		}
+		key, isKey := token.(string)
+		if !isKey {
+			return nil, fmt.Errorf("object key %v is not a string", token)
+		}
+		var value json.RawMessage
+		if err := walk.Decode(&value); err != nil {
+			return nil, err
+		}
+		folded[foldKey(key)] = value
+	}
+	return folded, nil
+}
+
+// foldKey spells a key so that two keys spell alike exactly when
+// bytes.EqualFold calls them equal, which is the equality encoding/json binds
+// a key to a field by.
+//
+// Each rune becomes the least rune of its case-folding orbit, as
+// encoding/json's own folding does — U+017F long s becomes S, U+212A Kelvin
+// sign becomes K — and an ASCII capital is then written in lower case, so a
+// lowercase ASCII field name spells itself.
+func foldKey(key string) string {
+	var folded strings.Builder
+	for _, r := range key {
+		least := r
+		for next := unicode.SimpleFold(r); next != r; next = unicode.SimpleFold(next) {
+			least = min(least, next)
+		}
+		if 'A' <= least && least <= 'Z' {
+			least += 'a' - 'A'
+		}
+		folded.WriteRune(least)
+	}
+	return folded.String()
 }
 
 // numberedLine is one line of an NDJSON body that carries a record: the
