@@ -1,14 +1,19 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
@@ -58,7 +63,7 @@ func (r *rulesListResult) Text(w *writer) string {
 
 // rulesDeadResult is §2.6.3.4's report: the rules with no hit and no record
 // across the last `rules.dead_after` (pull request, round) pairs of the
-// repository's rule ledger.
+// repository.
 //
 // The window is printed pair by pair because round 8's
 // cross-pr-round-ordering-undefined is what defines it, and a reader deciding
@@ -79,6 +84,10 @@ func (r *rulesDeadResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "%s: %d dead rule(s) across the last %d of rules.dead_after=%d round(s)",
 		w.accent(r.Repo), len(r.Dead), len(r.Window), r.DeadAfter)
 	for _, pair := range r.Window {
+		if !pair.Dated {
+			fmt.Fprintf(&out, "\n  pr %d round %d undated, after its pull request's earlier rounds", pair.PR, pair.Round)
+			continue
+		}
 		fmt.Fprintf(&out, "\n  pr %d round %d at %s", pair.PR, pair.Round, pair.At.Format("2006-01-02T15:04:05Z"))
 	}
 	writeListedRules(w, &out, r.Dead)
@@ -182,17 +191,21 @@ func effectiveRules(l state.Layout, owner, repo string) (*effective, int, error)
 	return &effective{corpus: corpus, result: result}, resolved.Int("rules.dead_after"), nil
 }
 
-// emitDead reads the repository's ledger and prints §2.6.3.4's report over the
-// effective corpus.
+// emitDead reads the repository's rounds and its ledger and prints §2.6.3.4's
+// report over the effective corpus.
 func emitDead(out *writer, l state.Layout, owner, repo string, listed *effective, deadAfter int) error {
+	rounds, err := windowRounds(l, owner, repo)
+	if err != nil {
+		return err
+	}
 	ledger, err := rule.ReadStats(l, owner, repo)
 	if err != nil {
 		return err
 	}
-	report := rule.Dead(listed.corpus, ledger, deadAfter)
+	report := rule.Dead(listed.corpus, ledger, rounds, deadAfter)
 	honesty := listed.result.Honesty
 	if !report.Full {
-		honesty = append(honesty, "the rule ledger holds "+strconv.Itoa(len(report.Window))+
+		honesty = append(honesty, "the repository holds "+strconv.Itoa(len(report.Window))+
 			" round(s), fewer than rules.dead_after="+strconv.Itoa(deadAfter)+
 			", so no rule can be called dead yet (§2.6.3.4)")
 	}
@@ -200,6 +213,76 @@ func emitDead(out *writer, l state.Layout, owner, repo string, listed *effective
 		Repo: listed.result.Repo, Profile: listed.result.Profile, DeadAfter: deadAfter,
 		Window: report.Window, Full: report.Full, Dead: listedRules(report.Dead), Honesty: honesty,
 	})
+}
+
+// windowRounds is the rounds of the repository §2.6.3.4's window counts beside
+// the ledger's own: every round triage.ndjson holds an event for, dated by the
+// latest, and every round `cr record` ran for, which carries no moment.
+//
+// A recorded round is one whose round summary holds `cr record`'s section of
+// §10.3; `cr merge` alone writes a summary too, and a round only merged was
+// never recorded. Such a round with no record drafted and no rule entry leaves
+// nothing dated anywhere, and rule.LedgerRound.Dated says how it is ordered.
+// Nothing writes a moment for it, so what `cr record` leaves behind stays
+// byte-reproducible per §2.1.1. Every read is lock-free per §2.3.2.
+func windowRounds(l state.Layout, owner, repo string) ([]rule.LedgerRound, error) {
+	events, err := finding.TriageEvents(l, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	rounds := make([]rule.LedgerRound, 0, len(events))
+	for i := range events {
+		rounds = append(rounds, rule.LedgerRound{
+			PR: events[i].PR, Round: events[i].Round, At: events[i].At, Dated: true,
+		})
+	}
+	prs, err := recordedPRs(l, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	for _, pr := range prs {
+		numbers, err := roundNumbers(l, owner, repo, pr)
+		if err != nil {
+			return nil, err
+		}
+		for _, round := range numbers {
+			_, recorded, err := state.ReadRoundSection[int](
+				l, owner, repo, pr, round, state.FileSummary, summaryDeduplicated)
+			if err != nil {
+				return nil, err
+			}
+			if recorded {
+				rounds = append(rounds, rule.LedgerRound{PR: pr, Round: round})
+			}
+		}
+	}
+	return rounds, nil
+}
+
+// roundNumbers is the rounds one pull request has a round directory for, in
+// ascending order and parsed as numbers, for the reason recordedPRs gives.
+//
+// The directory listing is read rather than meta.json's round index: a round
+// directory appears when a round is first written, and meta.json is §9.3.1's
+// door, which a repository-wide report holding no one round has no head to
+// compare through.
+func roundNumbers(l state.Layout, owner, repo string, pr int) ([]int, error) {
+	entries, err := os.ReadDir(filepath.Dir(l.RoundDir(owner, repo, pr, 1)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	numbers := make([]int, 0, len(entries))
+	for _, entry := range entries {
+		round, err := strconv.Atoi(entry.Name())
+		if entry.IsDir() && err == nil && round >= 1 {
+			numbers = append(numbers, round)
+		}
+	}
+	slices.Sort(numbers)
+	return numbers, nil
 }
 
 // listedRules is a corpus in the shape `cr rules list` prints.

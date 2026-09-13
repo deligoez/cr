@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -126,6 +127,61 @@ func TestTheDeadWindowSpansTwoPullRequestsByTimestamp(t *testing.T) {
 		"the window is ordered by the ledger's timestamp across both pull requests")
 	assert.Equal(t, map[string]string{"no-panic": "repo", "no-sleep": "profile"}, layersOf(printed.Dead),
 		"no-todo hit inside the window; no-panic and no-sleep hit only before it")
+}
+
+// §2.6.3.4 through `cr record`, `cr draft`'s triage ledger and
+// `cr rules list --dead`: a round enters the window although no rule hit in it
+// and no record named one.
+//
+// no-todo hit once, in pull request 13's round 1. The fixture's round 2 of that
+// pull request is then recorded with no record at all, so nothing in state
+// dates it and it is ordered after round 1. Pull request 7's round 1 holds one
+// triage event, a year after the hit. At rules.dead_after 2 the window is that
+// round and pull request 13's round 2, no-todo is silent across both and is
+// dead; a window of the ledger's rounds alone would hold only round 1 and call
+// nothing dead. Round 3 holds a summary only `cr merge` wrote, which is not a
+// recorded round, so at rules.dead_after 4 the window holds three rounds and
+// is not full.
+func TestTheDeadWindowCountsARoundNoRuleHitIn(t *testing.T) {
+	layout := recordedHome(t)
+	require.NoError(t, os.WriteFile(layout.Rule("no-todo"), []byte(listedRuleJSON("no-todo")), 0o600))
+	hit := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, rule.RecordHits(layout, recordOwner, recordRepo,
+		[]rule.Hit{{RuleID: "no-todo", Path: "lib.go", Line: 4}},
+		&rule.Occasion{PR: recordPRNum, Round: recordRound - 1, Head: harvestHead, At: hit}))
+	raised := hit.AddDate(1, 0, 0)
+	require.NoError(t, finding.RecordRaised(layout, recordOwner, recordRepo,
+		[]*finding.Finding{{ID: "f9", Class: "unchecked-error"}},
+		&finding.TriageOccasion{PR: 7, Round: 1, Head: harvestHead, At: raised}))
+	held, err := layout.LockPR(recordOwner, recordRepo, recordPRNum)
+	require.NoError(t, err)
+	require.NoError(t, state.UpdateRoundSection(held, recordRound+1, state.FileSummary, summaryMergedHash, "0123456789abcdef"))
+	require.NoError(t, held.Unlock())
+	_, err = runRecord(t, recordPR, writeRecordFile(t, "merged.ndjson"), "--repo", recordSlug)
+	require.NoError(t, err)
+
+	t.Setenv("CR_RULES_DEAD_AFTER", "2")
+	var two rulesDeadResult
+	listRules(t, &two, "--dead")
+	assert.Equal(t, []rule.LedgerRound{
+		{PR: 7, Round: 1, At: raised, Dated: true},
+		{PR: recordPRNum, Round: recordRound, At: hit, Dated: false},
+	}, two.Window)
+	assert.True(t, two.Full)
+	assert.Equal(t, map[string]string{"no-todo": "global"}, layersOf(two.Dead),
+		"no-todo was silent across both rounds of the window")
+
+	t.Setenv("CR_RULES_DEAD_AFTER", "4")
+	var four rulesDeadResult
+	listRules(t, &four, "--dead")
+	pairs := make([][2]int, 0, len(four.Window))
+	for _, pair := range four.Window {
+		pairs = append(pairs, [2]int{pair.PR, pair.Round})
+	}
+	assert.Equal(t, [][2]int{{7, 1}, {recordPRNum, recordRound}, {recordPRNum, recordRound - 1}}, pairs,
+		"the merge-only round 3 is not a recorded round")
+	assert.False(t, four.Full)
+	assert.Empty(t, four.Dead)
 }
 
 // A ledger holding fewer rounds than rules.dead_after calls no rule dead, and
