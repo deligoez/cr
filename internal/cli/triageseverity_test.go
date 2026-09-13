@@ -75,9 +75,9 @@ func TestASeverityEditIsObservableInExactlyOneEvent(t *testing.T) {
 // triage-event-key-permits-contradiction holds the action as a value, so a
 // second `cr post --confirm` over the same draft adds no second outcome — which
 // is what keeps §7.3.4's rate a ratio of two counts rather than of one count
-// and a number of runs. Once the first run has posted the round's one record
-// the second is refused before it writes anything, since §8.3.1 has no second
-// review to send, and the ledger stands as the first run wrote it.
+// and a number of runs. Once the first run has posted the round's review the
+// second is refused before it writes anything, since §8.3.1 posts a round as
+// one review, and the ledger stands as the first run wrote it.
 func TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas(t *testing.T) {
 	layout := draftedHome(t, aCitedRecord("f1"))
 	redraft(t)
@@ -88,8 +88,8 @@ func TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas(t *testing.T) {
 	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
 	require.NoError(t, err)
 	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
-	var empty *EmptyReviewError
-	require.ErrorAs(t, err, &empty)
+	var posted *PostedRoundError
+	require.ErrorAs(t, err, &posted)
 
 	assert.Equal(t, []string{"f1:raised:high", "f1:kept:low"}, severitiesIn(t, layout))
 	assert.Len(t, shim.writes(t), 1, "the round's one review was sent once")

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -121,8 +120,10 @@ func TestAPostWithoutConfirmWritesNoTriageEvent(t *testing.T) {
 	assert.Equal(t, before, ledger(t, layout),
 		"§7.3.1: a run that changes nothing counts nothing")
 	assert.Equal(t, []string{"f1:raised", "f2:raised"}, before)
-	assert.NotContains(t, printed, `"f2"`, "and the discarded record is left out of the payload")
-	assert.True(t, strings.Contains(printed, `"f1"`))
+	report := postReportOf(t, printed)
+	assert.Equal(t, []postedComment{{ID: "f1", Kind: finding.KindFinding}}, report.Comments,
+		"and the discarded record is left out of the payload")
+	assert.Equal(t, []string{"f2"}, report.Discarded, "and named as the discard the run read")
 }
 
 // The seam `cr post --confirm` writes its outcomes through, driven over the

@@ -444,6 +444,12 @@ var codes = []mapped{
 	{is[*UnresolvedPostError](), ExitState,
 		"run `cr post <pr> --reconcile` to adopt the review the earlier call created, " +
 			"or to clear post_unresolved for a retry"},
+	// §8.3.1: a round whose review was created or adopted posts no second
+	// one. Nothing about the invocation is wrong; what refuses is that the
+	// round is already posted, which §11.2 codes 4 beside the empty review.
+	{is[*PostedRoundError](), ExitState,
+		"this round is posted and takes no second review; `cr status <pr>` reports where its " +
+			"records stand, and `cr brief <pr>` opens the next round once the head moves"},
 	// §8.3.1 and §8.4.4: a round holding no queued record has no review to
 	// send, and a second, empty one would notify the author of nothing. The
 	// command line is right and nothing is malformed; what refuses is where

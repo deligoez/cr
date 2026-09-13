@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/render"
 )
@@ -31,13 +30,15 @@ func sendWithUnknownOutcome(t *testing.T) (*reconcileResult, *ghShimTranscript, 
 	return &report, shim, embedded
 }
 
-// §8.4.4 against §9.1 and §7.2: a round adopted by `cr post --reconcile`
-// after a send that carried a draft discard is not left stuck. The adoption
-// moves only what §9.1 lets it move, `queued` to `posted`; the discard is
-// stored by the next `cr draft`, whose row §9.1 lists, reading the same draft
-// the send read. A block for a record the round has posted names a record the
-// round rendered, so neither `cr draft` nor the dry run refuses it as unknown.
-func TestAnAdoptedRoundWithADiscardIsNotLeftStuck(t *testing.T) {
+// §8.3.1 against §8.4.4, audit round 3's task-reconcile-adopts-thread-ids end
+// to end: a send carrying a draft discard meets a `gh` that dies, and
+// `cr post --reconcile` adopts the review and stores the discard its waiver
+// describes, under the confirmed send's own §9.1 row. The reviewer then takes
+// the discard back in the draft, and neither the dry run nor the confirmed run
+// can reach the author with a second review: both are refused as posted, and
+// nothing after the first send reaches the write door — so the waiver stands
+// for a record that stays discarded, never for one posted under it.
+func TestAnAdoptedRoundTakesNoSecondReviewWhateverTheDraftSays(t *testing.T) {
 	for name, verb := range map[string]struct {
 		triage      func(t *testing.T, file string) string
 		disposition finding.Disposition
@@ -63,37 +64,32 @@ func TestAnAdoptedRoundWithADiscardIsNotLeftStuck(t *testing.T) {
 			discarded.Anchor.Path = "internal/api/discarded.go"
 			layout := draftedHome(t, kept, discarded)
 			redraft(t)
-			writeDraft(t, layout, verb.triage(t, readDraft(t, layout)))
+			untriaged := readDraft(t, layout)
+			writeDraft(t, layout, verb.triage(t, untriaged))
 
-			report, shim, _ := sendWithUnknownOutcome(t)
+			report, shim, embedded := sendWithUnknownOutcome(t)
 			require.Equal(t, adoptedReviewURL, report.Adopted)
 			require.Equal(t, []string{"f1"}, report.Records)
-
-			// The dry run reads the draft's discard and finds nothing left
-			// to send, which is the refusal it owes, and not §7.2.3's.
-			_, err := runPost(t, draftPR, "--repo", draftSlug)
-			var marker *draft.MarkerEditError
-			assert.NotErrorAs(t, err, &marker,
-				"§7.2: a posted record's block names a record this round rendered")
-			var empty *EmptyReviewError
-			require.ErrorAs(t, err, &empty)
-			assert.Equal(t, EmptyReviewError{
-				Owner: draftOwner, Repo: draftRepo, PR: draftPRNum, Round: draftRound,
-				Posted: 1, Discarded: 1,
-			}, *empty)
-			assert.Equal(t, finding.StateQueued, roundRecordsByID(t, layout)["f2"].State,
-				"§8.5.1: the dry run stores nothing")
-
-			_, err = runDraft(t, draftPR, "--repo", draftSlug)
-			require.NoError(t, err)
 
 			stored := roundRecordsByID(t, layout)
 			assert.Equal(t, finding.StatePosted, stored["f1"].State)
 			assert.Equal(t, finding.StateDiscarded, stored["f2"].State,
-				"§9.1: `cr draft` stores the discard the adopted send read")
+				"§9.1: the adoption stores the discard the confirmed send read")
 			assert.Equal(t, verb.disposition, stored["f2"].Disposition)
 			assert.Equal(t, verb.scope, waiverScopeOf(t, layout, discarded.Anchor.Path))
-			assert.Len(t, shim.writes(t), 1, "nothing after the first send reached the write door")
+
+			writeDraft(t, layout, untriaged)
+			for _, flags := range [][]string{{}, {"--confirm"}} {
+				_, err := runPost(t, append([]string{draftPR, "--repo", draftSlug}, flags...)...)
+
+				assertRefusedAsPosted(t, err, 1, embedded)
+			}
+			assert.Len(t, shim.writes(t), 1, "§8.3.1: nothing after the first send reached the write door")
+			stored = roundRecordsByID(t, layout)
+			assert.Equal(t, finding.StatePosted, stored["f1"].State)
+			assert.Equal(t, finding.StateDiscarded, stored["f2"].State)
+			assert.Equal(t, verb.scope, waiverScopeOf(t, layout, discarded.Anchor.Path),
+				"§7.4: the waiver stands beside the discard it describes")
 		})
 	}
 }
@@ -124,33 +120,52 @@ func TestReconcileMatchesTheHashOfTwoCommentsAtOnePosition(t *testing.T) {
 	assert.Equal(t, finding.StatePosted, stored["f2"].State)
 }
 
-// §8.3.1 and §8.4.4: once every record of a round is posted, a second
-// `cr post --confirm` sends no second review holding no comment. It exits with
-// §11.2's state conflict, and no invocation after the first carries a request
-// body to the `gh` on PATH. The dry run refuses the same way, since the
-// refusal stands before the gate.
-func TestConfirmOnAPostedRoundSendsNoEmptyReview(t *testing.T) {
-	draftedHome(t, aCitedRecord("f1"))
+// assertRefusedAsPosted holds err to §8.3.1's refusal of a second review for
+// the fixture's round: the whole error, §11.2's state conflict, and the hint.
+func assertRefusedAsPosted(t *testing.T, err error, posted int, hash string) {
+	t.Helper()
+	var refused *PostedRoundError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, PostedRoundError{
+		Owner: draftOwner, Repo: draftRepo, PR: draftPRNum, Round: draftRound,
+		Posted: posted, PayloadHash: hash,
+	}, *refused)
+	assert.Equal(t, ExitState, exitCodeFor(err))
+	assert.Equal(t,
+		"this round is posted and takes no second review; `cr status <pr>` reports where its "+
+			"records stand, and `cr brief <pr>` opens the next round once the head moves",
+		hintFor(err))
+}
+
+// §8.3.1: once `cr post --confirm` has created a round's review, a second run
+// sends no second review, whatever the draft now says. The reviewer clears the
+// `wrong` the first send stored, which leaves the draft asking for a comment
+// the round has not posted — and both the dry run and the confirmed run are
+// refused as posted, before the gate, with no invocation after the first
+// carrying a request body to the `gh` on PATH. The discard and its waiver stand
+// together, as the first send stored them.
+func TestConfirmOnAPostedRoundSendsNoSecondReview(t *testing.T) {
+	kept, discarded := aCitedRecord("f1"), aCitedRecord("f2")
+	discarded.Anchor.Path = "internal/api/discarded.go"
+	layout := draftedHome(t, kept, discarded)
 	redraft(t)
-	shim := ghShimming(t, builtPayload(t))
-	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	untriaged := readDraft(t, layout)
+	writeDraft(t, layout, markerEdit(t, untriaged, "f2", `disposition=""`, `disposition="wrong"`))
+	built := builtPayload(t)
+	hash, err := built.Hash()
+	require.NoError(t, err)
+	shim := ghShimming(t, built)
+	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
 	require.NoError(t, err)
 	require.Len(t, shim.writes(t), 1)
 
+	writeDraft(t, layout, untriaged)
 	for _, flags := range [][]string{{"--confirm"}, {}} {
 		_, err = runPost(t, append([]string{draftPR, "--repo", draftSlug}, flags...)...)
 
-		var empty *EmptyReviewError
-		require.ErrorAs(t, err, &empty, "flags %v", flags)
-		assert.Equal(t, EmptyReviewError{
-			Owner: draftOwner, Repo: draftRepo, PR: draftPRNum, Round: draftRound, Posted: 1,
-		}, *empty)
-		assert.Equal(t, ExitState, exitCodeFor(err))
-		assert.Equal(t,
-			"nothing in this round is left to post; `cr status <pr>` reports where its records "+
-				"stand, `cr draft <pr>` queues records recorded since, and `cr brief <pr>` opens "+
-				"the next round once the head moves",
-			hintFor(err))
+		assertRefusedAsPosted(t, err, 1, hash)
 		assert.Len(t, shim.writes(t), 1, "§8.3.1: the round's one review was already sent")
 	}
+	assert.Equal(t, finding.StateDiscarded, roundRecordsByID(t, layout)["f2"].State)
+	assert.Equal(t, "repository", waiverScopeOf(t, layout, discarded.Anchor.Path))
 }

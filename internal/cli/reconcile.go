@@ -206,13 +206,17 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 // the waivers, findings.ndjson through writeAdopted, and the outcome events —
 // draws on the records a successful send would have drawn on.
 //
-// The waivers go first, in send's order and for its reason: the send that set
+// The draft's discards are stored with the adopted records, and their waivers
+// go first, in send's order and for its reason: the send that set
 // `post_unresolved` wrote none, because a call GitHub might have refused must
 // leave none behind, and a waiver write that fails here leaves the flag set so
-// the next `--reconcile` writes it again. The discards themselves stay queued:
-// §9.1 lets `cr draft` and `cr post --confirm` store a discard, and not this
-// command. The next `cr draft` stores them, reading the draft the send read,
-// and ingestDraft lets the adopted records' blocks stand in that draft.
+// the next `--reconcile` writes it again. The discard is the confirmed send's
+// own move and is journaled under its actor, which §9.1's `queued` →
+// `discarded` row lists: that run read the draft, discarded the records, and
+// named them in posted.json before its call, and this adoption settles that
+// run rather than triaging a draft of its own. Storing it is what keeps a
+// waiver from standing for a record left queued, which a later draft could
+// otherwise clear and a later send post under it.
 //
 // The outcome events follow the cleared flag, in send's order, through the
 // recordPostTriage the send calls, over the outcomes the send named in
@@ -227,9 +231,12 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 		return nil, err
 	}
 	settleAsSent(records, sent)
-	if err := waiveDiscards(
-		l, round.Owner, round.Repo, round.PR, sentDiscards(records, sent),
-	); err != nil {
+	sendJournal := finding.NewJournal(finding.ActorPostConfirm, round.Head, time.Now())
+	discarded, err := discardAsSent(records, sent, sendJournal)
+	if err != nil {
+		return nil, err
+	}
+	if err := waiveDiscards(l, round.Owner, round.Repo, round.PR, discarded); err != nil {
 		return nil, err
 	}
 	adopted := make([]*finding.Finding, 0, len(sent.Records))
@@ -253,7 +260,7 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAdopted(l, round, records, adopted, hash, journal); err != nil {
+	if err := writeAdopted(l, round, records, adopted, hash, sendJournal, journal); err != nil {
 		return nil, err
 	}
 	if err := setPostUnresolved(l, round, false); err != nil {
@@ -307,27 +314,32 @@ func sentSettlements(records []*finding.Finding, sent *post.Sent) []finding.Sett
 	return settled
 }
 
-// sentDiscards are the records posted.json names as the draft's discards, each
-// a copy carrying the disposition it was discarded under, which is what
+// discardAsSent moves each record posted.json names as the draft's discards to
+// `discarded` under the disposition it was discarded under, keeping the move in
+// the confirmed send's journal, and answers the records it moved, which is what
 // waiveDiscards derives a waiver's scope from.
 //
-// They are copies because the stored record stays queued — §9.1 gives this
-// command no move to `discarded` — and a disposition written onto a queued
-// record would be republished by writeAdopted as if it had been. A record no
-// longer queued is passed over: a later `cr draft` already stored its discard
-// and wrote its waiver, and a record posted since was not discarded at all.
-func sentDiscards(records []*finding.Finding, sent *post.Sent) []*finding.Finding {
+// A record no longer queued is passed over: a later `cr draft` already stored
+// its discard and wrote its waiver, and a record posted since was not discarded
+// at all.
+func discardAsSent(
+	records []*finding.Finding, sent *post.Sent, journal *finding.Journal,
+) ([]*finding.Finding, error) {
 	discarded := make([]*finding.Finding, 0, len(sent.Discards))
 	for _, discard := range sent.Discards {
 		record := recordOf(records, discard.Record)
 		if record == nil || record.State != finding.StateQueued {
 			continue
 		}
-		copied := *record
-		copied.Disposition = discard.Disposition
-		discarded = append(discarded, &copied)
+		if err := journal.Move(
+			record.ID, finding.Existing(finding.StateQueued), finding.StateDiscarded,
+		); err != nil {
+			return nil, err
+		}
+		record.State, record.Disposition = finding.StateDiscarded, discard.Disposition
+		discarded = append(discarded, record)
 	}
-	return discarded
+	return discarded, nil
 }
 
 // recordOf is the round's record with one id, and nil when the round holds
@@ -369,9 +381,13 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // here: a confirmed send stores the draft's discards itself, and a round posted
 // with no redraft after a deletion would otherwise keep the last `cr draft`'s
 // counts beside records that say otherwise.
+//
+// The journals are written in the order given, under the lock the records are
+// published under: an adoption passes the confirmed send's discards ahead of
+// its own posted moves, which is the order that send's one journal holds them.
 func writeAdopted(
 	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash string,
-	journal *finding.Journal,
+	journals ...*finding.Journal,
 ) error {
 	if err := recordPostedIndex(l, round, adopted); err != nil {
 		return err
@@ -387,8 +403,11 @@ func writeAdopted(
 			posted++
 		}
 	}
-	writes := []func() error{
-		func() error { return journal.Write(held) },
+	writes := make([]func() error, 0, len(journals)+3)
+	for _, journal := range journals {
+		writes = append(writes, func() error { return journal.Write(held) })
+	}
+	writes = append(writes,
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
 		func() error {
 			return writeSummary(held, round.Round, ownerPost, []summaryCount{
@@ -398,7 +417,7 @@ func writeAdopted(
 			})
 		},
 		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
-	}
+	)
 	for _, write := range writes {
 		if err := write(); err != nil {
 			// The lock is released on the way out of every branch, and

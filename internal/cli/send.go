@@ -139,7 +139,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	}
 	return out.emit(&postResult{
 		Round: s.round.Round, Comments: commentedRecords(s.review, s.queued),
-		Payload: s.review, Forced: s.forced, Withdrawn: s.withdrawn,
+		Payload: s.review, Discarded: discardedIDs(s.triage), Forced: s.forced, Withdrawn: s.withdrawn,
 		posting: posting{Posted: true, ConfirmGiven: true},
 	})
 }

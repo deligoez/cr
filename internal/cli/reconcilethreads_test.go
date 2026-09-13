@@ -121,9 +121,16 @@ func TestReconcileAdoptsTheThreadIDsAndTheWaiversAConfirmedSendOwed(t *testing.T
 		assert.Equal(t, thread, stored[id].ThreadID,
 			"§6.1: %s carries the thread its comment became", id)
 	}
-	assert.Equal(t, finding.StateQueued, stored["f3"].State,
-		"§9.1 gives `cr post --reconcile` no move to discarded")
+	assert.Equal(t, finding.StateDiscarded, stored["f3"].State,
+		"§9.1: the adoption stores the discard the confirmed send read")
+	assert.Equal(t, finding.DispositionWrong, stored["f3"].Disposition)
 	assert.Empty(t, stored["f3"].ThreadID)
+	assert.Equal(t, []string{
+		"f3:queued>discarded by cr post --confirm",
+		"f1:queued>posted by cr post --reconcile",
+		"f2:queued>posted by cr post --reconcile",
+	}, journalOf(t, layout, draftJournal)[3:],
+		"§9.1.1: the discard is the confirmed send's move, and only the posting is the adoption's")
 
 	var inPosted map[string]string
 	require.NoError(t, json.Unmarshal(readPosted(t, layout)[postedThreads], &inPosted))

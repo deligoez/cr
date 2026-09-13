@@ -42,6 +42,13 @@ type postResult struct {
 	// nothing else prints it, so a run without this field would validate a
 	// disclosure the author will receive and show it to nobody.
 	Payload *post.Review `json:"payload"`
+	// Discarded are the ids of the records the draft's triage discards on
+	// this run, which a confirmed run stores. It is empty and never nil.
+	//
+	// It is how a run that builds no review says why: when the draft
+	// discards every queued record there is no payload, and this is what
+	// the confirmed run settled instead of sending one.
+	Discarded []string `json:"discarded"`
 	// Forced is §6.3.2's count per class over the records the payload
 	// holds. It is reported here as well as by `cr draft` because this is
 	// §6.3.1's last application — the only one that sees the payload the
@@ -78,8 +85,19 @@ type postedComment struct {
 // The forcing line is printed whatever the flags say, for the reason `cr draft`
 // prints it: §11.1 exempts it from `--quiet`, and it is how the reader tells a
 // review whose questions cr forced from one whose questions the agent chose.
+//
+// A run that built no review, because the draft discards every queued record,
+// says so in place of the count and names each discard.
 func (r *postResult) Text(w *writer) string {
 	var text strings.Builder
+	if r.Payload == nil {
+		text.WriteString("built no review for round " + strconv.Itoa(r.Round) +
+			": the draft discards every queued record, so there is no comment to post\n")
+		for _, id := range r.Discarded {
+			text.WriteString(id + ": discarded\n")
+		}
+		return text.String() + w.disclose("", "\n", r.Forced.Disclosure(), r.Withdrawn.Disclosure()) + r.line(w)
+	}
 	text.WriteString("built a review of " + w.accent(strconv.Itoa(len(r.Comments))) +
 		" comment(s) for round " + strconv.Itoa(r.Round) + "\n")
 	for _, comment := range r.Comments {
@@ -213,6 +231,11 @@ func buildReview(
 	if err != nil {
 		return err
 	}
+	// §8.3.1, before the draft is read: a round whose review was created or
+	// adopted sends no second one, whatever its draft now says.
+	if err := refusePostedRound(l, round, records); err != nil {
+		return err
+	}
 	grading, err := readRoundGrading(l, owner, repo, pr, round)
 	if err != nil {
 		return err
@@ -227,6 +250,11 @@ func buildReview(
 	}
 	queued := retypeForDraft(postedRecords(records), &triage.Triage)
 	if len(queued) == 0 {
+		// §7.2's discards took every queued record, so there is nothing
+		// to post and the run settles them without a review.
+		if len(triage.discarded()) > 0 {
+			return settleDiscards(out, l, round, records, &triage, journal, confirmed)
+		}
 		return emptyReview(round, records)
 	}
 	grading.forceUnmapped(round.Round, queued)
@@ -265,7 +293,7 @@ func buildReview(
 	if !confirmed {
 		return out.emit(&postResult{
 			Round: round.Round, Comments: commentedRecords(review, queued),
-			Payload: review, Forced: forced, Withdrawn: held,
+			Payload: review, Discarded: discardedIDs(&triage), Forced: forced, Withdrawn: held,
 			posting: posting{Posted: false, ConfirmGiven: false},
 		})
 	}
@@ -299,11 +327,14 @@ func postedRecords(records []*finding.Finding) []*finding.Finding {
 
 // EmptyReviewError is the refusal of a review that would carry no comment: the
 // round holds no record in `queued` once §7.2's discards are read out of the
-// draft — every one is posted or discarded, or none was ever drafted.
+// draft, and this run's draft discarded none of them — so none was ever drafted,
+// or an earlier run already stored every discard. A round whose review went out
+// is PostedRoundError's, and one whose discards this run reads is settled by
+// settleDiscards.
 //
-// §8.3.1 sends a round's comments as one review, and a round whose review
-// already went out would send a second one notifying the author of nothing.
-// §8.4.4 is the other reason: a review holding no comment has a hash any other
+// §8.3.1 sends a round's comments as one review, and a review holding no
+// comment would notify the author of nothing. §8.4.4 is the other reason: a
+// review holding no comment has a hash any other
 // empty review shares, so a send of one whose outcome cr never learned could not
 // be reconciled at all.
 //
@@ -344,6 +375,158 @@ func emptyReview(round *state.Meta, records []*finding.Finding) error {
 		}
 	}
 	return refused
+}
+
+// PostedRoundError is §8.3.1's refusal of a second review for a round: the
+// round already has the one review its comments are posted as, created by
+// `cr post --confirm` or adopted by `cr post --reconcile`.
+//
+// It is refused before the draft is read and whatever the draft now says. A
+// reviewer who clears a `wrong` after the round posted, or a record queued into
+// the round since, would otherwise reach the author as a second review of the
+// same round, which is the notification §8.3.1 exists to keep to one.
+//
+// A round still carrying `post_unresolved` is not refused here: whether its
+// review exists is what cr has not learned, and UnresolvedPostError refuses its
+// send with the step that learns it. It is refused whether or not `--confirm`
+// was given, before the gate, so the dry run says what the confirmed run would.
+// §11.2 codes it 4: the command line is right, and what refuses is where the
+// round stands.
+type PostedRoundError struct {
+	// Owner, Repo, and PR name the pull request whose round was refused.
+	Owner string
+	Repo  string
+	PR    int
+	// Round is the round whose review was posted.
+	Round int
+	// Posted is how many of the round's records §9.1 holds in `posted`.
+	Posted int
+	// PayloadHash is §8.3.3's hash of the review the round was posted as,
+	// as the round summary records it, and empty when it records none.
+	PayloadHash string
+}
+
+func (e *PostedRoundError) Error() string {
+	return fmt.Sprintf(
+		"%s/%s#%d round %d is posted: its review was created or adopted (payload hash %q, "+
+			"%d record(s) posted), and §8.3.1 posts a round's comments as one review, so cr "+
+			"sends no second review for this round whatever its draft now says",
+		e.Owner, e.Repo, e.PR, e.Round, e.PayloadHash, e.Posted,
+	)
+}
+
+// refusePostedRound is PostedRoundError for a round that has its review.
+//
+// The review is read off what only its creation or adoption writes: the round
+// summary's payload hash, which writeAdopted records for both, and records in
+// `posted`, which §9.1 lets only those two moves store. Either is enough, so a
+// summary lost or a record rewritten cannot reopen the round to a second send.
+func refusePostedRound(l state.Layout, round *state.Meta, records []*finding.Finding) error {
+	if round.PostUnresolved {
+		return nil
+	}
+	hash, recorded, err := state.ReadRoundSection[string](
+		l, round.Owner, round.Repo, round.PR, round.Round, state.FileSummary, summaryPayloadHash)
+	if err != nil {
+		return err
+	}
+	posted := 0
+	for _, record := range records {
+		if record.State == finding.StatePosted {
+			posted++
+		}
+	}
+	if !recorded && posted == 0 {
+		return nil
+	}
+	return &PostedRoundError{
+		Owner: round.Owner, Repo: round.Repo, PR: round.PR, Round: round.Round,
+		Posted: posted, PayloadHash: hash,
+	}
+}
+
+// discardedIDs are the ids of the records this run's draft discards, in the
+// order the verbs are read, never nil.
+func discardedIDs(triage *triaged) []string {
+	discarded := triage.discarded()
+	ids := make([]string, 0, len(discarded))
+	for _, record := range discarded {
+		ids = append(ids, record.ID)
+	}
+	return ids
+}
+
+// settleDiscards is `cr post` over a round whose draft discards every record it
+// still held in `queued`: there is no comment to post, so no review is built and
+// nothing reaches the network, and a confirmed run settles the discards.
+//
+// Settling is what a confirmed send writes for its discards once its call has
+// returned, less the call: §7.4's waivers through waiveDiscards, §9.1's
+// `queued` → `discarded` row under `cr post --confirm`, which lists it, and
+// §7.3.1's one outcome event per queued record. The order is send's, for its
+// reason — a waiver goes ahead of the discard it waives.
+//
+// The dry run writes nothing, per §8.5.1 and §7.3.1, and reports the discards
+// the confirmed run would store. A round still carrying `post_unresolved` is
+// refused its settling, as it is refused a send: the earlier call may have
+// posted records this draft now discards, and §8.4.4's adoption is the step
+// that learns it.
+func settleDiscards(
+	out *writer, l state.Layout, round *state.Meta, records []*finding.Finding,
+	triage *triaged, journal *finding.Journal, confirmed bool,
+) error {
+	result := &postResult{
+		Round: round.Round, Comments: make([]postedComment, 0), Discarded: discardedIDs(triage),
+		Forced: make(finding.Forcings, 0), Withdrawn: make(finding.Withdrawn, 0),
+		posting: posting{Posted: false, ConfirmGiven: confirmed},
+	}
+	if !confirmed {
+		return out.emit(result)
+	}
+	owner, repo, pr := round.Owner, round.Repo, round.PR
+	if round.PostUnresolved {
+		return &UnresolvedPostError{Owner: owner, Repo: repo, PR: pr, Round: round.Round}
+	}
+	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
+		return err
+	}
+	if err := storeDiscards(l, round, records, journal); err != nil {
+		return err
+	}
+	if err := recordPostTriage(l, owner, repo, pr, round, triage.settled()); err != nil {
+		return err
+	}
+	return out.emit(result)
+}
+
+// storeDiscards publishes the round's records with the draft's discards in
+// `discarded`, §9.1.1's lines for the moves, and the discard counts §10.3 gives
+// the discarding commands, under one §2.3.1 lock.
+//
+// None of `cr post`'s own summary counts is written: no payload was sent, so
+// there is no hash to record and no review whose posted count it would be.
+func storeDiscards(
+	l state.Layout, round *state.Meta, records []*finding.Finding, journal *finding.Journal,
+) error {
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
+	if err != nil {
+		return err
+	}
+	stamp := state.Stamp{Head: round.Head, Round: round.Round}
+	writes := []func() error{
+		func() error { return journal.Write(held) },
+		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
+		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
+	}
+	for _, write := range writes {
+		if err := write(); err != nil {
+			// The lock is released on the way out of every branch, and
+			// the write's own failure is what the caller is told about.
+			_ = held.Unlock()
+			return err
+		}
+	}
+	return held.Unlock()
 }
 
 // refuseOverCap is §1.6.2's block at posting: the queued comments measured
