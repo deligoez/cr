@@ -8621,7 +8621,7 @@
     {
       "id": "correctness-claim-citation",
       "title": "Refuse a correctness claim the unit lacks",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "correctness-axis"
@@ -8633,10 +8633,20 @@
       ],
       "started_at": "2026-09-13T00:20:56.035415Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-13T00:30:05.192118Z",
+      "closed_reason": "- (1) §4.2.2 is no longer left to the prompt alone: internal/cli/correctnessclaim.go refuseForeignClaims checks, in cr record's acceptance, the claim every correctness record cites against the round's mapping.\n- (2) No blanket refusal of correctness findings without a claim was added, so the 20 fixtures that broke under one stay green; whether such a finding violates a claim or is an internal defect stays the agent's judgement.\n- (3) A correctness record (axis correctness, stamped from the corpus just before, now ahead of §6.4.4's drops so the input line can still be named) whose claim names a claim id is refused with exit 1 as a RejectedRecordError on field claim unless the round's mapping joins that claim to the record's own unit, naming the record, the claim and the unit (dogfood: `rec40.ndjson line 1: claim record f40 cites \"CR-5#c9\", which this round's mapping does not map to unit \"u1\"; §4.2.2 has a correctness finding cite a claim its own unit is evaluated against…`, exit 1).\n- (4) A correctness record without a claim is accepted and stored as an internal defect per §4.2.3; gradedHome now maps its fixture claim CR-7#c1 to u1, and the gap-probe fixture record became a test-adequacy record so §5.4.4's unmapped-claim row stays reachable.\n- (5) internal/cli/correctnessclaim_test.go: TestACorrectnessFindingCitingAnotherUnitsClaimIsRefused records a correctness finding on u1 citing CR-1#c2, mapped only to u2, and asserts exit 1 on field claim naming f1, the claim and u1 with findings.ndjson unchanged; TestACorrectnessFindingCitingItsOwnClaimOrNoneIsStored records one citing u1's own CR-1#c1 and one citing none and asserts both are stored; a hand mutant ignoring the unit in the mapping check turns the refusal test red.\n",
+      "gate_passed_at": "2026-09-13T00:30:05.192118Z",
+      "commit_sha": "a69708c",
+      "commit_shas": [
+        "a69708c"
+      ],
+      "commit_files": [
+        "internal/cli/correctnessclaim.go",
+        "internal/cli/correctnessclaim_test.go",
+        "internal/cli/gapsupport_test.go",
+        "internal/cli/grade_test.go",
+        "internal/cli/record.go"
+      ]
     },
     {
       "id": "meta-writes-under-lock",
