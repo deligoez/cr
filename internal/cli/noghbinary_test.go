@@ -40,7 +40,14 @@ const refusingGh = "#!/bin/sh\n" +
 // test that means to exercise the call works; and `go build`, `git` and the
 // other programs the fixtures drive are still reachable, so the fence removes
 // exactly one thing.
+//
+// A process started with runAsCR set is not a test run at all: it is cr, and
+// TestMain hands it straight to Execute. See spawnProbe for why.
 func TestMain(m *testing.M) {
+	if os.Getenv(runAsCR) != "" {
+		Execute()
+		os.Exit(ExitOK)
+	}
 	dir, err := os.MkdirTemp("", "cr-gh-fence")
 	if err == nil {
 		err = os.WriteFile(filepath.Join(dir, "gh"), []byte(refusingGh), 0o700)

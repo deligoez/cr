@@ -273,6 +273,106 @@ func onlyWhenMutated(then string) string {
 	return "if grep -q 'func Retry() {}' app.go; then\n" + then + "fi\necho 'Tests:  4 passed'\n"
 }
 
+// spawnedProbe is a `cr probe run` started as a process of its own, for the
+// tests that kill it: what it printed and how it ended are kept, so a wait for
+// it to reach a state on disk can say why it never got there.
+type spawnedProbe struct {
+	cmd     *exec.Cmd
+	output  bytes.Buffer
+	started time.Time
+	done    chan struct{}
+	err     error
+}
+
+// runAsCR names the variable that makes this package's test binary run as cr:
+// TestMain sees it and calls Execute, which is all cmd/cr's main does.
+const runAsCR = "CRTEST_RUN_AS_CR"
+
+// spawnProbe starts `cr probe run` on the fixture's pull request with args, as
+// a process of its own, on an environment holding only what cr needs.
+//
+// The process is this test binary re-executed as cr rather than a binary built
+// from the working tree when the test reaches this line. Every recorded failure
+// of the two killed-probe tests came from a tree holding uncommitted edits, not
+// from load. The short ones failed within a second, and the one that printed
+// its cause was `go build ./cmd/cr` failing on a half-written file; the long
+// ones waited out the whole minute because the spawned cr had already exited
+// (it had started asking gh, and its PATH held no shim) and the old wait could
+// only time out, printing nothing the process said. Thirty runs
+// under a parallel `go test ./...` reached the state on disk in under a second
+// every time. Re-executing runs exactly the code the test was compiled with,
+// through the same Execute, and a SIGKILL ends it the same way; awaitOnDisk
+// reports a process that died instead of waiting for it.
+func spawnProbe(t *testing.T, prepared state.Layout, fixture string, args ...string) *spawnedProbe {
+	t.Helper()
+	self, err := os.Executable()
+	require.NoError(t, err)
+	p := &spawnedProbe{done: make(chan struct{})}
+	p.cmd = exec.Command(self,
+		append([]string{"probe", "run", fixturePR, "--repo", fixtureSlug}, args...)...)
+	p.cmd.Dir = fixture
+	p.cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + t.TempDir(),
+		"TMPDIR=" + os.TempDir(),
+		state.HomeEnv + "=" + prepared.Root(),
+		runAsCR + "=1",
+	}
+	p.cmd.Stdout, p.cmd.Stderr = &p.output, &p.output
+	require.NoError(t, p.cmd.Start())
+	p.started = time.Now()
+	go func() {
+		p.err = p.cmd.Wait()
+		close(p.done)
+	}()
+	t.Cleanup(func() { p.stop() })
+	return p
+}
+
+// stop kills the process and waits for Wait to return, after which output and
+// err are the process's last word and safe to read.
+func (p *spawnedProbe) stop() {
+	_ = p.cmd.Process.Kill()
+	<-p.done
+}
+
+// kill is the SIGKILL the killed-probe tests exist to deliver.
+func (p *spawnedProbe) kill(t *testing.T) {
+	t.Helper()
+	select {
+	case <-p.done:
+		require.FailNowf(t, "cr probe run ended before it was killed",
+			"it exited %v after %s and printed:\n%s", p.err, time.Since(p.started), p.output.String())
+	default:
+	}
+	p.stop()
+}
+
+// awaitOnDisk waits up to a minute for reached to hold. A process that exits
+// first fails the test at once with its exit status and everything it printed,
+// and one still running at the deadline is killed and reported the same way:
+// a wait that only timed out could not tell a slow probe from a dead one.
+func (p *spawnedProbe) awaitOnDisk(t *testing.T, what string, reached func() bool) {
+	t.Helper()
+	deadline := time.After(60 * time.Second)
+	for !reached() {
+		select {
+		case <-p.done:
+			if reached() {
+				return
+			}
+			require.FailNowf(t, what, "cr probe run exited %v after %s and printed:\n%s",
+				p.err, time.Since(p.started), p.output.String())
+		case <-deadline:
+			p.stop()
+			require.FailNowf(t, what, "cr probe run was still running after %s and printed:\n%s",
+				time.Since(p.started), p.output.String())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	t.Logf("cr probe run reached the state on disk %s after it started", time.Since(p.started))
+}
+
 // §5.3.3 and invariant 6: the mutation is reverted when the run fails.
 //
 // A failing mutation run is §5.3.4's last rung and §5.3.7's disproof, so it is
@@ -348,24 +448,13 @@ func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
 	patch := writePatch(t, fixtureDiff)
 	mutated := filepath.Join(sandboxPath, "app.go")
 
-	probing := exec.Command(crBinary(t), "probe", "run", fixturePR,
-		"--repo", fixtureSlug, "--kind", "mutation", "--patch", patch)
-	probing.Dir = fixture
-	probing.Env = []string{
-		"PATH=" + os.Getenv("PATH"),
-		"HOME=" + t.TempDir(),
-		"TMPDIR=" + os.TempDir(),
-		state.HomeEnv + "=" + prepared.Root(),
-	}
-	require.NoError(t, probing.Start())
-	t.Cleanup(func() { _ = probing.Process.Kill() })
-
-	require.Eventually(t, func() bool {
+	probing := spawnProbe(t, prepared, fixture,
+		"--kind", "mutation", "--patch", patch)
+	probing.awaitOnDisk(t, "the probe never applied its mutation", func() bool {
 		held, err := os.ReadFile(mutated)
 		return err == nil && string(held) == fixtureMutated
-	}, 60*time.Second, 20*time.Millisecond, "the probe never applied its mutation")
-	require.NoError(t, probing.Process.Kill())
-	_ = probing.Wait()
+	})
+	probing.kill(t)
 
 	held, err := os.ReadFile(mutated)
 	require.NoError(t, err)
@@ -879,24 +968,13 @@ func TestAKilledGapProbeLeavesAFileTheNextRunRecreates(t *testing.T) {
 	supplied := writeProbeTest(t)
 	placed := filepath.Join(sandboxPath, filepath.FromSlash(gapProbePath))
 
-	probing := exec.Command(crBinary(t), "probe", "run", fixturePR, "--repo", fixtureSlug,
+	probing := spawnProbe(t, prepared, fixture,
 		"--kind", "gap", "--test", supplied, "--target", "app.go:3")
-	probing.Dir = fixture
-	probing.Env = []string{
-		"PATH=" + os.Getenv("PATH"),
-		"HOME=" + t.TempDir(),
-		"TMPDIR=" + os.TempDir(),
-		state.HomeEnv + "=" + prepared.Root(),
-	}
-	require.NoError(t, probing.Start())
-	t.Cleanup(func() { _ = probing.Process.Kill() })
-
-	require.Eventually(t, func() bool {
+	probing.awaitOnDisk(t, "the probe never placed its test file", func() bool {
 		held, err := os.ReadFile(placed)
 		return err == nil && string(held) == gapProbeTest
-	}, 60*time.Second, 20*time.Millisecond, "the probe never placed its test file")
-	require.NoError(t, probing.Process.Kill())
-	_ = probing.Wait()
+	})
+	probing.kill(t)
 
 	require.FileExists(t, placed,
 		"the killed run left the probe file behind, which is what the next run has to find")
