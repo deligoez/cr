@@ -379,7 +379,7 @@ package is under `internal/`, so there is no importable API to compare.
 
 ## Command surface
 
-Everything below is **specified, not implemented**. `spec/0.1.0.md` §11 is the
+Every command below is **implemented**. `spec/0.1.0.md` §11 is the
 source of truth; this table is a map, not a promise.
 
 | Command | Purpose |
@@ -418,6 +418,36 @@ of scope in `spec/0.1.0.md` §1.3.6. A moved head makes the round stale (§9.3);
 cmd/cr/              Main entry point
 internal/
   cli/               Cobra commands, exit codes
+  activation/        Which axes run this round, and why the others do not (§4.5)
+  axis/              The closed set of review axes (§1.5)
+  brief/             Orientation payload (§3.7)
+  config/            Layered configuration resolution (§2.7)
+  coverage/          Coverage cells (§4.5.5)
+  draft/             Editable draft rendering and triage ingest (§7.1, §7.2)
+  finding/           Review records, grades, anchors (§6)
+  gh/                Pull request reads through gh; the single network-write door
+  git/               Pinned git runner for every repository read
+  glob/              Path globs of cr's data files
+  intent/            Issue text through the configured tracker command (§3.1)
+  mapping/           Claim-to-unit mapping (§4.1.6)
+  note/              Out-of-band context store (§3.6)
+  post/              The one review a round posts (§8.3)
+  probe/             Baselines, mutation and gap probes (§5)
+  profile/           Mechanical per-project configuration (§2.4)
+  reinvention/       Candidate pre-existing symbols (§4.3.1)
+  render/            Author-facing body language, including the tr labels
+  review/            Review fan-out and the items the axes raise (§4.6)
+  role/              Role files (§2.5)
+  rule/              Rule files (§2.6)
+  run/               Test run records (§5.2.4)
+  sandbox/           Probe worktree (§5.1)
+  state/             State paths, locked writes, the ~/.cr tree (§2.2, §2.3)
+  suggestion/        Where a suggestion may land (§8.2)
+  symbol/            Head symbol index (§4.3.1)
+  testadequacy/      Test-adequacy evidence (§4.4)
+  text/              The one text normalisation (§1.4)
+  unit/              Review units from the diff's hunks (§3.4)
+scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known-survivors.json
 spec/
   0.1.0.md           Normative v0.1 contract
   <version>.md       One spec per version
@@ -671,7 +701,10 @@ Mirrors tp so the experience transfers.
 ## Distribution
 
 1. GoReleaser on a `v*` tag via `.github/workflows/release.yml`.
-2. Homebrew formula published to `deligoez/homebrew-tap`, installing `cr`.
+2. Homebrew cask published to `deligoez/homebrew-tap` under `Casks/`, installing
+   `cr`. GoReleaser 2.10 deprecated `brews` for pre-built binaries and
+   `goreleaser check` fails on the deprecated key, so `.goreleaser.yml` uses
+   `homebrew_casks`.
 3. `go install github.com/deligoez/cr/cmd/cr@<tag>`.
 4. Skill shipped in-repo at `skills/cr/SKILL.md`, exposed through
    `.claude-plugin/marketplace.json`.
