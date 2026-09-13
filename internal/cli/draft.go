@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -137,6 +138,9 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := refuseUnresolvedPost(&round.Meta); err != nil {
+				return err
+			}
 			// §9.3.2: this command moves records into `queued` and
 			// writes the round's draft.md, so a head that moved
 			// under the round refuses here.
@@ -146,6 +150,27 @@ func newDraftCmd(out *writer) *cobra.Command {
 			return produceDraft(out, layout, owner, repo, pr, &round.Meta)
 		},
 	}
+}
+
+// refuseUnresolvedPost is §8.4.4's UnresolvedPostError for `cr draft`, over a
+// round whose send cr never learned the outcome of.
+//
+// That send carried the round's queued records, and a draft moves them: a
+// deleted block or a `wrong` would store `discarded` for a record the review
+// may already hold, and §9.1 has no row taking `discarded` to `posted`, so
+// `cr post --reconcile` could never adopt that review and the flag would stay.
+// It is refused as `cr post --confirm` is, before the draft is read and before
+// anything is written, and the way forward is the same reconciliation. A round
+// whose posting is settled drafts as it always did.
+func refuseUnresolvedPost(round *state.Meta) error {
+	if !round.PostUnresolved {
+		return nil
+	}
+	return fmt.Errorf(
+		"cr draft moves the round's records, and a send whose outcome cr never learned "+
+			"may already have posted them: %w",
+		&UnresolvedPostError{Owner: round.Owner, Repo: round.Repo, PR: round.PR, Round: round.Round},
+	)
 }
 
 // produceDraft renders the round's draft, regenerating the one already there.
