@@ -181,6 +181,25 @@ func TestABlockOutsideTheQueuedRecordsAborts(t *testing.T) {
 	assert.Contains(t, refused.Error(), "f9")
 }
 
+// Of two blocks naming records the round does not hold, the one nearer the top
+// is named, whatever order the blocks are read back in. §2.1.1 has one draft
+// give one refusal, and the earlier block is the one a reviewer working down
+// the draft meets first. f9 is placed above f8 so the answer is not the ids'
+// own order either.
+func TestTheEarliestUnknownBlockIsTheOneNamed(t *testing.T) {
+	record, upper, lower := aRecord("f1"), aRecord("f9"), aRecord("f8")
+	file, entries := renderedRound(t, record)
+	pasted := file + "\n" + markerOf(upper).String() + "\n\n" + body(upper) + "\n" +
+		markerOf(lower).String() + "\n\n" + body(lower) + "\n"
+
+	_, err := ingested([]*finding.Finding{record}, pasted, entries)
+
+	var refused *MarkerEditError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, "f9", refused.ID, "the upper of the two unknown blocks is named")
+	assert.Equal(t, lineOf(t, pasted, markerOf(upper).String()), refused.At)
+}
+
 // §7.2: `disposition=wrong` in the marker discards the record as a false
 // positive whether or not the body remains. f1 keeps its body untouched, so the
 // reviewer did not have to delete text to say it; f2's body is gone; f3 was
