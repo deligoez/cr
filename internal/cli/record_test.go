@@ -376,6 +376,7 @@ func TestATerminalRecordNamesTheDuplicatesApartFromTheDrafts(t *testing.T) {
 	assert.Contains(t, out, "\x1b[36m3\x1b[0m", "the count is accented, as every terminal rendering is")
 	assert.Contains(t, out, "2 in state draft")
 	assert.Contains(t, out, "1 in state duplicate")
+	assert.NotContains(t, out, "in state suppressed", "a state with no records in it is left out")
 }
 
 // §2.3.1's write is what the command is for, and a caller has to be told when

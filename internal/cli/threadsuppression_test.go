@@ -73,6 +73,51 @@ func TestARecordNamingAThreadIsStoredSuppressedAndIsNeverDrafted(t *testing.T) {
 		"§3.5.4: a suppressed record is not drafted, because the thread already covers it")
 }
 
+// §12.1's terminal shape for the same run names the suppressed record apart from
+// the drafts, and names no state that holds nothing.
+//
+// gremlins found every clause of recordResult.states unasserted for this state:
+// the terminal tests retire a record as a duplicate, never by a thread, so the
+// suppressed count could be left out, added to the drafts instead of taken from
+// them, or joined by a `0 in state duplicate` the line exists not to print, and
+// no test said so.
+func TestATerminalRecordNamesTheSuppressedApartFromTheDrafts(t *testing.T) {
+	recordedHome(t)
+	covered := aRecord("f2", "u2")
+	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	file := writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), covered, aRecord("f3", "u2"))
+
+	out := throughATerminal(t, "record", recordPR, file, "--repo", recordSlug)
+
+	assert.Contains(t, out, "\x1b[36m3\x1b[0m: 2 in state draft, 1 in state suppressed",
+		"three stored, one of them retired by the thread the agent named")
+	assert.NotContains(t, out, "in state duplicate", "a state with no records in it is left out")
+}
+
+// §10.3's `suppressed_by_thread` is `cr record`'s to write, counted over the
+// round's stored records.
+//
+// The summary tests run a round in which nothing is suppressed by a thread, so
+// they read the count at zero, and gremlins found that counting down instead of
+// up went unnoticed.
+func TestRecordCountsTheThreadSuppressedRecordsInTheRoundSummary(t *testing.T) {
+	layout := recordedHome(t)
+	covered := aRecord("f2", "u2")
+	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
+	file := writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), covered, aRecord("f3", "u2"))
+
+	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.NoError(t, err)
+
+	body, err := layout.ReadRound(recordOwner, recordRepo, recordPRNum, recordRound, state.FileSummary)
+	require.NoError(t, err)
+	document := assertSummaryShape(t, body, ownerRecord)
+	assert.JSONEq(t, "1", string(document["suppressed_by_thread"]))
+	assert.JSONEq(t, "0", string(document["deduplicated"]))
+}
+
 // The thread id the agent supplied is stored as it arrived, and cr writes none
 // of it: §6.1.4 does not reserve `suppressed_by`, because §3.5.3 forbids cr to
 // decide suppression at all.
