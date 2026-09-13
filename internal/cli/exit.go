@@ -196,6 +196,12 @@ var codes = []mapped{
 	{is[*suggestion.RangeError](), ExitValidation,
 		"move that record's suggestion inside the range §8.2 admits, or drop " +
 			"the suggestion block"},
+	// §8.4.1 extends that pre-validation to every comment position, and a
+	// plain comment anchored outside the diff is refused the same way: every
+	// file was read, and what cannot be posted is one record's position.
+	{is[*PositionError](), ExitValidation,
+		"move that record's marker in draft.md back onto lines this round's diff " +
+			"carries, or delete its block"},
 	// §3.1.3 codes a non-zero exit from an external command 3 and surfaces
 	// its stderr. It fixes that for the tracker command, and git is one of
 	// the same three external tools, so it fails through the same mapping

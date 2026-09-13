@@ -126,16 +126,14 @@ func TestAnUnrecognisedSeverityMeetsNeitherBound(t *testing.T) {
 		"and neither is §5.4.5's ceiling")
 }
 
-// §7.2.2's shape: the bound is re-checked after triage, and the re-check is a
-// call to the same function rather than a second reading of §5.4.
+// The refusal names the command that gave it, whichever of §9.1's actors asks.
 //
-// Triage is what makes this necessary. §7.2 lets the human edit the draft, and
-// severity is one of the fields they edit, so a record that satisfied the bound
-// when it was stored can violate it by the time the payload is built. One
-// function taking the moment as an argument is what keeps the two answers from
-// drifting: there is no second implementation to keep in agreement, and the
-// refusal says which command refused.
-func TestTheSameBoundIsCheckedAtRecordTimeAndAtPostTime(t *testing.T) {
+// §7.2.2's shape has the bound asked at record time and again after triage, by
+// one function taking the moment as an argument, so the two answers differ in
+// the moment alone. That both commands actually ask is internal/cli's
+// TestTheSameBoundIsCheckedAtRecordTimeAndAtPostTime, which drives them; this is
+// the half a caller cannot observe without a refusal to read.
+func TestTheRefusalNamesTheMomentItCameFrom(t *testing.T) {
 	record := &Finding{ID: "f1", Severity: SeverityCritical}
 	gap := &probe.Record{ID: "p1", Kind: probe.Gap, Result: "passed"}
 

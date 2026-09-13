@@ -79,26 +79,23 @@ func resolveGapSupport(
 	}
 	unmapped := make([]string, 0, len(records))
 	for _, record := range records {
-		gap := gapProbeOf(found.probes, record.Probe)
-		if gap == nil {
-			continue
-		}
-		answered := answerGapSupport(gap, meta, found.runs, found.pairs, record)
 		// §5.4.4's floor and §5.4.5's ceiling, refused before anything
 		// is written, as §6.1.3's rejections are: the agent is about to
 		// correct the file and hand the whole of it in again.
-		if err := finding.CheckGapSeverity(
-			finding.ActorRecord, record, gradingGap(gap, meta), answered.Supports,
-		); err != nil {
+		answered, err := checkGapBound(finding.ActorRecord, found, meta, record)
+		if err != nil {
 			return nil, err
 		}
-		answers.support = append(answers.support, answered)
+		if answered == nil {
+			continue
+		}
+		answers.support = append(answers.support, *answered)
 		// Deduplicated, because §5.5.2 has a finding reference a probe
 		// and not the other way round: two records may rest on the same
 		// experiment, and a disclosure naming it twice would read as two
 		// experiments that both went nowhere.
-		if answered.unmapped && !slices.Contains(unmapped, gap.ID) {
-			unmapped = append(unmapped, gap.ID)
+		if answered.unmapped && !slices.Contains(unmapped, answered.Probe) {
+			unmapped = append(unmapped, answered.Probe)
 		}
 	}
 	// §4.5.4: the coupling is disclosed only where it is what decided the
@@ -109,6 +106,50 @@ func resolveGapSupport(
 		answers.unmappable = append(answers.unmappable, probe.GapUnmappable{Probes: unmapped})
 	}
 	return answers, nil
+}
+
+// refuseGapSeverities is §7.2.2's shape applied to §5.4.4's floor and §5.4.5's
+// ceiling: the bounds `cr record` held every record to, asked again of the
+// records `cr post` is about to send.
+//
+// Triage is what makes the second asking necessary. §7.2 makes `severity`
+// freely editable in draft.md, so a record that met its bound when it was
+// stored can break it by the time the payload is built, and the reviewer would
+// then send a colleague a passed gap probe dressed as the loudest item of the
+// review. The evidence is the roundEvidence §7.2.2's regrade read, so the bound
+// and the recomputed grade rest on the same files.
+//
+// The actor is `cr post --confirm` with or without the flag, as the run's
+// journal is: §11.2 has validation run before the confirmation gate, so a dry
+// run refuses exactly what the confirmed run would.
+func refuseGapSeverities(found *roundEvidence, meta *state.Meta, queued []*finding.Finding) error {
+	for _, record := range queued {
+		if _, err := checkGapBound(finding.ActorPostConfirm, found, meta, record); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkGapBound is §5.4.4 and §5.4.5 over one record: the support answer for
+// the gap probe it names, held to finding.CheckGapSeverity on behalf of the
+// command asking. It returns a nil answer, and no refusal, for a record naming
+// no gap probe.
+//
+// Both commands ask through it, so the answer `cr record` stored a record
+// against and the answer `cr post` sends it against cannot be two readings.
+func checkGapBound(
+	by finding.Actor, found *roundEvidence, meta *state.Meta, record *finding.Finding,
+) (*gapSupport, error) {
+	gap := gapProbeOf(found.probes, record.Probe)
+	if gap == nil {
+		return nil, nil
+	}
+	answered := answerGapSupport(gap, meta, found.runs, found.pairs, record)
+	if err := finding.CheckGapSeverity(by, record, gradingGap(gap, meta), answered.Supports); err != nil {
+		return nil, err
+	}
+	return &answered, nil
 }
 
 // gapProbeOf returns the gap probe record the finding names, and nil when it

@@ -52,6 +52,7 @@ func draftedHome(t *testing.T, records ...*finding.Finding) state.Layout {
 		state.Stamp{Head: draftHead, Round: draftRound}, records,
 	))
 	require.NoError(t, held.Unlock())
+	standInDiff(t, draftDiff)
 	return layout
 }
 

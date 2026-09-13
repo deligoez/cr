@@ -195,8 +195,9 @@ func newPostCmd(out *writer) *cobra.Command {
 // validates it, and reports.
 //
 // The gate is asked last, and that ordering is §8.5.1's and §11.2's together.
-// Every refusal above — an `argued` assertion, a suggestion GitHub could not
-// place, a comment count over §1.6.2's cap — happens before the flag is looked
+// Every refusal above — an `argued` assertion, a severity outside §5.4's bound
+// for its gap probe, a comment count over §1.6.2's cap, a suggestion or a
+// comment GitHub could not place — happens before the flag is looked
 // at, so an invalid payload exits 1 whether or not `--confirm` was given, and
 // only a payload that passed all of them reaches either branch of the gate.
 func buildReview(
@@ -223,6 +224,11 @@ func buildReview(
 	grading.forceUnmapped(round.Round, queued)
 	forced := finding.ForceQuestions(queued)
 	if err := finding.RefuseArguedAssertion(queued); err != nil {
+		return err
+	}
+	// §5.4.4 and §5.4.5 again, over the severities the draft's triage left
+	// the queued comments carrying.
+	if err := refuseGapSeverities(grading.roundEvidence, round, queued); err != nil {
 		return err
 	}
 	// §1.6.2, over the same queued comments and before anything below can
