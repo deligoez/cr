@@ -164,3 +164,28 @@ func TestTheReportCollectsTheFourKindsInSectionOrder(t *testing.T) {
 	assert.NotNil(t, Lenses{}.Disclosures(),
 		"§12.3: a round with every lens running reports an empty list, never null")
 }
+
+// Each kind of lens can be the only one with entries, and the report still holds
+// every entry and the verdict above them.
+//
+// The fixtures above carry at most one entry of each kind, which is the range
+// where a capacity computed as a difference of the lengths stays non-negative.
+// `make` panics on a negative capacity rather than allocating less, so two
+// entries of one kind beside none of the others is the smallest input that tells
+// a sum from a difference, and each kind takes its turn.
+func TestAReportOfOneKindOfLensIsCollectedWhole(t *testing.T) {
+	two := []finding.HonestyDisclosure{skippedRole, skippedRole}
+	for name, lenses := range map[string]Lenses{
+		"two axes":   {Axes: two},
+		"two halves": {Halves: two},
+		"two roles":  {Roles: []SkippedRole{skippedRole, skippedRole}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotPanics(t, func() {
+				assert.Len(t, lenses.Disclosures(), 2)
+				assert.Len(t, lenses.Verdict(false, "u2 holds no cell for role correctness"), 3,
+					"§10.2: the verdict and one line per lens that did not run")
+			})
+		})
+	}
+}
