@@ -460,28 +460,25 @@ func setPostUnresolved(l state.Layout, round *state.Meta, unresolved bool) error
 // postOutcome is §8.4's fork, read off what came back from §8.3's call.
 //
 // GitHub saying no is §8.4.2, and post.Rejection reads its error document off
-// gh.CommandError's standard output — where a failed `gh api` writes it. That
-// refusal is returned with `post_unresolved` cleared again: send set it before
-// the call, §8.4.2 marks nothing posted, and a rejection is an outcome cr did
-// learn, so the round is left postable.
+// gh.CommandError's standard output — where a failed `gh api` writes it — beside
+// the HTTP status gh names on standard error. That refusal is returned with
+// `post_unresolved` cleared again: send set it before the call, §8.4.2 marks
+// nothing posted, and a rejection is an outcome cr did learn, so the round is
+// left postable.
 //
-// Everything else is §8.4.4's unknown outcome — a timeout, a dropped
-// connection, or a response cr cannot parse — and post.Rejection answers nil
-// for exactly those, because reporting "rejected" would be cr asserting the one
-// thing it failed to establish. `post_unresolved` is then set on meta.json and
-// the caller is told what to run; nothing is retried, and there is no branch
-// here that could retry, because a second send is the double post §8.4.4 calls
-// the worse failure.
+// Everything else is §8.4.4's unknown outcome — a timeout, a server error, a
+// dropped connection, or a response cr cannot parse — and post.Rejection
+// answers nil for exactly those, because reporting "rejected" would be cr
+// asserting the one thing it failed to establish. `post_unresolved` is then
+// set on meta.json and the caller is told what to run; nothing is retried, and
+// there is no branch here that could retry, because a second send is the
+// double post §8.4.4 calls the worse failure.
 func postOutcome(l state.Layout, round *state.Meta, sent *post.Review, failed error) error {
 	if rejected := rejectedPost(sent, failed); rejected != nil {
 		return errors.Join(rejected, setPostUnresolved(l, round, false))
 	}
-	return errors.Join(fmt.Errorf(
-		"§8.4.4: the outcome of the review-creation call is unknown, so post_unresolved is set "+
-			"on meta.json and nothing is retried; run `cr post %d --reconcile` to match "+
-			"§8.4.3's payload hash against the pull request's reviews: %w",
-		round.PR, failed,
-	), recordSentRecords(l, round, sent), setPostUnresolved(l, round, true))
+	return errors.Join(&UnknownOutcomeError{PR: round.PR, Err: failed},
+		recordSentRecords(l, round, sent), setPostUnresolved(l, round, true))
 }
 
 // UnresolvedPostError is §8.4.4's refusal of a second send: the round carries
@@ -510,3 +507,33 @@ func (e *UnresolvedPostError) Error() string {
 		e.Owner, e.Repo, e.PR, e.Round, e.PR, e.Owner, e.Repo,
 	)
 }
+
+// UnknownOutcomeError is §8.4.4's report of a review-creation call whose outcome
+// cr could not establish: a timeout, a server error, a dropped connection, or a
+// response it cannot parse. The review may exist, so `post_unresolved` is set
+// and nothing is retried.
+//
+// §11.2 codes it 4, its partial post. It is deliberately not the 3 the
+// gh.CommandError it carries would take: gh ran, the command line is right, and
+// what is unsettled is where the round stands, which `cr post --reconcile`
+// settles and no fix to the tool would.
+type UnknownOutcomeError struct {
+	// PR is the pull request whose review-creation call went unanswered.
+	PR int
+	// Err is the failure the call came back with, so gh's own words and
+	// the status it named reach the reviewer.
+	Err error
+}
+
+func (e *UnknownOutcomeError) Error() string {
+	return fmt.Sprintf(
+		"§8.4.4: the outcome of the review-creation call is unknown, so post_unresolved is set "+
+			"on meta.json and nothing is retried; run `cr post %d --reconcile` to match "+
+			"§8.4.3's payload hash against the pull request's reviews: %v",
+		e.PR, e.Err,
+	)
+}
+
+// Unwrap exposes the failure underneath, so the gh command that ran can still
+// be read off the error.
+func (e *UnknownOutcomeError) Unwrap() error { return e.Err }

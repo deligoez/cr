@@ -20,11 +20,14 @@ import (
 // written — every one of those is on the caller's other branch.
 //
 // Three failures arrive here and only one is §8.4.2's. A gh that could not run
-// is §3.1.3's external command failure; a response cr cannot parse is §8.4.4's
-// unknown outcome, where cr does not know whether the review was created and
-// must not say it was rejected; and a document GitHub said no in is this
-// section's, coded 4. Only the third is answered here, and the nil the other
-// two get is what leaves the caller free to report them as what they are.
+// is §3.1.3's external command failure; a response cr cannot parse, a server
+// error or a timeout is §8.4.4's unknown outcome, where cr does not know
+// whether the review was created and must not say it was rejected; and a
+// client error GitHub said no in is this section's, coded 4. Only the third is
+// answered here, and the nil the other two get is what leaves the caller free
+// to report them as what they are. The status is the one gh reported on
+// standard error, because that is the transport's reading of the response and
+// the document's own field is not always there.
 // The nil is returned as a nil of this function's own type and never as the
 // typed pointer post.Rejection answers with. A `*post.RejectedError` that is
 // nil is not a nil `error`: it is an interface carrying a nil pointer, every
@@ -36,7 +39,7 @@ func rejectedPost(review *post.Review, err error) error {
 	if !errors.As(err, &failed) {
 		return nil
 	}
-	rejected := post.Rejection(review, failed.Stdout)
+	rejected := post.Rejection(review, failed.Stdout, failed.HTTPStatus())
 	if rejected == nil {
 		return nil
 	}

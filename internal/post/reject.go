@@ -100,11 +100,19 @@ func (r *reported) said() (field, message string) {
 // Rejection reads GitHub's response to a review-creation call it refused and
 // answers §8.4.2's report over the payload that was sent.
 //
-// It answers nil for a response that is not GitHub saying no — bytes that do
-// not decode, or a document carrying no message. That is §8.4.4's unknown
-// outcome and not this section's: cr could not parse the response, so it does
-// not know whether the review was created, and reporting "rejected" would be
-// cr asserting the one thing it failed to establish.
+// status is the HTTP status the transport reported, and "" when it reported
+// none; the document's own `status` field stands in only then. §8.4.2's
+// rejection is a response stating the review was not created, and only a
+// client error states that: GitHub refused the request it read. A server error
+// or a timeout — GitHub's 504 carries "We couldn't respond to your request in
+// time" as its message — says nothing of whether the review exists, and neither
+// does a response naming no status. Each of those answers nil.
+//
+// It answers nil as well for a response that is not GitHub saying no — bytes
+// that do not decode, or a document carrying no message. That is §8.4.4's
+// unknown outcome and not this section's: cr could not parse the response, so
+// it does not know whether the review was created, and reporting "rejected"
+// would be cr asserting the one thing it failed to establish.
 //
 // Every position GitHub named is attributed to the records it could be about,
 // and never to one it could not. GitHub's validation errors name a field and
@@ -112,14 +120,20 @@ func (r *reported) said() (field, message string) {
 // payload and each is listed with its record id; an entry whose message names
 // a path belongs to the comments on that path alone. Narrowing further would
 // be cr inventing an attribution the API did not make.
-func Rejection(review *Review, body string) *RejectedError {
+func Rejection(review *Review, body, status string) *RejectedError {
 	var said response
 	if err := json.Unmarshal([]byte(body), &said); err != nil || said.Message == "" {
 		return nil
 	}
+	if status == "" {
+		status = said.Status
+	}
+	if !refused(status) {
+		return nil
+	}
 	rejected := &RejectedError{
 		Message:   said.Message,
-		Status:    said.Status,
+		Status:    status,
 		Positions: make([]InvalidPosition, 0, len(said.Errors)),
 	}
 	for _, raw := range said.Errors {
@@ -132,6 +146,15 @@ func Rejection(review *Review, body string) *RejectedError {
 		rejected.Positions = append(rejected.Positions, attribute(review, "", said.Message)...)
 	}
 	return rejected
+}
+
+// refused reports whether an HTTP status states that the request was refused
+// rather than left unanswered: a client error, less 408, which is a timeout
+// and §8.4.4's by name. A status that is not a number reads as 0, which is
+// outside the range, so it refuses nothing.
+func refused(status string) bool {
+	code, _ := strconv.Atoi(status)
+	return code >= 400 && code < 500 && code != 408
 }
 
 // entry reads one element of the errors array, whichever of its two shapes it

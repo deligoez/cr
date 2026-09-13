@@ -202,6 +202,12 @@ var codes = []mapped{
 	{is[*PositionError](), ExitValidation,
 		"move that record's marker in draft.md back onto lines this round's diff " +
 			"carries, or delete its block"},
+	// §8.4.4's unknown outcome carries the gh.CommandError the call failed
+	// with, so it sits above that row: gh ran, and what is unsettled is
+	// whether the review exists, which §11.2 codes 4 as a partial post.
+	{is[*UnknownOutcomeError](), ExitState,
+		"run `cr post <pr> --reconcile`, which adopts the review the call created or clears " +
+			"post_unresolved for a retry; a second `cr post --confirm` is refused until then"},
 	// §3.1.3 codes a non-zero exit from an external command 3 and surfaces
 	// its stderr. It fixes that for the tracker command, and git is one of
 	// the same three external tools, so it fails through the same mapping
