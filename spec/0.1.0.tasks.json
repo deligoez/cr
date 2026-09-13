@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T18:36:42.598289Z",
+  "updated_at": "2026-09-13T19:06:54.707945Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9908,7 +9908,7 @@
     {
       "id": "malformed-input-line-exits-validation",
       "title": "Exit 1 on a malformed line in an input file",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 30,
@@ -9917,11 +9917,22 @@
         "### 11.2 Exit codes",
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T18:37:58.758065Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T18:53:37.49477Z",
+      "closed_reason": "- A caller-supplied input line that is not JSON or gives a field the wrong type now exits 1 naming the file and the line: internal/state/records.go's DecodeStamped, which reads only the files an agent hands cr record, cr merge, cr claims record, cr map record and cr cells record, returns the new state.MalformedLineError{File, Line, Err} at both decode sites, and one row in internal/cli/exit.go codes it ExitValidation with the hint to correct that line, while a stored file's undecodable line still goes through unusableLine to the FileError floor with state.UnusableHint (exit 3, statusunusable_test.go and unreadable_test.go green); dogfood binary on a scratch repository: cr claims record over \"\\n{\\\"id\\\":\" printed `bad-syntax.ndjson line 2: unexpected end of JSON input` with that hint and exited 1, cr record over {\"id\":7} and cr map record exited 1 the same way.\n- Audit round 5 row table-14-1 is repaired at its cause: the plain fmt.Errorf at DecodeStamped's two decode sites and at ParsePatch's refusals and probe.go's no-hunk refusal are now typed errors, each type claimed by one exit.go row rather than per command, so no caller-supplied malformed line or patch falls through to the usage code and hint.\n- A --patch file that is not a unified diff makes cr probe run exit 1 naming the file: internal/git/patch.go's ParsePatch returns the new git.MalformedPatchError{Line, Problem}, internal/cli/probe.go's mutationInput fills its File with the --patch path and returns the same type for a patch holding no hunk, and one row in internal/cli/exit.go codes it ExitValidation; the dogfood binary answered a prose --patch with `notadiff.patch: holds no hunk: ...` and exit 1.\n- internal/cli/malformedline_test.go drives cr record, cr merge, cr claims record, cr map record and cr cells record over {\"id\": and over a string field given 7 (id, claim or unit), each after a blank line, asserting the MalformedLineError's file, line 2, the json.SyntaxError or json.UnmarshalTypeError field, exit 1, the row's hint and an unchanged stored file, and drives cr probe run over a prose patch and a hunk line with no marker asserting the whole MalformedPatchError, exit 1, the hint and that no suite ran; overlay mutants reverting either DecodeStamped site, dropping the File fill, restoring the plain no-hunk error, or coding either row 2 each turned the tests red, and the gate (go test -race -count=1, golangci-lint run, scripts/deadcode.sh, gofmt -l) was green.\n",
+      "gate_passed_at": "2026-09-13T18:53:37.49477Z",
+      "commit_sha": "e91445b",
+      "commit_shas": [
+        "e91445b"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/malformedline_test.go",
+        "internal/cli/probe.go",
+        "internal/git/patch.go",
+        "internal/state/records.go"
+      ]
     },
     {
       "id": "probe-lock-names-repository-root",
@@ -9985,7 +9996,7 @@
     {
       "id": "timeout-response-is-unknown-outcome",
       "title": "Treat a timeout response as unknown outcome",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 30,
@@ -9993,16 +10004,30 @@
       "source_sections": [
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T18:37:32.975305Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T18:55:41.31698Z",
+      "closed_reason": "- A review-creation call whose response is a server error or a timeout is now §8.4.4's unknown outcome: internal/post/reject.go's Rejection takes the HTTP status gh reported on standard error (the new internal/gh/status.go CommandError.HTTPStatus, reading `gh: \u003cmessage\u003e (HTTP 504)` and `gh: HTTP 502` as measured with gh 2.97.0 against a local unix-socket server, the document's status field standing in only when gh named none) and answers nil for a 5xx, a 408, GitHub's \"We couldn't respond to your request in time\" 504 body, an unparseable body or a response naming no status, so internal/cli/reconcile.go's postOutcome returns the new UnknownOutcomeError with post_unresolved set, which a new internal/cli/exit.go row above the gh.CommandError row codes 4 with a hint naming `cr post \u003cpr\u003e --reconcile`; the dogfood binary against real gh answering 504 printed that §8.4.4 error, exited 4, left meta.json post_unresolved true, and refused the next `cr post 7 --confirm` with UnresolvedPostError at exit 4 while the server logged one POST.\n- Only a client error is §8.4.2's rejection: refused() admits a status from 400 to 499 other than 408, so a 422 carrying GitHub's validation errors stays RejectedError, exits 4 and clears post_unresolved; the dogfood binary against real gh answering 422 exited 4 naming `f1 lib.go:4: line: line must be part of the diff` with post_unresolved false, and TestOnlyAClientErrorIsARejection in internal/post/reject_test.go pins the 400, 499, 500, 399 and 408 boundaries and that the transport status wins over the document's.\n- Audit round 5 row list-44-4 (rejectedPost ignoring the status, internal/post/reject.go never reading it, postOutcome clearing post_unresolved) is repaired by commit bc12b89: internal/cli/rejected.go passes failed.HTTPStatus() to post.Rejection, and a 504 or 502 JSON body no longer classifies as a rejection.\n- internal/cli/unknownoutcome_test.go's TestAServerErrorOrATimeoutIsAnUnknownOutcome drives cr post --confirm through a gh shim answering a 504 timeout body, a 502 Server Error body, a 502 non-JSON body, a 422 validation body and a 422 whose document names no status, asserting exit 4, post_unresolved, the error type and hint, and that the following cr post --confirm refuses (UnresolvedPostError with one POST sent, or RejectedError with two sent for the 422s); overlay mutants disabling the status check, coding the row 3, or dropping the stderr status each turn it red, and the existing rejected-post tests keep their 4xx behaviour with go test -race -count=1 ./... green.\n",
+      "gate_passed_at": "2026-09-13T18:55:41.31698Z",
+      "commit_sha": "bc12b89",
+      "commit_shas": [
+        "bc12b89"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/rejected.go",
+        "internal/cli/unknownoutcome_test.go",
+        "internal/gh/status.go",
+        "internal/gh/status_test.go",
+        "internal/post/reject.go",
+        "internal/post/reject_test.go"
+      ]
     },
     {
       "id": "draft-refuses-unresolved-post",
       "title": "Refuse triage writes while a post is unresolved",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 30,
@@ -10011,16 +10036,24 @@
         "### 8.4 Partial failure",
         "### 9.1 States"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T18:37:45.056423Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T18:53:17.563702Z",
+      "closed_reason": "- cr draft now refuses a round carrying post_unresolved before it reads the draft or writes anything: internal/cli/draft.go's newDraftCmd calls the new refuseUnresolvedPost straight after briefedRound and ahead of RefuseStale, which returns UnresolvedPostError (exit 4 through the existing row in internal/cli/exit.go, hint naming `cr post \u003cpr\u003e --reconcile`) wrapped with the sentence that cr draft moves the round's records, so the draft's discard can no longer store discarded for a record the unsettled send carried and cr post --reconcile can always adopt the review or clear the flag per §8.4.4; on the same head no other command moves such a record, since cr record only appends new records (AppendStamped) and cr post --confirm and settleDiscards already refuse the flag, while cr status still runs (dogfood exit 0).\n- Audit round 5 row task-post-reconcile reproduced first at HEAD with a HEAD build on a scratch repository and a gh shim exiting 1 on the POST: after the unknown-outcome send and a draft deleting f1's block, cr draft exited 0 with f1 discarded and cr post --reconcile exited 4 with `f1 is discarded and cr post --reconcile may not move it to posted` and post_unresolved still true; the dogfood binary on the same steps refused the draft with exit 4 and `cr draft moves the round's records, and a send whose outcome cr never learned may already have posted them: acme/web#1 round 1 carries post_unresolved: ...`, left f1 to f4 queued, then cr post --reconcile exited 0 adopting f1 to f4 as posted with post_unresolved false, and the next cr draft exited 0.\n- internal/cli/draftunresolved_test.go's TestADraftIsRefusedWhileAPostIsUnresolved drives cr post --confirm against reconcilingShim (exit 1 on the POST, one write), deletes f1's block, and asserts the draft's refusal as the whole UnresolvedPostError value, the whole wrapped message, ExitState, the whole hint, every file under the state root byte-identical and f1 still queued, then cr post --reconcile adopting adoptedReviewURL with records f1 and f2 posted and still one write, and cr draft succeeding again; the refusal mutant (`if !round.PostUnresolved || round.PostUnresolved`) applied through go test -overlay turns it red at the refusal assertion, and the gate was green in a clone of HEAD plus this commit.\n",
+      "gate_passed_at": "2026-09-13T18:53:17.563702Z",
+      "commit_sha": "129af0d",
+      "commit_shas": [
+        "129af0d"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftunresolved_test.go"
+      ]
     },
     {
       "id": "review-body-reasons-in-render-lang",
       "title": "Write the review body in English",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 45,
@@ -10031,10 +10064,53 @@
       ],
       "started_at": "2026-09-13T15:05:34.440976Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-13T18:51:21.078389Z",
+      "closed_reason": "- The section 8.4.3 review body is now English whatever render.lang says: internal/render/reviewbody.go drops the per-language reviewBodyTexts table and reviewBodyOf, writes the heading and framing as English constants, and ReviewBody(active, disclosed, hash) takes no language and appends each lens reason as the English sentence its package writes, so no Turkish text remains in internal/render outside the section 8.1.4 question labels, and the en body is byte-identical to before\n- Audit round 5 row task-render-lang-domain is answered: a body rendered under render.lang tr no longer reads a Turkish heading over English reasons, it is the English body TestTheReviewBodyIsTheSameEnglishUnderEitherRenderLanguage asserts for tr and en alike\n- render.lang still governs comment bodies and their question labels: internal/render/body.go keeps BodyComment as the one member of the language-governed set, BodyReview is removed, QuestionLabel still asks BodyComment, TestOnlyTheCommentBodyIsWrittenInTheConfiguredLanguage and TestEveryLanguageKeyedTextIsReadThroughTheBodySet hold that, and cr post's discloseInBody in internal/cli/post.go sets the body after review.Hash so the payload hash of section 8.3.3 still excludes it, which TestTheEmbeddedHashIsThePayloadHashOfTheComments asserts unchanged\n- TestTheReviewBodyIsTheSameEnglishUnderEitherRenderLanguage in internal/cli/reviewbody_test.go runs cr post under CR_RENDER_LANG tr and en, checks the resolved setting each run, and asserts identical bodies with the English framing and entries of every kind (axis test disabled, axis intent unavailable, lens convention/reinvention and test/symbols unavailable, four roles skipped), red under an overlay of the previous render and post files, and TestNoTurkishTextOutsideTheQuestionLabels in internal/render/english_test.go fails on a Turkish string literal outside questionLabels, red when a clone's reviewbody.go carried Bakılmayan mercek yok\n",
+      "gate_passed_at": "2026-09-13T18:51:21.078389Z",
+      "commit_sha": "4e7a50f",
+      "commit_shas": [
+        "4e7a50f"
+      ],
+      "commit_files": [
+        "internal/cli/post.go",
+        "internal/cli/reconcile_test.go",
+        "internal/cli/reviewbody_test.go",
+        "internal/render/body.go",
+        "internal/render/body_test.go",
+        "internal/render/english_test.go",
+        "internal/render/lang.go",
+        "internal/render/reviewbody.go",
+        "internal/render/reviewbody_test.go"
+      ]
+    },
+    {
+      "id": "unresolved-post-survives-new-round",
+      "title": "Settle an unresolved post across a moved head",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- When a round carries post_unresolved and the head moves, cr brief either refuses to open the new round with exit 4 and a hint naming cr post --reconcile, or cr post --reconcile still settles the round whose posted.json holds the unsettled payload, so an unknown-outcome send can never be stranded by a new head (found while closing draft-refuses-unresolved-post, 129af0d: internal/brief/store.go metaOf carries post_unresolved into the new round; not yet measured).\n- A test first measures the stuck path at HEAD: an unknown-outcome send, a head move, cr brief, then cr post --reconcile against a shim listing the review; it asserts the chosen behaviour and exactly one POST; if HEAD already settles it, the test stays as a pin and the closure quotes the measurement.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 9.3 A changed head"
+      ],
+      "started_at": "2026-09-13T18:54:30.946648Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T19:06:54.698232Z",
+      "closed_reason": "- cr brief now refuses to open a new round while the current round carries post_unresolved and the head moved, with exit 4 and the UnresolvedPostError hint naming cr post --reconcile: internal/brief/brief.go roundOf returns the new brief.UnsettledPostError (internal/brief/unsettled.go) before persist writes anything, and internal/cli/brief.go unsettledBrief reports it as UnresolvedPostError with both heads in the message, relying on section 8.4.4 (reconcile adopts the review by moving the payload's records from queued to posted) with section 9.1 listing no move out of stale and section 9.3.2 exempting cr post --reconcile from the moved-head refusal, so the unsettled send is settled on the round that sent it; the dogfood binary on a scratch repository printed \"the head moved from fc1264ed to c1593565 ... run `cr post 1 --reconcile --repo acme/dog`\" and exited 4\n- Measured at HEAD bc12b89 before the fix, over the test's fixture: cr brief exited 0 and opened round 3 with post_unresolved still true (metaOf carried it), f1 and f2 went stale in round 2, cr post --reconcile exited 3 on the missing rounds/3/posted.json leaving the flag set, and a second cr post --confirm was refused, so the send was stranded and HEAD did not settle it\n- internal/cli/briefunresolved_test.go TestABriefOnAMovedHeadIsRefusedWhileAPostIsUnresolved drives the stuck path through the commands: an unknown-outcome send through a gh shim that exits 1 on the POST, a head move to a real commit, cr brief, then cr post --reconcile against the shim listing the review carrying the embedded payload hash\n- The test asserts the chosen behaviour, the refused brief (whole error, exit 4, hint, every file under the state root unchanged), the reconcile adopting f1 and f2, and a brief opening round 3 with the flag cleared and both records still posted, and it asserts exactly one POST reached the shim across the whole run\n- HEAD did not already settle it, so the test is the regression test rather than a pin; it goes red under both overlay mutants (the PostUnresolved check disabled in roundOf, the cli translation skipped), and the gate is green with deadcode at 11 lines\n",
+      "gate_passed_at": "2026-09-13T19:06:54.698232Z",
+      "commit_sha": "f1a2b90",
+      "commit_shas": [
+        "f1a2b90"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/store.go",
+        "internal/brief/unsettled.go",
+        "internal/cli/brief.go",
+        "internal/cli/briefunresolved_test.go"
+      ]
     }
   ]
 }
