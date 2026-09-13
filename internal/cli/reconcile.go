@@ -295,7 +295,9 @@ func writeAdopted(
 }
 
 // setPostUnresolved writes `post_unresolved` onto meta.json and leaves every
-// other field as it was read.
+// other field as the file holds it once the §2.3.1 lock is taken. The round's
+// own copy is not what is written back: it was read before the lock, and a `cr
+// brief` that took the lock in between would have its fields reverted.
 //
 // It is the second writer of that file, and §8.4.4 is what makes it one: §3.7
 // gives `cr brief` meta.json, and this field is the one thing in it that a
@@ -309,9 +311,7 @@ func setPostUnresolved(l state.Layout, round *state.Meta, unresolved bool) error
 	if err != nil {
 		return err
 	}
-	stored := *round
-	stored.PostUnresolved = unresolved
-	if err := held.WriteMeta(&stored); err != nil {
+	if err := held.SetPostUnresolved(unresolved); err != nil {
 		_ = held.Unlock()
 		return err
 	}

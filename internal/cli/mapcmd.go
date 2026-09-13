@@ -195,8 +195,9 @@ func storeMapping(
 //
 // meta.json's stamp is written last, so a run that fails before it leaves a
 // round §4.6.5 still refuses rather than one it unblocks over a mapping that
-// did not land. Every other field is written as the round was read, as
-// setPostUnresolved writes its own.
+// did not land. Every other field is left as the file holds it under the lock,
+// as setPostUnresolved leaves them: round is the copy read before the lock, and
+// writing it back would revert a `cr brief` that took the lock in between.
 func publishMapping(
 	l state.Layout, held *state.Lock, round *state.Meta, pairs []*mapping.Pair, claims []string,
 ) ([]mapping.DroppedSetAside, error) {
@@ -213,9 +214,7 @@ func publishMapping(
 	if err := state.ReplaceStamped(held, state.FileIntentGaps, at, gaps); err != nil {
 		return nil, err
 	}
-	stamped := *round
-	stamped.MappingRound, stamped.MappingHead = round.Round, round.Head
-	return dropped, held.WriteMeta(&stamped)
+	return dropped, held.StampMapping(round.Round, round.Head)
 }
 
 // storedPairs is the round's mapping as mapping.Gaps reads it. The pairs were

@@ -3,6 +3,8 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 // Meta is meta.json: the header of one pull request's state directory, holding
@@ -62,10 +64,14 @@ func (l Layout) ReadMeta(owner, repo string, pr int) (Meta, error) {
 	if err != nil {
 		return Meta{}, err
 	}
+	return decodeMeta(body, l.PRFile(owner, repo, pr, FileMeta))
+}
+
+// decodeMeta parses meta.json's body, read from path.
+func decodeMeta(body []byte, path string) (Meta, error) {
 	var m Meta
 	if err := json.Unmarshal(body, &m); err != nil {
-		return Meta{}, FileFailure(
-			"read", l.PRFile(owner, repo, pr, FileMeta), UnusableHint, err)
+		return Meta{}, FileFailure("read", path, UnusableHint, err)
 	}
 	m.ActiveRoles = roleList(m.ActiveRoles)
 	return m, nil
@@ -79,6 +85,41 @@ func (k *Lock) WriteMeta(m *Meta) error {
 		return err
 	}
 	return k.Write(FileMeta, body)
+}
+
+// SetPostUnresolved sets §8.4.4's `post_unresolved` on meta.json and leaves
+// every other field as the file holds it under the lock.
+func (k *Lock) SetPostUnresolved(unresolved bool) error {
+	return k.updateMeta(func(m *Meta) { m.PostUnresolved = unresolved })
+}
+
+// StampMapping sets the mapping stamp `cr map record` leaves on meta.json and
+// leaves every other field as the file holds it under the lock.
+func (k *Lock) StampMapping(round int, head string) error {
+	return k.updateMeta(func(m *Meta) { m.MappingRound, m.MappingHead = round, head })
+}
+
+// updateMeta is the read-modify-write of one meta.json field, with the read
+// taken through the held lock.
+//
+// A writer that changes one field and publishes a copy of the round it read
+// before taking the lock writes back every other field as it was then: a `cr
+// brief` that took the lock in between has its round, head, issue key, profile
+// and roles silently reverted. Reading here, after §2.3.1's lock is held, leaves
+// no writer between the read and the write. It hands the change the document
+// and nothing back, so it is no read of the round for a caller to act on.
+func (k *Lock) updateMeta(change func(*Meta)) error {
+	path := filepath.Join(k.dir, FileMeta)
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return FileFailure("read", path, readHint(FileMeta), err)
+	}
+	m, err := decodeMeta(body, path)
+	if err != nil {
+		return err
+	}
+	change(&m)
+	return k.WriteMeta(&m)
 }
 
 // encodeMeta renders meta.json: pretty-printed with two-space indentation, and
