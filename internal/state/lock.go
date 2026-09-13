@@ -2,7 +2,6 @@ package state
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,8 +25,12 @@ type Lock struct {
 // name.
 //
 // The state directory is created alongside the lock file so that a writer never
-// depends on EnsurePR having run first.
+// depends on EnsurePR having run first. Neither is created for an owner and
+// repository whose paths would leave the state tree.
 func (l Layout) LockPR(owner, repo string, pr int) (*Lock, error) {
+	if err := l.containRepo(owner, repo); err != nil {
+		return nil, err
+	}
 	path := l.PRLockFile(owner, repo, pr)
 	dir := l.PRDir(owner, repo, pr)
 	if err := makeDirs([]string{filepath.Dir(path), dir}); err != nil {
@@ -35,15 +38,32 @@ func (l Layout) LockPR(owner, repo string, pr int) (*Lock, error) {
 	}
 	held := flock.New(path)
 	if err := held.Lock(); err != nil {
-		return nil, fmt.Errorf("cannot lock %s: %w", path, err)
+		return nil, FileFailure("lock", path, lockHint, err)
 	}
 	return &Lock{held: held, dir: dir}, nil
 }
 
+// lockHint is §12.4's next actionable step for an advisory lock of §2.3.1 or
+// §5.6.1 that could not be taken or released.
+//
+// It is a file failure and §11.2 codes it 3, as writeHint's is: the command
+// line was right, and what refused was the lock file under the state root.
+const lockHint = "cr locks through a file under the state root's locks directory; " +
+	"check that the path the message names is a regular file cr can open for writing"
+
 // Write publishes one file of the locked pull request's state.
 func (k *Lock) Write(name string, data []byte) error {
-	return writeAtomic(filepath.Join(k.dir, name), data)
+	path := filepath.Join(k.dir, name)
+	if err := contain(k.dir, path); err != nil {
+		return err
+	}
+	return writeAtomic(path, data)
 }
+
+// removeHint is §12.4's next actionable step for a file of §2.3 that could not
+// be removed: a removal, like §2.3's rename, is a change to the directory.
+const removeHint = "removing a file changes the pull request's state directory, " +
+	"so the directory itself has to be writable; check its permissions"
 
 // Remove deletes one file of the locked pull request's state, and reports a
 // file that was not there as success.
@@ -56,8 +76,11 @@ func (k *Lock) Write(name string, data []byte) error {
 // to know whether it was a first.
 func (k *Lock) Remove(name string) error {
 	path := filepath.Join(k.dir, name)
+	if err := contain(k.dir, path); err != nil {
+		return err
+	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("cannot remove %s: %w", path, err)
+		return FileFailure("remove", path, removeHint, err)
 	}
 	return nil
 }
@@ -70,7 +93,7 @@ func (k *Lock) Remove(name string) error {
 // while every call kept reporting success. Never "clean up" the lock file.
 func (k *Lock) Unlock() error {
 	if err := k.held.Unlock(); err != nil {
-		return fmt.Errorf("cannot release %s: %w", k.held.Path(), err)
+		return FileFailure("release", k.held.Path(), lockHint, err)
 	}
 	return nil
 }
@@ -79,7 +102,13 @@ func (k *Lock) Unlock() error {
 // §2.3.2 requires reads to be lock-free, which is what obliges every write to
 // publish by rename.
 func (l Layout) ReadPR(owner, repo string, pr int, name string) ([]byte, error) {
+	if err := l.containRepo(owner, repo); err != nil {
+		return nil, err
+	}
 	path := l.PRFile(owner, repo, pr, name)
+	if err := contain(l.PRDir(owner, repo, pr), path); err != nil {
+		return nil, err
+	}
 	body, err := os.ReadFile(path)
 	if err != nil {
 		// A file of §2.2's tree the command required, so §11.2 codes it

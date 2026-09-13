@@ -9,7 +9,7 @@ import (
 
 // Every field of the §2.3 meta.json row survives the writer and the reader.
 func TestMetaSurvivesARoundTrip(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	want := Meta{
 		Owner: "acme", Repo: "web", PR: 42,
 		IssueKey:       "ACME-7",
@@ -34,7 +34,7 @@ func TestMetaSurvivesARoundTrip(t *testing.T) {
 
 // §12.3: an absent list serialises as [], never null.
 func TestMetaNeverWritesANullRoleList(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)

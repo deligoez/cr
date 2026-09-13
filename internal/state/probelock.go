@@ -59,11 +59,18 @@ type ProbeLockedError struct {
 	Waited time.Duration
 }
 
+// ProbeLockedHint is §12.4's next actionable step for a ProbeLockedError, and
+// the one step: internal/cli's exit code table prints it beside the message,
+// and the message does not spell a step of its own. Audit round 1 found the
+// two disagreeing — the message said to raise the setting "with `cr config`",
+// which only prints the configuration, while the table said to wait.
+const ProbeLockedHint = "wait for the other cr run on this repository and profile to finish, " +
+	"then run the command again"
+
 func (e *ProbeLockedError) Error() string {
 	return fmt.Sprintf(
 		"another cr run holds the probe lock for %s under profile %s: waited %s, "+
-			"which is probe.lock_timeout_seconds; "+
-			"wait for that run to finish, or raise the setting with `cr config`",
+			"which is probe.lock_timeout_seconds",
 		e.RepoPath, e.ProfileID, e.Waited,
 	)
 }
@@ -108,7 +115,7 @@ func (l Layout) LockProbe(repoPath, profileID string, timeout time.Duration) (*P
 	case err == nil || errors.Is(err, context.DeadlineExceeded):
 		return nil, &ProbeLockedError{RepoPath: repoPath, ProfileID: profileID, Waited: timeout}
 	}
-	return nil, fmt.Errorf("cannot lock %s: %w", path, err)
+	return nil, FileFailure("lock", path, lockHint, err)
 }
 
 // CollisionWarning is §5.6.3's warning, and it is a warning rather than an
@@ -134,7 +141,7 @@ func (k *ProbeLock) CollisionWarning() string {
 // alongside the holder while every call kept reporting success.
 func (k *ProbeLock) Unlock() error {
 	if err := k.held.Unlock(); err != nil {
-		return fmt.Errorf("cannot release %s: %w", k.held.Path(), err)
+		return FileFailure("release", k.held.Path(), lockHint, err)
 	}
 	return nil
 }

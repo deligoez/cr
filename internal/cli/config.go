@@ -149,10 +149,23 @@ func newConfigCmd(out *writer) *cobra.Command {
 
 // splitRepo reads an owner/repo argument, which the per-repository layer of
 // §2.7 needs before it can be located.
+//
+// Each half becomes one directory of §2.2's tree, so each has to be one path
+// segment: a `..` or a separator in either would aim cr's state somewhere the
+// argument does not name. Audit round 1 measured `--repo ../..` reaching the
+// state package unrefused. The refusal is §11.2's code 2 — the command line is
+// what is wrong — and internal/state refuses a path outside the root again for
+// any caller that did not come through here.
 func splitRepo(repo string) (owner, name string, err error) {
 	owner, name, ok := strings.Cut(repo, "/")
-	if !ok || owner == "" || name == "" {
-		return "", "", fmt.Errorf("invalid repository %q: pass it as owner/repo", repo)
+	if !ok || !pathSegment(owner) || !pathSegment(name) {
+		return "", "", fmt.Errorf("invalid repository %q: pass it as owner/repo, "+
+			"where neither half is . or .. or holds a separator", repo)
 	}
 	return owner, name, nil
+}
+
+// pathSegment reports whether s names exactly one directory entry.
+func pathSegment(s string) bool {
+	return s != "" && s != "." && s != ".." && !strings.ContainsAny(s, `/\`)
 }

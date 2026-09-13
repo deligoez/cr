@@ -59,10 +59,13 @@ var prFiles = []string{
 //
 // createFiles writes every row empty when the state directory is created, so a
 // file that is absent is a directory older than the row or one edited by hand,
-// and the honest next step is the command that writes it. transitions.ndjson
-// has no entry because nothing in this tree writes it yet: a hint naming the
-// wrong command costs more than one naming none.
+// and the honest next step is the command that writes it. Where several
+// commands append to a file the entry names the one that writes it first:
+// transitions.ndjson is §9.1.1's journal, which finding.Journal appends to from
+// `cr record`, `cr draft`, `cr post` and `cr brief`, and every move the other
+// three journal is a move of a record `cr record` stored.
 var prFileWriter = map[string]string{
+	FileTransitions: "cr record",
 	FileMeta:        "cr brief",
 	FileUnits:       "cr brief",
 	FileThreads:     "cr brief",

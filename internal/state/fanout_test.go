@@ -12,7 +12,7 @@ import (
 // Every unit named gets its fan-out directory under the pull request's state
 // directory, and a second ensure keeps what a role already wrote there.
 func TestEnsureFanOutCreatesOneDirectoryPerUnitAndKeepsWhatIsInIt(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	require.NoError(t, held.EnsureFanOut(3, []string{"u1", "u2"}))
@@ -40,7 +40,7 @@ func TestEnsureFanOutCreatesOneDirectoryPerUnitAndKeepsWhatIsInIt(t *testing.T) 
 // A unit id that is not one path segment is refused, and so is a round no
 // brief has opened, and neither creates anything.
 func TestEnsureFanOutRefusesAnIDThatCouldClimbAndARoundOfZero(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, held.Unlock()) }()

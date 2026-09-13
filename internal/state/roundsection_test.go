@@ -18,7 +18,7 @@ import (
 // there. Every write here is checked against the whole document rather than
 // against its own key.
 func TestARoundSectionLeavesEveryOtherFieldAlone(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 
@@ -34,7 +34,7 @@ func TestARoundSectionLeavesEveryOtherFieldAlone(t *testing.T) {
 // A section written twice is replaced rather than accumulated, so regenerating
 // a draft cannot inflate a count §10.3 says the round records once.
 func TestARoundSectionIsReplacedNotAccumulated(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 
@@ -54,7 +54,7 @@ func TestARoundSectionIsReplacedNotAccumulated(t *testing.T) {
 // it finds exactly as it is, and a decode of it yields a nil map — which a
 // writer assigning into it would panic on rather than report.
 func TestARoundSectionSurvivesANullDocument(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	require.NoError(t, held.WriteRound(1, FileSummary, []byte("null\n")))
@@ -71,7 +71,7 @@ func TestARoundSectionSurvivesANullDocument(t *testing.T) {
 // and nothing is written: the caller learns which count it failed to record
 // rather than finding the artefact half-updated.
 func TestAnUnencodableRoundSectionIsReported(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	require.NoError(t, UpdateRoundSection(held, 1, FileSummary, "waived", 3))
@@ -93,7 +93,7 @@ func TestAnUnencodableRoundSectionIsReported(t *testing.T) {
 // A file §2.3 gives a round no such artefact is refused, so a section cannot be
 // aimed at a document the table does not name.
 func TestARoundSectionRefusesAnArtefactSection23DoesNotName(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 

@@ -31,6 +31,9 @@ func (l Layout) RepoTriageLockFile(owner, repo string) string {
 // event is new means reading the ones already there — so the read, the
 // decision and the write are one critical section.
 func UpdateTriage[T any](l Layout, owner, repo string, change func(held []T) []T) error {
+	if err := l.containRepo(owner, repo); err != nil {
+		return err
+	}
 	return updateRepoStore(
 		l.RepoTriageLockFile(owner, repo), l.RepoTriage(owner, repo), change)
 }

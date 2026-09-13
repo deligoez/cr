@@ -38,7 +38,7 @@ func TestEnsurePRCreatesEveryStateFile(t *testing.T) {
 // Creating the state directory a second time must never discard a recorded
 // round: the files are created when missing, not written when present.
 func TestEnsurePRKeepsRecordedState(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)

@@ -24,7 +24,7 @@ type plainRecord struct {
 // NDJSON is one JSON document per line, and an empty file is no records rather
 // than a null slice (§12.3).
 func TestRecordsAreOneDocumentPerLine(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	require.NoError(t, WriteRecords(held, FileThreads, []plainRecord{{ID: "t1"}, {ID: "t2"}}))
@@ -47,7 +47,7 @@ func TestRecordsAreOneDocumentPerLine(t *testing.T) {
 // of its own does not keep them, which is what lets a later command reject the
 // agent that supplied them without every call site remembering to check.
 func TestTheWriterOwnsHeadAndRound(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 
@@ -70,7 +70,7 @@ func TestTheWriterOwnsHeadAndRound(t *testing.T) {
 // list and not from the caller, so a stamped file cannot be written unstamped
 // and an unstamped one cannot acquire the pair by accident.
 func TestAFileIsWrittenThroughTheWriterItsSchemaRequires(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, held.Unlock()) }()
@@ -92,7 +92,7 @@ func TestAFileIsWrittenThroughTheWriterItsSchemaRequires(t *testing.T) {
 // A line that does not decode is named by its number, counted over the file as
 // written so a blank line does not shift what the user is told to open.
 func TestAMalformedRecordNamesItsLine(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	require.NoError(t, held.Write(FileThreads, []byte("{\"id\":\"t1\"}\n\nnot json\n")))
@@ -108,7 +108,7 @@ func TestAMalformedRecordNamesItsLine(t *testing.T) {
 // bound for keeps what it had: the whole document is built before any of it is
 // published.
 func TestAnUnencodableRecordLeavesTheFileUntouched(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	require.NoError(t, WriteRecords(held, FileThreads, []plainRecord{{ID: "t1"}}))
@@ -222,7 +222,7 @@ func TestFoldedFieldsKeyALineTheWayTheDecodeBindsIt(t *testing.T) {
 // what WriteStamped stamps. An empty file is no records rather than a null
 // slice (§12.3).
 func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 

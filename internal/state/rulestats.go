@@ -37,6 +37,9 @@ func (l Layout) RepoRuleStatsLockFile(owner, repo string) string {
 // updateRepoStore below is the mechanism, shared with §7.3's triage ledger,
 // and holds what the two stores have in common.
 func UpdateRuleStats[T any](l Layout, owner, repo string, change func(held []T) []T) error {
+	if err := l.containRepo(owner, repo); err != nil {
+		return err
+	}
 	return updateRepoStore(
 		l.RepoRuleStatsLockFile(owner, repo), l.RepoRuleStats(owner, repo), change)
 }

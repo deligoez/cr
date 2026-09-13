@@ -9231,7 +9231,7 @@
     {
       "id": "state-lock-errors-and-containment",
       "title": "Classify lock failures and contain state paths",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 40,
@@ -9240,7 +9240,8 @@
         "### 2.3 Per-PR state",
         "### 11.2 Exit codes"
       ],
-      "started_at": null,
+      "started_at": "2026-09-13T08:05:49.659951Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,

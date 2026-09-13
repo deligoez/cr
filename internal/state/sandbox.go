@@ -41,6 +41,9 @@ func (l Layout) Sandbox(owner, repo string, pr int) string {
 // which is what keeps §2.2's root around a copy whose source is a directory in
 // the repository under review.
 func (l Layout) CopyIntoSandbox(owner, repo string, pr int, repoDir, rel string) (bool, error) {
+	if err := l.containRepo(owner, repo); err != nil {
+		return false, err
+	}
 	source := filepath.Join(repoDir, rel)
 	if _, err := os.Lstat(source); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -60,6 +63,9 @@ func (l Layout) CopyIntoSandbox(owner, repo string, pr int, repoDir, rel string)
 // deleting them is the removal §5.1.5 asks for. The path is derived here, never
 // taken from a caller, for the reason Sandbox gives.
 func (l Layout) RemoveOrphanedSandbox(owner, repo string, pr int) error {
+	if err := l.containRepo(owner, repo); err != nil {
+		return err
+	}
 	path := l.Sandbox(owner, repo, pr)
 	if err := os.RemoveAll(path); err != nil {
 		return fmt.Errorf("cannot remove %s: %w", path, err)

@@ -35,8 +35,10 @@ func increment(t *testing.T, l Layout) bool {
 	return assert.NoError(t, held.Write("findings.ndjson", []byte(strconv.Itoa(count+1))))
 }
 
-// lockedPR returns a layout with one pull request's state already created.
-func lockedPR(t *testing.T) Layout {
+// unlockedPR returns a layout with one pull request's state already created,
+// and holds no lock over it: EnsurePR releases the lock it created the files
+// under, so a test that needs the lock takes it with LockPR itself.
+func unlockedPR(t *testing.T) Layout {
 	t.Helper()
 	l := New(filepath.Join(t.TempDir(), ".cr"))
 	require.NoError(t, l.Init())
@@ -49,7 +51,7 @@ func lockedPR(t *testing.T) Layout {
 // value and one of the increments is lost, so a final count below the expected
 // one is a lock that did not exclude.
 func TestConcurrentWritersSerialise(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	first, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
@@ -77,7 +79,7 @@ func TestConcurrentWritersSerialise(t *testing.T) {
 
 // §2.3.2: reads are lock-free, so a reader must not wait behind a writer.
 func TestAReaderProceedsWhileAWriterHoldsTheLock(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
@@ -104,7 +106,7 @@ func TestAReaderProceedsWhileAWriterHoldsTheLock(t *testing.T) {
 // write would hand a reader half a document, and the reader holds nothing that
 // could have stopped it.
 func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	const size = 1 << 16
 	docs := [2][]byte{bytes.Repeat([]byte("a"), size), bytes.Repeat([]byte("b"), size)}
@@ -155,7 +157,7 @@ func TestALockFreeReadNeverSeesAPartialWrite(t *testing.T) {
 // the next waiter lock a fresh inode at the same path and run alongside the
 // holder, so the file is kept on purpose.
 func TestReleasingTheLockKeepsItsFile(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)

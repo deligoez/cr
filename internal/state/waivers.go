@@ -54,6 +54,9 @@ type WaiverLock struct {
 // repository's waiver store. Like LockContext it creates the directory it will
 // write in, so a writer never depends on EnsureRepo having run first.
 func (l Layout) LockRepoWaivers(owner, repo string) (*WaiverLock, error) {
+	if err := l.containRepo(owner, repo); err != nil {
+		return nil, err
+	}
 	lock := l.RepoWaiverLockFile(owner, repo)
 	store := l.WaiversFile(owner, repo)
 	if err := makeDirs([]string{filepath.Dir(lock), filepath.Dir(store)}); err != nil {

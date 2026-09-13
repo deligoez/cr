@@ -102,8 +102,11 @@ func TestAHeldProbeLockIsWaitedOnAndThenRefused(t *testing.T) {
 	assert.Equal(t, repository, locked.RepoPath)
 	assert.Equal(t, profile, locked.ProfileID)
 	assert.Equal(t, wait, locked.Waited)
-	assert.Contains(t, locked.Error(), "probe.lock_timeout_seconds",
-		"the refusal names the setting the reader would raise")
+	assert.Equal(t,
+		"another cr run holds the probe lock for /src/acme/web under profile laravel-pest: "+
+			"waited 100ms, which is probe.lock_timeout_seconds",
+		locked.Error(),
+		"the refusal names the pair and the setting, and leaves the step to ProbeLockedHint")
 	assert.GreaterOrEqual(t, spent, wait,
 		"§5.6.2 waits for the timeout; a refusal that gave up at once never waited")
 }

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // HomeEnv overrides the state root. Without it the root is <home>/.cr.
@@ -221,6 +222,9 @@ func (l Layout) EnsureRole(id, content string) error {
 // The owner and repository are only known once a command names them, so they
 // are created here rather than by Init.
 func (l Layout) EnsureRepo(owner, repo string) error {
+	if err := l.containRepo(owner, repo); err != nil {
+		return err
+	}
 	dirs := []string{
 		l.RepoDir(owner, repo),
 		l.RepoRolesDir(owner, repo),
@@ -271,14 +275,71 @@ func (l Layout) EnsureContext(issueKey string) error {
 	return touchFile(l.ContextFile(issueKey), "")
 }
 
+// dirHint is §12.4's next actionable step for a directory of §2.2's tree that
+// could not be created.
+//
+// It is a file failure and §11.2 codes it 3. Measured by audit round 1: under a
+// root whose locks path was a file, LockPR's bare `cannot create directory`
+// exited 2 and told the user to retype a command line that was right.
+const dirHint = "§2.2 keeps all of cr's state under one root; check that every parent of " +
+	"the directory the message names is a directory cr can write to"
+
 // makeDirs creates every directory, parents included.
 func makeDirs(dirs []string) error {
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, dirPerm); err != nil {
-			return fmt.Errorf("cannot create directory %s: %w", dir, err)
+			return FileFailure("create directory", dir, dirHint, err)
 		}
 	}
 	return nil
+}
+
+// OutsideRootError reports a path of §2.2's tree that resolves outside the
+// directory it belongs under.
+//
+// Every path here is joined from segments a caller supplies — an owner and a
+// repository out of `--repo` or a remote, a file name — and filepath.Join
+// resolves a `..` among them rather than refusing it. Measured by audit round
+// 1: LockPR("..", "..", 1) and a Write under a root at outer/crhome created
+// outer/pr-1.lock and outer/pr-1/meta.json. §2.2 keeps all of cr's state under
+// one root, so a path that leaves it is refused before anything is created or
+// read there.
+type OutsideRootError struct {
+	// Path is where the segments led, and Under is the directory it had
+	// to stay inside.
+	Path, Under string
+}
+
+func (e *OutsideRootError) Error() string {
+	return fmt.Sprintf("refusing %s: it resolves outside %s, and §2.2 keeps all of cr's state under one root",
+		e.Path, e.Under)
+}
+
+// contain refuses every path that does not resolve strictly inside under.
+//
+// under is the tree the path belongs to rather than the root alone, so an
+// owner of `..` cannot aim a pull request's state into the locks or profiles
+// directory either.
+func contain(under string, paths ...string) error {
+	for _, path := range paths {
+		rel, err := filepath.Rel(under, path)
+		if err != nil || rel == "." || rel == ".." ||
+			strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return &OutsideRootError{Path: path, Under: under}
+		}
+	}
+	return nil
+}
+
+// containRepo refuses an owner and repository whose §2.2 paths leave the trees
+// they are nested in.
+//
+// Every repository-keyed path of the tree is <tree>/<owner>/<repo> followed by
+// a name of cr's own, so the repository's directory in one of those trees
+// answers for all of them: a pair that stays strictly inside state/ stays
+// inside repos/, locks/ and waivers/ by the same two segments.
+func (l Layout) containRepo(owner, repo string) error {
+	return contain(l.StateDir(), l.RepoStateDir(owner, repo))
 }
 
 // touchFile creates path with the given initial content, and leaves an existing

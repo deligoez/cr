@@ -17,7 +17,7 @@ import (
 // `cr record` on a round without mapping.ndjson exited 2, and the step it
 // should have named is `cr map record`.
 func TestAMissingStateFileNamesTheCommandThatWritesIt(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	require.NoError(t, os.Remove(l.PRFile("acme", "web", 42, FileMapping)))
 
 	_, err := l.ReadPR("acme", "web", 42, FileMapping)
@@ -45,6 +45,15 @@ func TestEveryStateFileHintNamesAWriterOrNone(t *testing.T) {
 		"a per-round path is looked up by its base name")
 }
 
+// §9.1.1's journal has writers, and a missing transitions.ndjson names the one
+// that writes it first. Audit round 1 found the table claiming nothing wrote
+// it while finding.Journal appended to it, so the hint named no command.
+func TestAMissingTransitionsFileNamesItsWriter(t *testing.T) {
+	assert.Equal(t,
+		"§2.2 keeps it under the pull request's state directory, and `cr record` is the command that writes it",
+		readHint(FileTransitions))
+}
+
 // §2.3's write is a file failure too. A read-only pull-request directory makes
 // the temporary file impossible to create while every read still succeeds,
 // which isolates the write: measured before this type, `cr record` there exited
@@ -53,7 +62,7 @@ func TestAWriteThatCannotLandIsAFileFailure(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root writes through a read-only directory")
 	}
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, held.Unlock()) }()

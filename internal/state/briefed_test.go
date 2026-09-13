@@ -19,7 +19,7 @@ import (
 // round 0 and would then answer §4.1.6 and §4.5.6 against a unit set no round
 // ever recorded. Both refusals name `cr brief`, which is the only way forward.
 func TestReadingPerPRStateBeforeABriefIsRefusedNamingBrief(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	t.Run("no state directory", func(t *testing.T) {
 		recorded, err := l.Briefed("acme", "web", 7, unread(t))
@@ -88,7 +88,7 @@ func unread(t *testing.T) CurrentHead {
 // the defect §9.3 is written to stop — §11.1's stale-round report and §9.3.2's
 // refusal are one fact told twice.
 func TestARoundComparesAgainstTheCurrentHeadAndRefusesWhenItMoved(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	require.NoError(t, l.EnsurePR("acme", "web", 42))
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)

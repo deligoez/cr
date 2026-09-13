@@ -29,7 +29,7 @@ func roundsRecorded(t *testing.T, k *Lock, name string, rounds ...int) {
 // replaced sits between them, so keeping "everything before" is not enough
 // either — earlierRounds has to take out one round and leave both neighbours.
 func TestReplaceStampedRewritesOneRoundAndLeavesTheOthers(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	roundsRecorded(t, held, FileClaims, 1, 2, 3)
@@ -55,7 +55,7 @@ func TestReplaceStampedRewritesOneRoundAndLeavesTheOthers(t *testing.T) {
 // would satisfy any assertion counting this round's records, and would have
 // destroyed exactly the history §9.3.5 protects.
 func TestClearStampedEmptiesOneRoundAndNotTheFile(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	roundsRecorded(t, held, FileMapping, 1, 2)
@@ -79,7 +79,7 @@ func TestClearStampedEmptiesOneRoundAndNotTheFile(t *testing.T) {
 // parse failure. The write is refused whole instead, and the file is left
 // exactly as it was for the user to open at the line named.
 func TestARoundScopedWriteRefusesAStoreItCannotRead(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, held.Unlock()) }()
@@ -134,7 +134,7 @@ func cellsRecorded(t *testing.T, k *Lock, name string, at ...keyedRecord) {
 // cell at a named key in an earlier round is history rather than a cell to
 // replace.
 func TestReplaceStampedKeysRewritesTheNamedKeysAndNoOthers(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	cellsRecorded(t, held, FileCoverage,

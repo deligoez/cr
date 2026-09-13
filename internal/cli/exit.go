@@ -449,10 +449,9 @@ var codes = []mapped{
 	// §11.2's table names in as many words — "state conflict, including
 	// lock timeout". Nothing about the invocation is wrong and no file
 	// failed; what refuses is that another cr run is already inside the
-	// same repository and profile.
-	{is[*state.ProbeLockedError](), ExitState,
-		"another cr run holds the probe lock; wait for it to finish and run the " +
-			"command again"},
+	// same repository and profile. The step is state.ProbeLockedHint, so the
+	// row and the error cannot name two different ones.
+	{is[*state.ProbeLockedError](), ExitState, state.ProbeLockedHint},
 	// §5.4.2: an existing file where a gap probe's test would go aborts.
 	// Nothing about the invocation is wrong and every file named was read;
 	// what refuses is that the one path §2.4's template resolves to is
@@ -562,6 +561,13 @@ var codes = []mapped{
 	// §11.2 codes 1 rather than the 3 a malformed profile gets.
 	{is[*state.ReservedFieldError](), ExitValidation,
 		"drop the field the message names from that record; §6.1.4 has cr write it"},
+	// §2.2 keeps all of cr's state under one root, and internal/state
+	// refuses an owner and repository whose paths would leave it. splitRepo
+	// refuses such a `--repo` first, so what reaches this row came from
+	// somewhere else, and naming the repository on the command line is the
+	// step. §11.2 codes that 2, as it does the detection failure below.
+	{is[*state.OutsideRootError](), ExitUsage,
+		"pass --repo <owner/repo>, where neither half is . or .. or holds a separator"},
 	// §11.1 makes `--repo` the override for repository detection, so a
 	// repository detection cannot name is answered by the flag. The command
 	// line lacked the one argument that would have settled it, which §11.2

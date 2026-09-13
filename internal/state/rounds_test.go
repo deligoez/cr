@@ -13,7 +13,7 @@ import (
 // directory has no round in it until a round is opened, and the round that is
 // opened holds every artefact the table names.
 func TestARoundDirectoryHoldsEveryArtefact(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	_, err := os.Stat(l.RoundDir("acme", "web", 42, 1))
 	assert.ErrorIs(t, err, os.ErrNotExist,
@@ -49,7 +49,7 @@ func TestARoundDirectoryHoldsEveryArtefact(t *testing.T) {
 // round MUST leave them intact. Opening round 2 and filling every one of its
 // artefacts must therefore leave round 1's four files byte-identical.
 func TestASecondRoundLeavesTheFirstIntact(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestASecondRoundLeavesTheFirstIntact(t *testing.T) {
 // directory must be refused on every route in and leave nothing on disk, so a
 // pull request never acquires a history it does not have.
 func TestRoundZeroIsNotARound(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	meta, err := l.ReadMeta("acme", "web", 42)
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestRoundZeroIsNotARound(t *testing.T) {
 // The §2.3 table decides what a round directory holds, so a name it does not
 // give a round is refused rather than written beside the four artefacts.
 func TestOnlyTheTablesArtefactsReachARoundDirectory(t *testing.T) {
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestEachWriterUpdatesOnlyItsOwnSummarySection(t *testing.T) {
 		Drafted int `json:"drafted"`
 		Posted  int `json:"posted"`
 	}
-	l := lockedPR(t)
+	l := unlockedPR(t)
 
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
