@@ -168,6 +168,20 @@
       "column": 85,
       "type": "CONDITIONALS_BOUNDARY",
       "reason": "The tie-break on the same line, `spans[i].start > spans[found].start` against `>=`. Equality would need two spans of one file declared on the same line, which the scan cannot produce: match returns at most one declaration per line. The two comparisons therefore agree on every input, for the reason and on the evidence of the entry above. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/symbol` stayed green."
+    },
+    {
+      "file": "draft/ingest.go",
+      "line": 253,
+      "column": 61,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "refuseUnknownBlocks keeps the earliest block naming a record the round does not hold with `at < firstAt`, and `<=` differs only when two such blocks sit on the same line. None can: blocksOf is the only producer of the map and refuseUnknownBlocks' only source, it walks the draft one line at a time and adds at most one block per line with `at: i + 1`, and a second block for an id it already holds is refused with MalformedMarkerError before the map is returned. Every `at` in the map is therefore distinct, and the tie the mutant changes never arises. Verified by hand on 2026-09-13 -- applied `<=` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green over one unknown block and over two, the second case added the same day as TestTheEarliestUnknownBlockIsTheOneNamed and run 50 times under the mutant and green each time, since Go randomises the map order the two blocks are read in; the same test failed 50 of 50 under the `>=` negation on the same byte. A block producer that could place two blocks on one line would make it observable."
+    },
+    {
+      "file": "finding/triageevent.go",
+      "line": 142,
+      "column": 20,
+      "type": "CONDITIONALS_NEGATION",
+      "reason": "triageKey.raised is read by nothing: key() builds it, and mergeTriageEvents uses the whole struct only as a map key, where equality is the one thing asked of it. Negating `e.Action == ActionRaised` flips the bool for every event at once, so two events share a key under the mutant exactly when they share one under the original, and the merge overwrites and appends the same events at the same positions. Verified by hand on 2026-09-13 -- applied `!=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green over a raise beside a retried outcome for one record in one round, a rewritten event, and keys differing in pull request, round and record. It would become observable the moment anything reads the field as a fact rather than as part of an identity, such as a key serialised or compared against an action."
     }
   ]
 }
