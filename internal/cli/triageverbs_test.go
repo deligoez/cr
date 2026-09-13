@@ -117,7 +117,7 @@ func TestTheFiveTriageVerbsOfSection72(t *testing.T) {
 	// for the other: gremlins found the wrong count counting down unnoticed.
 	summary, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, summary, ownerDraft)
+	document := assertSummaryShape(t, summary, ownerDraft, ownerDiscards)
 	assert.JSONEq(t, "1", string(document["discarded_not_here"]))
 	assert.JSONEq(t, "1", string(document["discarded_wrong"]))
 }

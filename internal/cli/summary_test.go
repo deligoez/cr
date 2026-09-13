@@ -154,7 +154,7 @@ func assertSummaryShape(t *testing.T, body []byte, ran ...summaryOwner) map[stri
 // left it: every count the section requires has a named writer, and the two the
 // round found unowned or merged are where the findings put them.
 func TestEverySection103CountHasANamedWriter(t *testing.T) {
-	writers := []summaryOwner{ownerMerge, ownerRecord, ownerDraft, ownerPost}
+	writers := []summaryOwner{ownerMerge, ownerRecord, ownerDraft, ownerPost, ownerDiscards}
 	for _, key := range section103Counts {
 		owner, named := summaryOwners[key]
 		if assert.Truef(t, named, "§10.3 requires %q and no writer is named for it", key) {
@@ -171,6 +171,9 @@ func TestEverySection103CountHasANamedWriter(t *testing.T) {
 		"round 8's missing-summary-count: §9.3.6's drop is a key apart from §6.4.4's")
 	assert.Equal(t, ownerMerge, summaryOwners["already_posted"])
 	assert.Equal(t, ownerPost, summaryOwners["payload_hash"])
+	assert.Equal(t, ownerDiscards, summaryOwners["discarded_not_here"],
+		"§7.2: cr draft and cr post both store the draft's discards, so both write their counts")
+	assert.Equal(t, ownerDiscards, summaryOwners["discarded_wrong"])
 
 	for key := range summaryOwners {
 		assert.Containsf(t, summaryShapes(), key, "summaryOwners lists %q with no stated shape", key)
@@ -252,7 +255,7 @@ func TestTheRoundSummaryCarriesEveryPrePostWritersCounts(t *testing.T) {
 
 	body, err := layout.ReadRound(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerMerge, ownerRecord, ownerDraft)
+	document := assertSummaryShape(t, body, ownerMerge, ownerRecord, ownerDraft, ownerDiscards)
 
 	for key, want := range map[string]string{
 		"raised":               "3",
@@ -293,7 +296,7 @@ func TestConfirmFinalisesTheRoundSummary(t *testing.T) {
 
 	body, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerDraft, ownerPost)
+	document := assertSummaryShape(t, body, ownerDraft, ownerDiscards, ownerPost)
 	assert.JSONEq(t, "2", string(document["posted"]), "§9.1 moved both queued records to posted")
 	hash, err := payload.Hash()
 	require.NoError(t, err)
@@ -301,6 +304,49 @@ func TestConfirmFinalisesTheRoundSummary(t *testing.T) {
 		"§10.3 records the §8.3.3 hash of the payload that was sent")
 	assert.JSONEq(t, "true", string(document["confirm_given"]),
 		"§8.5.4: the round summary records that --confirm was given")
+}
+
+// §10.3's discard counts after `cr post --confirm` ingests the draft's discards
+// with no `cr draft` between: the summary counts what findings.ndjson stores.
+//
+// Audit round 2's summary-count-stale, end to end. The only rendering the round
+// has is the one before the reviewer deleted f2 and marked f3 wrong, so the
+// counts that rendering wrote are zero; the confirmed send is the run that
+// stores both discards, and a summary still reading zero beside them is the
+// fault.
+func TestConfirmCountsTheDiscardsItStores(t *testing.T) {
+	kept, deleted, wrong := aCitedRecord("f1"), aCitedRecord("f2"), aCitedRecord("f3")
+	deleted.Anchor.Path = "internal/api/deleted.go"
+	wrong.Anchor.Path = "internal/api/wrong.go"
+	layout := draftedHome(t, kept, deleted, wrong)
+	redraft(t)
+	edited := deleteBlock(t, readDraft(t, layout), "f2")
+	writeDraft(t, layout, markerEdit(t, edited, "f3", `disposition=""`, `disposition="wrong"`))
+	ghShimming(t, builtPayload(t))
+
+	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.NoError(t, err)
+
+	stored := roundRecordsByID(t, layout)
+	require.Len(t, stored, 3)
+	discarded := map[finding.Disposition]int{}
+	for _, record := range stored {
+		if record.State == finding.StateDiscarded {
+			discarded[record.Disposition]++
+		}
+	}
+	require.Equal(t,
+		map[finding.Disposition]int{finding.DispositionNotHere: 1, finding.DispositionWrong: 1}, discarded,
+		"the confirmed send stored one discard of each verb, so the two counts cannot stand in for each other")
+
+	body, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
+	require.NoError(t, err)
+	document := assertSummaryShape(t, body, ownerDraft, ownerDiscards, ownerPost)
+	assert.JSONEq(t, fmt.Sprint(discarded[finding.DispositionNotHere]), string(document["discarded_not_here"]),
+		"§10.3's not-here count is the stored records'")
+	assert.JSONEq(t, fmt.Sprint(discarded[finding.DispositionWrong]), string(document["discarded_wrong"]),
+		"§10.3's wrong count is the stored records'")
+	assert.JSONEq(t, "1", string(document["posted"]), "only f1 reached the author")
 }
 
 // Round 8's non-idempotent-accumulation at the write: a writer that leaves one
@@ -400,7 +446,7 @@ func TestRerunningEveryWriterLeavesTheRoundSummaryUnchanged(t *testing.T) {
 	require.NotEmpty(t, once)
 	assert.JSONEq(t, string(once), string(twice),
 		"re-running cr merge and cr draft replaces their sections rather than adding to them")
-	document := assertSummaryShape(t, twice, ownerMerge, ownerRecord, ownerDraft)
+	document := assertSummaryShape(t, twice, ownerMerge, ownerRecord, ownerDraft, ownerDiscards)
 	assert.JSONEq(t, "2", string(document["raised"]))
 	assert.JSONEq(t, "1", string(document["drafted"]))
 	assert.JSONEq(t, "1", string(document["discarded_not_here"]),
@@ -439,7 +485,7 @@ func TestAnUnpostedRoundSummaryOmitsThePayloadHashAndStillValidates(t *testing.T
 
 	body, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerDraft)
+	document := assertSummaryShape(t, body, ownerDraft, ownerDiscards)
 	assert.NotContains(t, document, "payload_hash",
 		"an unposted round's summary omits the key entirely, rather than holding null")
 	assert.NotContains(t, document, "posted", "and holds no posted count either: nothing finalised it")

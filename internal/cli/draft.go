@@ -222,7 +222,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	}
 	// §10.3's counts this command owns, read off the round as this run
 	// leaves it and before §7.3.1's events below add this round's own.
-	summary, err := summarizeDraft(l, owner, repo, pr, round, records, queued)
+	summary, err := summarizeDraft(l, owner, repo, pr, round, queued)
 	if err != nil {
 		return err
 	}
@@ -447,6 +447,7 @@ func publishDraft(
 		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(out.file)) },
 		func() error { return writeRendered(held, round.Round, out.rendered) },
 		func() error { return writeSummary(held, round.Round, ownerDraft, summary.counts()) },
+		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
 	}
 	for _, write := range writes {
 		if err := write(); err != nil {
@@ -492,10 +493,6 @@ type draftSummary struct {
 	newClasses []string
 	// drafted is how many records §7.1 rendered into the draft.
 	drafted int
-	// discardedNotHere and discardedWrong are the round's records §7.2's
-	// discard verbs have moved to `discarded`, by §7.4.2's disposition.
-	discardedNotHere int
-	discardedWrong   int
 	// comments is §1.6.2's comment count against post.max_comments.
 	comments summaryCap
 	// probes is §5.6.4's probe cap over the round.
@@ -509,8 +506,6 @@ func (s *draftSummary) counts() []summaryCount {
 		{key: summaryForcedByRetraction, value: s.withdrawn},
 		{key: summaryNewClasses, value: s.newClasses},
 		{key: summaryDrafted, value: s.drafted},
-		{key: summaryDiscardedNotHere, value: s.discardedNotHere},
-		{key: summaryDiscardedWrong, value: s.discardedWrong},
 		{key: summaryComments, value: s.comments},
 		{key: summaryProbeCap, value: s.probes},
 	}
@@ -533,10 +528,9 @@ const summaryNewClasses = "new_classes"
 // the value §6.3.1's second moment just computed over the same records.
 //
 // Every count is taken from the round's state rather than from what this run
-// changed. A regeneration reads the draft it replaces, so a block deleted in
-// the first run is already `discarded` by the second and appears in no
-// triage the second run makes — a count of this run's discards would read
-// two, then zero, for one reviewer decision.
+// changed. The two discard counts are not among them: they are ownerDiscards'
+// section, which `cr post --confirm` writes too, and publishDraft writes it
+// through discardCounts.
 //
 // §7.3.3's classes are read off the ledger as it stands before §7.3.1's events
 // add this round's own: a class is new against what the repository knew, and a
@@ -547,7 +541,7 @@ const summaryNewClasses = "new_classes"
 // round undraftable once its last experiment had run.
 func summarizeDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	records, queued []*finding.Finding,
+	queued []*finding.Finding,
 ) (draftSummary, error) {
 	fresh, err := newDraftClasses(l, owner, repo, pr, round.Round, queued)
 	if err != nil {
@@ -568,17 +562,6 @@ func summarizeDraft(
 		drafted:    len(queued),
 		comments:   summaryCap{Count: commented.Count, Max: commented.Max},
 		probes:     summaryCap{Count: capped.Count, Max: capped.Max},
-	}
-	for _, record := range records {
-		if record.State != finding.StateDiscarded {
-			continue
-		}
-		switch record.Disposition {
-		case finding.DispositionNotHere:
-			summary.discardedNotHere++
-		case finding.DispositionWrong:
-			summary.discardedWrong++
-		}
 	}
 	return summary, nil
 }

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,6 +106,7 @@ func TestACellSupplyingAFieldCrComputesExitsOne(t *testing.T) {
 	formed := clusteredUnit(t, beforeTheEdit)
 	layout := briefedForComputedCells(t, formed)
 	require.NoError(t, recordCells(t, `{"unit":"u1","role":"correctness","result":"pass"}`))
+	stored := layout.PRFile(cellsOwner, cellsRepo, cellsPR, state.FileCoverage)
 
 	for _, tc := range []struct {
 		name string
@@ -123,15 +125,27 @@ func TestACellSupplyingAFieldCrComputesExitsOne(t *testing.T) {
 			name: "the head it was filled against",
 			line: `{"unit":"u1","role":"convention","result":"pass","head":"` + cellsHead + `"}`,
 		},
+		{
+			// §2.3.3's other stamped field, which the round's own number
+			// would pass for.
+			name: "the round it was filled in",
+			line: `{"unit":"u1","role":"convention","result":"pass","round":1}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := recordCells(t, tc.line)
+			before, err := os.ReadFile(stored)
+			require.NoError(t, err)
+
+			err = recordCells(t, tc.line)
 
 			require.Error(t, err)
 			assert.Equal(t, ExitValidation, exitCodeFor(err),
 				"§6.1.4 and §11.2 code a supplied computed field 1")
 			assert.Equal(t, []string{"u1/correctness"}, filledCells(t, layout),
 				"and the refused file leaves the round as it found it")
+			after, err := os.ReadFile(stored)
+			require.NoError(t, err)
+			assert.Equal(t, string(before), string(after), "coverage.ndjson is byte for byte unchanged")
 		})
 	}
 }

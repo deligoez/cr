@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -28,6 +29,17 @@ const (
 	ownerRecord summaryOwner = "cr record"
 	ownerDraft  summaryOwner = "cr draft"
 	ownerPost   summaryOwner = "cr post"
+	// ownerDiscards is §7.2's two discard counts, which have two writers
+	// of one computation rather than one writer. §7.2 has `cr draft` and
+	// `cr post` both read the discard verbs out of draft.md and both
+	// store what they read, so a block deleted and then posted with no
+	// redraft is stored as discarded by `cr post --confirm` alone — and a
+	// count only `cr draft` wrote would go on reading the last rendering's
+	// number beside a findings.ndjson that says otherwise. Both commands
+	// write this section through discardCounts, over the records they
+	// store under the same lock, so the count is the stored records'
+	// whichever of the two ran last.
+	ownerDiscards summaryOwner = "cr draft and cr post"
 )
 
 // The keys `rounds/<n>/summary.json` holds §10.3's counts under. Three more are
@@ -100,8 +112,8 @@ var summaryOwners = map[string]summaryOwner{
 	summaryForcedByRetraction: ownerDraft,
 	summaryNewClasses:         ownerDraft,
 	summaryDrafted:            ownerDraft,
-	summaryDiscardedNotHere:   ownerDraft,
-	summaryDiscardedWrong:     ownerDraft,
+	summaryDiscardedNotHere:   ownerDiscards,
+	summaryDiscardedWrong:     ownerDiscards,
 	summaryComments:           ownerDraft,
 	summaryProbeCap:           ownerDraft,
 	summaryPosted:             ownerPost,
@@ -130,6 +142,33 @@ type summaryCap struct {
 type summaryCount struct {
 	key   string
 	value any
+}
+
+// discardCounts is ownerDiscards' section: the round's records §7.2's discard
+// verbs have moved to `discarded`, by §7.4.2's disposition.
+//
+// It is taken from the records about to be stored rather than from what this
+// run triaged. A regeneration reads the draft it replaces, so a block deleted
+// in the first run is already `discarded` by the second and appears in no
+// triage the second run makes — a count of this run's discards would read one,
+// then zero, for one reviewer decision.
+func discardCounts(records []*finding.Finding) []summaryCount {
+	notHere, wrong := 0, 0
+	for _, record := range records {
+		if record.State != finding.StateDiscarded {
+			continue
+		}
+		switch record.Disposition {
+		case finding.DispositionNotHere:
+			notHere++
+		case finding.DispositionWrong:
+			wrong++
+		}
+	}
+	return []summaryCount{
+		{key: summaryDiscardedNotHere, value: notHere},
+		{key: summaryDiscardedWrong, value: wrong},
+	}
 }
 
 // writeSummary replaces owner's whole share of the round's summary.json and

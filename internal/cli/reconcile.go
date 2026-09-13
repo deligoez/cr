@@ -317,6 +317,11 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // that never reaches it — drafted and never sent, or run only through §8.5.1's
 // dry run — keeps a summary without `cr post`'s counts, which is a truer record
 // of that round than a count of zero beside a hash nothing was sent under.
+//
+// The two discard counts are rewritten beside them, over the records stored
+// here: a confirmed send stores the draft's discards itself, and a round posted
+// with no redraft after a deletion would otherwise keep the last `cr draft`'s
+// counts beside records that say otherwise.
 func writeAdopted(
 	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash string,
 	journal *finding.Journal,
@@ -345,6 +350,7 @@ func writeAdopted(
 				{key: summaryConfirmGiven, value: true},
 			})
 		},
+		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
 	}
 	for _, write := range writes {
 		if err := write(); err != nil {
