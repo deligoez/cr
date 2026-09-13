@@ -129,6 +129,22 @@ type Sent struct {
 	// Records are the ids of the records the comments were drawn from, in
 	// payload order, as cr wrote them beside the payload.
 	Records []string `json:"records"`
+	// Discards are the records the draft discarded when the payload was
+	// built, with the disposition each was discarded under, as cr wrote
+	// them beside the payload. §8.4.4's adoption waives them: the send
+	// that wrote them writes their waivers only once the call has
+	// succeeded, so a review adopted after an unknown outcome is the one
+	// place those waivers are still owed.
+	Discards []Discard `json:"discards"`
+}
+
+// Discard is one record the draft discarded, as posted.json names it.
+type Discard struct {
+	// Record is the record's id.
+	Record string `json:"record"`
+	// Disposition is the §7.2 verb it was discarded under, which decides
+	// the scope of its waiver.
+	Disposition finding.Disposition `json:"disposition"`
 }
 
 // Decode reads `rounds/<n>/posted.json` back.

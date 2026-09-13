@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -177,8 +178,10 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 }
 
 // adoptAsPosted walks §9.1's `queued` → `posted` row over the records the
-// payload carried, appends §9.3.6's index entries for them, and clears
-// `post_unresolved`.
+// payload carried, appends §9.3.6's index entries for them, clears
+// `post_unresolved`, and then does what `cr post --confirm` does once its call
+// has returned: the draft's discards are waived and §8.3.3's thread ids are
+// read back and stored.
 //
 // The records are the payload's and not the round's. A record the reviewer
 // discarded in the draft never reached the comments, and a record recorded
@@ -189,9 +192,25 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 // makes a second `--reconcile` harmless: §9.1 lists no move out of `posted`, so
 // asking for one would refuse the whole adoption on the strength of the first
 // one having worked.
+//
+// The waivers go first, in send's order and for its reason: the send that set
+// `post_unresolved` wrote none, because a call GitHub might have refused must
+// leave none behind, and a waiver write that fails here leaves the flag set so
+// the next `--reconcile` writes it again. The discards themselves stay queued:
+// §9.1 lets `cr draft` and `cr post --confirm` store a discard, and not this
+// command.
+//
+// The thread ids go last, through the adoptReturnedThreads the send uses, once
+// the flag is cleared — a read that fails there costs the field and never
+// reopens the round to a second send. It is a read: nothing here posts.
 func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string, error) {
 	records, err := roundFindingsOf(l, round.Owner, round.Repo, round.PR, round.Round)
 	if err != nil {
+		return nil, err
+	}
+	if err := waiveDiscards(
+		l, round.Owner, round.Repo, round.PR, sentDiscards(records, sent),
+	); err != nil {
 		return nil, err
 	}
 	adopted := make([]*finding.Finding, 0, len(sent.Records))
@@ -218,7 +237,50 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	if err := writeAdopted(l, round, records, adopted, hash, journal); err != nil {
 		return nil, err
 	}
-	return ids, setPostUnresolved(l, round, false)
+	if err := setPostUnresolved(l, round, false); err != nil {
+		return nil, err
+	}
+	return ids, adoptReturnedThreads(l, round, records, attributed(sent))
+}
+
+// sentDiscards are the records posted.json names as the draft's discards, each
+// a copy carrying the disposition it was discarded under, which is what
+// waiveDiscards derives a waiver's scope from.
+//
+// They are copies because the stored record stays queued — §9.1 gives this
+// command no move to `discarded` — and a disposition written onto a queued
+// record would be republished by writeAdopted as if it had been. A record no
+// longer queued is passed over: a later `cr draft` already stored its discard
+// and wrote its waiver, and a record posted since was not discarded at all.
+func sentDiscards(records []*finding.Finding, sent *post.Sent) []*finding.Finding {
+	discarded := make([]*finding.Finding, 0, len(sent.Discards))
+	for _, discard := range sent.Discards {
+		record := recordOf(records, discard.Record)
+		if record == nil || record.State != finding.StateQueued {
+			continue
+		}
+		copied := *record
+		copied.Disposition = discard.Disposition
+		discarded = append(discarded, &copied)
+	}
+	return discarded
+}
+
+// attributed is the payload read back with each comment naming the record it
+// was drawn from, which threadsByRecord keys its answer by.
+//
+// Comment.Record is not in the document, so a decoded payload names no record;
+// posted.json's record ids are in payload order and postedPayload refused any
+// count that differs from the comments', so the pairing is by position. The
+// comments are cloned rather than attributed in place, so the hash this run
+// matched on stays the hash of the document as it was read.
+func attributed(sent *post.Sent) *post.Review {
+	review := sent.Review
+	review.Comments = slices.Clone(sent.Comments)
+	for i := range review.Comments {
+		review.Comments[i].Record = sent.Records[i]
+	}
+	return &review
 }
 
 // recordOf is the round's record with one id, and nil when the round holds

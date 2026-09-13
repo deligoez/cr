@@ -69,13 +69,18 @@ type sending struct {
 // anchors, and losing them costs a reader one lookup rather than costing the
 // author a duplicate comment.
 //
-// §7.4's waivers for the draft's discards are written first of all, through the
-// waiveDiscards `cr draft` calls, so a block deleted or marked `wrong` and then
-// posted without a redraft is waived exactly as a redraft would have waived it.
-// They go before the call for the reason waiveDiscards gives: a waiver standing
-// in front of a record that is still queued is recovered by the next run, which
-// reads the same draft and finds the same waiver, while a discard stored after
-// the call with its waiver lost is never read again.
+// §7.4's waivers for the draft's discards are written once the call has
+// succeeded and ahead of that walk, through the waiveDiscards `cr draft` calls,
+// so a block deleted or marked `wrong` and then posted without a redraft is
+// waived exactly as a redraft would have waived it. They are not written before
+// the call: a review GitHub refuses leaves the discarded records queued, and a
+// waiver already standing would outlive a disposition the reviewer then clears
+// — a `wrong` silencing its class across the repository for a record that was
+// posted after all. They go ahead of the walk, which stores the discards,
+// because a discard stored with its waiver lost is never read again. The
+// discards are named in posted.json before the call, so a call whose outcome cr
+// never learned, or a waiver write that fails after the call while
+// `post_unresolved` is still set, leaves them for §8.4.4's adoption to waive.
 //
 // `post_unresolved` is set before the call and cleared only once the records
 // are marked posted, so the refusal send opens with rests on a write that
@@ -88,9 +93,6 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if s.round.PostUnresolved {
 		return &UnresolvedPostError{Owner: owner, Repo: repo, PR: pr, Round: s.round.Round}
 	}
-	if err := waiveDiscards(s.layout, owner, repo, pr, s.triage.discarded()); err != nil {
-		return err
-	}
 	payload, err := writePosted(s.layout, owner, repo, pr, s.round.Round, s.review)
 	if err != nil {
 		return err
@@ -98,14 +100,26 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := recordSentRecords(s.layout, s.round, s.review); err != nil {
 		return err
 	}
+	if err := recordSentDiscards(s.layout, s.round, s.triage.discarded()); err != nil {
+		return err
+	}
 	if err := setPostUnresolved(s.layout, s.round, true); err != nil {
 		return err
 	}
 	if _, err := post.Create(confirmation, owner, repo, pr, payload); err != nil {
 		// §8.4: GitHub's refusal is §8.4.2 and everything else is
-		// §8.4.4's unknown outcome. Neither marks anything posted, so
-		// every write above is on this function's other branch.
+		// §8.4.4's unknown outcome. Neither marks anything posted nor
+		// waives anything, so every write below is on this function's
+		// other branch.
 		return postOutcome(s.layout, s.round, s.review, err)
+	}
+	if err := waiveDiscards(s.layout, owner, repo, pr, s.triage.discarded()); err != nil {
+		return fmt.Errorf(
+			"the review was created and the draft's waivers could not be written for round %d; "+
+				"post_unresolved stays set, so nothing can be sent twice, and `cr post %d --reconcile` "+
+				"adopts the review and writes them: %w",
+			s.round.Round, pr, err,
+		)
 	}
 	if err := s.markPosted(); err != nil {
 		return err
@@ -116,7 +130,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := recordPostTriage(s.layout, owner, repo, pr, s.round, s.triage); err != nil {
 		return err
 	}
-	if err := s.adoptReturnedThreads(); err != nil {
+	if err := adoptReturnedThreads(s.layout, s.round, s.records, s.review); err != nil {
 		return err
 	}
 	return out.emit(&postResult{
@@ -184,23 +198,30 @@ func (s *sending) markPosted() error {
 // that were found are still recorded: §8.3.3 asks for the returned ids, and a
 // map short by one is a truer answer than a map holding an id for a comment cr
 // could not identify.
-func (s *sending) adoptReturnedThreads() error {
-	threads, err := ghClient().Threads(s.round.Owner, s.round.Repo, s.round.PR)
+//
+// `cr post --reconcile` calls it too, once it has adopted a review as posted:
+// §8.3.3 asks for the ids of the review the round became, and a review adopted
+// after an unknown outcome is that review exactly as a returned one is. Both
+// callers read through this one function, so the two paths cannot key a
+// record's thread differently. It performs a read and nothing else on the
+// network.
+func adoptReturnedThreads(
+	l state.Layout, round *state.Meta, records []*finding.Finding, review *post.Review,
+) error {
+	threads, err := ghClient().Threads(round.Owner, round.Repo, round.PR)
 	if err != nil {
 		return fmt.Errorf(
 			"the review was created and §8.3.3's thread ids could not be read back "+
 				"for round %d; nothing needs re-sending, and `cr status %d` reports the "+
 				"records as posted: %w",
-			s.round.Round, s.round.PR, err,
+			round.Round, round.PR, err,
 		)
 	}
-	found := threadsByRecord(threads, s.review)
-	if err := adoptThreads(
-		s.layout, s.round.Owner, s.round.Repo, s.round.PR, s.round.Round, found,
-	); err != nil {
+	found := threadsByRecord(threads, review)
+	if err := adoptThreads(l, round.Owner, round.Repo, round.PR, round.Round, found); err != nil {
 		return err
 	}
-	return s.storeThreadIDs(found)
+	return storeThreadIDs(l, round, records, found)
 }
 
 // storeThreadIDs writes §6.1's `thread_id` onto each posted record the returned
@@ -210,18 +231,20 @@ func (s *sending) adoptReturnedThreads() error {
 // different threads for one record. It runs after `post_unresolved` is cleared
 // and the records are marked posted, so a write that fails here costs the field
 // and never reopens the round to a second send.
-func (s *sending) storeThreadIDs(found map[string]string) error {
-	for _, record := range s.records {
+func storeThreadIDs(
+	l state.Layout, round *state.Meta, records []*finding.Finding, found map[string]string,
+) error {
+	for _, record := range records {
 		if id, matched := found[record.ID]; matched {
 			record.ThreadID = id
 		}
 	}
-	held, err := s.layout.LockPR(s.round.Owner, s.round.Repo, s.round.PR)
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
 	if err != nil {
 		return err
 	}
-	stamp := state.Stamp{Head: s.round.Head, Round: s.round.Round}
-	if err := state.ReplaceStamped(held, state.FileFindings, stamp, s.records); err != nil {
+	stamp := state.Stamp{Head: round.Head, Round: round.Round}
+	if err := state.ReplaceStamped(held, state.FileFindings, stamp, records); err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.
 		_ = held.Unlock()

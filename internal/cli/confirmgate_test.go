@@ -71,6 +71,28 @@ func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
 	threads := filepath.Join(dir, "threads.json")
 	created := filepath.Join(dir, "review.json")
 
+	require.NoError(t, os.WriteFile(threads, threadsPage(t, review), 0o600))
+	require.NoError(t, os.WriteFile(created, []byte(
+		`{"id":1,"node_id":"PRR_shim","state":"COMMENTED"}`+"\n"), 0o600))
+
+	shim := filepath.Join(dir, "gh")
+	require.NoError(t, os.WriteFile(shim, []byte(
+		"#!/bin/sh\n"+
+			"printf '%s\\n' \"$*\" >> "+transcript+"\n"+
+			"case \"$*\" in\n"+
+			"  *reviewThreads*) exec cat "+threads+" ;;\n"+
+			"  *'--method POST'*) exec cat "+created+" ;;\n"+
+			"  *) echo '{}' ;;\n"+
+			"esac\n"), 0o700))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return &ghShimTranscript{path: transcript}
+}
+
+// threadsPage is §3.5.1's review-thread answer holding one thread per comment of
+// review, each carrying the comment's body, which is what §8.3.3's read-back
+// matches on.
+func threadsPage(t *testing.T, review *post.Review) []byte {
+	t.Helper()
 	nodes := make([]any, 0, len(review.Comments))
 	for i := range review.Comments {
 		comment := &review.Comments[i]
@@ -98,21 +120,7 @@ func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
 		}},
 	}})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(threads, page, 0o600))
-	require.NoError(t, os.WriteFile(created, []byte(
-		`{"id":1,"node_id":"PRR_shim","state":"COMMENTED"}`+"\n"), 0o600))
-
-	shim := filepath.Join(dir, "gh")
-	require.NoError(t, os.WriteFile(shim, []byte(
-		"#!/bin/sh\n"+
-			"printf '%s\\n' \"$*\" >> "+transcript+"\n"+
-			"case \"$*\" in\n"+
-			"  *reviewThreads*) exec cat "+threads+" ;;\n"+
-			"  *'--method POST'*) exec cat "+created+" ;;\n"+
-			"  *) echo '{}' ;;\n"+
-			"esac\n"), 0o700))
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	return &ghShimTranscript{path: transcript}
+	return page
 }
 
 // threadIDFor is the shim's node id for the thread one comment became, in

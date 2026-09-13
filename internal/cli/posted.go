@@ -53,6 +53,44 @@ func recordSentRecords(l state.Layout, round *state.Meta, sent *post.Review) err
 	return held.Unlock()
 }
 
+// postedDiscardsSection is the field the draft's discards are written to
+// posted.json under, beside the record ids and for their reason: §2.3's table
+// gives a round one posted.json.
+const postedDiscardsSection = "discards"
+
+// recordSentDiscards writes the records the draft discarded, with the
+// disposition each was discarded under, into posted.json beside the payload.
+//
+// It runs before the call for the reason recordSentRecords does. The waivers
+// those discards call for are written only once the call has succeeded, because
+// a waiver standing after GitHub refused the review would outlive the decision
+// it recorded: the record stays queued, and a disposition the reviewer clears
+// before posting again would leave the waiver silencing its class anyway. So a
+// call whose outcome cr never learned leaves the waivers owed, and §8.4.4's
+// adoption reads them from here.
+//
+// The section is written on every send, empty or not, so a discard from an
+// earlier send of the round is never read as one of this send's.
+func recordSentDiscards(l state.Layout, round *state.Meta, discarded []*finding.Finding) error {
+	discards := make([]post.Discard, 0, len(discarded))
+	for _, record := range discarded {
+		discards = append(discards, post.Discard{Record: record.ID, Disposition: record.Disposition})
+	}
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
+	if err != nil {
+		return err
+	}
+	if err := state.UpdateRoundSection(
+		held, round.Round, state.FilePosted, postedDiscardsSection, discards,
+	); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
+}
+
 // writePosted is §8.3.3's first half: the exact payload written to
 // rounds/<n>/posted.json before the network call. It answers with the path,
 // which is what post.Request sends as `--input`.
