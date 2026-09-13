@@ -8621,7 +8621,7 @@
     {
       "id": "correctness-claim-citation",
       "title": "Refuse a correctness claim the unit lacks",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "correctness-axis"
@@ -8631,7 +8631,8 @@
       "source_sections": [
         "### 4.2 Correctness against claims"
       ],
-      "started_at": null,
+      "started_at": "2026-09-13T00:20:56.035415Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
