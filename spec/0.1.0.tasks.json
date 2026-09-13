@@ -8089,7 +8089,7 @@
     {
       "id": "homebrew-formula",
       "title": "Publish the Homebrew formula on release",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "goreleaser-release"
@@ -8099,11 +8099,19 @@
       "source_sections": [
         "## 14. Distribution"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:48:45.455867Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:53:01.172307Z",
+      "closed_reason": "- (1) A release updates the tap so `brew install deligoez/tap/cr` installs the binary as cr, per §14.3: .goreleaser.yml's homebrew_casks entry is one cask named cr with binaries [cr] and repository deligoez/homebrew-tap; a snapshot run in a scratch clone wrote dist/homebrew/Casks/cr.rb declaring `cask \"cr\"` and `binary \"cr\"`. TestAReleasePublishesTheCaskToTheTapFromTheWorkflow in internal/cli/release_test.go pins the name, binary, owner and repository.\n- (2) The cask is published by the release workflow, not by hand: its repository token is `{{ .Env.HOMEBREW_TAP_TOKEN }}`, which only .github/workflows/release.yml's GoReleaser step supplies from `secrets.HOMEBREW_TAP_TOKEN` on a v* tag, and the same test asserts both ends. Nothing was released, tagged or pushed.\n- (3) The brews block moved to homebrew_casks (with a postflight clearing the macOS quarantine attribute on the unsigned binary), and the test asserts brews is absent; before the change `goreleaser check` reported \"DEPRECATED: brews should not be used anymore\" and failed.\n- (4) Afterwards `goreleaser check` with GoReleaser 2.17.1 at /opt/homebrew/bin/goreleaser prints \"1 configuration file(s) validated\" and exits 0 (and rejects an unknown key, so it is strict about the new block), and `goreleaser release --snapshot --clean --skip=publish,before` in a scratch clone produced the four §14.2 archives: cr_…_macOS_x86_64, macOS_arm64, linux_x86_64 and linux_arm64 .tar.gz.\n",
+      "gate_passed_at": "2026-09-13T00:53:01.172307Z",
+      "commit_sha": "ea5ed30",
+      "commit_shas": [
+        "ea5ed30"
+      ],
+      "commit_files": [
+        ".goreleaser.yml",
+        "internal/cli/release_test.go"
+      ]
     },
     {
       "id": "version-injection",
