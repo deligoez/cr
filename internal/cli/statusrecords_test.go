@@ -153,12 +153,16 @@ func TestStatusDisclosesTheWaiverAndDuplicateCountsUnderQuiet(t *testing.T) {
 	require.NoError(t, err)
 	statusRecordRound(t, layout, meta.Head)
 
-	honesty := strings.Join(readStatus(t).Honesty, "\n")
+	disclosed := readStatus(t).Honesty
+	honesty := strings.Join(disclosed, "\n")
 	for _, expected := range []string{
 		"2 finding(s) dropped by 2 active waiver(s), per §6.4.4",
 		"1 record(s) suppressed as duplicates across 1 anchored line(s), per §6.4.3",
 	} {
-		assert.Contains(t, honesty, expected)
+		// A whole disclosure, not a substring of the joined lines: gremlins
+		// found a count running down to "-1 record(s) suppressed ..." passing
+		// here, because that line contains this one.
+		assert.Contains(t, disclosed, expected)
 	}
 
 	quieted, err := runCLIPrinting(t, "status", fixturePR, "--repo", fixtureSlug, "--quiet")
