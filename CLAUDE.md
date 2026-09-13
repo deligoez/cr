@@ -159,6 +159,16 @@ Two rules that make the phase-boundary run worth doing:
    it directly. In tp this exact signal was a real defect: a validator was
    written, tested, and never called, while every auditor prompt promised that
    unknown values are rejected.
+
+   **The converse does not hold: absence from the list is not proof of wiring.**
+   Measured 2026-09-13: `finding.CommentCap.Err()` — the one call that makes
+   `cr post` refuse a round over `post.max_comments` — had no caller outside
+   tests, and `deadcode ./...` did not list it; its task had closed a week
+   earlier, tested at the package level. `cr post` sent two comments over a cap
+   of one and exited 0. A sibling measured the same signature for
+   `post.Review.Payload` a day before. So when a task wires a MUST, prove the
+   wiring with a test that drives the command, not with a quiet deadcode run —
+   `git grep` the call from non-test code is the cheap cross-check.
 2. **A surviving mutant is not a score to drive down.** Classify them: an
    equivalent mutant nothing can observe, an undocumented boundary, or a
    documented contract with no boundary test. The last is always worth acting
