@@ -72,6 +72,9 @@ func (r *Round) text(lens *role.Role, at int, output string) string {
 	if lens.Axis == axis.Intent {
 		r.unmapped(&p, u.ID)
 	}
+	if lens.Axis == axis.Correctness {
+		r.correctness(&p, u.ID)
+	}
 	r.candidates(&p, u)
 	r.hits(&p, lens, at)
 	r.tests(&p, at)
@@ -175,6 +178,29 @@ func (r *Round) unmapped(p *page, id string) {
 	p.line("If one of the notes below explains the unit, raise nothing and record this role's " +
 		"coverage cell with note_id naming that note (§4.1.5). Whether a note explains it is " +
 		"your decision; cr matches no text.")
+}
+
+// correctness writes §4.2's obligations for a correctness role over one unit.
+//
+// A unit the mapping maps to no claim is told it is still evaluated, for
+// internal defects on its own terms (§4.2.3), rather than being left to read
+// an empty claims section as nothing to do. A unit with claims is told to
+// evaluate against them (§4.2.1) and to cite the one a finding violates in
+// §6.1's `claim` field (§4.2.2).
+//
+// Which claim a finding violates is the role's judgement and cr does not check
+// it against the mapping: §5.4.4 and §6.2 already grade a record whose claim
+// the round does not map to its unit, rather than refusing it.
+func (r *Round) correctness(p *page, id string) {
+	p.section("Correctness against claims (§4.2)")
+	if len(mapping.ClaimsOf(r.Pairs, r.Round, id)) == 0 {
+		p.line("No claim is mapped to this unit, and it is still evaluated (§4.2.3): look for " +
+			"defects the code can reach on its own terms. A record about one leaves claim empty.")
+		return
+	}
+	p.line("Evaluate this unit against each claim mapped to it above (§4.2.1). A finding that the " +
+		"code violates a claim cites that claim's id in claim (§4.2.2). A defect no claim covers " +
+		"is still raised, with claim left empty (§4.2.3).")
 }
 
 // candidates writes §4.3.1's candidates for the symbols the diff adds inside the
