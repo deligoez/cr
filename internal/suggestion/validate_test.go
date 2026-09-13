@@ -168,3 +168,21 @@ func TestAnAnchorWithNoSideIsRefused(t *testing.T) {
 
 	assert.Error(t, Validate(suggesting(&anchor), hunksOf(t, twoHunkDiff)))
 }
+
+// A range starting on the first line of a file is admitted when a hunk carries
+// it. Line 1 is the lowest line §8.2.1's contiguous range can start on, and no
+// admitted range above starts lower than 10, so this is the edge a validator
+// counting it out would drop every first-line suggestion at without a word.
+func TestARangeOnTheFirstLineOfAFileIsAdmitted(t *testing.T) {
+	hunks := hunksOf(t, `--- a/app/Models/Order.php
++++ b/app/Models/Order.php
+@@ -1,2 +1,2 @@
+-<?php // before
++<?php // after
+ $kept = 1;
+`)
+	anchor := right("app/Models/Order.php", 1, 2)
+
+	assert.NoError(t, Validate(suggesting(&anchor), hunks))
+	assert.True(t, Placeable(&anchor, hunks), "the predicate agrees with the validator")
+}
