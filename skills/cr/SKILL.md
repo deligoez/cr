@@ -441,9 +441,10 @@ cr cannot know whether the review exists. It sets `post_unresolved` and exits 4:
 ```
 
 Until it is settled, `cr post --confirm`, `cr draft` and a `cr brief` on a moved
-head all refuse with exit 4 and the same hint: each would either post the review
-twice or move the records the send may already have posted. Run the one command
-they name:
+head all refuse with exit 4 and the hint "run `cr post <pr> --reconcile` to adopt
+the review the earlier call created, or to clear post_unresolved for a retry":
+each would either post the review twice or move the records the send may already
+have posted. Run the one command they name:
 
 ```bash
 cr post 1 --reconcile
