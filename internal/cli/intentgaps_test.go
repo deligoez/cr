@@ -233,3 +233,35 @@ func TestARunThatDroppedNoStampReportsAnEmptyArray(t *testing.T) {
 	require.Contains(t, fields, "dropped_set_asides")
 	assert.Equal(t, "[]", string(fields["dropped_set_asides"]))
 }
+
+// §12.1's terminal shape for the same report: a run that dropped a set-aside
+// names the claim it cost, and a run that dropped none says nothing about drops.
+//
+// The tests above read the JSON document, where the list is present either
+// way, so gremlins found the terminal line's condition unasserted: inverted, a
+// run that revoked a reviewer's judgement printed only its count of mappings,
+// and every run that revoked nothing announced an empty drop.
+func TestATerminalMapRecordNamesADroppedSetAsideOnlyWhenOneWasDropped(t *testing.T) {
+	layout := briefedForMapping(t)
+	mappingFile := func(lines ...string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "mapping.ndjson")
+		require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
+		return path
+	}
+	c1 := `{"claim":"` + mapIssue + `#c1","unit":"u1"}`
+	recordedMapping(t, c1)
+	recorded, err := note.Append(layout, mapIssue,
+		"the tax table ships in its own change", note.SourceChat, mapPR, time.Now())
+	require.NoError(t, err)
+	setAside(t, mapIssue+"#c2", recorded.ID)
+
+	kept := throughATerminal(t, "map", "record", strconv.Itoa(mapPR), mappingFile(c1), "--repo", mapSlug)
+	assert.Contains(t, kept, " mapping(s) in round 2")
+	assert.NotContains(t, kept, "dropped", "c2 is still unmapped, so its set-aside was kept")
+
+	dropped := throughATerminal(t, "map", "record", strconv.Itoa(mapPR),
+		mappingFile(c1, `{"claim":"`+mapIssue+`#c2","unit":"u2"}`), "--repo", mapSlug)
+	assert.Contains(t, dropped, "; dropped the set-aside of ")
+	assert.Contains(t, dropped, mapIssue+"#c2", "the claim whose judgement was revoked is named")
+}
