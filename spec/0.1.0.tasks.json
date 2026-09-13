@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T05:44:10.819414Z",
+  "updated_at": "2026-09-13T05:44:59.039447Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8965,6 +8965,26 @@
         "internal/cli/recordids.go",
         "internal/cli/recordids_test.go"
       ]
+    },
+    {
+      "id": "merge-refuses-repeated-record-id",
+      "title": "Refuse a repeated id across merge inputs",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "record-id-refusal-names-next-free"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- When two records across cr merge's input files carry the same id, cr merge exits 1 naming the file, the line, and the next free id, and writes no output, so §6.4.3's duplicate_of never names an id two records hold.\n- An id a stored record of the pull request already holds is refused the same way, per §6.1's id row.\n- A test drives cr merge with two per-role files that both carry f1, once as different findings and once as duplicates, and asserts the refusal and that no output file exists.",
+      "source_sections": [
+        "### 6.5 Merge",
+        "### 6.4 Dedup"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
