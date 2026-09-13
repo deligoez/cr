@@ -5690,7 +5690,7 @@
     {
       "id": "record-reapplies-drops",
       "title": "Re-apply suppression drops at record time",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "merge-counts-reporting"
@@ -5700,11 +5700,27 @@
       "source_sections": [
         "### 6.5 Merge"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:06:22.059289Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:19:30.398074Z",
+      "closed_reason": "- (1) cr record re-applies §6.4.4's waiver drops and §9.3.6's posted-index drops before writing anything: internal/cli/recorddrops.go dropRecorded (finding.ActiveWaivers plus DropWaived, finding.PostedIndex plus DropPosted), called in acceptRecords after the last refusal that names an input line and before §9.1's first rows, so a dropped record is never stamped draft, never journaled and never reaches findings.ndjson; it is idempotent, and TestRecordingMergesOwnOutputDropsNothingTwice asserts zero drops and no drop disclosure over cr merge's own output.\n- (2) cr record \u003cpr\u003e \u003cfile\u003e keeps no precondition on its input: a raw single-role file is accepted, validated exactly as before, and now loses the waived and posted findings merge would have dropped, so a pipeline that skips merge re-raises nothing already posted.\n- (3) The invariant is enforced on what findings.ndjson holds rather than on which command ran: whichever file reaches cr record, a finding an active waiver or the posted index covers is not stored, and the record result reports waived and already_posted counts with a disclosure when either is non-zero.\n- (4) TestARawRoleFileRecordedWithoutMergeStillDropsWaivedAndPostedFindings hands a raw review-correctness.ndjson straight to cr record and asserts only f3 is stored, waived dropped 1, already_posted dropped 1 naming f9; a hand mutant keeping every record turns it red. Dogfood: a scratch draft block deleted to write waiver wp1, then a raw role file recorded as `['f31'] {'dropped': 1, 'waivers': ['wp1']} ['1 finding(s) dropped by 1 active waiver(s), per §6.4.4']`, git status --porcelain empty.\n- (5) The mismatch anchor-no-migration found is fixed at its source: readPerRole in internal/cli/merge.go now calls stampAnchors before merge's drops, so cr merge matches on the hash cr stamps from the head exactly as cr record does.\n- (6) Merge-time drops match again: TestAWrongTypedHashIsDroppedAtMergeAndAgainAtRecord asserts merged 1 with waived 1 and already_posted 1 on fresh copies carrying a typed hash, and removing the merge stamp turns that assertion red; the merge fixtures that had keyed waivers on the typed 0123456789abcdef (merge_test, quiet_test, summary_test, waiversremove_test) now key on the stamped hash via recordedHash, and the no-repo-write guard's merge input anchors app.go:3, which its fixture head holds, since merge resolves anchors.\n- (7) Both commands match waivers and the posted index on a hash cr computed from the head, never on one the agent supplied; TestAWrongTypedHashIsDroppedAtMergeAndAgainAtRecord waives u1's finding and posts u2's under stamped hashes, merges fresh copies carrying the wrong typed hash and asserts both dropped at merge, then hands the same copies to cr record and asserts both dropped again.\n",
+      "gate_passed_at": "2026-09-13T00:19:30.398074Z",
+      "commit_sha": "e5e9ca8",
+      "commit_shas": [
+        "e5e9ca8"
+      ],
+      "commit_files": [
+        "internal/cli/anchorstamp_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/merge_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/quiet_test.go",
+        "internal/cli/record.go",
+        "internal/cli/recorddrops.go",
+        "internal/cli/recorddrops_test.go",
+        "internal/cli/summary_test.go",
+        "internal/cli/waiversremove_test.go"
+      ]
     },
     {
       "id": "anchored-comments-only",
