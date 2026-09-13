@@ -650,6 +650,17 @@ do not race. Three rules make it safe, each learned by breaking it.
   about a file's contents, **git is the truth**.
 - **Never run a full mutation run while either unit is live.** Units do the
   25-second dry run; the full run happens in a quiet window, once.
+- **A unit applies a mutation by hand through `go test -overlay`, never on
+  disk.** A mutation written into the working tree is also compiled by every
+  other unit's `go test ./...` while it stands, and reverting it is the
+  `git checkout --` this section already forbids. Measured 2026-09-13: a unit
+  classified 28 survivors this way — each mutant a scratchpad copy of the file,
+  mapped over the original with `go test -count=1 -overlay <map.json>
+  ./internal/<pkg>` — and `git diff` stayed empty throughout while a sibling
+  unit worked in the same tree. It checked the instrument before trusting a
+  green: the killable `n <= highest` mapped onto `finding/id.go` the same way
+  turned `TestAnIDCrDidNotWriteIsNotCounted` red. The overlay map is a JSON
+  object `{"Replace": {"<absolute original path>": "<absolute copy path>"}}`.
 
 **`.tp-review/` is tp's, including `REVIEW-DECISION.md`.** Since tp 1.1.1 a
 `PreToolUse` hook refuses a hand edit anywhere under it, citing tp's §6.2 scope
