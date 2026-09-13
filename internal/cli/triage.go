@@ -100,10 +100,16 @@ func recordDraftTriage(
 // record's only outcome, instead of a second one contradicting a `kept` from
 // the run GitHub refused.
 //
+// `cr post --reconcile` calls it too, once it has adopted a review as posted,
+// over the outcomes the send named in posted.json before its call: a review
+// adopted after an unknown outcome is the review a successful call created, and
+// both paths write through this one function, so the ledger holds the same
+// outcome against each raise whichever of them settled the round.
+//
 // `cr post` without `--confirm` calls nothing here, per §7.3.1: it changes
 // nothing, so it counts nothing.
 func recordPostTriage(
-	l state.Layout, owner, repo string, pr int, round *state.Meta, triage *triaged,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, settled []finding.Settled,
 ) error {
-	return finding.RecordOutcomes(l, owner, repo, triage.settled(), triageOccasion(pr, round))
+	return finding.RecordOutcomes(l, owner, repo, settled, triageOccasion(pr, round))
 }

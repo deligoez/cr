@@ -157,7 +157,8 @@ func TestThePostSeamSettlesEveryQueuedRecordOnce(t *testing.T) {
 	triage, err := ingestDraft(layout, draftOwner, draftRepo, draftPRNum, &round, stored,
 		finding.NewJournal(finding.ActorPostConfirm, draftHead, time.Now()))
 	require.NoError(t, err)
-	require.NoError(t, recordPostTriage(layout, draftOwner, draftRepo, draftPRNum, &round, &triage))
+	require.NoError(t, recordPostTriage(
+		layout, draftOwner, draftRepo, draftPRNum, &round, triage.settled()))
 
 	assert.Equal(t, []string{
 		"f1:raised", "f2:raised", "f3:raised", "f4:raised",

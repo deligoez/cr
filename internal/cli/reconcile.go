@@ -188,8 +188,8 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 // adoptAsPosted walks §9.1's `queued` → `posted` row over the records the
 // payload carried, appends §9.3.6's index entries for them, clears
 // `post_unresolved`, and then does what `cr post --confirm` does once its call
-// has returned: the draft's discards are waived and §8.3.3's thread ids are
-// read back and stored.
+// has returned: the draft's discards are waived, §7.3.1's outcome events are
+// written, and §8.3.3's thread ids are read back and stored.
 //
 // The records are the payload's and not the round's. A record the reviewer
 // discarded in the draft never reached the comments, and a record recorded
@@ -208,6 +208,10 @@ func reviewCarrying(round *state.Meta, hash string) (string, error) {
 // §9.1 lets `cr draft` and `cr post --confirm` store a discard, and not this
 // command. The next `cr draft` stores them, reading the draft the send read,
 // and ingestDraft lets the adopted records' blocks stand in that draft.
+//
+// The outcome events follow the cleared flag, in send's order, through the
+// recordPostTriage the send calls, over the outcomes the send named in
+// posted.json before its call.
 //
 // The thread ids go last, through the adoptReturnedThreads the send uses, once
 // the flag is cleared — a read that fails there costs the field and never
@@ -249,7 +253,31 @@ func adoptAsPosted(l state.Layout, round *state.Meta, sent *post.Sent) ([]string
 	if err := setPostUnresolved(l, round, false); err != nil {
 		return nil, err
 	}
+	if err := recordPostTriage(
+		l, round.Owner, round.Repo, round.PR, round, sentSettlements(records, sent),
+	); err != nil {
+		return nil, err
+	}
 	return ids, adoptReturnedThreads(l, round, records, &sent.Review)
+}
+
+// sentSettlements are the outcomes posted.json names for the send's triage,
+// each paired with the round's record it names, which is what recordPostTriage
+// writes §7.3.1's events from.
+//
+// Every named record is settled, whatever state it now holds: the outcome is
+// the send's reading of its draft, and the event is keyed by pull request,
+// round and record, so a discard a later `cr draft` already settled is written
+// again under its own key rather than beside it. A record the round no longer
+// holds is passed over, since there is nothing to draw an event's fields from.
+func sentSettlements(records []*finding.Finding, sent *post.Sent) []finding.Settled {
+	settled := make([]finding.Settled, 0, len(sent.Outcomes))
+	for _, outcome := range sent.Outcomes {
+		if record := recordOf(records, outcome.Record); record != nil {
+			settled = append(settled, finding.Settled{Record: record, Outcome: outcome.Outcome})
+		}
+	}
+	return settled
 }
 
 // sentDiscards are the records posted.json names as the draft's discards, each

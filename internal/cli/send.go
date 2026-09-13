@@ -103,6 +103,9 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := recordSentDiscards(s.layout, s.round, s.triage.discarded()); err != nil {
 		return err
 	}
+	if err := recordSentOutcomes(s.layout, s.round, s.triage.settled()); err != nil {
+		return err
+	}
 	if err := setPostUnresolved(s.layout, s.round, true); err != nil {
 		return err
 	}
@@ -127,7 +130,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	if err := setPostUnresolved(s.layout, s.round, false); err != nil {
 		return err
 	}
-	if err := recordPostTriage(s.layout, owner, repo, pr, s.round, s.triage); err != nil {
+	if err := recordPostTriage(s.layout, owner, repo, pr, s.round, s.triage.settled()); err != nil {
 		return err
 	}
 	if err := adoptReturnedThreads(s.layout, s.round, s.records, s.review); err != nil {

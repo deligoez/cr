@@ -136,6 +136,21 @@ type Sent struct {
 	// succeeded, so a review adopted after an unknown outcome is the one
 	// place those waivers are still owed.
 	Discards []Discard `json:"discards"`
+	// Outcomes are §7.3.1's outcome for every record the draft's triage
+	// read when the payload was built, in the order the records arrived,
+	// as cr wrote them beside the payload. §8.4.4's adoption writes their
+	// events: the send writes them only once the call has succeeded, and a
+	// softening is not a state the records hold, so this is the one place
+	// it survives a call whose outcome cr never learned.
+	Outcomes []Settlement `json:"outcomes"`
+}
+
+// Settlement is one record's §7.3.1 outcome, as posted.json names it.
+type Settlement struct {
+	// Record is the record's id.
+	Record string `json:"record"`
+	// Outcome is the outcome action the draft's triage settled on.
+	Outcome finding.Outcome `json:"outcome"`
 }
 
 // Discard is one record the draft discarded, as posted.json names it.

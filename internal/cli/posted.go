@@ -91,6 +91,43 @@ func recordSentDiscards(l state.Layout, round *state.Meta, discarded []*finding.
 	return held.Unlock()
 }
 
+// postedOutcomesSection is the field the draft's §7.3.1 outcomes are written to
+// posted.json under, beside the record ids and for their reason: §2.3's table
+// gives a round one posted.json.
+const postedOutcomesSection = "outcomes"
+
+// recordSentOutcomes writes the outcome the draft's triage settled on for every
+// record it read into posted.json, beside the payload.
+//
+// It runs before the call for the reason recordSentRecords does. The events are
+// written only once the call has succeeded, for the reason recordPostTriage
+// gives, so a call whose outcome cr never learned leaves them owed — and a
+// softening is not a state findings.ndjson holds, while a question in the
+// payload may be §6.3.2's forcing rather than the reviewer's, so §8.4.4's
+// adoption can read the outcomes from here and from nowhere else.
+//
+// The section is written on every send, empty or not, so an outcome from an
+// earlier send of the round is never read as one of this send's.
+func recordSentOutcomes(l state.Layout, round *state.Meta, settled []finding.Settled) error {
+	outcomes := make([]post.Settlement, 0, len(settled))
+	for _, one := range settled {
+		outcomes = append(outcomes, post.Settlement{Record: one.Record.ID, Outcome: one.Outcome})
+	}
+	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
+	if err != nil {
+		return err
+	}
+	if err := state.UpdateRoundSection(
+		held, round.Round, state.FilePosted, postedOutcomesSection, outcomes,
+	); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
+}
+
 // writePosted is §8.3.3's first half: the exact payload written to
 // rounds/<n>/posted.json before the network call. It answers with the path,
 // which is what post.Request sends as `--input`.
