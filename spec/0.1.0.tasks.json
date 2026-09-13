@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T13:37:19.315229Z",
+  "updated_at": "2026-09-13T18:36:42.598289Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7083,7 +7083,7 @@
         "config-layer-resolution"
       ],
       "estimate_minutes": 10,
-      "acceptance": "- Comment bodies are written in the language configured by render.lang, defaulting to tr, per §8.1.1.\n- Round 8 finding render-lang-domain-unbounded: the valid v0.1 values are enumerated as tr and en, any other value aborts with exit code 3 naming the setting, and the built-in label text for each enumerated language is fixed in the implementation so it is testable rather than an implementation choice. §8.1.4 requires the question label to be built in per render.lang and explicitly non-configurable, which cannot hold for a free-form string — for an unknown language there is no built-in label and §6.3's forcing would reach the reader through nothing.\n- Findings are stored in English; reader-facing prose is produced at draft time.\n- A test asserts render.lang: de aborts with exit code 3 and that both enumerated languages carry a label.\n- Round 12 finding unspecified-render-language, assigned here: §8.4.3's review-body disclosure never names a language. It is rendered in render.lang like every other author-facing body.",
+      "acceptance": "- Comment bodies are written in the language configured by render.lang, defaulting to tr, per §8.1.1.\n- Round 8 finding render-lang-domain-unbounded: the valid v0.1 values are enumerated as tr and en, any other value aborts with exit code 3 naming the setting, and the built-in label text for each enumerated language is fixed in the implementation so it is testable rather than an implementation choice. §8.1.4 requires the question label to be built in per render.lang and explicitly non-configurable, which cannot hold for a free-form string — for an unknown language there is no built-in label and §6.3's forcing would reach the reader through nothing.\n- Findings are stored in English; reader-facing prose is produced at draft time.\n- A test asserts render.lang: de aborts with exit code 3 and that both enumerated languages carry a label.\n- Round 12 finding unspecified-render-language, assigned here: §8.4.3's review-body disclosure never names a language, and the user decided on 2026-09-13 that it is written in English whatever render.lang says, because CLAUDE.md admits Turkish in the tree only for §8.1.4's question labels; render.lang governs comment bodies and their question labels.",
       "source_sections": [
         "### 8.1 Render contract"
       ],
@@ -9795,6 +9795,246 @@
         "internal/cli/triageevents_test.go",
         "internal/cli/triageseverity_test.go"
       ]
+    },
+    {
+      "id": "detected-repo-refuses-dot-segments",
+      "title": "Refuse dot owner or repo from git remotes",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A repository detected from a git remote whose owner or name is . or .. is refused the same way --repo refuses it since 10bf082, so a remote such as https://github.com/./api or git@github.com:acme/..git never files a pull request's state under another repository's directory (found by audit round 5's security auditor in internal/cli/repodetect.go githubSlug).\n- A test drives a command in a checkout whose origin remote names a dot owner and asserts the refusal and that no state directory was created.",
+      "source_sections": [
+        "### 2.3 Per-PR state",
+        "### 11.2 Exit codes"
+      ],
+      "started_at": "2026-09-13T14:05:32.770655Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T14:45:00.430481Z",
+      "closed_reason": "- A repository detected from the one GitHub remote now meets the rule --repo has held since 10bf082 through the same function: internal/cli/repodetect.go's githubSlug judges only the host and returns the path with the .git suffix stripped, and detectRepo passes it to splitRepo in internal/cli/config.go, which refuses an owner or a repository name that is a dot segment or holds a separator.\n- The refusal is RepositoryDetectionError, exit 2 with the hint \"run cr inside a clone whose one remote is its GitHub repository, or pass --repo \u003cowner/repo\u003e\", and its message carries splitRepo's own refusal after the remote, for an owner of dot or dot-dot and a repository of dot or dot-dot alike.\n- So https://github.com/./api is refused as \"./api\" and git@github.com:acme/..git as \"acme/.\" before any state path is built, and the dogfood binary in a scratch checkout printed \"cannot detect the repository under review: remote origin is https://github.com/./api: invalid repository \\\"./api\\\": pass it as owner/repo, where neither half is . or .. or holds a separator\" at exit 2 for cr brief and cr status, with CR_HOME left empty and the gh shim never run.\n- TestADetectedRepositoryThatIsNotTwoPathSegmentsIsRefused in internal/cli/repodetect_test.go drives cr brief and cr status in a checkout whose origin names an owner of dot over https, an owner of dot-dot over an ssh URL, a repository of dot and of dot-dot before the .git suffix, and a repository holding a separator, with a gh shim first on PATH that leaves a mark, and asserts the whole refusal message, exit 2, the hint, no entry under the state root or beside it, and no gh mark, red at HEAD and red under a go test -overlay mutant replacing the splitRepo call with a bare strings.Cut.\n",
+      "gate_passed_at": "2026-09-13T14:45:00.430481Z",
+      "commit_sha": "979960d",
+      "commit_shas": [
+        "979960d"
+      ],
+      "commit_files": [
+        "internal/cli/repodetect.go",
+        "internal/cli/repodetect_test.go"
+      ]
+    },
+    {
+      "id": "stale-sweep-journal-before-publish",
+      "title": "Journal stale moves before publishing them",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- cr brief's stale sweep on a moved head leaves findings.ndjson and transitions.ndjson consistent when either write fails: a re-run after a failed transitions append still journals every move it published, or the sweep appends before it publishes (found by audit round 5's security auditor in internal/brief/invalidate.go, which publishes findings before appending transitions).\n- A test fails the transitions write once, re-runs cr brief, and asserts one transition entry per record moved to stale.",
+      "source_sections": [
+        "### 9.3 A changed head",
+        "### 9.1 States"
+      ],
+      "started_at": "2026-09-13T14:05:48.791386Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T15:15:20.800438Z",
+      "closed_reason": "- cr brief's stale sweep on a moved head now appends transitions.ndjson before it publishes findings.ndjson, the order cr record's appendRecords, cr draft's publishDraft and cr post's storeDiscards and writeAdopted already use: internal/state/roundscope.go's RewriteStamped takes a before func run after every line is applied and before k.Write, and internal/brief/invalidate.go's staleOpenRecords passes journal.Write(held) as it, so a failed append publishes no move and the re-run moves and journals every open record again; measured first at HEAD, where the failed brief left f1 and f2 stale and the re-run left transitions.ndjson with zero lines; the dogfood binary with transitions.ndjson made a directory exited 3 with findings.ndjson still reading f1 draft and f2 queued and meta.json at round 1, and after the directory was removed the next cr brief exited 0 with f1 and f2 stale, meta.json at round 2 and exactly two journal lines, f1 draft to stale and f2 queued to stale, actor cr brief, at the new head.\n- TestAFailedJournalAppendLeavesNoStaleMoveUnjournaled in internal/brief/transitions_test.go drives brief.Run over a seeded round with f1 draft, f2 queued and f3 posted, makes transitions.ndjson a directory for one run so its append read fails while findings.ndjson stays publishable, asserts the whole state map is unchanged after the failure, then removes it, re-runs and asserts the whole state map and exactly two transition entries with record, from, to, actor and head; it was red at HEAD (states stale after the failure, zero entries after the re-run) and go test -overlay mutants that publish before calling before, or never call it, each turned it red, the second also turning TestAnIncrementLeavesOneJournalLinePerRecordItStales red.\n",
+      "gate_passed_at": "2026-09-13T15:15:20.800438Z",
+      "commit_sha": "beac209",
+      "commit_shas": [
+        "beac209"
+      ],
+      "commit_files": [
+        "internal/brief/invalidate.go",
+        "internal/brief/transitions_test.go",
+        "internal/state/roundscope.go"
+      ]
+    },
+    {
+      "id": "claims-rerecord-clears-mapping",
+      "title": "Clear the mapping marker when claims change",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- When cr claims record replaces a round's claims and empties mapping.ndjson, it also clears meta.json's mapping_round and mapping_head and the round's intent gaps, so cr review refuses the other axes again until cr map record runs and cr status reports no mapped claims as covered; audit round 5 row list-25-5 (brief, claims record, map record, claims record again left mapping.ndjson empty while cr review emitted all prompts and cr status showed claims 1, mapped 0, gaps []).\n- cr claims record refuses a file in which two claims carry the same id, with exit 1 naming the file, the line and the id, as cr record does for record ids; audit round 5 row table-6-0.\n- Tests drive both through the commands and assert the refusal, meta.json's markers and cr review's exit code.",
+      "source_sections": [
+        "### 3.3 Claim extraction",
+        "### 4.1 Intent coverage"
+      ],
+      "started_at": "2026-09-13T14:42:40.174Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T15:15:54.658179Z",
+      "closed_reason": "- cr claims record now clears meta.json's mapping_round and mapping_head and the round's intent-gaps.ndjson entries whenever it replaces the round's claims and empties mapping.ndjson: internal/cli/claims.go's storeClaims, under the one §2.3.1 lock the claims write holds, calls the new state.Lock.ClearMapping (internal/state/meta.go, StampMapping(0, \"\")) first, then ReplaceStamped on claims.ndjson and ClearStamped on mapping.ndjson and intent-gaps.ndjson, so state.Meta.MappingRecorded reads false and cr review refuses the remaining axes with MappingRequiredError (exit 4) until cr map record runs again, while cr status reports mapped 0 and no stale gap.\n- Audit round 5 row list-25-5 is reproduced by TestReRecordingClaimsClearsTheMappingStampAndTheGaps (internal/cli/claimsrerecord_test.go), which drives brief, claims record (c1, c2), map record (c1 to u1, leaving c2 a gap), claims record again, and asserts meta.json's markers back to 0 and empty, intent-gaps.ndjson empty, cr status intent {claims 2, mapped 0, gaps []} and cr review's MappingRequiredError at ExitState, after controls showing the stamp set, c2's gap and cr review exiting 0; the dogfood binary on a scratch repository printed \"after re-record: round 1 mapping_round 0 mapping_head ''\", \"mapping bytes: 0, gaps bytes: 0\", review_after_rerecord=4 and status intent {'claims': 2, 'mapped': 0, 'gaps': [], 'set_aside': 0}.\n- cr claims record refuses a file in which two claims carry the same id with exit 1: internal/intent/claimvalidate.go's DecodeClaims runs the new refuseRepeatedID after each line's §3.3 checks, returning RejectedClaimError naming the file, the repeating line, field id and the id with the line that gave it first, in the shape internal/cli/recordids.go uses for record ids, and nothing is written because the decode refuses before the lock is taken.\n- Audit round 5 row table-6-0 is covered by TestClaimsRecordRefusesARepeatedClaimID, which asserts the whole RejectedClaimError (file, line 2, id, problem), ExitValidation and claims.ndjson byte-identical afterwards; the dogfood binary printed \"dup.ndjson line 2: id \\\"CR-1#c1\\\" repeats the id of line 1; a mapping names a claim by its id alone, so give each claim an id of its own\" with exit 1.\n- Both tests drive the commands and each was proven to kill its mutant through go test -overlay (dropping ClearMapping fails the meta and review assertions, dropping the intent-gaps clear fails the gap and status assertions, dropping refuseRepeatedID fails the refusal), and the gate ran green step by step in a clone of HEAD plus this change (go test -race -count=1, golangci-lint run 0 issues, scripts/deadcode.sh, gofmt -l empty).\n",
+      "gate_passed_at": "2026-09-13T15:15:54.658179Z",
+      "commit_sha": "22ac7f0",
+      "commit_shas": [
+        "22ac7f0"
+      ],
+      "commit_files": [
+        "internal/cli/claims.go",
+        "internal/cli/claimsrerecord_test.go",
+        "internal/intent/claimvalidate.go",
+        "internal/state/meta.go"
+      ]
+    },
+    {
+      "id": "suppressed-by-names-an-ingested-thread",
+      "title": "Refuse a suppressed_by naming no thread",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- cr record refuses a record whose suppressed_by names no thread in the round's threads.ndjson, with exit 1 naming the file, the line and the id, so a mistyped id cannot quietly remove a finding from the draft; audit round 5 row list-17-4.\n- TestTheThreadIdIsStoredAsTheAgentSuppliedIt or its successor ingests the thread it names, and a test asserts the refusal for an id no ingested thread carries.",
+      "source_sections": [
+        "### 6.1 Record schema",
+        "### 3.5 Existing threads"
+      ],
+      "started_at": "2026-09-13T14:46:51.086249Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T15:14:50.427326Z",
+      "closed_reason": "- cr record now refuses a record whose suppressed_by names no thread ingested for the pull request, with exit 1 naming the file, the line and the id: internal/cli/record.go's decodeInput calls refuseUnknownThreads (internal/cli/suppressedby.go) straight after finding.Decode, which reads threads.ndjson through gh.ReadThreads only when some record carries the field and returns finding.RejectedRecordError{Field: \"suppressed_by\"} (exit 1 through the existing row in internal/cli/exit.go) for an id no ingested thread carries, so a mistyped id can no longer move a finding to suppressed and out of the draft; the set is threads.ndjson as it stands, which is the round's and the pull request's at once, because §2.3.3 stamps no round on that file and cr brief rewrites it whole from §3.5.1's ingestion of every thread on the pull request each run, and the dogfood binary on a scratch repository (gh shim answering one human thread PRRT_dogfood1) refused a file whose line 2 read \"PRRT_dogfod1\" with exit 1 and `bad.ndjson line 2: suppressed_by reads \"PRRT_dogfod1\", and no thread ingested for the pull request carries that id`, left findings.ndjson empty, and then stored f1 draft and f2 suppressed by PRRT_dogfood1.\n- This closes audit round 5 row list-17-4, and the check is membership only: whether the thread covers the finding stays the agent's judgement under §3.5.3 and §3.5.4, and TestNoCodePathProducesAVerdictForAnAgentJudgement still passes.\n- TestTheThreadIdIsStoredAsTheAgentSuppliedIt in internal/cli/threadsuppression_test.go now ingests two threads through the new ingestThreads helper (gh.WriteThreads, the writer cr brief uses) and names the second, as do the other three suppression tests there and TestRecordAndDraftLeaveOneJournalLinePerTransition in internal/cli/transitions_test.go, and the new TestRecordRefusesASuppressedByNamingNoIngestedThread drives cr record with a prefix of an ingested id on line 3 of 3, beside ingested threads and with none, asserting exit 1, the file, line 3, the field, the quoted id and an unchanged findings.ndjson; overlay mutants dropping the check, reporting the wrong line, or refusing records without the field each turned it or its sibling red, and the gate passed in a clean clone of 1d39642 (go test -race, golangci-lint 0 issues, deadcode.sh, gofmt -l empty).\n",
+      "gate_passed_at": "2026-09-13T15:14:50.427326Z",
+      "commit_sha": "1d39642",
+      "commit_shas": [
+        "1d39642"
+      ],
+      "commit_files": [
+        "internal/cli/record.go",
+        "internal/cli/suppressedby.go",
+        "internal/cli/threadsuppression_test.go",
+        "internal/cli/transitions_test.go"
+      ]
+    },
+    {
+      "id": "malformed-input-line-exits-validation",
+      "title": "Exit 1 on a malformed line in an input file",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A caller-supplied input line that is not JSON or carries a field of the wrong type is refused with exit 1 naming the file and the line, not 2 with the usage hint, for cr record, cr claims record, cr cells record, cr map record and cr merge, because state.DecodeStamped's plain fmt.Errorf matches no exit.go row; audit round 5 row table-14-1.\n- A --patch file that is not a unified diff makes cr probe run exit 1 naming the file, per §11.2.\n- Tests drive each command over {\"id\": and {\"id\":7} and a non-diff patch, and assert the exit code, file, line and hint.",
+      "source_sections": [
+        "### 11.2 Exit codes",
+        "### 6.1 Record schema"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "probe-lock-names-repository-root",
+      "title": "Name the probe lock after the repository root",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- The §5.6.1 advisory lock for cr test and cr probe run is named after the absolute path of the repository root under review, resolved through internal/git's runner, not the directory cr was started from, so a run started from a subdirectory waits for one started at the root; audit round 5 row task-probe-advisory-lock (lockProbe in internal/cli/test.go took filepath.Abs of os.Getwd).\n- A test holds the lock for the repository root and asserts that a run started from a subdirectory of the same repository with the same profile waits and times out with exit 4.",
+      "source_sections": [
+        "### 5.6 Isolation and budget"
+      ],
+      "started_at": "2026-09-13T14:49:26.287645Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T15:15:52.616513Z",
+      "closed_reason": "- The §5.6.1 advisory lock cr test and cr probe run take is now named after the repository root: internal/cli/test.go's lockProbe, which both commands call (probe.go's mutation and gap runs), resolves repoDir through the new internal/git/toplevel.go Toplevel, a read through internal/git's pinned runner (rev-parse --show-toplevel, trimming only git's line ending), so a run started in a subdirectory names the root's lock and waits for a run started at the root; no other caller of repoDir resolved a root before this, so there was no existing spelling to reuse, and the gitReads allowlist in internal/cli/norepowrite_test.go names §5.6.1 beside rev-parse.\n- Audit round 5 row task-probe-advisory-lock is repaired at its cause: filepath.Abs of os.Getwd is gone from lockProbe, and the dogfood binary in a scratch checkout refused cr test from internal/deeper while a root run held the lock, with exit 4 after 2s and \"another cr run holds the probe lock for \u003croot\u003e under profile qa\", where the binary built at HEAD ran alongside the root run and left a second lock file under internal/deeper.\n- TestARunStartedInASubdirectoryWaitsForTheRootsProbeLock in internal/cli/probelockroot_test.go holds the lock for the fixture root under profile qa, drives cr test and cr probe run --kind mutation from the root's built subdirectory with CR_PROBE_LOCK_TIMEOUT_SECONDS=1, and asserts ProbeLockedError naming the root and qa, a wait of at least one second, exit 4 and no suite run, then releases the lock and asserts the same run succeeds; both subtests are red with test.go at HEAD mapped in by go test -overlay, and internal/git/toplevel_test.go covers the root from nested directories, a root name ending in a space (red under a TrimSpace overlay) and a CommandError outside a repository.\n",
+      "gate_passed_at": "2026-09-13T15:15:52.616513Z",
+      "commit_sha": "7d5af72",
+      "commit_shas": [
+        "7d5af72"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/probelockroot_test.go",
+        "internal/cli/test.go",
+        "internal/git/toplevel.go",
+        "internal/git/toplevel_test.go"
+      ]
+    },
+    {
+      "id": "post-regrades-after-draft-edits",
+      "title": "Regrade after applying draft edits at post",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- cr post recomputes every grade and applies §6.3's forcing after it has ingested draft.md's triage edits, anchor edits included, so a record whose edited anchor no longer contains its probe's target loses the probed grade and is forced to a question before the payload is built, per §7.2.2 and invariant 4; audit round 5 row list-38-2 (f1 gap-probed at 42-44 with target 43, marker edited to 46-46, cr post with no redraft posted f1 as kind finding with the line 43 evidence block).\n- cr draft applies the same order when it regenerates from an edited draft.\n- A test drives cr record, cr draft, an anchor edit in draft.md, then cr post, and asserts the payload carries the record as a question with the argued label; an overlay mutant restoring the old order turns it red.",
+      "source_sections": [
+        "### 7.2 Triage verbs",
+        "### 6.3 The argued rule"
+      ],
+      "started_at": "2026-09-13T14:50:08.837927Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T15:20:30.466238Z",
+      "closed_reason": "- cr post now ingests draft.md's triage first and recomputes every grade after it: internal/cli/post.go's buildReview calls ingestDraft, which applies an edited anchor through applyRetriage, and only then roundGrading.regradeTriaged (internal/cli/regenerate.go), ahead of retypeForDraft, forceUnmapped, holdWithdrawn, ForceQuestions, RefuseArguedAssertion, refuseGapSeverities, refuseOverCap, validatePositions and buildPayload, so a record whose moved anchor no longer holds its probe's target loses probed and is forced to a question before the payload exists, and regradeTriaged also refuses with ArguedAssertionError (exit 1, naming the record) a question hardened to a finding whose recomputed grade no longer asserts.\n- Audit round 5 row list-38-2 is reproduced and fixed on the dogfood binary: a scratch repository gap-probed f1 at order.go 4-6 with target order.go:5 (baseline passed, claim mapped), the draft marker was edited to 8-8, and cr post with no redraft printed comments [{f1 finding}], no forcing, and the evidence block on the HEAD binary, against comments [{f1 question}], forced_to_question [{untested-branch 1}], and the argued label as the body's first region with no evidence block on the fixed one.\n- cr draft applies the same order when it regenerates: internal/cli/draft.go's produceDraft calls regradeMoved (internal/cli/regenerate.go) right after ingestDraft, recomputing the grade of every record whose anchor the triage moved and holding hardenings to it before queueRecords and the forcings, and the dogfood cr draft over the edited draft stored f1 as question argued 8-8 and rendered its marker kind=\"question\" grade=\"argued\".\n- internal/cli/postregrade_test.go drives cr record, cr draft, the anchor edit in draft.md, then cr post dry and --confirm through the gh shim, asserting the payload comment is f1 question at line 46 whose first region is the argued label, the same label in the request body the shim received, and the stored record argued and question, with TestARegeneratedDraftRegradesARecordItsTriageMoved and TestAHardeningMadeWithTheAnchorMoveIsHeldToTheRecomputedGrade beside it.\n- Overlay mutants turn them red via go test -count=1 -overlay: restoring the old order in post.go fails TestAnAnchorMovedOffItsProbeTargetIsPostedAsAnArguedQuestion with kind finding and an empty forcing, dropping the moved records from regradeMoved fails the draft test, removing the hardening refusal fails TestPostHoldsAHardeningToTheRecomputedGrade and both hardening subtests, and inverting moved() fails the draft test, while git diff stayed clean.\n",
+      "gate_passed_at": "2026-09-13T15:20:30.466238Z",
+      "commit_sha": "f3da1f7",
+      "commit_shas": [
+        "f3da1f7",
+        "48d2bf1",
+        "f47227e"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/post.go",
+        "internal/cli/postgrade_test.go",
+        "internal/cli/postregrade_test.go",
+        "internal/cli/regenerate.go"
+      ]
+    },
+    {
+      "id": "timeout-response-is-unknown-outcome",
+      "title": "Treat a timeout response as unknown outcome",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A review-creation call whose response is a server error or a timeout (HTTP 5xx, or GitHub's we couldn't respond to your request in time body) is an unknown outcome per §8.4.4: cr sets post_unresolved and exits 4 pointing at cr post --reconcile, instead of classifying it as a rejection that clears post_unresolved; only a response that states the review was not created (4xx with GitHub's validation errors) is §8.4.2's rejection; audit round 5 row list-44-4.\n- Tests drive cr post --confirm through a gh shim returning a 504 timeout body, a 502 body, and a 422 validation body, and assert post_unresolved, the exit code and that a following cr post --confirm refuses.",
+      "source_sections": [
+        "### 8.4 Partial failure"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "draft-refuses-unresolved-post",
+      "title": "Refuse triage writes while a post is unresolved",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- While a round carries post_unresolved, cr draft and any other command that would move a record the unsettled send carried refuses with exit 4 and a hint naming cr post --reconcile, as cr post --confirm already does, so cr post --reconcile can always either adopt the review or clear the flag per §8.4.4; audit round 5 row task-post-reconcile (a draft deleting f1's block after an unknown-outcome send moved f1 to discarded, and every reconcile then exited 4 on the refused discarded to posted move, leaving the round stuck).\n- A test drives an unknown-outcome send, a cr draft with a deleted block, and cr post --reconcile against a shim listing the review, and asserts the draft's refusal and the reconcile's adoption.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 9.1 States"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "review-body-reasons-in-render-lang",
+      "title": "Write the review body in English",
+      "status": "wip",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- The §8.4.3 review body is written entirely in English whatever render.lang says, per the user's 2026-09-13 decision and CLAUDE.md's English rule: its heading, framing lines and every lens that did not run with its reason are English, and no Turkish text remains in internal/render outside §8.1.4's question labels; audit round 5 row task-render-lang-domain.\n- render.lang still governs comment bodies and their §8.1.4 question labels, and the payload hash of §8.3.3 is unaffected because the review body is excluded from it.\n- A test renders the review body under render.lang tr and en for every disclosure kind and asserts identical English output, and a test fails if a Turkish string outside the question label table is added to internal/render.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 4.5 Axis activation and honest reporting"
+      ],
+      "started_at": "2026-09-13T15:05:34.440976Z",
+      "duration_source": "claimed",
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
