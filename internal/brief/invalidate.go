@@ -109,13 +109,19 @@ func clearMapping(held *state.Lock, assembled *Brief) error {
 // swept silently — which is the honest failure, because §9.3.2 makes this
 // command the only way forward and a round it left half-open would go on
 // looking like a round in progress.
+//
+// A field it cannot decode is refused as the stored file cr cannot use that it
+// is: §6.1.4 has cr write `state`, so a line naming no state of §9.1, or an id
+// that is not a string, is cr's own state edited by hand, which §11.2 codes 3.
+// RewriteStamped puts the file's path and the line's number in front, because
+// the line is what the user has to open and only the walk knows which it was.
 func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 	return state.RewriteStamped(held, state.FileFindings,
 		func(fields map[string]json.RawMessage) (bool, error) {
 			var current finding.State
 			if written, supplied := fields[fieldState]; supplied {
 				if err := json.Unmarshal(written, &current); err != nil {
-					return false, err
+					return false, unusable(fieldState, err)
 				}
 			}
 			// A line carrying no state, or the JSON null §9.1's
@@ -129,7 +135,7 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 			}
 			var id string
 			if err := json.Unmarshal(fields[fieldID], &id); err != nil {
-				return false, err
+				return false, unusable(fieldID, err)
 			}
 			if err := journal.Move(id, finding.Existing(current), finding.StateStale); err != nil {
 				return false, err
@@ -141,6 +147,13 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 			fields[fieldState] = stale
 			return true, nil
 		})
+}
+
+// unusable is the refusal of one stored findings.ndjson field the sweep could
+// not decode, carrying state.UnusableHint as §12.4's step. It names the file
+// rather than its path, which RewriteStamped adds with the line.
+func unusable(field string, err error) error {
+	return state.FileFailure("use the "+field+" field of", state.FileFindings, state.UnusableHint, err)
 }
 
 // carryClaims is §9.3.4's "claims are carried forward unchanged": the claims

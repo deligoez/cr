@@ -326,6 +326,11 @@ func keptLines(k *Lock, name string, drop func(map[string]json.RawMessage) bool)
 // writer can be between this read and the Write that follows it. A file that is
 // not there yet holds as many records as an empty one, which is the reading
 // storeRecords already gives an absent store.
+//
+// A refusal names the path and the line, counting blank lines, because the line
+// is what the user has to open and nothing but this walk knows which it was — a
+// visitor's refusal included. A line that is not JSON is cr's own state it
+// cannot use, which §11.2 codes 3 with UnusableHint.
 func visitLines(
 	k *Lock, name string, visit func(map[string]json.RawMessage, []byte) ([]byte, error),
 ) ([]byte, error) {
@@ -341,11 +346,11 @@ func visitLines(
 		}
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(line, &fields); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
+			return nil, fmt.Errorf("%s line %d: %w", path, i+1, FileFailure("use", name, UnusableHint, err))
 		}
 		out, err := visit(fields, line)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
 		}
 		if out == nil {
 			continue
