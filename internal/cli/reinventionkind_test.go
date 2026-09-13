@@ -98,3 +98,34 @@ func TestAReinventionItemDefaultsToAQuestionBeforeTheForcing(t *testing.T) {
 	assert.Equal(t, finding.KindFinding, stored[1].Kind,
 		"a citation naming no candidate leaves the agent's kind alone")
 }
+
+// §4.3.4's default reads the pull request only when some record cites
+// anything: with no citation §4.3.3's reinvention item cannot exist, so a round
+// whose records cite nothing records without a round trip to GitHub.
+//
+// The profile indexes Go, so the head index builds and the one thing standing
+// between the run and `gh` is the citation check. gremlins found it unasserted:
+// widened to admit a record with no citations, it sent every such run to the
+// pull request, and nothing noticed, because reinventionHome's `gh` answers.
+// The shim here answers nothing and writes down that it was asked, so the run
+// succeeding and the transcript staying absent are the same fact seen twice.
+func TestARoundWhoseRecordsCiteNothingNeverAsksThePullRequestForCandidates(t *testing.T) {
+	layout := reinventionHome(t)
+	dir := t.TempDir()
+	transcript := filepath.Join(dir, "transcript")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "gh"), []byte(
+		"#!/bin/sh\nprintf '%s\\n' \"$*\" >> "+transcript+"\nexit 1\n"), 0o700))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	uncited := aReinventionRecord("f1", 3)
+	delete(uncited, "citations")
+
+	_, err := runCLIPrinting(t, "record", fixturePR,
+		writeRecordFile(t, "merged.ndjson", uncited), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, transcript, "no record cites anything, so no candidate is looked for")
+	stored, err := state.ReadRecords[finding.Finding](
+		layout, fixtureOwner, fixtureProject, fixturePRNumber, state.FileFindings)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+}
