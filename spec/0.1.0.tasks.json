@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T00:48:59.583323Z",
+  "updated_at": "2026-09-13T01:13:13.046404Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -7987,7 +7987,7 @@
     {
       "id": "skill-document",
       "title": "Document the full loop in skill",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "gate-honesty-reporting",
@@ -7998,16 +7998,23 @@
       "source_sections": [
         "## 13. Skill"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T00:54:36.700889Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T01:13:07.5731Z",
+      "closed_reason": "- skills/cr/SKILL.md is committed in the repository (0dd0fe6), so every release tag carries it, and it documents the full loop in order under \"The loop\": brief, review fan-out, merge and record, probe, draft, human read, post, each with a command run against a scratch repository and a gh shim on the built binary and its real output shape.\n- It states that v0.1 stops at posting, and its \"A moved head\" section quotes the real exit-4 refusal after the head moved and says `cr brief` opens round 2 with open records stale, per §9.3.\n- \"The argued rule\" documents the grade table, that an argued record is forced to a question at record, draft and post, that no flag, config key, environment variable, profile field or role overrides it (quoting the real exit-3 refusal of CR_FORCING_OFF), and when to escalate to a mutation probe, a gap probe or a citation instead of asserting.\n- \"Post\" documents that every network write needs --confirm and nothing makes it implicit; \"Human read\" states that cr cannot tell whether a human read the draft, so the human is the one who must read every block before posting.\n- \"Citations versus evidence\" documents citations as the machine-readable field cr resolves and grades on and evidence as prose cr never parses, so a finding without citations or a supporting probe is graded argued and posted as a question.\n- \"Comment economy\" documents fewer comments against post.max_comments as the draft header measures it (quoting the real header line), each anchored to a line of the diff, and an item with no code location reported by cr status and never posted.\n",
+      "gate_passed_at": "2026-09-13T01:13:07.5731Z",
+      "commit_sha": "0dd0fe6",
+      "commit_shas": [
+        "0dd0fe6"
+      ],
+      "commit_files": [
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "skill-triage-documentation",
       "title": "Document triage verbs with marker semantics",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "skill-document",
@@ -8018,7 +8025,8 @@
       "source_sections": [
         "## 13. Skill"
       ],
-      "started_at": null,
+      "started_at": "2026-09-13T01:13:13.046404Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
