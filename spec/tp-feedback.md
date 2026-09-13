@@ -169,3 +169,24 @@ and the fix is mechanical. That is the shape this check needs.
 part-count error already names each part. A secondary improvement: match on a
 word boundary rather than a substring, so `deferred` in "the caller deferred the
 close" is caught while a sentence that merely contains those letters is not.
+
+## `tp done` counts a `./...` package pattern as a sentence end
+
+Measured 2026-09-13 with tp v1.1.1 on `record-id-refusal-names-next-free`. The
+acceptance had three `- ` lines, the second reading "finding.NextID has a caller
+outside tests, and deadcode ./... no longer lists it." A reason file with one
+line per acceptance line was refused on the part count: tp reported four parts,
+splitting that criterion at the `.` of `./...`. The close went through once the
+reason carried a line for each of the two fragments.
+
+`./...` is the ordinary way to name every Go package, so it appears in gate
+commands and acceptance criteria of any Go project using tp, and neither
+fragment is a sentence the author wrote. The repair is mechanical once the
+split is known, but the reason file ends up with a line per fragment rather
+than per criterion, which is the opposite of what the one-line-per-part rule is
+for.
+
+**Proposed fix.** Do not end a sentence at a `.` that is followed by a
+non-space character. That one rule covers `./...`, `go.mod`, `v1.1.1` and
+`internal/cli.version`; skipping a `.` inside backticks also covers a quoted
+path that ends a clause.
