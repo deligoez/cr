@@ -173,6 +173,12 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
+	// §6.2 over every record the triage moved, before §6.3's forcing reads
+	// its grade: a record moved off its probe's target no longer asserts.
+	grading, err := regradeMoved(l, owner, repo, pr, round, &triage)
+	if err != nil {
+		return err
+	}
 	queued, err := queueRecords(records, journal)
 	if err != nil {
 		return err
@@ -183,10 +189,6 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	// gives: the mapping moves inside a round, and an intent finding on a
 	// unit the round no longer maps would otherwise assert in the draft
 	// the reviewer approves.
-	grading, err := readRoundGrading(l, owner, repo, pr, round)
-	if err != nil {
-		return err
-	}
 	grading.forceUnmapped(round.Round, queued)
 	// §3.6.6 over the same records, for the reason holdWithdrawn gives.
 	held := grading.holdWithdrawn(queued)

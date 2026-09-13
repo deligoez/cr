@@ -185,6 +185,57 @@ func (t *triaged) discarded() []*finding.Finding {
 	return append(append(make([]*finding.Finding, 0, len(t.Deleted)+len(t.Wrong)), t.Deleted...), t.Wrong...)
 }
 
+// moved are the records whose anchor this run's triage moved, in the order the
+// draft's blocks were read.
+func (t *triaged) moved() []*finding.Finding {
+	out := make([]*finding.Finding, 0, len(t.Retriaged))
+	for _, edit := range t.Retriaged {
+		if edit.Anchor != nil {
+			out = append(out, edit.Record)
+		}
+	}
+	return out
+}
+
+// regradeTriaged is §6.2's grade recomputed over records once the draft's
+// triage has applied its anchor edits, and §7.2's `kind` row held to the
+// result: a question the reviewer turned into a finding whose record no longer
+// grades `probed` or `cited` aborts with §6.3.3's refusal, naming the record.
+//
+// §6.2's `probed` row reads the anchor, so a grade recomputed before the edit
+// would keep a probe's support for a range that no longer holds its target.
+// draft.Ingest reads the `kind` row against the grade the record held when the
+// draft was read, and the location row is applied only after every block, so a
+// marker moving the anchor and hardening the kind at once was admitted on
+// support the moved anchor may not have. Forcing that record back to a question
+// instead would undo the reviewer's edit without telling them.
+func (g *roundGrading) regradeTriaged(meta *state.Meta, records []*finding.Finding, triage *draft.Triage) error {
+	g.regrade(meta, records)
+	for _, record := range triage.Hardened {
+		if record.Grade != finding.GradeProbed && record.Grade != finding.GradeCited {
+			return &finding.ArguedAssertionError{Record: record.ID}
+		}
+	}
+	return nil
+}
+
+// regradeMoved is `cr draft`'s share of that recomputation: the round's grading
+// inputs, read once, with regradeTriaged applied over the records whose anchor
+// the triage moved. The other grades are left as the round recorded them,
+// because §7.2.2 assigns the whole recomputation to `cr post`.
+func regradeMoved(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, triage *triaged,
+) (*roundGrading, error) {
+	grading, err := readRoundGrading(l, owner, repo, pr, round)
+	if err != nil {
+		return nil, err
+	}
+	if err := grading.regradeTriaged(round, triage.moved(), &triage.Triage); err != nil {
+		return nil, err
+	}
+	return grading, nil
+}
+
 // triagedRecord is one record §7.2's verbs moved away from `kept`, as
 // `cr draft` reports it: the outcome §7.3.1 names, and whether §7.3.4 counts it
 // against the record's class.

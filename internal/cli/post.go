@@ -203,14 +203,16 @@ func newPostCmd(out *writer) *cobra.Command {
 // before the payload is built, so no draft edit can turn an `argued` record
 // into a posted assertion.
 //
-// The order is the whole of the criterion. The grade is recomputed first,
-// because §7.2's `kind` row admits a hardening on "the recomputed grade" and
-// reading the marker against the grade the round was recorded with would admit
-// an assertion the evidence no longer supports. The draft is read next, so the
-// reviewer's verbs and edits are in hand. §4.1.4's forcing and §6.3's are then
-// applied over what survived, in that order, and RefuseArguedAssertion is asked
-// last — over the records that are about to become comments rather than over
-// the rule that was just applied, which is invariant 4's shape.
+// The order is the whole of the criterion. The draft is read first, so the
+// reviewer's verbs are in hand and §7.2's location row has moved the anchors it
+// admitted. The grade is recomputed next, because §6.2's `probed` row reads the
+// anchor: a grade computed before the move would keep a probe's support for a
+// range that no longer holds its target. §7.2's `kind` row is then held to that
+// recomputed grade, so a hardening that grade does not support aborts.
+// §4.1.4's forcing and §6.3's are applied over what survived, in that order,
+// and RefuseArguedAssertion is asked last — over the records that are about to
+// become comments rather than over the rule that was just applied, which is
+// invariant 4's shape.
 //
 // Nothing here writes. §7.3.1 has `cr post` without `--confirm` write no triage
 // event, §8.5.2 has it perform no network write, and the states ingestDraft
@@ -240,12 +242,15 @@ func buildReview(
 	if err != nil {
 		return err
 	}
-	grading.regrade(round, records)
 	// §9.1.1's journal of this run, whose actor is the one that sends: it
 	// is published only by a confirmed send, beside the records it moved.
 	journal := finding.NewJournal(finding.ActorPostConfirm, round.Head, time.Now())
 	triage, err := ingestDraft(l, owner, repo, pr, round, records, journal)
 	if err != nil {
+		return err
+	}
+	// §7.2.2 over every record, after the draft's anchors were applied.
+	if err := grading.regradeTriaged(round, records, &triage.Triage); err != nil {
 		return err
 	}
 	queued := retypeForDraft(postedRecords(records), &triage.Triage)
