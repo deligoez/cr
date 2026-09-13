@@ -63,6 +63,10 @@ type Round struct {
 	// all. Before one is, no unit is known to be mapped to nothing: §4.6.5
 	// says unmapped-ness is unknowable on the first pass.
 	Mapped bool
+	// IntentUnavailable reports §4.5.3's intent axis unavailable for the
+	// round: no issue key resolved. §4.6.6 then treats the mapping as empty
+	// rather than as not yet recorded, and §4.1.2 raises nothing over it.
+	IntentUnavailable bool
 	// SecondPass reports whether this invocation is §4.6.5's second intent
 	// pass: the intent axis re-run once the mapping is stored. It narrows
 	// the prompts to the units the mapping maps to zero claims, which is

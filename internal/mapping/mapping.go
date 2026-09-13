@@ -61,6 +61,30 @@ func (e *RejectedPairError) Error() string {
 	return fmt.Sprintf("%s line %d: %s %s", e.File, e.Line, e.Field, e.Problem)
 }
 
+// NotAcceptedError is §4.6.6's refusal: a round whose intent axis is unavailable
+// per §4.5.3 has no intent role and no mapping to produce, so `cr map record`
+// is not accepted there and the mapping is treated as empty.
+//
+// §11.2 codes it 4. The command line is right and the file may be well formed;
+// what refuses is where the round stands — it resolved no issue key — which no
+// edit to the file can change.
+type NotAcceptedError struct {
+	// Owner, Repo, and PR name the pull request, so the message is runnable.
+	Owner string
+	Repo  string
+	PR    int
+	// Round is the round that resolved no issue key.
+	Round int
+}
+
+func (e *NotAcceptedError) Error() string {
+	return fmt.Sprintf(
+		"round %d of %s/%s#%d resolved no issue key, so §4.5.3 marks the intent axis unavailable "+
+			"and §4.6.6 accepts no mapping: there is no intent role to produce one, the mapping is "+
+			"treated as empty, and `cr review %d --repo %s/%s` needs none",
+		e.Round, e.Owner, e.Repo, e.PR, e.PR, e.Owner, e.Repo)
+}
+
 // Decode reads the mapping an agent hands `cr map record`, holding every line
 // to §4.1.6.
 //

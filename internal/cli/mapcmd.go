@@ -126,8 +126,9 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			// §9.3.2: this command writes mapping.ndjson and the
 			// §4.1.3 entries derived from it, both against units the
 			// round formed at its own head, so a head that moved
-			// under it refuses here.
-			if err := round.RefuseStale(); err != nil {
+			// under it refuses here — and §4.6.6 refuses a round
+			// with no intent axis to map for.
+			if err := refuseMapping(&round); err != nil {
 				return err
 			}
 			formed, err := roundUnitsOf(layout, owner, repo, pr, round.Round)
@@ -157,6 +158,27 @@ func newMapRecordCmd(out *writer) *cobra.Command {
 			})
 		},
 	}
+}
+
+// refuseMapping is what `cr map record` owes the round before it reads a line:
+// §9.3.2's refusal of a round whose head moved, and then §4.6.6's refusal of a
+// round whose intent axis is unavailable per §4.5.3.
+//
+// The second is decided from the issue key meta.json recorded, through
+// intent.Recorded, whose Unavailability names §4.6.6's condition. The key
+// pattern only words the reason, and this refusal gives its own, so none is
+// resolved. Accepting even an empty mapping here would stamp the round mapped,
+// and §4.1.2 would then raise every unit as unmapped for want of a tracker.
+func refuseMapping(round *state.Round) error {
+	if err := round.RefuseStale(); err != nil {
+		return err
+	}
+	if _, unavailable := intent.Recorded(round.IssueKey, "").Unavailability(); unavailable {
+		return &mapping.NotAcceptedError{
+			Owner: round.Owner, Repo: round.Repo, PR: round.PR, Round: round.Round,
+		}
+	}
+	return nil
 }
 
 // storeMapping publishes one `cr map record`: §4.1.6's mapping for the round,

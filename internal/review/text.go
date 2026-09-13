@@ -123,6 +123,12 @@ func ranges(u *Unit) string {
 // claims writes the claims the round's mapping maps to the unit.
 func (r *Round) claims(p *page, id string) {
 	p.section("Claims mapped to this unit (§4.1.6)")
+	if r.IntentUnavailable {
+		p.line("The round resolved no issue key, so the intent axis is unavailable (§4.5.3) and " +
+			"its mapping is empty (§4.6.6): no claim is mapped to this unit, and none is to be " +
+			"recorded with `cr map record`.")
+		return
+	}
 	if !r.Mapped {
 		r.unjoined(p)
 		return

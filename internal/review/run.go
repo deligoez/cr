@@ -366,6 +366,7 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 	// is still a mapping this round recorded, per round 9's
 	// mapping-existence-unobservable.
 	r.Mapped = meta.MappingRecorded()
+	_, r.IntentUnavailable = intent.Recorded(meta.IssueKey, "").Unavailability()
 	// §4.6.5's second pass, and the only invocation that emits over fewer
 	// than every unit. It is the intent axis re-run once the mapping is
 	// stored, which is exactly where "the units mapped to zero claims" is a
@@ -379,11 +380,14 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 // raise is §4.1.2 and §4.1.5 over the round, once a mapping has been recorded
 // for it. Before one is, no unit is known to be unmapped (§4.6.5), and raising
 // every unit as a question would put a question about each of them to the
-// author on the strength of a mapping nobody has made yet.
+// author on the strength of a mapping nobody has made yet. A round whose intent
+// axis is unavailable raises nothing either, whatever meta.json's stamp says:
+// §4.6.6 treats its mapping as empty, and an absent tracker is not an unmapped
+// unit.
 func (r *Round) raise(
 	src *Sources, records []unit.Record, notes []note.Note, intentRoles []role.Role,
 ) ([]UnmappedUnit, error) {
-	if !r.Mapped {
+	if !r.Mapped || r.IntentUnavailable {
 		return []UnmappedUnit{}, nil
 	}
 	cells, err := state.ReadStamped[coverage.Cell](
