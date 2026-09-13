@@ -117,6 +117,28 @@ func TestThePayloadCarriesEveryCommentInTheFieldsGitHubNames(t *testing.T) {
 	assert.NotContains(t, string(payload), `"record"`, "the record id is cr's, not GitHub's")
 }
 
+// start_side travels with start_line and never without it, which is what
+// Comment's field says of it. A one-line comment carries neither, whether its
+// anchor names the one line twice or leaves the start at zero. The second is an
+// anchor §9.2's validation refuses before a record exists, and it is the one
+// input on which a start_side could be written with no start_line beside it;
+// only a range carries both.
+func TestStartSideTravelsWithStartLineAlone(t *testing.T) {
+	review := Build([]*finding.Finding{
+		queued("f1", "app/Models/Order.php", 11, 11),
+		queued("f2", "app/Models/Order.php", 0, 12),
+		queued("f3", "app/Models/Order.php", 40, 42),
+	}, nil)
+
+	require.Len(t, review.Comments, 3)
+	for _, comment := range review.Comments[:2] {
+		assert.Zero(t, comment.StartLine, comment.Record)
+		assert.Emptyf(t, comment.StartSide, "%s: a one-line comment carries no start_side", comment.Record)
+	}
+	assert.Equal(t, 40, review.Comments[2].StartLine)
+	assert.Equal(t, git.Right, review.Comments[2].StartSide)
+}
+
 // §8.3.2: no other event value is reachable through this package.
 //
 // There is no parameter and no constructor that takes one, so the only way to
