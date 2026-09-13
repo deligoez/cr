@@ -37,33 +37,29 @@ archives:
 checksum:
   name_template: checksums.txt
 
-# §14.3: a release publishes cr to deligoez/homebrew-tap, so that
-# `brew install deligoez/tap/cr` installs the binary as `cr`. GoReleaser 2.10
-# deprecated `brews` for pre-built binaries in favour of casks, and
-# `goreleaser check` fails on the deprecated key.
-homebrew_casks:
-  - name: cr
-    binaries:
-      - cr
-    repository:
+# §14.3: a release updates the Homebrew formula in deligoez/homebrew-tap, so
+# that `brew install deligoez/tap/cr` installs the binary as `cr`. The block has
+# the shape tp's v1.1.1 release uses. GoReleaser 2.17.1 deprecates `brews`:
+# `goreleaser check` prints "DEPRECATED: brews should not be used anymore" and
+# exits 2 on it, while the release workflow runs `goreleaser release`, which
+# publishes the formula. The formula test's `cr version` is the prefix of what
+# root.go's version template prints.
+brews:
+  - repository:
       owner: deligoez
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Casks
+    directory: Formula
     commit_author:
       name: goreleaser
       email: goreleaser@users.noreply.github.com
     homepage: https://github.com/deligoez/cr
     description: "Code review lifecycle manager for AI coding agents"
     license: "MIT"
-    # The binaries are unsigned, so macOS quarantines what brew downloads;
-    # clearing the attribute is what lets `cr` run after install.
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cr"]
-          end
+    install: |
+      bin.install "cr"
+    test: |
+      assert_match "cr version", shell_output("#{bin}/cr --version")
 
 changelog:
   sort: asc

@@ -44,18 +44,19 @@ type goreleaserConfig struct {
 			Goos string `yaml:"goos"`
 		} `yaml:"format_overrides"`
 	} `yaml:"archives"`
-	HomebrewCasks []struct {
-		Name       string   `yaml:"name"`
-		Binaries   []string `yaml:"binaries"`
+	Brews []struct {
 		Repository struct {
 			Owner string `yaml:"owner"`
 			Name  string `yaml:"name"`
 			Token string `yaml:"token"`
 		} `yaml:"repository"`
-	} `yaml:"homebrew_casks"`
-	// Brews is GoReleaser's deprecated formula block, read only so its
-	// absence can be asserted.
-	Brews []any `yaml:"brews"`
+		Directory string `yaml:"directory"`
+		Install   string `yaml:"install"`
+		Test      string `yaml:"test"`
+	} `yaml:"brews"`
+	// HomebrewCasks is GoReleaser's cask block, read only so its absence can be
+	// asserted.
+	HomebrewCasks []any `yaml:"homebrew_casks"`
 }
 
 // workflow is the slice of a GitHub Actions file these tests read: what fires
@@ -166,22 +167,30 @@ func TestTheReleaseBinaryIsTheOneGoInstallNames(t *testing.T) {
 		"§14.6 injects the tagged version into internal/cli.version at build time")
 }
 
-// §14.3 through the release configuration: one Homebrew cask named cr, carrying
-// the binary as cr, published to deligoez/homebrew-tap with a token the release
-// workflow supplies — so `brew install deligoez/tap/cr` installs `cr` and the
-// cask is written by the release, never by hand. GoReleaser's deprecated
-// `brews` block is gone, because `goreleaser check` fails while it stands.
-func TestAReleasePublishesTheCaskToTheTapFromTheWorkflow(t *testing.T) {
+// §14.3 through the release configuration: one Homebrew formula, in the `brews`
+// block shape tp's v1.1.1 release uses, written under Formula in
+// deligoez/homebrew-tap with a token the release workflow supplies — so
+// `brew install deligoez/tap/cr` installs `cr`, the formula's test runs
+// `cr --version`, and the formula is written by the release, never by hand.
+// There is no `homebrew_casks` block beside it: §14.3 names a formula.
+//
+// Measured with GoReleaser 2.17.1: `goreleaser check` prints "DEPRECATED:
+// brews should not be used anymore" and exits 2 on this block, while the
+// release workflow runs `goreleaser release`, which publishes it. So no
+// workflow step may run `goreleaser check`; one that did would fail every tag.
+func TestAReleasePublishesTheFormulaToTheTapFromTheWorkflow(t *testing.T) {
 	cfg := readGoreleaser(t)
 
-	assert.Empty(t, cfg.Brews, "`brews` is deprecated and fails `goreleaser check`")
-	require.Len(t, cfg.HomebrewCasks, 1, "§14.3 names one tap entry")
-	cask := cfg.HomebrewCasks[0]
-	assert.Equal(t, "cr", cask.Name, "`brew install deligoez/tap/cr` resolves the cask by this name")
-	assert.Equal(t, []string{"cr"}, cask.Binaries, "the cask installs the binary as cr")
-	assert.Equal(t, "deligoez", cask.Repository.Owner)
-	assert.Equal(t, "homebrew-tap", cask.Repository.Name, "`deligoez/tap` is the homebrew-tap repository")
-	assert.Equal(t, "{{ .Env.HOMEBREW_TAP_TOKEN }}", cask.Repository.Token)
+	assert.Empty(t, cfg.HomebrewCasks, "§14.3 names a formula, so no cask is published beside it")
+	require.Len(t, cfg.Brews, 1, "§14.3 names one tap entry")
+	formula := cfg.Brews[0]
+	assert.Equal(t, "deligoez", formula.Repository.Owner)
+	assert.Equal(t, "homebrew-tap", formula.Repository.Name, "`deligoez/tap` is the homebrew-tap repository")
+	assert.Equal(t, "{{ .Env.HOMEBREW_TAP_TOKEN }}", formula.Repository.Token)
+	assert.Equal(t, "Formula", formula.Directory, "tp's tap keeps formulae under Formula")
+	assert.Equal(t, "bin.install \"cr\"\n", formula.Install, "the formula installs the binary as cr")
+	assert.Equal(t, "assert_match \"cr version\", shell_output(\"#{bin}/cr --version\")\n", formula.Test,
+		"root.go's version template prints `cr version <v>`, so this is what the formula's test matches")
 
 	supplied := false
 	for _, job := range readWorkflow(t, ".github/workflows/release.yml").Jobs {
@@ -191,5 +200,20 @@ func TestAReleasePublishesTheCaskToTheTapFromTheWorkflow(t *testing.T) {
 			}
 		}
 	}
-	assert.True(t, supplied, "the release workflow's GoReleaser step is what holds the tap token, so the tag publishes the cask")
+	assert.True(t, supplied, "the release workflow's GoReleaser step is what holds the tap token, so the tag publishes the formula")
+
+	for _, name := range []string{".github/workflows/release.yml", ".github/workflows/ci.yml"} {
+		for jobName, job := range readWorkflow(t, name).Jobs {
+			for _, step := range job.Steps {
+				args := strings.Fields(fmt.Sprint(step.With["args"]))
+				assert.False(t, strings.HasPrefix(step.Uses, "goreleaser/goreleaser-action@") && len(args) > 0 && args[0] == "check",
+					"%s job %s runs `goreleaser check` through the action, which exits 2 on `brews`", name, jobName)
+				run := strings.Fields(step.Run)
+				for i := 0; i+1 < len(run); i++ {
+					assert.False(t, run[i] == "goreleaser" && run[i+1] == "check",
+						"%s job %s runs `goreleaser check`, which exits 2 on `brews`", name, jobName)
+				}
+			}
+		}
+	}
 }

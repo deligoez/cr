@@ -40,7 +40,7 @@ problems it is built to solve.
 ## Install
 
 ```bash
-brew install deligoez/tap/cr                     # Homebrew cask, once released
+brew install deligoez/tap/cr                     # Homebrew formula, once released
 go install github.com/deligoez/cr/cmd/cr@latest  # or Go
 ```
 

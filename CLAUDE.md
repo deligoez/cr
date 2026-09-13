@@ -734,10 +734,12 @@ Mirrors tp so the experience transfers.
 ## Distribution
 
 1. GoReleaser on a `v*` tag via `.github/workflows/release.yml`.
-2. Homebrew cask published to `deligoez/homebrew-tap` under `Casks/`, installing
-   `cr`. GoReleaser 2.10 deprecated `brews` for pre-built binaries and
-   `goreleaser check` fails on the deprecated key, so `.goreleaser.yml` uses
-   `homebrew_casks`.
+2. Homebrew formula published to `deligoez/homebrew-tap` under `Formula/`,
+   installing `cr` and testing `cr --version`, in the `brews` block shape tp's
+   v1.1.1 release uses. Measured with GoReleaser 2.17.1: `goreleaser check` prints
+   `DEPRECATED: brews should not be used anymore` and exits 2 on that block, while
+   `.github/workflows/release.yml` runs `goreleaser release`, which publishes it.
+   So no workflow step runs `goreleaser check`; `release_test.go` asserts both.
 3. `go install github.com/deligoez/cr/cmd/cr@<tag>`.
 4. Skill shipped in-repo at `skills/cr/SKILL.md`, exposed through
    `.claude-plugin/marketplace.json`.

@@ -9224,6 +9224,24 @@
       "closed_reason": null,
       "gate_passed_at": null,
       "commit_sha": null
+    },
+    {
+      "id": "release-homebrew-formula-like-tp",
+      "title": "Publish a Homebrew formula as tp does",
+      "status": "wip",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- .goreleaser.yml publishes cr to deligoez/homebrew-tap as a Homebrew formula under Formula with the brews block shape tp's v1.1.1 release uses, installing the binary as cr and testing cr --version, per §14.3 which names a formula; audit round 1 row list-53-3.\n- internal/cli/release_test.go asserts that formula block and no homebrew_casks block, and its rationale states the measured fact that goreleaser check exits non-zero on the deprecated brews key while the release workflow runs goreleaser release.\n- CLAUDE.md's Distribution list and README.md's install line say formula, and goreleaser check and a goreleaser snapshot build are run locally with their outcome quoted in the closure.",
+      "source_sections": [
+        "## 14. Distribution"
+      ],
+      "started_at": "2026-09-13T07:52:49.319488Z",
+      "duration_source": "claimed",
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
