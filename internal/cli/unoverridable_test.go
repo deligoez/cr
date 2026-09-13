@@ -179,11 +179,11 @@ func TestNoChannelOverridesTheArguedForcing(t *testing.T) {
 // §6.3.3's rejection: a record graded `argued` written as a finding is refused
 // with exit code 1, and the refusal names the record id.
 //
-// It is exercised on the records rather than through a command, because the
-// command that would carry it is `cr post` and v0.1 has not built it yet.
-// `cr draft` already runs this over the records it is about to write, so the
-// refusal is wired at the one door into the payload that exists; the post-time
-// moment §6.3.1 names is the same call at the same records.
+// It is exercised on the records rather than through a command. `cr draft`
+// runs it over the records it is about to write and `cr post` over the records
+// it is about to send, and in both it follows finding.ForceQuestions over the
+// same records, so no command run hands it an `argued` finding to refuse: the
+// call they share is the one place the refusal can be observed.
 func TestAnArguedAssertionIsRefusedNamingTheRecord(t *testing.T) {
 	asserting := &finding.Finding{
 		ID: "f4", Kind: finding.KindFinding, Class: "unchecked-error",

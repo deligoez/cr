@@ -118,10 +118,21 @@ func runCLI(t *testing.T, args ...string) error {
 // read those files as authoritative. A command that recomputed the units
 // instead would answer §4.1.6 against a unit set no round ever recorded, and
 // nothing in the run would say so.
+//
+// The hint is asserted whole beside the message, because it is what §12.4
+// prints as the next step. The case added to briefRuns is audit round 1's probe of
+// unreadable-input-exit-code: `cr record` naming an input file that does not
+// exist, on a pull request with no round, exits 4 through this refusal rather
+// than 3 through the missing file, since the round is refused before the input
+// is read.
 func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T) {
 	claims, issue, merged, cells, pairs := unbriefedInputs(t)
+	runs := briefRuns(claims, issue, merged, cells, pairs)
+	runs["record naming a missing input"] = []string{
+		"record", unbriefedPR, filepath.Join(t.TempDir(), "missing.ndjson"), "--repo", unbriefedSlug,
+	}
 
-	for name, argv := range briefRuns(claims, issue, merged, cells, pairs) {
+	for name, argv := range runs {
 		t.Run(name, func(t *testing.T) {
 			err := runCLI(t, argv...)
 			require.Error(t, err)
@@ -132,6 +143,8 @@ func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T)
 			assert.Equal(t, ExitState, exitCodeFor(err))
 			assert.Contains(t, err.Error(), "cr brief "+unbriefedPR,
 				"§12.4: the refusal names the next actionable step")
+			assert.Equal(t, "run `cr brief <pr>` to open a round on the pull request", hintFor(err),
+				"§12.4: and so does the hint printed beside it")
 		})
 	}
 }

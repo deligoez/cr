@@ -63,11 +63,11 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newProbeCmd(out))
 	root.AddCommand(newDraftCmd(out))
 	root.AddCommand(newStatusCmd(out))
-	// The rest of §11's table. These carry their argument shape and their
-	// flags and refuse to run, because the surface is the half a caller
-	// writes a script against and it is worth completing before the
-	// behaviour: a command that is absent is indistinguishable from a
-	// command that is misspelled, and both come back as §11.2's code 2.
+	// The rest of §11's table. Each was registered with its argument shape
+	// and its flags before its behaviour was built, because the surface is
+	// the half a caller writes a script against: a command that is absent is
+	// indistinguishable from a command that is misspelled, and both come
+	// back as §11.2's code 2. Every one of them now runs.
 	root.AddCommand(newReviewCmd(out))
 	root.AddCommand(newMergeCmd(out))
 	root.AddCommand(newPostCmd(out))

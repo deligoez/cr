@@ -401,6 +401,10 @@ func storeRecords[T any](path string) ([]T, error) {
 // decodeRecords decodes an NDJSON body into its record type, naming path in
 // whatever it refuses. It is shared with the context store of §3.6 for the
 // reason encodeRecords is.
+//
+// A line it cannot decode is cr's own stored file it cannot use, which §11.2
+// codes 3 with UnusableHint, and the refusal names the path and the line as
+// visitLines does.
 func decodeRecords[T any](path string, body []byte) ([]T, error) {
 	records := make([]T, 0)
 	for i, line := range bytes.Split(body, []byte{'\n'}) {
@@ -409,7 +413,7 @@ func decodeRecords[T any](path string, body []byte) ([]T, error) {
 		}
 		var record T
 		if err := json.Unmarshal(line, &record); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
+			return nil, unusableLine(path, i+1, err)
 		}
 		records = append(records, record)
 	}

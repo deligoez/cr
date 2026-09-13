@@ -131,7 +131,7 @@ type writer struct {
 	// informational, and disclose does not read it at all: the exemption
 	// is that the method printing a disclosure has no flag it could
 	// consult, rather than that every call site remembers not to.
-	// TestQuietIsReadOnlyWhereInformationIsWritten holds both halves.
+	// TestEveryDisclosureAResultPrintsGoesThroughTheWriter holds both halves.
 	quiet bool
 }
 

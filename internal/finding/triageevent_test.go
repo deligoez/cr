@@ -127,12 +127,15 @@ func TestRewritingAnEventLeavesOneOfIt(t *testing.T) {
 		"§7.3.1: three runs of one round leave one event per record")
 }
 
-// Round 8's triage-event-key-permits-contradiction, driven end to end: a
-// rejected post writes no outcome event, the reviewer re-triages one record,
-// and the record ends with exactly one outcome against its single raise.
+// Round 8's triage-event-key-permits-contradiction at the ledger: a rejected
+// post writes no outcome event, the reviewer re-triages one record, and the
+// record ends with exactly one outcome against its single raise.
 //
-// The first outcome is written here as `kept`, which is what a run whose
-// network call succeeded would have written. It is the second half of the
+// The rejection is simulated here rather than driven; cli's
+// TestARejectedCallMarksNothingPosted drives it through `cr post --confirm`
+// against a gh that refuses and then one that accepts. The first outcome is
+// written here as `kept`, which is what a run whose network call succeeded
+// would have written. It is the second half of the
 // finding's reachable path that this asserts: with the action inside the key
 // the record would hold both `kept` and `discarded-wrong`, §7.3.2 would report
 // two outcomes against one raise, and §7.3.4's demotion rate for the class

@@ -201,8 +201,15 @@ func TestConfirmSendsOneReviewAndSettlesTheRound(t *testing.T) {
 // reviewer's ordinary retry — mark one record `wrong` and run again — must
 // write that record's only outcome, rather than a second one contradicting a
 // `kept` from the run GitHub refused.
+//
+// Both halves run through `cr post --confirm` against a `gh` on PATH: the
+// first run meets a gh that refuses the review, the reviewer marks f1 `wrong`
+// in the draft, and the second run meets a gh that accepts it. Each record then
+// holds exactly one outcome against its one raise.
 func TestARejectedCallMarksNothingPosted(t *testing.T) {
-	layout := draftedHome(t, aCitedRecord("f1"))
+	records := []*finding.Finding{aCitedRecord("f1"), aCitedRecord("f2")}
+	records[1].Anchor.Path = "internal/api/second.go"
+	layout := draftedHome(t, records...)
 	redraft(t)
 	rejectingShim(t)
 
@@ -215,14 +222,29 @@ func TestARejectedCallMarksNothingPosted(t *testing.T) {
 	stored, err := state.ReadStamped[finding.Finding](
 		layout, draftOwner, draftRepo, draftPRNum, state.FileFindings, draftRound)
 	require.NoError(t, err)
-	require.Len(t, stored, 1)
-	assert.Equal(t, finding.StateQueued, stored[0].State, "§8.4.2: no state is marked posted")
+	require.Len(t, stored, 2)
+	for i := range stored {
+		assert.Equal(t, finding.StateQueued, stored[i].State, "§8.4.2: no state is marked posted")
+	}
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
 	assert.Empty(t, index, "§9.3.6's index records what the author received")
-	assert.Equal(t, []string{"f1:raised"}, ledger(t, layout),
+	assert.Equal(t, []string{"f1:raised", "f2:raised"}, ledger(t, layout),
 		"§7.3.1's outcomes describe a review that exists, so a refused call leaves none")
+
+	// The retry: one record re-triaged, and the same command run again
+	// against a gh that accepts the review.
+	writeDraft(t, layout,
+		markerEdit(t, readDraft(t, layout), "f1", `disposition=""`, `disposition="wrong"`))
+	accepted := ghShimming(t, builtPayload(t))
+
+	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.NoError(t, err)
+
+	require.Len(t, accepted.writes(t), 1, "the retry sends one review")
+	assert.Equal(t, []string{"f1:raised", "f2:raised", "f1:discarded-wrong", "f2:kept"}, ledger(t, layout),
+		"§7.3.1: each record ends with one outcome against its one raise")
 }
 
 // rejectingShim installs a `gh` that fails the review-creation call the way

@@ -47,6 +47,9 @@ func ReadStamped[T any](l Layout, owner, repo string, pr int, name string, round
 // records rather than a null slice (§12.3). A line is decoded twice — once for
 // its round and once into the record type — which is what lets the filter run
 // over every one of the eight shapes without any of them exposing the pair.
+//
+// A line it cannot decode is refused through unusableLine, as decodeRecords
+// refuses one.
 func decodeRound[T any](path string, body []byte, round int) ([]T, error) {
 	records := make([]T, 0)
 	for i, line := range bytes.Split(body, []byte{'\n'}) {
@@ -55,18 +58,26 @@ func decodeRound[T any](path string, body []byte, round int) ([]T, error) {
 		}
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(line, &fields); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
+			return nil, unusableLine(path, i+1, err)
 		}
 		if roundOf(fields) != round {
 			continue
 		}
 		var record T
 		if err := json.Unmarshal(line, &record); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", path, i+1, err)
+			return nil, unusableLine(path, i+1, err)
 		}
 		records = append(records, record)
 	}
 	return records, nil
+}
+
+// unusableLine is the refusal of one stored line a read could not decode: cr's
+// own file under ~/.cr, which §11.2 codes 3 with UnusableHint. It names the path
+// and the one-based line, counting blank lines, in the shape visitLines gives a
+// locked walk's refusal, so a reader and a writer name a bad line alike.
+func unusableLine(path string, line int, err error) error {
+	return fmt.Errorf("%s line %d: %w", path, line, FileFailure("use", filepath.Base(path), UnusableHint, err))
 }
 
 // ReplaceStamped replaces the current round's records in one of the eight
