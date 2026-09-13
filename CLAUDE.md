@@ -343,6 +343,28 @@ Two rules that make the phase-boundary run worth doing:
    the same line with `logd` in place of `gremlins` printed `1`. The quiet window
    is the orchestrator's to establish and the unit's to be told about — a unit
    must not be the one deciding the box is free.
+
+   **A quiet box is not only one with no second run — memory is part of it, and
+   exhausting it forges survivors.** Measured 2026-09-13: a whole-tree run at
+   `--workers 4 --timeout-coefficient 5` was killed by the system for low memory
+   at about 45 minutes, with swap at 6.0 of 7.2 GB, and wrote no `-o` file,
+   because gremlins writes it only at the end. Its log still held 1785 results.
+   A per-package rerun agreed on 1780 of them; the other four were all **LIVED in
+   the killed run and not survivors at all** — two KILLED, two TIMED OUT —
+   clustered in `git` and `gh`, the last packages processed before the kill.
+   Applied by hand, `git/patch.go:147`'s mutant fails
+   `TestParsePatchRefusesWhatItCannotRead`, and the other two hang the package
+   past 120 seconds. So a pressured run does the opposite of `--test-cpu`: it
+   invents survivors rather than hiding them, and a classifier would have spent
+   units on defects that do not exist. Two things follow. Read swap
+   (`sysctl vm.swapusage`) before and during a run, and treat results from the
+   minutes before a kill as unmeasured. And scope the run one package per
+   `gremlins unleash` with its own `-o` file — measured the same day, the 29
+   packages other than `internal/cli` took 8 minutes together, `internal/cli`
+   alone took 1h45m at `--workers 2`, swap stayed between 4.3 and 5.7 GB, and a
+   kill would lose one package, not the run. The per-package coefficient follows
+   rule 5's small-package measurement: default for sub-second packages, 5 for
+   `internal/cli`.
 8. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
    should mutate nothing and mutated 116; a `-D HEAD~6` run mutated files absent
    from that diff and took *longer* than the unscoped run. Upstream has three
