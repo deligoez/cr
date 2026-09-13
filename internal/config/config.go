@@ -111,6 +111,7 @@ var protectedTokens = []struct {
 	{"gate", "the confirmation gate of §8.5"},
 	{"argued", "the argued forcing of §6.3"},
 	{"forcing", "the argued forcing of §6.3"},
+	{"force", "the argued forcing of §6.3"},
 	{"label", "the question label of §8.1.4"},
 	{"provenance", "the provenance region of §8.1.6"},
 	{"evidence", "the evidence region of §8.1.7"},
@@ -128,6 +129,9 @@ var carriers = map[string]string{
 	"navigate":    "gate",
 	"enforcing":   "forcing",
 	"reinforcing": "forcing",
+	"enforce":     "force",
+	"reinforce":   "force",
+	"workforce":   "force",
 }
 
 // ProtectedError reports a name that would address a decision no layer may

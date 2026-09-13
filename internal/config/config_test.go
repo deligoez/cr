@@ -64,6 +64,7 @@ func TestProtectedNamesAreRejected(t *testing.T) {
 		{"post.gate", "CR_POST_GATE", "the confirmation gate of §8.5"},
 		{"review.argued_as_finding", "CR_REVIEW_ARGUED_AS_FINDING", "the argued forcing of §6.3"},
 		{"review.forcing_enabled", "CR_REVIEW_FORCING_ENABLED", "the argued forcing of §6.3"},
+		{"post.force_findings", "CR_POST_FORCE_FINDINGS", "the argued forcing of §6.3"},
 		{"render.question_label", "CR_RENDER_QUESTION_LABEL", "the question label of §8.1.4"},
 		{"render.provenance_region", "CR_RENDER_PROVENANCE_REGION", "the provenance region of §8.1.6"},
 		{"render.evidence_region", "CR_RENDER_EVIDENCE_REGION", "the evidence region of §8.1.7"},
@@ -178,6 +179,35 @@ func TestProtectedMatchingReadsWordsNotLetters(t *testing.T) {
 		cfg, err := Resolve(Sources{GlobalConfig: writeConfig(t, key)})
 		require.NoError(t, err, key)
 		assert.NotContains(t, cfg.Map(), key, "an unknown key configures nothing")
+	}
+}
+
+// `force` names §6.3's argued forcing as plainly as `forcing` does, so a name
+// carrying it is refused — and the three words that embed its letters without
+// naming the decision are driven through every layer that scans and come out
+// unrefused, because a carrier missing from the list would refuse them all.
+func TestForceIsProtectedAndItsCarriersAreNot(t *testing.T) {
+	for _, name := range []string{"CR_POST_FORCE_FINDINGS", "CR_REVIEW_FORCE"} {
+		_, err := Resolve(Sources{Environ: []string{name + "=1"}})
+		var protected *ProtectedError
+		require.ErrorAs(t, err, &protected, name)
+		assert.Equal(t, "the argued forcing of §6.3", protected.Subject)
+	}
+
+	for _, carrier := range []struct{ key, env string }{
+		{"rules.enforce_min", "CR_RULES_ENFORCE_MIN"},
+		{"intent.reinforce", "CR_INTENT_REINFORCE"},
+		{"stats.workforce", "CR_STATS_WORKFORCE"},
+	} {
+		file := writeConfig(t, carrier.key)
+		for layer, sources := range map[string]Sources{
+			"environment variable":  {Environ: []string{carrier.env + "=1"}},
+			"global config":         {GlobalConfig: file},
+			"per-repository config": {RepoConfig: file},
+		} {
+			_, err := Resolve(sources)
+			require.NoError(t, err, "%s from the %s", carrier.key, layer)
+		}
 	}
 }
 
