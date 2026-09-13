@@ -75,3 +75,12 @@ func TestAFileFailureWithoutAHintCannotBeBuilt(t *testing.T) {
 	assert.Panics(t, func() { _ = FileFailure("read", "x", "", errors.New("boom")) })
 	assert.NotPanics(t, func() { _ = FileFailure("read", "x", "check x", nil) })
 }
+
+// The message names what the filesystem reported when it reported something,
+// and ends at the path when it did not: a file read whole and unusable as
+// written has no cause beneath it, and a message ending in "<nil>" would print
+// one.
+func TestAFileFailureNamesItsCauseOnlyWhenThereIsOne(t *testing.T) {
+	assert.Equal(t, "cannot read x: boom", FileFailure("read", "x", "check x", errors.New("boom")).Error())
+	assert.Equal(t, "cannot read x", FileFailure("read", "x", UnusableHint, nil).Error())
+}
