@@ -183,32 +183,21 @@ func TestHeadAndRoundAreRefusedUnderAnyKeyCase(t *testing.T) {
 // FoldedFields keys a line's fields the way encoding/json binds them to a
 // struct: one key per field whatever case each spelling used, folding the
 // Unicode letters the decode folds too (U+017F long s is an s, U+212A Kelvin
-// sign a k), and holding the value the decode keeps, which is the last one
-// written. A check reading an earlier spelling would judge a value the record
-// does not hold.
+// sign a k).
 func TestFoldedFieldsKeyALineTheWayTheDecodeBindsIt(t *testing.T) {
-	for _, tc := range []struct {
-		line string
-		id   string
-	}{
-		{line: `{"ID":"c1","id":"c2","I\u017f":"x","\u212aind":"y","Note_Id":null}`, id: "c2"},
-		{line: `{"id":"c2","I\u017f":"x","\u212aind":"y","Note_Id":null,"iD":"c1"}`, id: "c1"},
-	} {
-		t.Run(tc.line, func(t *testing.T) {
-			fields, err := FoldedFields([]byte(tc.line))
-			require.NoError(t, err)
-			assert.Equal(t, map[string]json.RawMessage{
-				"id":      json.RawMessage(`"` + tc.id + `"`),
-				"is":      json.RawMessage(`"x"`),
-				"kind":    json.RawMessage(`"y"`),
-				"note_id": json.RawMessage(`null`),
-			}, fields)
+	line := `{"ID":"c2","I\u017f":"x","\u212aind":"y","Note_Id":null}`
+	fields, err := FoldedFields([]byte(line))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]json.RawMessage{
+		"id":      json.RawMessage(`"c2"`),
+		"is":      json.RawMessage(`"x"`),
+		"kind":    json.RawMessage(`"y"`),
+		"note_id": json.RawMessage(`null`),
+	}, fields)
 
-			var decoded plainRecord
-			require.NoError(t, json.Unmarshal([]byte(tc.line), &decoded))
-			assert.Equal(t, tc.id, decoded.ID, "the decode keeps the spelling the fold keeps")
-		})
-	}
+	var decoded plainRecord
+	require.NoError(t, json.Unmarshal([]byte(line), &decoded))
+	assert.Equal(t, "c2", decoded.ID, "the decode binds the spelling the fold keys")
 
 	nothing, err := FoldedFields([]byte("null"))
 	require.NoError(t, err)
@@ -216,6 +205,37 @@ func TestFoldedFieldsKeyALineTheWayTheDecodeBindsIt(t *testing.T) {
 
 	_, err = FoldedFields([]byte("[1, 2]"))
 	assert.Error(t, err, "a line that is not an object has no fields to key")
+}
+
+// A line giving one key twice, under one spelling or under two the decode binds
+// alike, is refused naming the file, the line and the key. The decode keeps
+// parts of both copies — a later null leaves a string as the earlier copy set
+// it — so a fence reading one value under the key would judge a value the
+// record is not stored holding. The same fields given once decode.
+func TestALineGivingOneKeyTwiceIsRefused(t *testing.T) {
+	for _, tc := range []struct{ name, line, key string }{
+		{name: "one spelling", line: `{"id":"c2","id":"c3"}`, key: "id"},
+		{name: "two spellings", line: `{"note_id":"CR-1#n2","Note_ID":null}`, key: "note_id"},
+		{name: "a folded letter", line: `{"id":"c2","kind":"a","\u212aind":"b"}`, key: "kind"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := FoldedFields([]byte(tc.line))
+			assert.Equal(t, &RepeatedKeyError{Key: tc.key}, err)
+
+			_, err = DecodeStamped[stampedRecord](
+				FileClaims, []byte("{\"id\":\"c1\"}\n\n"+tc.line+"\n"), nil,
+			)
+			var repeated *RepeatedKeyError
+			require.ErrorAs(t, err, &repeated)
+			assert.Equal(t, &RepeatedKeyError{File: FileClaims, Line: 3, Key: tc.key}, repeated)
+		})
+	}
+
+	records, err := DecodeStamped[stampedRecord](
+		FileClaims, []byte(`{"id":"c2","kind":"a","note_id":null}`+"\n"), nil,
+	)
+	require.NoError(t, err, "each field given once is a line the decode reads")
+	assert.Len(t, records, 1)
 }
 
 // Decoding is the road from an agent's file to the writer: what it returns is

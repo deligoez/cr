@@ -3,6 +3,7 @@ package finding
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -295,7 +296,9 @@ func (c checker) computedCitations(line int, citations json.RawMessage) error {
 
 // citationEntries is one line's citations array, each entry's fields keyed as
 // state.FoldedFields keys a line's, so a field inside an entry is found under
-// any letter case encoding/json binds to it.
+// any letter case encoding/json binds to it. An entry giving one key twice is
+// refused as state.RepeatedKeyError refuses a line doing so, naming the entry
+// by its index.
 //
 // A line with no citations key hands this a nil value, and one holding null
 // decodes to no entries; both have nothing to check. Any other value decoded
@@ -312,6 +315,12 @@ func (c checker) citationEntries(line int, citations json.RawMessage) ([]map[str
 	entries := make([]map[string]json.RawMessage, 0, len(raw))
 	for at, entry := range raw {
 		fields, err := state.FoldedFields(entry)
+		if repeated := (*state.RepeatedKeyError)(nil); errors.As(err, &repeated) {
+			return nil, &state.RepeatedKeyError{
+				File: c.file, Line: line,
+				Key: fmt.Sprintf("%s[%d].%s", citationsField, at, repeated.Key),
+			}
+		}
 		if err != nil {
 			return nil, fmt.Errorf("%s line %d: %s[%d]: %w", c.file, line, citationsField, at, err)
 		}

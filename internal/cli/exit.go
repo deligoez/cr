@@ -561,6 +561,12 @@ var codes = []mapped{
 	// §11.2 codes 1 rather than the 3 a malformed profile gets.
 	{is[*state.ReservedFieldError](), ExitValidation,
 		"drop the field the message names from that record; §6.1.4 has cr write it"},
+	// §6.1.4's and §3.3's fences read one value under each key, and the
+	// decode keeps parts of both copies of a key given twice, so the line is
+	// refused rather than judged on a value it is not stored holding. The
+	// file was read and parsed; what is wrong is the data inside it, §11.2's 1.
+	{is[*state.RepeatedKeyError](), ExitValidation,
+		"give each field of that record once; the message names the key given more than once"},
 	// §5.6.1's probe lock is named after the checkout's absolute path and
 	// the profile id meta.json records, and internal/state refuses a pair
 	// whose lock file would leave the probe locks directory. filepath.Abs

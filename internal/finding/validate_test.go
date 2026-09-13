@@ -276,7 +276,7 @@ func TestARecordArrivingWithAComputedFieldIsRejected(t *testing.T) {
 // §6.1.4's fence under any letter case. encoding/json binds `"Grade"` to the
 // grade field exactly as it binds `"grade"`, so a fence that looked keys up by
 // their exact spelling would let a record set its own grade by capitalising a
-// letter. Every reserved field is supplied upper-cased, one mixed-case and one
+// letter. Every reserved field is supplied upper-cased, two mixed-case and one
 // under a Unicode letter the decode folds (U+017F long s), and each refusal
 // names the field by §6.1's own spelling. The citations entry is held to the
 // same reading for its computed fields and for §2.6.1.3's rule id.
@@ -324,27 +324,50 @@ func TestAComputedFieldIsRefusedUnderAnyKeyCase(t *testing.T) {
 		"§2.6.1.3 keeps the rule id off a citation under any spelling of it")
 }
 
-// A field spelt twice in one line holds the value the decode keeps, the later
-// one, and §6.1.3 reads that value: a record whose evidence ends as the empty
-// string has no evidence, whatever an earlier spelling of the key held.
-func TestARequiredFieldIsReadAsTheDecodeKeepsIt(t *testing.T) {
+// A key given twice in one line, or twice in one citations entry, is refused
+// naming the line and the key, under one spelling or under two the decode binds
+// alike. The decode keeps parts of both copies: a later citations array is
+// decoded into the entries the earlier one filled, so an entry keeps the
+// content_hash or rule the later copy leaves out, while the fence reads only
+// the later copy and would pass the line.
+func TestAKeyGivenTwiceIsRefused(t *testing.T) {
 	first, err := json.Marshal(aRecord())
 	require.NoError(t, err)
-	spelt := string(first[:len(first)-1])
+	record := string(first[:len(first)-1])
+
+	for name, tc := range map[string]struct{ added, key string }{
+		"evidence": {
+			added: `,"Evidence":"The guard has no test."}`, key: "evidence",
+		},
+		"citations": {
+			added: `,"citations":[{"path":"app/Models/User.php","line":12,"content_hash":"x"}],` +
+				`"citations":[{"path":"app/Models/User.php","line":12}]}`,
+			key: "citations",
+		},
+		"citations entry line": {
+			added: `,"citations":[{"path":"app/Models/User.php","line":12},` +
+				`{"path":"app/Models/User.php","line":20,"Line":21}]}`,
+			key: "citations[1].line",
+		},
+		"citations entry rule": {
+			added: `,"rule":"no-panic","citations":[{"path":"app/Models/User.php","line":12,` +
+				`"rule":"no-panic","RULE":null}]}`,
+			key: "citations[0].rule",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Decode(FanOutFile("test"), []byte(record+tc.added+"\n"), roundUnits, SourceAgent)
+			var repeated *state.RepeatedKeyError
+			require.ErrorAs(t, err, &repeated)
+			assert.Equal(t, &state.RepeatedKeyError{File: FanOutFile("test"), Line: 1, Key: tc.key}, repeated)
+		})
+	}
 
 	records, err := Decode(FanOutFile("test"),
-		[]byte(spelt+`,"Evidence":"The guard has no test."}`+"\n"), roundUnits, SourceAgent)
-	require.NoError(t, err, "a later spelling that supplies the field supplies it")
+		[]byte(record+`,"citations":[{"path":"app/Models/User.php","line":12}]}`+"\n"), roundUnits, SourceAgent)
+	require.NoError(t, err, "the same citation given once is a line the decode reads")
 	require.Len(t, records, 1)
-	assert.Equal(t, "The guard has no test.", records[0].Evidence)
-
-	var rejected *RejectedRecordError
-	_, err = Decode(FanOutFile("test"), []byte(spelt+`,"EVIDENCE":""}`+"\n"), roundUnits, SourceAgent)
-	require.ErrorAs(t, err, &rejected)
-	assert.Equal(t, &RejectedRecordError{
-		File: FanOutFile("test"), Line: 1, Field: "evidence",
-		Problem: "is required by §6.1 and this record does not supply it",
-	}, rejected)
+	assert.Equal(t, []Citation{{Path: "app/Models/User.php", Line: 12}}, records[0].Citations)
 }
 
 // §6.1.4 exempts duplicate_of on `cr merge` output and nowhere else, so the

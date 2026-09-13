@@ -203,6 +203,9 @@ func DecodeStamped[E any, T interface {
 	records := make([]T, 0)
 	for _, line := range numberedRecords(body) {
 		supplied, err := FoldedFields(line.text)
+		if repeated := (*RepeatedKeyError)(nil); errors.As(err, &repeated) {
+			return nil, &RepeatedKeyError{File: file, Line: line.at, Key: repeated.Key}
+		}
 		if err != nil {
 			return nil, fmt.Errorf("%s line %d: %w", file, line.at, err)
 		}
@@ -225,6 +228,30 @@ func DecodeStamped[E any, T interface {
 	return records, nil
 }
 
+// RepeatedKeyError reports a line that gives one key twice, counting two keys
+// as one when encoding/json binds them to the same field.
+//
+// The decode keeps neither copy whole. A later array is decoded into the slice
+// the earlier one filled, so an element keeps every field the later element
+// leaves out, and a later null leaves a string as the earlier copy set it. A
+// fence reading the line's keys sees one value under each, so a line whose two
+// copies disagree would be judged on one value and stored holding another.
+// Refusing the line is the only answer that keeps the check and the stored
+// record reading the same thing. The cli layer maps it onto exit code 1.
+type RepeatedKeyError struct {
+	// File is the NDJSON file the agent handed the command.
+	File string
+	// Line is the one-based line the record sits on, counting blank lines.
+	Line int
+	// Key is the field given twice, in foldKey's spelling, with the path to
+	// it when it sits inside the line rather than at its top.
+	Key string
+}
+
+func (e *RepeatedKeyError) Error() string {
+	return fmt.Sprintf("%s line %d: %s is given more than once", e.File, e.Line, e.Key)
+}
+
 // FoldedFields decodes one JSON object into its fields, keyed the way
 // encoding/json binds an object key to a struct field.
 //
@@ -233,8 +260,9 @@ func DecodeStamped[E any, T interface {
 // `"Grade"` sets the field `"grade"` sets. A fence that looked a key up by its
 // exact spelling would refuse the one and let the other through carrying the
 // value it refuses. So every key is held under foldKey's spelling, which for
-// every field name cr's records use is the name itself. Where two spellings of
-// one field appear the later is kept, because the decode keeps the later value.
+// every field name cr's records use is the name itself. Two keys holding one
+// spelling give a RepeatedKeyError naming it, carrying no file or line, which
+// the caller that knows them fills in.
 //
 // A line holding null has no fields and gives a nil map, as json.Unmarshal
 // reads it; a line that is not an object gives json.Unmarshal's own error.
@@ -263,7 +291,11 @@ func FoldedFields(object []byte) (map[string]json.RawMessage, error) {
 		if err := walk.Decode(&value); err != nil {
 			return nil, err
 		}
-		folded[foldKey(key)] = value
+		spelling := foldKey(key)
+		if _, given := folded[spelling]; given {
+			return nil, &RepeatedKeyError{Key: spelling}
+		}
+		folded[spelling] = value
 	}
 	return folded, nil
 }
