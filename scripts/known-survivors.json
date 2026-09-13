@@ -23,6 +23,48 @@
   ],
   "survivors": [
     {
+      "file": "cli/anchorunit.go",
+      "line": 75,
+      "column": 30,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "anchorInsideUnit walks start+1..end after checking Contains(start) and Contains(end); `<=` adds only line end, already answered true two lines up, and when start >= end neither form iterates. Contains is a pure lookup. Verified by hand on 2026-09-13 -- applied `<=`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/record.go",
+      "line": 115,
+      "column": 32,
+      "type": "ARITHMETIC_BASE",
+      "reason": "newRecordResult sizes honesty `2+len(found.unmappable)`; `2-len` would panic only past 2 entries, and resolveGapSupport, the only producer, appends to unmappable at most once (one GapUnmappable naming every unmapped probe), so the capacity is 2 or 1 and only a hint. Verified by hand on 2026-09-13 -- applied `-`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/recorddrops.go",
+      "line": 76,
+      "column": 44,
+      "type": "ARITHMETIC_BASE",
+      "reason": "orphaned sizes a map `len(kept)+len(stored)`; `-` goes negative when the round already stores more records than the file keeps, but a map size hint below zero is treated as zero -- measured on go1.26.5, `make(map[string]bool, -4)` does not panic -- so contents and lookups are unchanged. Verified by hand on 2026-09-13 -- applied `-`, the full `./internal/cli` suite stayed green, and a direct orphaned call with 2 kept and 5 stored returned the right orphan."
+    },
+    {
+      "file": "cli/recorddrops.go",
+      "line": 112,
+      "column": 18,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "NOT equivalent -- unobservable. `>= 0` makes settleStates resolve the role corpus and call MarkDuplicates on every run; MarkDuplicates over no orphans is a no-op, and the resolve reads the same two directories stampAxesAndClaims (record.go:451) resolved successfully earlier in the same run, so it can fail only if the corpus changes between the two lock-free reads. No seam injects that. Verified by hand on 2026-09-13 -- applied `>=`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/waivers.go",
+      "line": 65,
+      "column": 30,
+      "type": "ARITHMETIC_BASE",
+      "reason": "waiversListResult.Text sizes its lines `2*len(r.Waivers)+1`; QUO makes it `2/len+1`. `len(r.Waivers) == 0` returns three lines above, so len >= 1 and the capacity is 3, 2 or 1 -- a hint append outgrows. Same shape as cli/context.go:48. Verified by hand on 2026-09-13 -- applied `/`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/waivers.go",
+      "line": 65,
+      "column": 45,
+      "type": "ARITHMETIC_BASE",
+      "reason": "The `+1` on the same line as `-1`: past the early return len >= 1, so `2*len-1` >= 1, never the negative capacity make panics on. Verified by hand on 2026-09-13 -- applied `-`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
       "file": "finding/id.go",
       "line": 54,
       "column": 48,
