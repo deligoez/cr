@@ -270,6 +270,91 @@ last check before the write. A question written as a statement is refused:
 Edit the body into a question in the draft; `cr draft 1` then reports it under
 `"preserved": ["f1"]`.
 
+#### Triage verbs
+
+Triage is editing `draft.md`. `cr draft` and `cr post` read the file back; a run
+of `cr draft` applies the triage and renders the draft again.
+
+| In `draft.md` you… | Effect |
+|---|---|
+| leave a block unchanged | posted as rendered |
+| edit the body prose | posted as edited (`preserved`) |
+| change `kind="finding"` to `kind="question"` | softened, recorded as a triage event |
+| delete the block entirely, marker included | discarded `not-here`; a **pull-request-scoped** waiver |
+| set `disposition="wrong"` in the marker | discarded as a false positive, body or not; a **repository-wide** waiver that counts against the class |
+
+**`wrong` and `not-here` are different decisions.** `not-here` means the finding
+is true but not worth a comment on this pull request, the ordinary volume
+decision, and never counts against the class. `wrong` means the finding is false;
+it is the only signal that demotes a class. Never mark a true finding `wrong` to
+make room.
+
+After deleting f13's block, marking f12 `disposition="wrong"`, changing f14 to
+`kind="question"` (rewording its body as a question) and f15's severity from
+`high` to `medium`, `cr draft 1` printed:
+
+```json
+{
+  "queued": 2,
+  "triaged": [
+    {"id": "f12", "outcome": "discarded-wrong", "counts_against_class": true},
+    {"id": "f13", "outcome": "discarded-not-here", "counts_against_class": false},
+    {"id": "f14", "outcome": "softened", "counts_against_class": true}
+  ],
+  "retriaged": [{"id": "f15", "severity": "medium"}],
+  "preserved": ["f14"],
+  …
+}
+```
+
+and `cr waivers list --pr 1` shows the two scopes:
+
+```json
+{
+  "scopes": ["repository", "pull-request"],
+  "waivers": [
+    {"id": "wr1", "path": "order.go", "class": "naming", "disposition": "wrong", "scope": "repository", …},
+    {"id": "wp1", "path": "order_test.go", "class": "test-naming", "disposition": "not-here", "scope": "pull-request", …}
+  ]
+}
+```
+
+**Marker fields.** Only these edits are admitted; any other marker edit aborts
+with exit 1 naming the draft line and the record:
+
+| Field | Edit semantics |
+|---|---|
+| `id` | immutable; a changed or unknown id aborts (there is no manual-comment channel) |
+| `kind` | `finding`→`question` softens; `question`→`finding` only when cr's grade is `probed` or `cited` |
+| `path`, `start_line`, `line` | re-validated against the head; aborts when the anchor no longer resolves |
+| `severity` | freely editable within `critical`, `high`, `medium`, `low` |
+| `disposition` | only `wrong` by hand; `not-here` is cr's word for a deleted block |
+| `grade` | informational; cr recomputes it and ignores the edit |
+
+The refusals, as `cr draft 1` printed them (`hint` for all marker edits: "§7.2's
+table is the whole of what a marker may be edited to; correct that record's block
+in the draft"):
+
+```text
+draft line 41, record f15: kind asks for "finding" on a record cr graded "argued", and §6.3.3 admits that register only on "probed" or "cited"; leave it a "question" or give the record an experiment
+draft line 11, record f12: kind reads "nit", and §6.1's register is "finding" or "question"
+draft line 11, record f12: disposition reads "not-here", which cr writes itself when a block is deleted; delete the block to say it
+draft line 11, record f12: disposition reads "maybe", and the one disposition §7.2 admits by hand is "wrong"; delete the block for the other
+draft line 41, record f15: severity reads "urgent", and §6.1's four are critical, high, medium, low
+draft line 11, record f99: id names no record this round rendered, and §7.2.3 gives v0.1 no manual-comment channel in the draft; restore the id cr wrote, and write a comment of your own on GitHub after posting
+draft line 41, record f15: anchor runs to line 99 of "order.go", which holds 10 lines at the head under review
+```
+
+An edited `grade="probed"` on an argued record is accepted and rendered back as
+`grade="argued"`. A marker missing a field or out of order is malformed, and both
+`cr draft` and `cr post` refuse it with exit 1:
+
+```text
+draft line 11 is a malformed record marker: " grade=" does not follow, and §7.1.1 fixes the eight fields and their order
+```
+
+Fix the line the refusal names and run `cr draft` again.
+
 ### 7. Post
 
 ```bash
@@ -417,6 +502,151 @@ argument) and prints it with `"standing": "retracted"`; an id the store does not
 hold is refused with exit 1. `cr status` reports any cell or record citing a
 retracted note as needing re-evaluation.
 
+## Roles, profiles and rules
+
+All three are JSON data files, never prompt code, and each file's stem is its
+`id`. A malformed file aborts the command with exit 3 naming the file and field.
+
+| Kind | Global | Per repository (wins) |
+|---|---|---|
+| role | `~/.cr/roles/<id>.json` | `~/.cr/repos/<owner>/<repo>/roles/<id>.json` |
+| profile | `~/.cr/profiles/<id>.json` | selected by `profile` in `~/.cr/repos/<owner>/<repo>/config.json` |
+| rule | `~/.cr/rules/<id>.json` | `~/.cr/repos/<owner>/<repo>/rules/<id>.json` |
+
+### Roles
+
+A role is a lens on one axis: persona and focus, while cr owns the output
+contract. Fields: `id` (kebab-case), `title`, `axis` (`intent`, `correctness`,
+`convention` or `test`), `instructions`, and optionally `focus` (questions
+appended to the prompt) and `profiles` (empty means all). `cr init --eject-roles`
+writes the four built-ins (`intent-coverage`, `correctness`, `convention`,
+`test-adequacy`) as editable files. More than one role may serve an axis.
+
+To add one, write the file:
+
+```json
+{
+  "id": "money-safety",
+  "title": "Money safety",
+  "axis": "correctness",
+  "instructions": "Look for arithmetic on monetary values that can lose or invent money.",
+  "focus": ["Can this value go negative, and who would notice?"]
+}
+```
+
+then run `cr brief 1` again: a round's active roles are settled by the brief, so
+`cr review 1` emits prompts for the new role (`money-safety` on `correctness`)
+only after it. A role naming an unknown axis:
+
+```json
+{
+  "error": "…/repos/acme/shop/roles/money-safety.json: axis is \"money\", which is not an axis id; v0.1 has exactly intent, correctness, convention, test",
+  "hint": "§1.5 closes the axis set at intent, correctness, convention and test; correct the axis field of the file the message names"
+}
+```
+
+### Profiles
+
+A profile is mechanical, language-specific configuration. Required: `id`,
+`match.files` (marker files that select it; empty means never auto-selected),
+`match.globs`, and `axes` (default on/off per axis). Optional: `sandbox.copy`,
+`sandbox.setup`, `tests.cmd` (argv; absent disables the test axis), `tests.globs`
+(required with `tests.cmd`), `tests.filter_flag`, `tests.timeout_seconds`,
+`tests.output_tail_bytes`, `tests.count_pattern` and `tests.failed_pattern` (one
+capture group each), `tests.probe_path_template`, `rules`, `symbols.lang`. cr
+ships `laravel-pest` and `generic`.
+
+```json
+{
+  "id": "shop",
+  "match": {"files": ["go.mod"], "globs": ["**/*.go"]},
+  "axes": {"intent": true, "correctness": true, "convention": true, "test": true},
+  "tests": {"cmd": ["./run-tests.sh"], "globs": ["**/*_test.go"], "filter_flag": "-run", "probe_path_template": "cr_probe_<probe-id>_test.go"},
+  "symbols": {"lang": "go"}
+}
+```
+
+To add one, write `~/.cr/profiles/<id>.json`; `cr brief` reports the one selected
+and the layer that chose it. The profile with the most matched marker files
+wins. A tie is refused with exit 3:
+
+```json
+{
+  "error": "profiles go-service, shop match the same number of marker files, and §2.4.2 forbids picking one of them; set `profile` in the per-repository config to the one this repository is",
+  "hint": "the profiles the message names match equally well; give one of them a marker file the other does not have"
+}
+```
+
+With `{"profile": "shop"}` in the per-repository config, `cr brief` reports
+`"profile": {"id": "shop", "selected": true, "layer": "configuration"}`.
+
+### Rules
+
+A rule is one written standard. Required: `id` (kebab-case), `title`, `rationale`
+(quotable to the author), `class`. Optional: `axis` (default `convention`),
+`severity` (default `medium`), `kind` (default `question`), `detect`, `fix`
+(`fix.replace` and `fix.with`, a regexp and its replacement producing a
+suggestion), `globs`, `exempt`, `profiles`. Layers, highest first: per
+repository, global, the profile's `rules`; a higher layer replaces a same-id rule
+whole.
+
+```json
+{
+  "id": "no-zero-floor",
+  "title": "Do not silently floor a monetary value at zero",
+  "rationale": "A floored total hides the input error that produced it.",
+  "class": "zero-floor",
+  "severity": "medium",
+  "kind": "question",
+  "detect": {"mode": "regex", "pattern": "return 0"},
+  "globs": ["**/*.go"]
+}
+```
+
+To add one, write the file and check it:
+
+```bash
+cr rules list
+cr rules check 1
+```
+
+```json
+{"repo": "acme/shop", "profile": "shop", "rules": [{"id": "no-zero-floor", "title": "…", "layer": "repo", "path": "…"}], "honesty": []}
+```
+
+```json
+{
+  "round": 2,
+  "hits": [{"rule": "no-zero-floor", "path": "order.go", "line": 6, "text": "\t\treturn 0"}],
+  "units": [{"unit": "u1", "hits": […]}, {"unit": "u2", "hits": []}],
+  …
+}
+```
+
+`detect` runs only over added and modified RIGHT-side lines, in Go `regexp`
+syntax; a pattern that does not compile is refused with exit 3 (`detect.pattern
+of rule "no-zero-floor" is not a Go regexp: …`). A hit is a hit, never a
+verdict: it reaches the draft only when you confirm it by recording a record that
+carries `"rule": "no-zero-floor"` and cites the hit's path and line. cr stamps
+that citation `origin: rule`, so the record is graded `cited`:
+
+```json
+{"id": "f16", "rule": "no-zero-floor", "grade": "cited", "citations": [{"path": "order.go", "line": 6, "content_hash": "7e9a1237bd6a4ea7", "origin": "rule"}], …}
+```
+
+A rule without `detect` is injected into its axis role's prompt as text.
+
+**A comment you have written by hand more than twice belongs in the rule
+corpus**, not in a fourth comment: write it as a rule with its rationale, and
+give it a `detect` block when the violation is mechanically matchable (a
+pattern over the changed lines). `cr rules suggest` reports posted comment bodies
+that recur `rules.harvest_min` times (default 3) as candidates; it never writes a
+rule file:
+
+```json
+{"harvest_min": 3, "scanned": 2, "candidates": []}
+```
+
 ## Inspection
 
 ```bash
@@ -449,9 +679,9 @@ cr config --resolved
 | Code | Meaning | Seen when |
 |---|---|---|
 | 0 | success | every step of the loop above |
-| 1 | validation failure | a question body with no `?` at `cr post`; an unknown waiver id |
-| 2 | usage error | no detectable repository and no `--repo` |
-| 3 | file, configuration or external command failure | a config key addressing the argued forcing |
+| 1 | validation failure | a question body with no `?` at `cr post`; a marker edit §7.2 does not admit; an unknown waiver id |
+| 2 | usage error | no detectable repository and no `--repo`; `cr note` without `--pr` |
+| 3 | file, configuration or external command failure | a config key addressing the argued forcing; a malformed role or rule file; a profile tie |
 | 4 | state conflict, lock timeout, partial post | a write after the head moved |
 
 Every error carries a `hint` naming the next step.
