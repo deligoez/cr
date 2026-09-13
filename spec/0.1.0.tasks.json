@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T21:17:17.630587Z",
+  "updated_at": "2026-09-13T21:33:54.460511Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10315,6 +10315,32 @@
         "internal/cli/unparseablecreate_test.go",
         "internal/post/review.go",
         "internal/post/review_test.go"
+      ]
+    },
+    {
+      "id": "stale-sweep-refuses-invalid-id",
+      "title": "Refuse any stored id that is not f\u003cn\u003e in the stale sweep",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- cr brief's stale sweep on a moved head refuses a stored findings.ndjson line whose id is not a valid record id per §6.1 (empty string, or any value finding.ValidID rejects), with exit 3 and state.UnusableHint naming the file and line, as it refuses null since 1fee53a, instead of rewriting it to stale and journaling a transition for that id; audit round 8 security row for internal/brief/invalidate.go (a stored id \"\" was swept and journaled).\n- A test drives cr brief on a moved head over an empty id and a non-f\u003cn\u003e id and asserts exit 3, the hint, file and line, and that neither findings.ndjson nor transitions.ndjson changed.",
+      "source_sections": [
+        "### 9.3 A changed head",
+        "### 6.1 Record schema"
+      ],
+      "started_at": "2026-09-13T21:24:10.535524Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T21:33:54.447932Z",
+      "closed_reason": "- cr brief's stale sweep on a moved head now refuses a stored findings.ndjson line whose id finding.ValidID rejects, including the empty string, any non-f\u003cn\u003e string and null, which decodes as the empty string: internal/brief/invalidate.go staleOpenRecords decodes the id into a string and returns unusable(fieldID, storedIDError) when finding.ValidID(id) is false, the same state.FileFailure with state.UnusableHint that null got since 1fee53a, so RewriteStamped names the path and line and the brief exits 3 without rewriting the line or journaling a transition, with the null-only pointer check and errNullID removed and the comments saying an id that is not an f\u003cn\u003e string is refused. The dogfood binary on a scratch repository printed \"findings.ndjson line 1: cannot use the id field of findings.ndjson: reads \"\", and §6.1 spells a record id f\u003cn\u003e, numbered from one\" with UnusableHint at exit 3, leaving findings.ndjson, transitions.ndjson and meta.json byte-identical.\n- The audit round 8 security row empty-string-id-accepted for internal/brief/invalidate.go (a stored id \"\" was swept and journaled) is repaired by commit 9e0a08a: before the fix a stored {\"id\":\"\",\"state\":\"draft\",\"round\":1} on a moved head exited 0, and after it the same line is refused at exit 3 with both files unchanged.\n- internal/cli/briefinvalidate_test.go TestABriefOnAMovedHeadNamesTheStoredLineItCannotUse drives cr brief on a moved head and gains \"an id that is empty\" and \"an id that is not a record id\" (finding-2), each asserting the whole error with the path and line 3, ExitFile, state.UnusableHint, and findings.ndjson and transitions.ndjson byte for byte unchanged; both cases exited 0 before the fix, and a go test -overlay mutant restoring the null-only check turned exactly those two red while the null case stayed green.\n",
+      "gate_passed_at": "2026-09-13T21:33:54.447932Z",
+      "commit_sha": "9e0a08a",
+      "commit_shas": [
+        "9e0a08a"
+      ],
+      "commit_files": [
+        "internal/brief/invalidate.go",
+        "internal/cli/briefinvalidate_test.go"
       ]
     }
   ]
