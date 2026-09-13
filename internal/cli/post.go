@@ -222,6 +222,12 @@ func buildReview(
 	if err := finding.RefuseArguedAssertion(queued); err != nil {
 		return err
 	}
+	// §1.6.2, over the same queued comments and before anything below can
+	// reach GitHub: a round over the cap is refused whether or not
+	// --confirm was given, and nothing is dropped to make it fit.
+	if err := refuseOverCap(l, owner, repo, queued); err != nil {
+		return err
+	}
 	// §8.4.1's pre-validation, over the comments the call would carry
 	// rather than over the records the round recorded — which is why it
 	// stands after the forcings and the draft's discards, and before
@@ -269,6 +275,22 @@ func postedRecords(records []*finding.Finding) []*finding.Finding {
 		}
 	}
 	return queued
+}
+
+// refuseOverCap is §1.6.2's block at posting: the queued comments measured
+// against post.max_comments through finding.CommentCapFor, the one call
+// §7.1.4's draft header reads its count from, so the number the reviewer
+// triaged against is the number that refuses here.
+//
+// The cap is resolved the way the draft resolves it, from the same layers, for
+// the same reason buildPayload gives. The refusal is CommentCapExceededError,
+// which the exit table codes 1 with the triage-to-fit hint.
+func refuseOverCap(l state.Layout, owner, repo string, queued []*finding.Finding) error {
+	settings, err := resolveDraftSettings(l, owner, repo)
+	if err != nil {
+		return err
+	}
+	return finding.CommentCapFor(queued, settings.maxComments).Err()
 }
 
 // buildPayload renders every queued record's §8.1.3 comment and assembles
