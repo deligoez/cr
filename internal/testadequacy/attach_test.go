@@ -191,6 +191,46 @@ func TestTheSymbolHalfIsMarkedUnavailableRatherThanLeftEmpty(t *testing.T) {
 	})
 }
 
+// Each state that leaves the symbol half without an index is its own reason,
+// naming what would make the half run, and the whole reason is asserted
+// because a reader acts on all of it.
+//
+// A repository no profile matched is the one worth guarding by name: its
+// profile id is empty, so the profile sentence would print `profile ""` and
+// send the reader to add symbols.lang to a profile that does not exist.
+func TestEachWayTheSymbolIndexIsMissingHasItsOwnReason(t *testing.T) {
+	for name, tc := range map[string]struct {
+		profile profile.Profile
+		reason  string
+	}{
+		"no profile matched": {
+			profile.Profile{},
+			"no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+				"set `profile` in the per-repository config to name the profile this repository is",
+		},
+		"the profile declares no language": {
+			profile.Profile{ID: "fixture"},
+			`profile "fixture" declares no symbols.lang, so §4.3.1's symbol index cannot be built; ` +
+				"set symbols.lang in the profile to name this repository's language",
+		},
+		"cr has no scanner for the language": {
+			profile.Profile{ID: "fixture", Symbols: profile.Symbols{Lang: "cobol"}},
+			`profile "fixture" declares symbols.lang "cobol", which cr has no symbol scanner for; ` +
+				"set symbols.lang to a language cr can index",
+		},
+		"the index did not arrive": {
+			profile.Profile{ID: "fixture", Symbols: profile.Symbols{Lang: "go"}},
+			`cr built no symbol index for symbols.lang "go"`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			attached := Attach(&tc.profile, nil, nil)
+
+			assert.Equal(t, []Unavailable{{Lens: SymbolLens, Reason: tc.reason}}, attached.Unavailable)
+		})
+	}
+}
+
 // §11.1 exempts every lens of §4.5.4 that did not run from `--quiet`, and the
 // exemption belongs to the writer rather than to each call site, so the report
 // has to arrive there as a disclosure. Implementing finding.HonestyDisclosure is

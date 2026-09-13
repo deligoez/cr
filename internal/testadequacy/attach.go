@@ -15,6 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/symbol"
 	"github.com/deligoez/cr/internal/unit"
 )
 
@@ -31,13 +32,14 @@ const SymbolLens = axis.Test + "/symbols"
 // unit.SymbolIndex cannot serve it. Indexed and Enclosing answer where a symbol
 // is declared, and a test file referring to a helper declares nothing; §4.3.1
 // builds an index of declarations over the head, which is a different question
-// from what one file names. So this is its own interface, and nothing in cr
-// implements it yet: symbol-index-build is the first place an implementation
-// can come from, which is exactly why §4.4 needs the unavailability path below.
+// from what one file names. So this is its own interface, and HeadReferences
+// answers it out of that index by reading each test file at the head; with no
+// index there is nothing to answer from, which is why §4.4 needs the
+// unavailability path below.
 type References interface {
 	// Referenced names the symbols the test file at path refers to, in the
-	// order they first appear, and reports false when cr has no symbol
-	// index for that file.
+	// order they first appear, and reports false when cr could not read
+	// that file's references.
 	//
 	// The bool is what keeps a file cr could not read apart from a file that
 	// references nothing. Collapsing the two would make an unread file
@@ -92,10 +94,11 @@ type Attachment struct {
 
 // Attach builds one round's §4.4.1 attachment out of the diff's hunks.
 //
-// refs is nil until a symbol index exists, which is the state of every run
-// today. A nil index is answered here rather than tolerated: it produces the
-// §4.5.4 entry SymbolLens names, so a round with no index reports a half that
-// did not run instead of a half that found nothing.
+// refs is nil when no symbol index could be built for the round, which
+// HeadReferences reports for a profile whose index did not arrive. A nil index
+// is answered here rather than tolerated: it produces the §4.5.4 entry
+// SymbolLens names, so a round with no index reports a half that did not run
+// instead of a half that found nothing.
 func Attach(p *profile.Profile, refs References, hunks []git.Hunk) Attachment {
 	paths := testPaths(p, hunks)
 	symbols, unavailable := referenced(p, refs, paths)
@@ -175,8 +178,9 @@ func referenced(p *profile.Profile, refs References, paths []string) ([]string, 
 	}
 	if len(unread) > 0 {
 		unavailable = append(unavailable, Unavailable{
-			Lens:   SymbolLens,
-			Reason: "cr built no symbol index for " + strings.Join(unread, ", "),
+			Lens: SymbolLens,
+			Reason: "cr could not read " + strings.Join(unread, ", ") +
+				" at the head, so the symbols they reference are not attached",
 		})
 	}
 	return symbols, unavailable
@@ -185,21 +189,37 @@ func referenced(p *profile.Profile, refs References, paths []string) ([]string, 
 // indexReason names why no index can answer for any test file at all, and is
 // empty when one can.
 //
-// The two clauses are the two unit.Detectable weighs, read the loud way. That
-// function answers the same pair with one bit and no error because §3.4.3 lets
-// its fallthrough be silent — adjacency still produces units, and nothing the
-// reader would have been told about goes missing. §4.4.1 has no second branch to
-// fall to: with no index there are no referenced symbols, and a silent empty
-// list reads as "cr looked and found none", an assertion cr never made.
+// The profile clauses are the pair unit.Detectable weighs, read the loud way.
+// That function answers the same pair with one bit and no error because §3.4.3
+// lets its fallthrough be silent — adjacency still produces units, and nothing
+// the reader would have been told about goes missing. §4.4.1 has no second
+// branch to fall to: with no index there are no referenced symbols, and a silent
+// empty list reads as "cr looked and found none", an assertion cr never made.
+//
+// The four reasons are the four states that leave refs nil, in the order that
+// decides between them, and each names what would make the half run, as
+// reinvention's own reasons do for §4.3.1. A repository no profile matched has
+// no profile to add a language to, so naming an empty profile id there would
+// send the reader to edit a file that does not exist; the fix is choosing a
+// profile, as profile.MissingProfile says.
 func indexReason(p *profile.Profile, refs References) string {
-	if p.Symbols.Lang == "" {
+	switch {
+	case p.ID == "":
+		return "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+			"set `profile` in the per-repository config to name the profile this repository is"
+	case p.Symbols.Lang == "":
 		return fmt.Sprintf(
 			"profile %q declares no symbols.lang, so §4.3.1's symbol index cannot be built; "+
 				"set symbols.lang in the profile to name this repository's language",
 			p.ID,
 		)
-	}
-	if refs == nil {
+	case !symbol.Supported(p.Symbols.Lang):
+		return fmt.Sprintf(
+			"profile %q declares symbols.lang %q, which cr has no symbol scanner for; "+
+				"set symbols.lang to a language cr can index",
+			p.ID, p.Symbols.Lang,
+		)
+	case refs == nil:
 		return fmt.Sprintf("cr built no symbol index for symbols.lang %q", p.Symbols.Lang)
 	}
 	return ""

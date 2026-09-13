@@ -44,14 +44,22 @@ func TestTheReviewBodyDisclosesEveryLensThatDidNotRun(t *testing.T) {
 	review := builtReview(t, layout)
 
 	for kind, entry := range map[string]string{
-		"an unavailable axis":        "axis intent unavailable, per §4.5.3:",
-		"§4.3.1's reinvention half":  "lens convention/reinvention unavailable, per §4.3.1:",
-		"§4.4.1's symbol half":       "lens test/symbols unavailable, per §4.5.4:",
-		"a role skipped per §4.6.4":  "role correctness skipped, per §4.6.4:",
-		"and the reason beside each": "set symbols.lang in the profile",
+		"an unavailable axis":       "axis intent unavailable, per §4.5.3:",
+		"§4.3.1's reinvention half": "lens convention/reinvention unavailable, per §4.3.1:",
+		"§4.4.1's symbol half":      "lens test/symbols unavailable, per §4.5.4:",
+		"a role skipped per §4.6.4": "role correctness skipped, per §4.6.4:",
 	} {
 		assert.Containsf(t, review.Body, entry, "§8.4.3 owes the author %s", kind)
 	}
+
+	// And the reason beside each names the cause. No profile matched, so
+	// there is no profile id to name and no profile to add symbols.lang to:
+	// both halves send the reader to choose one, as §2.4.4's report does.
+	noProfile := "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+		"set `profile` in the per-repository config to name the profile this repository is"
+	lines := strings.Split(review.Body, "\n")
+	assert.Contains(t, lines, "- lens convention/reinvention unavailable, per §4.3.1: "+noProfile)
+	assert.Contains(t, lines, "- lens test/symbols unavailable, per §4.5.4: "+noProfile)
 }
 
 // The hash embedded in the body is the payload hash of §8.3.3, and the body it

@@ -35,10 +35,15 @@ func (r *Round) attach(
 	if err := r.detect(src, p, hunks); err != nil {
 		return nil, err
 	}
-	// No References implementation exists yet, so the symbol half of
-	// §4.4.1 reports itself unavailable with its reason, per
-	// testadequacy.Attach, and the file half still runs.
-	tests := testadequacy.Attach(p, nil, hunks)
+	// The symbol half of §4.4.1 reads the round's test files at the head
+	// against the same index. With no index, refs is nil and that half
+	// reports itself unavailable with its reason, per testadequacy.Attach,
+	// while the file half still runs.
+	refs, err := testadequacy.HeadReferences(src.RepoDir, r.Head, p, index, hunks)
+	if err != nil {
+		return nil, err
+	}
+	tests := testadequacy.Attach(p, refs, hunks)
 	r.Tests = testadequacy.PerUnit(r.clusters(), tests)
 
 	// The halves are handed back as disclosures rather than as finished

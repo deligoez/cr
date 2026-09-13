@@ -258,7 +258,8 @@ func TestStatusCountsOnlyTheSetAsideEntries(t *testing.T) {
 
 // §4.5.4's two lens halves on a round whose profile indexes its language: the
 // reinvention half ran, so it discloses nothing, and the test-adequacy symbol
-// half still has no index to read and says so.
+// half ran too but could not read the test file the pull request deletes, and
+// says so by name.
 //
 // statusHome resolves `generic`, which declares no `symbols.lang`, so both
 // halves are unavailable there and every status test reads that state. This is
@@ -267,12 +268,13 @@ func TestStatusCountsOnlyTheSetAsideEntries(t *testing.T) {
 // panic with `makeslice: cap out of range` on exactly this round — one half
 // available, one not.
 func TestStatusOnAnIndexedRoundDisclosesOnlyTheHalfThatDidNotRun(t *testing.T) {
-	reinventionHome(t)
+	testSymbolsHome(t, true)
 
 	honesty := readStatus(t).Honesty
 
 	assert.Contains(t, honesty,
-		`lens test/symbols unavailable, per §4.5.4: cr built no symbol index for symbols.lang "go"`)
+		"lens test/symbols unavailable, per §4.5.4: cr could not read legacy_test.go at the head, "+
+			"so the symbols they reference are not attached")
 	for _, line := range honesty {
 		assert.NotContains(t, line, "convention/reinvention", "the reinvention half ran over the head's index")
 	}

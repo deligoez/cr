@@ -41,19 +41,25 @@ func (u Unavailable) Disclosure() string {
 // unavailability names why §4.3.1's reinvention half could not run, and reports
 // false when it could.
 //
-// Three states reach it, and they are three different sentences to the person
-// reading the report. A profile declaring no `symbols.lang` is a profile that
-// never claimed a language — the shipped generic one, whose emptiness is what
-// it has to say. A `symbols.lang` cr has no scanner for is the user having said
-// which language this is and cr not being able to read it, which is a gap in cr
-// and reads as one. An index that was asked for and did not arrive is neither,
-// and naming it separately is what keeps a git read that failed from being
-// reported as a profile that was misconfigured.
+// Four states reach it, and they are four different sentences to the person
+// reading the report. A repository no profile matched has no profile to name
+// and no file to add a language to, so its sentence sends the reader to choose
+// a profile, the fix profile.MissingProfile names. A profile declaring no
+// `symbols.lang` is a profile that never claimed a language — the shipped
+// generic one, whose emptiness is what it has to say. A `symbols.lang` cr has
+// no scanner for is the user having said which language this is and cr not
+// being able to read it, which is a gap in cr and reads as one. An index that
+// was asked for and did not arrive is none of these, and naming it separately
+// is what keeps a git read that failed from being reported as a profile that
+// was misconfigured.
 //
 // Each names what would make the lens run, because §4.5.4's reason is read by
 // someone deciding whether to act on it.
 func unavailability(p *profile.Profile, index *symbol.Index) (Unavailable, bool) {
 	switch {
+	case p.ID == "":
+		return reinventionOut("no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+			"set `profile` in the per-repository config to name the profile this repository is"), true
 	case p.Symbols.Lang == "":
 		return reinventionOut(fmt.Sprintf(
 			"profile %q declares no symbols.lang, so §4.3.1's symbol index cannot be built; "+

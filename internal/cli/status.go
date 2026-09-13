@@ -512,7 +512,11 @@ func roundHalves(
 		MinSimilarity: resolved.Float("reinvention.min_similarity"),
 		MaxCandidates: resolved.Int("reinvention.max_candidates"),
 	})
-	tests := testadequacy.Attach(p, nil, hunks)
+	refs, err := testadequacy.HeadReferences(dir, head, p, index, hunks)
+	if err != nil {
+		return nil, err
+	}
+	tests := testadequacy.Attach(p, refs, hunks)
 	out := make([]finding.HonestyDisclosure, 0,
 		len(candidates.Unavailable)+len(tests.Unavailable))
 	for _, entry := range candidates.Unavailable {
@@ -531,10 +535,10 @@ func roundHalves(
 // still asked for; what is skipped is the diff it would have been compared
 // against, in the one case where the comparison cannot happen. Measured on this
 // tree: reinvention.Attach returns its unavailability before it reads a hunk,
-// and testadequacy.Attach is handed a nil References by the line above — so
-// indexReason always answers and referenced returns before it reads the paths
-// testPaths built. The hunks reach neither answer, and roundHalves discards the
-// Paths they produced.
+// and testadequacy.HeadReferences answers a nil index with a nil References
+// before it reads a hunk either — so indexReason always answers and referenced
+// returns before it reads the paths testPaths built. The hunks reach neither
+// answer, and roundHalves discards the Paths they produced.
 //
 // It matters because §8.4.3 gave this derivation a second reader. `cr post`
 // composes the review body out of it, so a diff read here is a `gh` call and a

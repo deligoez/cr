@@ -97,6 +97,16 @@ func TestEachWayTheIndexIsMissingHasItsOwnReason(t *testing.T) {
 		})
 	}
 
+	t.Run("no profile matched the repository", func(t *testing.T) {
+		attachments := Attach(&profile.Profile{}, nil, nil, unranked())
+
+		assert.Equal(t, []Unavailable{{
+			Lens: profile.ReinventionLens,
+			Reason: "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+				"set `profile` in the per-repository config to name the profile this repository is",
+		}}, attachments.Unavailable, "an empty profile id names no profile to add symbols.lang to")
+	})
+
 	t.Run("the index was asked for and did not arrive", func(t *testing.T) {
 		attachments := Attach(indexable(), nil, nil, unranked())
 

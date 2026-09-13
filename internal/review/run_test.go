@@ -68,7 +68,7 @@ func shop(t *testing.T) (dir, head, base string) {
 	runGit(t, dir, "checkout", "--quiet", "-b", "feature/"+runIssue)
 	write("order.go", "package shop\n\nfunc Total() int { return subtotal() + shipping() }\n\n"+
 		"func formatMoneys(amount, cents int) string { return \"\" }\n")
-	write("order_test.go", "package shop\n\nfunc TestTotal() {}\n")
+	write("order_test.go", "package shop\n\nfunc TestTotal() { _ = Total() }\n")
 	runGit(t, dir, "add", "-A")
 	runGit(t, dir, "commit", "--quiet", "-m", "sum the order")
 	head = runGit(t, dir, "rev-parse", "HEAD")
@@ -208,7 +208,7 @@ func TestAnEmittedPromptCarriesAllSevenAttachments(t *testing.T) {
 		"the claims mapped to it":    {"- " + runIssue + "#c1: The total sums the subtotal and the shipping."},
 		"the candidate symbols":      {"added function formatMoneys (2 params) at order.go:5", "candidate function FormatMoney (2 params) at money.go:3"},
 		"the rule hits":              {"rule no-shipping-call at order.go:3", "The quote already carries the shipping amount."},
-		"the test files":             {"Changed or added by the pull request: order_test.go."},
+		"the test files":             {"Changed or added by the pull request: order_test.go.", "Symbols they reference: Total."},
 		"the threads":                {"PRRT_1 at order.go:3-3 (RIGHT), by reviewer", "Is the shipping arm covered?"},
 		"the notes of the issue key": {runIssue + "#n1 (chat, from pull request 7): shipping is free above 50.00"},
 	} {
@@ -246,9 +246,8 @@ func TestRunEmitsEveryActiveRoleOverEveryUnitOfTheRound(t *testing.T) {
 		"convention/u1", "convention/u2", "correctness/u1", "correctness/u2",
 		"intent-coverage/u1", "intent-coverage/u2", "test-adequacy/u1", "test-adequacy/u2",
 	}, at)
-	assert.Equal(t, []string{
-		"lens test/symbols unavailable, per §4.5.4: cr built no symbol index for symbols.lang \"go\"",
-	}, fan.Honesty, "§4.4.1's symbol half has no index to read, and says so")
+	assert.Equal(t, []string{}, fan.Honesty,
+		"the profile indexes Go, so both symbol halves ran over the head's index and neither is disclosed")
 	assert.Contains(t, promptOf(t, fan, "intent-coverage", "u2"), "Unmapped unit (§4.1.2)",
 		"the test file's unit is mapped to no claim, so the intent role raises it")
 }
