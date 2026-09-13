@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T05:34:53.227485Z",
+  "updated_at": "2026-09-13T05:44:10.819414Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8942,7 +8942,7 @@
     {
       "id": "record-id-refusal-names-next-free",
       "title": "Name the next free id on refusal",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "finding-record-schema"
@@ -8952,11 +8952,19 @@
       "source_sections": [
         "### 6.1 Record schema"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T05:35:25.43265Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T05:44:10.81059Z",
+      "closed_reason": "- internal/cli/recordids.go's refuseHeldIDs now ends both refusals, the id a stored record holds and the id the file repeats, with \"the next free id is f\u003cn\u003e\", computed by finding.NextID over every stored record of findings.ndjson and every record of the file, so the suggested id is taken neither by an earlier round nor by a later line; the dogfood binary against a scratch repo and gh shim printed \"the next free id is f5\" for a reused f1 over a stored f1 and f4, and \"the next free id is f10\" for a file repeating f2 beside f9, both at exit 1 through RejectedRecordError.\n- finding.NextID now has a production caller, internal/cli/recordids.go's refuseHeldIDs, which cr record's acceptRecords calls.\n- deadcode over the whole module prints 15 lines with no NextID entry after the change, where it printed 16 including internal/finding/id.go:47:6 NextID before it.\n- internal/cli/recordids_test.go drives cr record with a file holding two f1 records beside a later f5 over a stored f2 and asserts the parsed next free id is f6, and with a later round's file reusing the earlier round's f1 beside f3 over stored f1 and f6 and asserts f7 plus the holder's round; overlay mutants that allocate over the store only, the file only, or the lines read before the repeat each turn one of the two tests red.\n",
+      "gate_passed_at": "2026-09-13T05:44:10.81059Z",
+      "commit_sha": "1639bdf",
+      "commit_shas": [
+        "1639bdf"
+      ],
+      "commit_files": [
+        "internal/cli/recordids.go",
+        "internal/cli/recordids_test.go"
+      ]
     }
   ]
 }
