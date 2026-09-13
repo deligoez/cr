@@ -93,6 +93,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryRaised:             ownerMerge,
 	summaryWaived:             ownerMerge,
 	summaryAlreadyPosted:      ownerMerge,
+	summaryMergedHash:         ownerMerge,
 	summaryDeduplicated:       ownerRecord,
 	summarySuppressedByThread: ownerRecord,
 	summaryForcedToQuestion:   ownerDraft,

@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // mergeResult is what `cr merge` has to report about the file it wrote: how
@@ -169,7 +170,7 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 	// summary.json. They are written after the output file, so the summary
 	// describes a merge that produced one rather than a merge that was
 	// about to.
-	if err := writeMergeCounts(layout, owner, repo, pr, round.Round, merged); err != nil {
+	if err := writeMergeCounts(layout, owner, repo, pr, round.Round, merged, body); err != nil {
 		return err
 	}
 	return out.emit(newMergeResult(output, merged))
@@ -186,8 +187,30 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 // whose judgements were being honoured.
 const summaryAlreadyPosted = "already_posted"
 
+// summaryMergedHash is the key the round summary holds mergedDigest of the file
+// `cr merge` last wrote under.
+//
+// It is how `cr record` answers §6.5.1's question — is this file `cr merge`'s
+// output — without taking the answer from the agent. §6.1.4 lets `duplicate_of`
+// in on that output alone, and neither the command's entry point nor the
+// file's name can tell it from a file the agent wrote: `-o` points anywhere,
+// and the agent names what it hands `cr record`. The digest is the merge's own
+// statement of what it produced, in the document §10.3 has it create, and like
+// every other count of its section it is replaced whole by the next run, so a
+// file an earlier merge of the round wrote no longer matches.
+const summaryMergedHash = "merged_hash"
+
+// mergedDigest is the digest summaryMergedHash holds: §1.4's normalised hash of
+// the file's text, the one hash cr computes anywhere. Normalising first means
+// an edit that only moves whitespace keeps the digest, and none such can change
+// which record `duplicate_of` names.
+func mergedDigest(body []byte) (string, error) {
+	return text.NormalisedHash(string(body))
+}
+
 // writeMergeCounts puts `cr merge`'s share of §10.3's counts into the round's
-// summary.json, which §10.3 has this command create.
+// summary.json, which §10.3 has this command create, beside the digest of the
+// output file body holds.
 //
 // The three are the head of §10.3's list: what the roles raised, and the two
 // passes that took findings back out before anything was recorded. Every later
@@ -198,8 +221,12 @@ const summaryAlreadyPosted = "already_posted"
 // as "the merge has not run for this round", which is a different fact from a
 // merge that ran and matched nothing.
 func writeMergeCounts(
-	l state.Layout, owner, repo string, pr, round int, merged *mergeOutcome,
+	l state.Layout, owner, repo string, pr, round int, merged *mergeOutcome, body []byte,
 ) error {
+	digest, err := mergedDigest(body)
+	if err != nil {
+		return err
+	}
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
@@ -208,6 +235,7 @@ func writeMergeCounts(
 		{key: summaryRaised, value: merged.raised},
 		{key: summaryWaived, value: merged.waived},
 		{key: summaryAlreadyPosted, value: merged.posted},
+		{key: summaryMergedHash, value: digest},
 	}); err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.

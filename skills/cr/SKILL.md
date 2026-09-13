@@ -157,7 +157,8 @@ cr record 1 merged.ndjson
 deduplicates by anchored line and class, drops findings an active waiver or an
 earlier posting already covers, and counts by role, axis, severity and grade.
 `cr record` stores the round's records; it re-applies both drops, so recording
-a role's file directly is safe too.
+a role's file directly is safe too. Only the file `cr merge` last wrote, left
+unchanged, may carry `duplicate_of`; `cr record` refuses it on any other file.
 
 ```json
 {

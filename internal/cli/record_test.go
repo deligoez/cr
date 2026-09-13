@@ -335,8 +335,8 @@ func TestASuppressedDuplicateIsStoredInThatStateNamingItsRepresentative(t *testi
 	// Three records and one duplicate, so the two counts differ: a
 	// fixture with one of each reads the same whichever state is being
 	// counted, and mutation testing found exactly that hole here.
-	file := writeRecordFile(t, "merged.ndjson",
-		aRecord("f1", "u1"), suppressed, aRecord("f3", "u2"))
+	file := asMergeOutput(t, layout, writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), suppressed, aRecord("f3", "u2")))
 
 	printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
 	require.NoError(t, err)
@@ -363,13 +363,13 @@ func TestASuppressedDuplicateIsStoredInThatStateNamingItsRepresentative(t *testi
 // duplicate in the file and a line calling every stored record `draft` would
 // count records this round will never draft.
 func TestATerminalRecordNamesTheDuplicatesApartFromTheDrafts(t *testing.T) {
-	recordedHome(t)
+	layout := recordedHome(t)
 	suppressed := aRecord("f2", "u2")
 	suppressed["duplicate_of"] = "f1"
 	// Two drafts against one duplicate, for the reason the case above
 	// gives: equal counts cannot tell the two states apart.
-	file := writeRecordFile(t, "merged.ndjson",
-		aRecord("f1", "u1"), suppressed, aRecord("f3", "u2"))
+	file := asMergeOutput(t, layout, writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), suppressed, aRecord("f3", "u2")))
 
 	out := throughATerminal(t, "record", recordPR, file, "--repo", recordSlug)
 

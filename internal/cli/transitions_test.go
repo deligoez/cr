@@ -61,8 +61,8 @@ func TestRecordAndDraftLeaveOneJournalLinePerTransition(t *testing.T) {
 	duplicate["duplicate_of"] = "f1"
 	covered := aRecord("f3", "u2")
 	covered["suppressed_by"] = "PRRT_kwDOA1b2c3"
-	_, err := runRecord(t, recordPR, writeRecordFile(t, "merged.ndjson",
-		aRecord("f1", "u1"), duplicate, covered), "--repo", recordSlug)
+	_, err := runRecord(t, recordPR, asMergeOutput(t, layout, writeRecordFile(t, "merged.ndjson",
+		aRecord("f1", "u1"), duplicate, covered)), "--repo", recordSlug)
 	require.NoError(t, err)
 	recorded := []string{
 		"f1:new>draft by cr record",

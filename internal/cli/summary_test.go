@@ -104,6 +104,16 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 			}
 			return nil
 		},
+		"merged_hash": func(raw json.RawMessage) error {
+			var hash string
+			if err := json.Unmarshal(raw, &hash); err != nil {
+				return err
+			}
+			if !payloadHashShape.MatchString(hash) {
+				return fmt.Errorf("%q is not a §1.4 normalised hash", hash)
+			}
+			return nil
+		},
 	}
 }
 

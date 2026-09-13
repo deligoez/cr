@@ -136,7 +136,7 @@ func TestAGroupWhoseRepresentativeIsAbsentIsReElectedAmongTheRest(t *testing.T) 
 		record["duplicate_of"] = "f1"
 		return record
 	}
-	file := writeRecordFile(t, "merged.ndjson", orphan("f2"), orphan("f3"))
+	file := asMergeOutput(t, layout, writeRecordFile(t, "merged.ndjson", orphan("f2"), orphan("f3")))
 
 	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
 	require.NoError(t, err)

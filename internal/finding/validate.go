@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/deligoez/cr/internal/state"
 )
@@ -60,7 +62,9 @@ func (e *UnattributableFileError) Error() string {
 // either: `cr merge` writes wherever `-o` points, and the agent names the file
 // it hands `cr record`, so a name is the agent's claim about its own input. So
 // the caller says which it is, in a word it has to type — a command cannot be
-// written without answering, and the zero value answers no.
+// written without answering, and the zero value answers no. `cr record`
+// answers SourceMerge only for a file whose digest is the one `cr merge`
+// recorded for the round.
 type Source int
 
 const (
@@ -153,6 +157,18 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 			}
 		}
 	}
+	// §6.1's id row: present by now, so what is left is its form. It is the
+	// form NextID allocates against, so an id this door let in is one the
+	// next allocation can see.
+	if !ValidID(record.ID) {
+		return &RejectedRecordError{
+			File: c.file, Line: line, Field: "id",
+			Problem: fmt.Sprintf("reads %q, and §6.1 spells a record id f<n>, numbered from one", record.ID),
+		}
+	}
+	if err := closedValue(c.file, line, "kind", record.Kind, KindFinding, KindQuestion); err != nil {
+		return err
+	}
 	// §6.1's class row, in the table's order: present by now, so what is left
 	// is its form. It is checked here, inside the one checker every door
 	// shares, because §6.4.1's dedup key, §7.4.1's waiver key and §9.3.6's
@@ -161,8 +177,19 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 	if err := ValidateClass(c.file, line, record.Class); err != nil {
 		return err
 	}
+	if err := closedValue(c.file, line, "severity", record.Severity, Severities()...); err != nil {
+		return err
+	}
 	if err := ValidateAnchor(c.file, line, &record.Anchor); err != nil {
 		return err
+	}
+	// §6.1's suggestion_origin row is optional, so only a value the line
+	// supplied is held to the two the row names.
+	if record.SuggestionOrigin != "" {
+		if err := closedValue(c.file, line, "suggestion_origin", record.SuggestionOrigin,
+			OriginAgent, OriginRule); err != nil {
+			return err
+		}
 	}
 	if !slices.Contains(c.units, record.Unit) {
 		return &RejectedRecordError{
@@ -183,6 +210,27 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 	// established: the record parsed, its required fields are there, and
 	// what is left is whether a rule stands behind it and is named.
 	return c.ruleAttribution(line, supplied, record)
+}
+
+// closedValue holds one of §6.1's fields whose row names every value it may
+// take, and refuses any other naming the file, the line and the field.
+//
+// Presence has already been settled by the time this runs, so the question is
+// only the vocabulary. Nothing downstream re-asks it: §6.4.2 ranks a severity it
+// does not know last rather than refusing it, and §6.3's forcing rewrites only
+// an argued record's kind, so a value let in here would be stored as it came.
+func closedValue[T ~string](file string, line int, field string, value T, allowed ...T) error {
+	if slices.Contains(allowed, value) {
+		return nil
+	}
+	named := make([]string, 0, len(allowed))
+	for _, one := range allowed {
+		named = append(named, strconv.Quote(string(one)))
+	}
+	return &RejectedRecordError{
+		File: file, Line: line, Field: field,
+		Problem: fmt.Sprintf("reads %q, and §6.1 allows only %s", string(value), strings.Join(named, ", ")),
+	}
 }
 
 // computed holds one line to §6.1.4: `cr` writes the computed fields, and a

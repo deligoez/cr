@@ -61,7 +61,8 @@ func fanOutFile(t *testing.T, dir, lens string, records ...map[string]any) strin
 // command-surface-stubs registered and merge-command owns. What it leaves out
 // is the counts §6.5.1 reports and the summary §10.3 accumulates, neither of
 // which touches a record's fields — so the file it writes is the merged file a
-// record's rule id has to survive.
+// record's rule id has to survive. It does record the file's digest where
+// `cr merge` would, since that is what lets `cr record` read `duplicate_of`.
 func merged(t *testing.T, layout state.Layout, files ...string) string {
 	t.Helper()
 	records := make([]*finding.Finding, 0, len(files))
@@ -91,7 +92,7 @@ func merged(t *testing.T, layout state.Layout, files ...string) string {
 	}
 	path := filepath.Join(t.TempDir(), "merged.ndjson")
 	require.NoError(t, os.WriteFile(path, unstamped(t, body.Bytes()), 0o600))
-	return path
+	return asMergeOutput(t, layout, path)
 }
 
 // unstamped removes §2.3.3's head and round from every line of a merged file.

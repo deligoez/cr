@@ -396,11 +396,9 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	// §6.5.1: the input is `cr merge`'s output, which is the one file
-	// allowed to carry `duplicate_of` — §6.4.3 has `cr merge` mark a
-	// suppressed duplicate there and `cr record` apply it from there.
-	// Every other computed field is refused whatever the source says.
-	records, err := finding.Decode(file, body, roundUnitIDs(formed), finding.SourceMerge)
+	// §6.1.3 and §6.1.4, with `duplicate_of` read only on the file
+	// `cr merge` last wrote for the round.
+	records, err := decodeInput(l, owner, repo, pr, round.Round, file, body, roundUnitIDs(formed))
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
@@ -489,6 +487,48 @@ func acceptRecords(
 	// forcing is what is wanted here.
 	finding.ForceQuestions(records)
 	return records, found, dropped, nil
+}
+
+// decodeInput is the one door of §6.1.3 and §6.1.4, opened with the source
+// sourceOf reads for the file.
+//
+// §6.5.1: `cr merge`'s output is the one file allowed to carry `duplicate_of` —
+// §6.4.3 has `cr merge` mark a suppressed duplicate there and `cr record` apply
+// it from there. Which file that is comes from what the merge recorded, never
+// from the agent, so a role's file or a file the agent wrote itself is read as
+// the agent's own and has §6.1.4 refuse the field. Every other computed field
+// is refused whatever the source.
+func decodeInput(
+	l state.Layout, owner, repo string, pr, round int, file string, body []byte, units []string,
+) ([]*finding.Finding, error) {
+	from, err := sourceOf(l, owner, repo, pr, round, body)
+	if err != nil {
+		return nil, err
+	}
+	return finding.Decode(file, body, units, from)
+}
+
+// sourceOf answers finding.Decode's question about one input: is it the file
+// `cr merge` last wrote for this round?
+//
+// The answer is read off the round summary, where `cr merge` records the digest
+// of its output, and never off the file's name or the command that was run.
+// Anything else — a role's §4.6.2 file handed straight in, a file the agent
+// wrote, a merge output edited afterwards, or one an earlier merge of the round
+// wrote — is the agent's, which costs such a file nothing unless it carries
+// `duplicate_of`. A round no merge has run for holds no digest, and is answered
+// the same way. So is a body §1.4 cannot decode, which `cr merge` never writes
+// and finding.Decode goes on to refuse. The read takes no lock, per §2.3.2.
+func sourceOf(l state.Layout, owner, repo string, pr, round int, body []byte) (finding.Source, error) {
+	merged, recorded, err := state.ReadRoundSection[string](
+		l, owner, repo, pr, round, state.FileSummary, summaryMergedHash)
+	if err != nil || !recorded {
+		return finding.SourceAgent, err
+	}
+	if digest, undecodable := mergedDigest(body); undecodable == nil && digest == merged {
+		return finding.SourceMerge, nil
+	}
+	return finding.SourceAgent, nil
 }
 
 // appendRecords is the single write, under §2.3.1's lock: §9.1.1's journal of

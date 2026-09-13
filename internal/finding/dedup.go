@@ -114,9 +114,9 @@ var (
 // value that order does not list.
 //
 // Unlisted ranks last, for the reason role.Order puts an unresolved role id
-// behind the whole corpus: §6.1.3 checks that a field is present and not that
-// its value is one cr knows, so a severity or a grade cr does not recognise
-// does reach here, and rank zero would hand it the representative slot of every
+// behind the whole corpus: the door holds a severity to §6.1's four, but a
+// record stored before it did, or a grade cr does not recognise, can still
+// reach here, and rank zero would hand it the representative slot of every
 // group it appeared in. Last is the honest place for a value nothing can rank.
 func rankIn[T comparable](order []T, value T) int {
 	if at := slices.Index(order, value); at >= 0 {
