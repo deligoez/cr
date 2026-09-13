@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T19:06:54.707945Z",
+  "updated_at": "2026-09-13T21:17:17.630587Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -4905,7 +4905,7 @@
         "gap-passed-limits"
       ],
       "estimate_minutes": 12,
-      "acceptance": "- Severity is at least high only when the probe supports the finding per §5.4.4, and at most medium for a passed gap probe per §5.4.5.\n- Round 8 finding unenforced-severity-bound: cr record is named as the enforcer and rejects with exit code 1 a gap-probe-backed record whose severity violates either bound, naming the record, the probe, and the result; cr post re-checks the bound after triage the way §7.2.2 re-checks the grade. Without a named enforcer both MUSTs bind nobody, since severity is agent-written and §6.1.3 checks presence alone.\n- The cost of leaving it unenforced is a misdirected human: severity is what the reviewer triages on under the blocking cap of §1.6.2, so a probe that proved only a missing test could present its finding as the loudest item in the draft.\n- A test asserts both bounds reject at record time and are re-checked at post time.",
+      "acceptance": "- Severity is at least high only when the probe supports the finding per §5.4.4, and at most medium for a passed gap probe per §5.4.5.\n- Round 8 finding unenforced-severity-bound: cr record is named as the enforcer and rejects with exit code 1 a gap-probe-backed record whose severity violates either bound, naming the record, the probe, and the result; cr post re-checks the bound after triage the way §7.2.2 re-checks the grade. Without a named enforcer both MUSTs bind nobody, since severity is agent-written and §6.1.3 checks presence alone.\n- The cost of leaving it unenforced is a misdirected human: severity is what the reviewer triages on under the blocking cap of §1.6.2, so a probe that proved only a missing test could present its finding as the loudest item in the draft.\n- A test asserts both bounds reject at record time and are re-checked at post time.\n- Reading of §5.4.4, settled by the orchestrator on 2026-09-13 after audit round 7 row task-gap-severity-enforcement: Severity MUST be at least high only when the probe supports the finding is a floor that binds only a supporting probe; a failed gap probe that does not support its finding sets no severity bound, because that record is argued under §6.2 and posted as a question under §6.3, so its severity cannot lend an assertion weight; §5.4.5's at-most-medium ceiling binds passed, timeout, error, no-tests-selected and inconclusive results.",
       "source_sections": [
         "### 5.4 Gap probe"
       ],
@@ -10110,6 +10110,211 @@
         "internal/brief/unsettled.go",
         "internal/cli/brief.go",
         "internal/cli/briefunresolved_test.go"
+      ]
+    },
+    {
+      "id": "stale-sweep-refuses-null-id",
+      "title": "Refuse a null id or folded key in the stale sweep",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr brief's stale sweep on a moved head refuses a stored findings.ndjson line whose id is JSON null with exit 3 and state.UnusableHint naming the file and line, as it refuses a missing or non-string id, instead of rewriting it to stale and journaling a transition for record \"\"; audit round 7 security row for internal/brief/invalidate.go.\n- A stored line whose state or id key is spelled in another letter case is read the way encoding/json binds it (state.FoldedFields) or refused, never silently left out of the sweep.\n- Tests drive cr brief on a moved head over a null id and over a case-folded State key and assert the exit code, hint, file and line and that nothing is rewritten or journaled.",
+      "source_sections": [
+        "### 9.3 A changed head",
+        "### 2.3 Per-PR state"
+      ],
+      "started_at": "2026-09-13T19:37:05.73083Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T20:26:14.688008Z",
+      "closed_reason": "- cr brief's stale sweep on a moved head now refuses a stored findings.ndjson line whose id is JSON null: internal/brief/invalidate.go staleOpenRecords decodes the id into a *string and returns unusable(fieldID, errNullID), the same state.FileFailure with state.UnusableHint that a missing or numeric id gets, so RewriteStamped names the path and line, the brief exits 3, and neither findings.ndjson nor transitions.ndjson is written; the dogfood binary on a scratch repository printed \"findings.ndjson line 1: cannot use the id field of findings.ndjson: null is not a string\" with UnusableHint, exited 3, and left both files unchanged.\n- The audit round 7 security row for internal/brief/invalidate.go (json-null-accepted-as-string, and its noted case-variant \"State\" key class) is repaired by commit 1fee53a, which also carries the case-folding fix below.\n- A stored line whose state or id key is spelled in another letter case is now read the way encoding/json binds it and swept, the choice consistent with every other stored-file read (decodeRound decodes into the record struct, and cr status on the dogfood line {\"ID\":\"f1\",\"State\":\"queued\"} counted one queued record): internal/state/roundscope.go RewriteStamped hands apply state.FoldedFields of the line and writes a changed line back under its supplied spellings through respelled, and a line giving one key twice under folding is refused as an unusable stored file (exit 3, not the caller-input RepeatedKeyError exit 1); the dogfood brief on a moved head exited 0, rewrote the line to {\"ID\":\"f1\",\"State\":\"stale\",...} and journaled f1 queued to stale.\n- internal/cli/briefinvalidate_test.go drives cr brief on a moved head: TestABriefOnAMovedHeadNamesTheStoredLineItCannotUse gains \"an id that is null\" and \"a state given twice under case folding\" (the refused case-folded State key), each asserting the whole error with the path and line 3, ExitFile, state.UnusableHint, and findings.ndjson and transitions.ndjson byte for byte unchanged, and TestABriefOnAMovedHeadSweepsARecordWhoseKeysAreSpelledInAnotherCase asserts, for the swept ID/State spelling, exit 0, the whole rewritten file with ID and State kept, and both journal lines; go test -overlay mutants each turned a case red (HEAD invalidate.go: the null case; HEAD roundscope.go: the repeated-key case and the sweep test; json.Marshal(fields) without respelled: the sweep test; the repeated-key conversion removed: exit 1 instead of 3).\n",
+      "gate_passed_at": "2026-09-13T20:26:14.688008Z",
+      "commit_sha": "1fee53a",
+      "commit_shas": [
+        "1fee53a"
+      ],
+      "commit_files": [
+        "internal/brief/invalidate.go",
+        "internal/cli/briefinvalidate_test.go",
+        "internal/state/roundscope.go"
+      ]
+    },
+    {
+      "id": "identical-bodies-each-get-a-thread",
+      "title": "Give each identical comment body its own thread",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- When two comments of one review carry the same body, each is paired with its own returned thread and both records get a thread_id in findings.ndjson and posted.json, for cr post --confirm and cr post --reconcile alike, as threadsByRecord's own comment promises; found by audit round 7 in internal/cli/send.go, where byBody keeps only the first thread per body so the second comment gets none.\n- A test posts a round with two records whose bodies are identical through a gh shim returning two threads, and asserts two distinct thread ids stored.",
+      "source_sections": [
+        "### 8.3 Batching",
+        "### 6.1 Record schema"
+      ],
+      "started_at": "2026-09-13T19:48:01.709773Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T20:44:29.505256Z",
+      "closed_reason": "- Two comments of one review carrying the same body are now each paired with their own returned thread, and both records get a thread_id in findings.ndjson and posted.json for cr post --confirm and cr post --reconcile alike: internal/cli/send.go's threadsByRecord no longer keeps one thread id per body in a map it deletes from, it claims threads one by one, first an unclaimed thread with the comment's body hanging at the comment's path, side and original range (the new postedAt), then any unclaimed thread with that body, and adoptReturnedThreads, which both paths call, is unchanged apart from its doc comment.\n- The audit round 7 defect in internal/cli/send.go is gone: byBody, which kept only the first thread per body and deleted it once claimed so the second comment got none, is replaced by a per-thread claimed flag, so a body shared by two comments still has a second thread to give.\n- internal/cli/identicalbodies_test.go's TestIdenticalBodiesEachGetTheirOwnThread records f1 and f2 with one summary in two files, requires the dry-run payload's two bodies equal, and drives cr post --confirm through ghShimming and cr post --confirm then --reconcile through reconcilingShim, each with the threads listed in payload order and reversed, asserting the whole record-to-thread map with two distinct ids in findings.ndjson and in posted.json; under go test -overlay the old byBody map turned all four subtests red, a body-only claim without the position pass turned both reversed subtests red, and the unmutated tree is green.\n",
+      "gate_passed_at": "2026-09-13T20:44:29.505256Z",
+      "commit_sha": "1f38bab",
+      "commit_shas": [
+        "1f38bab"
+      ],
+      "commit_files": [
+        "internal/cli/confirmgate_test.go",
+        "internal/cli/identicalbodies_test.go",
+        "internal/cli/send.go"
+      ]
+    },
+    {
+      "id": "rule-detect-validated-at-load",
+      "title": "Validate a rule's detect block when it is loaded",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A rule whose detect.mode is not one §2.6 allows or whose detect.pattern does not compile is malformed per §2.6.5 wherever rules are loaded, so cr rules list, cr record, cr draft and cr review abort with exit 3 naming the rule file, as cr rules check already does; audit round 7 row list-8-5 (cr rules list exited 0 listing a rule with detect.mode glob and one with detect.pattern ( as effective).\n- The check lives in the rule loader once, not per command, and a test drives cr rules list and cr record over each malformed rule and asserts exit 3, the hint and the file name.",
+      "source_sections": [
+        "### 2.6 Rules"
+      ],
+      "started_at": "2026-09-13T19:48:47.79975Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T20:35:16.077139Z",
+      "closed_reason": "- A rule whose detect.mode is not regex or whose detect.pattern (or fix.replace) does not compile is now malformed under §2.6 item 5 at load: internal/rule/rule.go's parse calls the new compiles in internal/rule/compile.go after validation, which runs Compile's own compile and compileFix methods, so rule.Resolve (the one loader behind cr rules list, cr rules check, cr record's class row and fix generation, cr draft's provenance and cr review's attach) returns rule.MalformedError, exit 3 through the existing internal/cli/exit.go row, naming the file and the field.\n- Audit round 7 row list-8-5 no longer reproduces: the dogfood binary ran cr rules list over a global rule with detect.mode glob and printed \"no-raw-sql.json: detect.mode of rule \\\"no-raw-sql\\\" is \\\"glob\\\", and §2.6.1.2 admits only \\\"regex\\\" in v0.1\" at exit 3, and over detect.pattern ( printed \"detect.pattern of rule \\\"no-raw-sql\\\" is not a Go regexp: error parsing regexp: missing closing ): `(`\" at exit 3.\n- The check lives once in the loader and Compile keeps calling the same two methods as its guard (TestCompileStillRefusesADetectBlockTheLoaderWouldHaveRefused), and internal/cli/ruledetectload_test.go drives cr rules list and cr record over the glob mode and the ( pattern, asserting exit 3, the rule-file hint and the whole rule.MalformedError with the file path, field and problem; an overlay mutant dropping the compiles call from parse turns all four subtests red (rules list exits 0, cr record exits 1 on the class row), while the rule-package tests that went through Compile now assert the loader's refusal.\n",
+      "gate_passed_at": "2026-09-13T20:35:16.077139Z",
+      "commit_sha": "53619b3",
+      "commit_shas": [
+        "53619b3"
+      ],
+      "commit_files": [
+        "internal/cli/ruledetectload_test.go",
+        "internal/cli/rulepattern_test.go",
+        "internal/rule/compile.go",
+        "internal/rule/compile_test.go",
+        "internal/rule/fix_test.go",
+        "internal/rule/rule.go",
+        "internal/rule/rule_test.go"
+      ]
+    },
+    {
+      "id": "stored-round-key-folded",
+      "title": "Read a stored round key in any letter case",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A stored per-PR line whose round key is spelled in another letter case is read the way encoding/json binds it, through state.FoldedFields, in roundOf, decodeRound and the round-scoped writers, so a Round key never reads as round 0; a line giving round twice under folding is refused with exit 3 and state.UnusableHint naming the file and line (found while closing stale-sweep-refuses-null-id, 1fee53a).\n- Tests drive a round-scoped read and write (cr status and cr draft) over a Round-keyed stored line and over a repeated folded round key.",
+      "source_sections": [
+        "### 2.3 Per-PR state",
+        "### 9.3 A changed head"
+      ],
+      "started_at": "2026-09-13T20:27:48.089448Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T20:58:56.974468Z",
+      "closed_reason": "- A stored per-PR line whose round key is spelled in another letter case is now read the way encoding/json binds it: internal/state/roundscope.go adds storedFields, which keys a stored line through state.FoldedFields, and decodeRound (ReadStamped) and visitLines (keptLines under ReplaceStamped, ClearStamped and ReplaceStampedKeys, and RewriteStamped) both read through it, so roundOf sees a Round key as the round and never as round 0, while RewriteStamped still writes a changed line under its stored spellings. Dogfood binary on a scratch repository: cr status counted 2 records, one draft and one queued, over a findings.ndjson holding a Round-keyed line.\n- A line giving round twice under folding is refused by storedFields as \"\u003cpath\u003e line \u003cn\u003e: cannot use findings.ndjson: round is given more than once\", a FileFailure with state.UnusableHint that exits 3, in the shape 1fee53a gave the stale sweep (found while closing stale-sweep-refuses-null-id). Dogfood binary: cr status over {\"round\":1,\"Round\":2} printed that error naming findings.ndjson line 2 with the UnusableHint and exited 3.\n- internal/cli/roundkeyfolded_test.go drives cr status and cr draft over a Round-keyed stored line (status counts it, draft renders it and replaces it once, keeping an earlier round's Round-keyed line byte for byte) and over a repeated folded round key (exit 3, UnusableHint, path and line, and draft writes nothing). All four were red at HEAD, and go test -overlay mutants restoring the exact-spelling read in decodeRound, in visitLines, or in storedFields each turn them red.\n",
+      "gate_passed_at": "2026-09-13T20:58:56.974468Z",
+      "commit_sha": "a158912",
+      "commit_shas": [
+        "a158912"
+      ],
+      "commit_files": [
+        "internal/cli/roundkeyfolded_test.go",
+        "internal/state/roundscope.go"
+      ]
+    },
+    {
+      "id": "thread-pairing-scoped-to-review",
+      "title": "Pair threads only from the review just posted",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- threadsByRecord pairs a comment only with a thread belonging to the review cr post --confirm created or cr post --reconcile adopted (matched by that review's id, read from GitHub's thread or review-comment data), so a thread an earlier round posted with the same body at the same position is never claimed for this round's record; found while closing identical-bodies-each-get-a-thread (1f38bab), whose body-only fallback reads every thread on the pull request.\n- If GitHub's thread data cannot say which review a thread belongs to, the reading is measured and the closure states the narrowest scope that can be established.\n- A test posts round 1 with a comment, then round 2 with an identical body at the same position through a gh shim listing both threads, and asserts round 2's record gets round 2's thread.",
+      "source_sections": [
+        "### 8.3 Batching",
+        "### 8.4 Partial failure"
+      ],
+      "started_at": "2026-09-13T20:46:21.59147Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T21:01:56.79437Z",
+      "closed_reason": "- threadsByRecord in internal/cli/send.go now claims only a thread whose opening comment belongs to the review the round became (openedBy compares gh.Comment.Review, the new field internal/gh/threads.go reads from each comment's pullRequestReview{id} in the threads and replies queries), with the review id carried through adoptReturnedThreads from both callers: cr post --confirm passes post.CreatedReview of the create call's answer (its node_id, internal/post/review.go), and cr post --reconcile passes the id of the review reviewCarrying matched by the embedded payload hash (internal/cli/reconcile.go), so a thread an earlier round opened with the same body at the same position is no longer a candidate.\n- The body-only fallback 1f38bab added now reads only that review's threads rather than every thread on the pull request, and the body-then-position pairing with its identical-body and reverse-order behaviour is unchanged: TestIdenticalBodiesEachGetTheirOwnThread (internal/cli/identicalbodies_test.go) still passes for --confirm and --reconcile in both listing orders.\n- GitHub's data can say which review a thread belongs to, read from its documented shapes since this unit had no network: a PullRequestReviewComment carries a nullable pullRequestReview whose id is the review's node id, and the REST create-review answer carries that same node id as node_id, so no narrower scope was needed; where the data cannot establish the review (an answer without node_id, or a comment GitHub answers null for), the narrowest scope is no thread at all, which TestAReviewTheCallDoesNotNameClaimsNoThread drives through cr post --confirm, and the dogfood binary's cr brief against a gh shim stored \"review\":\"PRR_dogReview\" in threads.ndjson after asking the query for pullRequestReview{id}.\n- TestAThreadAnEarlierRoundOpenedIsNotClaimedForThisRound in internal/cli/threadreview_test.go posts round 2 with f1 through cr post --confirm, opens round 3 with f2 carrying the identical body at the same position, lists round 2's thread first and round 3's second through the gh shim (threadsPage now reports each comment's pullRequestReview), and asserts f2 gets round 3's thread in findings.ndjson and posted.json while f1 keeps its own, for --confirm and --reconcile; an overlay mutant dropping the review filter turned both subtests red (f2 got PRRT_kwDOShimA), a mutant dropping the empty-id guard turned the no-review test red, and the gate is green.\n",
+      "gate_passed_at": "2026-09-13T21:01:56.79437Z",
+      "commit_sha": "70c4b5a",
+      "commit_shas": [
+        "70c4b5a"
+      ],
+      "commit_files": [
+        "internal/cli/briefunresolved_test.go",
+        "internal/cli/confirmgate_test.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcilethreads_test.go",
+        "internal/cli/send.go",
+        "internal/cli/threadreview_test.go",
+        "internal/gh/threads.go",
+        "internal/gh/threads_test.go",
+        "internal/post/review.go",
+        "internal/post/review_test.go"
+      ]
+    },
+    {
+      "id": "docs-reflect-audit-repairs",
+      "title": "Bring SKILL, README and CLAUDE up to date with the audit repairs",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 60,
+      "acceptance": "- skills/cr/SKILL.md, README.md and CLAUDE.md describe cr as it behaves at HEAD after audit rounds 1-7: the refusals and exit codes added by the repairs (post_unresolved refusing cr draft and a moved-head cr brief, an unknown outcome exiting 4, a posted round refusing a second review, an all-discarded round settling locally, malformed input lines exiting 1, repeated and case-folded keys, claim id uniqueness, suppressed_by naming an ingested thread, dot-segment repositories, the rule detect block checked at load), the review body written in English whatever render.lang says, and the Homebrew formula release; nothing they state contradicts a command's behaviour or a test.\n- Stale test comments naming commands as not yet built are corrected, including internal/cli/exit_test.go, pr_test.go and note_test.go.\n- Every command example in SKILL.md and README.md is run against a fresh binary on a scratch repository with a gh shim and --intent-file, and the closure quotes the runs.",
+      "source_sections": [
+        "## 13. Skill",
+        "## 14. Distribution"
+      ],
+      "started_at": "2026-09-13T20:51:38.756277Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T21:17:02.410999Z",
+      "closed_reason": "- skills/cr/SKILL.md, README.md and CLAUDE.md now describe cr at HEAD after audit rounds 1-7 (commit 27ad520): SKILL.md gains an Unknown outcome section (exit 4, then cr post --confirm, cr draft and a moved-head cr brief refusing with the hint until cr post --reconcile, which only reads GitHub and adopts the review or clears post_unresolved, and why each refusal exists), a posted round refusing a second review, an all-discarded round settling with no network call, grades recomputed after draft edits, the malformed-line, folded-key, f\u003cn\u003e id, rule class and suppressed_by refusals at exit 1, repeated claim ids at exit 1, dot-segment repositories at exit 2, the detect block refused at load at exit 3, the probe lock per repository root, retraction forcing, the no-profile disclosure, the review body in English whatever render.lang says while render.lang governs comment bodies and labels, and a rewritten exit code table, README.md carries the same refusals and render.lang rule in its voice, and CLAUDE.md's Command surface gains the brief, claims record and note flags, its Conventions record the input-versus-stored line codes, the FoldedFields fence and the payload-only request body, its Distribution already matched the brews formula in .goreleaser.yml, and its QA checklist no longer calls an unimplemented claim a finding or promises anchor migration.\n- Nothing stated contradicts behaviour: every quoted refusal and payload was re-run on the dogfood binary and three stale quotes were corrected (the intent pass honesty is [] for symbols.lang go, the draft and post payloads carry forced_by_retraction and discarded, an na cell needs reason and carries no coverage), and the gate is green with go test -race -count=1 exit 0, golangci-lint run 0 issues, scripts/deadcode.sh exit 0, gofmt -l empty, deadcode count 11.\n- Stale test comments are corrected in internal/cli/exit_test.go (names postcap_test.go driving cr post), pr_test.go (detection is built, repodetect_test.go), note_test.go (names retractiondraft_test.go and statusrecords_test.go), and also positions_test.go, questionmark_test.go and suggestionrange_test.go, which still called cr post unbuilt.\n- Every command example in SKILL.md and README.md ran on /tmp/cr-dev/cr-docs built from the live tree, in a scratch repository acme/shop with a gh shim first on PATH and --intent-file, four state homes, zero network: cr brief 1 --issue CR-5 --intent-file exit 0 with round 1 and honesty [], claims record, review --axis intent, map record, review, cells record, merge (explicit files and the README fanout glob), record, sandbox create, test, probe run mutation (no-test-failed, establishes gap) and gap (passed, behaviour), draft, post, waivers list/remove, note/context/answer/note --remove, claims set-aside, rules list/check/suggest/list --dead, stats, config --resolved, init --eject-roles and sandbox destroy all exit 0.\n- Quoted refusals from those runs: a shim answering the POST with HTTP 504 made cr post 1 --confirm exit 4 with the section 8.4.4 unknown-outcome error, cr draft 1 and a second --confirm exit 4 with the reconcile hint, cr brief on a moved head exit 4 naming both heads, cr post 1 --reconcile exit 0 with adopted and post_unresolved false, and exactly one POST reached the shim, a confirmed post then a second confirm exit 4 with this round is posted and takes no second review, the POST body keys were exactly body, comments, event, an all-discarded draft gave cr post 1 --confirm exit 0 posted false discarded f1 with no POST, and nothing queued gave exit 4.\n- Validation quotes: a truncated JSON line exit 1 (unexpected end of JSON input), severity and Severity exit 1 (severity is given more than once) in record, merge and cells record, a unit of type number in map record exit 1, Grade exit 1, duplicate_of on an agent file exit 1, id x1 exit 1, suppressed_by PRRT_typo exit 1, a repeated CR-5#c1 exit 1, --repo acme/.. exit 2, a remote git@github.com:acme/..git exit 2, a detect.pattern of return ( made cr rules list exit 3, a profile tie exit 3, CR_FORCING_OFF exit 3, and CR_POST_MAX_COMMENTS=1 exit 1 with and without --confirm. Offline limits: the Install lines (brew install, go install @latest) and a real GitHub review URL cannot run offline, and the shim stands in for gh.\n",
+      "gate_passed_at": "2026-09-13T21:17:02.410999Z",
+      "commit_sha": "27ad520",
+      "commit_shas": [
+        "27ad520"
+      ],
+      "commit_files": [
+        "CLAUDE.md",
+        "README.md",
+        "internal/cli/exit_test.go",
+        "internal/cli/note_test.go",
+        "internal/cli/positions_test.go",
+        "internal/cli/pr_test.go",
+        "internal/cli/questionmark_test.go",
+        "internal/cli/suggestionrange_test.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "unparseable-create-response-is-unknown",
+      "title": "Treat an unparseable create response as unknown outcome",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A review-creation call that gh reports as successful but whose response body cr cannot parse, or that carries no review id, is an unknown outcome per §8.4.4's 'a response cr cannot parse': cr sets post_unresolved, exits 4 with a hint naming cr post --reconcile, and marks nothing posted, instead of treating the review as posted with no thread ids (found while closing thread-pairing-scoped-to-review, 70c4b5a).\n- A test drives cr post --confirm through a gh shim that exits 0 with a non-JSON body and with a JSON body lacking node_id, asserting post_unresolved, exit 4, no record posted, and that cr post --reconcile then adopts the review.",
+      "source_sections": [
+        "### 8.4 Partial failure"
+      ],
+      "started_at": "2026-09-13T21:03:16.213888Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T21:17:17.619865Z",
+      "closed_reason": "- A review-creation call gh reports as successful whose answer cr cannot parse, or that carries no node_id, is now section 8.4.4's unknown outcome: internal/post/review.go's CreatedReview returns an error for both answers, and internal/cli/send.go passes that error to postOutcome, which returns UnknownOutcomeError with post_unresolved still set (it is set before the call), so cr post --confirm exits 4 with the existing exit.go hint naming cr post --reconcile and marks nothing posted, where it used to mark the records posted with no thread ids. The dogfood binary on a scratch repository printed \"gh reported the review-creation call as successful and its answer cannot be read as the review it created\" at exit 4, refused the second --confirm, and --reconcile adopted https://example.invalid/r/1 with f1 posted and thread_id PRRT_dog0, one POST in total.\n- internal/cli/unparseablecreate_test.go's TestASuccessfulCallWhoseAnswerNamesNoReviewIsAnUnknownOutcome drives cr post --confirm through a gh shim exiting 0 with a non-JSON body and with JSON lacking node_id, asserting UnknownOutcomeError, exit 4, the hint, post_unresolved, every record queued with no thread id, no waiver and no outcome event, a refused second send, then cr post --reconcile adopting the review with thread ids, waiver and outcome events stored and one write in total, beside a control row naming the review that posts. Under go test -overlay the old treat-as-posted path turned both unknown rows red, and dropping the node_id check turned the JSON row and the post package test red, while TestAnEmptyReviewIDClaimsNoThread replaces the removed test that asserted the old path and kills the openedBy empty-id mutant.\n",
+      "gate_passed_at": "2026-09-13T21:17:17.619865Z",
+      "commit_sha": "0fba9e4",
+      "commit_shas": [
+        "0fba9e4"
+      ],
+      "commit_files": [
+        "internal/cli/send.go",
+        "internal/cli/threadreview_test.go",
+        "internal/cli/unparseablecreate_test.go",
+        "internal/post/review.go",
+        "internal/post/review_test.go"
       ]
     }
   ]
