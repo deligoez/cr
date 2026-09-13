@@ -8577,7 +8577,7 @@
     {
       "id": "git-attributes-pinned",
       "title": "Pin the attributes file git reads",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "diff-file-exclusions"
@@ -8586,6 +8586,53 @@
       "acceptance": "- Found by diff-file-exclusions (f12bd87, 2026-09-13): internal/git's runner does not pin core.attributesFile, so a user's global gitattributes changes both the diff cr reads and which files git check-attr reports linguist-generated, and §2.1.1 requires the same state, head and inputs to give the same result.\n- The runner pins core.attributesFile the way it already pins the diff knobs that have no flag, so only the repository's own .gitattributes at the head decides, and internal/git/files.go's note about the unpinned file is removed.\n- A test sets a global attributes file marking a path linguist-generated and a diff driver, and asserts cr lists the same files and reads the same diff as without it.",
       "source_sections": [
         "### 2.1 Division of labour"
+      ],
+      "started_at": "2026-09-12T23:55:44.541456Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:05:55.584771Z",
+      "closed_reason": "- The defect found by diff-file-exclusions is closed: internal/git's runner inherited a user's core.attributesFile (and git's default $HOME/.config/git/attributes when unset), and with the pin removed TestAUsersGlobalAttributesChangeNothingCrReads measures the patch turning into \"Binary files /dev/null and b/edited.txt differ\", numstat listing edited.txt binary, and check-attr reporting it linguist-generated, which breaks §2.1.1's same-inputs-same-result.\n- internal/git/run.go's pinnedConfig now carries core.attributesFile=os.DevNull beside the other -c pins for knobs with no flag, so a user's attributes file is never read and the repository's own attributes decide; internal/git/files.go's Generated comment no longer says the file is unpinned (it keeps the true note that $GIT_DIR/info/attributes is still consulted).\n- internal/git/attributes_test.go reads ChangedFiles, Generated and DiffAgainstMergeBase once with an empty HOME and once with a HOME whose .gitconfig names a global attributes file giving edited.txt the diff driver opaque (declared binary = true, the one driver setting --no-textconv and --no-ext-diff do not neutralise) and linguist-generated, and asserts the file list, the generated answer and the patch bytes are equal; renaming the pin's key turns all four assertions red. Dogfood: cr brief under such a HOME still formed unit lib.go and listed only api.pb.go (generated) and logo.png (binary).\n",
+      "gate_passed_at": "2026-09-13T00:05:55.584771Z",
+      "commit_sha": "86fe5ea",
+      "commit_shas": [
+        "86fe5ea"
+      ],
+      "commit_files": [
+        "internal/git/attributes_test.go",
+        "internal/git/files.go",
+        "internal/git/run.go"
+      ]
+    },
+    {
+      "id": "correctness-claim-citation",
+      "title": "Refuse a correctness claim the unit lacks",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "correctness-axis"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- Found by correctness-axis (60b3370, 2026-09-13): §4.2.2 is enforced by the prompt alone, and nothing in cr checks the claim a correctness finding cites; a record-level refusal of every correctness finding without a claim broke 20 tests, because whether a finding violates a claim or is an internal defect (§4.2.3) is a judgement §2.1.3 leaves to the agent.\n- Decided by the orchestrator: cr enforces the half it can establish without judging — a correctness record whose claim field names a claim id is refused with exit 1 unless that claim is mapped to the record's own unit in the round's mapping, naming the record, the claim and the unit; a correctness record without a claim stays accepted as an internal defect.\n- A test records a correctness finding citing a claim mapped to another unit and asserts the refusal, and a second records one citing its own unit's claim and one citing none and asserts both are stored.",
+      "source_sections": [
+        "### 4.2 Correctness against claims"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "meta-writes-under-lock",
+      "title": "Read meta.json under the lock that writes it",
+      "status": "open",
+      "tags": [],
+      "depends_on": [
+        "mapping-stamp-on-meta"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- Found by mapping-stamp-on-meta (51d36dd, 2026-09-13): two meta.json writers, setPostUnresolved and publishMapping, read their copy of meta.json before taking the §2.3.1 lock and write it back under it, so a cr brief landing between the read and the write has its round, head or mapping stamp silently overwritten.\n- Every writer of meta.json reads the file after acquiring the lock and writes it before releasing it, so no field another command wrote in between is lost.\n- A test interleaves a brief's write between a writer's read and its write, through a seam or an injected pause, and asserts both commands' fields survive; a test that fails without the fix is required, and flock has no happens-before edge -race can see, so assert on what reached the file.",
+      "source_sections": [
+        "### 2.3 Per-PR state"
       ],
       "started_at": null,
       "closed_at": null,
