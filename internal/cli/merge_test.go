@@ -538,3 +538,32 @@ func TestAMergeWritesNothingCrDerivedInsideTheRepositoryUnderReview(t *testing.T
 	require.NotNil(t, waived,
 		"§2.2 and §10.3 together: the state this run derived is under the state root")
 }
+
+// §6.5.1's counts are part of what `cr merge` does, so a summary.json that did
+// not land is a failure the caller is told about.
+//
+// gremlins found the guard on writeMergeCounts' error unasserted: negated, the
+// command succeeded with §10.3's raised, waived and already-posted counts
+// written nowhere, and §10.1.6 would then read the round as one the merge never
+// ran for. Only the round's directory is made read-only, and the output file
+// lives outside the state tree, so the merged file is written and the summary
+// is the one write that refuses.
+func TestAFailedMergeSummaryWriteIsReportedRatherThanSwallowed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through a read-only directory")
+	}
+	layout := recordedHome(t)
+	dir := layout.RoundDir(recordOwner, recordRepo, recordPRNum, recordRound)
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	require.NoError(t, os.Chmod(dir, 0o500))
+	out := mergedOut(t)
+
+	_, err := runMergeCLI(t, out, writeFanOut(t, t.TempDir(), "correctness",
+		aRoleRecord("f1", "correctness", "unchecked-error", "u1")))
+
+	require.Error(t, err, "a merge whose counts reached no file is not reported as done")
+	assert.Contains(t, err.Error(), dir, "the refusal names where the write failed")
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.FileExists(t, out, "the output file came first, so the summary is what refused")
+}
