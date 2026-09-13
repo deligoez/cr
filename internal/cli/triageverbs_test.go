@@ -112,6 +112,14 @@ func TestTheFiveTriageVerbsOfSection72(t *testing.T) {
 		"and stays a finding in state, so the next reading of the draft softens it again")
 	assert.Equal(t, []string{"f2"}, report.Preserved, "the edited body is posted as edited")
 	assert.Contains(t, file, "The reviewer's own wording of f2.")
+
+	// §10.3's two discard counts, one of each verb, so neither can stand in
+	// for the other: gremlins found the wrong count counting down unnoticed.
+	summary, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
+	require.NoError(t, err)
+	document := assertSummaryShape(t, summary, ownerDraft)
+	assert.JSONEq(t, "1", string(document["discarded_not_here"]))
+	assert.JSONEq(t, "1", string(document["discarded_wrong"]))
 }
 
 // §12.1's other shape for a regeneration. A terminal reader is told, record by
