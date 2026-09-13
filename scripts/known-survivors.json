@@ -24,10 +24,10 @@
   "survivors": [
     {
       "file": "finding/id.go",
-      "line": 42,
+      "line": 54,
       "column": 48,
       "type": "CONDITIONALS_BOUNDARY",
-      "reason": "NextID keeps the highest id seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. Verified by hand on 2026-09-01 -- applied `>=`, `go test ./internal/finding` stayed green. The comment above the line says the same thing, and it predates this file."
+      "reason": "NextID keeps the highest id seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. Verified by hand on 2026-09-01 -- applied `>=`, `go test ./internal/finding` stayed green. The comment above the line says the same thing, and it predates this file. Re-pointed from line 42 on 2026-09-13: f6402a0 added IDSuffix, twelve lines above NextID, and the one-package run of that day still reported the mutant LIVED at 54:48. Re-verified by hand the same day -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green over the ids of earlier rounds and over ids cr did not write; applying `<=` instead failed TestAnIDCrDidNotWriteIsNotCounted, so the instrument was reaching the line."
     },
     {
       "file": "reinvention/rank.go",
@@ -52,10 +52,10 @@
     },
     {
       "file": "state/rulestats.go",
-      "line": 55,
+      "line": 67,
       "column": 36,
       "type": "CONDITIONALS_NEGATION",
-      "reason": "NOT equivalent -- unobservable, and entered as such. The guard is `released := held.Unlock(); err == nil && released != nil`, and the mutant `err != nil` differs only when Unlock itself fails: then the original reports the release error after a good write and keeps the write error after a bad one, while the mutant does the reverse. gofrs/flock v0.13.0 returns an error from Unlock only when flock(LOCK_UN) fails on a descriptor it holds open and locked, and held is a local with no seam to inject that. Verified by hand on 2026-09-11 -- applied `err != nil`, `go test -count=1 ./internal/state` stayed green. Reaching it needs a seam in a closed task's production code for an error path the lock does not produce in practice; not worth that change. Revisit if the ledger's lock ever gains an injectable interface."
+      "reason": "NOT equivalent -- unobservable, and entered as such. The guard is `released := held.Unlock(); err == nil && released != nil`, and the mutant `err != nil` differs only when Unlock itself fails: then the original reports the release error after a good write and keeps the write error after a bad one, while the mutant does the reverse. gofrs/flock v0.13.0 returns an error from Unlock only when flock(LOCK_UN) fails on a descriptor it holds open and locked, and held is a local with no seam to inject that. Verified by hand on 2026-09-11 -- applied `err != nil`, `go test -count=1 ./internal/state` stayed green. Reaching it needs a seam in a closed task's production code for an error path the lock does not produce in practice; not worth that change. Revisit if the ledger's lock ever gains an injectable interface. Re-pointed from line 55 on 2026-09-13: 386cb5c moved the body into updateRepoStore, shared with triage.ndjson, and the guard and its column are unchanged there. Re-verified by hand the same day -- applied `err != nil` through `go test -overlay`, `go test -count=1 ./internal/state` stayed green; the lock is still a local `flock.New(lock)` and go.mod still pins gofrs/flock v0.13.0."
     },
     {
       "file": "cli/context.go",
@@ -73,10 +73,10 @@
     },
     {
       "file": "config/config.go",
-      "line": 179,
+      "line": 190,
       "column": 17,
       "type": "CONDITIONALS_BOUNDARY",
-      "reason": "words flushes a word on `word.Len() > 0`, and `>= 0` flushes at every separator too, appending empty strings to the result. words has exactly one caller, checkProtected, which asks two questions of each word: whether `carriers[word]` equals a protected token, and whether the word contains one. Neither is ever true of \"\" -- carriers has no empty key, and every protected token is a non-empty string that \"\" cannot contain -- so the deny-list verdict is identical for every name. Verified by hand on 2026-09-12 -- applied `>= 0`, `go test -count=1 ./internal/config` stayed green over names with separators (post.gate_timeout_seconds, CR_HOME_LABEL), without them (postconfirm), and nested three deep (a.b.c)."
+      "reason": "words flushes a word on `word.Len() > 0`, and `>= 0` flushes at every separator too, appending empty strings to the result. words has exactly one caller, checkProtected, which asks two questions of each word: whether `carriers[word]` equals a protected token, and whether the word contains one. Neither is ever true of \"\" -- carriers has no empty key, and every protected token is a non-empty string that \"\" cannot contain -- so the deny-list verdict is identical for every name. Verified by hand on 2026-09-12 -- applied `>= 0`, `go test -count=1 ./internal/config` stayed green over names with separators (post.gate_timeout_seconds, CR_HOME_LABEL), without them (postconfirm), and nested three deep (a.b.c). Re-pointed from line 179 on 2026-09-13: 81b058c added seven lines to the settings table above it and 594b281 added `force` to the protected tokens and three carriers, and the one-package run of that day reported the mutant LIVED at 190:17. The argument survives both additions -- every token, `force` included, is still non-empty and no carrier key is empty. Re-verified by hand the same day -- applied `>= 0` through `go test -overlay`, `go test -count=1 ./internal/config` stayed green over the same names plus the force-named ones (post.force_findings) and the new carriers (rules.enforce_min, stats.workforce)."
     },
     {
       "file": "finding/fields.go",
@@ -87,10 +87,10 @@
     },
     {
       "file": "finding/grade.go",
-      "line": 212,
+      "line": 224,
       "column": 47,
       "type": "CONDITIONALS_BOUNDARY",
-      "reason": "notAbove returns the computed grade when `settled >= standing`, and `>` changes only the tie. gradeStrength holds section 6.2's three grades once each, and rankIn answers with an index into it or with its length for a value it does not list. The clause before this one has already returned when standing is that length, so in the tie standing indexes a real element and `settled == standing` means both ranks index the same one -- which means computed and held are the same Grade, and returning either returns the same value. Verified by hand on 2026-09-12 -- applied `>`, `go test -count=1 ./internal/finding` stayed green, and grade_test.go drives every ordered pair of the three grades, the equal ones included. A gradeStrength that listed a value twice would make it observable."
+      "reason": "notAbove returns the computed grade when `settled >= standing`, and `>` changes only the tie. gradeStrength holds section 6.2's three grades once each, and rankIn answers with an index into it or with its length for a value it does not list. The clause before this one has already returned when standing is that length, so in the tie standing indexes a real element and `settled == standing` means both ranks index the same one -- which means computed and held are the same Grade, and returning either returns the same value. Verified by hand on 2026-09-12 -- applied `>`, `go test -count=1 ./internal/finding` stayed green, and grade_test.go drives every ordered pair of the three grades, the equal ones included. A gradeStrength that listed a value twice would make it observable. Re-pointed from line 212 on 2026-09-13: 4f1c9c2 added twelve lines in one hunk near line 54, and notAbove itself is unchanged. Re-verified by hand the same day -- applied `>` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green, and dedup.go still holds gradeStrength as the three grades once each."
     },
     {
       "file": "finding/state.go",
@@ -111,7 +111,7 @@
       "line": 424,
       "column": 62,
       "type": "CONDITIONALS_BOUNDARY",
-      "reason": "The id allocator keeps the highest number seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. It is finding/id.go:42's entry in another file, and the comment two lines above says as much. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/finding` stayed green."
+      "reason": "The id allocator keeps the highest number seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. It is finding/id.go:54's entry in another file, and the comment two lines above says as much. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/finding` stayed green."
     },
     {
       "file": "note/note.go",
