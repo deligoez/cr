@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T13:01:42.561024Z",
+  "updated_at": "2026-09-13T13:37:19.315229Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9728,7 +9728,7 @@
     {
       "id": "post-request-body-review-only",
       "title": "Send only the review in the request body",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 30,
@@ -9737,16 +9737,35 @@
         "### 8.3 Batching",
         "### 8.4 Partial failure"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T13:02:21.408041Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T13:16:23.891969Z",
+      "closed_reason": "- cr post --confirm now sends GitHub's review-creation endpoint only the review payload (body, event, comments): internal/cli/posted.go's writePosted answers with the payload bytes it wrote to posted.json, internal/post/review.go's Create hands those bytes to gh.Confirmation.Write, which internal/gh/run.go's invoke passes to gh on standard input under `gh api repos/\u003co\u003e/\u003cr\u003e/pulls/\u003cn\u003e/reviews --method POST --input -`, so the records, discards and outcomes sections recordSentRecords, recordSentDiscards and recordSentOutcomes add to posted.json before the call never reach the request, and no grade, severity, anchor or disposition of any record, discarded ones included, leaves the machine; the dogfood binary on a scratch repository (four records, f4 marked wrong in draft.md) sent a body whose keys were body, comments, event while posted.json held body, comments, discards, event, outcomes, records, threads.\n- Audit round 3 rows table-2-15 and task-reconcile-writes-triage-outcomes are answered by that change: the POST body the rows' probe captured with keys records, body, comments, discards, event, outcomes now carries body, comments and event alone, and writePosted's and send's comments describing posted.json as the request body are rewritten to say the written bytes are sent.\n- posted.json keeps every section cr post --reconcile reads (records, discards, outcomes, threads, beside the payload), and the payload and the hash embedded in the review body are built exactly as before: the hash, reconcile, reconcile-triage and reconcile-edits tests pass with their assertions unchanged, the only edit in reconcile_test.go and posted_test.go being post.Request's dropped path argument in a CommandError's Args.\n- internal/cli/requestbody_test.go's TestTheReviewRequestCarriesOnlyTheReviewPayload drives cr post --confirm through a gh shim on PATH that copies the POST body whichever way gh reads it (stdin for --input -, the file otherwise) and asserts its sorted top-level keys equal [body comments event] and equal the review payload's own, that the body equals the payload plus newline byte for byte, and that posted.json holds records [f1 f2], discards f3 not-here and f4 wrong, and outcomes f1 kept, f2 softened, f3 discarded-not-here, f4 discarded-wrong; it is red at the pre-change code with keys [body comments discards event outcomes records], red under an overlay mutant of send.go re-reading posted.json into the body, and red under an overlay mutant of invoke dropping the stdin (as is internal/gh's TestOnlyAConfirmedTokenOpensTheWriteDoor, which now asserts the body reaches gh's stdin).\n",
+      "gate_passed_at": "2026-09-13T13:16:23.891969Z",
+      "commit_sha": "0056baa",
+      "commit_shas": [
+        "0056baa"
+      ],
+      "commit_files": [
+        "internal/cli/confirmgate_test.go",
+        "internal/cli/nowrite_test.go",
+        "internal/cli/posted.go",
+        "internal/cli/posted_test.go",
+        "internal/cli/reconcile_test.go",
+        "internal/cli/requestbody_test.go",
+        "internal/cli/send.go",
+        "internal/gh/noghbinary_test.go",
+        "internal/gh/run.go",
+        "internal/gh/write.go",
+        "internal/gh/write_test.go",
+        "internal/post/review.go",
+        "internal/post/review_test.go"
+      ]
     },
     {
       "id": "round-posts-one-review",
       "title": "Post a round at most once and settle discards",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 45,
@@ -9756,11 +9775,26 @@
         "### 9.1 States",
         "### 7.4 Waivers"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-13T13:17:32.853524Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T13:37:19.304006Z",
+      "closed_reason": "- A round whose review was created by cr post --confirm or adopted by cr post --reconcile now refuses every later cr post, dry run included and whatever draft.md says, under §8.3.1's \"All comments in a round MUST be posted as one GitHub review\": internal/cli/post.go's buildReview calls refusePostedRound right after reading the round's records and before the draft is ingested, which returns PostedRoundError (exit 4, hint \"this round is posted and takes no second review\" naming cr status and cr brief, row in internal/cli/exit.go) when summary.json carries the payload_hash writeAdopted records or any record is posted, and leaves a round still carrying post_unresolved to UnresolvedPostError.\n- Audit round 3's task-reconcile-adopts-thread-ids scenario is closed: TestAnAdoptedRoundTakesNoSecondReviewWhateverTheDraftSays (internal/cli/reconcilefollowthrough_test.go, subtests marked wrong and deleted) marks f2, sends into a gh shim that exits 1 on the POST, reconciles, restores the untriaged draft, and asserts both the dry run and --confirm fail with the whole PostedRoundError carrying the embedded hash, exit 4 and the hint, with exactly one POST in the shim transcript, and the dogfood binary on a scratch round printed \"acme/web#1 round 1 is posted: its review was created or adopted (payload hash b99b63a589bfc9ae, 3 record(s) posted)\" at exit 4 for both runs after f2's wrong was cleared, with one POST in the transcript.\n- cr post --reconcile now stores every discard posted.json names in the discarded state and disposition its waiver describes: internal/cli/reconcile.go's discardAsSent moves each still-queued discard queued to discarded in a journal whose actor is cr post --confirm, relying on §9.1's row \"queued to discarded: cr draft, cr post --confirm\", since the move is the confirmed send's own (it ingested the draft and named the discards in posted.json before its call) and the adoption only settles that run, and writeAdopted now takes that journal ahead of the reconcile's, so TestReconcileAdoptsTheThreadIDsAndTheWaiversAConfirmedSendOwed asserts f3 discarded wrong with its repository waiver and the journal lines \"f3:queued\u003ediscarded by cr post --confirm\" before the two reconcile posted lines, and the dogfood findings.ndjson read f2 discarded wrong beside that one repository waiver.\n- When the draft discards every queued record, cr post --confirm now settles locally with no network call and exits 0, because nothing needs posting and no spec sentence forbids it (§7.3.1 has cr post --confirm write one outcome event per queued record, §9.1 lists it for queued to discarded, and §8.5.2 gates only network writes): buildReview calls settleDiscards, which writes the waivers through waiveDiscards, the discarded states with journal lines and discard counts through storeDiscards, and the outcome events through recordPostTriage, and reports posted false with confirm_given true and the new discarded id list, while the dry run reports the same list and writes nothing, and a post_unresolved round is refused its settling with UnresolvedPostError.\n- Audit round 3's task-post-writes-triage-waivers scenario is closed: TestADraftDiscardingEveryRecordSettlesWithoutAReview (internal/cli/settlediscards_test.go) deletes f1 and marks f2 wrong, asserts the dry run's whole document and unchanged states, ledger and waivers, then asserts --confirm's whole document, zero POSTs, f1 discarded not-here with a pull-request waiver, f2 discarded wrong with a repository waiver, the ledger f1 discarded-not-here and f2 discarded-wrong, two cr post --confirm journal lines, discard counts 1 and 1 and no payload_hash, and a third run refused with EmptyReviewError, and the dogfood binary on a four-record scratch round (three wrong, one deleted) exited 0 with discarded f4 f1 f2 f3, four discarded records, four outcome events, three repository waivers and one pull-request waiver, and no POST.\n- Every case runs through a gh shim on PATH and asserts the POST count, the stored states and the waiver set, and each new assertion was shown to kill its mutant with go test -overlay on internal/cli: refusePostedRound never refusing (three tests red), discardAsSent moving a copy instead of the record (two red), the all-discarded branch disabled (settle test red) and the dry run settling as if confirmed (settle test red), while TestConfirmOnAPostedRoundSendsNoSecondReview, TestASecondConfirmedRunLeavesTheSeverityEventWhereItWas and TestAPostWithoutConfirmWritesNoTriageEvent were restated for the new refusal and the discarded list, and the gate steps each exited 0 (go test -race -count=1, golangci-lint run, scripts/deadcode.sh, gofmt -l empty).\n",
+      "gate_passed_at": "2026-09-13T13:37:19.304006Z",
+      "commit_sha": "ec8edd5",
+      "commit_shas": [
+        "ec8edd5"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/post.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcilefollowthrough_test.go",
+        "internal/cli/reconcilethreads_test.go",
+        "internal/cli/send.go",
+        "internal/cli/settlediscards_test.go",
+        "internal/cli/triageevents_test.go",
+        "internal/cli/triageseverity_test.go"
+      ]
     }
   ]
 }
