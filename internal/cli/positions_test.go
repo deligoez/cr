@@ -78,11 +78,10 @@ func suggestingRound(t *testing.T, record *finding.Finding) {
 // §8.4.1: the review-creation call is atomic, so every comment position is held
 // to §8.2 before it, and a position §8.2 refuses stops the run.
 //
-// Nothing reaches the network here and nothing can: internal/gh's write door is
-// a method on a Confirmation only §8.5's gate mints, and this build mints none.
-// What the test pins is the half that will still matter once it does — that the
-// refusal happens while the payload is being assembled, so the atomic call is
-// never reached with a position that would lose the whole round.
+// Nothing reaches the network here: the run carries no --confirm, so §8.5's
+// gate mints no Confirmation for internal/gh's write door. What the test pins
+// is that the refusal happens while the payload is being assembled, so the
+// atomic call is never reached with a position that would lose the whole round.
 func TestAnUnplaceablePositionStopsThePostBeforeAnythingIsSent(t *testing.T) {
 	// Line 400 exists in no hunk of the fixture's diff, which spans lines
 	// 3 to 7 of lib.go.

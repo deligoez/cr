@@ -114,15 +114,13 @@ func TestNoteRefusesAnAbsentOrUnlistedSourceWithTheUsageCode(t *testing.T) {
 // than stamped onto the citing record, so there is no round for a retraction to
 // be late for, and no consumer can hold a standing that predates it. Before the
 // retraction the citation stands and may assert; immediately after it, in the
-// same round and against the same store, it may not — and it has no provenance
-// left for §8.1.6 to disclose either, which is the same fact rather than a
-// second one.
+// same round and against the same store, it may not.
 //
-// The record itself is not driven from here, because there is none to drive:
-// `cr record`, `cr draft`, `cr post`, `cr status` and the round summary are all
-// still to be written, and a draft written here to give this test something to
-// fail against would test itself. Those assertions are named in this task's
-// closure against the tasks that own them.
+// The record itself is driven elsewhere: retractiondraft_test.go runs
+// `cr record`, `cr post` and `cr draft` over a record resting on a withdrawn
+// note, asserting the forcing and the §8.1.6 region that names the note as
+// retracted, and statusrecords_test.go reads the retraction through
+// `cr status`.
 func TestRetractingANoteMidRoundStopsTheRecordRestingOnIt(t *testing.T) {
 	layout := state.New(crHome(t))
 	require.NoError(t, layout.Init())

@@ -33,7 +33,8 @@ repository under review.
 
 **Repository detection.** Every PR-scoped command reads owner/repo from the
 repository's one GitHub remote. `--repo <owner/repo>` overrides it. No remote,
-several remotes, or a non-GitHub remote is refused with exit 2:
+several remotes, a non-GitHub remote, or an owner or name that is `.` or `..`
+(from the remote or from `--repo`) is refused with exit 2:
 
 ```json
 {
@@ -90,6 +91,10 @@ cr claims record 1 claims.ndjson --intent-file issue.txt
 }
 ```
 
+Each claim id appears once in the file; a repeated id is refused with exit 1
+naming both lines. Recording the claims again clears the round's mapping, so
+record the mapping again after it.
+
 ### 2. Review fan-out
 
 The intent pass runs first; the other axes are refused until its mapping is
@@ -103,7 +108,7 @@ cr review 1 --axis intent
 {
   "round": 1,
   "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
-  "honesty": ["lens test/symbols unavailable, per §4.5.4: cr built no symbol index for symbols.lang \"go\""],
+  "honesty": [],
   "skipped_roles": [],
   "expected_cells": [{"unit": "u1", "role": "convention"}, …]
 }
@@ -131,8 +136,8 @@ cr cells record 1 cells.ndjson
 }
 ```
 
-A cell is `{"unit", "role", "result": "pass"|"finding"|"question"|"na"}`; a
-test-axis cell also carries `"coverage": {"classification": "covered"|"partially-covered"|"uncovered", "test_paths": [...]}`.
+A cell is `{"unit", "role", "result": "pass"|"finding"|"question"|"na"}`; an
+`na` cell also carries a `"reason"`, and a test-axis cell that is not `na` carries `"coverage": {"classification": "covered"|"partially-covered"|"uncovered", "test_paths": [...]}`.
 Do not supply `unit_hash`; cr writes it. A cell and the records of its role on
 its unit must agree, in whichever order they arrive: a `pass` cell where that
 role already holds records is refused with exit 1 ("this round holds record(s)
@@ -159,6 +164,8 @@ earlier posting already covers, and counts by role, axis, severity and grade.
 `cr record` stores the round's records; it re-applies both drops, so recording
 a role's file directly is safe too. Only the file `cr merge` last wrote, left
 unchanged, may carry `duplicate_of`; `cr record` refuses it on any other file.
+`cr record` may run again in the same round and only appends, so a record that
+names a probe is recorded after `cr probe run` has written that probe.
 
 ```json
 {
@@ -181,9 +188,25 @@ A record the agent writes:
 
 `grade`, `state`, `axis`, a citation's `content_hash` and `origin`, and `head` and
 `round` are cr's to write; a record supplying one is refused with exit 1. cr also
-refuses, with exit 1, a repeated record id, an anchor outside the unit the
-record names, a `probe` naming no probe record or one from another head, and a
-correctness record whose `claim` is not mapped to its own unit.
+refuses, with exit 1, a repeated record id or one a stored record already holds
+(the message names the next free id), an id not spelled `f<n>`, a `kind` or
+`severity` outside §6.1, an anchor outside the unit the record names, a `probe`
+naming no probe record or one from another head, a correctness record whose
+`claim` is not mapped to its own unit, a `class` that differs from the class of
+the `rule` it names, and a `suppressed_by` naming no thread `cr brief` ingested.
+
+Every recording command (`cr record`, `cr merge`, `cr claims record`,
+`cr map record`, `cr cells record`) reads keys the way JSON decoding binds them,
+letter case folded. A line that is not one JSON object or gives a field the
+wrong type, and a line giving one key twice (`severity` and `Severity` count as
+one), is refused with exit 1 naming the file and the line:
+
+```json
+{
+  "error": "…/folded.ndjson line 1: severity is given more than once",
+  "hint": "give each field of that record once; the message names the key given more than once"
+}
+```
 
 ### 4. Probe
 
@@ -227,7 +250,9 @@ passed and the record's `claim` is mapped to its unit; `passed` shows the
 behaviour is present and supports no `probed` grade. Reference a probe from a
 record with `"probe": "p1"`; it supports that record only when its target lies
 inside the record's RIGHT anchor range. `cr sandbox destroy 1` removes the
-worktree.
+worktree. `cr test` and `cr probe run` share one lock per repository root and
+profile, from any subdirectory, and exit 4 when `probe.lock_timeout_seconds`
+passes while another run holds it.
 
 ### 5. Draft
 
@@ -241,6 +266,7 @@ cr draft 1
   "round": 1, "queued": 2,
   "triaged": [], "retriaged": [], "preserved": [],
   "forced_to_question": [{"class": "negative-discount", "count": 1}],
+  "forced_by_retraction": [],
   "new_classes": ["negative-discount", "untested-branch"],
   "warnings": []
 }
@@ -366,8 +392,10 @@ cr post 1
 {
   "round": 1,
   "comments": [{"id": "f1", "kind": "question"}, {"id": "f2", "kind": "finding"}],
-  "payload": {"event": "COMMENT", "body": "…", "comments": [{"path": "order.go", "line": 8, "side": "RIGHT", "body": "…"}, …]},
+  "payload": {"event": "COMMENT", "body": "**cr — review coverage**\n\nAxes reviewed: intent, correctness, convention, test\n\nNo lens was left unexamined.\n\n<!-- cr:payload-hash ebe5e6f668048750 -->", "comments": [{"path": "order.go", "line": 8, "side": "RIGHT", "body": "…"}, …]},
+  "discarded": [],
   "forced_to_question": [{"class": "negative-discount", "count": 1}],
+  "forced_by_retraction": [],
   "posted": false,
   "confirm_given": false
 }
@@ -382,10 +410,56 @@ cr post 1 --confirm
 ```
 
 **Every network write needs `--confirm`.** No setting, environment variable or
-profile field makes it implicit. All comments go in one review. If a post's
-outcome is unknown (a timeout, a dropped connection), `cr post 1 --reconcile`
-matches the payload hash against the pull request's reviews instead of posting
-twice.
+profile field makes it implicit. All comments go in one review, and the request
+body carries only `event`, `body` and `comments`. The review body is written in
+English whatever `render.lang` says; `render.lang` (default `tr`) sets the
+language of the comment bodies and their question labels.
+
+**A round posts one review.** Once its review was created or adopted, another
+`cr post` on the round is refused with exit 4 ("this round is posted and takes
+no second review"); the next review belongs to the next round, after the head
+moves. A draft that discards every queued record posts nothing: `cr post
+--confirm` makes no network call, stores the discards and their waivers, and
+exits 0 reporting `"posted": false` and the ids under `"discarded"`. A round
+with nothing queued at all is refused with exit 4.
+
+`cr post` recomputes every grade after it reads the draft, so a record whose
+anchor you moved off its probe's target loses the `probed` grade and, with
+nothing else supporting it, is posted as a question.
+
+#### Unknown outcome
+
+When the review-creation call fails without an answer that says nothing was
+created (a 5xx, a 408 or timeout, a dropped connection, a body cr cannot parse),
+cr cannot know whether the review exists. It sets `post_unresolved` and exits 4:
+
+```json
+{
+  "error": "§8.4.4: the outcome of the review-creation call is unknown, so post_unresolved is set on meta.json and nothing is retried; run `cr post 1 --reconcile` to match §8.4.3's payload hash against the pull request's reviews: … (HTTP 504)",
+  "hint": "run `cr post <pr> --reconcile`, which adopts the review the call created or clears post_unresolved for a retry; a second `cr post --confirm` is refused until then"
+}
+```
+
+Until it is settled, `cr post --confirm`, `cr draft` and a `cr brief` on a moved
+head all refuse with exit 4 and the same hint: each would either post the review
+twice or move the records the send may already have posted. Run the one command
+they name:
+
+```bash
+cr post 1 --reconcile
+```
+
+```json
+{"round": 1, "payload_hash": "ebe5e6f668048750", "adopted": "https://github.com/…#pullrequestreview-…", "records": ["f1", "f2"], "post_unresolved": false, "honesty": […]}
+```
+
+`--reconcile` only reads GitHub. When a review carries the payload hash it adopts
+it and stores what a successful send stores: the records as posted with their
+thread ids, the draft's discards and waivers, and the triage outcomes. When none
+does it clears `post_unresolved`, and `cr post 1 --confirm` may send again. It
+runs on a moved head too, so settle it before `cr brief` opens the next round.
+A rejected call (a 4xx GitHub answered) is not unknown: nothing was posted, the
+round stays open, and the refusal names the records to fix.
 
 ```bash
 cr status 1
@@ -404,7 +478,7 @@ A complete round is not an approval: cr never approves a pull request.
 ### A moved head
 
 When the pull request's head moves, every command that writes per-PR state
-refuses with exit 4:
+except `cr post --reconcile` refuses with exit 4:
 
 ```json
 {
@@ -510,7 +584,10 @@ A note names the pull request it came from, so `cr note` without `--pr` is refus
 with exit 2. `cr note --remove CR-5#n2` retracts one (the id is the only
 argument) and prints it with `"standing": "retracted"`; an id the store does not
 hold is refused with exit 1. `cr status` reports any cell or record citing a
-retracted note as needing re-evaluation.
+retracted note as needing re-evaluation. A record resting on a claim drawn from a
+retracted or missing note is held as a question by `cr draft` and `cr post`
+(counted under `forced_by_retraction`), and its provenance region names the note
+and how it was withdrawn.
 
 ## Roles, profiles and rules
 
@@ -590,6 +667,10 @@ wins. A tie is refused with exit 3:
 With `{"profile": "shop"}` in the per-repository config, `cr brief` reports
 `"profile": {"id": "shop", "selected": true, "layer": "configuration"}`.
 
+When no profile matches, the round still runs intent, correctness and convention;
+the test axis is disabled, the reinvention and test-symbol lenses are
+unavailable, and `cr brief` and `cr review` say so in `honesty`.
+
 ### Rules
 
 A rule is one written standard. Required: `id` (kebab-case), `title`, `rationale`
@@ -634,8 +715,10 @@ cr rules check 1
 ```
 
 `detect` runs only over added and modified RIGHT-side lines, in Go `regexp`
-syntax; a pattern that does not compile is refused with exit 3 (`detect.pattern
-of rule "no-zero-floor" is not a Go regexp: …`). A hit is a hit, never a
+syntax. A rule whose `detect.mode` is not `regex`, or whose `detect.pattern` or
+`fix.replace` does not compile, is malformed: every command that loads the
+rules, `cr rules list` included, refuses it with exit 3 naming the file
+(`detect.pattern of rule "bad-pattern" is not a Go regexp: …`). A hit is a hit, never a
 verdict: it reaches the draft only when you confirm it by recording a record that
 carries `"rule": "no-zero-floor"` and cites the hit's path and line. cr stamps
 that citation `origin: rule`, so the record is graded `cited`:
@@ -670,7 +753,8 @@ cr config --resolved
 
 `cr waivers list --pr 1` includes the pull request's own scope, and
 `cr waivers remove <id>` removes one (an unknown id is refused with exit 1).
-`cr rules list --dead` reports rules with no hit or record in the recent rounds.
+`cr rules list --dead` reports rules with no hit or record in the last
+`rules.dead_after` rounds (default 20), counting rounds in which no rule hit.
 `cr config --resolved` annotates every setting with the layer it came from.
 
 ## Global flags
@@ -689,9 +773,9 @@ cr config --resolved
 | Code | Meaning | Seen when |
 |---|---|---|
 | 0 | success | every step of the loop above |
-| 1 | validation failure | a question body with no `?` at `cr post`; a marker edit §7.2 does not admit; a round over `post.max_comments`; an unknown waiver id |
-| 2 | usage error | no detectable repository and no `--repo`; `cr note` without `--pr` |
-| 3 | file, configuration or external command failure | a config key addressing the argued forcing; a malformed role or rule file; a profile tie |
-| 4 | state conflict, lock timeout, partial post | a write after the head moved |
+| 1 | validation failure | a question body with no `?` at `cr post`; a marker edit §7.2 does not admit; a round over `post.max_comments`; an unknown waiver id; an input line that is not JSON or gives a key twice; a repeated claim id; a `suppressed_by` naming no ingested thread |
+| 2 | usage error | no detectable repository and no `--repo`; an owner or name of `.` or `..`; `cr note` without `--pr` |
+| 3 | file, configuration or external command failure | a config key addressing the argued forcing; a malformed role or rule file, including a `detect` block that cannot run; a profile tie; a stored state line cr cannot use; a lock file cr cannot take |
+| 4 | state conflict, lock timeout, partial post | a write after the head moved; an unknown post outcome, and every `cr post --confirm`, `cr draft` or moved-head `cr brief` after it until `cr post --reconcile`; a second review for a posted round; a round with nothing queued |
 
 Every error carries a `hint` naming the next step.

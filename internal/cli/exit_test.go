@@ -248,8 +248,9 @@ func TestASuppliedStampFieldExitsWithTheValidationCode(t *testing.T) {
 // here: §2.7 resolves post.max_comments across five layers, and a second path
 // to the value would be a second answer to what the default 20 is.
 //
-// Nothing posts here because nothing can — `cr post` is not built — so the
-// block is asserted where it is made, over the round's queued comments.
+// postcap_test.go drives the refusal through `cr post`, with and without
+// --confirm; here the block is asserted where it is made, over the round's
+// queued comments, so the row is checked apart from any one command.
 func TestQueueingPastTheCommentCapExitsWithTheValidationCode(t *testing.T) {
 	resolved, err := config.Resolve(config.Sources{})
 	require.NoError(t, err)

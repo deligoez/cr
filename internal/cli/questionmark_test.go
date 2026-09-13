@@ -13,10 +13,9 @@ import (
 // §8.1.5: a `kind=question` body with no `?` is refused with exit code 1,
 // naming the record id.
 //
-// It is exercised on the body rather than through a command, for the reason
-// §6.3.3's rejection is: the command that carries it is `cr post`, and v0.1 has
-// not built it yet. What this pins is the code the refusal maps to, which is
-// §11.2's and lives here.
+// It is exercised on the body rather than through a command: dryrun_test.go
+// drives the refusal through `cr post`, with and without --confirm. What this
+// pins is the code the refusal maps to, which is §11.2's and lives here.
 func TestADeclarativeQuestionIsCodedOneNamingTheRecord(t *testing.T) {
 	err := render.ValidatePostBody("f9", finding.KindQuestion, "The error Decode returns is dropped.")
 	require.Error(t, err)

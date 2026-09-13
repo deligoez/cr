@@ -97,12 +97,10 @@ func standingIn(t *testing.T, slug string) string {
 // names, and what the working directory says is not consulted alongside it.
 //
 // The run therefore stands inside a repository naming a different remote, with
-// a configuration layer waiting under each of the two slugs. Detection is
-// repository-detection's and is not built, so today the working directory is
-// inert and what this proves is that the named repository's layer is the one in
-// force; the day detection lands the same run becomes the adversarial one, and
-// a detection that supplemented rather than yielded would put elsewhere's layer
-// into the same answer.
+// a configuration layer waiting under each of the two slugs. Detection would
+// name other/elsewhere from that remote (repodetect_test.go drives it), so the
+// run is the adversarial one: a detection that supplemented rather than yielded
+// would put elsewhere's layer into the same answer.
 //
 // The two layers therefore set different settings rather than the same one at
 // different values. An override and a merge agree about `post.max_comments`

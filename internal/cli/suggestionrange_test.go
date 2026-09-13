@@ -14,11 +14,10 @@ import (
 // §8.2.4: a suggestion failing §8.2's validation is refused with exit code 1,
 // naming the record id.
 //
-// It is exercised on the validator rather than through a command, for the
-// reason §8.1.5's refusal is: the command that carries it is `cr post`, and
-// v0.1 has not built it yet. What this pins is the code the refusal maps to,
-// which is §11.2's and lives here — so the mapping is in place before the
-// command that needs it, and a post wired to a different code fails here.
+// It is exercised on the validator rather than through a command:
+// positions_test.go drives the refusal through `cr post`. What this pins is the
+// code the refusal maps to, which is §11.2's and lives here, so a post wired to
+// a different code fails here too.
 func TestAnUnplaceableSuggestionIsCodedOneNamingTheRecord(t *testing.T) {
 	const diff = `--- a/app/Models/Order.php
 +++ b/app/Models/Order.php

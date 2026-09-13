@@ -407,9 +407,9 @@ source of truth; this table is a map, not a promise.
 | Command | Purpose |
 |---------|---------|
 | `cr init [--eject-roles]` | Create `~/.cr`, write default profiles, roles, and rules |
-| `cr brief <pr>` | Orientation payload; opens a new round when the head moved |
+| `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
 | `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths |
-| `cr claims record <pr> <file>` | Store the claims extracted from the issue |
+| `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
 | `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
@@ -419,9 +419,9 @@ source of truth; this table is a map, not a promise.
 | `cr test <pr> [--filter]` | Run the suite inside the sandbox |
 | `cr probe run <pr> --kind <kind> ...` | Execute and record a mutation or gap probe |
 | `cr draft <pr>` | Render the editable draft |
-| `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review |
+| `cr post <pr> [--confirm] [--reconcile]` | Validate and post the round's one review; settle an unknown outcome |
 | `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
-| `cr note <ISSUE-KEY> <text>` / `--remove <id>` | Store or retract an out-of-band fact |
+| `cr note <ISSUE-KEY> <text> --pr <n>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
 | `cr rules list\|check\|suggest` | Inspect, run, and harvest project rules |
 | `cr waivers list\|remove [--repo <r>] [--pr <n>]` | Inspect and edit waivers in either scope |
@@ -469,7 +469,8 @@ internal/
   testadequacy/      Test-adequacy evidence (§4.4)
   text/              The one text normalisation (§1.4)
   unit/              Review units from the diff's hunks (§3.4)
-scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known-survivors.json
+scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known-survivors.json,
+                     mutation-run.sh, mutation-merge.py
 spec/
   0.1.0.md           Normative v0.1 contract
   <version>.md       One spec per version
@@ -710,7 +711,13 @@ Mirrors tp so the experience transfers.
 ## Conventions
 
 - Exit codes: 0 success, 1 validation, 2 usage, 3 file or external command,
-  4 state conflict.
+  4 state conflict. A line of a file the caller handed a command that does not
+  decode is 1 (`state.MalformedLineError`); a line of cr's own stored state that
+  does not decode is 3 with `state.UnusableHint`. A new error class is a new row
+  in `internal/cli/exit.go`'s table, with its hint.
+- Record lines are read the way `encoding/json` binds keys, letter case folded:
+  a field fence compares the keys `state.FoldedFields` gives, never the raw
+  spelling, and a line giving one key twice under that folding is refused.
 - JSON output when piped or `--json`, coloured text in a TTY.
 - Pretty-printed JSON with two-space indentation.
 - Slice fields serialise as `[]`, never `null`. Watch for `var x []T` reaching
@@ -730,6 +737,10 @@ Mirrors tp so the experience transfers.
   machine here has `diff.external` set, and an unpinned `git diff` returned that
   differ's output instead of a unified diff. §2.1.1 requires the same inputs to
   give the same result, and git reads a lot of ambient state.
+- **The review request body is the payload alone.** `cr post --confirm` hands gh
+  exactly `event`, `body` and `comments` on standard input (`--input -`), never
+  `posted.json`, whose records, discards and outcomes sections exist for
+  `--reconcile` and must not reach GitHub.
 
 ## Distribution
 
@@ -775,7 +786,7 @@ export CR=/tmp/cr-qa/cr
 # 2. Create a scratch repository and a pull request with a deliberate mix:
 #    - one hunk that implements a stated requirement
 #    - one hunk that implements nothing stated (unmapped, becomes a question)
-#    - one requirement with no implementation (becomes a finding)
+#    - one requirement with no implementation (a gap `cr status` reports)
 #    - one new helper duplicating an existing one (reinvention candidate)
 #    - one changed branch with no test covering it (mutation probe target)
 #    - one existing comment from another reviewer (dedup and ingestion)
@@ -800,14 +811,15 @@ reproduce it there before fixing.
 
 | Area | What to verify |
 |------|----------------|
-| Intent | Unmapped hunk becomes a question; unimplemented claim becomes a finding |
+| Intent | Unmapped hunk becomes a question; unimplemented claim is a gap in `cr status` |
 | Context | A recorded note suppresses the matching unmapped-unit question |
 | Grades | An `argued` record is forced to a question and the forcing is reported |
 | Probes | Mutation reverts after failure and after timeout; lock serialises runs |
 | Draft | Deleting a block writes a waiver; the waiver survives the next round |
 | Suggestions | An out-of-hunk suggestion blocks posting with the record id named |
-| Posting | No network write without `--confirm`; all comments land in one review |
-| Recheck | Anchors migrate across a force-push; unresolvable ones become stale |
+| Posting | No network write without `--confirm`; all comments land in one review; a posted round refuses a second |
+| Unknown outcome | A 5xx or timeout exits 4; `cr draft`, `cr post --confirm` and a moved-head `cr brief` refuse until `cr post --reconcile` |
+| Moved head | `cr brief` opens a new round with open records stale; anchors are not migrated (v0.2) |
 | Dedup | A finding matching an existing human thread is suppressed |
 | Honesty | A disabled axis appears in the report with its reason |
 | Nil slices | Empty collections serialise as `[]`, never `null` |

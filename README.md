@@ -32,7 +32,9 @@ problems it is built to solve.
 - **You are still the reviewer.** `cr` writes a draft; you edit it. Deleting a
   block discards it for this pull request; marking it `disposition="wrong"`
   discards it repository-wide and counts against its class. Nothing reaches
-  GitHub without `cr post --confirm`, and all comments go in one review.
+  GitHub without `cr post --confirm`, all comments go in one review, and a round
+  posts at most one. Comment bodies follow `render.lang` (default `tr`); the
+  review body is always English.
 - **Conventions are data.** Project rules live in a versioned corpus, carry their
   rationale, and can ship their own fix as a ready suggestion. A comment body
   posted three times (`rules.harvest_min`) is reported as a candidate rule.
@@ -71,6 +73,14 @@ cr post 1                                         # validate and print the paylo
 cr post 1 --confirm                               # the only network write
 ```
 
+A record that names a probe is recorded after the probe runs; `cr record` may
+run again in the round. If `cr post --confirm` exits 4 because the call's
+outcome is unknown (a 5xx, a timeout, a dropped connection), run
+`cr post 1 --reconcile` before anything else: until it adopts the review or
+clears the flag, `cr post --confirm`, `cr draft` and a `cr brief` on a moved head
+are refused, because each could post the review twice or move records it may
+already have posted.
+
 ## Commands
 
 | Command | Purpose |
@@ -106,8 +116,10 @@ Global flags: `--json`, `--compact`, `--quiet`, `--no-color`,
 `--repo <owner/repo>` (overrides detection from the clone's one GitHub remote),
 `-v`/`--version`.
 
-Exit codes: 0 success, 1 validation, 2 usage, 3 file, configuration or external
-command, 4 state conflict.
+Exit codes: 0 success, 1 validation (including an input line that is not one
+JSON object or gives a key twice), 2 usage, 3 file, configuration or external
+command, 4 state conflict (a moved head, an unknown post outcome, a round
+already posted, a lock timeout).
 
 ## License
 
