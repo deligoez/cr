@@ -2,6 +2,8 @@ package cli
 
 import (
 	"os"
+	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,4 +60,63 @@ func TestARecordIDRepeatedWithinOneBatchIsRefused(t *testing.T) {
 		layout, recordOwner, recordRepo, recordPRNum, state.FileFindings)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "a refused file stores none of its records")
+}
+
+// nextFreeIDIn reads the id a refusal names as free, whole: the id the sentence
+// ends on, so f1 is never read out of f10.
+func nextFreeIDIn(t *testing.T, problem string) string {
+	t.Helper()
+	named := regexp.MustCompile(`; the next free id is (f\d+)$`).FindStringSubmatch(problem)
+	require.Len(t, named, 2, "the refusal names the next free id at its end: %s", problem)
+	return named[1]
+}
+
+// Two records of one file sharing f1 are refused naming the next free id, and
+// that id is allocated over the store and the whole file: a stored f2 and a
+// later line's f5 are both spent, so the id named is f6 — neither f3 from the
+// store alone nor f2 from the lines read before the repeat.
+func TestARepeatedRecordIDIsRefusedNamingTheNextFreeID(t *testing.T) {
+	recordedHome(t)
+	_, err := runRecord(t, recordPR, writeRecordFile(t, "first.ndjson", aRecord("f2", "u1")),
+		"--repo", recordSlug)
+	require.NoError(t, err)
+
+	_, err = runRecord(t, recordPR,
+		writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), aRecord("f1", "u2"), aRecord("f5", "u1")),
+		"--repo", recordSlug)
+
+	var rejected *finding.RejectedRecordError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, 2, rejected.Line)
+	assert.Equal(t, "id", rejected.Field)
+	assert.Equal(t, "f6", nextFreeIDIn(t, rejected.Problem))
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+}
+
+// A record of a later round reusing an id an earlier round's record holds is
+// refused naming the next free id over every round's records and the file: the
+// fixture's round spent f1 and f6, the next round's file reuses f1 beside f3,
+// and the id named is f7 — not f4, which the file's own f3 alone would give.
+func TestALaterRoundRecordReusingAnEarlierRoundIDIsRefusedNamingTheNextFreeID(t *testing.T) {
+	layout := recordedHome(t)
+	_, err := runRecord(t, recordPR,
+		writeRecordFile(t, "earlier.ndjson", aRecord("f1", "u1"), aRecord("f6", "u2")),
+		"--repo", recordSlug)
+	require.NoError(t, err)
+	openNextRound(t, layout)
+
+	_, err = runRecord(t, recordPR,
+		writeRecordFile(t, "later.ndjson", aRecord("f1", "u1"), aRecord("f3", "u2")),
+		"--repo", recordSlug)
+
+	var rejected *finding.RejectedRecordError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, 1, rejected.Line)
+	assert.Equal(t, "id", rejected.Field)
+	heldIn := regexp.MustCompile(`^"f1" is already held by the record stored for this pull request in round ([0-9]+) at head `).
+		FindStringSubmatch(rejected.Problem)
+	require.Len(t, heldIn, 2, rejected.Problem)
+	assert.Equal(t, strconv.Itoa(recordRound), heldIn[1], "the holder is the earlier round's record")
+	assert.Equal(t, "f7", nextFreeIDIn(t, rejected.Problem))
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
 }
