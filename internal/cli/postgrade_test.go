@@ -53,17 +53,19 @@ func replaceMapping(t *testing.T, layout state.Layout, pairs string) {
 	require.NoError(t, held.Unlock())
 }
 
-// §7.2.2: `cr post` recomputes every record's grade before it reads the draft,
-// so no draft edit can turn an `argued` record into a posted assertion.
+// §7.2.2: `cr post` recomputes every record's grade and holds the draft's
+// markers to it, so no draft edit can turn an `argued` record into a posted
+// assertion.
 //
 // The two runs are the assertion. §7.2's `kind` row admits a hardening on "the
 // recomputed grade", and the record here was stored graded `cited` while
 // carrying no citation at all — the state §6.2.1's inputs moving inside a round
-// leaves behind. `cr draft` reads the marker against the grade the round holds
-// and admits it; `cr post` recomputes first, reaches `argued`, and refuses.
+// leaves behind. `cr draft` recomputes only the grades its triage moved an
+// anchor of, so it reads the marker against the grade the round holds and
+// admits it; `cr post` recomputes every grade, reaches `argued`, and refuses.
 // Without the recomputation the second run would admit it too, and the author
 // would receive as an assertion a record with nothing behind it.
-func TestPostRecomputesTheGradeBeforeItReadsTheMarker(t *testing.T) {
+func TestPostHoldsAHardeningToTheRecomputedGrade(t *testing.T) {
 	asked := aStoredRecord("f1", finding.StateDraft)
 	asked.Kind = finding.KindQuestion
 	asked.Summary = "Does the caller ever see the error Decode returns?"
