@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T11:43:11.672001Z",
+  "updated_at": "2026-09-13T12:00:52.147862Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -9669,7 +9669,7 @@
     {
       "id": "reconcile-writes-triage-outcomes",
       "title": "Write triage outcomes for adopted records",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [],
       "estimate_minutes": 25,
@@ -9677,6 +9677,37 @@
       "source_sections": [
         "### 7.3 Triage statistics",
         "### 8.4 Partial failure"
+      ],
+      "started_at": "2026-09-13T11:44:04.214155Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T12:00:07.794149Z",
+      "closed_reason": "- When cr post --reconcile adopts a review, internal/cli/reconcile.go's adoptAsPosted now writes the §7.3.1 outcome event for every record the send's triage read, through recordPostTriage in internal/cli/triage.go (the function the confirmed send calls, now taking []finding.Settled), keyed by PR, round and record exactly as the send keys them, from a new outcomes section internal/cli/posted.go's recordSentOutcomes writes into posted.json before the call (post.Sent.Outcomes in internal/post/review.go), because softened is not recoverable from what posted.json held before this change: it is not a state findings.ndjson stores and a question in the payload may be §6.3.2's forcing rather than a softening, and the dogfood binary on a scratch repository with four records (kept, softened, deleted, wrong) left triage.ndjson after an unknown-outcome send plus reconcile identical, timestamps aside, to the one a successful cr post --confirm left, reading f1 kept, f2 softened, f3 discarded-not-here, f4 discarded-wrong beside the four raises, with one POST in the shim transcript.\n- TestReconcileWritesTheOutcomeEventsAConfirmedSendWrites in internal/cli/reconcilefollowthrough's sibling internal/cli/reconciletriage_test.go builds that four-record round in two state roots, settles one with a successful cr post --confirm and the other with a send whose gh shim exits 1 on the POST followed by cr post --reconcile, and asserts the outcome events equal whole with At cleared, red at HEAD with an empty adopted ledger and red under two overlay mutants (reconcile passing an empty post.Sent, and the send naming only the discarded settlements).\nOut of scope: on the unknown-outcome path the send's in-memory §7.2.2 regrade and §7.2 severity and anchor edits never reach findings.ndjson, so an adopted record whose severity or grade the send changed is stored, and its reconcile outcome event carries, the pre-send value where a successful send would carry the edited one.\n",
+      "gate_passed_at": "2026-09-13T12:00:07.794149Z",
+      "commit_sha": "8fa0b2e",
+      "commit_shas": [
+        "8fa0b2e"
+      ],
+      "commit_files": [
+        "internal/cli/posted.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconciletriage_test.go",
+        "internal/cli/send.go",
+        "internal/cli/triage.go",
+        "internal/cli/triageevents_test.go",
+        "internal/post/review.go"
+      ]
+    },
+    {
+      "id": "reconcile-keeps-send-edits",
+      "title": "Keep the send's edits when reconcile adopts",
+      "status": "open",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- When cr post --confirm's outcome is unknown and cr post --reconcile later adopts the review, every adopted record is stored with the grade, severity and anchor the send posted — the draft's triage edits and the post-time regrade — as a successful send stores them, instead of the values findings.ndjson held before the send (found while closing reconcile-writes-triage-outcomes, 8fa0b2e).\n- The reconcile's outcome events carry those same posted values.\n- A test edits a record's severity and anchor in draft.md, drives an unknown-outcome send and a reconcile, and asserts the stored record and its event equal those of a successful cr post --confirm on an identical round.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 7.2 Triage verbs"
       ],
       "started_at": null,
       "closed_at": null,
