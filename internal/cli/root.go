@@ -3,12 +3,16 @@ package cli
 
 import (
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
 
-// version is injected at build time via -ldflags.
-var version = "dev"
+// version is the tag a release build injects via
+// -ldflags "-X github.com/deligoez/cr/internal/cli.version=<tag>" (§14.6). It is
+// empty in every other build, and versionOf says what `cr --version` prints
+// then.
+var version string
 
 func newRootCmd() *cobra.Command {
 	// One writer for the whole tree. §12.1's decision is settled on it once,
@@ -20,7 +24,7 @@ func newRootCmd() *cobra.Command {
 		Short:         "Code review lifecycle manager for AI coding agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Version:       version,
+		Version:       versionOf(version, debug.ReadBuildInfo),
 		Args:          cobra.NoArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return out.settle(cmd)
