@@ -26,7 +26,8 @@ import (
 // which the same row names — keeping §9.1.1's line for the move, and takes
 // `not-here` when its block was deleted or `wrong` when its marker says so. Its
 // waiver is written by waiveDiscards once the new draft
-// has rendered, so a run refused on the way leaves nothing behind. Nothing here
+// has rendered, or once `cr post --confirm` has passed every refusal, so a run
+// refused on the way leaves nothing behind. Nothing here
 // re-renders a discarded record: queueRecords renders only `draft` and
 // `queued`, so a discarded block is never resurrected.
 //

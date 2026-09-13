@@ -67,6 +67,14 @@ type sending struct {
 // anchors, and losing them costs a reader one lookup rather than costing the
 // author a duplicate comment.
 //
+// §7.4's waivers for the draft's discards are written first of all, through the
+// waiveDiscards `cr draft` calls, so a block deleted or marked `wrong` and then
+// posted without a redraft is waived exactly as a redraft would have waived it.
+// They go before the call for the reason waiveDiscards gives: a waiver standing
+// in front of a record that is still queued is recovered by the next run, which
+// reads the same draft and finds the same waiver, while a discard stored after
+// the call with its waiver lost is never read again.
+//
 // `post_unresolved` is set before the call and cleared only once the records
 // are marked posted, so the refusal send opens with rests on a write that
 // landed before anything was sent. A write after a successful call can fail —
@@ -77,6 +85,9 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	owner, repo, pr := s.round.Owner, s.round.Repo, s.round.PR
 	if s.round.PostUnresolved {
 		return &UnresolvedPostError{Owner: owner, Repo: repo, PR: pr, Round: s.round.Round}
+	}
+	if err := waiveDiscards(s.layout, owner, repo, pr, s.triage.discarded()); err != nil {
+		return err
 	}
 	payload, err := writePosted(s.layout, owner, repo, pr, s.round.Round, s.review)
 	if err != nil {
@@ -180,10 +191,40 @@ func (s *sending) adoptReturnedThreads() error {
 			s.round.Round, s.round.PR, err,
 		)
 	}
-	return adoptThreads(
-		s.layout, s.round.Owner, s.round.Repo, s.round.PR, s.round.Round,
-		threadsByRecord(threads, s.review),
-	)
+	found := threadsByRecord(threads, s.review)
+	if err := adoptThreads(
+		s.layout, s.round.Owner, s.round.Repo, s.round.PR, s.round.Round, found,
+	); err != nil {
+		return err
+	}
+	return s.storeThreadIDs(found)
+}
+
+// storeThreadIDs writes §6.1's `thread_id` onto each posted record the returned
+// ids name, and republishes the round's records with them.
+//
+// It is the same map posted.json was just given, so the two cannot name
+// different threads for one record. It runs after `post_unresolved` is cleared
+// and the records are marked posted, so a write that fails here costs the field
+// and never reopens the round to a second send.
+func (s *sending) storeThreadIDs(found map[string]string) error {
+	for _, record := range s.records {
+		if id, matched := found[record.ID]; matched {
+			record.ThreadID = id
+		}
+	}
+	held, err := s.layout.LockPR(s.round.Owner, s.round.Repo, s.round.PR)
+	if err != nil {
+		return err
+	}
+	stamp := state.Stamp{Head: s.round.Head, Round: s.round.Round}
+	if err := state.ReplaceStamped(held, state.FileFindings, stamp, s.records); err != nil {
+		// The lock is released on the way out of every branch, and the
+		// write's own failure is what the caller is told about.
+		_ = held.Unlock()
+		return err
+	}
+	return held.Unlock()
 }
 
 // threadsByRecord is the thread each of the payload's comments became, keyed by

@@ -264,12 +264,10 @@ func buildReview(
 // postedRecords are the records §8.3 posts: the ones §9.1 still holds in
 // `queued` once §7.2's discards have been read out of the draft.
 //
-// A discard is read here and never written, which is the difference between
-// this command and `cr draft`. §7.2's two discard verbs are observable in the
-// file either way, and `cr draft` is the command that acts on them — it walks
-// the record to `discarded` and writes its waiver. What `cr post` owes the
-// reviewer is that a block they deleted is not posted, and leaving it out of
-// the payload is the whole of that.
+// A discard is left out of the payload here, so a block the reviewer deleted
+// is not posted. Its waiver and its stored `discarded` state are written only
+// by a confirmed send, through the same waiveDiscards `cr draft` calls, because
+// this command without `--confirm` writes nothing.
 func postedRecords(records []*finding.Finding) []*finding.Finding {
 	queued := make([]*finding.Finding, 0, len(records))
 	for _, record := range records {
