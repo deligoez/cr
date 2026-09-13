@@ -83,3 +83,29 @@ func TestAnUnreadableResponseIsNoRejection(t *testing.T) {
 		assert.Nil(t, Rejection(aRejectedReview(), body), "%q", body)
 	}
 }
+
+// A refusal naming no position still renders GitHub's message. A review carrying
+// no comment is the input that gives one, and it is the input where a buffer
+// sized one short of the positions would have a negative capacity, which `make`
+// panics on instead of reporting the refusal.
+func TestARefusalNamingNoPositionStillRendersItsMessage(t *testing.T) {
+	rejected := Rejection(Build(nil, nil), `{"message":"Unprocessable Entity","status":"422"}`)
+
+	require.NotNil(t, rejected)
+	require.Empty(t, rejected.Positions)
+	require.NotPanics(t, func() {
+		assert.Equal(t,
+			"§8.4.2: GitHub rejected the review, so nothing was posted: Unprocessable Entity (HTTP 422)",
+			rejected.Error())
+	})
+}
+
+// The HTTP status is named when GitHub answered with one and left out when it did
+// not, so a response carrying none never reads as a status cr made up.
+func TestTheRefusalNamesTheStatusOnlyWhenGitHubGaveOne(t *testing.T) {
+	with := &RejectedError{Message: "Validation Failed", Status: "422"}
+	assert.Contains(t, with.Error(), "Validation Failed (HTTP 422)")
+
+	without := &RejectedError{Message: "Validation Failed"}
+	assert.NotContains(t, without.Error(), "HTTP")
+}
