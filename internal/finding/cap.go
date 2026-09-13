@@ -8,10 +8,9 @@ import "fmt"
 // notice of §5.1.6, the stale-round report of §9.3.2, and the comment cap of
 // §1.6.2 are the seven, and they are always printed.
 //
-// The shared writer that holds the exemption for all seven is not built here.
-// This is the shape it consumes, so a disclosure implements the contract before
-// there is a writer to hand it to, and adoption is a call site rather than a
-// rewrite.
+// The shared writer that holds the exemption for all seven lives in
+// internal/cli (writer.disclose); this is the shape it consumes, so a package
+// that raises a disclosure needs no dependency on the command layer.
 type HonestyDisclosure interface {
 	// Disclosure is the text that is printed whatever the flags say.
 	Disclosure() string

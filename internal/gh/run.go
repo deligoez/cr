@@ -1,10 +1,10 @@
 // Package gh reads the pull request under review through the gh command line,
 // and is the single door §2.1.2 leaves for a network write.
 //
-// Every invocation this package builds is a read. §3.7 has cr brief perform no
-// network write at all, and nothing here posts a comment, resolves a thread,
-// or edits anything on GitHub. The write §8 does describe is not built here
-// either; what is here is the boundary it has to come through, in write.go.
+// Every invocation this file builds is a read, and §3.7 has cr brief perform no
+// network write at all. The one write §8 describes, the review-creation call,
+// comes through the confirmation-gated boundary in write.go; nothing in this
+// package resolves a thread or edits anything else on GitHub.
 //
 // A run is pinned rather than inherited, for the same reason internal/git
 // pins its own. §2.1.1 requires the same state, the same head, and the same
