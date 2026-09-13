@@ -351,3 +351,27 @@ func TestACellNamingAnUnknownUnitOrAnInactiveRoleIsRejected(t *testing.T) {
 			"§12.4: and the round's active roles")
 	})
 }
+
+// A `pass` cell is refused at a seat where the round holds a record from that
+// role on that unit, naming the line, the field and the records; and only
+// there. A `finding` cell at that seat, and a `pass` at a seat no record was
+// raised at, are what a role that looked files.
+func TestAPassCellIsRefusedWhereItsRoleRaisedARecord(t *testing.T) {
+	raised := Raised{{Unit: "u1", Role: "correctness"}: {"f1", "f3"}}
+
+	_, err := Decode(cellsFile, []byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"),
+		units(), active(), raised)
+
+	var rejected *RejectedCellError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, 1, rejected.Line)
+	assert.Equal(t, "result", rejected.Field)
+	assert.Contains(t, rejected.Problem, "f1")
+
+	cells, err := Decode(cellsFile, []byte(
+		`{"unit":"u1","role":"correctness","result":"finding"}`+"\n"+
+			`{"unit":"u2","role":"correctness","result":"pass"}`+"\n"),
+		units(), active(), raised)
+	require.NoError(t, err)
+	assert.Len(t, cells, 2)
+}
