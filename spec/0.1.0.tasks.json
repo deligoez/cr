@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T01:19:07.929325Z",
+  "updated_at": "2026-09-13T01:21:33.941538Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -8029,7 +8029,7 @@
     {
       "id": "skill-triage-documentation",
       "title": "Document triage verbs with marker semantics",
-      "status": "wip",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "skill-document",
@@ -8042,10 +8042,17 @@
       ],
       "started_at": "2026-09-13T01:13:13.046404Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-13T01:21:29.436561Z",
+      "closed_reason": "- skills/cr/SKILL.md's \"Triage verbs\" section documents the five draft verbs of §7.2 and the marker edit table field by field (id, kind, path/start_line/line, severity, disposition, grade), quoting the exact exit-1 refusals `cr draft 1` printed in a scratch repository for a hardened argued record, kind \"nit\", a hand-typed not-here, disposition \"maybe\", severity \"urgent\", a changed id and an anchor past the file, plus the malformed-marker refusal `cr draft` and `cr post` both print.\n- It separates the two discards as internal/draft implements them: disposition=\"wrong\" is a marker edit, discarded whatever the body holds, with a repository-wide waiver and counts_against_class true; deleting the block is plain deletion, discarded not-here, with a pull-request-scoped waiver and counts_against_class false, quoting the triage payload and `cr waivers list --pr 1` showing wr1 in scope repository and wp1 in scope pull-request.\n- The \"Roles, profiles and rules\" section documents each file format's fields and location and how to add each, with a role added per repository that `cr review 1` emitted prompts for after `cr brief 1`, a profile selected through the per-repository config, a rule `cr rules list` and `cr rules check 1` picked up, and the real exit-3 refusals for an unknown axis, a profile tie and a detect pattern that does not compile.\n- It states that a comment written by hand more than twice belongs in the rule corpus with a detect block when the violation is mechanically matchable, shows a record confirming a rule hit that cr stamped origin rule and graded cited, and quotes `cr rules suggest` reporting candidates only.\n- TestTheSkillNamesEveryCommandOfSection11 in internal/cli/skill_test.go parses §11's command table from spec/0.1.0.md and fails on any command SKILL.md never writes as `cr \u003ccommand\u003e`, and proves its matcher can fail by removing `cr stats`; TestSection11sTableIsTheBuiltCommandTree holds that parse to the built cobra tree in both directions.\n",
+      "gate_passed_at": "2026-09-13T01:21:29.436561Z",
+      "commit_sha": "2dfb5cb",
+      "commit_shas": [
+        "2dfb5cb"
+      ],
+      "commit_files": [
+        "internal/cli/skill_test.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "single-binary-dependencies",
@@ -8167,7 +8174,7 @@
     {
       "id": "skill-marketplace-manifest",
       "title": "Expose the skill through the manifest",
-      "status": "open",
+      "status": "wip",
       "tags": [],
       "depends_on": [
         "skill-triage-documentation",
@@ -8178,7 +8185,8 @@
       "source_sections": [
         "## 14. Distribution"
       ],
-      "started_at": null,
+      "started_at": "2026-09-13T01:21:33.941538Z",
+      "duration_source": "claimed",
       "closed_at": null,
       "closed_reason": null,
       "gate_passed_at": null,
