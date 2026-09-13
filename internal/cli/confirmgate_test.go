@@ -112,16 +112,21 @@ func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
 
 // threadsPage is §3.5.1's review-thread answer holding one thread per comment of
 // review, each carrying the comment's body, which is what §8.3.3's read-back
-// matches on.
+// matches on, and hanging on the comment's range, as GitHub reports a thread a
+// review comment opened: a one-line comment's start lines are null.
 func threadsPage(t *testing.T, review *post.Review) []byte {
 	t.Helper()
 	nodes := make([]any, 0, len(review.Comments))
 	for i := range review.Comments {
 		comment := &review.Comments[i]
+		var start any
+		if comment.StartLine > 0 {
+			start = comment.StartLine
+		}
 		nodes = append(nodes, map[string]any{
 			"id": threadIDFor(i), "isResolved": false, "isOutdated": false,
-			"path": comment.Path, "line": comment.Line, "startLine": nil,
-			"originalLine": comment.Line, "originalStartLine": nil,
+			"path": comment.Path, "line": comment.Line, "startLine": start,
+			"originalLine": comment.Line, "originalStartLine": start,
 			"diffSide": comment.Side,
 			"comments": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},

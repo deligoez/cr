@@ -192,11 +192,12 @@ func (s *sending) markPosted() error {
 // internal/gh already reads whole for §3.5.1's ingestion.
 //
 // The match is on the body, which is the one field cr wrote and GitHub echoes
-// unchanged. An anchor would not settle it: §6.4.1 groups by path, side, line
-// and class, so two comments of one round can share every part of a position
-// and differ only in what they say — and a match by position would then key one
-// thread id onto the wrong record. Payload order would be worse still, being
-// GitHub's ordering rather than cr's.
+// unchanged. An anchor alone would not settle it: §6.4.1 groups by path, side,
+// line and class, so two comments of one round can share every part of a
+// position and differ only in what they say — and a match by position alone
+// would then key one thread id onto the wrong record. Position only narrows a
+// body match, for comments that say the same thing in different places. Payload
+// order would be worse still, being GitHub's ordering rather than cr's.
 //
 // A comment no thread matches is left out rather than guessed at, and the ids
 // that were found are still recorded: §8.3.3 asks for the returned ids, and a
@@ -260,23 +261,53 @@ func storeThreadIDs(
 // threadsByRecord is the thread each of the payload's comments became, keyed by
 // the record it was drawn from.
 //
-// A thread is claimed once. Two comments carrying the same body would otherwise
-// both name the first thread that matched, which would record one id twice and
-// none for the second — and the pairing is what the id is for.
+// A thread is claimed once, and each comment claims its own. Two comments
+// carrying the same body would otherwise both name the first thread that
+// matched, which would record one id twice and none for the second — and the
+// pairing is what the id is for.
+//
+// Among threads with a comment's body, one hanging where that comment was
+// posted is claimed first, so two identical bodies on different lines each take
+// the thread on their own line whatever order GitHub lists the threads in. A
+// comment no such thread is left for then takes the first unclaimed thread with
+// its body, which is the body match alone.
 func threadsByRecord(threads []gh.Thread, review *post.Review) map[string]string {
-	byBody := make(map[string]string, len(threads))
-	for i := range threads {
-		if _, claimed := byBody[threads[i].Comment.Body]; !claimed {
-			byBody[threads[i].Comment.Body] = threads[i].ID
-		}
-	}
+	claimed := make([]bool, len(threads))
 	found := make(map[string]string, len(review.Comments))
-	for i := range review.Comments {
-		comment := &review.Comments[i]
-		if id, matched := byBody[comment.Body]; matched {
-			found[comment.Record] = id
-			delete(byBody, comment.Body)
+	pair := func(atItsPosition bool) {
+		for i := range review.Comments {
+			comment := &review.Comments[i]
+			if _, paired := found[comment.Record]; paired {
+				continue
+			}
+			for j := range threads {
+				thread := &threads[j]
+				if claimed[j] || thread.Comment.Body != comment.Body ||
+					(atItsPosition && !postedAt(thread, comment)) {
+					continue
+				}
+				claimed[j] = true
+				found[comment.Record] = thread.ID
+				break
+			}
 		}
 	}
+	pair(true)
+	pair(false)
 	return found
+}
+
+// postedAt reports whether thread hangs where comment was posted: the same
+// path and side, and the same range in the diff the comment was written
+// against. The original lines are compared rather than the current ones, which
+// GitHub zeroes once the head moves past the code, and a one-line comment's
+// absent start line is its line, as internal/gh reads a one-line thread's.
+func postedAt(thread *gh.Thread, comment *post.Comment) bool {
+	start := comment.StartLine
+	if start == 0 {
+		start = comment.Line
+	}
+	anchor := &thread.Anchor
+	return anchor.Path == comment.Path && anchor.Side == comment.Side &&
+		anchor.OriginalLine == comment.Line && anchor.OriginalStartLine == start
 }
