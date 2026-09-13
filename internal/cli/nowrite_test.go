@@ -34,10 +34,10 @@ func TestAWriteFromOutsideTheGateIsRefused(t *testing.T) {
 		"a POST through the read door":     func() (string, error) { return gh.Run(review...) },
 		"a mutation through the read door": func() (string, error) { return gh.Run(mutation...) },
 		"a POST with a fabricated token": func() (string, error) {
-			return gh.Confirmation{}.Write(review...)
+			return gh.Confirmation{}.Write([]byte("{}\n"), review...)
 		},
 		"a mutation with a fabricated token": func() (string, error) {
-			return gh.Confirmation{}.Write(mutation...)
+			return gh.Confirmation{}.Write(nil, mutation...)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

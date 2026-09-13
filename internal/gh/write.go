@@ -70,7 +70,12 @@ type Confirmation struct {
 func Confirm(given bool) Confirmation { return Confirmation{granted: given} }
 
 // Write runs one network write and returns gh's standard output.
-func (c Confirmation) Write(args ...string) (string, error) {
+//
+// body is handed to gh on standard input, which is where `--input -` reads a
+// request body from. It reaches gh as given and no file stands between them, so
+// the bytes sent are the caller's bytes and nothing a document on disk has had
+// added to it since.
+func (c Confirmation) Write(body []byte, args ...string) (string, error) {
 	if !c.granted {
 		return "", &WriteRefusedError{
 			Args:   slices.Clone(args),
@@ -88,7 +93,7 @@ func (c Confirmation) Write(args ...string) (string, error) {
 			Reason: "§8's only write is an API call",
 		}
 	}
-	return invoke(args...)
+	return invoke(body, args...)
 }
 
 // valueArgs are the `gh api` flags whose value is the next argument when it is

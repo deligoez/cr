@@ -29,6 +29,19 @@ import (
 type ghShimTranscript struct {
 	// path is the file the shim appends each invocation to.
 	path string
+	// body is the file the shim copies the request body of a POST into, as
+	// gh would have sent it: standard input for `--input -`, the named file
+	// otherwise. It is empty for a shim that records no body.
+	body string
+}
+
+// sentBody is the request body the shim's last POST carried.
+func (g *ghShimTranscript) sentBody(t *testing.T) []byte {
+	t.Helper()
+	require.NotEmpty(t, g.body, "this shim records no request body")
+	body, err := os.ReadFile(g.body)
+	require.NoError(t, err, "no POST reached the shim")
+	return body
 }
 
 // calls are the invocations the shim received, in order.
@@ -70,6 +83,7 @@ func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
 	transcript := filepath.Join(dir, "transcript")
 	threads := filepath.Join(dir, "threads.json")
 	created := filepath.Join(dir, "review.json")
+	body := filepath.Join(dir, "body.json")
 
 	require.NoError(t, os.WriteFile(threads, threadsPage(t, review), 0o600))
 	require.NoError(t, os.WriteFile(created, []byte(
@@ -81,11 +95,19 @@ func ghShimming(t *testing.T, review *post.Review) *ghShimTranscript {
 			"printf '%s\\n' \"$*\" >> "+transcript+"\n"+
 			"case \"$*\" in\n"+
 			"  *reviewThreads*) exec cat "+threads+" ;;\n"+
-			"  *'--method POST'*) exec cat "+created+" ;;\n"+
+			"  *'--method POST'*)\n"+
+			"    input=''\n"+
+			"    previous=''\n"+
+			"    for argument in \"$@\"; do\n"+
+			"      if [ \"$previous\" = --input ]; then input=$argument; fi\n"+
+			"      previous=$argument\n"+
+			"    done\n"+
+			"    if [ \"$input\" = - ]; then cat > "+body+"; else cat \"$input\" > "+body+"; fi\n"+
+			"    exec cat "+created+" ;;\n"+
 			"  *) echo '{}' ;;\n"+
 			"esac\n"), 0o700))
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	return &ghShimTranscript{path: transcript}
+	return &ghShimTranscript{path: transcript, body: body}
 }
 
 // threadsPage is §3.5.1's review-thread answer holding one thread per comment of
@@ -148,12 +170,13 @@ func builtPayload(t *testing.T) *post.Review {
 //
 // The single call is §8.3.1 measured rather than described: the shim counts
 // every invocation carrying a request body, and one review is one notification
-// for the author. The payload it was given is the file §8.3.3 wrote, byte for
-// byte, which is what `--input` means.
+// for the author. The body it was given is the payload §8.3.3 wrote, byte for
+// byte, handed over on standard input, which is what `--input -` means.
 func TestConfirmSendsOneReviewAndSettlesTheRound(t *testing.T) {
 	layout := draftedHome(t, aCitedRecord("f1"), aCitedRecord("f2"))
 	redraft(t)
-	shim := ghShimming(t, builtPayload(t))
+	built := builtPayload(t)
+	shim := ghShimming(t, built)
 
 	printed, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
 	require.NoError(t, err)
@@ -163,11 +186,13 @@ func TestConfirmSendsOneReviewAndSettlesTheRound(t *testing.T) {
 
 	sent := shim.writes(t)
 	require.Len(t, sent, 1, "§8.3.1: all of a round's comments are posted as one review")
-	assert.Contains(t, sent[0], "repos/"+draftOwner+"/"+draftRepo+"/pulls/"+draftPR+"/reviews")
-	assert.Contains(t, sent[0], "--method POST")
-	posted := layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FilePosted)
-	assert.Contains(t, sent[0], "--input "+posted,
-		"§8.3.3: the bytes on disk before the call are the bytes the call sends")
+	assert.Equal(t,
+		"api repos/"+draftOwner+"/"+draftRepo+"/pulls/"+draftPR+"/reviews --method POST --input -",
+		sent[0])
+	payload, err := built.Payload()
+	require.NoError(t, err)
+	assert.Equal(t, string(payload)+"\n", string(shim.sentBody(t)),
+		"§8.3.3: the bytes written before the call are the bytes the call sends")
 
 	// §9.1's `queued` → `posted` row, and §9.3.6's index beside it.
 	stored, err := state.ReadStamped[finding.Finding](

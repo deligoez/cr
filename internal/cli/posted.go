@@ -139,41 +139,44 @@ func recordSentOutcomes(l state.Layout, round *state.Meta, settled []finding.Set
 }
 
 // writePosted is §8.3.3's first half: the exact payload written to
-// rounds/<n>/posted.json before the network call. It answers with the path,
-// which is what post.Request sends as `--input`.
+// rounds/<n>/posted.json before the network call. It answers with the bytes it
+// wrote, which are what post.Create sends as the request body.
 //
-// The file is the request body and not a description of it. post.Request reads
-// the body from a file for exactly this reason — the bytes that were written
-// are the bytes that are sent, with no second serialisation between them that
-// could differ — so nothing of cr's own is mixed into the document before the
-// call. The payload hash is not in it: §8.4.3 embeds that in the review's body,
-// §10.3 records it in the round summary, and adding it here would put a field
-// GitHub never named into the request.
+// The bytes and not the file are sent, because the file does not stay the
+// payload: recordSentRecords, recordSentDiscards and recordSentOutcomes add cr's
+// own sections to it before the call, for §8.4.4's adoption to read, and none of
+// them is a field GitHub's review-creation endpoint names. So the request is the
+// payload alone — no record id, grade, severity, anchor or disposition leaves
+// the machine — while the document on disk holds the payload and those sections
+// beside it. The payload hash is not in either: §8.4.3 embeds that in the
+// review's body, §10.3 records it in the round summary, and adding it here would
+// put a field GitHub never named into the request.
 //
 // The trailing newline is the one every document cr writes ends with, and it
-// is inside what is sent rather than beside it, so the file stays exactly the
-// payload rather than the payload plus a note.
+// is inside what is sent rather than beside it, so the bytes sent are the bytes
+// that were written.
 func writePosted(
 	l state.Layout, owner, repo string, pr, round int, review *post.Review,
-) (string, error) {
+) ([]byte, error) {
 	payload, err := review.Payload()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	payload = append(payload, '\n')
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if err := held.WriteRound(round, state.FilePosted, append(payload, '\n')); err != nil {
+	if err := held.WriteRound(round, state.FilePosted, payload); err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.
 		_ = held.Unlock()
-		return "", err
+		return nil, err
 	}
 	if err := held.Unlock(); err != nil {
-		return "", err
+		return nil, err
 	}
-	return l.RoundFile(owner, repo, pr, round, state.FilePosted), nil
+	return payload, nil
 }
 
 // recordPostedIndex is §9.3.6's writer: one entry per record this run moved to

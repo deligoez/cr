@@ -41,32 +41,28 @@ func readPosted(t *testing.T, layout state.Layout) map[string]json.RawMessage {
 }
 
 // §8.3.3: the exact posted payload is written to rounds/<n>/posted.json before
-// the network call, and the path it was written to is what the call sends.
+// the network call, and the bytes that write produced are what the call sends.
 //
-// The file is asserted to be the request body byte for byte, because that is
-// the whole point of writing it first: post.Request sends it with `--input`, so
-// a document carrying anything of cr's own would put a field GitHub never named
-// into the request, and a document that merely described the payload would let
-// the bytes written and the bytes sent differ.
+// The file is asserted to hold the payload byte for byte, and the bytes handed
+// back to be the same bytes, because that is the whole point of writing it
+// first: a document that merely described the payload would let the bytes
+// written and the bytes sent differ.
 func TestThePayloadIsOnDiskBeforeTheCallAndIsWhatTheCallSends(t *testing.T) {
 	layout := draftedHome(t)
 	review := aPostedReview()
 
-	path, err := writePosted(layout, draftOwner, draftRepo, draftPRNum, draftRound, review)
+	sent, err := writePosted(layout, draftOwner, draftRepo, draftPRNum, draftRound, review)
 	require.NoError(t, err)
-	assert.Equal(t,
-		layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FilePosted), path,
-		"§8.3.3 names rounds/<n>/posted.json, and post.Request sends that file")
 
-	written, err := os.ReadFile(path)
+	written, err := os.ReadFile(
+		layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FilePosted))
 	require.NoError(t, err)
 	payload, err := review.Payload()
 	require.NoError(t, err)
 	assert.Equal(t, string(payload)+"\n", string(written),
 		"the bytes on disk are the payload, not a description of it")
-
-	assert.Contains(t, post.Request(draftOwner, draftRepo, draftPRNum, path), path,
-		"the call reads its body from the file that was just written")
+	assert.Equal(t, string(written), string(sent),
+		"the bytes the call sends are the bytes that were written")
 }
 
 // §8.3.3: posted.json is updated with the returned thread ids after the call,
@@ -160,7 +156,7 @@ func TestTheWritesAfterThePostReportTheirOwnFailure(t *testing.T) {
 		readOnly(t, dir)
 
 		err = postOutcome(layout, &round, review, &gh.CommandError{
-			Args: post.Request(draftOwner, draftRepo, draftPRNum, "posted.json"),
+			Args: post.Request(draftOwner, draftRepo, draftPRNum),
 			Err:  &exec.ExitError{},
 		})
 

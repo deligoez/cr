@@ -38,7 +38,7 @@ func anUnresolvedPosting(t *testing.T) (layout state.Layout, hash string) {
 	round, err := layout.ReadMeta(draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
 	timedOut := postOutcome(layout, &round, review, &gh.CommandError{
-		Args: post.Request(draftOwner, draftRepo, draftPRNum, "posted.json"),
+		Args: post.Request(draftOwner, draftRepo, draftPRNum),
 		Err:  &exec.ExitError{},
 	})
 	require.Error(t, timedOut, "§8.4.4: an outcome cr could not establish is not a success")

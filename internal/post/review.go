@@ -199,21 +199,23 @@ func Decode(payload []byte) (*Sent, error) {
 // mint, so nothing here can supply the confirmation §8.5.3 requires the flag
 // to supply.
 type Sender interface {
-	Write(args ...string) (string, error)
+	Write(body []byte, args ...string) (string, error)
 }
 
 // Request is the one `gh api` invocation that creates a round's review.
 //
-// The body is read from a file rather than built into the argument vector,
-// because §8.3.3 has the exact payload written to `rounds/<n>/posted.json`
-// before the network call — so the bytes that were written are the bytes that
-// are sent, with no second serialisation between them that could differ.
-func Request(owner, repo string, pr int, payload string) []string {
+// The body arrives on standard input rather than from a file or the argument
+// vector. §8.3.3 has the exact payload written to `rounds/<n>/posted.json`
+// before the network call, but that file is also where cr keeps what §8.4.4's
+// adoption reads — the records, the discards and the outcomes — so sending the
+// file would send cr's own state to GitHub beside the review. The caller hands
+// over the payload bytes it wrote instead, and those are the whole request.
+func Request(owner, repo string, pr int) []string {
 	return []string{
 		"api",
 		fmt.Sprintf("repos/%s/%s/pulls/%d/reviews", owner, repo, pr),
 		"--method", "POST",
-		"--input", payload,
+		"--input", "-",
 	}
 }
 
@@ -225,6 +227,9 @@ func Request(owner, repo string, pr int, payload string) []string {
 // finding. It is also what §8.4.1's atomicity rests on — the review is created
 // with all its comments or nothing is created — which a sequence of calls
 // cannot have at all.
-func Create(sender Sender, owner, repo string, pr int, payload string) (string, error) {
-	return sender.Write(Request(owner, repo, pr, payload)...)
+//
+// payload is the request body exactly as it is sent: the bytes §8.3.3 wrote to
+// posted.json before the call, and nothing cr added to that file afterwards.
+func Create(sender Sender, owner, repo string, pr int, payload []byte) (string, error) {
+	return sender.Write(payload, Request(owner, repo, pr)...)
 }

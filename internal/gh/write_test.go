@@ -1,6 +1,7 @@
 package gh
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -137,7 +138,7 @@ func TestOnlyAConfirmedTokenOpensTheWriteDoor(t *testing.T) {
 			ran := filepath.Join(t.TempDir(), "gh-was-started")
 			stubGh(t, "touch "+ran+"\necho '{}'")
 
-			_, err := tc.token.Write(tc.args...)
+			_, err := tc.token.Write(nil, tc.args...)
 
 			var refused *WriteRefusedError
 			require.ErrorAs(t, err, &refused)
@@ -148,12 +149,16 @@ func TestOnlyAConfirmedTokenOpensTheWriteDoor(t *testing.T) {
 
 	t.Run("the review creation of §8.3", func(t *testing.T) {
 		ran := filepath.Join(t.TempDir(), "gh-was-started")
-		stubGh(t, "touch "+ran+"\necho '{}'")
+		stubGh(t, "cat > "+ran+"\necho '{}'")
+		body := []byte(`{"event":"COMMENT","body":"","comments":[]}` + "\n")
 
-		out, err := Confirm(true).Write(review...)
+		out, err := Confirm(true).Write(body, review...)
 
 		require.NoError(t, err)
 		assert.Equal(t, "{}\n", out)
-		assert.FileExists(t, ran, "the write §8 sanctions never reached gh")
+		read, err := os.ReadFile(ran)
+		require.NoError(t, err, "the write §8 sanctions never reached gh")
+		assert.Equal(t, string(body), string(read),
+			"the body reaches gh on standard input, which is what `--input -` reads")
 	})
 }

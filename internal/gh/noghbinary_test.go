@@ -64,7 +64,7 @@ func TestNoTestInThisPackageCanReachTheProductionGh(t *testing.T) {
 			return Run("api", "graphql", "-f", "query=query{viewer{login}}")
 		},
 		"the write door": func() (string, error) {
-			return Confirm(true).Write("api", "repos/cli/cli/pulls/1/reviews", "--method", "POST")
+			return Confirm(true).Write(nil, "api", "repos/cli/cli/pulls/1/reviews", "--method", "POST")
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

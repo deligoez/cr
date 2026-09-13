@@ -52,11 +52,12 @@ type sending struct {
 //
 // The order is the sections' and not a convenience.
 //
-// §8.3.3 puts the exact payload on disk before the call, because the file is
-// the request body: post.Request sends it with `--input`, so the bytes written
-// are the bytes sent. It is also what §8.4.4's recovery reads back, and a
-// payload written afterwards would be missing from exactly the run that could
-// not say whether it had posted.
+// §8.3.3 puts the exact payload on disk before the call, and the call sends the
+// bytes that write produced: post.Create hands them to gh on standard input, so
+// the bytes written are the bytes sent, and the sections cr adds to posted.json
+// next are never part of the request. The file is also what §8.4.4's recovery
+// reads back, and a payload written afterwards would be missing from exactly
+// the run that could not say whether it had posted.
 //
 // Everything after the call is ordered by what it costs to lose. §9.1's walk
 // and §9.3.6's index go first: a review that reached the author while cr still

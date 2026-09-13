@@ -20,11 +20,16 @@ import (
 )
 
 // recorder is a Sender that writes nothing and remembers every invocation it
-// was handed, so a test can count the calls one round makes.
-type recorder struct{ calls [][]string }
+// was handed, and the body each carried, so a test can count the calls one
+// round makes.
+type recorder struct {
+	calls  [][]string
+	bodies [][]byte
+}
 
-func (r *recorder) Write(args ...string) (string, error) {
+func (r *recorder) Write(body []byte, args ...string) (string, error) {
 	r.calls = append(r.calls, args)
+	r.bodies = append(r.bodies, body)
 	return `{"id":991}`, nil
 }
 
@@ -68,7 +73,10 @@ func TestAMultiCommentRoundIsOneReviewCreationCall(t *testing.T) {
 	require.Len(t, review.Comments, 3)
 	sender := &recorder{}
 
-	out, err := Create(sender, "acme", "web", 7, "/state/pr-7/rounds/1/posted.json")
+	payload, err := review.Payload()
+	require.NoError(t, err)
+
+	out, err := Create(sender, "acme", "web", 7, payload)
 
 	require.NoError(t, err)
 	assert.Equal(t, `{"id":991}`, out)
@@ -76,8 +84,9 @@ func TestAMultiCommentRoundIsOneReviewCreationCall(t *testing.T) {
 	assert.Equal(t, []string{
 		"api", "repos/acme/web/pulls/7/reviews",
 		"--method", "POST",
-		"--input", "/state/pr-7/rounds/1/posted.json",
+		"--input", "-",
 	}, sender.calls[0])
+	assert.Equal(t, [][]byte{payload}, sender.bodies, "the payload is the call's whole body")
 }
 
 // The payload carries every queued record as its own comment, and GitHub's own
@@ -241,7 +250,7 @@ func verdictLiterals(t *testing.T, path, rel string) []string {
 func TestTheRealSenderRefusesWithoutTheGate(t *testing.T) {
 	var sender Sender = gh.Confirmation{}
 
-	out, err := Create(sender, "acme", "web", 7, "posted.json")
+	out, err := Create(sender, "acme", "web", 7, []byte("{}\n"))
 
 	var refused *gh.WriteRefusedError
 	require.ErrorAs(t, err, &refused)

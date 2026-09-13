@@ -138,16 +138,22 @@ func Run(args ...string) (string, error) {
 	if read, why := readOnly(args); !read {
 		return "", &WriteRefusedError{Args: slices.Clone(args), Reason: why}
 	}
-	return invoke(args...)
+	return invoke(nil, args...)
 }
 
 // invoke starts gh and returns its standard output. It is unexported and has
 // no opinion about what it is running: the two doors above it decide that, and
 // a third door would have to be written inside this package to get past them.
-func invoke(args ...string) (string, error) {
+//
+// input is what gh reads on standard input, and a read passes none, so gh's
+// standard input is then the null device.
+func invoke(input []byte, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("gh", args...)
 	cmd.Env = environ()
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
