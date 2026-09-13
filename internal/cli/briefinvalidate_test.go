@@ -54,7 +54,21 @@ func TestABriefOnAMovedHeadNamesTheStoredLineItCannotUse(t *testing.T) {
 		// line to stale and journaled draft to stale for record "".
 		"an id that is null": {
 			`{"id":null,"state":"draft","round":1}`,
-			"cannot use the id field of findings.ndjson: null is not a string",
+			"cannot use the id field of findings.ndjson: " +
+				"reads null, and §6.1 spells a record id f<n>, numbered from one",
+		},
+		// Measured before stale-sweep-refuses-invalid-id: only null was
+		// refused, so an empty id exited 0, rewrote the line to stale and
+		// journaled draft to stale for record "".
+		"an id that is empty": {
+			`{"id":"","state":"draft","round":1}`,
+			"cannot use the id field of findings.ndjson: " +
+				`reads "", and §6.1 spells a record id f<n>, numbered from one`,
+		},
+		"an id that is not a record id": {
+			`{"id":"finding-2","state":"queued","round":1}`,
+			"cannot use the id field of findings.ndjson: " +
+				`reads "finding-2", and §6.1 spells a record id f<n>, numbered from one`,
 		},
 		// encoding/json binds both keys to one field, so no one value is
 		// the state every read of the line decodes.
