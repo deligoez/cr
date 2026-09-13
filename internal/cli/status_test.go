@@ -220,3 +220,60 @@ func TestTheStatusTextCarriesTheCountsAndEveryLensThatDidNotRun(t *testing.T) {
 	assert.NotContains(t, printed, fixtureIssue+"#c3 (set aside",
 		"§4.1.3 writes `set_aside_note` on every entry, so an empty one is a claim nobody judged")
 }
+
+// §10.1.2's set-aside count counts the entries carrying §4.1.8's stamp, and
+// only those.
+//
+// statusHome sets aside one of its two entries, so a count of the stamped
+// entries and a count of the unstamped ones are both 1 there, and gremlins found
+// the condition inverted without a test noticing. Here both are set aside and
+// the counts part: 2 against 0.
+func TestStatusCountsOnlyTheSetAsideEntries(t *testing.T) {
+	statusHome(t)
+	layout := state.New(os.Getenv(state.HomeEnv))
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileIntentGaps,
+		[]byte(`{"claim":"`+fixtureIssue+`#c2","set_aside_note":"`+fixtureIssue+`#n1",`+
+			`"head":"`+meta.Head+`","round":1}`+"\n"+
+			`{"claim":"`+fixtureIssue+`#c3","set_aside_note":"`+fixtureIssue+`#n1",`+
+			`"head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	printed, err := runCLIPrinting(t, "status", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	var report struct {
+		Intent struct {
+			Gaps     []mapping.Gap `json:"gaps"`
+			SetAside int           `json:"set_aside"`
+		} `json:"intent"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &report))
+	require.Len(t, report.Intent.Gaps, 2)
+	assert.Equal(t, 2, report.Intent.SetAside, "§4.1.8 stamped both entries")
+}
+
+// §4.5.4's two lens halves on a round whose profile indexes its language: the
+// reinvention half ran, so it discloses nothing, and the test-adequacy symbol
+// half still has no index to read and says so.
+//
+// statusHome resolves `generic`, which declares no `symbols.lang`, so both
+// halves are unavailable there and every status test reads that state. This is
+// the other one, and gremlins found it unreached: roundHalves sizes its report
+// by adding the two halves' counts, and subtracting them instead made `cr status`
+// panic with `makeslice: cap out of range` on exactly this round — one half
+// available, one not.
+func TestStatusOnAnIndexedRoundDisclosesOnlyTheHalfThatDidNotRun(t *testing.T) {
+	reinventionHome(t)
+
+	honesty := readStatus(t).Honesty
+
+	assert.Contains(t, honesty,
+		`lens test/symbols unavailable, per §4.5.4: cr built no symbol index for symbols.lang "go"`)
+	for _, line := range honesty {
+		assert.NotContains(t, line, "convention/reinvention", "the reinvention half ran over the head's index")
+	}
+}
