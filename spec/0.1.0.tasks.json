@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-12T23:55:44.541456Z",
+  "updated_at": "2026-09-13T00:02:54.84265Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -3253,7 +3253,7 @@
     {
       "id": "correctness-axis",
       "title": "Evaluate units against their mapped claims",
-      "status": "open",
+      "status": "done",
       "tags": [],
       "depends_on": [
         "map-record-command"
@@ -3263,11 +3263,20 @@
       "source_sections": [
         "### 4.2 Correctness against claims"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-12T23:56:15.898908Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-13T00:02:54.824306Z",
+      "closed_reason": "- Each unit is evaluated against the claims it is mapped to: cr review emits a correctness prompt per active correctness role and unit whose \"Claims mapped to this unit (§4.1.6)\" section lists mapping.ClaimsOf for that unit with each claim's text, and internal/review/text.go's new correctness section tells the role to evaluate the unit against each of them, per §4.2.1; dogfooded, a unit mapped to CR-1#c1 printed \"- CR-1#c1: Load must not panic.\" followed by \"Evaluate this unit against each claim mapped to it above (§4.2.1)\".\n- A correctness finding cites the claim id it violates: the same section states \"A finding that the code violates a claim cites that claim's id in claim (§4.2.2)\", the §6.1 `claim` field the prompt's output contract already lists; cr does not refuse a claim the mapping does not map to the unit, because measured, such a refusal broke twenty existing tests whose records §5.4.4 and §6.2 grade (argued, then a question) rather than reject, so which claim a finding violates stays the role's judgement.\n- A unit mapped to zero claims is still evaluated for internal defects: the fan-out emits it like any unit, and its correctness section reads \"No claim is mapped to this unit, and it is still evaluated (§4.2.3): look for defects the code can reach on its own terms\", per §4.2.3; dogfooded after an empty `cr map record`, u1's correctness prompt carried exactly that line.\n- TestAZeroClaimUnitStillProducesACorrectnessPrompt runs cr review --axis correctness over the shop round where u1 is mapped to c1 and u2 to nothing, and asserts prompts for both u1 and u2, u1's carrying the claim and the §4.2.2 citation line and u2's carrying the §4.2.3 line.\n",
+      "gate_passed_at": "2026-09-13T00:02:54.824306Z",
+      "commit_sha": "4e5c711",
+      "commit_shas": [
+        "4e5c711",
+        "f7927d5"
+      ],
+      "commit_files": [
+        "internal/review/correctness_test.go",
+        "internal/review/text.go"
+      ]
     },
     {
       "id": "symbol-index-build",
