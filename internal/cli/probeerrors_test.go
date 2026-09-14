@@ -145,6 +145,8 @@ func TestRecordExplainsWhatAMutationProbeSupports(t *testing.T) {
 	const voided = "§5.1.7: the post-run cleanliness check failed, so the result is error whatever the " +
 		"ladder read, the probe grades no finding, and the sandbox is recreated before the next run: " +
 		"tracked files differ from the post-setup baseline: src/Money.php"
+	const unclean = "§5.3.4's sixth rung: the failed count is zero but the runner exited 255, so the run has " +
+		"not said that nothing failed"
 	for _, tc := range []struct {
 		name     string
 		result   probe.Result
@@ -159,6 +161,12 @@ func TestRecordExplainsWhatAMutationProbeSupports(t *testing.T) {
 			said: "§5.3.5: only no-test-failed proves a gap, and a mutation probe whose result is error " +
 				"supports no probed grade, so the record stays argued (§6.2) and is asked as a question " +
 				"(§6.3); the probe recorded why it is error: " + voided,
+		},
+		{
+			name: "an inconclusive probe", result: "inconclusive", reason: unclean, passed: true, grade: "argued",
+			said: "§5.3.5: only no-test-failed proves a gap, and a mutation probe whose result is inconclusive " +
+				"supports no probed grade, so the record stays argued (§6.2) and is asked as a question " +
+				"(§6.3); the probe recorded why it is inconclusive: " + unclean,
 		},
 		{
 			name: "a caught mutation", result: "failed", passed: true, grade: "argued",
