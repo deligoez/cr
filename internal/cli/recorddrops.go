@@ -11,6 +11,9 @@ import (
 type recordDrops struct {
 	waived finding.Drops
 	posted finding.PostedDrops
+	// input is §1.4's normalised hash of the file the drops were taken out
+	// of, which keys `cr record`'s share of the round summary's intake.
+	input string
 }
 
 // settleAnchors binds every record's anchor to its own unit and then stamps
@@ -50,9 +53,15 @@ func settleAnchors(
 //
 // The drops run after every refusal that names an input line, because those
 // refusals index the records by their position in the file.
+//
+// body is the input's text, whose hash names the drops in the round summary.
 func dropRecorded(
-	l state.Layout, owner, repo string, pr, round int, records []*finding.Finding,
+	l state.Layout, owner, repo string, pr, round int, body []byte, records []*finding.Finding,
 ) (kept, orphans []*finding.Finding, dropped recordDrops, err error) {
+	input, err := mergedDigest(body)
+	if err != nil {
+		return nil, nil, recordDrops{}, err
+	}
 	waivers, err := finding.ActiveWaivers(l, owner, repo, pr)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
@@ -67,7 +76,7 @@ func dropRecorded(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	return kept, orphaned(kept, stored), recordDrops{waived: waived, posted: posted}, nil
+	return kept, orphaned(kept, stored), recordDrops{waived: waived, posted: posted, input: input}, nil
 }
 
 // orphaned clears the `duplicate_of` of every kept record whose representative

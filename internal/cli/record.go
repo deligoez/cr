@@ -111,7 +111,7 @@ func (r *recordResult) states(w *writer) string {
 // The duplicate count is read off the stored records rather than passed in, so
 // it counts what §9.1 actually stamped and not what a caller believed §6.4.3 had
 // marked.
-func newRecordResult(records []*finding.Finding, found *gapEvidence, dropped recordDrops) *recordResult {
+func newRecordResult(records []*finding.Finding, found *gapEvidence, dropped *recordDrops) *recordResult {
 	honesty := make([]string, 0, 2+len(found.unmappable))
 	// The drops are disclosed only when this run took something out. Over
 	// `cr merge`'s own output they are always zero, and `cr merge` already
@@ -323,10 +323,10 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := recordRuleStats(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
-			if err := recordRetiredCounts(layout, &round.Meta, forced, time.Now()); err != nil {
+			if err := recordRetiredCounts(layout, &round.Meta, forced, &dropped, time.Now()); err != nil {
 				return err
 			}
-			return out.emit(newRecordResult(records, found, dropped))
+			return out.emit(newRecordResult(records, found, &dropped))
 		},
 	}
 }
@@ -352,7 +352,14 @@ func newRecordCmd(out *writer) *cobra.Command {
 //
 // forced is the ids §6.3.1's first moment moved in this run, kept under the
 // same lock by keepForced for `cr draft` and `cr post` to count.
-func recordRetiredCounts(l state.Layout, round *state.Meta, forced []string, at time.Time) error {
+//
+// dropped is what this run's §6.4.4 and §9.3.6 drops took out of its input. It
+// is kept as this command's share of the intake, by the input's hash, and
+// ownerIntake's raised, waived and already-posted counts are written again over
+// both shares, so a file recorded with no merge is counted as a merged one is.
+func recordRetiredCounts(
+	l state.Layout, round *state.Meta, forced []string, dropped *recordDrops, at time.Time,
+) error {
 	owner, repo, pr := round.Owner, round.Repo, round.PR
 	stored, err := roundFindingsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
@@ -371,7 +378,7 @@ func recordRetiredCounts(l state.Layout, round *state.Meta, forced []string, at 
 	if err != nil {
 		return err
 	}
-	if err := writeSummary(held, round.Round, ownerRecord, []summaryCount{
+	if err := writeRecordIntake(held, l, round, stored, dropped, []summaryCount{
 		{key: summaryDeduplicated, value: deduplicated},
 		{key: summarySuppressedByThread, value: suppressed},
 		{key: summaryRecordedAt, value: at.UTC()},
@@ -386,6 +393,30 @@ func recordRetiredCounts(l state.Layout, round *state.Meta, forced []string, at 
 		return err
 	}
 	return held.Unlock()
+}
+
+// writeRecordIntake writes ownerRecord's section, counts and this run's share
+// of the intake together, under the caller's lock, and then ownerIntake's counts
+// over both shares, read again under that lock.
+//
+// The share is marked merged when the input is the output the round summary
+// names as `cr merge`'s last, which is the answer sourceOf gives.
+func writeRecordIntake(
+	held *state.Lock, l state.Layout, round *state.Meta, stored []*finding.Finding, dropped *recordDrops,
+	counts []summaryCount,
+) error {
+	merge, recorded, mergedHash, err := readIntake(l, round.Owner, round.Repo, round.PR, round.Round)
+	if err != nil {
+		return err
+	}
+	recorded[dropped.input] = recordIntake{
+		Merged: dropped.input == mergedHash, Waived: dropped.waived, AlreadyPosted: dropped.posted,
+	}
+	counts = append(counts, summaryCount{key: summaryRecordIntake, value: recorded})
+	if err := writeSummary(held, round.Round, ownerRecord, counts); err != nil {
+		return err
+	}
+	return writeIntakeCounts(held, round.Round, &merge, recorded, mergedHash, stored)
 }
 
 // acceptRecords reads the file the agent handed the command and settles
@@ -470,7 +501,7 @@ func acceptRecords(
 	}
 	// §6.4.4 and §9.3.6 again, after the last refusal that names an input
 	// line, keeping the records a dropped representative orphaned.
-	records, orphans, dropped, err := dropRecorded(l, owner, repo, pr, round.Round, records)
+	records, orphans, dropped, err := dropRecorded(l, owner, repo, pr, round.Round, body, records)
 	if err != nil {
 		return nil, nil, recordDrops{}, nil, err
 	}

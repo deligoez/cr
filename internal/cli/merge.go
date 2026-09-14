@@ -231,18 +231,36 @@ func writeMergeCounts(
 	if err != nil {
 		return err
 	}
-	if err := writeSummary(held, round, ownerMerge, []summaryCount{
-		{key: summaryRaised, value: merged.raised},
-		{key: summaryWaived, value: merged.waived},
-		{key: summaryAlreadyPosted, value: merged.posted},
-		{key: summaryMergedHash, value: digest},
-	}); err != nil {
+	if err := writeMergeIntake(held, l, owner, repo, pr, round, newMergeIntake(merged), digest); err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.
 		_ = held.Unlock()
 		return err
 	}
 	return held.Unlock()
+}
+
+// writeMergeIntake is writeMergeCounts under the lock: the merge's own share and
+// digest, and then ownerIntake's counts over that share, the shares `cr record`
+// kept, and the round's stored records, read again under the lock.
+func writeMergeIntake(
+	held *state.Lock, l state.Layout, owner, repo string, pr, round int, intake *mergeIntake, digest string,
+) error {
+	if err := writeSummary(held, round, ownerMerge, []summaryCount{
+		{key: summaryMergeIntake, value: intake},
+		{key: summaryMergedHash, value: digest},
+	}); err != nil {
+		return err
+	}
+	_, recorded, _, err := readIntake(l, owner, repo, pr, round)
+	if err != nil {
+		return err
+	}
+	stored, err := roundFindingsOf(l, owner, repo, pr, round)
+	if err != nil {
+		return err
+	}
+	return writeIntakeCounts(held, round, intake, recorded, digest, stored)
 }
 
 // mergeOutcome is what §6.5.1's four passes left: the records that reach the

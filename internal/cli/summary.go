@@ -53,9 +53,10 @@ const (
 // summaryWaived, summaryAlreadyPosted, summaryForcedToQuestion and
 // summaryNewClasses. summaryOwners below is where all of them are gathered.
 const (
-	// summaryRaised is how many findings the per-role files handed
-	// `cr merge`, before any of §6.5.1's passes removed one. It is the
-	// denominator every later count is read against.
+	// summaryRaised is how many findings reached the round, whether through
+	// `cr merge` or handed straight to `cr record`, before any of §6.5.1's
+	// drops removed one. It is the denominator every later count is read
+	// against, and intakeTotals computes it.
 	summaryRaised = "raised"
 	// summaryDeduplicated is how many records §6.4.3 retired as
 	// duplicates, and summarySuppressedByThread how many §3.5.4's
@@ -123,13 +124,15 @@ const (
 // given, so the assignment is enforced where it is stated instead of being a
 // comment two files away from the write.
 var summaryOwners = map[string]summaryOwner{
-	summaryRaised:             ownerMerge,
-	summaryWaived:             ownerMerge,
-	summaryAlreadyPosted:      ownerMerge,
+	summaryRaised:             ownerIntake,
+	summaryWaived:             ownerIntake,
+	summaryAlreadyPosted:      ownerIntake,
 	summaryMergedHash:         ownerMerge,
+	summaryMergeIntake:        ownerMerge,
 	summaryDeduplicated:       ownerRecord,
 	summarySuppressedByThread: ownerRecord,
 	summaryRecordedAt:         ownerRecord,
+	summaryRecordIntake:       ownerRecord,
 	summaryForcedRecords:      ownerForcing,
 	summaryForcedToQuestion:   ownerDraft,
 	summaryForcedByRetraction: ownerDraft,

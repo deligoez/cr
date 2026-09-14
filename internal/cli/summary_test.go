@@ -59,6 +59,14 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 		Count int `json:"count"`
 		Max   int `json:"max"`
 	}
+	type drops struct {
+		Dropped int      `json:"dropped"`
+		Waivers []string `json:"waivers"`
+	}
+	type posted struct {
+		Dropped int      `json:"dropped"`
+		Posted  []string `json:"posted"`
+	}
 	count := func(raw json.RawMessage) error { return strictly[int](raw) }
 	return map[string]func(json.RawMessage) error{
 		"raised":               count,
@@ -97,6 +105,20 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 				return fmt.Errorf("%s is not true: §8.5.4's fact is written only once --confirm was given", raw)
 			}
 			return nil
+		},
+		"merge_intake": func(raw json.RawMessage) error {
+			return strictly[struct {
+				Records       []string `json:"records"`
+				Waived        drops    `json:"waived"`
+				AlreadyPosted posted   `json:"already_posted"`
+			}](raw)
+		},
+		"record_intake": func(raw json.RawMessage) error {
+			return strictly[map[string]struct {
+				Merged        bool   `json:"merged"`
+				Waived        drops  `json:"waived"`
+				AlreadyPosted posted `json:"already_posted"`
+			}](raw)
 		},
 		"new_classes":    func(raw json.RawMessage) error { return strictly[[]string](raw) },
 		"forced_records": func(raw json.RawMessage) error { return strictly[[]string](raw) },
@@ -166,7 +188,7 @@ func assertSummaryShape(t *testing.T, body []byte, ran ...summaryOwner) map[stri
 // left it: every count the section requires has a named writer, and the two the
 // round found unowned or merged are where the findings put them.
 func TestEverySection103CountHasANamedWriter(t *testing.T) {
-	writers := []summaryOwner{ownerMerge, ownerRecord, ownerDraft, ownerPost, ownerDiscards}
+	writers := []summaryOwner{ownerMerge, ownerRecord, ownerDraft, ownerPost, ownerDiscards, ownerIntake}
 	for _, key := range section103Counts {
 		owner, named := summaryOwners[key]
 		if assert.Truef(t, named, "§10.3 requires %q and no writer is named for it", key) {
@@ -181,7 +203,10 @@ func TestEverySection103CountHasANamedWriter(t *testing.T) {
 		"round 8's unassigned-writer: `cr record` writes §3.5.4's `suppressed`")
 	assert.NotEqual(t, summaryWaived, summaryAlreadyPosted,
 		"round 8's missing-summary-count: §9.3.6's drop is a key apart from §6.4.4's")
-	assert.Equal(t, ownerMerge, summaryOwners["already_posted"])
+	assert.Equal(t, ownerIntake, summaryOwners["already_posted"],
+		"QA D-S05-3: a file handed straight to cr record is counted, so cr record writes it beside cr merge")
+	assert.Equal(t, ownerIntake, summaryOwners["raised"])
+	assert.Equal(t, ownerIntake, summaryOwners["waived"])
 	assert.Equal(t, ownerPost, summaryOwners["payload_hash"])
 	assert.Equal(t, ownerDiscards, summaryOwners["discarded_not_here"],
 		"§7.2: cr draft and cr post both store the draft's discards, so both write their counts")
@@ -373,6 +398,7 @@ func TestAWriterMustReplaceItsWholeSection(t *testing.T) {
 	err = writeSummary(held, draftRound, ownerRecord, []summaryCount{
 		{key: summaryDeduplicated, value: 1},
 		{key: summaryRecordedAt, value: time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{key: summaryRecordIntake, value: map[string]recordIntake{}},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"suppressed_by_thread"`, "the refusal names the count left out")
