@@ -251,7 +251,7 @@ func newStatusCmd(out *writer) *cobra.Command {
 			}
 			report, err := statusOf(layout, owner, repo, pr, &round)
 			if err != nil {
-				return err
+				return withRemoteMismatch(cmd, owner, repo, pr, err)
 			}
 			// A closed or merged pull request is said first, before the
 			// round is reported as though a review were still to come.
