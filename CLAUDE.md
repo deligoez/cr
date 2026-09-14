@@ -2,8 +2,8 @@
 
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
-`VISION.md` explains why this exists and what it bets on. `spec/0.1.0.md` is the
-normative v0.1 contract. This file holds the working conventions and the rules
+`VISION.md` explains why this exists and what it bets on. `spec/0.2.0.md` is the
+normative v0.2 contract. This file holds the working conventions and the rules
 that are easy to violate by accident.
 
 ## Install
@@ -411,7 +411,7 @@ package is under `internal/`, so there is no importable API to compare.
 
 ## Command surface
 
-Every command below is **implemented**. `spec/0.1.0.md` §11 is the
+Every command below is **implemented**. `spec/0.2.0.md` §11 is the
 source of truth; this table is a map, not a promise.
 
 | Command | Purpose |
@@ -439,10 +439,10 @@ source of truth; this table is a map, not a promise.
 | `cr status <pr>` | Coverage, states, and completeness |
 | `cr config [--resolved]` | Effective configuration and its layers |
 
-v0.1 ends at posting. `cr recheck`, `cr verify`, `cr resolve`, and `cr accept`
-are **not** v0.1 commands — the re-review half of the loop is v0.2, declared out
-of scope in `spec/0.1.0.md` §1.3.6. A moved head makes the round stale (§9.3);
-`cr brief` opens a new one.
+v0.2 ends at posting. `cr recheck`, `cr verify`, `cr resolve`, and `cr accept`
+are **not** v0.2 commands — the re-review half of the loop, anchor migration
+included, is v0.3, declared out of scope in `spec/0.2.0.md` §1.3.6. A moved
+head makes the round stale (§9.3); `cr brief` opens a new one.
 
 ## Project structure
 
@@ -483,6 +483,7 @@ scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known
                      mutation-run.sh, mutation-merge.py
 spec/
   0.1.0.md           Normative v0.1 contract
+  0.2.0.md           Normative v0.2 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
@@ -491,7 +492,7 @@ skills/cr/
 ```
 
 Runtime state never lives here. It lives under `~/.cr/`, laid out in
-`spec/0.1.0.md` §2.2.
+`spec/0.2.0.md` §2.2.
 
 ## Sibling codebase: tp
 
@@ -847,7 +848,7 @@ reproduce it there before fixing.
 | Suggestions | An out-of-hunk suggestion blocks posting with the record id named |
 | Posting | No network write without `--confirm`; all comments land in one review; a posted round refuses a second |
 | Unknown outcome | A 5xx or timeout exits 4; `cr draft`, `cr post --confirm` and a moved-head `cr brief` refuse until `cr post --reconcile` |
-| Moved head | `cr brief` opens a new round with open records stale; anchors are not migrated (v0.2) |
+| Moved head | `cr brief` opens a new round with open records stale; anchors are not migrated (v0.3) |
 | Dedup | A finding matching an existing human thread is suppressed |
 | Honesty | A disabled axis appears in the report with its reason |
 | Nil slices | Empty collections serialise as `[]`, never `null` |
