@@ -6,15 +6,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // probeLocks returns an initialised layout to take §5.6's locks against.
+//
+// The temporary directory the second of §5.6.1's two flocks lives in is moved
+// to one of the test's own. Those locks are shared by every process resolving
+// the same os.TempDir, so a fixed pair such as /src/acme/web held here would
+// otherwise make a second `go test` of this package on the machine wait on it.
 func probeLocks(t *testing.T) Layout {
 	t.Helper()
 	l := New(filepath.Join(t.TempDir(), ".cr"))
 	require.NoError(t, l.Init())
+	t.Setenv("TMPDIR", t.TempDir())
 	return l
 }
 
@@ -150,4 +157,133 @@ func TestTheProbeLockSaysWhatItDoesNotCover(t *testing.T) {
 	assert.Contains(t, warning, "/src/acme/web",
 		"the warning names the repository whose other runs the lock does not cover")
 	assert.Contains(t, warning, "cr's own runs only")
+}
+
+// §5.6.1 names the lock after the checkout and the profile, and what it guards
+// — the test database the profile configures — belongs to the checkout rather
+// than to the state root. So two runs on one clone under two `CR_HOME` roots
+// serialise as two runs under one root do: the second waits the whole timeout
+// and is refused with the pair it waited on, and the lock it did take under its
+// own root goes with the refusal. A second clone under the other root is not
+// held up, and once the holder releases, the other root's run proceeds.
+func TestProbeRunsSerialisePerCloneAcrossStateRoots(t *testing.T) {
+	l := probeLocks(t)
+	other := New(filepath.Join(t.TempDir(), "other-cr"))
+	require.NoError(t, other.Init())
+	const (
+		here    = "/src/acme/web"
+		profile = "laravel-pest"
+		wait    = 100 * time.Millisecond
+	)
+
+	held, err := l.LockProbe(here, profile, time.Second)
+	require.NoError(t, err)
+
+	started := time.Now()
+	second, err := other.LockProbe(here, profile, wait)
+	spent := time.Since(started)
+
+	assert.Nil(t, second)
+	var locked *ProbeLockedError
+	require.ErrorAs(t, err, &locked, "§5.6.2: a run under another state root waits for the clone's lock")
+	assert.Equal(t, ProbeLockedError{RepoPath: here, ProfileID: profile, Waited: wait}, *locked)
+	assert.GreaterOrEqual(t, spent, wait, "the refusal came after the wait, not instead of it")
+
+	under := flock.New(other.ProbeLockFile(here, profile))
+	taken, err := under.TryLock()
+	require.NoError(t, err)
+	assert.True(t, taken, "the refused run released the lock it had taken under its own state root")
+	require.NoError(t, under.Unlock())
+
+	elsewhere, err := other.LockProbe("/src/acme/api", profile, wait)
+	require.NoError(t, err, "§5.6.1: two different clones never block each other")
+	require.NoError(t, elsewhere.Unlock())
+
+	require.NoError(t, held.Unlock())
+	after, err := other.LockProbe(here, profile, wait)
+	require.NoError(t, err, "with the holder released, the run under the other root proceeds")
+	require.NoError(t, after.Unlock())
+}
+
+// The lock under the temporary directory is taken after the one under the state
+// root, never before: a run waiting on its own root's lock holds nothing a run
+// under another root could be kept waiting by. Every run taking the two in one
+// order is what keeps two runs from each holding one while waiting on the other.
+//
+// The state root's lock is held here directly, and the clone's lock is tried
+// while LockProbe is still waiting on it.
+func TestTheClonesProbeLockIsTakenAfterTheStateRootsLock(t *testing.T) {
+	l := probeLocks(t)
+	const (
+		here    = "/src/acme/web"
+		profile = "laravel-pest"
+	)
+	require.NoError(t, os.MkdirAll(filepath.Dir(l.ProbeLockFile(here, profile)), 0o700))
+	home := flock.New(l.ProbeLockFile(here, profile))
+	taken, err := home.TryLock()
+	require.NoError(t, err)
+	require.True(t, taken)
+	t.Cleanup(func() { assert.NoError(t, home.Unlock()) })
+
+	waiting := make(chan error, 1)
+	go func() {
+		_, err := l.LockProbe(here, profile, time.Second)
+		waiting <- err
+	}()
+	time.Sleep(200 * time.Millisecond)
+
+	clonePath, err := cloneLockFile(here, profile)
+	require.NoError(t, err)
+	clone := flock.New(clonePath)
+	taken, err = clone.TryLock()
+	require.NoError(t, err)
+	assert.True(t, taken, "a run waiting on its state root's lock holds no lock on the clone")
+	require.NoError(t, clone.Unlock())
+
+	var locked *ProbeLockedError
+	assert.ErrorAs(t, <-waiting, &locked)
+}
+
+// Releasing the lock releases both flocks, so a run under the same state root
+// and a run under another one each take it afterwards at once.
+func TestReleasingTheProbeLockReleasesItForEveryStateRoot(t *testing.T) {
+	l := probeLocks(t)
+	other := New(filepath.Join(t.TempDir(), "other-cr"))
+	require.NoError(t, other.Init())
+
+	held, err := l.LockProbe("/src/acme/web", "laravel-pest", time.Second)
+	require.NoError(t, err)
+	require.NoError(t, held.Unlock())
+
+	for name, layout := range map[string]Layout{"the same state root": l, "another state root": other} {
+		again, err := layout.LockProbe("/src/acme/web", "laravel-pest", 100*time.Millisecond)
+		require.NoError(t, err, name)
+		require.NoError(t, again.Unlock(), name)
+	}
+}
+
+// The clone's lock file is named by a digest of the pair, so neither half can
+// lead it out of the temporary directory, the same checkout spelled with a `..`
+// is the same lock, and two pairs whose halves join to one string are not.
+func TestTheClonesProbeLockFileStaysInTheTemporaryDirectory(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+
+	climbing, err := cloneLockFile("/src/../../../etc", "../../../x")
+	require.NoError(t, err)
+	assert.Equal(t, os.TempDir(), filepath.Dir(climbing), "no half leads the lock file out of os.TempDir")
+	assert.Regexp(t, `^cr-probe-[0-9a-f]{16}\.lock$`, filepath.Base(climbing))
+
+	cleaned, err := cloneLockFile("/src/acme/web", "laravel-pest")
+	require.NoError(t, err)
+	spelled, err := cloneLockFile("/src/acme/../acme/web", "laravel-pest")
+	require.NoError(t, err)
+	assert.Equal(t, cleaned, spelled, "one checkout is one lock however its path is spelled")
+
+	splitLate, err := cloneLockFile("/src/acme", "web/laravel-pest")
+	require.NoError(t, err)
+	assert.NotEqual(t, cleaned, splitLate, "the boundary between the halves is part of the name")
+
+	anotherProfile, err := cloneLockFile("/src/acme/web", "generic")
+	require.NoError(t, err)
+	assert.NotEqual(t, cleaned, anotherProfile, "§5.6.1: the profile id is part of the name")
 }

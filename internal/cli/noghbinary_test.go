@@ -87,6 +87,14 @@ func TestMain(m *testing.M) {
 	if err == nil {
 		err = os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
+	// §5.6.1's second probe lock is a file under os.TempDir named for each
+	// clone and profile, and it is kept on release. Every fixture here is a
+	// clone of its own, so without this each run of the package would leave
+	// its lock files in the machine's temporary directory for good; under the
+	// fence's directory they go when it does.
+	if err == nil {
+		err = os.Setenv("TMPDIR", dir)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cannot install the gh and tracker fences, so a test could reach GitHub or a tracker:", err)
 		os.Exit(1)

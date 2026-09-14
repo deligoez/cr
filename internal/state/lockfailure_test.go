@@ -168,8 +168,7 @@ func TestAProbeLockOutsideTheProbeLocksDirectoryIsRefused(t *testing.T) {
 // are not refused, however deep the path: the boundary is the directory, not
 // the shape of the halves.
 func TestAProbeLockInsideTheProbeLocksDirectoryIsTaken(t *testing.T) {
-	l := New(filepath.Join(t.TempDir(), ".cr"))
-	require.NoError(t, l.Init())
+	l := probeLocks(t)
 
 	held, err := l.LockProbe("/src/acme/../acme/web", "laravel-pest", time.Second)
 
