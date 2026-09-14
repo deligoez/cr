@@ -24,7 +24,8 @@ type ClaimDrift struct {
 	// extracted.
 	ExtractedHash string `json:"extracted_hash"`
 	// SpanOccurs reports whether the claim's `span` still occurs in the
-	// issue text as it now reads. It is asked of every claim rather than
+	// issue text as it now reads, or, for a claim drawn from a note, whether
+	// it is still that note's body. It is asked of every claim rather than
 	// only of the drifted ones, and it can be false while the hashes agree:
 	// §1.4 normalises before hashing, and §3.3 calls a span the verbatim
 	// substring of its source, so a change to whitespace alone leaves the
@@ -84,21 +85,29 @@ type Drift struct {
 // agree; where they do not, this one reports what each claim actually says
 // instead of picking a winner and calling the rest agreed.
 //
-// The occurrence test is SpanOccursIn, the same predicate §3.3.1 rejects a
-// claim by. Two readings of "occurs" could disagree, and the disagreement would
-// be silent in the worst direction: a claim recorded under one reading and
-// reported stale under the other.
-func DetectDrift(claims iter.Seq[Claim], issueText string) (Drift, error) {
-	current, err := text.NormalisedHash(issueText)
+// The occurrence test is the rule §3.3 recorded the claim under, chosen by its
+// `source` the way `cr claims record` chooses it: SpanOccursIn over the issue
+// text as it now reads, or, for a claim drawn from a note, whether its span is
+// still the body of the note it names in spans.Notes. A note claim's span never
+// came from the issue, so asking the issue for it would report a claim resting
+// on a note that stands as one whose span has gone. Two readings of "occurs"
+// could disagree, and the disagreement would be silent in the worst direction:
+// a claim recorded under one reading and reported stale under the other.
+func DetectDrift(claims iter.Seq[Claim], spans SpanTexts) (Drift, error) {
+	current, err := text.NormalisedHash(spans.Issue)
 	if err != nil {
 		return Drift{}, fmt.Errorf("hashing the issue text: %w", err)
 	}
 	drift := Drift{Hash: current, Claims: make([]ClaimDrift, 0)}
 	for claim := range claims {
+		occurs, err := spans.stillHolds(&claim)
+		if err != nil {
+			return Drift{}, err
+		}
 		reported := ClaimDrift{
 			ID:            claim.ID,
 			ExtractedHash: claim.IssueHash,
-			SpanOccurs:    SpanOccursIn(issueText, claim.Span),
+			SpanOccurs:    occurs,
 		}
 		drift.Drifted = drift.Drifted || reported.Drifted(current)
 		drift.Claims = append(drift.Claims, reported)

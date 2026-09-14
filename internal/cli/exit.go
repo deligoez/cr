@@ -531,6 +531,11 @@ var codes = []mapped{
 	// retraction, which §11.2 codes 1 alongside note.NoIssueKeyError.
 	{is[*note.UnknownNoteError](), ExitValidation,
 		"`cr context <ISSUE-KEY>` lists the notes and their ids"},
+	// §4.1.8's set-aside naming a note §3.6.6 retracted. The note exists and
+	// the store read without trouble; what fails is a set-aside that could
+	// not settle the claim, which §11.2 codes 1 beside the unknown note.
+	{is[*RetractedSetAsideNoteError](), ExitValidation,
+		"record why the claim is out of scope with `cr note`, then set it aside on that note's id"},
 	// §7.4.7 removes a waiver by id, and the id names its own file. An id
 	// spelled the way cr spells one that the file does not hold is the
 	// retraction above's fault in the other store: the invocation is right

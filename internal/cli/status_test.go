@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -112,6 +114,14 @@ func writeStatusRound(t *testing.T, layout state.Layout, head string) {
 			`"head":"`+head+`","round":1}`+"\n"+
 			`{"claim":"`+fixtureIssue+`#c3","set_aside_note":"","head":"`+head+`","round":1}`+"\n")))
 	require.NoError(t, held.Unlock())
+	// The note #c2 is set aside on, recorded and standing: §4.1.8 refuses a
+	// set-aside on a note the store does not hold, and §10.2.3 counts one
+	// only while its note stands. The time is fixed so two homes built by
+	// this fixture hold the same store.
+	aside, err := note.Append(layout, fixtureIssue, "Retries are a follow-up issue.",
+		note.SourceChat, fixturePRNumber, time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, fixtureIssue+"#n1", aside.ID)
 }
 
 // §10.1.1 through §10.1.3, over a round holding an oversized unit, a coverage

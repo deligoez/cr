@@ -8,6 +8,7 @@ import (
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -46,10 +47,16 @@ type unstandingNote struct {
 	// `source: note` a `note_id`, and §8.1.6 discloses that provenance in
 	// the posted body.
 	Records []string `json:"records"`
+	// SetAsides are the claims whose §4.1.3 entry §4.1.8 set aside on it.
+	// §10.2.3 lets a set-aside stop an entry blocking only while its note
+	// stands, so each of these blocks completeness again until it is set
+	// aside on a note that stands or mapped.
+	SetAsides []string `json:"set_asides"`
 }
 
 // unstandingNotesOf is §3.6.6 over one round: every note this round's coverage
-// cells or records cite that no longer stands, with what rests on it.
+// cells, records or set-asides cite that no longer stands, with what rests on
+// it.
 //
 // The store is read whole, as note.StandingOf requires: an id missing from a
 // narrowed slice is reported dangling, so a store trimmed by round or by pull
@@ -58,8 +65,12 @@ type unstandingNote struct {
 //
 // A round that resolved no issue key cites no note: §3.6.1 forms every note id
 // against a key, and §4.5.5's `note_id` and §3.3.1's are ids from that store.
+//
+// gaps are the round's §4.1.3 entries as intentCoverageOf read them, handed in
+// rather than read again so intent-gaps.ndjson keeps the three readers
+// TestOnlyTheMappingTheSetAsideAndStatusNameTheIntentGaps allows it.
 func unstandingNotesOf(
-	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, gaps []mapping.Gap,
 ) ([]unstandingNote, error) {
 	report := make([]unstandingNote, 0)
 	if round.IssueKey == "" {
@@ -83,20 +94,22 @@ func unstandingNotesOf(
 	if err != nil {
 		return nil, err
 	}
-	return citedNotes(stored, cells, claims, records), nil
+	return citedNotes(stored, cells, claims, records, gaps), nil
 }
 
 // citedNotes collects one entry per note that no longer stands and that the
-// round's cells or records cite, in the order those citations were first met.
+// round's cells, records or set-asides cite, in the order those citations were
+// first met.
 //
 // A cell with no `note_id` at all is passed over rather than reported dangling.
 // §4.5.5 asks for the field only where §4.1.5's decision rests on a note, so an
 // empty one is a cell that cited nothing — which is not a citation needing
 // re-evaluation, and reporting it as one would put a line in this report for
-// every ordinary cell of the round.
+// every ordinary cell of the round. A gap entry with no `set_aside_note` is
+// passed over for the same reason.
 func citedNotes(
 	stored []note.Note, cells []coverage.Cell,
-	claims []intent.Claim, records []*finding.Finding,
+	claims []intent.Claim, records []*finding.Finding, gaps []mapping.Gap,
 ) []unstandingNote {
 	report := make([]unstandingNote, 0)
 	at := make(map[string]int)
@@ -112,7 +125,7 @@ func citedNotes(
 			at[id] = len(report)
 			report = append(report, unstandingNote{
 				Note: id, Standing: standing,
-				Cells: make([]string, 0), Records: make([]string, 0),
+				Cells: make([]string, 0), Records: make([]string, 0), SetAsides: make([]string, 0),
 			})
 		}
 		return &report[at[id]]
@@ -126,6 +139,11 @@ func citedNotes(
 	for _, record := range records {
 		if held := entry(behind[record.Claim]); held != nil {
 			held.Records = append(held.Records, record.ID)
+		}
+	}
+	for i := range gaps {
+		if held := entry(gaps[i].SetAsideNote); held != nil {
+			held.SetAsides = append(held.SetAsides, gaps[i].Claim)
 		}
 	}
 	return report
@@ -154,7 +172,8 @@ func claimNotes(claims []intent.Claim) map[string]string {
 func unstandingLine(held *unstandingNote) string {
 	return "  " + held.Note + " " + string(held.Standing) + ": " +
 		strconv.Itoa(len(held.Cells)) + " cell(s), " +
-		strconv.Itoa(len(held.Records)) + " record(s) need re-evaluation" +
+		strconv.Itoa(len(held.Records)) + " record(s), " +
+		strconv.Itoa(len(held.SetAsides)) + " set-aside(s) need re-evaluation" +
 		restingOn(held)
 }
 
@@ -162,7 +181,7 @@ func unstandingLine(held *unstandingNote) string {
 // a note this report lists with no dependant is one the round cited and then
 // stopped citing, which is worth saying without a trailing empty list.
 func restingOn(held *unstandingNote) string {
-	resting := slices.Concat(held.Cells, held.Records)
+	resting := slices.Concat(held.Cells, held.Records, held.SetAsides)
 	if len(resting) == 0 {
 		return ""
 	}

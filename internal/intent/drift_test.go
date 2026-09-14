@@ -70,7 +70,7 @@ func TestDriftReportsEachClaimAndChangesNone(t *testing.T) {
 	stored := extracted(t)
 	before := asStored(t, stored)
 
-	drift, err := DetectDrift(slices.Values(stored), issueAfter)
+	drift, err := DetectDrift(slices.Values(stored), SpanTexts{Issue: issueAfter})
 	require.NoError(t, err)
 
 	after, err := text.NormalisedHash(issueAfter)
@@ -106,7 +106,7 @@ func TestAnUnmovedIssueTextReportsNoDrift(t *testing.T) {
 	stored := extracted(t)
 	before := asStored(t, stored)
 
-	drift, err := DetectDrift(slices.Values(stored), issueBefore)
+	drift, err := DetectDrift(slices.Values(stored), SpanTexts{Issue: issueBefore})
 	require.NoError(t, err)
 
 	assert.False(t, drift.Drifted, "the stored issue_hash and the fresh one agree")
@@ -139,7 +139,7 @@ func TestASpanCanGoWhileTheHashStandsStill(t *testing.T) {
 	spaced := "The upload retries on a 5xx response.\n" +
 		"The upload is abandoned after  five attempts.\n"
 
-	drift, err := DetectDrift(slices.Values(stored), spaced)
+	drift, err := DetectDrift(slices.Values(stored), SpanTexts{Issue: spaced})
 	require.NoError(t, err)
 
 	assert.False(t, drift.Drifted,

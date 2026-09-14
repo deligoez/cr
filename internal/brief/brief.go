@@ -268,15 +268,17 @@ func assemble(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
-	// §3.3.3's comparison runs on every round, over the claims already
-	// recorded and the issue text as it now reads. It reports and never
-	// re-extracts, which is a property of intent.DetectDrift's signature
-	// rather than a rule remembered here.
-	drift, err := intent.DetectDrift(slices.Values(claims), resolved.Text)
+	notes, err := notesOf(src, resolved.Key.Value)
 	if err != nil {
 		return nil, err
 	}
-	notes, err := notesOf(src, resolved.Key.Value)
+	// §3.3.3's comparison runs on every round, over the claims already
+	// recorded, the issue text as it now reads, and the notes a claim drawn
+	// from the store is checked against instead. It reports and never
+	// re-extracts, which is a property of intent.DetectDrift's signature
+	// rather than a rule remembered here.
+	drift, err := intent.DetectDrift(slices.Values(claims),
+		intent.SpanTexts{Issue: resolved.Text, Notes: notes})
 	if err != nil {
 		return nil, err
 	}

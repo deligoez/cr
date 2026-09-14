@@ -179,7 +179,7 @@ func TestRoundTwoSeesNoneOfRoundOnesRecordsWhileTheExemptionsLoad(t *testing.T) 
 	assert.Len(t, waivers, 1, "§7.4's waivers apply across rounds")
 	notes, err := note.Load(layout, fixtureIssue)
 	require.NoError(t, err)
-	assert.Len(t, notes, 1, "§3.6's context store applies across rounds")
+	assert.Len(t, notes, 2, "§3.6's context store applies across rounds: statusHome's note and this round's")
 	posted, err := state.ReadRecords[finding.WaiverKey](
 		layout, fixtureOwner, fixtureProject, fixturePRNumber, state.FilePostedIndex)
 	require.NoError(t, err)

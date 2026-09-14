@@ -14,6 +14,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/mapping"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
@@ -252,7 +253,7 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
-	covered, unsettled, err := intentCoverageOf(l, owner, repo, pr, round.Round)
+	covered, unsettled, err := intentCoverageOf(l, owner, repo, pr, &round.Meta)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +270,7 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
-	unstanding, err := unstandingNotesOf(l, owner, repo, pr, &round.Meta)
+	unstanding, err := unstandingNotesOf(l, owner, repo, pr, &round.Meta, covered.Gaps)
 	if err != nil {
 		return nil, err
 	}
@@ -349,10 +350,12 @@ func statusHonesty(
 // §10.2.3's set comes back from here rather than from a reader of its own
 // because it is settled by the same three files, read once: a second reader
 // could report a claim mapped in §10.1.2 and blocking in §10.2 out of the same
-// round.
+// round. The issue key's notes are read beside them, because a set-aside
+// settles an entry only while the note it rests on stands.
 func intentCoverageOf(
-	l state.Layout, owner, repo string, pr, round int,
+	l state.Layout, owner, repo string, pr int, meta *state.Meta,
 ) (intentCoverage, []string, error) {
+	round := meta.Round
 	claims, err := roundClaimIDs(l, owner, repo, pr, round)
 	if err != nil {
 		return intentCoverage{}, nil, err
@@ -365,6 +368,12 @@ func intentCoverageOf(
 	if err != nil {
 		return intentCoverage{}, nil, err
 	}
+	notes := make([]note.Note, 0)
+	if meta.IssueKey != "" {
+		if notes, err = note.Load(l, meta.IssueKey); err != nil {
+			return intentCoverage{}, nil, err
+		}
+	}
 	report := intentCoverage{Claims: len(claims), Gaps: make([]mapping.Gap, 0, len(stored))}
 	for i := range stored {
 		report.Gaps = append(report.Gaps, stored[i])
@@ -374,7 +383,7 @@ func intentCoverageOf(
 	}
 	mapped := mappedSet(pairs, round)
 	report.Mapped = mappedClaims(claims, mapped)
-	return report, unsettledClaims(claims, mapped, stored), nil
+	return report, unsettledClaims(claims, mapped, stored, notes), nil
 }
 
 // mappedSet is which of the round's claims its mapping maps to at least one
@@ -407,7 +416,8 @@ func mappedClaims(claims []string, mapped map[string]bool) int {
 }
 
 // unsettledClaims is §10.2.3's blocking set: the round's claims that its
-// mapping maps to no unit and that §4.1.8 has not set aside.
+// mapping maps to no unit and that §4.1.8 has not set aside on a note that
+// still stands.
 //
 // Both halves are read, and neither is inferred from the other. §10.2.3 asks
 // first that every claim be mapped, so a claim no pair names blocks whether or
@@ -415,11 +425,14 @@ func mappedClaims(claims []string, mapped map[string]bool) int {
 // recorded has no entries at all, and a set derived from the entries alone
 // would report it settled. And §4.1.8's stamp is what stops an entry blocking,
 // so a claim carrying one is out of the set however little of it is
-// implemented.
-func unsettledClaims(claims []string, mapped map[string]bool, gaps []mapping.Gap) []string {
+// implemented — while its note stands. §3.6.6 has what rests on a retracted
+// note re-evaluated rather than silently retained, so a set-aside on one blocks
+// again, and `cr status` names it under the note in its §3.6.6 report. notes
+// MUST be the issue key's whole store, for the reason note.StandingOf gives.
+func unsettledClaims(claims []string, mapped map[string]bool, gaps []mapping.Gap, notes []note.Note) []string {
 	aside := make(map[string]bool, len(gaps))
 	for i := range gaps {
-		if gaps[i].SetAsideNote != "" {
+		if gaps[i].SetAsideNote != "" && note.StandingOf(notes, gaps[i].SetAsideNote).Stands() {
 			aside[gaps[i].Claim] = true
 		}
 	}

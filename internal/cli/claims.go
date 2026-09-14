@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -32,6 +33,12 @@ type claimsRecordResult struct {
 	// the difference between a run that replaced this round's claims and
 	// one that would have replaced the whole file.
 	Round int `json:"round"`
+	// DroppedSetAsides are the §4.1.8 stamps the round's intent-gaps.ndjson
+	// carried and this run cleared with it, in the shape and for the reason
+	// `cr map record` reports its own: a set-aside is the agent's judgement,
+	// and the entry that held it is gone once the run ends, so this is the
+	// only place its loss can be stated.
+	DroppedSetAsides []mapping.DroppedSetAside `json:"dropped_set_asides"`
 }
 
 // Text names how many claims were stored, the round they stand in, and the
@@ -41,10 +48,19 @@ type claimsRecordResult struct {
 // The cleared mapping is named because nothing else says it happened. §3.3.1
 // clears mapping.ndjson as part of recording claims, and a caller that had
 // recorded a mapping is entitled to learn from this command that it is gone
-// rather than from the next one that finds none.
+// rather than from the next one that finds none. A cleared set-aside is named
+// by its claim for the same reason, as `cr map record` names the ones it drops.
 func (r *claimsRecordResult) Text(w *writer) string {
-	return "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
+	line := "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
 		" claim(s) in round " + strconv.Itoa(r.Round) + "; mapping cleared"
+	if len(r.DroppedSetAsides) == 0 {
+		return line
+	}
+	claims := make([]string, 0, len(r.DroppedSetAsides))
+	for _, drop := range r.DroppedSetAsides {
+		claims = append(claims, drop.Claim)
+	}
+	return line + "; dropped the set-aside of " + w.accent(strings.Join(claims, ", "))
 }
 
 // newClaimsCmd groups the claim commands of §11. It runs nothing itself, so an
@@ -157,6 +173,23 @@ func (r *claimsSetAsideResult) Text(w *writer) string {
 		" on note " + r.Note
 }
 
+// RetractedSetAsideNoteError is `cr claims set-aside` naming a note §3.6.6 has
+// retracted. The id names a note the store holds and the entry may well exist,
+// so neither the invocation nor the state is wrong; what fails is the set-aside
+// itself, which could not settle the claim, and §11.2 codes that 1 beside
+// note.UnknownNoteError.
+type RetractedSetAsideNoteError struct {
+	// Claim is the claim id the set-aside was asked for.
+	Claim string
+	// Note is the retracted note id it was asked to rest on.
+	Note string
+}
+
+func (e *RetractedSetAsideNoteError) Error() string {
+	return "note " + e.Note + " is retracted, per §3.6.6, so it cannot set " + e.Claim +
+		" aside: §10.2.3 counts a set-aside only while its note stands"
+}
+
 // stampSetAside is §4.1.8's check and its write.
 //
 // The note is checked before the lock is taken and the entry before anything is
@@ -165,15 +198,14 @@ func (r *claimsSetAsideResult) Text(w *writer) string {
 // intent-gaps.ndjson would have rewritten the round's entries on the strength
 // of a command the caller is about to retype.
 //
-// Existence is the whole of the check, because it is the whole of what §4.1.8
-// asks for — "after checking the note exists for the PR's issue key". The store
-// is the issue key's, loaded whole: §3.6.4 gives every round the same notes and
-// §9.3.5 exempts the store from round scoping, so a slice narrowed by round or
-// by pull request would report a note somebody recorded as one that does not
-// exist. Whether the note still stands is a different question, and §3.6.6
-// spells its consequence for a record citing a note rather than for this stamp;
-// answering it here would be cr judging a set-aside, which §4.1.8 reserves for
-// the agent.
+// §4.1.8 asks that the note exist for the PR's issue key, and a note §3.6.6 has
+// already retracted is refused too: `cr status` reports a set-aside resting on a
+// retracted note as needing re-evaluation and lets it block completeness again,
+// so stamping one would record a decision already known not to settle anything.
+// The store is the issue key's, loaded whole: §3.6.4 gives every round the same
+// notes and §9.3.5 exempts the store from round scoping, so a slice narrowed by
+// round or by pull request would report a note somebody recorded as one that
+// does not exist.
 func stampSetAside(l state.Layout, round *state.Round, claim, noteID string) error {
 	// The key is settled before the store is opened, not after: §2.2 puts
 	// the store at context/<ISSUE-KEY>.ndjson, so a load under no key names
@@ -185,8 +217,11 @@ func stampSetAside(l state.Layout, round *state.Round, claim, noteID string) err
 	if err != nil {
 		return err
 	}
-	if note.StandingOf(notes, noteID) == note.StandingDangling {
+	switch note.StandingOf(notes, noteID) {
+	case note.StandingDangling:
 		return &note.UnknownNoteError{ID: noteID, IssueKey: round.IssueKey}
+	case note.StandingRetracted:
+		return &RetractedSetAsideNoteError{Claim: claim, Note: noteID}
 	}
 	recorded, err := state.ReadStamped[mapping.Gap](
 		l, round.Owner, round.Repo, round.PR, state.FileIntentGaps, round.Round)
@@ -307,8 +342,8 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			stamp := state.Stamp{Head: recorded.Head, Round: recorded.Round}
-			if err := storeClaims(held, stamp, claims); err != nil {
+			dropped, err := storeClaims(layout, held, &recorded.Meta, claims)
+			if err != nil {
 				// The lock is released on the way out of every
 				// branch, and the write's own failure is what
 				// the caller is told about.
@@ -318,7 +353,9 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err := held.Unlock(); err != nil {
 				return err
 			}
-			return out.emit(&claimsRecordResult{Recorded: claims, Round: recorded.Round})
+			return out.emit(&claimsRecordResult{
+				Recorded: claims, Round: recorded.Round, DroppedSetAsides: dropped,
+			})
 		},
 	}
 	cmd.Flags().StringVar(&intentFile, "intent-file", "",
@@ -344,17 +381,32 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 // unblocks `cr review` over no mapping and the other reports gaps of a claim set
 // that is gone. The stamp is cleared first, so a run that fails part way leaves
 // a round §4.6.5 refuses rather than one it unblocks.
-func storeClaims(k *state.Lock, at state.Stamp, claims []*intent.Claim) error {
+//
+// Clearing the entries clears every §4.1.8 set-aside they carried, and those
+// are returned the way `cr map record` returns the ones its derivation drops:
+// mapping.Gaps over no claim raises no entry, so every stamp the round recorded
+// is one this run lost. They are read under the same hold, so no set-aside can
+// land between the read and the clear and vanish unreported.
+func storeClaims(
+	l state.Layout, k *state.Lock, round *state.Meta, claims []*intent.Claim,
+) ([]mapping.DroppedSetAside, error) {
+	at := state.Stamp{Head: round.Head, Round: round.Round}
+	recorded, err := state.ReadStamped[mapping.Gap](
+		l, round.Owner, round.Repo, round.PR, state.FileIntentGaps, at.Round)
+	if err != nil {
+		return nil, err
+	}
+	_, dropped := mapping.Gaps([]string{}, nil, at.Round, recorded)
 	if err := k.ClearMapping(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := state.ReplaceStamped(k, state.FileClaims, at, claims); err != nil {
-		return err
+		return nil, err
 	}
 	if err := state.ClearStamped(k, state.FileMapping, at.Round); err != nil {
-		return err
+		return nil, err
 	}
-	return state.ClearStamped(k, state.FileIntentGaps, at.Round)
+	return dropped, state.ClearStamped(k, state.FileIntentGaps, at.Round)
 }
 
 // intentSource is §3.1's choice of where one run's issue text comes from,

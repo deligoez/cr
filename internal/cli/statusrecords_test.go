@@ -307,7 +307,7 @@ func TestTheStatusTextCarriesTheRecordCountsAndTheRetractedNotes(t *testing.T) {
 		"  by grade: probed 1, cited 2, argued 2",
 		"probes: 2 run, 1 standing behind a graded record",
 		"notes no longer standing, per §3.6.6: 1",
-		retracted + " retracted: 1 cell(s), 1 record(s) need re-evaluation " +
+		retracted + " retracted: 1 cell(s), 1 record(s), 0 set-aside(s) need re-evaluation " +
 			"(u1/intent-coverage, f5)",
 		"2 finding(s) dropped by 2 active waiver(s), per §6.4.4",
 		"1 record(s) suppressed as duplicates across 1 anchored line(s), per §6.4.3",

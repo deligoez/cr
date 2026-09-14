@@ -114,6 +114,25 @@ func spanIsBody(body, span string) (bool, error) {
 	return normalBody == normalSpan, nil
 }
 
+// stillHolds is §3.3.3's per-claim question, asked of the texts as they now
+// read and under the rule `cr claims record` held the claim to: a claim drawn
+// from the issue text is asked whether its span still occurs there, and a claim
+// drawn from a note whether its span is still the body of the note it names.
+//
+// A note the store no longer holds cannot hold the span, so that claim answers
+// false. A retracted note still holds its body — §3.6.6 marks it rather than
+// erasing it — and its consequence is §3.6.6's report, not this one.
+func (s SpanTexts) stillHolds(claim *Claim) (bool, error) {
+	if claim.Source != ClaimFromNote {
+		return SpanOccursIn(s.Issue, claim.Span), nil
+	}
+	named, held := note.Find(s.Notes, claim.NoteID)
+	if !held {
+		return false, nil
+	}
+	return spanSource{text: named.Text, whole: true}.holds(claim.Span)
+}
+
 // span holds one claim to §3.3.1's occurrence rule or to §3.3.2's, whichever
 // its `source` selects, and to exactly one of them.
 func (c claimChecker) span(line int, claim *Claim) error {
