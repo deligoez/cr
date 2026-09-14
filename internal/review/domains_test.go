@@ -66,8 +66,8 @@ func asStrings[T ~string](values []T) []string {
 func anchorKeys() []string {
 	anchor := reflect.TypeFor[finding.Anchor]()
 	keys := make([]string, 0, anchor.NumField())
-	for i := range anchor.NumField() {
-		name, _, _ := strings.Cut(anchor.Field(i).Tag.Get("json"), ",")
+	for field := range anchor.Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 		keys = append(keys, name)
 	}
 	return keys

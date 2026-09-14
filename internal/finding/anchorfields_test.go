@@ -15,8 +15,8 @@ import (
 func TestAnchorFieldsNameEveryKeyAnAnchorDecodes(t *testing.T) {
 	anchor := reflect.TypeFor[Anchor]()
 	decoded := make([]string, 0, anchor.NumField())
-	for i := range anchor.NumField() {
-		name, _, _ := strings.Cut(anchor.Field(i).Tag.Get("json"), ",")
+	for field := range anchor.Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 		decoded = append(decoded, name)
 	}
 	named := make([]string, 0, len(decoded))
