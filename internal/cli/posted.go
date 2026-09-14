@@ -192,11 +192,16 @@ func writePosted(
 // It is appended after the network write has returned, beside the thread ids:
 // an entry written before the call would suppress next round's finding about a
 // comment the author never got.
-func recordPostedIndex(l state.Layout, round *state.Meta, records []*finding.Finding) error {
+//
+// review is the node id of the review the records reached the author in, which
+// every entry carries.
+func recordPostedIndex(
+	l state.Layout, round *state.Meta, records []*finding.Finding, review string,
+) error {
 	owner, repo, pr := round.Owner, round.Repo, round.PR
 	entries := make([]finding.PostedEntry, 0, len(records))
 	for _, record := range records {
-		entries = append(entries, finding.PostedEntryFor(record))
+		entries = append(entries, finding.PostedEntryFor(record, review))
 	}
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {

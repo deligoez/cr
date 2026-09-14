@@ -32,8 +32,8 @@ func briefingShim(t *testing.T, review *post.Review, head, base string) *ghShimT
 		"repository": map[string]any{"pullRequest": map[string]any{
 			"reviews": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
-				"nodes": []map[string]string{
-					{"id": adoptedReviewID, "url": adoptedReviewURL, "body": review.Body},
+				"nodes": []map[string]any{
+					reviewNode(adoptedReviewID, adoptedReviewURL, draftHead, review.Body),
 				},
 			},
 		}},

@@ -81,6 +81,7 @@ func TestAFailedWriteAfterTheCallDoesNotLetTheRoundPostTwice(t *testing.T) {
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 				"nodes": []gh.Review{{
 					ID: "PRR_shim", URL: "https://example.invalid/review", Body: built.Body,
+					Commit: gh.ReviewCommit{OID: draftHead},
 				}},
 			},
 		}},

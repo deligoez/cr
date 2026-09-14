@@ -39,7 +39,7 @@ func TestAFindingPostedInRoundOneIsDroppedInRoundTwo(t *testing.T) {
 	posted.Round, posted.Head = draftRound, draftHead
 
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}))
+		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}, createdReviewID))
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestThePostedIndexIsReadAcrossRoundsAndAcrossHeads(t *testing.T) {
 	posted := aStoredRecord("f1", finding.StatePosted)
 	posted.Round, posted.Head = draftRound, draftHead
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}))
+		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}, createdReviewID))
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
@@ -112,9 +112,9 @@ func TestThePostedIndexHoldsOneEntryPerKey(t *testing.T) {
 	second.Round, second.Head = draftRound+1, "9a8b7c6"
 
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{first}))
+		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{first}, createdReviewID))
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound+1, "9a8b7c6"), []*finding.Finding{second}))
+		layout, aPostingRound(draftRound+1, "9a8b7c6"), []*finding.Finding{second}, createdReviewID))
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)

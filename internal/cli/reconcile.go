@@ -24,12 +24,17 @@ import (
 type reconcileResult struct {
 	// Round is the round whose payload was matched.
 	Round int `json:"round"`
-	// PayloadHash is §8.4.3's hash of that payload, empty when there was
-	// no posting to reconcile.
+	// PayloadHash is §8.4.3's hash of that payload. On a round with no
+	// posting to reconcile it is the hash the round summary records the
+	// round as posted under, and empty when the round was never posted.
 	PayloadHash string `json:"payload_hash"`
 	// Adopted is the url of the review that carried the hash, and empty
 	// when no review did.
 	Adopted string `json:"adopted"`
+	// NotAdopted are the reviews that carried the hash and are not this
+	// round's, each with the reason, in the order GitHub lists them. It is
+	// empty and never nil.
+	NotAdopted []notAdopted `json:"not_adopted"`
 	// Records are the records the adoption moved to `posted`, in payload
 	// order. It is empty and never nil.
 	//
@@ -45,20 +50,41 @@ type reconcileResult struct {
 	// refusal and exempts it from nothing else, so the report is still
 	// owed.
 	Honesty []string `json:"honesty"`
+	// reconciled says the round carried `post_unresolved`, so the reviews
+	// were listed and matched.
+	reconciled bool
 }
 
-// Text says what the run settled, then the disclosure.
+// notAdopted is one review that carried the round's payload hash and was not
+// adopted: the url a reader can open, and why it is not this round's review.
+type notAdopted struct {
+	// Review is the review's url.
+	Review string `json:"review"`
+	// Reason says why the review is not this round's.
+	Reason string `json:"reason"`
+}
+
+// Text says what the run settled, then each review that carried the hash and
+// was not adopted, then the disclosure.
 func (r *reconcileResult) Text(w *writer) string {
 	text := ""
+	round := strconv.Itoa(r.Round)
 	switch {
-	case r.PayloadHash == "":
-		text = "round " + strconv.Itoa(r.Round) + " has no unresolved posting to reconcile\n"
+	case !r.reconciled && r.PayloadHash == "":
+		text = "round " + round + " has no unresolved posting to reconcile\n"
+	case !r.reconciled:
+		text = "round " + round + " has no unresolved posting to reconcile: it is posted under payload hash " +
+			w.accent(r.PayloadHash) + "\n"
 	case r.Adopted == "":
-		text = "no review carries payload hash " + w.accent(r.PayloadHash) +
+		text = "no review of round " + round + " carries payload hash " + w.accent(r.PayloadHash) +
 			", so post_unresolved is cleared and the round may be posted again\n"
 	default:
-		text = "adopted " + w.accent(r.Adopted) + " as round " + strconv.Itoa(r.Round) +
+		text = "adopted " + w.accent(r.Adopted) + " as round " + round +
 			"'s review: " + strconv.Itoa(len(r.Records)) + " record(s) are posted\n"
+	}
+	for _, skipped := range r.NotAdopted {
+		text += "review " + w.accent(skipped.Review) + " carries payload hash " + r.PayloadHash +
+			" and was not adopted: " + skipped.Reason + "\n"
 	}
 	return text + w.disclose("", "\n", r.Honesty...)
 }
@@ -80,9 +106,19 @@ func (r *reconcileResult) Text(w *writer) string {
 func reconcilePost(out *writer, l state.Layout, round *state.Round) error {
 	result := &reconcileResult{
 		Round: round.Round, Unresolved: round.PostUnresolved,
-		Records: make([]string, 0), Honesty: []string{round.Disclosure()},
+		Records: make([]string, 0), NotAdopted: make([]notAdopted, 0),
+		Honesty: []string{round.Disclosure()}, reconciled: round.PostUnresolved,
 	}
 	if !round.PostUnresolved {
+		// The hash a posted round's summary holds, which writeAdopted
+		// records for a created and an adopted review alike, so the
+		// report does not read as a round with no payload.
+		hash, _, err := state.ReadRoundSection[string](
+			l, round.Owner, round.Repo, round.PR, round.Round, state.FileSummary, summaryPayloadHash)
+		if err != nil {
+			return err
+		}
+		result.PayloadHash = hash
 		return out.emit(result)
 	}
 	sent, err := postedPayload(l, &round.Meta)
@@ -92,10 +128,11 @@ func reconcilePost(out *writer, l state.Layout, round *state.Round) error {
 	if result.PayloadHash, err = sent.Hash(); err != nil {
 		return err
 	}
-	adopted, err := reviewCarrying(&round.Meta, result.PayloadHash)
+	adopted, skipped, err := reviewCarrying(l, &round.Meta, result.PayloadHash)
 	if err != nil {
 		return err
 	}
+	result.NotAdopted = skipped
 	if adopted == nil {
 		if err := setPostUnresolved(l, &round.Meta, false); err != nil {
 			return err
@@ -169,24 +206,66 @@ func postedPayload(l state.Layout, round *state.Meta) (*post.Sent, error) {
 }
 
 // reviewCarrying is §8.4.4's match: the pull request's review whose body embeds
-// hash, and nil when none does. Its url names the adoption in the report, and
-// its id names the review whose threads §8.3.3's read-back takes.
+// hash and which is this round's, and nil when none is. Its url names the
+// adoption in the report, and its id names the review whose threads §8.3.3's
+// read-back takes. Every review that carried hash and was passed over is
+// answered beside it, with notThisRounds' reason, never nil.
 //
-// The first match wins and the walk stops there. Two reviews carrying one hash
-// would mean the round was posted twice already, which nothing this run does
-// can undo; adopting the earlier one is the answer that names the review the
-// author read first.
-func reviewCarrying(round *state.Meta, hash string) (*gh.Review, error) {
+// The hash alone does not make a review this round's. §8.3.3's pre-image holds
+// no head and no round, so a later round that raises the same comments at the
+// same lines hashes as an earlier round did, and the earlier round's review
+// carries the hash too. Adopting it would mark this round's records posted on
+// threads the author read a round ago, for a call that may have created
+// nothing.
+//
+// The first review that is this round's wins and the walk stops there. Two of
+// them would mean the round was posted twice already, which nothing this run
+// does can undo; adopting the earlier one is the answer that names the review
+// the author read first.
+func reviewCarrying(l state.Layout, round *state.Meta, hash string) (*gh.Review, []notAdopted, error) {
 	reviews, err := ghClient().Reviews(round.Owner, round.Repo, round.PR)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	index, err := finding.PostedIndex(l, round.Owner, round.Repo, round.PR)
+	if err != nil {
+		return nil, nil, err
+	}
+	skipped := make([]notAdopted, 0)
 	for i := range reviews {
-		if embedded, found := render.PayloadHashIn(reviews[i].Body); found && embedded == hash {
-			return &reviews[i], nil
+		if embedded, found := render.PayloadHashIn(reviews[i].Body); !found || embedded != hash {
+			continue
+		}
+		if reason := notThisRounds(round, &reviews[i], index); reason != "" {
+			skipped = append(skipped, notAdopted{Review: reviews[i].URL, Reason: reason})
+			continue
+		}
+		return &reviews[i], skipped, nil
+	}
+	return nil, skipped, nil
+}
+
+// notThisRounds says why a review carrying the round's payload hash is not the
+// round's own review, and answers empty when it is.
+//
+// A review §9.3.6's index already holds for an earlier round is that round's:
+// its records were posted in it. A review GitHub created at a commit other than
+// the round's head was not created by this round's call, which §9.3.2 sends only
+// while the pull request's head is the round's.
+func notThisRounds(round *state.Meta, review *gh.Review, index []finding.PostedEntry) string {
+	for _, entry := range index {
+		if entry.Review == review.ID && entry.Round < round.Round {
+			return fmt.Sprintf("the posted index already holds it for round %d", entry.Round)
 		}
 	}
-	return nil, nil
+	if review.Commit.OID == "" {
+		return fmt.Sprintf("GitHub names no commit for it, so it is not shown to be at round %d's head %s",
+			round.Round, round.Head)
+	}
+	if review.Commit.OID != round.Head {
+		return fmt.Sprintf("its commit %s is not round %d's head %s", review.Commit.OID, round.Round, round.Head)
+	}
+	return ""
 }
 
 // adoptAsPosted walks §9.1's `queued` → `posted` row over the records the
@@ -267,7 +346,7 @@ func adoptAsPosted(
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAdopted(l, round, records, adopted, hash, sendJournal, journal); err != nil {
+	if err := writeAdopted(l, round, records, adopted, hash, reviewID, sendJournal, journal); err != nil {
 		return nil, err
 	}
 	if err := setPostUnresolved(l, round, false); err != nil {
@@ -392,11 +471,14 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // The journals are written in the order given, under the lock the records are
 // published under: an adoption passes the confirmed send's discards ahead of
 // its own posted moves, which is the order that send's one journal holds them.
+//
+// review is the node id of the review the adopted records reached the author
+// in, which the index entries carry.
 func writeAdopted(
-	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash string,
+	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash, review string,
 	journals ...*finding.Journal,
 ) error {
-	if err := recordPostedIndex(l, round, adopted); err != nil {
+	if err := recordPostedIndex(l, round, adopted, review); err != nil {
 		return err
 	}
 	held, err := l.LockPR(round.Owner, round.Repo, round.PR)

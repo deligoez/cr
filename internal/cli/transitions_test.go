@@ -114,7 +114,7 @@ func TestAConfirmedPostLeavesOneJournalLinePerTransition(t *testing.T) {
 // carried leaves one posted line under the reconcile actor.
 func TestAReconcileAdoptLeavesOneJournalLinePerTransition(t *testing.T) {
 	layout, hash := anUnresolvedPosting(t)
-	reviewsAnswering(t, gh.Review{ID: "PRR_ours", URL: "https://example.invalid/r", Body: reviewBodyCarrying(hash)})
+	reviewsAnswering(t, gh.Review{ID: "PRR_ours", URL: "https://example.invalid/r", Body: reviewBodyCarrying(hash), Commit: gh.ReviewCommit{OID: draftHead}})
 
 	_, err := runCLIPrinting(t, "post", draftPR, "--repo", draftSlug, "--reconcile")
 	require.NoError(t, err)

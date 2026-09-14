@@ -39,18 +39,25 @@ type PostedEntry struct {
 	Round int `json:"round"`
 	// Head is the commit the posted record was anchored against.
 	Head string `json:"head"`
+	// Review is the node id of the review the record reached the author
+	// in, which is what keeps `cr post --reconcile` from adopting for a
+	// later round a review an earlier round already became. It is empty
+	// on an entry written before the field existed.
+	Review string `json:"review"`
 }
 
-// PostedEntryFor is the index entry one posted record calls for.
+// PostedEntryFor is the index entry one posted record calls for, sent in the
+// review whose node id is review.
 //
 // Both halves come off the one record, as WaiverFor takes both of a waiver's,
 // so an entry cannot end up keyed by one record and pointing at another.
-func PostedEntryFor(record *Finding) PostedEntry {
+func PostedEntryFor(record *Finding, review string) PostedEntry {
 	return PostedEntry{
 		Record:    record.ID,
 		WaiverKey: WaiverKeyOf(record),
 		Round:     record.Round,
 		Head:      record.Head,
+		Review:    review,
 	}
 }
 

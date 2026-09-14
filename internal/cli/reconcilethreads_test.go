@@ -34,8 +34,14 @@ func reconcilingShim(t *testing.T, review *post.Review) *ghShimTranscript {
 
 // reconcilingShimListing is reconcilingShim whose thread query lists the
 // threads of every review in listed rather than review's alone.
+//
+// cr's review is listed at the head meta.json names when the shim is installed,
+// which is the commit GitHub creates a review at while the pull request's head
+// is the round's.
 func reconcilingShimListing(t *testing.T, review *post.Review, listed ...listedReview) *ghShimTranscript {
 	t.Helper()
+	round, err := state.New(os.Getenv(state.HomeEnv)).ReadMeta(draftOwner, draftRepo, draftPRNum)
+	require.NoError(t, err, "the shim lists the review at the round's head, so the round is opened first")
 	dir := t.TempDir()
 	transcript := filepath.Join(dir, "transcript")
 	threads := filepath.Join(dir, "threads.json")
@@ -46,9 +52,9 @@ func reconcilingShimListing(t *testing.T, review *post.Review, listed ...listedR
 		"repository": map[string]any{"pullRequest": map[string]any{
 			"reviews": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
-				"nodes": []map[string]string{
+				"nodes": []map[string]any{
 					{"id": "PRR_other", "url": adoptedReviewURL + "0", "body": "looks good to me"},
-					{"id": adoptedReviewID, "url": adoptedReviewURL, "body": review.Body},
+					reviewNode(adoptedReviewID, adoptedReviewURL, round.Head, review.Body),
 				},
 			},
 		}},

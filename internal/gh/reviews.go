@@ -21,6 +21,17 @@ type Review struct {
 	// Body is the review's own body, which §8.4.3 embeds the payload hash
 	// in.
 	Body string `json:"body"`
+	// Commit is the commit GitHub created the review at, which tells a
+	// review posted for the round's own head from one an earlier round
+	// posted at another head with the same payload hash.
+	Commit ReviewCommit `json:"commit"`
+}
+
+// ReviewCommit is a review's commit in GitHub's own shape. Its OID is empty
+// when GitHub names no commit for the review.
+type ReviewCommit struct {
+	// OID is the commit's full object id.
+	OID string `json:"oid"`
 }
 
 // reviewPageSize is GitHub's maximum. A pull request whose reviews need a
@@ -38,7 +49,7 @@ const reviewsQuery = `query($owner:String!,$repo:String!,$number:Int!,$reviews:I
     pullRequest(number:$number){
       reviews(first:$reviews,after:$cursor){
         pageInfo{hasNextPage endCursor}
-        nodes{id url body}
+        nodes{id url body commit{oid}}
       }
     }
   }

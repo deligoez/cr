@@ -126,7 +126,8 @@ func TestTheWritesAfterThePostReportTheirOwnFailure(t *testing.T) {
 		dir := layout.PRDir(draftOwner, draftRepo, draftPRNum)
 		readOnly(t, dir)
 
-		err := recordPostedIndex(layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted})
+		err := recordPostedIndex(
+			layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}, createdReviewID)
 
 		require.Error(t, err, "§9.3.6's entry did not land, and the caller has to know")
 		assert.Contains(t, err.Error(), dir)

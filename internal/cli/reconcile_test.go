@@ -130,7 +130,7 @@ func TestAnUnresolvedPostingIsReconciledToAnAdoptAndToAClear(t *testing.T) {
 		const url = "https://github.com/acme/web/pull/7#pullrequestreview-2"
 		reviewsAnswering(t,
 			gh.Review{ID: "PRR_other", URL: "…#pullrequestreview-1", Body: "looks good to me"},
-			gh.Review{ID: "PRR_ours", URL: url, Body: reviewBodyCarrying(hash)},
+			gh.Review{ID: "PRR_ours", URL: url, Body: reviewBodyCarrying(hash), Commit: gh.ReviewCommit{OID: draftHead}},
 		)
 
 		printed, err := runCLIPrinting(t, "post", draftPR, "--repo", draftSlug, "--reconcile")
@@ -174,7 +174,7 @@ func TestAnUnresolvedPostingIsReconciledToAnAdoptAndToAClear(t *testing.T) {
 // already succeeded.
 func TestReconcilingTwiceIsHarmless(t *testing.T) {
 	layout, hash := anUnresolvedPosting(t)
-	reviewsAnswering(t, gh.Review{ID: "PRR_ours", URL: "…#2", Body: reviewBodyCarrying(hash)})
+	reviewsAnswering(t, gh.Review{ID: "PRR_ours", URL: "…#2", Body: reviewBodyCarrying(hash), Commit: gh.ReviewCommit{OID: draftHead}})
 
 	require.NoError(t, runCLI(t, "post", draftPR, "--repo", draftSlug, "--reconcile"))
 	require.NoError(t, runCLI(t, "post", draftPR, "--repo", draftSlug, "--reconcile"))

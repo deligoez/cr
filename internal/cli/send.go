@@ -136,7 +136,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 			s.round.Round, pr, err,
 		)
 	}
-	if err := s.markPosted(); err != nil {
+	if err := s.markPosted(reviewID); err != nil {
 		return err
 	}
 	if err := setPostUnresolved(s.layout, s.round, false); err != nil {
@@ -169,7 +169,10 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 // A record already in `posted` is passed over rather than moved again. §9.1
 // lists no move out of `posted`, so asking for one would refuse the whole walk
 // on the strength of an earlier run having worked.
-func (s *sending) markPosted() error {
+//
+// reviewID is the node id of the review the call created, which the index
+// entries carry.
+func (s *sending) markPosted(reviewID string) error {
 	sent := make([]*finding.Finding, 0, len(s.review.Comments))
 	for i := range s.review.Comments {
 		record := recordOf(s.records, s.review.Comments[i].Record)
@@ -190,7 +193,7 @@ func (s *sending) markPosted() error {
 	if err != nil {
 		return err
 	}
-	return writeAdopted(s.layout, s.round, s.records, sent, hash, s.journal)
+	return writeAdopted(s.layout, s.round, s.records, sent, hash, reviewID, s.journal)
 }
 
 // adoptReturnedThreads is §8.3.3's second half: posted.json updated with the
