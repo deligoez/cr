@@ -5,6 +5,7 @@ import (
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/unit"
 )
 
 // suggestRuleFixes is §2.6.2.1's generation, applied to the records `cr record`
@@ -44,11 +45,22 @@ func suggestRuleFixes(
 	// The same reading `cr rules check` makes, over the same hunks: §2.6.2.1
 	// rewrites the line a hit matched, and the matched text is what a rule
 	// ledger does not keep. Re-evaluating is pure over the diff, so a hit
-	// found here is a hit that command would report at this head.
-	hunks, err := roundHunks(owner, repo, pr, round.Head)
+	// found here is a hit that command would report at this head — which
+	// holds only while the diff is narrowed the way detectRound narrows it,
+	// to the files that formed one of the round's units per §2.6.1.1.
+	all, err := roundHunks(owner, repo, pr, round.Head)
 	if err != nil {
 		return err
 	}
+	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return err
+	}
+	units := make([]unit.Unit, 0, len(formed))
+	for i := range formed {
+		units = append(units, formed[i].Unit)
+	}
+	hunks := rule.Reviewed(all, units)
 	hits := rule.Evaluate(fixing, hunks)
 	for _, record := range records {
 		suggestOneFix(fixing, hits, hunks, record)
