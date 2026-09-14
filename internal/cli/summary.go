@@ -40,6 +40,12 @@ const (
 	// store under the same lock, so the count is the stored records'
 	// whichever of the two ran last.
 	ownerDiscards summaryOwner = "cr draft and cr post"
+	// ownerForcing is summaryForcedRecords, which has two writers for the
+	// reason ownerDiscards does: §6.3.1 forces at record time and again at
+	// draft time, and each moment stores the records it moved, so each is
+	// the only one that knows which it moved. Both write the section
+	// through keepForced.
+	ownerForcing summaryOwner = "cr record and cr draft"
 )
 
 // The keys `rounds/<n>/summary.json` holds §10.3's counts under. Three more are
@@ -98,6 +104,13 @@ const (
 	// round would fall out of the window it closes. It is written on every
 	// run with the rest of the section, so it is the latest recording.
 	summaryRecordedAt = "recorded_at"
+	// summaryForcedRecords is the ids of the round's records §6.3.1 has
+	// moved from finding to question, which §6.3.2's count per class is
+	// taken over. It is kept because the move is stored: once a record
+	// the forcing moved is in findings.ndjson it reads as a question
+	// exactly as one its role wrote as a question does, and §6.3.2 counts
+	// only the first.
+	summaryForcedRecords = "forced_records"
 )
 
 // summaryOwners is §10.3's writer list: every count the round summary holds,
@@ -117,6 +130,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryDeduplicated:       ownerRecord,
 	summarySuppressedByThread: ownerRecord,
 	summaryRecordedAt:         ownerRecord,
+	summaryForcedRecords:      ownerForcing,
 	summaryForcedToQuestion:   ownerDraft,
 	summaryForcedByRetraction: ownerDraft,
 	summaryNewClasses:         ownerDraft,
@@ -178,6 +192,36 @@ func discardCounts(records []*finding.Finding) []summaryCount {
 		{key: summaryDiscardedNotHere, value: notHere},
 		{key: summaryDiscardedWrong, value: wrong},
 	}
+}
+
+// forcedRecords is the round's summaryForcedRecords: the ids an earlier moment
+// of §6.3.1 moved, and none for a round no command has kept any for. The read
+// takes no lock, per §2.3.2.
+func forcedRecords(l state.Layout, round *state.Meta) ([]string, error) {
+	kept, _, err := state.ReadRoundSection[[]string](
+		l, round.Owner, round.Repo, round.PR, round.Round, state.FileSummary, summaryForcedRecords)
+	return kept, err
+}
+
+// keepForced is ownerForcing's section: the ids the round's forcing has moved,
+// the ones moved this run joined to the ones already kept, sorted and without
+// repeats.
+//
+// The kept ids are read again here, under the caller's lock, rather than taken
+// from the read the run counted with. A section is replaced whole, so an id
+// another run kept between that read and this write would otherwise be dropped,
+// and the record it names would stop being counted as forced.
+func keepForced(held *state.Lock, l state.Layout, round *state.Meta, moved []string) error {
+	kept, err := forcedRecords(l, round)
+	if err != nil {
+		return err
+	}
+	ids := make([]string, 0, len(kept)+len(moved))
+	ids = append(append(ids, kept...), moved...)
+	slices.Sort(ids)
+	return writeSummary(held, round.Round, ownerForcing, []summaryCount{
+		{key: summaryForcedRecords, value: slices.Compact(ids)},
+	})
 }
 
 // writeSummary replaces owner's whole share of the round's summary.json and

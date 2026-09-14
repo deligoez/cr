@@ -186,19 +186,27 @@ func gradingGap(gap *probe.Record, meta *state.Meta) *probe.Record {
 	return gap
 }
 
-// namedClaim is how a record's `claim` field is said in a refusal: the id when
-// it has one, and the absence itself when it does not.
+// unjoinedClaim is §5.4.4's second condition unmet, said of one record: the
+// record, the claim it names or that it names none, and its unit, in one
+// sentence.
 //
 // The two are different faults and read differently. A record naming a claim
 // the mapping does not join to its unit is one the agent can fix by mapping or
 // by re-filing; a record naming no claim at all never met §5.4.4's condition in
 // the first place, and a message that said the mapping lacked "" would send the
-// reader to the wrong file.
-func namedClaim(claim string) string {
-	if claim == "" {
-		return "the claim the record does not name"
+// reader to the wrong file. Release QA read the absence spliced into the
+// claim's place as "does not join the claim the record does not name to unit
+// u3", so each case is a sentence of its own rather than a phrase substituted
+// into one.
+func unjoinedClaim(record *finding.Finding) string {
+	if record.Claim == "" {
+		return fmt.Sprintf(
+			"record %s names no claim for this round's mapping.ndjson to join to unit %s, "+
+				"so §5.4.4's second condition is unmet", record.ID, record.Unit)
 	}
-	return "claim " + claim
+	return fmt.Sprintf(
+		"this round's mapping.ndjson does not join claim %s, which record %s names, "+
+			"to unit %s, so §5.4.4's second condition is unmet", record.Claim, record.ID, record.Unit)
 }
 
 // answerGapSupport is §5.4.4 and §5.4.5 over one record and the gap probe it
@@ -277,9 +285,7 @@ func failedGapSupport(
 	}
 	claim := probe.MapClaim(pairs, round, record.Claim, record.Unit)
 	if !probe.Supports(gap, baseline, claim) {
-		return false, true, fmt.Sprintf(
-			"this round's mapping.ndjson does not join %s to unit %s, so §5.4.4's second "+
-				"condition is unmet", namedClaim(record.Claim), record.Unit)
+		return false, true, unjoinedClaim(record)
 	}
 	return true, false, fmt.Sprintf(
 		"the baseline run %s passed per §5.2.5 and claim %s is mapped to unit %s, so §5.4.4 "+

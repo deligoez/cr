@@ -28,7 +28,7 @@ func TestTheForcingIsReportedWithACountPerClass(t *testing.T) {
 		classed("unchecked-error"),
 	}
 
-	forced := ForceQuestions(records)
+	forced, _ := ForceQuestions(records, nil)
 
 	assert.Equal(t, Forcings{
 		{Class: "naming-drift", Count: 1},
@@ -40,22 +40,31 @@ func TestTheForcingIsReportedWithACountPerClass(t *testing.T) {
 	}
 }
 
-// The count is of the records the forcing holds, not of the moves one call
-// made.
+// The count is of the records the round's forcing moved, not of the moves one
+// call made.
 //
 // §6.3.1 applies the forcing three times, so by the second application every
 // record the first one moved is already a question and ForceQuestion reports
-// false for all of them. A report counting moves would therefore read zero at
-// draft time and again at post time — the two moments a human sees it — which
-// is the same as not reporting at all.
+// false for all of them. A report counting one call's moves would therefore
+// read zero at draft time and again at post time — the two moments a human sees
+// it — which is the same as not reporting at all. The first call's ids, handed
+// to the second, are what keep the count.
 func TestTheCountDoesNotFadeWhenTheForcingIsAppliedAgain(t *testing.T) {
 	records := []*Finding{classed("unchecked-error"), classed("naming-drift")}
+	records[0].ID, records[1].ID = "f1", "f2"
 
-	first := ForceQuestions(records)
+	first, moved := ForceQuestions(records, nil)
 	require.Equal(t, 2, first.Total())
+	assert.Equal(t, []string{"f1", "f2"}, moved, "the ids this application moved")
 
-	assert.Equal(t, first, ForceQuestions(records),
-		"§6.3.2 counts the grade §6.3 forces, at every moment it is applied")
+	again, movedAgain := ForceQuestions(records, moved)
+	assert.Equal(t, first, again,
+		"§6.3.2 counts what the round's forcing moved, at every moment it is applied")
+	assert.Empty(t, movedAgain, "and the second application moved nothing itself")
+
+	forgotten, _ := ForceQuestions(records, nil)
+	assert.Equal(t, Forcings{}, forgotten,
+		"without the earlier ids a moved record reads as one its role wrote as a question")
 }
 
 // Only the argued grade is counted, because only the argued grade is forced.
@@ -65,10 +74,35 @@ func TestOnlyTheForcedRecordsAreCounted(t *testing.T) {
 	asking := classed("naming-drift")
 	asking.Grade, asking.Kind = GradeCited, KindQuestion
 
-	forced := ForceQuestions([]*Finding{classed("unchecked-error"), asking})
+	forced, _ := ForceQuestions([]*Finding{classed("unchecked-error"), asking}, nil)
 
 	assert.Equal(t, Forcings{{Class: "unchecked-error", Count: 1}}, forced)
 	assert.Equal(t, KindQuestion, asking.Kind, "and the agent's own question stands")
+}
+
+// An argued record its role already wrote as a question was not forced, so
+// §6.3.2 does not count it — release QA's unmapped-unit question, counted as
+// forced beside the two findings the forcing did move.
+func TestAnArguedQuestionItsRoleWroteIsNotCounted(t *testing.T) {
+	asserted := classed("unmapped-unit")
+	asked := classed("unmapped-unit")
+	asserted.ID, asked.ID, asked.Kind = "f1", "f2", KindQuestion
+
+	forced, moved := ForceQuestions([]*Finding{asserted, asked}, nil)
+
+	assert.Equal(t, Forcings{{Class: "unmapped-unit", Count: 1}}, forced,
+		"§6.3.2 counts the record §6.3.1 changed, and not the one written as a question")
+	assert.Equal(t, []string{"f1"}, moved)
+
+	again, _ := ForceQuestions([]*Finding{asserted, asked}, []string{"f1", "f9"})
+	assert.Equal(t, Forcings{{Class: "unmapped-unit", Count: 1}}, again,
+		"at a later moment too, where both read as questions")
+
+	cited := classed("unmapped-unit")
+	cited.ID, cited.Grade, cited.Kind = "f3", GradeCited, KindQuestion
+	unforced, _ := ForceQuestions([]*Finding{cited}, []string{"f3"})
+	assert.Equal(t, Forcings{}, unforced,
+		"an id kept for a record no longer graded argued is not a forcing that holds")
 }
 
 // §11.1 exempts §6.3.2's forcing counts from `--quiet`, and
@@ -79,9 +113,9 @@ func TestTheForcingCountIsAnHonestyDisclosure(t *testing.T) {
 	assert.Equal(t, "§6.3: 0 records forced to question", quietProof.Disclosure(),
 		"a round that forced nothing says so, so silence never stands for it")
 
-	forced := ForceQuestions([]*Finding{
+	forced, _ := ForceQuestions([]*Finding{
 		classed("unchecked-error"), classed("unchecked-error"), classed("naming-drift"),
-	})
+	}, nil)
 	assert.Equal(t,
 		"§6.3: 3 records forced to question — naming-drift 1, unchecked-error 2",
 		forced.Disclosure())
@@ -91,8 +125,11 @@ func TestTheForcingCountIsAnHonestyDisclosure(t *testing.T) {
 // field on a printed payload, and a null there would read as a round in which
 // the forcing was never asked about.
 func TestAnEmptyForcingReportIsAnEmptySlice(t *testing.T) {
-	assert.NotNil(t, ForceQuestions(nil))
-	assert.Empty(t, ForceQuestions([]*Finding{}))
+	none, moved := ForceQuestions(nil, nil)
+	assert.NotNil(t, none)
+	assert.NotNil(t, moved)
+	empty, _ := ForceQuestions([]*Finding{}, nil)
+	assert.Empty(t, empty)
 }
 
 // §6.3.3: a record graded `argued` written as a finding is refused, and the
@@ -134,7 +171,7 @@ func TestTheForcingSatisfiesTheRefusalItIsCheckedBy(t *testing.T) {
 	records := []*Finding{classed("unchecked-error"), classed("naming-drift")}
 	require.Error(t, RefuseArguedAssertion(records), "the agent wrote them as assertions")
 
-	ForceQuestions(records)
+	ForceQuestions(records, nil)
 	assert.NoError(t, RefuseArguedAssertion(records),
 		"§6.3.1 applied leaves nothing for §6.3.3 to refuse")
 }

@@ -1,6 +1,7 @@
 package intent
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/deligoez/cr/internal/axis"
@@ -127,6 +128,10 @@ func Resolve(sources KeySources, pattern string, source Source) (Intent, error) 
 		return Intent{Pattern: pattern}, nil
 	}
 	text, err := Read(source, key.Value)
+	var refused *CommandError
+	if errors.As(err, &refused) {
+		refused.Resolved = true
+	}
 	if err != nil {
 		return Intent{}, err
 	}

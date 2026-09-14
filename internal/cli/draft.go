@@ -221,7 +221,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	// and before they are rendered: the block a reviewer reads carries the
 	// register in its marker, so a forcing applied after the rendering
 	// would be a forcing the draft does not show.
-	forced := finding.ForceQuestions(queued)
+	forced, moved := grading.forceQuestions(queued)
 	// §6.3.3, over the records that are about to be written rather than
 	// over the rule that was just applied. Invariant 4 is a claim about
 	// what reaches the author, and nothing here can be talked past: no
@@ -253,7 +253,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	summary.forced, summary.withdrawn = forced, held
+	summary.forced, summary.moved, summary.withdrawn = forced, moved, held
 	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary, journal); err != nil {
 		return err
 	}
@@ -475,6 +475,7 @@ func publishDraft(
 		func() error { return writeRendered(held, round.Round, out.rendered) },
 		func() error { return writeSummary(held, round.Round, ownerDraft, summary.counts()) },
 		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
+		func() error { return keepForced(held, l, round, summary.moved) },
 	}
 	for _, write := range writes {
 		if err := write(); err != nil {
@@ -510,6 +511,10 @@ type draftSummary struct {
 	// forced is §6.3.2's count per class over the records this draft
 	// holds.
 	forced finding.Forcings
+	// moved is the ids §6.3.1's second moment moved in this run, which
+	// keepForced keeps beside the ones record time moved. It is not one of
+	// counts' rows: ownerForcing writes it, not ownerDraft.
+	moved []string
 	// withdrawn is §3.6.6's count per class over the records this draft
 	// holds as questions for resting on a note that no longer stands.
 	withdrawn finding.Withdrawn

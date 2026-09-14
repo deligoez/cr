@@ -152,4 +152,6 @@ func TestResolveSurfacesTheFailuresOfTheStepsItComposes(t *testing.T) {
 	var command *CommandError
 	require.ErrorAs(t, err, &command, "§3.1.3 fails on a non-zero exit; the key was found and the issue was not")
 	assert.Contains(t, command.Stderr, "no such issue")
+	assert.True(t, command.Resolved,
+		"the key was resolved in this run, so the failure may name --issue, which corrects it")
 }

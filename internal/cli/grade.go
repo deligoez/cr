@@ -136,10 +136,15 @@ type roundGrading struct {
 	// grading input — §6.2.1 closes that set — but they take the same
 	// register away within a round, so they are read once beside it.
 	withdrawn map[string]bool
+	// forced are the ids an earlier moment of §6.3.1 moved from finding to
+	// question, as the round summary kept them. A record they name is
+	// stored as a question already, so forceQuestions counts it from here.
+	forced []string
 }
 
-// readRoundGrading reads both halves, and §3.6.6's withdrawn claims, without a
-// lock and before any write, as §2.3.2 has every read of cr's own state.
+// readRoundGrading reads both halves, §3.6.6's withdrawn claims, and the ids
+// §6.3.1 has moved, without a lock and before any write, as §2.3.2 has every
+// read of cr's own state.
 func readRoundGrading(l state.Layout, owner, repo string, pr int, round *state.Meta) (*roundGrading, error) {
 	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
@@ -153,7 +158,19 @@ func readRoundGrading(l state.Layout, owner, repo string, pr int, round *state.M
 	if err != nil {
 		return nil, err
 	}
-	return &roundGrading{formed: formed, roundEvidence: found, withdrawn: withdrawn}, nil
+	forced, err := forcedRecords(l, round)
+	if err != nil {
+		return nil, err
+	}
+	return &roundGrading{formed: formed, roundEvidence: found, withdrawn: withdrawn, forced: forced}, nil
+}
+
+// forceQuestions is §6.3.1 applied over the records a draft or a payload holds,
+// with §6.3.2's count per class taken over the records the round's forcing
+// moved: the ones an earlier moment kept, and the ones this application moves,
+// whose ids it returns for the caller to keep.
+func (g *roundGrading) forceQuestions(records []*finding.Finding) (forced finding.Forcings, moved []string) {
+	return finding.ForceQuestions(records, g.forced)
 }
 
 // holdWithdrawn is §3.6.6 applied over the records a draft or a payload holds:

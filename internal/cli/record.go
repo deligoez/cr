@@ -305,7 +305,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			// §9.1.1's journal of this run's moves, published with the
 			// records under appendRecords' lock.
 			journal := finding.NewJournal(finding.ActorRecord, round.Head, time.Now())
-			records, found, dropped, err := acceptRecords(
+			records, found, dropped, forced, err := acceptRecords(
 				layout, owner, repo, pr, &round.Meta, args[1], journal)
 			if err != nil {
 				return err
@@ -323,7 +323,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := recordRuleStats(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
-			if err := recordRetiredCounts(layout, owner, repo, pr, &round.Meta, time.Now()); err != nil {
+			if err := recordRetiredCounts(layout, &round.Meta, forced, time.Now()); err != nil {
 				return err
 			}
 			return out.emit(newRecordResult(records, found, dropped))
@@ -349,7 +349,11 @@ func newRecordCmd(out *writer) *cobra.Command {
 //
 // at is written beside them as summaryRecordedAt, in UTC, so a round recorded
 // with nothing else dated still has a moment §2.6.3.4's window can order it by.
-func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *state.Meta, at time.Time) error {
+//
+// forced is the ids §6.3.1's first moment moved in this run, kept under the
+// same lock by keepForced for `cr draft` and `cr post` to count.
+func recordRetiredCounts(l state.Layout, round *state.Meta, forced []string, at time.Time) error {
+	owner, repo, pr := round.Owner, round.Repo, round.PR
 	stored, err := roundFindingsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return err
@@ -377,6 +381,10 @@ func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *stat
 		_ = held.Unlock()
 		return err
 	}
+	if err := keepForced(held, l, round, forced); err != nil {
+		_ = held.Unlock()
+		return err
+	}
 	return held.Unlock()
 }
 
@@ -388,40 +396,41 @@ func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *stat
 // It is the whole of the validation, in one place, so the ordering above is a
 // contract rather than the shape a command body happens to have. Every refusal
 // here happens with nothing written, and the grade is computed last because it
-// rests on what the two before it established.
+// rests on what the two before it established. The ids §6.3.1's forcing moved
+// are returned beside the records, for the round summary to keep.
 func acceptRecords(
 	l state.Layout, owner, repo string, pr int, round *state.Meta, file string, journal *finding.Journal,
-) ([]*finding.Finding, *gapEvidence, recordDrops, error) {
+) ([]*finding.Finding, *gapEvidence, recordDrops, []string, error) {
 	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	body, err := readInput(file,
 		"§6.5.1 has `cr merge` write the file `cr record` reads; "+
 			"pass the path `-o` named")
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.1.3 and §6.1.4, with `duplicate_of` read only on the file
 	// `cr merge` last wrote for the round.
 	records, err := decodeInput(l, owner, repo, pr, round.Round, file, body, roundUnitIDs(formed))
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.1's id row: stable for the life of the pull request, so an id
 	// repeated in this file or held by a stored record is refused here.
 	if err := refuseHeldIDs(l, owner, repo, pr, []idInput{{file: file, body: body, records: records}}); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §2.6's class row: a record naming a rule carries that rule's class.
 	if err := refuseRuleClasses(l, owner, repo, round.ProfileID, file, body, records); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §4.5.6's cells against the records: a record meeting a `pass` its
 	// role filed on its unit this round is refused, the reverse order of
 	// coverage.Decode's check, and ahead of the drops below.
 	if err := refusePassedSeats(l, owner, repo, pr, round.Round, file, body, records); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// Round 13's agent-chosen-grading-boundary: the unit a record names is
 	// the unit its anchor sits in, or §6.2's `cited` row is measured
@@ -429,20 +438,20 @@ func acceptRecords(
 	// and context window, read off the round's trees, so §7.4.1's waiver
 	// key is built from the lines themselves.
 	if err := settleAnchors(owner, repo, pr, round, file, body, formed, records); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.2.3: every citation is resolved against the round's head and
 	// stamped with the hash of the line it names, and one the head cannot
 	// open refuses the whole file.
 	if err := resolveCitations(file, body, round.Head, records); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.2.5: every citation's origin is computed against cr's own
 	// detection output, positionally, before the grade reads it. The
 	// ledger is read without a lock (§2.3.2).
 	ledger, err := rule.ReadStats(l, owner, repo)
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	rule.StampOrigins(ledger, round.Head, records)
 	// §6.2.1's stored inputs, read off files no lock is needed for
@@ -451,19 +460,19 @@ func acceptRecords(
 	// graded below.
 	evidence, err := readProbedEvidence(l, owner, repo, pr, round.Head, file, body, records)
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.1's `axis` row, before the grade rather than after it: §6.2's
 	// `cited` row reads the axis, and §4.4.2 withholds that grade from the
 	// test axis entirely. Then §4.2.2's refusal, which reads the axis.
 	if err := stampAxesAndClaims(l, owner, repo, round.Round, file, body, evidence.pairs, records); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.4.4 and §9.3.6 again, after the last refusal that names an input
 	// line, keeping the records a dropped representative orphaned.
 	records, orphans, dropped, err := dropRecorded(l, owner, repo, pr, round.Round, records)
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §5.4.4 and §5.4.5. They are asked of the records rather than of the
 	// probes because the question is about a finding: a gap probe's support
@@ -471,7 +480,7 @@ func acceptRecords(
 	// run` cannot answer it at the experiment.
 	found, err := resolveGapSupport(evidence, round, records)
 	if err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.2, last of them all, because it rests on what the others
 	// established: the citations are resolved and stamped, the axis is
@@ -479,12 +488,12 @@ func acceptRecords(
 	// Then §4.1.4, §6.4.2's re-election of any group a drop orphaned, and
 	// §9.1's first two rows over the records that will be stored.
 	if err := settleStates(l, owner, repo, round, formed, evidence, orphans, records, journal); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §4.3.4: a reinvention item defaults to a question, before and apart
 	// from §6.3's forcing, which a cited reinvention item never meets.
 	if err := defaultReinventionQuestions(l, owner, repo, pr, round, formed, records); err != nil {
-		return nil, nil, recordDrops{}, err
+		return nil, nil, recordDrops{}, nil, err
 	}
 	// §6.3.1's first of three moments, and invariant 4: a record graded
 	// argued is forced to kind question. It is last because it reads the
@@ -494,9 +503,12 @@ func acceptRecords(
 	// The count it hands back is §6.3.2's, and this moment is not where
 	// §6.3.2 is answered: summaryOwners gives the forced-to-question count
 	// to `cr draft`, whose records are the ones the reviewer reads. The
-	// forcing is what is wanted here.
-	finding.ForceQuestions(records)
-	return records, found, dropped, nil
+	// forcing is what is wanted here, and the ids it moved: once stored,
+	// a record this moment forced reads as a question exactly as one its
+	// role wrote as a question does. No record here holds an id an earlier
+	// run kept, since refuseHeldIDs refused any id the pull request holds.
+	_, forced := finding.ForceQuestions(records, nil)
+	return records, found, dropped, forced, nil
 }
 
 // decodeInput is the one door of §6.1.3 and §6.1.4, opened with the source

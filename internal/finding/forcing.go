@@ -40,7 +40,9 @@ import (
 // It is idempotent, which is what lets it be applied three times without the
 // second application meaning anything different from the first, and it reports
 // false for a record already in the question register: §6.3.2 counts forcings,
-// and a record the agent wrote as a question was not forced into one.
+// and a record the agent wrote as a question was not forced into one. Nor, at
+// the second application, is a record the first one moved — which is why
+// ForceQuestions is told the ids an earlier moment moved.
 //
 // Nothing here raises the register. A record graded `probed` or `cited` keeps
 // the kind the agent wrote, question included — §6.2 lets those two assert and
@@ -55,7 +57,7 @@ func ForceQuestion(record *Finding) bool {
 }
 
 // Forcing is one row of §6.3.2's report: a defect class, and how many of the
-// round's records the forcing holds in the question register under it.
+// round's records §6.3.1 moved from finding to question under it.
 type Forcing struct {
 	// Class is §6.1's kebab-case defect class.
 	Class string `json:"class"`
@@ -66,16 +68,19 @@ type Forcing struct {
 // Forcings is §6.3.2's report over one round: the forcing's count per class, by
 // class ascending.
 //
-// What it counts is every record graded `argued`, and not the subset some one
-// call to ForceQuestion happened to move. The distinction is the whole of
-// whether the report says anything at all: §6.3.1 applies the forcing three
-// times, so by draft time and again by post time the records it moved at record
-// time are already questions, ForceQuestion reports false for every one of
-// them, and a report counting moves would read zero at exactly the two moments
-// a human sees it. A record graded `argued` is in the question register because
-// §6.3 put it there and for no other reason — §6.2 gives the grade and nothing
-// else writes the kind — so counting the grade counts the forcing, at every
-// moment, however many times it has already been applied.
+// What it counts is every record §6.3.1 moved from finding to question at any of
+// the round's moments, and never a record graded `argued` that its role already
+// wrote as a question: that one was asked, not forced, and §6.3.2 makes the
+// forcing visible so that a reader can tell the two apart. Counting the grade
+// alone reported release QA's unmapped-unit question, written as a question by
+// its role, as forced.
+//
+// The moves are counted across moments rather than within one call, because
+// §6.3.1 applies the forcing three times and stores what it moved: by draft
+// time the records moved at record time already read as questions, and a
+// report counting one call's moves would read zero at exactly the moments a
+// human sees it. So ForceQuestions takes the ids an earlier moment moved, which
+// the round summary keeps, and counts them beside the ones it moves itself.
 //
 // The order is by class rather than by count or by arrival, so the same round
 // renders the same report twice and a stored summary diffs cleanly.
@@ -157,26 +162,37 @@ func RefuseArguedAssertion(records []*Finding) error {
 }
 
 // ForceQuestions applies §6.3.1 to every record of a round and reports §6.3.2's
-// count per class.
+// count per class, together with the ids of the records this application moved.
+//
+// earlier is the ids an earlier moment of the same round's forcing moved. A
+// record among them still graded `argued` is counted although it already reads
+// as a question, and a record this application moves is counted because it
+// did; a record graded `argued` that is neither was written as a question by
+// its role, and is not counted. The ids moved here are returned so the caller
+// can keep them for the moments after it.
 //
 // The two are one call because they are one obligation seen from two sides.
 // §6.3.1 forces and §6.3.2 makes the forcing visible, and a caller that could
 // force without counting would apply the rule and tell nobody — which is the
 // failure §6.3.2 exists to prevent, since a question is otherwise
 // indistinguishable from a question the agent chose to ask.
-func ForceQuestions(records []*Finding) Forcings {
+func ForceQuestions(records []*Finding, earlier []string) (forced Forcings, moved []string) {
 	counts := make(map[string]int, len(records))
+	moved = make([]string, 0, len(records))
 	for _, record := range records {
-		ForceQuestion(record)
-		if record.Grade == GradeArgued {
-			counts[record.Class]++
+		switch {
+		case ForceQuestion(record):
+			moved = append(moved, record.ID)
+		case record.Grade != GradeArgued || !slices.Contains(earlier, record.ID):
+			continue
 		}
+		counts[record.Class]++
 	}
-	forced := make(Forcings, 0, len(counts))
+	forced = make(Forcings, 0, len(counts))
 	for _, class := range slices.Sorted(maps.Keys(counts)) {
 		forced = append(forced, Forcing{Class: class, Count: counts[class]})
 	}
-	return forced
+	return forced, moved
 }
 
 // Withdrawn is §3.6.6's report over one round, in Forcings' shape: per class,

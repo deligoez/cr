@@ -267,7 +267,9 @@ func buildReview(
 	// retracted after the draft was rendered takes the assertion register
 	// away from the records resting on it in this payload too.
 	held := grading.holdWithdrawn(queued)
-	forced := finding.ForceQuestions(queued)
+	// §6.3.1's third moment. The ids it moves are not kept: a dry run
+	// writes nothing, and a confirmed send leaves no later moment to count.
+	forced, _ := grading.forceQuestions(queued)
 	if err := finding.RefuseArguedAssertion(queued); err != nil {
 		return err
 	}

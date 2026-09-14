@@ -181,6 +181,11 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 		supports bool
 		reason   string
 		names    string
+		// whole is the reason entire, where the row pins its wording:
+		// release QA read the no-claim case as "does not join the claim
+		// the record does not name to unit u3", which contains every
+		// fragment a substring check asks for.
+		whole string
 	}{
 		{
 			name:     "a passing baseline and a claim mapped to the record's unit",
@@ -203,12 +208,16 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 			claim:   gapClaim,
 			reason:  "mapping.ndjson",
 			names:   "claim " + gapClaim,
+			whole: "this round's mapping.ndjson does not join claim " + gapClaim +
+				", which record f1 names, to unit " + gapUnit + ", so §5.4.4's second condition is unmet",
 		},
 		{
 			name:    "a record naming no claim at all",
 			fixture: gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue},
 			reason:  "mapping.ndjson",
-			names:   "does not name",
+			names:   "names no claim",
+			whole: "record f1 names no claim for this round's mapping.ndjson to join to unit " + gapUnit +
+				", so §5.4.4's second condition is unmet",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -223,6 +232,10 @@ func TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim(t *testing
 				"the reason names the condition that decided")
 			assert.Contains(t, answers[0].Reason, tc.names,
 				"and says which claim it was, or that the record named none")
+			if tc.whole != "" {
+				assert.Equal(t, tc.whole, answers[0].Reason,
+					"one sentence naming the record, its claim or the absence of one, and the unit")
+			}
 
 			for _, overclaimed := range []string{"prove", "verif", "confirm"} {
 				assert.NotContains(t, answers[0].Reason, overclaimed,

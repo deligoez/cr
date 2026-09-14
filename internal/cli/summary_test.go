@@ -98,9 +98,10 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 			}
 			return nil
 		},
-		"new_classes": func(raw json.RawMessage) error { return strictly[[]string](raw) },
-		"comments":    func(raw json.RawMessage) error { return strictly[cap](raw) },
-		"probe_cap":   func(raw json.RawMessage) error { return strictly[cap](raw) },
+		"new_classes":    func(raw json.RawMessage) error { return strictly[[]string](raw) },
+		"forced_records": func(raw json.RawMessage) error { return strictly[[]string](raw) },
+		"comments":       func(raw json.RawMessage) error { return strictly[cap](raw) },
+		"probe_cap":      func(raw json.RawMessage) error { return strictly[cap](raw) },
 		"payload_hash": func(raw json.RawMessage) error {
 			var hash string
 			if err := json.Unmarshal(raw, &hash); err != nil {
@@ -266,7 +267,7 @@ func TestTheRoundSummaryCarriesEveryPrePostWritersCounts(t *testing.T) {
 
 	body, err := layout.ReadRound(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerMerge, ownerRecord, ownerDraft, ownerDiscards)
+	document := assertSummaryShape(t, body, ownerMerge, ownerRecord, ownerDraft, ownerDiscards, ownerForcing)
 
 	for key, want := range map[string]string{
 		"raised":               "3",

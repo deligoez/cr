@@ -55,13 +55,24 @@ type CommandError struct {
 	// Err is the failure os/exec reported: a non-zero exit status, or a
 	// command that could not be started at all.
 	Err error
+	// Resolved is whether the key the command was asked about is the one
+	// §3.2 resolved in this run, which Resolve sets. It decides which flags
+	// the message may name: `--issue` corrects a key the running command
+	// resolved, and a command reading the key a round recorded — `cr claims
+	// record` — has no such flag, so naming it there sends the reader to a
+	// flag the command refuses.
+	Resolved bool
 }
 
 func (e *CommandError) Error() string {
-	if e.Stderr == "" {
-		return fmt.Sprintf("%s: %v%s", strings.Join(e.Args, " "), e.Err, wayPast)
+	past := wayPastRecorded
+	if e.Resolved {
+		past = wayPast
 	}
-	return fmt.Sprintf("%s: %v: %s%s", strings.Join(e.Args, " "), e.Err, e.Stderr, wayPast)
+	if e.Stderr == "" {
+		return fmt.Sprintf("%s: %v%s", strings.Join(e.Args, " "), e.Err, past)
+	}
+	return fmt.Sprintf("%s: %v: %s%s", strings.Join(e.Args, " "), e.Err, e.Stderr, past)
 }
 
 // wayPast names the two flags that get a run past a tracker cr cannot reach,
@@ -78,6 +89,13 @@ func (e *CommandError) Error() string {
 const wayPast = "; §3.2 resolves the key from --issue before the branch, title, and body, so " +
 	"`--issue <KEY>` corrects a key cr read off the wrong one, and §3.1.4's " +
 	"`--intent-file <path>` supplies the issue text without running this command at all"
+
+// wayPastRecorded is wayPast for a command that reads the key its round
+// recorded rather than resolving one, and so names only the flag such a
+// command accepts. Release QA met the difference: `cr claims record` failed on
+// a 404 and the message named `--issue <KEY>`, which that command does not have.
+const wayPastRecorded = "; §3.1.4's `--intent-file <path>` supplies the issue text " +
+	"without running this command at all"
 
 // Unwrap exposes the underlying exec failure, so a caller can tell a tracker
 // command that ran and refused from one that never started.

@@ -134,31 +134,57 @@ func TestAFailedTrackerCommandSurfacesItsStderr(t *testing.T) {
 	assert.Equal(t, 2, exited.ExitCode())
 
 	silent := &CommandError{Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2")}
-	assert.Equal(t, "jira issue view CR-1: exit status 2"+wayPast, silent.Error())
+	assert.Equal(t, "jira issue view CR-1: exit status 2"+wayPastRecorded, silent.Error())
 }
 
-// A tracker that refused names the two flags that get a run past it, whether or
-// not it said anything itself.
+// A tracker that refused names the flags that get a run past it, whether or not
+// it said anything itself — and only the flags the running command has.
 //
 // §12.4 has every error name the next actionable step, and this one could not:
 // the tool's stderr is about the tool, and the fault is as often cr's key as
 // the tracker's state. A dogfood run met exactly that — a 404 for a key read
 // off the branch name — and neither flag appeared anywhere in the failure.
+// Release QA met the converse: `cr claims record` reads the key its round
+// recorded, has no `--issue`, and was told to pass one.
 func TestAFailedTrackerCommandNamesTheFlagsThatGetPastIt(t *testing.T) {
-	for name, refused := range map[string]*CommandError{
-		"a tracker that explained itself": {
-			Args: []string{"jira", "issue", "view", "CR-1"},
-			Err:  errors.New("exit status 2"), Stderr: "404 not found",
+	const (
+		both = "; §3.2 resolves the key from --issue before the branch, title, and body, so " +
+			"`--issue <KEY>` corrects a key cr read off the wrong one, and §3.1.4's " +
+			"`--intent-file <path>` supplies the issue text without running this command at all"
+		fileOnly = "; §3.1.4's `--intent-file <path>` supplies the issue text " +
+			"without running this command at all"
+	)
+	for _, tc := range []struct {
+		name    string
+		refused *CommandError
+		want    string
+	}{
+		{
+			name: "a resolved key, a tracker that explained itself",
+			refused: &CommandError{
+				Args: []string{"jira", "issue", "view", "CR-1"},
+				Err:  errors.New("exit status 2"), Stderr: "404 not found", Resolved: true,
+			},
+			want: "jira issue view CR-1: exit status 2: 404 not found" + both,
 		},
-		"a tracker that said nothing": {
-			Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2"),
+		{
+			name: "a resolved key, a tracker that said nothing",
+			refused: &CommandError{
+				Args: []string{"jira", "issue", "view", "CR-1"}, Err: errors.New("exit status 2"), Resolved: true,
+			},
+			want: "jira issue view CR-1: exit status 2" + both,
+		},
+		{
+			name: "a recorded key, which no --issue of the running command corrects",
+			refused: &CommandError{
+				Args: []string{"jira", "issue", "view", "CR-1"},
+				Err:  errors.New("exit status 2"), Stderr: "404 not found",
+			},
+			want: "jira issue view CR-1: exit status 2: 404 not found" + fileOnly,
 		},
 	} {
-		t.Run(name, func(t *testing.T) {
-			assert.Contains(t, refused.Error(), "--issue <KEY>",
-				"§3.2: the key cr resolved is as likely the fault as the tracker")
-			assert.Contains(t, refused.Error(), "--intent-file <path>",
-				"§3.1.4: the issue text without the command at all")
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.refused.Error())
 		})
 	}
 }
