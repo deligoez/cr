@@ -112,6 +112,37 @@ func refuseUnchangedLines(file string, line int, record *finding.Finding, side g
 	return &finding.RejectedRecordError{File: file, Line: line, Field: "anchor", Problem: problem}
 }
 
+// unchangedAnchors is refuseUnchangedLines for §7.2's location row: a draft's
+// marker that moves a record's anchor is held to the refusal `cr record` makes
+// of the same anchor, over the units of the same round.
+//
+// The round's units are read the first time a moved anchor is asked about, and
+// its diff the first time that anchor is LEFT, so a draft whose markers move
+// nothing reads neither, as anchorTrees keeps it. The refusal's file and line
+// are left empty: draft.Ingest names the record and the marker's draft line.
+func unchangedAnchors(l state.Layout, owner, repo string, pr int, round *state.Meta) func(*finding.Finding) error {
+	var formed []roundUnit
+	var hunks []git.Hunk
+	var unitsRead, hunksRead bool
+	return func(record *finding.Finding) error {
+		if !unitsRead {
+			read, err := roundUnitsOf(l, owner, repo, pr, round.Round)
+			if err != nil {
+				return err
+			}
+			formed, unitsRead = read, true
+		}
+		if record.Anchor.Side == git.Left && !hunksRead {
+			read, err := roundHunks(owner, repo, pr, round.Head)
+			if err != nil {
+				return err
+			}
+			hunks, hunksRead = read, true
+		}
+		return refuseUnchangedLines("", 0, record, sideOf(formed, record.Unit), hunks)
+	}
+}
+
 // sideOf is the side of the round's unit id, and empty when the round holds no
 // unit by that id, which anchorInsideUnit then refuses on its own.
 func sideOf(formed []roundUnit, id string) git.Side {

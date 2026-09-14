@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
@@ -96,7 +97,8 @@ func TestAnAnchorOnLinesADeletionDidNotChangeIsRefused(t *testing.T) {
 // record's marker in draft.md from the removed lines onto base line 9, a
 // context line of the same hunk, and `cr post` refuses it with exit 1 naming the
 // record, dry run or confirmed, before any payload is reported or posted.json
-// touched. The check is the one `cr record` refuses a LEFT anchor with.
+// touched. It is refused where `cr post` reads the draft, by §7.2's location
+// row, in the words `cr record` refuses the same anchor with.
 func TestAMarkerMovedOntoALineTheDiffDidNotRemoveIsRefusedAtPost(t *testing.T) {
 	for name, flags := range map[string][]string{"dry run": nil, "confirmed": {"--confirm"}} {
 		t.Run(name, func(t *testing.T) {
@@ -114,14 +116,18 @@ func TestAMarkerMovedOntoALineTheDiffDidNotRemoveIsRefusedAtPost(t *testing.T) {
 			require.NoError(t, err)
 			moved := markerEdit(t, string(body), "f1", `start_line="7" line="8"`, `start_line="9" line="9"`)
 			require.NoError(t, os.WriteFile(drafted, []byte(moved), 0o600))
+			at, _ := f1Marker(t, drafted)
 
 			printed, err := runPost(t, append([]string{fixturePR, "--repo", fixtureSlug}, flags...)...)
 
-			var refused *PositionError
+			var refused *draft.MarkerEditError
 			require.ErrorAs(t, err, &refused)
-			assert.Equal(t, "f1", refused.Record)
-			assert.Equal(t, [4]any{git.Left, "lib.go", 9, 9},
-				[4]any{refused.Anchor.Side, refused.Anchor.Path, refused.Anchor.StartLine, refused.Anchor.Line})
+			assert.Equal(t, draft.MarkerEditError{
+				ID: "f1", At: at, Field: "anchor",
+				Problem: "of record f1 is LEFT lib.go:9-9, and the round's diff does not remove every one of those " +
+					"merge-base lines; §9.2.1 has a LEFT anchor name removed lines only, so anchor the lines a " +
+					"hunk removes, or on the RIGHT a head line of a unit that adds lines",
+			}, *refused)
 			assert.Equal(t, ExitValidation, exitCodeFor(err))
 			assert.Empty(t, printed, "the run refused before it reported a payload")
 			after, err := os.ReadFile(posted)

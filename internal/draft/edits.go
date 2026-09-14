@@ -205,10 +205,14 @@ func listedSeverities() string {
 // counted in the other tree, so it is resolved and stamped there, and a side
 // outside §9.2's two is refused by the same validation `cr record` applies.
 //
+// An anchor that resolves is then held to in.Unchanged, the §9.2.1 refusal
+// `cr record` makes of the same anchor, so the draft never stores a location
+// the record could not have carried.
+//
 // It returns nil when the marker leaves the location where cr wrote it, which
 // is what keeps `cr draft` from opening the repository — or, for a LEFT anchor,
 // the pull request — on a run where nothing moved.
-func (e *markerEdit) anchor(trees finding.Trees, file string) (*finding.Anchor, error) {
+func (e *markerEdit) anchor(in *Draft) (*finding.Anchor, error) {
 	if e.now.Path == e.was.Path && e.now.Side == e.was.Side &&
 		e.now.StartLine == e.was.StartLine && e.now.Line == e.was.Line {
 		return nil, nil
@@ -216,17 +220,30 @@ func (e *markerEdit) anchor(trees finding.Trees, file string) (*finding.Anchor, 
 	moved := e.record.Anchor
 	moved.Path, moved.Side = e.now.Path, git.Side(e.now.Side)
 	moved.StartLine, moved.Line = e.now.StartLine, e.now.Line
-	if err := finding.StampAnchor(trees, file, e.at, &moved); err != nil {
-		// A location the tree cannot answer for is this row's abort and
-		// carries the record id with it. A git that refuses is not: it
-		// is §3.1.3's external command failure, and rewriting it here
-		// would code an unreadable repository 1 and tell the reviewer
-		// to edit a marker that is fine.
-		var rejected *finding.RejectedRecordError
-		if errors.As(err, &rejected) {
-			return nil, e.refuse("anchor", rejected.Problem)
+	if err := finding.StampAnchor(in.Trees, in.Name, e.at, &moved); err != nil {
+		return nil, e.rejected(err)
+	}
+	if in.Unchanged != nil {
+		carried := *e.record
+		carried.Anchor = moved
+		if err := in.Unchanged(&carried); err != nil {
+			return nil, e.rejected(err)
 		}
-		return nil, err
 	}
 	return &moved, nil
+}
+
+// rejected is the location row's abort for a refusal carrying the record id,
+// and err itself otherwise.
+//
+// A location the tree cannot answer for, or one `cr record` refuses, is this
+// row's abort and carries the record id with it. A git that refuses is not: it
+// is §3.1.3's external command failure, and rewriting it here would code an
+// unreadable repository 1 and tell the reviewer to edit a marker that is fine.
+func (e *markerEdit) rejected(err error) error {
+	var rejected *finding.RejectedRecordError
+	if errors.As(err, &rejected) {
+		return e.refuse("anchor", rejected.Problem)
+	}
+	return err
 }

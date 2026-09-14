@@ -96,8 +96,11 @@ func TestADraftMarkerCarriesTheSideAndAnUnchangedDraftPostsAsRendered(t *testing
 // §7.2's `side` row through `cr draft`: an edited side is re-validated per
 // §6.1.2 like the lines are. Moving a LEFT anchor on a deleted file to the
 // RIGHT names a file the head does not hold, so the draft aborts with exit 1
-// naming the record and stores nothing; moving one on lines the head still
-// holds re-anchors the record there, with §9.2's hash taken from the head.
+// naming the record and stores nothing; moving a RIGHT anchor on
+// longFileHome's rewrite onto base line 3, the line that rewrite removes,
+// re-anchors the record on the LEFT, with §9.2's hash taken from the merge
+// base. A RIGHT anchor moved onto a unit that only removes lines is refused as
+// `cr record` refuses it, in TestAMarkerEditIsHeldToTheAnchorRulesOfRecord.
 func TestAnEditedSideIsReValidatedAgainstTheTreeItNames(t *testing.T) {
 	t.Run("a side that no longer resolves", func(t *testing.T) {
 		layout, drafted := sideDrafted(t, onDeletedFile())
@@ -118,23 +121,23 @@ func TestAnEditedSideIsReValidatedAgainstTheTreeItNames(t *testing.T) {
 	})
 
 	t.Run("a side that resolves", func(t *testing.T) {
-		layout, drafted := sideDrafted(t, onRemovalUnit("LEFT", 7, 8))
-		editF1Marker(t, drafted, `side="LEFT"`, `side="RIGHT"`)
+		layout, drafted := longFileRound(t, plainQuestion(git.Right, 4))
+		editF1Marker(t, drafted, `side="RIGHT" start_line="4" line="4"`, `side="LEFT" start_line="3" line="3"`)
 
 		_, err := runDraft(t, fixturePR, "--repo", fixtureSlug)
 
 		require.NoError(t, err)
 		stored := storedFindings(t, layout)
 		require.Len(t, stored, 1)
-		hash, err := finding.AnchorContentHash([]string{"\t_ = a", "\t_ = b"})
+		hash, err := finding.AnchorContentHash([]string{"func Load() {}"})
 		require.NoError(t, err)
-		assert.Equal(t, [4]any{git.Right, 7, 8, hash},
+		assert.Equal(t, [4]any{git.Left, 3, 3, hash},
 			[4]any{stored[0].Anchor.Side, stored[0].Anchor.StartLine, stored[0].Anchor.Line, stored[0].Anchor.ContentHash},
-			"re-anchored on the head's lines 7 and 8")
+			"re-anchored on the merge base's line 3")
 		at, line := f1Marker(t, drafted)
 		marker, err := draft.ParseMarker(at, line)
 		require.NoError(t, err)
-		assert.Equal(t, "RIGHT", marker.Side, "and the regenerated marker says so")
+		assert.Equal(t, "LEFT", marker.Side, "and the regenerated marker says so")
 	})
 }
 
