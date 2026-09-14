@@ -48,15 +48,17 @@ func queued(id, path string, start, end int) *finding.Finding {
 
 // aRound is three queued records with the bodies §8.1.2 produced for them.
 func aRound() (records []*finding.Finding, bodies map[string]string) {
-	return []*finding.Finding{
-			queued("f1", "app/Models/Order.php", 11, 11),
-			queued("f2", "app/Models/Order.php", 40, 42),
-			queued("f3", "app/Services/Ledger.php", 7, 7),
-		}, map[string]string{
-			"f1": "The error is dropped.",
-			"f2": "Is the rounding deliberate?",
-			"f3": "The ledger is written twice.",
-		}
+	records = []*finding.Finding{
+		queued("f1", "app/Models/Order.php", 11, 11),
+		queued("f2", "app/Models/Order.php", 40, 42),
+		queued("f3", "app/Services/Ledger.php", 7, 7),
+	}
+	bodies = map[string]string{
+		"f1": "The error is dropped.",
+		"f2": "Is the rounding deliberate?",
+		"f3": "The ledger is written twice.",
+	}
+	return records, bodies
 }
 
 // §8.3.1: a round's comments are posted as one review, so the author is
