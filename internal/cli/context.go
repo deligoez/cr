@@ -98,9 +98,16 @@ func newContextCmd(out *writer) *cobra.Command {
 		Use:   "context <ISSUE-KEY>",
 		Short: "Print the accumulated notes for an issue key",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			layout, err := state.Default()
 			if err != nil {
+				return err
+			}
+			// The check `cr note` writes under, so a key no round
+			// resolves is refused here too rather than read: `cr-1`
+			// would open `CR-1`'s file on a case-insensitive disk and
+			// report its notes under a key nobody filed them against.
+			if err := checkNoteKey(cmd, layout, args[0]); err != nil {
 				return err
 			}
 			notes, err := note.Load(layout, args[0])

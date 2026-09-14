@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -264,4 +266,72 @@ func TestContextNamesARetractionInTheProvenance(t *testing.T) {
 		"the withdrawn fact is still readable, which is how its records are recognised")
 	assert.Equal(t, 1, strings.Count(terminal, "retracted at "),
 		"the note that still stands says nothing about a retraction")
+}
+
+// §3.2 through `cr context`: the read side refuses a key the effective
+// intent.key_pattern does not match whole, through the same check and with the
+// same error, code and hint as `cr note` — so `cr-7` cannot read `CR-7`'s file
+// on a case-insensitive disk and report its notes under a key nobody filed them
+// against, and `CR-7#n1` is not read as a key that holds no notes.
+//
+// The on-pattern key is the other direction: it still lists what the store
+// holds. And a store v0.1 wrote under an off-pattern key is not stranded by the
+// refusal: `cr note --remove` addresses the note by its id and still retracts it.
+func TestContextRefusesAKeyThePatternDoesNotMatchWhole(t *testing.T) {
+	const hint = "name the issue key the way `intent.key_pattern` matches it, e.g. CR-1; " +
+		"`cr config --resolved` shows the pattern in force"
+
+	t.Run("an on-pattern key lists its notes", func(t *testing.T) {
+		checkoutWithRemotes(t)
+		layout := briefedHome(t, "CR-7")
+		_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "9")
+		require.NoError(t, err)
+
+		out, err := runContext(t, "CR-7")
+		require.NoError(t, err)
+		stored, err := note.Load(layout, "CR-7")
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		var printed contextResult
+		require.NoError(t, json.Unmarshal([]byte(out), &printed))
+		assert.Equal(t, contextResult{IssueKey: "CR-7", Notes: stored}, printed)
+	})
+
+	for _, key := range []string{"cr-7", "CR-7#n1", "xCR-7", "CR-7 "} {
+		t.Run(key, func(t *testing.T) {
+			checkoutWithRemotes(t)
+			briefedHome(t, "CR-7")
+			_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "9")
+			require.NoError(t, err)
+
+			out, err := runContext(t, key)
+
+			require.Error(t, err)
+			assert.Equal(t, `issue key "`+key+`" is not one intent.key_pattern "[A-Z][A-Z0-9]+-[0-9]+" matches whole; `+
+				"§3.2 resolves every issue key through that pattern", err.Error())
+			assert.Equal(t, ExitValidation, exitCodeFor(err), "the code `cr note` gives the same key")
+			assert.Equal(t, hint, hintFor(err))
+			assert.Empty(t, out, "a refused run prints no notes")
+		})
+	}
+
+	t.Run("a note v0.1 stored under an off-pattern key is still removable", func(t *testing.T) {
+		checkoutWithRemotes(t)
+		layout := briefedHome(t, "CR-7")
+		require.NoError(t, os.MkdirAll(filepath.Dir(layout.ContextFile("cr-1")), 0o700))
+		require.NoError(t, os.WriteFile(layout.ContextFile("cr-1"),
+			[]byte(`{"id":"cr-1#n1","text":"lower","source":"chat","pr":1,"recorded_at":"2026-09-14T09:00:00Z"}`+"\n"), 0o600))
+
+		_, err := runContext(t, "cr-1")
+		require.Error(t, err)
+		assert.Equal(t, ExitValidation, exitCodeFor(err))
+
+		_, err = runIn(t, "note", "--remove", "cr-1#n1")
+		require.NoError(t, err)
+		stored, err := note.Load(layout, "cr-1")
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		assert.Equal(t, "cr-1#n1", stored[0].ID)
+		assert.NotNil(t, stored[0].RetractedAt, "§3.6.6: the retraction reached the v0.1 store")
+	})
 }

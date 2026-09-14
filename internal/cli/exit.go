@@ -277,8 +277,9 @@ var codes = []mapped{
 	// configured expression does too.
 	{is[*intent.KeyPatternError](), ExitFile,
 		"correct the expression the message names so it compiles"},
-	// `cr note` typed a key §3.2's pattern would never resolve, so the note
-	// would land in a store no round loads. The configuration and the store
+	// `cr note` or `cr context` typed a key §3.2's pattern would never
+	// resolve, so the note would land in, or be read from, a store no round
+	// loads. The configuration and the store
 	// are fine; what is wrong is the key, §11.2's 1.
 	{is[*intent.KeyShapeError](), ExitValidation,
 		"name the issue key the way `intent.key_pattern` matches it, e.g. CR-1; " +

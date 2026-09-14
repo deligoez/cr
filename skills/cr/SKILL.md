@@ -653,6 +653,9 @@ cr answer 1 f1 "Upstream validation rejects negative discounts." --source thread
 
 Notes are keyed by issue key and loaded on every later round and pull request
 with that key. Sources are `chat`, `jira`, `thread`, `meeting`, `other`.
+`cr note` and `cr context` both refuse a key `intent.key_pattern` does not match
+whole (`cr-5`, `CR-5#n2`) with exit 1 naming the pattern, so read and write the
+key the way the pattern spells it.
 A note names the pull request it came from, so `cr note` without `--pr` is refused
 with exit 2. `cr note --remove CR-5#n2` retracts one (the id is the only
 argument) and prints it with `"standing": "retracted"`; an id the store does not
