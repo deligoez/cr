@@ -2,8 +2,9 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: pre-release.** The v0.1 contract in [`spec/0.1.0.md`](spec/0.1.0.md)
-> is implemented; no version has been tagged yet.
+> **Status: v0.1.0.** The release implements the contract in
+> [`spec/0.1.0.md`](spec/0.1.0.md); its notes are in
+> [`spec/0.1.0-release-notes.md`](spec/0.1.0-release-notes.md).
 
 `cr` reviews a pull request someone else wrote. It reads the intent from your
 tracker, proves that every changed unit was examined, grades every finding by
@@ -42,7 +43,7 @@ problems it is built to solve.
 ## Install
 
 ```bash
-brew install deligoez/tap/cr                     # Homebrew formula, once released
+brew install deligoez/tap/cr                     # Homebrew formula
 go install github.com/deligoez/cr/cmd/cr@latest  # or Go
 ```
 

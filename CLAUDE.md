@@ -9,7 +9,7 @@ that are easy to violate by accident.
 ## Install
 
 ```bash
-brew tap deligoez/tap && brew install cr          # Homebrew, once released
+brew tap deligoez/tap && brew install cr          # Homebrew
 go install github.com/deligoez/cr/cmd/cr@latest   # or Go
 ```
 
@@ -46,7 +46,9 @@ convenient it is.
 1. **cr never calls a language model.** No API client, no model name, no
    inference. If a feature needs cr to form a judgement, the design is wrong.
 2. **cr never writes inside the repository under review.** All state lives under
-   `~/.cr/`. The user's worktree, index, and branch are read-only to cr.
+   `~/.cr/`. The user's worktree, index, and branch are read-only to cr. The one
+   write spec §5.1.1 permits is the probe sandbox's registration under the
+   repository's `.git/worktrees/`, which `cr sandbox destroy` removes.
 3. **The confirmation gate cannot be configured away.** There is no setting, env
    var, or profile field that makes a network write implicit.
 4. **A finding graded `argued` cannot be posted as an assertion.** The forcing
@@ -546,6 +548,16 @@ cr is built with tp, the same way tp builds itself.
   recorded justification. Implementation audit always runs to the full
   clean-round count and is never cut short by a cap — a hit cap means fix and
   continue, with a user-approved raise.
+- **An audit round's delta starts at the commit the previous round audited,
+  never at the commit that recorded it.** Repairs land between the two. v0.1's
+  rounds 6–8 diffed from the record commit, so those repairs were carried
+  without being measured; only round 7's fresh look from round 1 caught up. And
+  a clean delta round is not a clean tree: round 13 came back 796/796 on a
+  delta, round 14's fresh look over every file changed since round 1 found 7
+  findings, and a QA run against a real pull request after round 14 found the
+  one defect that would have posted a false claim. Alternate delta rounds with
+  fresh looks, and run the QA recipe before a release rather than after the
+  audit.
 - **A spec repair is the minimum normative change.** No rationale sentence, no
   restated motivation, no new concept unless a finding strictly requires one.
   Every explanatory clause in a normative document is itself normative surface —
@@ -662,6 +674,11 @@ do not race. Three rules make it safe, each learned by breaking it.
   green: the killable `n <= highest` mapped onto `finding/id.go` the same way
   turned `TestAnIDCrDidNotWriteIsNotCounted` red. The overlay map is a JSON
   object `{"Replace": {"<absolute original path>": "<absolute copy path>"}}`.
+  **A test that builds the binary is not reached by `-overlay`.** `crBinary`
+  runs its own `go build`, which does not inherit `go test`'s flags: measured
+  2026-09-14, a mutant of `internal/cli/output.go` overlaid that way left the
+  pseudo-terminal test green against unmutated code. Passing the map as
+  `GOFLAGS=-overlay=<map>` reaches the child build, and the same mutant went red.
 
 **`.tp-review/` is tp's, including `REVIEW-DECISION.md`.** Since tp 1.1.1 a
 `PreToolUse` hook refuses a hand edit anywhere under it, citing tp's §6.2 scope
@@ -779,7 +796,10 @@ cr cannot be QA'd against a fixture file the way tp can; it needs a real pull
 request. Set up a disposable one and keep it.
 
 ```bash
-# 1. Build to a temp dir
+# 1. Build to a temp dir. `go build` compiles uncommitted edits too, so a QA of
+#    a commit builds from an extracted tree while anyone has work in progress:
+#    mkdir -p /tmp/cr-qa/src && git archive HEAD | tar -x -C /tmp/cr-qa/src
+#    (cd /tmp/cr-qa/src && go build -o ../cr ./cmd/cr)
 mkdir -p /tmp/cr-qa && go build -o /tmp/cr-qa/cr ./cmd/cr
 export CR=/tmp/cr-qa/cr
 

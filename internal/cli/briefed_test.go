@@ -60,9 +60,9 @@ var section37Obliges = [][]string{
 	{"map", "record"},
 }
 
-// stillAbsent are the commands of that list §11 has not built yet, spelled the
-// way they are typed. A command drops out of here the moment it is built, and
-// the guard below then requires it to have an invocation in briefRuns.
+// stillAbsent are the commands of that list §11 has not built, spelled the way
+// they are typed. All three are built, so it is empty; a command that stopped
+// resolving would have to be named here rather than drop out of the guard.
 var stillAbsent []string
 
 // unbriefedInputs writes the files the guarded commands are pointed at and
@@ -149,16 +149,15 @@ func TestACommandReadingPerPRStateBeforeABriefExitsFourNamingBrief(t *testing.T)
 	}
 }
 
-// The three commands brief-creates-state names are guarded here or named as not
-// yet built, and neither state is assumed.
+// The three commands brief-creates-state names are guarded here or named as
+// absent, and neither state is assumed.
 //
 // The criterion asks for a test that runs `cr review`, `cr cells record` and
-// `cr map record` against a pull request that was never briefed. Not all three
-// are built in v0.1 yet, and a test written against a command that does nothing
-// would assert nothing while looking like it asserted everything. So the
-// absence is the assertion: the moment one of them is built it drops out of the
-// list below and this test fails until it has an invocation in briefRuns —
-// where the guard above then runs it and requires exit 4.
+// `cr map record` against a pull request that was never briefed. All three are
+// built, so each needs an invocation in briefRuns, where the guard above runs it
+// and requires exit 4. A command that stopped resolving is named in stillAbsent
+// rather than skipped, because a test written against a command that does
+// nothing would assert nothing while looking like it asserted everything.
 func TestTheCommandsSection37ObligesAreGuardedOrNamedAsAbsent(t *testing.T) {
 	claims, issue, merged, cells, pairs := unbriefedInputs(t)
 	guarded := briefRuns(claims, issue, merged, cells, pairs)
