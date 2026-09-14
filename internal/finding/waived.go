@@ -73,13 +73,20 @@ func (d Drops) Disclosure() string {
 // holds here, and a waiver stops silencing the moment the anchored code
 // changes.
 //
+// trees are the round's head and merge base, which WaiverKeyOf reads each
+// record's anchored lines from.
+//
 // Order is preserved, so the merged file still reads in the order the role
 // files were read.
-func DropWaived(records []*Finding, waivers []WaiverRecord) ([]*Finding, Drops) {
+func DropWaived(trees Trees, records []*Finding, waivers []WaiverRecord) ([]*Finding, Drops, error) {
 	kept := make([]*Finding, 0, len(records))
 	applied := Drops{Waivers: make([]string, 0, len(waivers))}
 	for _, record := range records {
-		waiver, waived := WaivedBy(waivers, record)
+		key, err := WaiverKeyOf(trees, record)
+		if err != nil {
+			return nil, Drops{}, err
+		}
+		waiver, waived := WaivedBy(waivers, key)
 		if !waived {
 			kept = append(kept, record)
 			continue
@@ -89,5 +96,5 @@ func DropWaived(records []*Finding, waivers []WaiverRecord) ([]*Finding, Drops) 
 			applied.Waivers = append(applied.Waivers, waiver.ID)
 		}
 	}
-	return kept, applied
+	return kept, applied, nil
 }

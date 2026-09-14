@@ -45,7 +45,7 @@ func theProvenance() WaiverProvenance {
 // it chose for itself.
 func waive(t *testing.T, layout state.Layout, record *Finding, prov WaiverProvenance) WaiverRecord {
 	t.Helper()
-	waiver, err := WaiverFor(record)
+	waiver, err := WaiverFor(orderTrees(), record)
 	require.NoError(t, err)
 	recorded, err := Waive(layout, waiverOwner, waiverRepo, &waiver, prov)
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestAWaiverIsReadableAndRemovableFromEitherScope(t *testing.T) {
 	t.Run("the first pull request is a pull request", func(t *testing.T) {
 		first := theProvenance()
 		first.PR = 1
-		waiver, err := WaiverFor(&notHere)
+		waiver, err := WaiverFor(orderTrees(), &notHere)
 		require.NoError(t, err)
 		recorded, err := Waive(layout, waiverOwner, waiverRepo, &waiver, first)
 		require.NoError(t, err)
@@ -276,7 +276,7 @@ func TestAWaiverRecordsTheRoundThePullRequestTheHeadAndTheReason(t *testing.T) {
 				layout := waiverHome(t)
 				prov := theProvenance()
 				incomplete(&prov)
-				waiver, err := WaiverFor(&wrong)
+				waiver, err := WaiverFor(orderTrees(), &wrong)
 				require.NoError(t, err)
 
 				_, err = Waive(layout, waiverOwner, waiverRepo, &waiver, prov)
@@ -308,25 +308,25 @@ func TestAnActiveWaiverCoversTheRecordItWasWrittenForUntilThatCodeChanges(t *tes
 	active, err := ActiveWaivers(layout, waiverOwner, waiverRepo, waiverPR)
 	require.NoError(t, err)
 
-	covering, waived := WaivedBy(active, &wrong)
+	covering, waived := WaivedBy(active, keyOf(t, &wrong))
 	assert.True(t, waived)
 	assert.Equal(t, wide, covering, "the repository-wide waiver covers its own record")
 
-	covering, waived = WaivedBy(active, &notHere)
+	covering, waived = WaivedBy(active, keyOf(t, &notHere))
 	assert.True(t, waived)
 	assert.Equal(t, here, covering, "the pull-request-scoped waiver covers its own record")
 
 	moved := wrong
-	moved.Anchor.StartLine, moved.Anchor.Line = 400, 402
-	_, waived = WaivedBy(active, &moved)
+	anchoredAt(t, &moved, guardFarAt)
+	_, waived = WaivedBy(active, keyOf(t, &moved))
 	assert.True(t, waived, "§7.4.2: the same unchanged code stays waived when the file above it moves")
 
 	rewritten := wrong
-	rewritten.Anchor.ContentHash = hashOf(t, []string{"if ($discount > 0) {", "    $total -= $discount;", "}"})
-	_, waived = WaivedBy(active, &rewritten)
+	anchoredAt(t, &rewritten, editedAt)
+	_, waived = WaivedBy(active, keyOf(t, &rewritten))
 	assert.False(t, waived, "§7.4.2: a waiver stops suppressing once the anchored code changes")
 
-	_, waived = WaivedBy(nil, &wrong)
+	_, waived = WaivedBy(nil, keyOf(t, &wrong))
 	assert.False(t, waived, "no waiver covers a record when none was ever written")
 }
 
@@ -355,7 +355,7 @@ func TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest(t *testing.T) {
 			record.Class = fmt.Sprintf("waived-class-%d", i)
 			prov := theProvenance()
 			prov.PR = i + 1
-			waiver, err := WaiverFor(&record)
+			waiver, err := WaiverFor(orderTrees(), &record)
 			assert.NoError(t, err)
 			_, err = Waive(layout, waiverOwner, waiverRepo, &waiver, prov)
 			assert.NoError(t, err)
@@ -386,7 +386,7 @@ func TestARepositoryWaiverSurvivesTriageOnAnotherPullRequest(t *testing.T) {
 func TestAScopeNamingNeitherFileOfSection744IsRefused(t *testing.T) {
 	layout := waiverHome(t)
 	wrong, _ := theSameDefectAtTheSameCode(t)
-	waiver, err := WaiverFor(&wrong)
+	waiver, err := WaiverFor(orderTrees(), &wrong)
 	require.NoError(t, err)
 	draft := WaiverRecord{Waiver: waiver, WaiverProvenance: theProvenance()}
 

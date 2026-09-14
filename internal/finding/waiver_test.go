@@ -2,11 +2,15 @@ package finding
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,10 +20,86 @@ import (
 // than the single-line special case.
 var discountGuard = []string{"if ($discount) {", "    $total -= $discount;", "}"}
 
-// keyFields are the four fields §7.4.1's key is made of, in the dotted form
-// fieldsInCommon reports: §7.4.1's own three, plus the `anchor.side` round 8's
-// finding side-omitted-from-identity-keys adds.
-var keyFields = []string{"Class", "Anchor.Path", "Anchor.Side", "Anchor.ContentHash"}
+// orderBefore and orderAfter are the context window around every copy of the
+// guard orderFile holds, three lines on each side as §9.2 records it.
+var (
+	orderBefore = []string{"public function total(): int", "{", "    $total = $this->subtotal();"}
+	orderAfter  = []string{"    return $total;", "}", "public function subtotal(): int"}
+)
+
+// The first anchored line of each copy of the guard orderFile holds.
+const (
+	// guardAt, guardMovedAt and guardFarAt are the same code in the same
+	// context at three places in the file.
+	guardAt      = 12
+	guardMovedAt = 61
+	guardFarAt   = 400
+	// reindentedAt is the guard re-indented, in the same context.
+	reindentedAt = 203
+	// editedAt is the guard with its condition edited, in the same context.
+	editedAt = 303
+	// contextEditedAt is the guard unchanged, below an edit to the line
+	// after the lone `{` of its context.
+	contextEditedAt = 503
+)
+
+// orderFile is the file every fixture tree below holds: filler lines, and the
+// guard placed at each of the lines above with its context window around it.
+func orderFile() []string {
+	lines := make([]string, 0, 600)
+	for n := 1; n <= 600; n++ {
+		lines = append(lines, fmt.Sprintf("// filler %d", n))
+	}
+	place := func(at int, before, guard, after []string) {
+		copy(lines[at-1-len(before):], slices.Concat(before, guard, after))
+	}
+	for _, at := range []int{guardAt, guardMovedAt, guardFarAt} {
+		place(at, orderBefore, discountGuard, orderAfter)
+	}
+	place(reindentedAt, orderBefore, []string{"if ($discount) {", "\t$total -= $discount;", "}  "}, orderAfter)
+	place(editedAt, orderBefore,
+		[]string{"if ($discount && $total > 0) {", "    $total -= $discount;", "}"}, orderAfter)
+	place(contextEditedAt,
+		[]string{"public function total(): int", "{", "    $total = $this->subtotal() - $this->credit();"},
+		discountGuard, orderAfter)
+	return lines
+}
+
+// everyPathHolding is a Trees whose head and merge base hold every path as
+// lines, so a key can be formed for any path and either side.
+func everyPathHolding(lines []string) Trees {
+	read := func(string) ([]string, bool, error) { return lines, true, nil }
+	return Trees{Head: read, MergeBase: read}
+}
+
+// orderTrees are the trees every record of this file is keyed against.
+func orderTrees() Trees {
+	return everyPathHolding(orderFile())
+}
+
+// keyOf is §7.4.1's key of record against orderTrees.
+func keyOf(t *testing.T, record *Finding) WaiverKey {
+	t.Helper()
+	key, err := WaiverKeyOf(orderTrees(), record)
+	require.NoError(t, err)
+	return key
+}
+
+// anchoredAt moves record's anchor to the three lines from at and stamps it
+// against orderTrees, as `cr record` stamps an anchor against the round's head.
+func anchoredAt(t *testing.T, record *Finding, at int) {
+	t.Helper()
+	record.Anchor.StartLine, record.Anchor.Line = at, at+len(discountGuard)-1
+	require.NoError(t, StampAnchor(orderTrees(), "fixture.ndjson", 1, &record.Anchor))
+}
+
+// keyFields are the fields of §6.1's table §7.4.1's key is made of, in the
+// dotted form fieldsInCommon reports: §7.4.1's path and class, the anchored code
+// with the context window around it, plus the `anchor.side` round 8's finding
+// side-omitted-from-identity-keys adds.
+var keyFields = []string{
+	"Class", "Anchor.Path", "Anchor.Side", "Anchor.ContentHash", "Anchor.ContextBefore", "Anchor.ContextAfter",
+}
 
 // §7.4.1 excludes the summary from the key in as many words, and gives the
 // reason: it is agent-composed prose that differs between rounds, so a key
@@ -42,7 +122,7 @@ func TestAWaiverKeyIsTheAnchoredCodeAndTheClassAndNothingElse(t *testing.T) {
 		fieldsInCommon(reflect.ValueOf(waived), reflect.ValueOf(reworded), ""),
 		"the two records must agree on the key's fields and differ in every other field of §6.1's table")
 
-	assert.Equal(t, WaiverKeyOf(&waived), WaiverKeyOf(&reworded),
+	assert.Equal(t, keyOf(t, &waived), keyOf(t, &reworded),
 		"§7.4.1: a waived finding must not return under a reworded summary, a different producer, or a later round")
 }
 
@@ -52,8 +132,8 @@ func TestAWaiverKeyIsTheAnchoredCodeAndTheClassAndNothingElse(t *testing.T) {
 // another summary, against another head.
 //
 // Every field of §6.1's table outside the key differs, including the two line
-// numbers — the code has moved down the file without changing, which §7.4.2 says
-// is still the same waived code.
+// numbers — the code and its context have moved down the file without changing,
+// which §7.4.2 says is still the same waived code.
 func theSameDefectAtTheSameCode(t *testing.T) (waived, reworded Finding) {
 	t.Helper()
 	content := hashOf(t, discountGuard)
@@ -72,11 +152,11 @@ func theSameDefectAtTheSameCode(t *testing.T) (waived, reworded Finding) {
 		Anchor: Anchor{
 			Path:          "app/Models/Order.php",
 			Side:          git.Right,
-			StartLine:     12,
-			Line:          14,
+			StartLine:     guardAt,
+			Line:          guardAt + 2,
 			ContentHash:   content,
-			ContextBefore: []string{"public function total(): int", "{"},
-			ContextAfter:  []string{"    return $total;"},
+			ContextBefore: slices.Clone(orderBefore),
+			ContextAfter:  slices.Clone(orderAfter),
 		},
 		Summary:          "The added discount branch has no test.",
 		Evidence:         "No changed test file references the method.",
@@ -106,11 +186,11 @@ func theSameDefectAtTheSameCode(t *testing.T) (waived, reworded Finding) {
 		Anchor: Anchor{
 			Path:          "app/Models/Order.php",
 			Side:          git.Right,
-			StartLine:     61,
-			Line:          63,
+			StartLine:     guardMovedAt,
+			Line:          guardMovedAt + 2,
 			ContentHash:   content,
-			ContextBefore: []string{"private function subtotal(): int"},
-			ContextAfter:  []string{"}", ""},
+			ContextBefore: slices.Clone(orderBefore),
+			ContextAfter:  slices.Clone(orderAfter),
 		},
 		Summary:          "Nothing exercises the branch that applies the discount.",
 		Evidence:         "The suite passes with the branch removed.",
@@ -179,7 +259,7 @@ func everyFieldExported(typ reflect.Type) bool {
 // finding about the addition, in a file the reviewer never waived anything in.
 func TestAWaiverReachesOneClassInOneFileInOneTree(t *testing.T) {
 	waived, _ := theSameDefectAtTheSameCode(t)
-	key := WaiverKeyOf(&waived)
+	key := keyOf(t, &waived)
 
 	for name, elsewhere := range map[string]func(*Finding){
 		"another file":   func(record *Finding) { record.Anchor.Path = "app/Models/Invoice.php" },
@@ -189,7 +269,7 @@ func TestAWaiverReachesOneClassInOneFileInOneTree(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			other, _ := theSameDefectAtTheSameCode(t)
 			elsewhere(&other)
-			assert.NotEqual(t, key, WaiverKeyOf(&other),
+			assert.NotEqual(t, key, keyOf(t, &other),
 				"§7.4.2: a waiver suppresses the same class at the same code in the same file, and nothing further")
 		})
 	}
@@ -210,28 +290,44 @@ func TestAWaiverReachesOneClassInOneFileInOneTree(t *testing.T) {
 // outliving the code it was written over is a silence nobody chose.
 func TestAWaiverStopsMatchingOnceTheAnchoredLinesChange(t *testing.T) {
 	waived, _ := theSameDefectAtTheSameCode(t)
-	key := WaiverKeyOf(&waived)
+	key := keyOf(t, &waived)
 
-	for name, unchanged := range map[string]func(*Finding){
-		"the same code further down the file": func(record *Finding) {
-			record.Anchor.StartLine, record.Anchor.Line = 61, 63
-		},
-		"the same code re-indented": func(record *Finding) {
-			record.Anchor.ContentHash = hashOf(t, []string{"if ($discount) {", "\t$total -= $discount;", "}  "})
-		},
+	for name, at := range map[string]int{
+		"the same code further down the file": guardFarAt,
+		"the same code re-indented":           reindentedAt,
 	} {
 		t.Run(name, func(t *testing.T) {
 			later, _ := theSameDefectAtTheSameCode(t)
-			unchanged(&later)
-			assert.Equal(t, key, WaiverKeyOf(&later),
+			anchoredAt(t, &later, at)
+			assert.Equal(t, key, keyOf(t, &later),
 				"§7.4.2: the waiver holds over the same unchanged code, or the author re-dismisses it every round")
 		})
 	}
 
 	edited, _ := theSameDefectAtTheSameCode(t)
-	edited.Anchor.ContentHash = hashOf(t, []string{"if ($discount && $total > 0) {", "    $total -= $discount;", "}"})
-	assert.NotEqual(t, key, WaiverKeyOf(&edited),
+	anchoredAt(t, &edited, editedAt)
+	assert.NotEqual(t, key, keyOf(t, &edited),
 		"§7.4.2: the waiver stops once that code changes, which is when the judgement behind it is worth revisiting")
+}
+
+// §7.4.1 hashes the context window with the anchored lines, and §7.4.2 stops a
+// waiver once "that code or its context changes". The anchored lines below are
+// the waived guard to the byte, so §9.2's anchor hash is the waived record's;
+// only the line after the lone `{` above them was edited. A key over the
+// anchored lines alone would keep silencing a finding whose surroundings the
+// reviewer never read.
+func TestAWaiverStopsMatchingOnceTheContextAroundTheAnchoredLinesChanges(t *testing.T) {
+	waived, _ := theSameDefectAtTheSameCode(t)
+	key := keyOf(t, &waived)
+
+	moved, _ := theSameDefectAtTheSameCode(t)
+	anchoredAt(t, &moved, contextEditedAt)
+
+	require.Equal(t, waived.Anchor.ContentHash, moved.Anchor.ContentHash,
+		"§9.2's content hash stays over the anchored lines alone, and those did not change")
+	require.NotEqual(t, waived.Anchor.ContextBefore, moved.Anchor.ContextBefore)
+	assert.NotEqual(t, key, keyOf(t, &moved),
+		"§7.4.2: the waiver stops once the code's context changes")
 }
 
 // §7.4.1 does not let a caller choose where a waiver reaches: the scope follows
@@ -256,7 +352,7 @@ func TestAWaiverScopeFollowsItsDisposition(t *testing.T) {
 			discarded, _ := theSameDefectAtTheSameCode(t)
 			discarded.Disposition = expected.disposition
 
-			waiver, err := WaiverFor(&discarded)
+			waiver, err := WaiverFor(orderTrees(), &discarded)
 			require.NoError(t, err)
 
 			scope, err := waiver.Scope()
@@ -290,7 +386,7 @@ func TestNotWorthSayingHereSilencesNothingBeyondItsPullRequest(t *testing.T) {
 	discarded, _ := theSameDefectAtTheSameCode(t)
 	discarded.Disposition = DispositionNotHere
 
-	waiver, err := WaiverFor(&discarded)
+	waiver, err := WaiverFor(orderTrees(), &discarded)
 	require.NoError(t, err)
 	scope, err := waiver.Scope()
 	require.NoError(t, err)
@@ -325,11 +421,11 @@ func TestAWaiverRecordsTheDispositionItWasWrittenFor(t *testing.T) {
 			discarded, _ := theSameDefectAtTheSameCode(t)
 			discarded.Disposition = disposition
 
-			waiver, err := WaiverFor(&discarded)
+			waiver, err := WaiverFor(orderTrees(), &discarded)
 			require.NoError(t, err)
 			assert.Equal(t, disposition, waiver.Disposition,
 				"§7.4.5: the waiver records the disposition §7.2 set on the record it was written for")
-			assert.Equal(t, WaiverKeyOf(&discarded), waiver.WaiverKey,
+			assert.Equal(t, keyOf(t, &discarded), waiver.WaiverKey,
 				"§7.4.1: and it covers that record, so the reason and the key describe one discard")
 
 			written, err := json.Marshal(waiver)
@@ -365,7 +461,7 @@ func TestARecordIsNotWaivedWithoutOneOfTheTwoDispositions(t *testing.T) {
 			discarded, _ := theSameDefectAtTheSameCode(t)
 			discarded.Disposition = disposition
 
-			waiver, err := WaiverFor(&discarded)
+			waiver, err := WaiverFor(orderTrees(), &discarded)
 			require.Error(t, err, "§7.2 has two dispositions, and a waiver may be written for neither more nor fewer")
 			assert.Equal(t, Waiver{}, waiver,
 				"a refused waiver must carry no key either, or a caller could store what it was refused")
@@ -400,11 +496,11 @@ func TestARecordIsNotWaivedWithoutOneOfTheTwoDispositions(t *testing.T) {
 // written above the file and a waiver written below it alike.
 func TestAWaiverNeverWidensAlongThePath(t *testing.T) {
 	waived, _ := theSameDefectAtTheSameCode(t)
-	key := WaiverKeyOf(&waived)
+	key := keyOf(t, &waived)
 	require.Equal(t, "app/Models/Order.php", waived.Anchor.Path)
 
 	unchanged, _ := theSameDefectAtTheSameCode(t)
-	require.Equal(t, key, WaiverKeyOf(&unchanged),
+	require.Equal(t, key, keyOf(t, &unchanged),
 		"the waived path still matches itself, so the cases below fail on the path and not on the fixture")
 
 	for _, path := range []string{
@@ -418,8 +514,58 @@ func TestAWaiverNeverWidensAlongThePath(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			nearby, _ := theSameDefectAtTheSameCode(t)
 			nearby.Anchor.Path = path
-			assert.NotEqual(t, key, WaiverKeyOf(&nearby),
+			assert.NotEqual(t, key, keyOf(t, &nearby),
 				"§7.4.6's path-prefix widening is dropped from v0.1: a waiver reaches one path, exactly")
+		})
+	}
+}
+
+// §7.4.1's pre-image, spelled out: the context before, the anchored lines and
+// the context after, joined by LF and normalised per §1.4 as one text. A key
+// formed any other way — the three hashed apart, or the window left out —
+// would agree with the waivers cr has written on nothing.
+func TestTheKeyHashIsTheContextAndTheAnchoredLinesJoinedByLF(t *testing.T) {
+	waived, _ := theSameDefectAtTheSameCode(t)
+	want, err := text.NormalisedHash(strings.Join(slices.Concat(orderBefore, discountGuard, orderAfter), "\n"))
+	require.NoError(t, err)
+	assert.Equal(t, want, keyOf(t, &waived).ContentHash)
+
+	alone, err := ContextKeyHash(nil, discountGuard, nil)
+	require.NoError(t, err)
+	assert.Equal(t, hashOf(t, discountGuard), alone,
+		"with no context on either side the key hashes the text §9.2's anchor hash does")
+}
+
+// The anchored lines are read again from the tree the anchor's side names, and
+// an anchor that tree cannot give its lines for is cr's own state gone wrong:
+// the stamp resolved it there. It is refused as the file failure §11.2 codes 3,
+// never keyed on fewer lines, because a key over other lines waives code nobody
+// read.
+func TestAKeyIsRefusedForAnAnchorItsTreeCannotGiveLinesFor(t *testing.T) {
+	read := func(path string) ([]string, bool, error) {
+		if path == "app/Models/Gone.php" {
+			return nil, false, nil
+		}
+		return orderFile(), true, nil
+	}
+	trees := Trees{Head: read, MergeBase: read}
+	for name, broken := range map[string]func(*Anchor){
+		"a side naming no tree":         func(a *Anchor) { a.Side = "MIDDLE" },
+		"a path the tree does not hold": func(a *Anchor) { a.Path = "app/Models/Gone.php" },
+		"a range past the end":          func(a *Anchor) { a.StartLine, a.Line = 600, 601 },
+		"a range starting at line 0":    func(a *Anchor) { a.StartLine = 0 },
+		"a range running backwards":     func(a *Anchor) { a.StartLine, a.Line = guardAt+2, guardAt },
+	} {
+		t.Run(name, func(t *testing.T) {
+			record, _ := theSameDefectAtTheSameCode(t)
+			broken(&record.Anchor)
+
+			key, err := WaiverKeyOf(trees, &record)
+
+			var unusable *state.FileError
+			require.ErrorAs(t, err, &unusable)
+			assert.Equal(t, state.UnusableHint, unusable.Hint())
+			assert.Equal(t, WaiverKey{}, key)
 		})
 	}
 }

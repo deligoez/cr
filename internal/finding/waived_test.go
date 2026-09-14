@@ -16,10 +16,11 @@ import (
 // because that is how the waiver §7.2 writes at triage is built: a fixture that
 // spelled the four fields here would keep matching after a fifth joined the key
 // and would stop measuring anything.
-func waiverOver(id string, record *Finding, disposition Disposition) WaiverRecord {
+func waiverOver(t *testing.T, id string, record *Finding, disposition Disposition) WaiverRecord {
+	t.Helper()
 	return WaiverRecord{
 		ID:     id,
-		Waiver: Waiver{WaiverKey: WaiverKeyOf(record), Disposition: disposition},
+		Waiver: Waiver{WaiverKey: keyOf(t, record), Disposition: disposition},
 		WaiverProvenance: WaiverProvenance{
 			Round: 1, PR: 7, Head: "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
 			Reason: "the store's caller already handles this",
@@ -63,10 +64,11 @@ func TestAWaivedFindingIsDroppedCountedAndLeavesNoRecord(t *testing.T) {
 	third := duplicateRecord("f3", "correctness", GradeCited, SeverityMedium)
 	third.Anchor.Line = 120
 
-	kept, dropped := DropWaived(
+	kept, dropped, err := DropWaived(orderTrees(),
 		[]*Finding{first, silenced, third},
-		[]WaiverRecord{waiverOver("wr1", silenced, DispositionWrong)},
+		[]WaiverRecord{waiverOver(t, "wr1", silenced, DispositionWrong)},
 	)
+	require.NoError(t, err)
 
 	require.Equal(t, []*Finding{first, third}, kept,
 		"§6.4.4 drops the waived record and leaves the order of the rest")
@@ -94,16 +96,20 @@ func TestAWaivedFindingIsDroppedCountedAndLeavesNoRecord(t *testing.T) {
 // — the finding simply stops being raised.
 func TestAWaiverStopsSilencingOnceTheAnchoredCodeChanges(t *testing.T) {
 	unchanged := duplicateRecord("f1", "correctness", GradeCited, SeverityHigh)
-	waiver := waiverOver("wp1", unchanged, DispositionNotHere)
+	waiver := waiverOver(t, "wp1", unchanged, DispositionNotHere)
 
-	kept, dropped := DropWaived([]*Finding{unchanged}, []WaiverRecord{waiver})
+	kept, dropped, err := DropWaived(orderTrees(), []*Finding{unchanged}, []WaiverRecord{waiver})
+	require.NoError(t, err)
 	require.Empty(t, kept, "the same class at the same unchanged code is what the waiver covers")
 	require.Equal(t, 1, dropped.Dropped)
 
+	// The same range over other lines of the fixture tree: code that reads
+	// differently where the waived code stood.
 	rewritten := duplicateRecord("f1", "correctness", GradeCited, SeverityHigh)
-	rewritten.Anchor.ContentHash = "9e8d7c6b5a493827"
+	rewritten.Anchor.StartLine, rewritten.Anchor.Line = 45, 49
 
-	kept, dropped = DropWaived([]*Finding{rewritten}, []WaiverRecord{waiver})
+	kept, dropped, err = DropWaived(orderTrees(), []*Finding{rewritten}, []WaiverRecord{waiver})
+	require.NoError(t, err)
 
 	assert.Equal(t, []*Finding{rewritten}, kept,
 		"§7.4.2: the waiver stops suppressing once the code changes, which is when the judgement should be revisited")
@@ -130,17 +136,18 @@ func TestTheDropNamesEachApplyingWaiverOnceAcrossBothScopes(t *testing.T) {
 	// the same class over the same anchored lines, which §6.4.1 would have
 	// grouped and one waiver covers. §7.4.1's key carries no line, so this
 	// holds however far apart the two anchors sit.
-	require.Equal(t, WaiverKeyOf(wide), WaiverKeyOf(again))
-	require.NotEqual(t, WaiverKeyOf(wide), WaiverKeyOf(survivor))
-	require.NotEqual(t, WaiverKeyOf(here), WaiverKeyOf(survivor))
+	require.Equal(t, keyOf(t, wide), keyOf(t, again))
+	require.NotEqual(t, keyOf(t, wide), keyOf(t, survivor))
+	require.NotEqual(t, keyOf(t, here), keyOf(t, survivor))
 
-	kept, dropped := DropWaived(
+	kept, dropped, err := DropWaived(orderTrees(),
 		[]*Finding{wide, again, here, survivor},
 		[]WaiverRecord{
-			waiverOver("wr1", wide, DispositionWrong),
-			waiverOver("wp1", here, DispositionNotHere),
+			waiverOver(t, "wr1", wide, DispositionWrong),
+			waiverOver(t, "wp1", here, DispositionNotHere),
 		},
 	)
+	require.NoError(t, err)
 
 	assert.Equal(t, []*Finding{survivor}, kept)
 	assert.Equal(t, Drops{Dropped: 3, Waivers: []string{"wr1", "wp1"}}, dropped,

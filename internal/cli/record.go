@@ -502,7 +502,7 @@ func acceptRecords(
 	}
 	// §6.4.4 and §9.3.6 again, after the last refusal that names an input
 	// line, keeping the records a dropped representative orphaned.
-	records, orphans, dropped, err := dropRecorded(l, owner, repo, pr, round.Round, body, records)
+	records, orphans, dropped, err := dropRecorded(l, owner, repo, pr, round, body, records)
 	if err != nil {
 		return nil, nil, recordDrops{}, nil, err
 	}

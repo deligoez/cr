@@ -31,9 +31,10 @@ func longFunction(id string) map[string]any {
 // waiveLongFunction writes the repository-wide waiver waivingHome holds.
 func waiveLongFunction(t *testing.T, layout state.Layout) {
 	t.Helper()
-	// The hash cr stamps on aGradedRecord's anchor: line 3 of app.go at the
-	// fixture's head.
-	stamped, err := finding.AnchorContentHash([]string{"func Retry() { backoff() }"})
+	// §7.4.1's key hash of aGradedRecord's anchor: line 3 of app.go at the
+	// fixture's head, below its two lines of context and with none after it.
+	stamped, err := finding.ContextKeyHash(
+		[]string{"package app", ""}, []string{"func Retry() { backoff() }"}, []string{})
 	require.NoError(t, err)
 	waiver := finding.Waiver{
 		WaiverKey: finding.WaiverKey{

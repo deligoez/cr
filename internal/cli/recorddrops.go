@@ -18,9 +18,9 @@ type recordDrops struct {
 
 // settleAnchors binds every record's anchor to its own unit and then stamps
 // §9.2.3's content hash and context window on it. The two are one step because
-// the second is what §6.4.4 and §9.3.6 match on: a record reaches the drops
-// below carrying the hash of its own lines at the round's head, never the one
-// the agent typed.
+// the window is what §6.4.4 and §9.3.6 match on, with the lines between: a record
+// reaches the drops below carrying the window of its own lines at the round's
+// head, never the one the agent typed.
 func settleAnchors(
 	owner, repo string, pr int, round *state.Meta, file string, body []byte,
 	formed []roundUnit, records []*finding.Finding,
@@ -55,24 +55,33 @@ func settleAnchors(
 // refusals index the records by their position in the file.
 //
 // body is the input's text, whose hash names the drops in the round summary.
+// round is the round's meta.json, whose head §7.4.1's key reads the anchored
+// lines at.
 func dropRecorded(
-	l state.Layout, owner, repo string, pr, round int, body []byte, records []*finding.Finding,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, body []byte, records []*finding.Finding,
 ) (kept, orphans []*finding.Finding, dropped recordDrops, err error) {
 	input, err := mergedDigest(body)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
+	trees := keyTrees(owner, repo, pr, round.Head)
 	waivers, err := finding.ActiveWaivers(l, owner, repo, pr)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	kept, waived := finding.DropWaived(records, waivers)
+	kept, waived, err := finding.DropWaived(trees, records, waivers)
+	if err != nil {
+		return nil, nil, recordDrops{}, err
+	}
 	index, err := finding.PostedIndex(l, owner, repo, pr)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	kept, posted := finding.DropPosted(kept, index)
-	stored, err := state.ReadStamped[finding.Finding](l, owner, repo, pr, state.FileFindings, round)
+	kept, posted, err := finding.DropPosted(trees, kept, index)
+	if err != nil {
+		return nil, nil, recordDrops{}, err
+	}
+	stored, err := state.ReadStamped[finding.Finding](l, owner, repo, pr, state.FileFindings, round.Round)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}

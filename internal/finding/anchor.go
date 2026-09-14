@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/text"
 )
 
@@ -31,10 +32,11 @@ const contextWindow = 3
 // joins to itself, so the general case already is the special one, and
 // TestTheContentHashBranchesOnNothing keeps it that way.
 //
-// The pre-image is named once, here, because three sections hash the same lines
-// and their values have to be comparable: §9.2 for the anchor, §7.4.1 for the
-// waiver key, and §6.1's citation content hash, which is this function over a
-// slice of one line.
+// The pre-image is named once, here, because two sections hash the same lines
+// and their values have to be comparable: §9.2 for the anchor, and §6.1's
+// citation content hash, which is this function over a slice of one line.
+// §7.4.1's waiver key reaches past the anchored lines into the context window,
+// so it is ContextKeyHash's value and never this one.
 //
 // The caller supplies the anchored lines themselves, read from the tree §6.1.2
 // resolves the anchor's side against. Nothing here answers an empty slice,
@@ -47,6 +49,55 @@ const contextWindow = 3
 // one.
 func AnchorContentHash(lines []string) (string, error) {
 	return text.NormalisedHash(strings.Join(lines, "\n"))
+}
+
+// ContextKeyHash is §7.4.1's key hash, which §9.3.6's posted index is keyed by
+// as well: the normalised hash per §1.4 of the anchor's context lines before,
+// the anchored lines, and the context lines after, the three joined by LF.
+//
+// It is deliberately a second value beside AnchorContentHash rather than a
+// replacement for it. §9.2 keeps the anchor's `content_hash` over the anchored
+// lines alone, and a citation's with it; the key reaches into the window so a
+// waiver stops suppressing once the code around the anchored lines changes, per
+// §7.4.2 — an edit to the line after a lone `{` changes nothing the anchor's own
+// hash can see.
+func ContextKeyHash(before, anchored, after []string) (string, error) {
+	return text.NormalisedHash(strings.Join([]string{
+		strings.Join(before, "\n"), strings.Join(anchored, "\n"), strings.Join(after, "\n"),
+	}, "\n"))
+}
+
+// anchoredLines reads the lines one anchor names out of the tree its side
+// names: the middle of the text ContextKeyHash hashes.
+//
+// A stored record carries the hash of those lines and not the lines, so a key
+// formed after `cr record` — a waiver at triage, a posted-index entry at posting
+// — reads them again from the tree of the head the record was produced against.
+// That tree is a commit and does not change, and the anchor resolved against it
+// when it was stamped, so a side naming no tree, a path the tree does not hold,
+// or a range outside the file is cr's own state gone wrong. It is refused as
+// such rather than keyed on whatever lines happen to be there.
+func anchoredLines(trees Trees, anchor *Anchor) ([]string, error) {
+	unusable := func(problem string) error {
+		return state.FileFailure("use", state.FileFindings, state.UnusableHint, fmt.Errorf(
+			"the anchor on %s %s lines %d-%d %s", anchor.Side, anchor.Path, anchor.StartLine, anchor.Line, problem,
+		))
+	}
+	read, named, known := trees.tree(anchor.Side)
+	if !known {
+		return nil, unusable("names no tree to read")
+	}
+	lines, exists, err := read(anchor.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, unusable("names a file " + named + " does not hold")
+	}
+	if anchor.StartLine < firstLine || anchor.Line < anchor.StartLine || anchor.Line > len(lines) {
+		return nil, unusable(fmt.Sprintf("is not a range of the %d lines %s holds", len(lines), named))
+	}
+	return lines[anchor.StartLine-1 : anchor.Line], nil
 }
 
 // ValidateAnchor holds one record's anchor to §9.2's field set.
@@ -264,20 +315,22 @@ func ResolveAnchor(trees Trees, file string, line int, anchor *Anchor) error {
 // It has two callers, and the anchor is cr's to complete in both. `cr record`
 // stores an anchor for the first time: §9.2.3 has the hash and the window
 // recorded even though v0.1 never migrates, and §7.4.1 keys a waiver on the
-// hash, so a value the agent typed — or left empty — would key a waiver on
-// nothing the tree holds. §7.2's marker edit moves an anchor: `path`,
-// `start_line` and `line` are re-validated per §6.1.2 and the edit aborts when
-// the anchor no longer resolves, and the hash and window are recomputed because
-// an anchor moved to other lines while still carrying those it left would waive
-// a class at code nobody has read (round 12's anchor-hash-not-recomputed).
+// window around the anchored lines, so a window the agent typed — or left
+// empty — would key a waiver on nothing the tree holds. §7.2's marker edit
+// moves an anchor: `path`, `start_line` and `line` are re-validated per §6.1.2
+// and the edit aborts when the anchor no longer resolves, and the hash and
+// window are recomputed because an anchor moved to other lines while still
+// carrying those it left would waive a class at code nobody has read (round
+// 12's anchor-hash-not-recomputed).
 //
 // The shape rule runs first, because ResolveAnchor measures only the last line
 // of the range against the file and relies on the shape having been settled.
 //
 // The values are computed from the tree rather than from anything the caller
 // holds, for the reason AnchorContentHash gives about its pre-image: §9.2's
-// anchor hash, §7.4.1's waiver key and §6.1's citation hash have to be
-// comparable, so the lines are read where the record's side says they live.
+// anchor hash and §6.1's citation hash have to be comparable, and §7.4.1's
+// waiver key reads the window, so the lines are read where the record's side
+// says they live.
 //
 // The file is opened a second time, after ResolveAnchor has already opened it.
 // That is what makes the slices below total: the resolution is what establishes

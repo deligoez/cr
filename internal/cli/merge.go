@@ -303,12 +303,17 @@ func mergeRecords(
 	if err := gradeMerged(l, owner, repo, pr, round, formed, corpus, records); err != nil {
 		return nil, err
 	}
-	// §6.4.4, over both of the files §7.4.4 writes.
+	// §6.4.4, over both of the files §7.4.4 writes. §7.4.1's key reads
+	// each record's anchored lines out of the round's trees.
+	trees := keyTrees(owner, repo, pr, round.Head)
 	waivers, err := finding.ActiveWaivers(l, owner, repo, pr)
 	if err != nil {
 		return nil, err
 	}
-	kept, waived := finding.DropWaived(records, waivers)
+	kept, waived, err := finding.DropWaived(trees, records, waivers)
+	if err != nil {
+		return nil, err
+	}
 	// §9.3.6, read across rounds because that is the whole of what the
 	// index is for: a comment the author received in round 1 must not be
 	// raised again in round 2, and an index narrowed to the current round
@@ -317,7 +322,10 @@ func mergeRecords(
 	if err != nil {
 		return nil, err
 	}
-	kept, posted := finding.DropPosted(kept, index)
+	kept, posted, err := finding.DropPosted(trees, kept, index)
+	if err != nil {
+		return nil, err
+	}
 	// §6.4.1 and §6.4.2, and the `duplicate_of` §6.5.1 lets this command
 	// write. The state §6.4.3 names is `cr record`'s to stamp.
 	return &mergeOutcome{
@@ -429,10 +437,10 @@ func (c *mergeCounts) lines() []string {
 // line of the role's own file, before any output exists to hand on.
 //
 // The anchors are stamped here too, for the reason the citations are: §6.4.4
-// and §9.3.6 match on the anchor's content hash, and a waiver or posted-index
-// entry `cr record` wrote carries the hash of the lines at the head. A record
-// matched on the hash its role typed would match none of them, and an
-// already-posted finding would reach the draft again.
+// and §9.3.6 match on §7.4.1's key, which hashes the anchor's context window
+// with its lines at the head. A record whose window the role typed, or left
+// out, would match no waiver or posted-index entry, and an already-posted
+// finding would reach the draft again.
 //
 // The ids are held to §6.1 last, across every input and against the pull
 // request's stored records, through the check `cr record` makes: two roles'

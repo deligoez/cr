@@ -195,13 +195,22 @@ func writePosted(
 //
 // review is the node id of the review the records reached the author in, which
 // every entry carries.
+//
+// Each entry's key reads the record's anchored lines from the trees of the head
+// the record was produced against, for the reason waiveDiscards gives. A read
+// that fails leaves the index unwritten and `post_unresolved` set, so
+// `cr post --reconcile` writes it.
 func recordPostedIndex(
 	l state.Layout, round *state.Meta, records []*finding.Finding, review string,
 ) error {
 	owner, repo, pr := round.Owner, round.Repo, round.PR
 	entries := make([]finding.PostedEntry, 0, len(records))
 	for _, record := range records {
-		entries = append(entries, finding.PostedEntryFor(record, review))
+		entry, err := finding.PostedEntryFor(keyTrees(owner, repo, pr, record.Head), record, review)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, entry)
 	}
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {

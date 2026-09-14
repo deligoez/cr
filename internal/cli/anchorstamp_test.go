@@ -35,6 +35,18 @@ func recordedHash(t *testing.T, unit string) string {
 	return hash
 }
 
+// recordedKeyHash is §7.4.1's key hash of aRecord's anchor in one unit, which a
+// waiver or posted-index fixture is keyed on: the three lines above recordedHash's
+// lines, those lines, and the three below, at recordHead.
+func recordedKeyHash(t *testing.T, unit string) string {
+	t.Helper()
+	start := recordUnitStart[unit]
+	hash, err := finding.ContextKeyHash(
+		handlerLines(start-1, start+1), handlerLines(start+2, start+4), handlerLines(start+5, start+7))
+	require.NoError(t, err)
+	return hash
+}
+
 // handlerLines is recordCheckout's file between two line numbers, inclusive.
 func handlerLines(from, to int) []string {
 	lines := make([]string, 0, to-from+1)
@@ -80,7 +92,9 @@ func TestARecordedAnchorCarriesTheHashOfItsLinesAndItsWaiverTheSame(t *testing.T
 	waivers, err := finding.PullRequestWaivers(layout, recordOwner, recordRepo, recordPRNum)
 	require.NoError(t, err)
 	require.Len(t, waivers, 1, "§7.2: a deleted block writes a pull-request waiver")
-	assert.Equal(t, want, waivers[0].ContentHash, "§7.4.1: the waiver is keyed on the recorded anchor's hash")
+	assert.Equal(t, recordedKeyHash(t, "u1"), waivers[0].ContentHash,
+		"§7.4.1: the waiver is keyed on the anchored lines with their context window")
+	assert.NotEqual(t, want, waivers[0].ContentHash, "§9.2's anchor hash stays over the anchored lines alone")
 }
 
 // §9.2.2 through `cr brief`: a head change moves the round's open records to

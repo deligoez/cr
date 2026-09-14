@@ -151,7 +151,7 @@ func TestAWaiverRemovalWhoseLockCannotBeTakenExitsWithTheFileCode(t *testing.T) 
 	layout := recordedHome(t)
 	stored, err := finding.Waive(layout, recordOwner, recordRepo, &finding.Waiver{
 		WaiverKey: finding.WaiverKey{
-			Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
+			Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedKeyHash(t, "u1"),
 		},
 		Disposition: finding.DispositionWrong,
 	}, finding.WaiverProvenance{Round: recordRound, PR: recordPRNum, Head: recordHead})

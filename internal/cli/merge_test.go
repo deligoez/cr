@@ -157,7 +157,7 @@ func TestMergeDropsAWaivedFinding(t *testing.T) {
 	waived := finding.Waiver{
 		WaiverKey: finding.WaiverKey{
 			Path: "internal/api/handler.go", Side: "RIGHT",
-			Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
+			Class: "unchecked-error", ContentHash: recordedKeyHash(t, "u1"),
 		},
 		Disposition: finding.DispositionNotHere,
 	}
@@ -199,7 +199,7 @@ func TestMergeDropsAnAlreadyPostedFinding(t *testing.T) {
 			Record: "f9",
 			WaiverKey: finding.WaiverKey{
 				Path: "internal/api/handler.go", Side: "RIGHT",
-				Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
+				Class: "unchecked-error", ContentHash: recordedKeyHash(t, "u1"),
 			},
 			Round: recordRound - 1, Head: recordHead,
 		}}))
@@ -425,7 +425,7 @@ func TestMergeReportsFourBreakdownsAndRecordsItsDropsInTheSummary(t *testing.T) 
 	waiver := finding.Waiver{
 		WaiverKey: finding.WaiverKey{
 			Path: "internal/api/handler.go", Side: "RIGHT",
-			Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
+			Class: "unchecked-error", ContentHash: recordedKeyHash(t, "u1"),
 		},
 		Disposition: finding.DispositionNotHere,
 	}

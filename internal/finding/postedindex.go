@@ -50,15 +50,20 @@ type PostedEntry struct {
 // review whose node id is review.
 //
 // Both halves come off the one record, as WaiverFor takes both of a waiver's,
-// so an entry cannot end up keyed by one record and pointing at another.
-func PostedEntryFor(record *Finding, review string) PostedEntry {
+// so an entry cannot end up keyed by one record and pointing at another. trees
+// are the round's, which WaiverKeyOf reads the anchored lines from.
+func PostedEntryFor(trees Trees, record *Finding, review string) (PostedEntry, error) {
+	key, err := WaiverKeyOf(trees, record)
+	if err != nil {
+		return PostedEntry{}, err
+	}
 	return PostedEntry{
 		Record:    record.ID,
-		WaiverKey: WaiverKeyOf(record),
+		WaiverKey: key,
 		Round:     record.Round,
 		Head:      record.Head,
 		Review:    review,
-	}
+	}, nil
 }
 
 // PostedIndex returns every entry `posted-index.ndjson` holds for one pull
@@ -101,15 +106,16 @@ func AppendPosted(
 	return state.WriteRecords(k, state.FilePostedIndex, held)
 }
 
-// PostedBefore reports the index entry covering a record, if one does.
+// PostedBefore reports the index entry covering a record's key, as WaiverKeyOf
+// forms it, if one does.
 //
 // Matching is equality over the whole of §7.4.1's key, which is WaivedBy's
-// comparison and is narrow for the same reason: §9.2's content hash is over the
-// anchored lines, so an entry stops covering a finding the moment the code it
-// was posted about changes. That is what lets a real regression in rewritten
-// code be raised again while a comment about untouched code is not repeated.
-func PostedBefore(index []PostedEntry, record *Finding) (PostedEntry, bool) {
-	key := WaiverKeyOf(record)
+// comparison and is narrow for the same reason: §7.4.1's hash is over the
+// anchored lines and their context, so an entry stops covering a finding the
+// moment the code it was posted about, or the code around it, changes. That is
+// what lets a real regression in rewritten code be raised again while a comment
+// about untouched code is not repeated.
+func PostedBefore(index []PostedEntry, key WaiverKey) (PostedEntry, bool) {
 	for _, entry := range index {
 		if entry.WaiverKey == key {
 			return entry, true
@@ -169,11 +175,15 @@ func (d PostedDrops) Disclosure() string {
 //
 // The caller is handed a new slice rather than having its own filtered in
 // place, and order is preserved, both for the reasons DropWaived gives.
-func DropPosted(records []*Finding, index []PostedEntry) ([]*Finding, PostedDrops) {
+func DropPosted(trees Trees, records []*Finding, index []PostedEntry) ([]*Finding, PostedDrops, error) {
 	kept := make([]*Finding, 0, len(records))
 	applied := PostedDrops{Posted: make([]string, 0, len(index))}
 	for _, record := range records {
-		entry, posted := PostedBefore(index, record)
+		key, err := WaiverKeyOf(trees, record)
+		if err != nil {
+			return nil, PostedDrops{}, err
+		}
+		entry, posted := PostedBefore(index, key)
 		if !posted {
 			kept = append(kept, record)
 			continue
@@ -183,5 +193,5 @@ func DropPosted(records []*Finding, index []PostedEntry) ([]*Finding, PostedDrop
 			applied.Posted = append(applied.Posted, entry.Record)
 		}
 	}
-	return kept, applied
+	return kept, applied, nil
 }

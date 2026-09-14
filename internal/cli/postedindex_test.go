@@ -45,7 +45,7 @@ func TestAFindingPostedInRoundOneIsDroppedInRoundTwo(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, index, 1, "§9.3.6 holds one entry per record that reached posted")
 	assert.Equal(t, "f1", index[0].Record)
-	assert.Equal(t, finding.WaiverKeyOf(posted), index[0].WaiverKey,
+	assert.Equal(t, keyOf(t, posted), index[0].WaiverKey,
 		"§9.3.6 keys the index exactly as a §7.4.1 waiver is keyed")
 	assert.Equal(t, draftRound, index[0].Round)
 
@@ -54,9 +54,10 @@ func TestAFindingPostedInRoundOneIsDroppedInRoundTwo(t *testing.T) {
 	again.Role, again.Summary = "convention", "The returned error is discarded here."
 	fresh := aStoredRecord("f8", finding.StateDraft)
 	fresh.Round, fresh.Head = draftRound+1, "9a8b7c6"
-	fresh.Anchor.ContentHash = "fedcba9876543210"
+	fresh.Anchor.StartLine, fresh.Anchor.Line = 50, 52
 
-	kept, drops := finding.DropPosted([]*finding.Finding{again, fresh}, index)
+	kept, drops, err := finding.DropPosted(treesOf(again), []*finding.Finding{again, fresh}, index)
+	require.NoError(t, err)
 
 	assert.Equal(t, []*finding.Finding{fresh}, kept,
 		"§9.3.6: the finding the author already received never reaches findings.ndjson")
@@ -70,10 +71,10 @@ func TestAFindingPostedInRoundOneIsDroppedInRoundTwo(t *testing.T) {
 // doing its work rather than being declared: the entry is read in a later round
 // and against a moved head.
 //
-// The head is the sharper half. §7.4.1's key holds the content hash of the
-// anchored lines and not the commit, so a pull request that moved forward
-// without touching the code the comment was about still finds the entry —
-// which is the case §9.3.6 exists for, since a round is opened by exactly such
+// The head is the sharper half. §7.4.1's key holds the hash of the anchored
+// lines and their context and not the commit, so a pull request that moved
+// forward without touching the code the comment was about still finds the entry
+// — which is the case §9.3.6 exists for, since a round is opened by exactly such
 // a move.
 func TestThePostedIndexIsReadAcrossRoundsAndAcrossHeads(t *testing.T) {
 	layout := draftedHome(t)
@@ -87,13 +88,13 @@ func TestThePostedIndexIsReadAcrossRoundsAndAcrossHeads(t *testing.T) {
 
 	later := aStoredRecord("f9", finding.StateDraft)
 	later.Round, later.Head = draftRound+5, "0f1e2d3"
-	entry, found := finding.PostedBefore(index, later)
+	entry, found := finding.PostedBefore(index, keyOf(t, later))
 	assert.True(t, found, "§9.3.5 exempts posted-index.ndjson, so an earlier round's entry still matches")
 	assert.Equal(t, draftRound, entry.Round, "the entry still says which round posted it")
 
 	rewritten := aStoredRecord("f9", finding.StateDraft)
-	rewritten.Anchor.ContentHash = "0000000000000000"
-	_, found = finding.PostedBefore(index, rewritten)
+	rewritten.Anchor.StartLine, rewritten.Anchor.Line = 50, 52
+	_, found = finding.PostedBefore(index, keyOf(t, rewritten))
 	assert.False(t, found,
 		"§7.4.1's key is over the anchored lines, so rewritten code is raised again")
 }

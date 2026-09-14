@@ -4,7 +4,8 @@
 // hash or compare through it: §2.6.3 groups harvested comment bodies by
 // normalised body, §3.3 hashes a claim's span and the issue text behind it,
 // §3.4.6 hashes a unit's changed lines, §7.4 keys a waiver by the anchored
-// lines, §8.3.3 hashes the posted payload, and §9.2 hashes an anchor's content.
+// lines and their context, §8.3.3 hashes the posted payload, and §9.2 hashes
+// an anchor's content.
 // Those callers sit in different packages and no one of them owns the
 // transform, so it lives in a leaf package that imports nothing of cr's.
 // Putting it in internal/unit beside the unit hash would make internal/finding

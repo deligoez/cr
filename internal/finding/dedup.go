@@ -25,11 +25,11 @@ import (
 // The line is `anchor.line` and not `anchor.start_line`, which is §6.4.1's own
 // choice of field: a multi-line anchor keys on its last line.
 //
-// It is not WaiverKey, which carries the anchor's content hash where this
-// carries the line number. Dedup groups records inside one round against one
-// head, where a line number names code; a waiver outlives the round and has to
-// follow the code as the file above it moves, which is what §7.4.2's "the same
-// unchanged code" means.
+// It is not WaiverKey, which carries a hash of the anchored code and its
+// context where this carries the line number. Dedup groups records inside one
+// round against one head, where a line number names code; a waiver outlives
+// the round and has to follow the code as the file above it moves, which is
+// what §7.4.2's "the same unchanged code" means.
 type DedupKey struct {
 	// Path is the anchored file, from `anchor.path`.
 	Path string `json:"path"`

@@ -171,7 +171,7 @@ func TestAnUnresolvedPostingIsReconciledToAnAdoptAndToAClear(t *testing.T) {
 		index := postedIndexOf(t, layout)
 		require.Len(t, index, 1, "§9.3.6 is keyed exactly as a §7.4.1 waiver is")
 		assert.Equal(t, "f1", index[0].Record)
-		assert.Equal(t, finding.WaiverKeyOf(aStoredRecord("f1", finding.StatePosted)), index[0].WaiverKey)
+		assert.Equal(t, keyOf(t, aStoredRecord("f1", finding.StatePosted)), index[0].WaiverKey)
 	})
 }
 

@@ -53,6 +53,7 @@ func draftedHome(t *testing.T, records ...*finding.Finding) state.Layout {
 	))
 	require.NoError(t, held.Unlock())
 	standInDiff(t, draftDiff)
+	standInKeyTrees(t)
 	return layout
 }
 

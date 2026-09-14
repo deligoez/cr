@@ -249,7 +249,8 @@ func ActiveWaivers(l state.Layout, owner, repo string, pr int) ([]WaiverRecord, 
 	return append(wide, here...), nil
 }
 
-// WaivedBy reports the waiver covering a record, if one does.
+// WaivedBy reports the waiver covering a record's key, as WaiverKeyOf forms it,
+// if one does.
 //
 // This is the lookup half of §7.4.6. What it does not do is drop the record or
 // count the drop: §6.4.4 puts both at merge time, where the round summary of
@@ -260,8 +261,8 @@ func ActiveWaivers(l state.Layout, owner, repo string, pr int) ([]WaiverRecord, 
 // class at the same unchanged code on the same side of the same file. §7.4.2
 // makes that narrowness the point — the waiver stops suppressing once the code
 // changes, which is when the judgement behind it should be revisited.
-func WaivedBy(waivers []WaiverRecord, record *Finding) (WaiverRecord, bool) {
-	return coveredBy(waivers, WaiverKeyOf(record))
+func WaivedBy(waivers []WaiverRecord, key WaiverKey) (WaiverRecord, bool) {
+	return coveredBy(waivers, key)
 }
 
 // coveredBy reports the first waiver keyed exactly like key.

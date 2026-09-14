@@ -84,9 +84,14 @@ func seedPostedIndex(t *testing.T, layout state.Layout, entries ...finding.Poste
 // own, so entries of different rounds never share §7.4.1's key.
 func anEntryOf(round int, review string) finding.PostedEntry {
 	posted := aStoredRecord("f9", finding.StatePosted)
-	posted.Anchor.Path = "internal/api/round" + strconv.Itoa(round) + ".go"
-	posted.Round, posted.Head = round, draftHead
-	return finding.PostedEntryFor(posted, review)
+	return finding.PostedEntry{
+		Record: posted.ID,
+		WaiverKey: finding.WaiverKey{
+			Path: "internal/api/round" + strconv.Itoa(round) + ".go", Side: posted.Anchor.Side,
+			Class: posted.Class, ContentHash: posted.Anchor.ContentHash,
+		},
+		Round: round, Head: draftHead, Review: review,
+	}
 }
 
 // §8.4.4 adopts the review the round's own call may have created, and a review
@@ -212,7 +217,9 @@ func TestReconcileAdoptsTheRoundsOwnReviewPastOnesThatAreNot(t *testing.T) {
 	}
 	posted := aStoredRecord("f1", finding.StatePosted)
 	posted.Round, posted.Head = draftRound, draftHead
-	assert.Equal(t, []finding.PostedEntry{earlier, ours, finding.PostedEntryFor(posted, adoptedReviewID)},
+	entry, err := finding.PostedEntryFor(treesOf(posted), posted, adoptedReviewID)
+	require.NoError(t, err)
+	assert.Equal(t, []finding.PostedEntry{earlier, ours, entry},
 		postedIndexOf(t, layout), "§9.3.6's new entry names the review the record reached the author in")
 }
 

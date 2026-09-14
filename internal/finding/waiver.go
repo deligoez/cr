@@ -11,18 +11,20 @@ import (
 // `posted-index.ndjson` holds as well.
 //
 // §7.4.1 writes three of the four fields: `(anchor.path, class, normalised hash
-// of the anchored lines)`. `side` is the fourth, from round 8's finding
+// of the context before, the anchored lines and the context after)`. `side` is
+// the fourth, from round 8's finding
 // side-omitted-from-identity-keys. §9.2 makes side part of an anchor and §6.1.2
 // resolves the two sides against different trees, so without it a waiver written
 // over a line removed from the merge base also silences a finding about the line
 // that replaced it in the head — two records about two texts in two trees, which
 // look like one only because the file and the class agree.
 //
-// The hash is the anchor's own `content_hash` rather than a second computation
-// of it. §9.2 defines that field as the normalised hash per §1.4 of the lines
-// from `start_line` to `line` inclusive, which is the value §7.4.1 asks for word
-// for word, and AnchorContentHash is the single place it is produced — so the
-// key and the anchor cannot end up as two answers about the same lines.
+// The hash is not the anchor's own `content_hash`. §9.2 keeps that field over
+// the anchored lines alone, while §7.4.1 hashes the context window with them, so
+// the key is ContextKeyHash's value and WaiverKeyOf is the one place it is
+// formed. A key written under v0.1, which carried the anchor's hash, therefore
+// matches nothing formed now, and stays listable and removable as a line of its
+// file.
 //
 // Everything else a record carries is left out, the summary loudest: §7.4.1
 // excludes it in as many words, because a summary is agent-composed prose that
@@ -57,8 +59,10 @@ type WaiverKey struct {
 	// that form by ValidateClass — two spellings of one class would be two
 	// keys, and the waiver would miss.
 	Class string `json:"class"`
-	// ContentHash is the anchor's content hash: §9.2's normalised hash of
-	// the anchored lines taken as one text.
+	// ContentHash is §7.4.1's normalised hash of the anchor's context
+	// before, its anchored lines and its context after, per
+	// ContextKeyHash. It keeps the stored name a v0.1 line was written
+	// under, so such a line still decodes, lists and removes.
 	ContentHash string `json:"content_hash"`
 }
 
@@ -71,15 +75,29 @@ type WaiverKey struct {
 // need it, and a fifth field added to one of those spellings would silently stop
 // the other from ever matching.
 //
+// The context windows are the anchor's own, which cr stamped from the tree the
+// anchor's side names; the anchored lines between them are read from that tree
+// again through trees, because a record stores their hash and not their text.
+// Every caller holds the trees of the round's head, which is the head every
+// record of the round was stamped against.
+//
 // The record is taken by pointer because it is a wide struct and nothing here
 // writes to it.
-func WaiverKeyOf(record *Finding) WaiverKey {
+func WaiverKeyOf(trees Trees, record *Finding) (WaiverKey, error) {
+	anchored, err := anchoredLines(trees, &record.Anchor)
+	if err != nil {
+		return WaiverKey{}, err
+	}
+	hash, err := ContextKeyHash(record.Anchor.ContextBefore, anchored, record.Anchor.ContextAfter)
+	if err != nil {
+		return WaiverKey{}, err
+	}
 	return WaiverKey{
 		Path:        record.Anchor.Path,
 		Side:        record.Anchor.Side,
 		Class:       record.Class,
-		ContentHash: record.Anchor.ContentHash,
-	}
+		ContentHash: hash,
+	}, nil
 }
 
 // WaiverScope is which of §7.4.4's two files a waiver lives in, and so how far
@@ -155,11 +173,16 @@ type Waiver struct {
 // together, so a record missing one is a discard that did not happen; and a
 // scope guessed for it would have to guess repository, the wider of the two, on
 // the record cr understands least.
-func WaiverFor(record *Finding) (Waiver, error) {
-	waiver := Waiver{WaiverKey: WaiverKeyOf(record), Disposition: record.Disposition}
+func WaiverFor(trees Trees, record *Finding) (Waiver, error) {
+	waiver := Waiver{Disposition: record.Disposition}
 	if _, err := waiver.Scope(); err != nil {
 		return Waiver{}, err
 	}
+	key, err := WaiverKeyOf(trees, record)
+	if err != nil {
+		return Waiver{}, err
+	}
+	waiver.WaiverKey = key
 	return waiver, nil
 }
 

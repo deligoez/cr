@@ -12,14 +12,14 @@ import (
 )
 
 // dropsHome is recordedHome with a waiver on u1's unchecked-error finding and a
-// posted-index entry for u2's, both keyed on the hash cr stamps from the head —
-// the hash a waiver or posted entry `cr record` wrote actually carries.
+// posted-index entry for u2's, both keyed on §7.4.1's hash of the head's lines —
+// the hash a waiver or posted entry cr wrote actually carries.
 func dropsHome(t *testing.T) state.Layout {
 	t.Helper()
 	layout := recordedHome(t)
 	_, err := finding.Waive(layout, recordOwner, recordRepo, &finding.Waiver{
 		WaiverKey: finding.WaiverKey{
-			Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedHash(t, "u1"),
+			Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedKeyHash(t, "u1"),
 		},
 		Disposition: finding.DispositionNotHere,
 	}, finding.WaiverProvenance{Round: recordRound, PR: recordPRNum, Head: recordHead})
@@ -30,7 +30,7 @@ func dropsHome(t *testing.T) state.Layout {
 		[]finding.PostedEntry{{
 			Record: "f9",
 			WaiverKey: finding.WaiverKey{
-				Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedHash(t, "u2"),
+				Path: recordPath, Side: "RIGHT", Class: "unchecked-error", ContentHash: recordedKeyHash(t, "u2"),
 			},
 			Round: recordRound - 1, Head: recordHead,
 		}}))

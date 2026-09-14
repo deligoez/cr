@@ -347,9 +347,13 @@ func (t *triaged) retriaged() []retriagedRecord {
 // rather than a discard with no waiver. The next run reads the same draft,
 // discards the record again, and finding.Waive returns the waiver already
 // there instead of writing a second.
+//
+// §7.4.1's key hashes the anchored lines with their context, and a stored record
+// holds the context and only the hash of the lines, so the lines are read again
+// from the trees of the head the record was produced against.
 func waiveDiscards(l state.Layout, owner, repo string, pr int, discarded []*finding.Finding) error {
 	for _, record := range discarded {
-		waiver, err := finding.WaiverFor(record)
+		waiver, err := finding.WaiverFor(keyTrees(owner, repo, pr, record.Head), record)
 		if err != nil {
 			return err
 		}
