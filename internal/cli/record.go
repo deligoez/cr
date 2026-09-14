@@ -450,7 +450,8 @@ func acceptRecords(
 	}
 	// §6.1's id row: stable for the life of the pull request, so an id
 	// repeated in this file or held by a stored record is refused here.
-	if err := refuseHeldIDs(l, owner, repo, pr, []idInput{{file: file, body: body, records: records}}); err != nil {
+	if err := refuseHeldIDs(l, owner, repo, pr, round.Round, roundUnitIDs(formed),
+		[]idInput{{file: file, body: body, records: records}}); err != nil {
 		return nil, nil, recordDrops{}, nil, err
 	}
 	// §2.6's class row: a record naming a rule carries that rule's class.

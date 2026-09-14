@@ -33,6 +33,35 @@ func (b IDs) left() bool {
 	return b.First <= b.Last
 }
 
+// Start is the block's first id, whether a stored record holds it or not.
+func (b IDs) Start() int {
+	return b.Last - idBlock + 1
+}
+
+// Holds reports whether n is one of the block's hundred ids, stored or not.
+func (b IDs) Holds(n int) bool {
+	return n >= b.Start() && n <= b.Last
+}
+
+// BlockOf is the block `cr review` gives the prompt for roleID over unitID in
+// round, for a command that names an id inside a prompt's block rather than
+// emitting the prompt: held is every record the pull request stores, corpus is
+// §2.5.5's resolved corpus, and units are the round's unit ids in id order. It
+// is Round.ids over the same inputs, so the block is the one that prompt
+// carried. It is false when the corpus resolves no such role or the round holds
+// no such unit, for which no prompt was given a block.
+//
+// The Round it builds holds units only for their count, which is all ids reads
+// of them.
+func BlockOf(held []finding.Finding, round int, corpus []role.Resolved, units []string, roleID, unitID string) (IDs, bool) {
+	r := &Round{Round: round, Held: held, Places: blockPlaces(corpus), Units: make([]Unit, len(units))}
+	at := slices.Index(units, unitID)
+	if at < 0 || !slices.Contains(r.Places, roleID) {
+		return IDs{}, false
+	}
+	return r.ids(r.idBase(), roleID, at), true
+}
+
 // spelled names the run as the prompt's JSON carries it, and as two empty
 // strings when no id past the stored ones is left.
 func (b IDs) spelled() (first, last string) {

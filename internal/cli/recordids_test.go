@@ -66,37 +66,40 @@ func TestARecordIDRepeatedWithinOneBatchIsRefused(t *testing.T) {
 // ends on, so f1 is never read out of f10.
 func nextFreeIDIn(t *testing.T, problem string) string {
 	t.Helper()
-	named := regexp.MustCompile(`; the next free id is (f\d+)$`).FindStringSubmatch(problem)
+	named := regexp.MustCompile(`; the next free id (?:in f\d+\.\.f\d+, the block cr review gave the [a-z-]+ prompt on unit u\d+, )?is (f\d+)$`).
+		FindStringSubmatch(problem)
 	require.Len(t, named, 2, "the refusal names the next free id at its end: %s", problem)
 	return named[1]
 }
 
-// Two records of one file sharing f1 are refused naming the next free id, and
-// that id is allocated over the store and the whole file: a stored f2 and a
-// later line's f5 are both spent, so the id named is f6 — neither f3 from the
-// store alone nor f2 from the lines read before the repeat.
+// Two records of one file sharing f1, both outside their prompts' blocks, are
+// refused on the second line, naming the free id inside that record's own block
+// — the correctness prompt on u2, f301..f400 — over the store and the whole
+// file: a stored f301 and a later line's f302 are both spent, so the id named
+// is f303, where the store alone would give f302.
 func TestARepeatedRecordIDIsRefusedNamingTheNextFreeID(t *testing.T) {
 	recordedHome(t)
-	_, err := runRecord(t, recordPR, writeRecordFile(t, "first.ndjson", aRecord("f2", "u1")),
+	_, err := runRecord(t, recordPR, writeRecordFile(t, "first.ndjson", aRecord("f301", "u2")),
 		"--repo", recordSlug)
 	require.NoError(t, err)
 
 	_, err = runRecord(t, recordPR,
-		writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), aRecord("f1", "u2"), aRecord("f5", "u1")),
+		writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1"), aRecord("f1", "u2"), aRecord("f302", "u1")),
 		"--repo", recordSlug)
 
 	var rejected *finding.RejectedRecordError
 	require.ErrorAs(t, err, &rejected)
 	assert.Equal(t, 2, rejected.Line)
 	assert.Equal(t, "id", rejected.Field)
-	assert.Equal(t, "f6", nextFreeIDIn(t, rejected.Problem))
+	assert.Equal(t, "f303", nextFreeIDIn(t, rejected.Problem))
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
 }
 
 // A record of a later round reusing an id an earlier round's record holds is
-// refused naming the next free id over every round's records and the file: the
-// fixture's round spent f1 and f6, the next round's file reuses f1 beside f3,
-// and the id named is f7 — not f4, which the file's own f3 alone would give.
+// refused naming a free id of its own prompt's block: the fixture's round spent
+// f1 and f6, so the next round's blocks start past f6, and the correctness
+// prompt on u1 — the third of two units times the shipped roles in order — is
+// given f207..f306; the id named is f207.
 func TestALaterRoundRecordReusingAnEarlierRoundIDIsRefusedNamingTheNextFreeID(t *testing.T) {
 	layout := recordedHome(t)
 	_, err := runRecord(t, recordPR,
@@ -117,6 +120,6 @@ func TestALaterRoundRecordReusingAnEarlierRoundIDIsRefusedNamingTheNextFreeID(t 
 		FindStringSubmatch(rejected.Problem)
 	require.Len(t, heldIn, 2, rejected.Problem)
 	assert.Equal(t, strconv.Itoa(recordRound), heldIn[1], "the holder is the earlier round's record")
-	assert.Equal(t, "f7", nextFreeIDIn(t, rejected.Problem))
+	assert.Equal(t, "f207", nextFreeIDIn(t, rejected.Problem))
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
 }

@@ -25,9 +25,10 @@ func assertMergeWroteNothing(t *testing.T, layout state.Layout, out string) {
 // §6.1's id row across two per-role files: both carry f1, once as findings of
 // different classes and once as duplicates of one anchored line and class,
 // which §6.4.3 would otherwise mark with a `duplicate_of` naming f1 itself.
-// Either way the merge exits 1 naming the second file, the line f1 sits on in
-// it, the first file and line, and the next free id — f4, past the second
-// file's own f3 — and writes nothing.
+// Either way the merge exits 1 and writes nothing. The convention file's f1 lies
+// in its prompt's block f1..f100 and the correctness file's f1 lies outside its
+// own, f201..f300, so the refusal names the correctness file and its line, though
+// it was read first, the convention line it repeats, and f201 as the free id.
 func TestMergeRefusesAnIDTwoPerRoleFilesBothCarry(t *testing.T) {
 	for name, class := range map[string]string{
 		"different findings": "missing-test",
@@ -47,11 +48,11 @@ func TestMergeRefusesAnIDTwoPerRoleFilesBothCarry(t *testing.T) {
 			var rejected *finding.RejectedRecordError
 			require.ErrorAs(t, err, &rejected)
 			assert.Equal(t, ExitValidation, exitCodeFor(err))
-			assert.Equal(t, second, rejected.File, "the refusal names the file the agent edits")
-			assert.Equal(t, 2, rejected.Line, "the line within that file, not the record's place in the merge")
+			assert.Equal(t, first, rejected.File, "the refusal names the file that left its block")
+			assert.Equal(t, 1, rejected.Line, "the line within that file, not the record's place in the merge")
 			assert.Equal(t, "id", rejected.Field)
-			assert.Regexp(t, "^"+regexp.QuoteMeta(`"f1" repeats the id of `+first+` line 1;`), rejected.Problem)
-			assert.Equal(t, "f4", nextFreeIDIn(t, rejected.Problem))
+			assert.Regexp(t, "^"+regexp.QuoteMeta(`"f1" repeats the id of `+second+` line 2;`), rejected.Problem)
+			assert.Equal(t, "f201", nextFreeIDIn(t, rejected.Problem))
 			assertMergeWroteNothing(t, layout, out)
 		})
 	}
@@ -59,8 +60,9 @@ func TestMergeRefusesAnIDTwoPerRoleFilesBothCarry(t *testing.T) {
 
 // §6.1's id row against the store: a per-role file carrying f1 while a stored
 // record of the pull request holds f1 is refused the way `cr record` refuses
-// it, naming the line, the stored record, and the next free id over the store
-// and the file — f7, past the stored f6 — and the merge writes nothing.
+// it, naming the line, the stored record, and the first free id of the
+// correctness prompt's block for u1 — f201, not f7 past the stored f6, which
+// is the convention prompt's — and the merge writes nothing.
 func TestMergeRefusesAnIDAStoredRecordHolds(t *testing.T) {
 	layout := recordedHome(t)
 	_, err := runRecord(t, recordPR,
@@ -83,7 +85,7 @@ func TestMergeRefusesAnIDAStoredRecordHolds(t *testing.T) {
 	assert.Equal(t, 2, rejected.Line)
 	assert.Equal(t, "id", rejected.Field)
 	assert.Regexp(t, `^"f1" is already held by the record stored for this pull request in round `, rejected.Problem)
-	assert.Equal(t, "f7", nextFreeIDIn(t, rejected.Problem))
+	assert.Equal(t, "f201", nextFreeIDIn(t, rejected.Problem))
 	_, statErr := os.Stat(out)
 	assert.True(t, os.IsNotExist(statErr), "a refused merge writes no output file")
 	after, afterErr := os.ReadFile(summary)

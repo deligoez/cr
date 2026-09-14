@@ -468,7 +468,7 @@ func readPerRole(
 		records = append(records, read...)
 		inputs = append(inputs, idInput{file: file, body: body, records: read})
 	}
-	if err := refuseHeldIDs(l, owner, repo, pr, inputs); err != nil {
+	if err := refuseHeldIDs(l, owner, repo, pr, round.Round, units, inputs); err != nil {
 		return nil, err
 	}
 	return records, nil
