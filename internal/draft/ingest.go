@@ -114,6 +114,7 @@ func (t *Triage) Outcome(record *finding.Finding) finding.Outcome {
 type readBlock struct {
 	marker Marker
 	at     int
+	line   string
 	text   string
 }
 
@@ -149,11 +150,18 @@ type readBlock struct {
 // second block for one record, stops the ingest naming the line, since there is
 // then no single answer to what the reviewer wrote.
 func Ingest(queued []*finding.Finding, in *Draft) (Triage, error) {
-	blocks, err := blocksOf(in.Body)
+	read, err := readBlocks(in.Body)
+	if err != nil {
+		return Triage{}, err
+	}
+	blocks, err := indexBlocks(queued, read)
 	if err != nil {
 		return Triage{}, err
 	}
 	if err := refuseUnknownBlocks(queued, in.Posted, blocks); err != nil {
+		return Triage{}, err
+	}
+	if err := refuseMovedIDs(queued, blocks, in.Rendered); err != nil {
 		return Triage{}, err
 	}
 	triage := Triage{
@@ -306,20 +314,31 @@ func Bodies(file string) (map[string]string, error) {
 	return bodies, nil
 }
 
-// blocksOf splits a draft into its blocks by record id.
+// blocksOf splits a draft into its blocks by record id, refusing a second
+// block for one record as a malformed marker.
+//
+// It is the reading with no records in hand, which is Bodies'. Ingest has the
+// records the draft was rendered for, and indexBlocks uses them to name the
+// marker that was edited rather than whichever of the two came second.
+func blocksOf(file string) (map[string]readBlock, error) {
+	read, err := readBlocks(file)
+	if err != nil {
+		return nil, err
+	}
+	return indexBlocks(nil, read)
+}
+
+// readBlocks is every block of a draft, in the order the file holds them.
 //
 // A line is a marker exactly when IsMarkerLine says so, and every such line is
 // held to the grammar, so a reviewer's mistyped marker is refused rather than
 // read as prose and the record behind it taken for deleted.
-func blocksOf(file string) (map[string]readBlock, error) {
-	blocks := make(map[string]readBlock)
-	current := ""
+func readBlocks(file string) ([]readBlock, error) {
+	read := make([]readBlock, 0)
 	var body []string
 	flush := func() {
-		if current != "" {
-			found := blocks[current]
-			found.text = strings.Join(body, "\n")
-			blocks[current] = found
+		if len(read) > 0 {
+			read[len(read)-1].text = strings.Join(body, "\n")
 		}
 	}
 	for i, line := range strings.Split(file, "\n") {
@@ -331,14 +350,126 @@ func blocksOf(file string) (map[string]readBlock, error) {
 		if err != nil {
 			return nil, err
 		}
-		if earlier, twice := blocks[marker.ID]; twice {
-			return nil, &MalformedMarkerError{At: i + 1, Line: line, Problem: fmt.Sprintf(
-				"record %s already opens the block at line %d, and one record is one block", marker.ID, earlier.at)}
-		}
 		flush()
-		current, body = marker.ID, nil
-		blocks[current] = readBlock{marker: marker, at: i + 1}
+		body = nil
+		read = append(read, readBlock{marker: marker, at: i + 1, line: line})
 	}
 	flush()
+	return read, nil
+}
+
+// indexBlocks keys the draft's blocks by record id, refusing a second block for
+// one record.
+//
+// When one of the two markers reads that record's location, severity and grade
+// more closely than the other, the other is a marker whose id was changed to
+// one the round already renders, and the refusal is §7.2's immutable `id`
+// naming that edited marker and, when cr can tell, the id it was rendered
+// under. Naming cr's untouched marker instead sent the reviewer to the wrong
+// line, and deleting the block it named handed the edited one to the other
+// record. Two markers reading the record alike — a pasted copy — are the
+// malformed second block, named at the later line.
+func indexBlocks(queued []*finding.Finding, read []readBlock) (map[string]readBlock, error) {
+	blocks := make(map[string]readBlock, len(read))
+	for _, block := range read {
+		earlier, twice := blocks[block.marker.ID]
+		if !twice {
+			blocks[block.marker.ID] = block
+			continue
+		}
+		record := recordNamed(queued, block.marker.ID)
+		if record == nil || drift(earlier.marker, markerOf(record)) == drift(block.marker, markerOf(record)) {
+			return nil, &MalformedMarkerError{At: block.at, Line: block.line, Problem: fmt.Sprintf(
+				"record %s already opens the block at line %d, and one record is one block",
+				block.marker.ID, earlier.at)}
+		}
+		edited, kept := block, earlier
+		if drift(earlier.marker, markerOf(record)) > drift(block.marker, markerOf(record)) {
+			edited, kept = earlier, block
+		}
+		return nil, &MarkerIDEditError{
+			At: edited.at, ID: edited.marker.ID, Kept: kept.at,
+			Restore: renderedFor(queued, read, edited.marker),
+		}
+	}
 	return blocks, nil
+}
+
+// refuseMovedIDs is §7.2's immutable `id` over a draft where a block is missing:
+// a block still holding what cr rendered for the missing record — its location,
+// severity and grade, or its body — under another record's id is that record's
+// block with its id changed, not a deletion beside an edit.
+//
+// Read as §7.2's verbs it would be both: the missing record discarded as
+// not-here with a waiver, and the other one softened, re-anchored and
+// re-severitied onto the first one's line with the first one's prose — a body
+// silently moved to another record's id, which is exactly what an immutable id
+// exists to prevent.
+func refuseMovedIDs(queued []*finding.Finding, blocks map[string]readBlock, rendered map[string]string) error {
+	for _, missing := range queued {
+		if _, held := blocks[missing.ID]; held {
+			continue
+		}
+		for _, record := range queued {
+			block, held := blocks[record.ID]
+			if held && carries(&block, record, missing, rendered) {
+				return &MarkerIDEditError{At: block.at, ID: record.ID, Restore: missing.ID}
+			}
+		}
+	}
+	return nil
+}
+
+// carries reports whether a block of own holds what cr rendered for other
+// rather than for own: other's marker fields where own's are not, or other's
+// rendered body where own's is not.
+func carries(block *readBlock, own, other *finding.Finding, rendered map[string]string) bool {
+	if drift(block.marker, markerOf(other)) == 0 && drift(block.marker, markerOf(own)) > 0 {
+		return true
+	}
+	region := render.AgentRegion(block.text)
+	entry, known := rendered[other.ID]
+	mine, mineKnown := rendered[own.ID]
+	return known && region == entry && (!mineKnown || region != mine)
+}
+
+// drift is how many of a marker's location, severity and grade fields read
+// otherwise than record's rendered marker does. The kind is left out: a
+// softening changes it on a block that is still its own record's.
+func drift(marker, record Marker) int {
+	n := 0
+	for _, differs := range []bool{
+		marker.Path != record.Path, marker.StartLine != record.StartLine, marker.Line != record.Line,
+		marker.Severity != record.Severity, marker.Grade != record.Grade,
+	} {
+		if differs {
+			n++
+		}
+	}
+	return n
+}
+
+// recordNamed is the queued record with id, and nil when none has it.
+func recordNamed(queued []*finding.Finding, id string) *finding.Finding {
+	for _, record := range queued {
+		if record.ID == id {
+			return record
+		}
+	}
+	return nil
+}
+
+// renderedFor is the id of the queued record with no block in the draft whose
+// rendered marker marker reads, which is the id an edited marker was rendered
+// under, and empty when no such record is found.
+func renderedFor(queued []*finding.Finding, read []readBlock, marker Marker) string {
+	for _, record := range queued {
+		if record.ID == marker.ID || drift(marker, markerOf(record)) > 0 {
+			continue
+		}
+		if !slices.ContainsFunc(read, func(block readBlock) bool { return block.marker.ID == record.ID }) {
+			return record.ID
+		}
+	}
+	return ""
 }

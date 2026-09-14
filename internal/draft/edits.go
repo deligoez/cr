@@ -38,6 +38,45 @@ func (e *MarkerEditError) Error() string {
 	return fmt.Sprintf("draft line %d, record %s: %s %s", e.At, e.ID, e.Field, e.Problem)
 }
 
+// MarkerIDEditError reports a marker whose id was changed to the id of another
+// record the round renders, which §7.2's immutable `id` refuses with exit code
+// 1, naming the record id.
+//
+// It is a type of its own rather than a MarkerEditError because its way
+// forward is different and concrete: the reviewer did not ask a field for a
+// value §7.2 does not admit, they moved a block to another record, and the fix
+// is to put back the id cr wrote — which cr names when it can tell.
+type MarkerIDEditError struct {
+	// At is the one-based line of the edited marker.
+	At int
+	// ID is the id that marker now reads, which another record carries.
+	ID string
+	// Kept is the line of the block that carries ID as cr rendered it, and 0
+	// when that block was deleted.
+	Kept int
+	// Restore is the id the edited block was rendered under, and empty when
+	// cr cannot tell which record it was.
+	Restore string
+}
+
+func (e *MarkerIDEditError) Error() string {
+	restore := "the id cr wrote"
+	if e.Restore != "" {
+		restore = fmt.Sprintf("id %q", e.Restore)
+	}
+	if e.Kept > 0 {
+		return fmt.Sprintf(
+			"draft line %d, record %s: the marker's id was changed to %s, which the block at line %d "+
+				"already carries, and §7.2 makes a marker's id immutable; restore %s on line %d",
+			e.At, e.ID, e.ID, e.Kept, restore, e.At)
+	}
+	return fmt.Sprintf(
+		"draft line %d, record %s: the block holds what cr rendered for record %s, whose own block is gone, "+
+			"and §7.2 makes a marker's id immutable, so deleting a block cannot hand another one to %s; "+
+			"restore %s on line %d",
+		e.At, e.ID, e.Restore, e.ID, restore, e.At)
+}
+
 // markerEdit is one block's marker read against the record cr rendered it from:
 // everything §7.2's table needs to judge what the reviewer typed.
 //
