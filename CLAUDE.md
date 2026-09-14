@@ -841,10 +841,12 @@ QA repairs, 2026-09-14, parallel units each ran the full `go test -race ./...`
 gate in the same minutes and saturated the box, so the gate was put behind one
 lock every unit takes first: `mkdir` of a lock directory, the holder's command
 written into it, a bounded wait (40 minutes), and a lock older than 45 minutes
-treated as abandoned. No load figure was recorded for the saturated runs, so
-this rule has no number yet. When it is next doubted, sample the fifteen-minute
-load average with and without the lock (the one-minute figure misleads, see
-above).
+treated as abandoned. Measured by the orchestrator before the lock: four
+`cli.test` binaries running at once held the load average at 10–12 on this
+ten-core box. With the lock and two units live, the same evening read 14.11 over
+one minute and 3.87 over fifteen: a burst, not a sustained saturation. When the
+rule is next doubted, compare the fifteen-minute figures with and without the
+lock; the one-minute figure misleads, see above.
 
 Harness facts the 478-case QA pass against `deligoez/cr-qa` measured, kept
 because they hold for the next pass:
