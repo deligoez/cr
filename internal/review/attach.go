@@ -97,7 +97,7 @@ func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error
 	for i := range r.Units {
 		formed = append(formed, r.Units[i].Unit)
 	}
-	hits := rule.Evaluate(matchers, hunks)
+	hits := rule.Evaluate(matchers, rule.Reviewed(hunks, formed))
 	// §2.6.1.6: every hit reaches the repository's ledger through the
 	// writer `cr rules check` uses, keyed so a second run at the same head
 	// overwrites rather than counts it again. §6.2.5 stamps a citation

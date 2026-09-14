@@ -21,6 +21,27 @@ type Attachment struct {
 	Hits []Hit `json:"hits"`
 }
 
+// Reviewed keeps the hunks of the files that formed one of units, in the order
+// given, and is the diff §2.6.1.1's evaluation reads.
+//
+// A file §3.4.2 excluded or §3.4.7 listed forms no unit, so no role reviews it.
+// A hit in such a file would still reach `rule-stats.ndjson` under §2.6.1.6, and
+// §6.2.5 would then stamp `origin: rule` on a citation into a file cr declined
+// to review.
+func Reviewed(hunks []git.Hunk, units []unit.Unit) []git.Hunk {
+	formed := make(map[string]bool, len(units))
+	for at := range units {
+		formed[units[at].Path] = true
+	}
+	kept := make([]git.Hunk, 0, len(hunks))
+	for at := range hunks {
+		if formed[hunks[at].Path] {
+			kept = append(kept, hunks[at])
+		}
+	}
+	return kept
+}
+
 // Attach places every hit on the unit that contains it, per §4.3.6.
 //
 // Containment is unit.Contains, which is §6.2.1's own predicate, rather than a

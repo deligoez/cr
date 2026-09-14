@@ -137,7 +137,7 @@ func detectRound(
 	for i := range formed {
 		units = append(units, formed[i].Unit)
 	}
-	hits := rule.Evaluate(matchers, hunks)
+	hits := rule.Evaluate(matchers, rule.Reviewed(hunks, units))
 	return &rulesCheckResult{
 		Round: round.Round, Head: round.Head, Hits: hits, Units: rule.Attach(units, hits),
 		Honesty: []string{round.Disclosure()},
