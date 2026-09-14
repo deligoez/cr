@@ -51,6 +51,26 @@ func (e *OutsideSandboxError) Error() string {
 	)
 }
 
+// AbsentFromSandboxError reports a path that lands inside the sandbox where the
+// sandbox holds no file.
+//
+// A mutation breaks production code that is there, and a file cr created would
+// have no original to put back, so the path is refused rather than written. It
+// is the patch's data that is wrong, not the invocation: the flags were right
+// and the patch was read.
+type AbsentFromSandboxError struct {
+	// Path is the path as the patch spelled it.
+	Path string
+	// Err is what resolving it reported.
+	Err error
+}
+
+func (e *AbsentFromSandboxError) Error() string {
+	return fmt.Sprintf("the sandbox holds no file at %s: %v", e.Path, e.Err)
+}
+
+func (e *AbsentFromSandboxError) Unwrap() error { return e.Err }
+
 // UnderSandboxMutation applies mutations to the pull request's sandbox, runs
 // during, and restores every file it touched — on success, on failure, and on
 // panic.
@@ -186,6 +206,9 @@ func (l Layout) insideSandbox(
 	}
 	target := filepath.Join(root, filepath.FromSlash(rel))
 	resolved, err := filepath.EvalSymlinks(target)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", 0, &AbsentFromSandboxError{Path: rel, Err: err}
+	}
 	if err != nil {
 		return "", 0, fmt.Errorf("cannot resolve %s: %w", target, err)
 	}

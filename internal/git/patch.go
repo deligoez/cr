@@ -30,6 +30,9 @@ type PatchedFile struct {
 	HeadPath string
 	// Hunks are the file's hunks, in the order the patch writes them.
 	Hunks []PatchHunk
+	// HeaderLine is the one-based line of the +++ header that opened the
+	// file's section, so a refusal of the path can name where it is written.
+	HeaderLine int
 }
 
 // PatchHunk is one @@ block with its body intact.
@@ -174,7 +177,7 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 			}
 			files = append(files, PatchedFile{
 				Path: named, BasePath: basePath, HeadPath: headPath,
-				Hunks: make([]PatchHunk, 0),
+				Hunks: make([]PatchHunk, 0), HeaderLine: n + 1,
 			})
 		case strings.HasPrefix(line, "@@ "):
 			if len(files) == 0 {

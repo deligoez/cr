@@ -424,7 +424,32 @@ func mutationInput(request *probeRequest, patchFile, testFile, target string) er
 			"which is what a configured diff.external replaces"}
 	}
 	request.kind, request.patch, request.files = probe.Mutation, string(body), files
+	request.patchFile = patchFile
 	return nil
+}
+
+// absentFromPatchStep is §12.4's next step for a patch naming a file the
+// sandbox does not hold.
+const absentFromPatchStep = "correct the file header on the line the message names so it names a file the " +
+	"pull request's head holds, as a path from the repository root"
+
+// absentFromPatch words a path the sandbox holds no file at as a refusal of the
+// patch line that named it, and passes every other refusal through.
+//
+// The sandbox check reports the path; the reader has the patch file open, so
+// the refusal names that file and the +++ header's line, as every other
+// refusal of the patch's data does, and takes §11.2's 1 with it.
+func absentFromPatch(patchFile string, file *git.PatchedFile, err error) error {
+	if absent := (*state.AbsentFromSandboxError)(nil); !errors.As(err, &absent) {
+		return err
+	}
+	return &git.MalformedPatchError{
+		File: patchFile, Line: file.HeaderLine,
+		Problem: fmt.Sprintf("the file header names %q, which is not a file the sandbox holds: "+
+			"a probe applies hunks only to files already there, and a file it created would have "+
+			"no original to put back", file.Path),
+		Step: absentFromPatchStep,
+	}
 }
 
 // gapInput holds §5.4's invocation to the flags that kind takes, and reads the
@@ -480,6 +505,9 @@ type probeRequest struct {
 	// `input` row stores whole: the record has to say which experiment
 	// was performed.
 	patch string
+	// patchFile is the `--patch` path the diff was read from, which a
+	// refusal of the patch's data names.
+	patchFile string
 	// files is the same diff, parsed for application.
 	files []git.PatchedFile
 	// test is the gap probe's test file content, which §5.5's `input` row
@@ -690,7 +718,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 	for i := range request.files {
 		if _, err := setup.layout.InSandbox(
 			request.owner, request.repo, request.pr, request.files[i].Path); err != nil {
-			return err
+			return absentFromPatch(request.patchFile, &request.files[i], err)
 		}
 	}
 

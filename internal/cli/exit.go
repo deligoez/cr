@@ -631,6 +631,11 @@ var codes = []mapped{
 	// before anything could be applied at all.
 	{is[*state.OutsideSandboxError](), ExitValidation,
 		"correct the patch so every path it names resolves inside the sandbox"},
+	// A patch path inside the sandbox where the sandbox holds no file. `cr
+	// probe run` names the patch line through absentFromPatch; this row is
+	// the same answer for the refusal reaching the writer itself. The flags
+	// were right and the patch was read, so it is the data, §11.2's 1.
+	{is[*state.AbsentFromSandboxError](), ExitValidation, absentFromPatchStep},
 	// §6.1.4: a record supplying a field cr writes itself is rejected with
 	// exit code 1. The file was found, read, and parsed, so nothing about
 	// it failed as a file; what is wrong is the input data inside it, which

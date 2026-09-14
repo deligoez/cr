@@ -70,29 +70,6 @@ func (e *RunError) Error() string {
 func (e *RunError) Unwrap() error { return e.Err }
 
 // Run runs the profile's test command inside the sandbox and returns the
-// runner's own exit status (§5.2.1).
-//
-// dir is the sandbox, and it is the whole point of the function. A suite run in
-// the main checkout would be measuring the user's working tree — mid-edit,
-// possibly on another branch — and reporting the answer as if it came from the
-// pull request head, while §2.2 forbids cr to have put the probe there in the
-// first place. So the directory is pinned here and comes from state.Layout by
-// way of §5.1.6's check, never from a caller's own join.
-//
-// The output goes to log as it is produced rather than being returned.
-// §5.2.1 also asks for the exit code, the duration and a bounded tail of the
-// output to be *recorded*, and that record is §5.2.4's; what a person watching
-// the command wants meanwhile is to see the suite run.
-//
-// A non-zero exit is returned as a value, not as an error. A failing suite is an
-// ordinary and often intended outcome — §5.3.4's whole ladder is built on
-// reading one — so the number is reported and its meaning is left to the section
-// that owns it.
-//
-// The environment is inherited whole, for the reason runSetup inherits it: the
-// runner is a tool the user names and cr has never heard of, and an allowlist
-// here would be a list of names cr cannot know.
-// Run runs the profile's test command inside the sandbox and returns the
 // runner's own exit status and whether the run was killed for exceeding
 // timeout (§5.2.1, §5.2.3).
 //
