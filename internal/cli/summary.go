@@ -90,6 +90,14 @@ const (
 	// more, so no key here says a human read the draft or that draft.md
 	// changed.
 	summaryConfirmGiven = "confirm_given"
+	// summaryRecordedAt is when `cr record` last recorded the round, a
+	// moment it leaves in every round it records. §2.6.3.4's window orders
+	// rounds by moment, and a round recorded with no record naming a rule
+	// and no triage event leaves no other: without it such a round could
+	// only be placed at a bound, older than it is, and the newest clean
+	// round would fall out of the window it closes. It is written on every
+	// run with the rest of the section, so it is the latest recording.
+	summaryRecordedAt = "recorded_at"
 )
 
 // summaryOwners is §10.3's writer list: every count the round summary holds,
@@ -108,6 +116,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryMergedHash:         ownerMerge,
 	summaryDeduplicated:       ownerRecord,
 	summarySuppressedByThread: ownerRecord,
+	summaryRecordedAt:         ownerRecord,
 	summaryForcedToQuestion:   ownerDraft,
 	summaryForcedByRetraction: ownerDraft,
 	summaryNewClasses:         ownerDraft,

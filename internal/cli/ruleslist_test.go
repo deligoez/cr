@@ -134,14 +134,13 @@ func TestTheDeadWindowSpansTwoPullRequestsByTimestamp(t *testing.T) {
 // and no record named one.
 //
 // no-todo hit once, in pull request 13's round 1. The fixture's round 2 of that
-// pull request is then recorded with no record at all, so nothing in state
-// dates it and it is ordered after round 1. Pull request 7's round 1 holds one
-// triage event, a year after the hit. At rules.dead_after 2 the window is that
-// round and pull request 13's round 2, no-todo is silent across both and is
-// dead; a window of the ledger's rounds alone would hold only round 1 and call
-// nothing dead. Round 3 holds a summary only `cr merge` wrote, which is not a
-// recorded round, so at rules.dead_after 4 the window holds three rounds and
-// is not full.
+// pull request is then recorded with no record at all, so only its recording
+// dates it. Pull request 7's round 1 holds one triage event, a year after the
+// hit. At rules.dead_after 2 the window is pull request 13's round 2 and that
+// round, no-todo is silent across both and is dead; a window of the ledger's
+// rounds alone would hold only round 1 and call nothing dead. Round 3 holds a
+// summary only `cr merge` wrote, which is not a recorded round, so at
+// rules.dead_after 4 the window holds three rounds and is not full.
 func TestTheDeadWindowCountsARoundNoRuleHitIn(t *testing.T) {
 	layout := recordedHome(t)
 	require.NoError(t, os.WriteFile(layout.Rule("no-todo"), []byte(listedRuleJSON("no-todo")), 0o600))
@@ -157,15 +156,19 @@ func TestTheDeadWindowCountsARoundNoRuleHitIn(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, state.UpdateRoundSection(held, recordRound+1, state.FileSummary, summaryMergedHash, "0123456789abcdef"))
 	require.NoError(t, held.Unlock())
+	before := time.Now()
 	_, err = runRecord(t, recordPR, writeRecordFile(t, "merged.ndjson"), "--repo", recordSlug)
 	require.NoError(t, err)
+	after := time.Now()
 
 	t.Setenv("CR_RULES_DEAD_AFTER", "2")
 	var two rulesDeadResult
 	listRules(t, &two, "--dead")
+	require.Len(t, two.Window, 2)
+	assert.WithinRange(t, two.Window[0].At, before, after)
 	assert.Equal(t, []rule.LedgerRound{
+		{PR: recordPRNum, Round: recordRound, At: two.Window[0].At, Dated: true},
 		{PR: 7, Round: 1, At: raised, Dated: true},
-		{PR: recordPRNum, Round: recordRound, At: hit, Dated: false},
 	}, two.Window)
 	assert.True(t, two.Full)
 	assert.Equal(t, map[string]string{"no-todo": "global"}, layersOf(two.Dead),
@@ -178,7 +181,7 @@ func TestTheDeadWindowCountsARoundNoRuleHitIn(t *testing.T) {
 	for _, pair := range four.Window {
 		pairs = append(pairs, [2]int{pair.PR, pair.Round})
 	}
-	assert.Equal(t, [][2]int{{7, 1}, {recordPRNum, recordRound}, {recordPRNum, recordRound - 1}}, pairs,
+	assert.Equal(t, [][2]int{{recordPRNum, recordRound}, {7, 1}, {recordPRNum, recordRound - 1}}, pairs,
 		"the merge-only round 3 is not a recorded round")
 	assert.False(t, four.Full)
 	assert.Empty(t, four.Dead)

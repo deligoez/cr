@@ -33,6 +33,13 @@ const clockField = "at"
 
 var clockedFiles = []string{state.FileTransitions}
 
+// clockedSections are the round-summary sections a reproduction is compared
+// without, by the file that holds them. summaryRecordedAt is the moment `cr
+// record` recorded the round, which §2.6.3.4's window orders a clean round by;
+// like the journal's `at` it is the time of the run and nothing else, and every
+// other section of the summary is compared exactly.
+var clockedSections = map[string]string{state.FileSummary: summaryRecordedAt}
+
 // §2.1.1: every command is reproducible given the same state directory, the same
 // head SHA, and the same inputs.
 //
@@ -146,6 +153,17 @@ func maskClock(t *testing.T, tree map[string][]byte) map[string]string {
 	t.Helper()
 	out := make(map[string]string, len(tree))
 	for rel, body := range tree {
+		if section, clocked := clockedSections[filepath.Base(rel)]; clocked {
+			var document map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(body, &document), "%s", rel)
+			if _, held := document[section]; held {
+				document[section] = json.RawMessage(`"<clock>"`)
+			}
+			masked, err := json.Marshal(document)
+			require.NoError(t, err)
+			out[rel] = string(masked)
+			continue
+		}
 		if !slices.Contains(clockedFiles, filepath.Base(rel)) {
 			out[rel] = string(body)
 			continue

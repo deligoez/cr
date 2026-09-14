@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,6 +118,16 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 			}
 			if !payloadHashShape.MatchString(hash) {
 				return fmt.Errorf("%q is not a §1.4 normalised hash", hash)
+			}
+			return nil
+		},
+		"recorded_at": func(raw json.RawMessage) error {
+			var at time.Time
+			if err := json.Unmarshal(raw, &at); err != nil {
+				return err
+			}
+			if at.IsZero() || at.Location() != time.UTC {
+				return fmt.Errorf("%s is not a moment in UTC", raw)
 			}
 			return nil
 		},
@@ -358,7 +369,10 @@ func TestAWriterMustReplaceItsWholeSection(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, held.Unlock()) }()
 
-	err = writeSummary(held, draftRound, ownerRecord, []summaryCount{{key: summaryDeduplicated, value: 1}})
+	err = writeSummary(held, draftRound, ownerRecord, []summaryCount{
+		{key: summaryDeduplicated, value: 1},
+		{key: summaryRecordedAt, value: time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)},
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"suppressed_by_thread"`, "the refusal names the count left out")
 	assert.Contains(t, err.Error(), "replaced whole")
@@ -444,7 +458,7 @@ func TestRerunningEveryWriterLeavesTheRoundSummaryUnchanged(t *testing.T) {
 	t.Run("once", func(t *testing.T) { once = preparedRound(t, 1) })
 	t.Run("twice", func(t *testing.T) { twice = preparedRound(t, 2) })
 	require.NotEmpty(t, once)
-	assert.JSONEq(t, string(once), string(twice),
+	assert.JSONEq(t, unclockedSummary(t, once), unclockedSummary(t, twice),
 		"re-running cr merge and cr draft replaces their sections rather than adding to them")
 	document := assertSummaryShape(t, twice, ownerMerge, ownerRecord, ownerDraft, ownerDiscards)
 	assert.JSONEq(t, "2", string(document["raised"]))
@@ -459,6 +473,22 @@ func TestRerunningEveryWriterLeavesTheRoundSummaryUnchanged(t *testing.T) {
 	assert.Equal(t, string(dryOnce), string(dryTwice), "§8.5.1's dry run writes nothing, however often it runs")
 	assert.JSONEq(t, string(postedOnce), string(postedTwice),
 		"the confirmation after two dry runs records what it records after one")
+}
+
+// unclockedSummary is a round summary without summaryRecordedAt, the one
+// section that holds a moment rather than a count: two fixtures recorded at two
+// moments carry two values there however idempotent every count is. The key
+// must be present, so a summary `cr record` never reached does not pass as one
+// it did.
+func unclockedSummary(t *testing.T, body []byte) string {
+	t.Helper()
+	var document map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &document))
+	require.Contains(t, document, summaryRecordedAt, "cr record ran, and wrote its moment")
+	delete(document, summaryRecordedAt)
+	unclocked, err := json.Marshal(document)
+	require.NoError(t, err)
+	return string(unclocked)
 }
 
 // Round 8's unpostable-round-summary: a round that never sent a payload has no

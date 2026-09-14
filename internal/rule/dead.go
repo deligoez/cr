@@ -32,11 +32,12 @@ type LedgerRound struct {
 	Round int       `json:"round"`
 	At    time.Time `json:"at"`
 	// Dated is whether At is a moment state holds for the round itself. A
-	// round `cr record` ran for can leave none — no rule entry and no triage
-	// event — and its At is then the latest moment of an earlier round of the
-	// same pull request, or zero when there is none. That is a bound and not a
-	// guess: a pull request's rounds are opened one after another, so a round
-	// cannot precede the rounds before it.
+	// round `cr record` ran for is dated by its recording; one recorded before
+	// cr stamped that moment can leave none — no recording moment, no rule
+	// entry and no triage event — and its At is then the latest moment of an
+	// earlier round of the same pull request, or zero when there is none. That
+	// is a bound and not a guess: a pull request's rounds are opened one after
+	// another, so a round cannot precede the rounds before it.
 	Dated bool `json:"dated"`
 }
 

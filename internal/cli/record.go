@@ -323,7 +323,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := recordRuleStats(layout, owner, repo, pr, &round.Meta, records); err != nil {
 				return err
 			}
-			if err := recordRetiredCounts(layout, owner, repo, pr, &round.Meta); err != nil {
+			if err := recordRetiredCounts(layout, owner, repo, pr, &round.Meta, time.Now()); err != nil {
 				return err
 			}
 			return out.emit(newRecordResult(records, found, dropped))
@@ -346,7 +346,10 @@ func newRecordCmd(out *writer) *cobra.Command {
 // round's counts and not the last file's. The read is lock-free per §2.3.2 and
 // is taken after appendRecords has released its lock, so it sees this run's
 // records as well as every earlier one of the round.
-func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *state.Meta) error {
+//
+// at is written beside them as summaryRecordedAt, in UTC, so a round recorded
+// with nothing else dated still has a moment §2.6.3.4's window can order it by.
+func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *state.Meta, at time.Time) error {
 	stored, err := roundFindingsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return err
@@ -367,6 +370,7 @@ func recordRetiredCounts(l state.Layout, owner, repo string, pr int, round *stat
 	if err := writeSummary(held, round.Round, ownerRecord, []summaryCount{
 		{key: summaryDeduplicated, value: deduplicated},
 		{key: summarySuppressedByThread, value: suppressed},
+		{key: summaryRecordedAt, value: at.UTC()},
 	}); err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.

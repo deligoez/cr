@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -217,14 +218,14 @@ func emitDead(out *writer, l state.Layout, owner, repo string, listed *effective
 
 // windowRounds is the rounds of the repository §2.6.3.4's window counts beside
 // the ledger's own: every round triage.ndjson holds an event for, dated by the
-// latest, and every round `cr record` ran for, which carries no moment.
+// latest, and every round `cr record` ran for, dated by its summaryRecordedAt.
 //
 // A recorded round is one whose round summary holds `cr record`'s section of
 // §10.3; `cr merge` alone writes a summary too, and a round only merged was
-// never recorded. Such a round with no record drafted and no rule entry leaves
-// nothing dated anywhere, and rule.LedgerRound.Dated says how it is ordered.
-// Nothing writes a moment for it, so what `cr record` leaves behind stays
-// byte-reproducible per §2.1.1. Every read is lock-free per §2.3.2.
+// never recorded. A round recorded before `cr record` wrote summaryRecordedAt,
+// with no record drafted and no rule entry, leaves nothing dated anywhere, and
+// rule.LedgerRound.Dated says how it is ordered. Every read is lock-free per
+// §2.3.2.
 func windowRounds(l state.Layout, owner, repo string) ([]rule.LedgerRound, error) {
 	events, err := finding.TriageEvents(l, owner, repo)
 	if err != nil {
@@ -251,9 +252,15 @@ func windowRounds(l state.Layout, owner, repo string) ([]rule.LedgerRound, error
 			if err != nil {
 				return nil, err
 			}
-			if recorded {
-				rounds = append(rounds, rule.LedgerRound{PR: pr, Round: round})
+			if !recorded {
+				continue
 			}
+			at, dated, err := state.ReadRoundSection[time.Time](
+				l, owner, repo, pr, round, state.FileSummary, summaryRecordedAt)
+			if err != nil {
+				return nil, err
+			}
+			rounds = append(rounds, rule.LedgerRound{PR: pr, Round: round, At: at, Dated: dated})
 		}
 	}
 	return rounds, nil
