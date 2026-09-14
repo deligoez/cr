@@ -225,12 +225,18 @@ func newTestCmd(out *writer) *cobra.Command {
 			// and refuses to leave unset, so the run is always
 			// bounded by a number the profile chose.
 			budget := time.Duration(resolved.Tests.TimeoutSeconds) * time.Second
+			// The runner lock the runner inherits, so a later run
+			// finds this runner if cr does not outlive it (§5.3.3).
+			runner, err := layout.LockRunner(owner, repo, pr)
+			if err != nil {
+				return errors.Join(err, probe.Unlock())
+			}
 			started := time.Now()
-			code, timedOut, err := sandbox.Run(argv, ready.Path, log, budget)
+			code, timedOut, err := sandbox.Run(argv, ready.Path, log, budget, runner)
 			took := time.Since(started)
 			// Joined rather than branched, as every other release
 			// in cr is: the lock goes whether or not the run did.
-			if err := errors.Join(err, probe.Unlock()); err != nil {
+			if err := errors.Join(err, runner.Release(), probe.Unlock()); err != nil {
 				return err
 			}
 			// §5.1.6's check again, now that the suite has finished
@@ -279,17 +285,22 @@ func newTestCmd(out *writer) *cobra.Command {
 	return cmd
 }
 
-// recreationNotice renders §5.1.6's disclosure, and an empty report when the
-// sandbox passed the check as it stood.
+// recreationNotice renders §5.1.6's disclosure, and §5.3.3's for a runner an
+// earlier cr left alive and this run killed, and an empty report when the
+// sandbox passed the check as it stood with no such runner.
 //
 // The wording is asked of the notice rather than built here, as `cr brief` asks
 // its disclosures for theirs: a sentence composed at the call site is a second
 // answer that can disagree with the data printed beside it.
 func recreationNotice(ready *sandbox.Ready) []string {
-	if ready.Recreated == nil {
-		return []string{}
+	notices := make([]string, 0, 2)
+	if ready.Stopped != nil {
+		notices = append(notices, ready.Stopped.Disclosure())
 	}
-	return []string{ready.Recreated.Disclosure()}
+	if ready.Recreated != nil {
+		notices = append(notices, ready.Recreated.Disclosure())
+	}
+	return notices
 }
 
 // lockProbe takes §5.6.1's advisory lock for the repository under review and

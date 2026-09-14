@@ -210,6 +210,9 @@ type suite struct {
 	// log is where the runner's output reaches the reader as it is
 	// produced, which §12.1 keeps off stdout.
 	log io.Writer
+	// src names the pull request whose runner lock every run takes, so a
+	// later run finds a runner cr did not outlive (§5.3.3).
+	src *sandbox.Sources
 }
 
 // measuredRun is one execution of the suite, before §5.1.6's post-run check and
@@ -251,9 +254,16 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 	log := io.MultiWriter(s.log, tail, counter)
 	budget := time.Duration(s.profile.Tests.TimeoutSeconds) * time.Second
 
+	runner, err := s.src.Layout.LockRunner(s.src.Owner, s.src.Repo, s.src.PR)
+	if err != nil {
+		return nil, err
+	}
 	started := time.Now()
-	exit, err := sandbox.RunExit(argv, s.path, log, budget)
+	exit, err := sandbox.RunExit(argv, s.path, log, budget, runner)
 	took := time.Since(started)
+	if released := runner.Release(); released != nil {
+		return nil, errors.Join(err, released)
+	}
 
 	unstarted, detail := false, exit.Signal
 	if err != nil {
@@ -577,7 +587,7 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 			// §11.1: the live echo is informational and `--quiet`
 			// takes it; the tail and the counter in run() see the
 			// stream either way.
-			profile: resolved, file: file, path: ready.Path,
+			profile: resolved, file: file, path: ready.Path, src: src,
 			log: out.informational(cmd.ErrOrStderr()),
 		},
 		stamp:  state.Stamp{Head: round.Head, Round: round.Round},

@@ -121,6 +121,14 @@ var codes = []mapped{
 	{is[*profile.UnavailableError](), ExitFile,
 		"declare the field the message names in the profile file it names; " +
 			"`cr config --resolved` does not show profile fields"},
+	// cr was asked to stop while its runner ran, and stopped the runner's
+	// group, reverted and released before exiting. Nothing about the
+	// invocation or its files was wrong; what ended the run is where it
+	// stood when the signal came, which §11.2 codes 4 beside a lock that
+	// was not free.
+	{is[*sandbox.InterruptedError](), ExitState,
+		"the run was stopped and recorded nothing; run the command again, and the next run " +
+			"recreates the sandbox if the stopped one left it unclean"},
 	// §5.2.1 runs the command the profile names, and cr has never heard of
 	// it. A runner that could not be started is the external command
 	// failure §3.1.3 fixes the shape of — and not a test result: a suite

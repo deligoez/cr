@@ -7,10 +7,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/deligoez/cr/internal/state"
 )
 
 // SetupError reports a `sandbox.setup` command that failed.
@@ -132,10 +135,14 @@ func (e *RunError) Unwrap() error { return e.Err }
 // The environment is inherited whole, for the reason runSetup inherits it: the
 // runner is a tool the user names and cr has never heard of, and an allowlist
 // here would be a list of names cr cannot know.
+//
+// runner is the pull request's runner lock, which the runner inherits so a
+// later run can find it if cr does not outlive it; nil starts a runner no later
+// run looks for.
 func Run(
-	argv []string, dir string, log io.Writer, timeout time.Duration,
+	argv []string, dir string, log io.Writer, timeout time.Duration, runner *state.RunnerLock,
 ) (code int, timedOut bool, err error) {
-	exit, err := RunExit(argv, dir, log, timeout)
+	exit, err := RunExit(argv, dir, log, timeout, runner)
 	return exit.Code, exit.TimedOut, err
 }
 
@@ -153,9 +160,28 @@ type Exit struct {
 	Signal string
 }
 
+// InterruptedError reports a run cr stopped because cr itself was asked to
+// stop, by SIGINT or SIGTERM.
+//
+// The runner is in a process group of its own, so a Ctrl+C in a terminal
+// reaches cr and never the runner; cr ending without passing it on would leave
+// the suite running unlocked against the sandbox and its test database. So the
+// group is killed and reaped first, and the error then unwinds through the
+// revert of §5.3.3 and the release of §5.6.1's lock like any other failure,
+// recording nothing: a suite that was stopped said nothing about the code.
+type InterruptedError struct {
+	// Signal is the signal cr received, in the words os gives it.
+	Signal string
+}
+
+func (e *InterruptedError) Error() string {
+	return fmt.Sprintf("cr received %s while the test runner ran: the runner's process group was killed "+
+		"and nothing was recorded for the run", e.Signal)
+}
+
 // RunExit is Run, reporting the signal a run exited on beside its status.
 func RunExit(
-	argv []string, dir string, log io.Writer, timeout time.Duration,
+	argv []string, dir string, log io.Writer, timeout time.Duration, runner *state.RunnerLock,
 ) (Exit, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
@@ -163,12 +189,26 @@ func RunExit(
 	cmd.Stdout = log
 	cmd.Stderr = log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if runner != nil {
+		cmd.ExtraFiles = []*os.File{runner.Inherited()}
+	}
+	// Installed before the start, so no moment exists at which a runner
+	// is alive and a stop request would end cr without reaching it.
+	stopping := make(chan os.Signal, 1)
+	signal.Notify(stopping, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(stopping)
 	if err := cmd.Start(); err != nil {
 		return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
 	}
 	// Read before the waiting goroutine exists, so the pid the kill uses is
 	// never read beside a concurrent Wait.
 	group := cmd.Process.Pid
+	if runner != nil {
+		if err := runner.Started(group); err != nil {
+			_ = syscall.Kill(-group, syscall.SIGKILL)
+			return Exit{}, errors.Join(err, cmd.Wait())
+		}
+	}
 	finished := make(chan error, 1)
 	go func() { finished <- cmd.Wait() }()
 
@@ -201,7 +241,68 @@ func RunExit(
 			return Exit{Code: exit.ExitCode(), TimedOut: true}, nil
 		}
 		return Exit{TimedOut: true}, nil
+	case received := <-stopping:
+		_ = syscall.Kill(-group, syscall.SIGKILL)
+		<-finished
+		return Exit{Code: -1}, &InterruptedError{Signal: received.String()}
 	}
+}
+
+// StoppedRunner is a runner an earlier cr run left alive in the sandbox, which
+// this run killed before doing anything in it.
+type StoppedRunner struct {
+	// Group is the process group that was killed.
+	Group int
+	// Lingering says a process that run started still held the runner
+	// lock after the group was killed: one that left the group, which the
+	// kill could not reach.
+	Lingering bool
+}
+
+// Disclosure is the notice a run that stopped a runner prints, whatever the
+// flags say: a suite a previous cr left running shared the sandbox and its
+// test database with nothing holding §5.6.1's lock.
+func (s *StoppedRunner) Disclosure() string {
+	notice := fmt.Sprintf("a test runner an earlier cr run left running in process group %d was killed "+
+		"before this run, per §5.3.3", s.Group)
+	if s.Lingering {
+		notice += "; a process it started outside that group is still running"
+	}
+	return notice
+}
+
+// leftRunnerGrace is how long a killed runner group is given to exit before
+// the run goes ahead, and leftRunnerPoll how often it is asked. A SIGKILL is
+// not refused, so the grace bounds only a process that left the group.
+const (
+	leftRunnerGrace = 10 * time.Second
+	leftRunnerPoll  = 20 * time.Millisecond
+)
+
+// stopLeftRunner kills the runner an earlier cr run left alive in the pull
+// request's sandbox, and returns nil when there is none.
+//
+// It is the half of §5.3.3's killed run that §5.1.6's recreation does not
+// cover. Recreating the sandbox reverts the mutation, but the runner that was
+// measuring it keeps running with nothing holding §5.6.1's lock, underneath
+// the recreation and beside the next run's own suite. So it is killed first,
+// and waited for until every process holding the runner lock has exited.
+func stopLeftRunner(src *Sources) (*StoppedRunner, error) {
+	left, err := src.Layout.LeftRunner(src.Owner, src.Repo, src.PR)
+	if err != nil || left == nil {
+		return nil, err
+	}
+	_ = syscall.Kill(-left.Group, syscall.SIGKILL)
+	deadline := time.Now().Add(leftRunnerGrace)
+	gone, err := left.Gone()
+	for err == nil && !gone && time.Now().Before(deadline) {
+		time.Sleep(leftRunnerPoll)
+		gone, err = left.Gone()
+	}
+	if err := errors.Join(err, left.Release()); err != nil {
+		return nil, err
+	}
+	return &StoppedRunner{Group: left.Group, Lingering: !gone}, nil
 }
 
 // signalOf names the signal a finished process exited on, in the words os

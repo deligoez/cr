@@ -42,6 +42,10 @@ type Ready struct {
 	// Recreated is the notice, and is nil when the sandbox passed the
 	// check as it stood. A caller that finds one MUST report it.
 	Recreated *Recreated
+	// Stopped is the runner an earlier cr run left alive in the sandbox
+	// and this check killed, and is nil when there was none. A caller that
+	// finds one reports it too.
+	Stopped *StoppedRunner
 }
 
 // Ensure returns a sandbox fit to run in, rebuilding the one on disk when it is
@@ -57,17 +61,24 @@ type Ready struct {
 // hands back is the disclosure and not a line on a stream.
 func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 	path := src.Layout.Sandbox(src.Owner, src.Repo, src.PR)
+	// A runner an earlier cr left alive is stopped before the check reads
+	// the sandbox, since it may still be writing to it, and before a
+	// recreation or a run of this command's own starts beside it.
+	stopped, err := stopLeftRunner(src)
+	if err != nil {
+		return nil, err
+	}
 	reason, err := Unclean(src, leftoverGlob)
 	if err != nil {
 		return nil, err
 	}
 	if reason == "" {
-		return &Ready{Path: path}, nil
+		return &Ready{Path: path, Stopped: stopped}, nil
 	}
 	if err := recreate(src, path); err != nil {
 		return nil, err
 	}
-	return &Ready{Path: path, Recreated: &Recreated{Path: path, Reason: reason}}, nil
+	return &Ready{Path: path, Recreated: &Recreated{Path: path, Reason: reason}, Stopped: stopped}, nil
 }
 
 // Unclean reports why the pull request's sandbox cannot be run in, and the

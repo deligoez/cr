@@ -180,6 +180,7 @@ var processControl = map[string]bool{
 	"SysProcAttr": true,
 	"Kill":        true,
 	"SIGKILL":     true,
+	"SIGTERM":     true,
 }
 
 // syscallUse reports the syscall identifier an expression names, if it names

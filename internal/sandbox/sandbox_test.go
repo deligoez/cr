@@ -379,7 +379,7 @@ func TestTheTestCommandRunsInTheSandboxAndNeverTheCheckout(t *testing.T) {
 	runner := script(t, scripts, "runner.sh", "pwd > "+log+"\necho the suite ran\nexit 3\n")
 
 	var printed strings.Builder
-	code, timedOut, err := Run([]string{runner}, created.Path, &printed, time.Minute)
+	code, timedOut, err := Run([]string{runner}, created.Path, &printed, time.Minute, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, 3, code, "§5.2.1 reports the runner's exit status rather than raising it")
@@ -417,7 +417,7 @@ func TestARunnerThatCannotBeStartedIsAFailure(t *testing.T) {
 
 	code, timedOut, err := Run(
 		[]string{filepath.Join(created.Path, "no-such-runner")},
-		created.Path, io.Discard, time.Minute)
+		created.Path, io.Discard, time.Minute, nil)
 
 	assert.Zero(t, code)
 	assert.False(t, timedOut)
@@ -456,7 +456,7 @@ func TestARunOutlivingItsBudgetIsKilledWithEverythingItStarted(t *testing.T) {
 
 	var printed strings.Builder
 	started := time.Now()
-	code, timedOut, err := Run([]string{runner}, created.Path, &printed, 500*time.Millisecond)
+	code, timedOut, err := Run([]string{runner}, created.Path, &printed, 500*time.Millisecond, nil)
 	took := time.Since(started)
 
 	require.NoError(t, err, "a killed run is an outcome, not a runner that could not be started")
@@ -495,7 +495,7 @@ func TestARunGivenNoBudgetIsNotKilled(t *testing.T) {
 	runner := script(t, t.TempDir(), "runner.sh", "echo the suite ran\n")
 
 	var printed strings.Builder
-	code, timedOut, err := Run([]string{runner}, created.Path, &printed, 0)
+	code, timedOut, err := Run([]string{runner}, created.Path, &printed, 0, nil)
 
 	require.NoError(t, err)
 	assert.Zero(t, code)

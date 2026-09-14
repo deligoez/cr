@@ -472,9 +472,11 @@ func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
 
 	honesty, ok := reported["honesty"].([]any)
 	require.True(t, ok, "§11.1's disclosures are a field on the payload")
-	require.Len(t, honesty, 1, "§5.1.6: the sandbox was unclean, so it was recreated and said so")
-	assert.Contains(t, honesty[0], "§5.1.6")
-	assert.Contains(t, honesty[0], "app.go",
+	require.Len(t, honesty, 2,
+		"§5.3.3: the killed run's runner was stopped, and §5.1.6: the sandbox was unclean, so it was recreated")
+	assertStoppedRunnerNotice(t, honesty[0])
+	assert.Contains(t, honesty[1], "§5.1.6")
+	assert.Contains(t, honesty[1], "app.go",
 		"the notice names the tracked file the killed probe left changed")
 
 	rebuilt, err := os.ReadFile(mutated)
@@ -983,10 +985,12 @@ func TestAKilledGapProbeLeavesAFileTheNextRunRecreates(t *testing.T) {
 
 	honesty, ok := reported["honesty"].([]any)
 	require.True(t, ok, "§11.1's disclosures are a field on the payload")
-	require.Len(t, honesty, 1, "§5.1.6: the sandbox was unclean, so it was recreated and said so")
-	assert.Contains(t, honesty[0], "§5.1.6")
-	assert.Contains(t, honesty[0], "a probe artefact was left behind")
-	assert.Contains(t, honesty[0], "cr_probe_p1.txt",
+	require.Len(t, honesty, 2,
+		"§5.3.3: the killed run's runner was stopped, and §5.1.6: the sandbox was unclean, so it was recreated")
+	assertStoppedRunnerNotice(t, honesty[0])
+	assert.Contains(t, honesty[1], "§5.1.6")
+	assert.Contains(t, honesty[1], "a probe artefact was left behind")
+	assert.Contains(t, honesty[1], "cr_probe_p1.txt",
 		"the notice names the file the killed probe left behind")
 
 	assert.NoFileExists(t, placed, "§5.1.6: the recreated sandbox holds what the head holds")
