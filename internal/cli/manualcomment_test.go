@@ -17,7 +17,7 @@ import (
 // from §7.1.1's grammar, and a malformed one would be refused for that instead
 // — which would leave §7.2.3's own obligation untested while looking tested.
 const handWritten = "\n" +
-	`<!-- cr:record id="f9" kind="finding" path="internal/api/handler.go" ` +
+	`<!-- cr:record id="f9" kind="finding" path="internal/api/handler.go" side="RIGHT" ` +
 	`start_line="42" line="44" severity="high" grade="cited" disposition="" -->` +
 	"\n\nI would rather say this one in my own name.\n"
 

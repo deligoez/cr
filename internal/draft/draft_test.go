@@ -11,7 +11,7 @@ import (
 	"github.com/deligoez/cr/internal/render"
 )
 
-// aRecord is one queued record, complete enough for §7.1.1's eight marker
+// aRecord is one queued record, complete enough for §7.1.1's nine marker
 // fields to have something to say.
 func aRecord(id string) *finding.Finding {
 	return &finding.Finding{
@@ -41,7 +41,7 @@ func renderOf(t *testing.T, records ...*finding.Finding) string {
 	return rendered
 }
 
-// §7.1.1: one record is one block, introduced by a marker carrying the eight
+// §7.1.1: one record is one block, introduced by a marker carrying the nine
 // fields the section names.
 func TestABlockIsAMarkerAndABody(t *testing.T) {
 	rendered := renderOf(t, aRecord("f1"))
@@ -49,7 +49,7 @@ func TestABlockIsAMarkerAndABody(t *testing.T) {
 	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
 	require.Len(t, lines, 5, "a marker, a blank line, and the body's two paragraphs")
 	assert.Equal(t,
-		`<!-- cr:record id="f1" kind="finding" path="internal/api/handler.go" `+
+		`<!-- cr:record id="f1" kind="finding" path="internal/api/handler.go" side="RIGHT" `+
 			`start_line="42" line="44" severity="high" grade="cited" disposition="" -->`,
 		lines[0])
 	assert.Empty(t, lines[1])
@@ -60,7 +60,7 @@ func TestABlockIsAMarkerAndABody(t *testing.T) {
 		"§8.1.2: the initial body is drawn from the summary and the evidence")
 }
 
-// §7.1.1 names eight fields, and the marker carries all eight — `disposition`
+// §7.1.1 names nine fields, and the marker carries all nine — `disposition`
 // included, which is empty at draft time and is what §7.2's table has the
 // reviewer type `wrong` into. A field that appeared only once it had a value
 // would leave the verb no place to be written.
@@ -68,7 +68,7 @@ func TestTheMarkerCarriesEveryFieldSection711Names(t *testing.T) {
 	rendered := renderOf(t, aRecord("f1"))
 
 	for _, field := range []string{
-		"id", "kind", "path", "start_line", "line", "severity", "grade", "disposition",
+		"id", "kind", "path", "side", "start_line", "line", "severity", "grade", "disposition",
 	} {
 		assert.Contains(t, rendered, " "+field+"=\"", "§7.1.1 names %s", field)
 	}

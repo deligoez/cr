@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/git"
 )
 
 // MarkerEditError reports a marker edit §7.2's table does not admit.
@@ -197,18 +198,24 @@ func listedSeverities() string {
 	return strings.Join(names, ", ")
 }
 
-// anchor is §7.2's `path`, `start_line` and `line` row: re-validated per
-// §6.1.2, aborting when the anchor no longer resolves.
+// anchor is §7.2's `path`, `side`, `start_line` and `line` row: re-validated
+// per §6.1.2, aborting when the anchor no longer resolves.
+//
+// A changed side is a moved anchor like a changed line: its lines are then
+// counted in the other tree, so it is resolved and stamped there, and a side
+// outside §9.2's two is refused by the same validation `cr record` applies.
 //
 // It returns nil when the marker leaves the location where cr wrote it, which
 // is what keeps `cr draft` from opening the repository — or, for a LEFT anchor,
 // the pull request — on a run where nothing moved.
 func (e *markerEdit) anchor(trees finding.Trees, file string) (*finding.Anchor, error) {
-	if e.now.Path == e.was.Path && e.now.StartLine == e.was.StartLine && e.now.Line == e.was.Line {
+	if e.now.Path == e.was.Path && e.now.Side == e.was.Side &&
+		e.now.StartLine == e.was.StartLine && e.now.Line == e.was.Line {
 		return nil, nil
 	}
 	moved := e.record.Anchor
-	moved.Path, moved.StartLine, moved.Line = e.now.Path, e.now.StartLine, e.now.Line
+	moved.Path, moved.Side = e.now.Path, git.Side(e.now.Side)
+	moved.StartLine, moved.Line = e.now.StartLine, e.now.Line
 	if err := finding.StampAnchor(trees, file, e.at, &moved); err != nil {
 		// A location the tree cannot answer for is this row's abort and
 		// carries the record id with it. A git that refuses is not: it

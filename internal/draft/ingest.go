@@ -441,6 +441,7 @@ func drift(marker *Marker, record *finding.Finding) int {
 	n := 0
 	for _, differs := range []bool{
 		marker.Path != record.Anchor.Path,
+		marker.Side != string(record.Anchor.Side),
 		marker.StartLine != record.Anchor.StartLine,
 		marker.Line != record.Anchor.Line,
 		marker.Severity != string(record.Severity),

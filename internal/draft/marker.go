@@ -2,6 +2,7 @@ package draft
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,13 +14,13 @@ import (
 //
 // One line, exactly, and MarkerGrammar below is that line:
 //
-//	<!-- cr:record id="f1" kind="question" path="internal/api/handler.go" start_line="42" line="44" severity="high" grade="argued" disposition="" -->
+//	<!-- cr:record id="f1" kind="question" path="internal/api/handler.go" side="RIGHT" start_line="42" line="44" severity="high" grade="argued" disposition="" -->
 //
 // Rule 1. The line opens with `<!-- cr:record` and closes with `-->`.
 //
-// Rule 2. Between them come §7.1.1's eight fields — `id`, `kind`, `path`,
-// `start_line`, `line`, `severity`, `grade`, `disposition` — all eight, each
-// exactly once, in that order.
+// Rule 2. Between them come §7.1.1's nine fields — `id`, `kind`, `path`,
+// `side`, `start_line`, `line`, `severity`, `grade`, `disposition` — all nine,
+// each exactly once, in that order.
 //
 // Rule 3. Each field is one SPACE, the field name, `=`, and a JSON string
 // literal. A value may be empty; `disposition` is, until §7.2's table has the
@@ -61,14 +62,14 @@ const (
 // MarkerGrammar is the one example line the rules above are written against,
 // so a caller reporting the grammar quotes it rather than restating it.
 const MarkerGrammar = `<!-- cr:record id="f1" kind="question" ` +
-	`path="internal/api/handler.go" start_line="42" line="44" ` +
+	`path="internal/api/handler.go" side="RIGHT" start_line="42" line="44" ` +
 	`severity="high" grade="argued" disposition="" -->`
 
 // markerFieldNames is §7.1.1's field list, in the order the section writes it.
 // It is the order the marker is rendered in and the order it is parsed in, so
 // the two cannot come to disagree about what "in that order" means.
 var markerFieldNames = []string{
-	"id", "kind", "path", "start_line", "line", "severity", "grade", "disposition",
+	"id", "kind", "path", "side", "start_line", "line", "severity", "grade", "disposition",
 }
 
 // MarkerFields returns §7.1.1's field names in section order. The result is a
@@ -77,14 +78,14 @@ func MarkerFields() []string {
 	return append(make([]string, 0, len(markerFieldNames)), markerFieldNames...)
 }
 
-// Marker is one record's §7.1.1 marker: the eight fields, as text.
+// Marker is one record's §7.1.1 marker: the nine fields, as text.
 //
-// The vocabulary fields — `kind`, `severity`, `grade`, `disposition` — are held
-// as strings rather than as their finding types, because this is the grammar
-// and not the judgement. §7.2's table decides what a reviewer may edit each of
-// them to and what happens when they name something outside §6.1's vocabulary;
-// a parser that refused an unknown severity would answer that question here,
-// with the wrong error and in the wrong section.
+// The vocabulary fields — `kind`, `side`, `severity`, `grade`, `disposition` —
+// are held as strings rather than as their finding types, because this is the
+// grammar and not the judgement. §7.2's table decides what a reviewer may edit
+// each of them to and what happens when they name something outside §6.1's
+// vocabulary; a parser that refused an unknown severity would answer that
+// question here, with the wrong error and in the wrong section.
 //
 // The two line numbers are integers, because that is grammar: rule 4 makes a
 // non-integer a deviation, so a Marker that exists has already been past it.
@@ -92,6 +93,7 @@ type Marker struct {
 	ID          string `json:"id"`
 	Kind        string `json:"kind"`
 	Path        string `json:"path"`
+	Side        string `json:"side"`
 	StartLine   int    `json:"start_line"`
 	Line        int    `json:"line"`
 	Severity    string `json:"severity"`
@@ -101,7 +103,7 @@ type Marker struct {
 
 // markerOf is the marker of one record, read off the record's own fields.
 //
-// The three location fields come from the anchor §9.2 recorded rather than
+// The four location fields come from the anchor §9.2 recorded rather than
 // being restated, so the marker names the location the record carries and there
 // is no second copy of it to drift.
 func markerOf(record *finding.Finding) Marker {
@@ -109,6 +111,7 @@ func markerOf(record *finding.Finding) Marker {
 		ID:          record.ID,
 		Kind:        string(record.Kind),
 		Path:        record.Anchor.Path,
+		Side:        string(record.Anchor.Side),
 		StartLine:   record.Anchor.StartLine,
 		Line:        record.Anchor.Line,
 		Severity:    string(record.Severity),
@@ -117,11 +120,11 @@ func markerOf(record *finding.Finding) Marker {
 	}
 }
 
-// values are the marker's eight fields in markerFieldNames' order, as the
+// values are the marker's nine fields in markerFieldNames' order, as the
 // strings the grammar quotes.
 func (m *Marker) values() []string {
 	return []string{
-		m.ID, m.Kind, m.Path,
+		m.ID, m.Kind, m.Path, m.Side,
 		strconv.Itoa(m.StartLine), strconv.Itoa(m.Line),
 		m.Severity, m.Grade, m.Disposition,
 	}
@@ -159,9 +162,16 @@ func IsMarkerLine(line string) bool {
 // opens their editor at, and the text is what they compare against
 // MarkerGrammar. The cli layer maps it onto exit code 1, which §7.2 fixes for
 // every marker edit it does not admit.
+//
+// The record id is carried too once the line got as far as naming one, which
+// is what a marker cr rendered before `side` joined §7.1.1's fields is refused
+// with: the record whose block it opens, beside the grammar it no longer
+// matches.
 type MalformedMarkerError struct {
 	// At is the one-based line the marker sits on in the draft.
 	At int
+	// ID is the record id the line names, and empty when it names none.
+	ID string
 	// Line is the line as it was written.
 	Line string
 	// Problem completes the sentence naming the deviation.
@@ -169,8 +179,12 @@ type MalformedMarkerError struct {
 }
 
 func (e *MalformedMarkerError) Error() string {
-	return fmt.Sprintf("draft line %d is a malformed record marker: %s\n  read: %s\n  grammar: %s",
-		e.At, e.Problem, e.Line, MarkerGrammar)
+	record := ""
+	if e.ID != "" {
+		record = ", record " + e.ID + ","
+	}
+	return fmt.Sprintf("draft line %d%s is a malformed record marker: %s\n  read: %s\n  grammar: %s",
+		e.At, record, e.Problem, e.Line, MarkerGrammar)
 }
 
 // ParseMarker reads one line of a draft as a §7.1.1 marker.
@@ -181,39 +195,51 @@ func (e *MalformedMarkerError) Error() string {
 // through this, so there is one answer about what a marker is rather than one
 // per caller.
 func ParseMarker(at int, line string) (Marker, error) {
+	values := make([]string, 0, len(markerFieldNames))
+	marker, err := parseMarker(at, line, &values)
+	var malformed *MalformedMarkerError
+	if len(values) > 0 && errors.As(err, &malformed) {
+		malformed.ID = values[0]
+	}
+	return marker, err
+}
+
+// parseMarker is ParseMarker's grammar, leaving in values every field it read
+// before it stopped, so a refusal can name the record the line opens.
+func parseMarker(at int, line string, values *[]string) (Marker, error) {
 	if !IsMarkerLine(line) {
 		return Marker{}, &MalformedMarkerError{At: at, Line: line,
 			Problem: "it does not open with " + markerClaim}
 	}
 	rest := strings.TrimPrefix(line, markerOpen)
-	values := make([]string, 0, len(markerFieldNames))
 	for _, name := range markerFieldNames {
 		value, remainder, err := cutMarkerField(at, line, rest, name)
 		if err != nil {
 			return Marker{}, err
 		}
-		values = append(values, value)
+		*values = append(*values, value)
 		rest = remainder
 	}
 	if rest != " "+markerClose {
 		return Marker{}, &MalformedMarkerError{At: at, Line: line, Problem: fmt.Sprintf(
-			"§7.1.1's eight fields are followed by %q, and the grammar ends with %q",
+			"§7.1.1's nine fields are followed by %q, and the grammar ends with %q",
 			rest, " "+markerClose)}
 	}
-	return markerFrom(at, line, values)
+	return markerFrom(at, line, *values)
 }
 
 // cutMarkerField takes one `name="value"` field off the front of rest.
 //
 // The field name is required rather than discovered, which is what rule 2
-// means by "in that order": a marker naming the right eight fields in another
+// means by "in that order": a marker naming the right nine fields in another
 // order fails here, at the first one that is not where §7.1.1 puts it, and so
-// does one carrying a ninth.
+// does one carrying a tenth — or one missing `side`, as every marker rendered
+// before §7.1.1 named it is.
 func cutMarkerField(at int, line, rest, name string) (value, remainder string, err error) {
 	after, named := strings.CutPrefix(rest, " "+name+"=")
 	if !named {
 		return "", "", &MalformedMarkerError{At: at, Line: line, Problem: fmt.Sprintf(
-			"%q does not follow, and §7.1.1 fixes the eight fields and their order", " "+name+"=")}
+			"%q does not follow, and §7.1.1 fixes the nine fields and their order", " "+name+"=")}
 	}
 	value, remainder, quoted := cutQuoted(after)
 	if !quoted {
@@ -252,18 +278,18 @@ func cutQuoted(s string) (value, rest string, ok bool) {
 // markerFrom assembles the parsed values into a Marker, applying rule 4 to the
 // two line numbers.
 func markerFrom(at int, line string, values []string) (Marker, error) {
-	start, err := markerNumber(at, line, "start_line", values[3])
+	start, err := markerNumber(at, line, "start_line", values[4])
 	if err != nil {
 		return Marker{}, err
 	}
-	end, err := markerNumber(at, line, "line", values[4])
+	end, err := markerNumber(at, line, "line", values[5])
 	if err != nil {
 		return Marker{}, err
 	}
 	return Marker{
-		ID: values[0], Kind: values[1], Path: values[2],
+		ID: values[0], Kind: values[1], Path: values[2], Side: values[3],
 		StartLine: start, Line: end,
-		Severity: values[5], Grade: values[6], Disposition: values[7],
+		Severity: values[6], Grade: values[7], Disposition: values[8],
 	}, nil
 }
 

@@ -317,8 +317,8 @@ type retriagedRecord struct {
 func (r *retriagedRecord) moved() string {
 	said := make([]string, 0, 2)
 	if r.Anchor != nil {
-		said = append(said, fmt.Sprintf("anchored at %s:%d-%d",
-			r.Anchor.Path, r.Anchor.StartLine, r.Anchor.Line))
+		said = append(said, fmt.Sprintf("anchored at %s %s:%d-%d",
+			r.Anchor.Side, r.Anchor.Path, r.Anchor.StartLine, r.Anchor.Line))
 	}
 	if r.Severity != "" {
 		said = append(said, "severity "+string(r.Severity))

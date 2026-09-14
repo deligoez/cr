@@ -89,7 +89,7 @@ func draftedBlock(t *testing.T, l state.Layout, comment *aPostedComment) string 
 	}
 	return string(existing) +
 		`<!-- cr:record id="` + comment.id + `" kind="finding" ` +
-		`path="internal/api/handler.go" start_line="42" line="44" ` +
+		`path="internal/api/handler.go" side="RIGHT" start_line="42" line="44" ` +
 		`severity="high" grade="cited" disposition="" -->` + "\n\n" +
 		comment.body + "\n\n"
 }

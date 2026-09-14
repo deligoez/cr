@@ -12,7 +12,7 @@ import (
 // aMarker is the grammar's own example line, as a Marker.
 func aMarker() Marker {
 	return Marker{
-		ID: "f1", Kind: "question", Path: "internal/api/handler.go",
+		ID: "f1", Kind: "question", Path: "internal/api/handler.go", Side: "RIGHT",
 		StartLine: 42, Line: 44,
 		Severity: "high", Grade: "argued", Disposition: "",
 	}
@@ -26,12 +26,13 @@ func TestTheExampleLineIsWhatTheRendererProduces(t *testing.T) {
 	assert.Equal(t, MarkerGrammar, aMarker().String())
 }
 
-// §7.1.1 names eight fields, and the marker carries all eight in that order —
-// `disposition` included, which is empty at draft time and is what §7.2's table
-// has the reviewer type `wrong` into.
+// §7.1.1 names nine fields, and the marker carries all nine in that order —
+// `side` between `path` and `start_line`, and `disposition` included, which is
+// empty at draft time and is what §7.2's table has the reviewer type `wrong`
+// into.
 func TestTheMarkerCarriesEveryFieldSection711NamesInOrder(t *testing.T) {
 	require.Equal(t, []string{
-		"id", "kind", "path", "start_line", "line", "severity", "grade", "disposition",
+		"id", "kind", "path", "side", "start_line", "line", "severity", "grade", "disposition",
 	}, MarkerFields(), "§7.1.1's list, in the section's own order")
 
 	rendered := aMarker().String()
@@ -64,7 +65,7 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := aMarker()
-			want.Path = path
+			want.Path, want.Side = path, "LEFT"
 			want.Disposition = "wrong"
 
 			rendered := want.String()
@@ -83,6 +84,7 @@ func TestEveryFieldSurvivesTheRoundTrip(t *testing.T) {
 func TestARenderedRecordParsesBackToItsFields(t *testing.T) {
 	record := aRecord("f7")
 	record.Anchor.Path = `internal/api/a "handler".go`
+	record.Anchor.Side = "LEFT"
 
 	rendered := renderOf(t, record)
 	marker, err := ParseMarker(1, strings.Split(rendered, "\n")[0])
@@ -91,6 +93,7 @@ func TestARenderedRecordParsesBackToItsFields(t *testing.T) {
 	assert.Equal(t, record.ID, marker.ID)
 	assert.Equal(t, string(record.Kind), marker.Kind)
 	assert.Equal(t, record.Anchor.Path, marker.Path)
+	assert.Equal(t, "LEFT", marker.Side)
 	assert.Equal(t, record.Anchor.StartLine, marker.StartLine)
 	assert.Equal(t, record.Anchor.Line, marker.Line)
 	assert.Equal(t, string(record.Severity), marker.Severity)
@@ -109,6 +112,7 @@ func TestEveryDeviationFromTheGrammarIsMalformed(t *testing.T) {
 	sound := MarkerGrammar
 	for name, line := range map[string]string{
 		"a missing field": strings.Replace(sound, ` grade="argued"`, "", 1),
+		"a missing side":  strings.Replace(sound, ` side="RIGHT"`, "", 1),
 		"an extra field": strings.Replace(sound,
 			` disposition=""`, ` disposition="" note="mine"`, 1),
 		"a reordered pair": strings.Replace(sound,
