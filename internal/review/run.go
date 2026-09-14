@@ -356,6 +356,9 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 	if r.Threads, err = gh.ReadThreads(l, owner, repo, pr); err != nil {
 		return nil, err
 	}
+	if r.Held, err = state.ReadRecords[finding.Finding](l, owner, repo, pr, state.FileFindings); err != nil {
+		return nil, err
+	}
 	notes, err := notesOf(l, meta.IssueKey)
 	if err != nil {
 		return nil, err

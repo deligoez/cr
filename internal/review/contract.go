@@ -37,7 +37,7 @@ var claimWords = map[intent.Requirement]string{
 // will reject, or forbid one it accepts. cr owns this contract and a role only
 // supplies persona and focus (§2.5), which is why none of it comes from the
 // role's instructions.
-func contract(p *page, lens *role.Role, output string) {
+func contract(p *page, lens *role.Role, output string, round int, ids IDs) {
 	p.section("Output (§4.6.2)")
 	p.line("Write this role's records for this unit, one JSON object per line, to:")
 	p.line("")
@@ -46,6 +46,8 @@ func contract(p *page, lens *role.Role, output string) {
 	p.line("The file's name binds every record in it to role %s: cr merge attributes a record to "+
 		"the role whose file it arrived in and rejects one naming another (§6.1.3). With nothing to "+
 		"raise, write nothing.", lens.ID)
+	p.line("")
+	idBlockLine(p, round, ids)
 	p.line("")
 	p.line("A record carries §6.1's fields:")
 	reserved := finding.Reserved()

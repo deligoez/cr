@@ -79,6 +79,9 @@ var crossRoundReaders = map[string]string{
 	"internal/cli/recordids.go: refuseHeldIDs": "§6.1 makes a record id stable for the life of the pull " +
 		"request, and §9.3.4 keeps an earlier round's record as `stale`, so an id any round's record holds " +
 		"is held still.",
+	"internal/review/run.go: read": "§4.6.2's prompts each name a block of record ids, and §6.1 makes an " +
+		"id stable for the life of the pull request, so a block starts past the ids every earlier round's " +
+		"records hold and skips the ids this round's records already hold inside it.",
 }
 
 // §9.3.5's first sentence over the tree: a command reads only the current

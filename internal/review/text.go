@@ -59,7 +59,7 @@ func (p *page) block(info, text string) {
 // prompt ends on §4.6.2's contract — where the role writes and what a record
 // may carry — so the instruction the agent acts on last is cr's and not the
 // role's.
-func (r *Round) text(lens *role.Role, at int, output string) string {
+func (r *Round) text(lens *role.Role, at int, output string, ids IDs) string {
 	u := &r.Units[at]
 	var p page
 	p.line("# %s (%s) on unit %s", lens.Title, lens.ID, u.ID)
@@ -83,7 +83,7 @@ func (r *Round) text(lens *role.Role, at int, output string) string {
 	if lens.Axis == axis.Intent {
 		claimSchema(&p)
 	}
-	contract(&p, lens, output)
+	contract(&p, lens, output, r.Round, ids)
 	return p.String()
 }
 

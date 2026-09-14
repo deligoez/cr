@@ -107,7 +107,7 @@ cr review 1 --axis intent
 ```json
 {
   "round": 1,
-  "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
+  "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "first_id": "f1", "last_id": "f100", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
   "honesty": [],
   "skipped_roles": [],
   "expected_cells": [{"unit": "u1", "role": "convention"}, …]
@@ -122,7 +122,10 @@ cr review 1
 ```
 
 Spawn one sub-agent per prompt. Each writes its findings, one JSON record per
-line, to the `output` path the prompt names, and nothing else. A role reports
+line, to the `output` path the prompt names, and nothing else. Each record takes
+its `id` from the prompt's own block, `first_id` through `last_id` in order: no
+other prompt of the round is given those ids, so parallel roles never write the
+same one and `cr merge` accepts their files together. A role reports
 every unit it looked at as a coverage cell:
 
 ```bash

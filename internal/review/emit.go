@@ -95,6 +95,9 @@ type Round struct {
 	Notes []note.Note
 	// Unmapped are §4.1.2's items that are still raised.
 	Unmapped []UnmappedUnit
+	// Held is findings.ndjson whole, across rounds: the ids a record
+	// already holds, which no prompt's block hands out again (§6.1).
+	Held []finding.Finding
 }
 
 // Prompt is one prompt §4.6.1 emits: one active role over one unit.
@@ -113,6 +116,12 @@ type Prompt struct {
 	// Output is the NDJSON path §4.6.2 has the role write its records to,
 	// which the text names as well.
 	Output string `json:"output"`
+	// FirstID and LastID are the run of record ids the role may write for
+	// the unit, a block no other prompt of the round is given, which the
+	// text names as well. Both are empty when a stored record already
+	// holds the block's last id.
+	FirstID string `json:"first_id"`
+	LastID  string `json:"last_id"`
 	// Text is the prompt itself.
 	Text string `json:"prompt"`
 }
@@ -128,6 +137,7 @@ type Prompt struct {
 // for what it means.
 func Emit(r *Round) []Prompt {
 	prompts := make([]Prompt, 0, len(r.Roles)*len(r.Units))
+	base := r.idBase()
 	for i := range r.Roles {
 		lens := &r.Roles[i]
 		for at := range r.Units {
@@ -135,12 +145,16 @@ func Emit(r *Round) []Prompt {
 				continue
 			}
 			output := filepath.Join(r.Units[at].FanOut, finding.FanOutFile(lens.ID))
+			ids := r.ids(base, lens.ID, at)
+			first, last := ids.spelled()
 			prompts = append(prompts, Prompt{
-				Role:   lens.ID,
-				Axis:   lens.Axis,
-				Unit:   r.Units[at].ID,
-				Output: output,
-				Text:   r.text(lens, at, output),
+				Role:    lens.ID,
+				Axis:    lens.Axis,
+				Unit:    r.Units[at].ID,
+				Output:  output,
+				FirstID: first,
+				LastID:  last,
+				Text:    r.text(lens, at, output, ids),
 			})
 		}
 	}

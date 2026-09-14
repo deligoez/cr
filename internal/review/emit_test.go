@@ -36,6 +36,7 @@ func handRound() *Round {
 			{ID: "intent-coverage", Title: "Intent coverage", Axis: axis.Intent, Instructions: "Map it."},
 			{ID: "correctness", Title: "Correctness", Axis: axis.Correctness, Instructions: "Check it."},
 		},
+		Active:     []string{"intent-coverage", "correctness"},
 		Units:      units,
 		Pairs:      nil,
 		Mapped:     true,

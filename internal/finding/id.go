@@ -55,7 +55,15 @@ func NextID(existing []Finding) string {
 			highest = n
 		}
 	}
-	return idPrefix + strconv.Itoa(highest+1)
+	return IDOf(highest + 1)
+}
+
+// IDOf spells n as §6.1's f<n> record id, the reading IDSuffix takes back.
+//
+// `cr review` hands every prompt a block of ids by number (§4.6.2), and the
+// spelling it tells a role is this one rather than a prefix written out there.
+func IDOf(n int) string {
+	return idPrefix + strconv.Itoa(n)
 }
 
 // parseID reads the n of an f<n> id.
