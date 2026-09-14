@@ -55,8 +55,9 @@ func assertIDEditRefused(t *testing.T, layout state.Layout, want *draft.MarkerID
 		assert.NotContains(t, hintFor(err), "run `cr draft` again",
 			"a second run reads the same file, so the hint does not offer one")
 	}
-	for _, record := range draftedFindings(t, layout) {
-		assert.Equal(t, finding.StateQueued, record.State, "nothing was triaged: %s", record.ID)
+	stored := draftedFindings(t, layout)
+	for i := range stored {
+		assert.Equal(t, finding.StateQueued, stored[i].State, "nothing was triaged: %s", stored[i].ID)
 	}
 }
 

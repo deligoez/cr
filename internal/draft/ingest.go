@@ -371,25 +371,26 @@ func readBlocks(file string) ([]readBlock, error) {
 // malformed second block, named at the later line.
 func indexBlocks(queued []*finding.Finding, read []readBlock) (map[string]readBlock, error) {
 	blocks := make(map[string]readBlock, len(read))
-	for _, block := range read {
+	for i := range read {
+		block := &read[i]
 		earlier, twice := blocks[block.marker.ID]
 		if !twice {
-			blocks[block.marker.ID] = block
+			blocks[block.marker.ID] = *block
 			continue
 		}
 		record := recordNamed(queued, block.marker.ID)
-		if record == nil || drift(earlier.marker, markerOf(record)) == drift(block.marker, markerOf(record)) {
+		if record == nil || drift(&earlier.marker, record) == drift(&block.marker, record) {
 			return nil, &MalformedMarkerError{At: block.at, Line: block.line, Problem: fmt.Sprintf(
 				"record %s already opens the block at line %d, and one record is one block",
 				block.marker.ID, earlier.at)}
 		}
-		edited, kept := block, earlier
-		if drift(earlier.marker, markerOf(record)) > drift(block.marker, markerOf(record)) {
-			edited, kept = earlier, block
+		edited, kept := block, &earlier
+		if drift(&earlier.marker, record) > drift(&block.marker, record) {
+			edited, kept = &earlier, block
 		}
 		return nil, &MarkerIDEditError{
 			At: edited.at, ID: edited.marker.ID, Kept: kept.at,
-			Restore: renderedFor(queued, read, edited.marker),
+			Restore: renderedFor(queued, read, &edited.marker),
 		}
 	}
 	return blocks, nil
@@ -424,7 +425,7 @@ func refuseMovedIDs(queued []*finding.Finding, blocks map[string]readBlock, rend
 // rather than for own: other's marker fields where own's are not, or other's
 // rendered body where own's is not.
 func carries(block *readBlock, own, other *finding.Finding, rendered map[string]string) bool {
-	if drift(block.marker, markerOf(other)) == 0 && drift(block.marker, markerOf(own)) > 0 {
+	if drift(&block.marker, other) == 0 && drift(&block.marker, own) > 0 {
 		return true
 	}
 	region := render.AgentRegion(block.text)
@@ -434,13 +435,16 @@ func carries(block *readBlock, own, other *finding.Finding, rendered map[string]
 }
 
 // drift is how many of a marker's location, severity and grade fields read
-// otherwise than record's rendered marker does. The kind is left out: a
-// softening changes it on a block that is still its own record's.
-func drift(marker, record Marker) int {
+// otherwise than record's own marker does, per markerOf. The kind is left
+// out: a softening changes it on a block that is still its own record's.
+func drift(marker *Marker, record *finding.Finding) int {
 	n := 0
 	for _, differs := range []bool{
-		marker.Path != record.Path, marker.StartLine != record.StartLine, marker.Line != record.Line,
-		marker.Severity != record.Severity, marker.Grade != record.Grade,
+		marker.Path != record.Anchor.Path,
+		marker.StartLine != record.Anchor.StartLine,
+		marker.Line != record.Anchor.Line,
+		marker.Severity != string(record.Severity),
+		marker.Grade != string(record.Grade),
 	} {
 		if differs {
 			n++
@@ -460,11 +464,11 @@ func recordNamed(queued []*finding.Finding, id string) *finding.Finding {
 }
 
 // renderedFor is the id of the queued record with no block in the draft whose
-// rendered marker marker reads, which is the id an edited marker was rendered
+// own marker fields marker reads, which is the id an edited marker was rendered
 // under, and empty when no such record is found.
-func renderedFor(queued []*finding.Finding, read []readBlock, marker Marker) string {
+func renderedFor(queued []*finding.Finding, read []readBlock, marker *Marker) string {
 	for _, record := range queued {
-		if record.ID == marker.ID || drift(marker, markerOf(record)) > 0 {
+		if record.ID == marker.ID || drift(marker, record) > 0 {
 			continue
 		}
 		if !slices.ContainsFunc(read, func(block readBlock) bool { return block.marker.ID == record.ID }) {
