@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io/fs"
 	"os"
 	"strings"
 	"testing"
@@ -74,7 +75,7 @@ func draftedBlockFor(t *testing.T, layout state.Layout, record map[string]any) s
 // a key in the repository's config.json, a CR_ variable in the environment, a
 // field in the profile file, a sentence in the role's own instructions. Four of
 // the five are refused or ignored and the fifth is simply not read, and in
-// every case the record reaches the draft as a question.
+// every case no record reaches the draft as an assertion.
 //
 // The record is `argued` because §6.2 graded it so: its evidence prose asserts
 // a great deal and it carries no citation outside its own unit and no probe.
@@ -144,18 +145,24 @@ func TestNoChannelOverridesTheArguedForcing(t *testing.T) {
 			layout.RepoConfig(fixtureOwner, fixtureProject),
 			[]byte(`{"profile":"generic"}`), 0o600))
 
-		// A command that loads the profile refuses it, naming the file
-		// and the first such field (QA D-S05-5), rather than decoding the
-		// override into nothing.
-		err := runTree(t, "rules", "list", "--repo", fixtureSlug)
-		var protected *config.ProtectedError
-		require.ErrorAs(t, err, &protected)
-		assert.Equal(t, "argued", protected.Name)
-		assert.Equal(t, ExitFile, exitCodeFor(err))
-
-		block := draftedBlockFor(t, layout, aGradedRecord("f1"))
-		assert.Contains(t, block, `id="f1" kind="question"`,
-			"§6.3.3: the record still reaches the draft as a question")
+		// Every command refuses it before its work, naming the file and the
+		// first such field (QA D-S05-5, D-V1a-6), rather than decoding the
+		// override into nothing: `cr rules list` loads the profile, and
+		// `cr record` and `cr draft`, which would store and render the
+		// record, load none and refuse it all the same.
+		for _, args := range [][]string{
+			{"rules", "list", "--repo", fixtureSlug},
+			{"record", "7", writeRecordFile(t, "merged.ndjson", aGradedRecord("f1")), "--repo", fixtureSlug},
+			{"draft", "7", "--repo", fixtureSlug},
+		} {
+			err := runTree(t, args...)
+			var protected *config.ProtectedError
+			require.ErrorAs(t, err, &protected, "cr %s", strings.Join(args, " "))
+			assert.Equal(t, "argued", protected.Name)
+			assert.Equal(t, ExitFile, exitCodeFor(err))
+		}
+		_, err := os.Stat(layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileDraft))
+		assert.ErrorIs(t, err, fs.ErrNotExist, "§6.3.3: no draft was rendered past the refusal")
 	})
 
 	t.Run("a role instruction", func(t *testing.T) {
