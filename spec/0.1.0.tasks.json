@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-14T07:38:20.683152Z",
+  "updated_at": "2026-09-14T18:26:44.878189Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10666,6 +10666,1732 @@
         "internal/intent/intent_test.go",
         "internal/intent/run.go",
         "internal/intent/run_test.go"
+      ]
+    },
+    {
+      "id": "qa-config-errors-exit-three",
+      "title": "Exit 3 for an unreadable or mistyped config file",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A global or per-repository config.json cr cannot read, parse, or bind to its types (a wrong-typed value, an unknown render.lang) fails every command that resolves configuration (cr config, cr brief, cr status, cr draft and the rest) with exit 3 per §11.2 and a hint naming the file and, where one is known, the key and the layer that supplied it, instead of exit 2 with the usage hint; QA D-S01-3 and D-S01-4 (internal/config/config.go plain errors matched no row in internal/cli/exit.go; render.lang's refusal named no layer).\n- A test drives cr config and cr brief over an unparseable global config, a mistyped per-repository value, and render.lang \"de\" and asserts exit 3, the file, the key and the layer in the error and hint.",
+      "source_sections": [
+        "### 2.7 Configuration layers",
+        "### 11.2 Exit codes"
+      ],
+      "started_at": "2026-09-14T09:25:42.698498Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:05:15.074444Z",
+      "closed_reason": "- A config.json cr cannot read or parse, a wrong-typed value, and a render.lang outside tr and en in any layer now raise config.LayerError (internal/config/config.go: readFile, apply and Resolve's language check build it with the layer's Origin and the key), which internal/cli/exit.go's new row codes ExitFile above the unknown-language row, and hintFor returns LayerError.Hint, so every command that resolves configuration exits 3 with a hint naming the file or variable, the layer and the key: the fresh build printed exit 3 and \"correct post.max_comments in the per-repository config file …/repos/deligoez/cr-qa/config.json to a value the message says it accepts, or remove it there so a lower layer supplies it\" where the release build printed exit 2 and the usage hint.\n- QA D-S01-3 is closed: `{not json`, `{\"post\":{\"max_comments\":\"many\"}}` and a config.json that is a directory each exit 3 through cr config and cr brief with the path in the error and hint, because the errors internal/config/config.go returned are no longer plain fmt.Errorf values that no row of internal/cli/exit.go claimed.\n- QA D-S01-4 is closed: render.lang \"de\" from the per-repository file reads \"render.lang, as the per-repository config file \u003cpath\u003e sets it, is invalid: …\", and from CR_RENDER_LANG \"as the environment variable CR_RENDER_LANG sets it\", so the refusal names the layer and place that supplied the value.\n- internal/cli/configlayererror_test.go TestAConfigLayerCrCannotUseExitsThreeNamingTheFileKeyAndLayer drives cr config, cr config --resolved and cr brief 1 over an unparseable global config, a mistyped per-repository post.max_comments and a per-repository render.lang \"de\", asserting exit 3, the LayerError's Origin (layer and file) and Key, and the whole error and hint texts; overlay mutants that drop the hint exception, return the bare language error, or code the row ExitUsage each turn it red.\n",
+      "gate_passed_at": "2026-09-14T10:05:15.074444Z",
+      "commit_sha": "3bea258",
+      "commit_shas": [
+        "3bea258"
+      ],
+      "commit_files": [
+        "internal/cli/configlayererror_test.go",
+        "internal/cli/exit.go",
+        "internal/config/config.go"
+      ]
+    },
+    {
+      "id": "qa-config-shows-repo-layer",
+      "title": "Show the per-repository layer in cr config inside a clone",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr config and cr config --resolved run inside a clone resolve the per-repository layer the way cr brief does in that clone (detecting the repository from the remote when --repo is absent), so the effective value and the layer they print are the ones a pull-request command there uses; when no repository can be detected they say the per-repository layer was not consulted and why; QA D-S01-2 (internal/cli/config.go set RepoConfig only with --repo; release notes known limitation).\n- A test runs cr config --resolved inside a clone whose per-repository config sets intent.cmd and asserts the per-repository value and layer, and outside any clone asserts the not-consulted notice.",
+      "source_sections": [
+        "### 2.7 Configuration layers"
+      ],
+      "started_at": "2026-09-14T09:45:42.949047Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:07:44.156074Z",
+      "closed_reason": "- cr config and cr config --resolved now locate the per-repository layer through repoOf, exactly as cr brief does (internal/cli/config.go newConfigCmd): --repo when given, otherwise the repository detected from the checkout's one GitHub remote, so inside a clone of deligoez/cr-qa the fresh build printed post.max_comments 5 and intent.cmd [\"tracker\",\"{key}\"] from \"per-repository config\" …/repos/deligoez/cr-qa/config.json where the previous build printed 7 from \"global config\" and the built-in intent.cmd.\n- When detection refuses, the listing is still printed and carries an \"honesty\" entry (configHonesty, rendered in a terminal through writer.disclose so --quiet cannot drop it) reading \"the per-repository config layer of §2.7 was not consulted: \u003cthe RepositoryDetectionError\u003e; run cr config inside a clone of the repository, or pass --repo \u003cowner/repo\u003e\"; an invalid --repo still exits 2 as before.\n- QA D-S01-2 is closed: internal/cli/config.go no longer sets Sources.RepoConfig only when --repo is non-empty, and every setting key of the listing is unchanged, the honesty key being present only when a layer was skipped.\n- The release notes' known limitation 3 describes v0.1.0 as released and is left as written; this commit is what removes the limitation for the next release.\n- internal/cli/config_test.go TestConfigInsideACloneConsultsTheDetectedRepositorysLayer runs cr config --resolved inside a git clone whose origin is acme/web with a per-repository config setting intent.cmd and asserts the whole resolvedSetting (value, \"per-repository config\", the file) and no honesty key, and outside any clone asserts intent.cmd from the built-in default and the whole one-entry honesty list built from detectRepo's own refusal there; overlay mutants that skip setting RepoConfig or drop the notice each turn one subtest red.\n",
+      "gate_passed_at": "2026-09-14T10:07:44.156074Z",
+      "commit_sha": "2002229",
+      "commit_shas": [
+        "2002229"
+      ],
+      "commit_files": [
+        "internal/cli/config.go",
+        "internal/cli/config_test.go"
+      ]
+    },
+    {
+      "id": "qa-docs-init-writes-no-rules",
+      "title": "Stop documenting default rules written by cr init",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 10,
+      "acceptance": "- README.md and CLAUDE.md describe cr init as writing what it writes (the ~/.cr tree, default profiles and, with --eject-roles, role files) and no longer say it writes default rules; QA D-S01-1.",
+      "source_sections": [
+        "## 11. Command surface"
+      ],
+      "started_at": "2026-09-14T09:46:08.378717Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:33:41.333112Z",
+      "closed_reason": "- README.md and CLAUDE.md now describe cr init as \"Create the ~/.cr tree and write the default profiles; --eject-roles also writes the built-in roles as editable files\", which matches a fresh-build run into an empty CR_HOME (config.json, profiles/generic.json and profiles/laravel-pest.json, and empty context, locks, repos, roles, rules, state and waivers directories) and spec §11's row.\n- QA D-S01-1 is closed: neither file says cr init writes default roles or rules any longer, and git grep finds no other \"default profiles, roles, and rules\" in the tree.\n",
+      "gate_passed_at": "2026-09-14T10:33:41.333112Z",
+      "commit_sha": "3b1cab3",
+      "commit_shas": [
+        "3b1cab3"
+      ],
+      "commit_files": [
+        "CLAUDE.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "qa-brief-lens-honesty-parity",
+      "title": "Report every unavailable lens in cr brief as review and status do",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr brief's honesty list names every axis and lens half cr review and cr status name for the same round and state, from the same computation: the reinvention half unavailable because the selected profile declares no symbols.lang, and both the reinvention half and the test/symbols lens when no profile matches; QA D-S02-2 (with profile generic cr brief's honesty omitted the reinvention entry cr review and cr status gave; with no profile it named reinvention but not test/symbols; internal/brief/brief.go).\n- A test drives cr brief, cr review and cr status under profile generic and under no matching profile and asserts the three honesty lists are equal.",
+      "source_sections": [
+        "### 4.5 Axis activation and honest reporting",
+        "### 3.7 Orientation"
+      ],
+      "started_at": "2026-09-14T09:27:02.76451Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:06:42.033566Z",
+      "closed_reason": "- cr brief's honesty list is now coverage.Lenses{Axes, Halves, Roles}.Disclosures(), the collection coverage.RoundLenses gives cr review and cr status, and its halves come from the new brief.Halves, which internal/cli/status.go roundHalves also calls and which runs reinvention.Attach, testadequacy.HeadReferences/Attach and symbol.Unindexed as internal/review/attach.go does, so the reinvention half and the test/symbols lens are named for a profile with no symbols.lang and for no matching profile.\n- QA D-S02-2 reproduced with a fresh build over an offline gh shim and a clone of cr-qa at be7e2c7: with CR_PROFILE=generic cr brief's honesty held only the test axis and test-adequacy role while cr review and cr status also named convention/reinvention and test/symbols; after the fix all three name the same four entries.\n- With no profile the brief had printed §2.4.4's folded sentence and no test/symbols entry; it now prints the test axis, both halves with \"no profile matched this repository\" in their reasons, and the role, as cr review does, and §2.4.4's situation stays in profile.missing (MissingProfile.Disclosure, printed only by the brief, is removed with its test and known-survivor entry).\n- internal/brief/brief.go carries Halves and the new Disclosures; internal/brief/brief_test.go, noprofile_test.go and internal/cli/noprofilehonesty_test.go now assert the report whole, the last also equal to cr review's.\n- A test drives cr brief, cr review and cr status: internal/cli/lenshonestyparity_test.go TestBriefReviewAndStatusNameTheSameLensesThatDidNotRun runs all three under {\"profile\":\"generic\"} and under no matching profile, asserts brief's list whole and equal to review's and to status's axis/lens/role entries, and fails under an overlay that drops the two Attach calls.\n",
+      "gate_passed_at": "2026-09-14T10:06:42.033566Z",
+      "commit_sha": "b560aec",
+      "commit_shas": [
+        "b560aec"
+      ],
+      "commit_files": [
+        "internal/activation/activation.go",
+        "internal/brief/brief.go",
+        "internal/brief/brief_test.go",
+        "internal/brief/noprofile_test.go",
+        "internal/cli/brief.go",
+        "internal/cli/lenshonestyparity_test.go",
+        "internal/cli/noprofilehonesty_test.go",
+        "internal/cli/status.go",
+        "internal/profile/none.go",
+        "internal/profile/none_test.go",
+        "scripts/known-survivors.json"
+      ]
+    },
+    {
+      "id": "qa-note-input-validation",
+      "title": "Validate UTF-8, issue keys and answered records",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- cr note and cr answer refuse text that is not valid UTF-8 with exit 1 per §1.4 instead of storing it with U+FFFD; QA D-S03-1.\n- cr note refuses an issue key that does not match the effective intent.key_pattern (for example cr-1 or CR-1#n1) with exit 1 and a hint naming the pattern, so two spellings of one key can never share or split a store on a case-insensitive disk; QA D-S03-2.\n- cr answer refuses a record id the pull request's stored records do not hold with exit 1 naming it, so no answer is attached to a record that does not exist; QA D-S03-4. A test drives each refusal and asserts nothing was appended to the context store.\n- cr record, cr merge, cr claims record, cr map record and cr cells record refuse an input line that is not valid UTF-8 with exit 1 naming the file and line, instead of storing U+FFFD; QA D-S05-4. A test drives each command over such a line.",
+      "source_sections": [
+        "### 3.6 Context store",
+        "### 1.4 Normalisation",
+        "### 3.2 Issue key resolution"
+      ],
+      "started_at": "2026-09-14T10:36:35.38413Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:22:30.665241Z",
+      "closed_reason": "- cr note and cr answer now refuse a note text that is not valid UTF-8 with exit 1 (text.CheckUTF8, section 1.4 step 1, run in note's appendNote before the store is locked, mapped through the existing text.InvalidUTF8Error row) instead of storing U+FFFD: TestNoteAndAnswerRefuseTextThatIsNotUTF8 drives both commands and asserts the whole message, exit 1, the hint and that no context store was created.\n- QA D-S03-1 reproduced before the fix with a fresh build (`cr note CR-1 \"bad \\xff byte\"` exit 0, stored \"bad � byte\") and after it (exit 1, \"the note text: byte 4 is 0xff, which begins no UTF-8 sequence\").\n- cr note now refuses an issue key the effective intent.key_pattern does not match whole (intent.CheckKey anchors the pattern; cli/note.go checkNoteKey resolves global, environment and, when a repository is named or detected, per-repository config) with exit 1 through the new intent.KeyShapeError row, whose hint names intent.key_pattern and `cr config --resolved`, so no store is opened for cr-1 or CR-1#n1: TestNoteRefusesAKeyThePatternDoesNotMatchWhole asserts the message, code and hint for cr-1, CR-1#n1, xCR-1 and \"CR-1 \" with no context file created, and that a per-repository pattern of [a-z]+-[0-9]+ accepts cr-1 and refuses CR-2.\n- QA D-S03-2 reproduced before (cr-1 gave cr-1#n1, CR-1#n1 gave CR-1#n1#n1 in its own file) and after (both exit 1 naming the pattern, context directory empty).\n- cr answer now resolves the record id against the pull request's findings.ndjson across rounds (note.Answer holdsRecord, declared in roundscope_test's cross-round readers) and refuses an id no record holds with exit 1 through the new note.UnknownRecordError row naming the id and the pull request: TestAnswerRefusesARecordIDThePullRequestDoesNotHold asserts the whole message, code and hint.\n- QA D-S03-4 reproduced before (`cr answer 42 f999` exit 0, note stored with record f999) and after (exit 1, \"no record f999 is stored for acme/web#42, in any round\").\n- The command test asserts no context store was appended, note/answer_test.go refuses f9 with the store absent and accepts a stale round-1 record, and the tests that answered f3 with no record now hold one (answer, context, exit, movedhead and norepowrite tests).\n- state.DecodeStamped now runs text.CheckUTF8 on every caller-supplied NDJSON line before any decode and refuses it with state.MalformedLineError naming the file and line, so cr record, cr merge, cr claims record, cr map record and cr cells record all inherit the exit-1 refusal instead of storing U+FFFD.\n- QA D-S05-4 reproduced before with a fresh build (claims record, map record, cells record and merge exit 0 with U+FFFD stored; record exit 1 without file or line) and after (all five exit 1 with \"\u003cfile\u003e line 1: byte N is 0xff, which begins no UTF-8 sequence\", nothing written).\n- TestAMalformedInputLineExitsWithTheValidationCode gained a \"not UTF-8\" shape that drives each of the five commands, asserting the file, line 2, the exact text.InvalidUTF8Error offset and byte, exit 1, the UTF-8 hint and the command's stored file unchanged; gate green (go test -race -count=1 ./..., golangci-lint run, scripts/deadcode.sh, gofmt and Go 1.27.1 gofmt print nothing).\n",
+      "gate_passed_at": "2026-09-14T11:22:30.665241Z",
+      "commit_sha": "0c0cdc4",
+      "commit_shas": [
+        "0c0cdc4"
+      ],
+      "commit_files": [
+        "internal/cli/answer_test.go",
+        "internal/cli/context_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/exit_test.go",
+        "internal/cli/malformedline_test.go",
+        "internal/cli/movedhead_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/note.go",
+        "internal/cli/noteinput_test.go",
+        "internal/cli/roundscope_test.go",
+        "internal/intent/keyshape.go",
+        "internal/note/answer.go",
+        "internal/note/answer_test.go",
+        "internal/note/store.go",
+        "internal/state/records.go",
+        "internal/text/normalise.go"
+      ]
+    },
+    {
+      "id": "qa-note-claims-drift-and-retraction",
+      "title": "Judge note claims and retracted set-asides correctly",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- cr brief's drift report checks a note-sourced claim's span against its note's body, not the issue text, so a claim resting on a live note is never reported as no longer occurring; QA D-S03-3 (internal/intent/drift.go).\n- A gap set aside on a note that has since been retracted is reported as needing re-evaluation per §3.6.6 in cr status and blocks completeness again, and cr claims set-aside refuses a note that is already retracted; QA D-S03-5 (internal/cli/status.go, claims.go).\n- cr claims record that clears existing set-asides reports how many it cleared, as cr map record does; QA D-S03-7. Tests drive each through the commands.",
+      "source_sections": [
+        "### 3.3 Claim extraction",
+        "### 3.6 Context store",
+        "### 4.1 Intent coverage"
+      ],
+      "started_at": "2026-09-14T10:06:47.324824Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:34:47.073623Z",
+      "closed_reason": "- cr brief's drift report now takes intent.SpanTexts{Issue, Notes}: internal/intent/drift.go DetectDrift asks SpanTexts.stillHolds (internal/intent/claimspan.go), which checks a tracker claim with SpanOccursIn over the new issue text and a note-sourced claim with the same normalised body rule cr claims record uses against the note it names, and internal/brief/brief.go loads the notes before the comparison.\n- QA D-S03-3 reproduced with a fresh build over an offline gh shim on a cr-qa clone: a note claim reported span_occurs false after the issue text gained a line; after the fix it reports true, and TestTheDriftReportChecksANoteClaimAgainstItsNote drives cr note, cr claims record and cr brief, asserting the moved tracker span false and the note claim true, and fails under an overlay that checks every claim against the issue text.\n- cr status now settles a gap only while its set-aside note stands (internal/cli/status.go unsettledClaims reads note.StandingOf), lists the claim under the retracted note's unstanding_notes entry as set_asides with the terminal line counting it (internal/cli/statusnotes.go, gaps handed in so intent-gaps.ndjson keeps its three readers), and cr claims set-aside refuses a retracted note with RetractedSetAsideNoteError, exit 1 (internal/cli/claims.go, new row in internal/cli/exit.go).\n- QA D-S03-5 reproduced: set-aside on n1, retract n1, status gave set_aside 1, unstanding [] and no §10.2.3 reason, and set-aside on a retracted n2 exited 0; after the fix status lists n1 retracted with set_asides [CR-1#c4] and §10.2.3 names c4, and the set-aside exits 1; TestASetAsideOnARetractedNoteBlocksCompletenessAgain and TestSetAsideRefusesARetractedNote each fail under their overlay mutant, and statusHome now records the note its fixture sets #c2 aside on.\n- cr claims record reads the round's gap entries under the lock before clearing them and returns mapping.Gaps over no claim as dropped_set_asides, the shape cr map record prints, naming the claims in the terminal line (internal/cli/claims.go storeClaims and claimsRecordResult).\n- QA D-S03-7 reproduced: claims record after a set-aside printed only {round} and the next map record reported []; after the fix it prints dropped_set_asides [{claim CR-1#c4, set_aside_note CR-1#n3}].\n- Tests drive each through the commands: internal/cli/noteclaimsretraction_test.go runs cr brief, cr note, cr claims record, cr claims set-aside and cr status, and TestClaimsRecordReportsTheSetAsidesItClears asserts the dropped list, [] on a run that cleared none, and the terminal wording, failing under an overlay that returns no drops.\n",
+      "gate_passed_at": "2026-09-14T10:34:47.073623Z",
+      "commit_sha": "aaf3783",
+      "commit_shas": [
+        "aaf3783"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/claims.go",
+        "internal/cli/exit.go",
+        "internal/cli/noteclaimsretraction_test.go",
+        "internal/cli/roundscope_test.go",
+        "internal/cli/status.go",
+        "internal/cli/status_test.go",
+        "internal/cli/statusnotes.go",
+        "internal/cli/statusrecords_test.go",
+        "internal/intent/claimspan.go",
+        "internal/intent/drift.go",
+        "internal/intent/drift_test.go"
+      ]
+    },
+    {
+      "id": "qa-cli-message-wording",
+      "title": "Fix misleading CLI messages QA found",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A claims-record refusal whose message names only a line no longer hints at \"the claim the message names\"; cr note without --pr says the flag is required instead of \"invalid pull request 0\"; an extra argument to cr note --remove is reported as an unexpected argument, not an unknown command; QA D-S03-6.\n- Each message is asserted whole by a test that drives the command.",
+      "source_sections": [
+        "## 12. Output contract"
+      ],
+      "started_at": "2026-09-14T11:22:43.637693Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:32:12.531927Z",
+      "closed_reason": "- The intent.RejectedClaimError row in internal/cli/exit.go now hints \"correct the field the message names on the line it names, then record the file again\", matching a message that names the file, line and field and no claim id; reproduced with a fresh build before (hint \"correct the claim the message names in the file and record it again\") and after.\n- cr note without --pr now refuses with exit 2 \"--pr is required: §3.6.1 records the pull request a note came from, so name it, e.g. --pr 42\", asked of cmd.Flags().Changed(\"pr\") after the source check, while --pr 0 keeps note.Append's invalid pull request refusal; reproduced before (\"invalid pull request 0\") and after.\n- cr note --remove given a positional now refuses with exit 2 `unexpected argument \"extra-arg\": cr note --remove \u003cnote-id\u003e takes the note id as the flag's value and no argument` from the command's own Args check in place of cobra.NoArgs; reproduced before (`unknown command \"extra-arg\" for \"cr note\"`) and after.\n- QA D-S03-6's three wording defects are fixed in internal/cli/exit.go and internal/cli/note.go, and nothing else about either command's behaviour changed.\n- internal/cli/messagewording_test.go drives cr claims record, cr note and cr note --remove and asserts each message whole with its exit code (and the hint for the first two), and that the note runs created no state; gate steps go test -race -count=1 ./..., scripts/deadcode.sh, gofmt and Go 1.27.1 gofmt pass.\n",
+      "gate_passed_at": "2026-09-14T11:32:12.531927Z",
+      "commit_sha": "947df77",
+      "commit_shas": [
+        "947df77"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/messagewording_test.go",
+        "internal/cli/note.go"
+      ]
+    },
+    {
+      "id": "qa-cells-record-validation",
+      "title": "Refuse contradictory or incomplete cells at record",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- cr cells record refuses with exit 1, naming the lines, a file that names one (unit, role) twice, instead of storing both verdicts; QA D-S04-2.\n- It refuses with exit 1 a test-axis cell whose coverage carries no test_paths, or an empty list beside a covered or partially-covered classification (an uncovered verdict may rest on no test path), since §4.5.5 and §4.4.1 require the classification to be recorded with the test paths it rested on, instead of storing test_paths []; QA D-S04-3.\n- It refuses with exit 1 a cell line carrying a key the cell schema does not define, and an na cell at a (unit, role) that holds records of the current round; and it refuses with exit 4 cells for any role but the intent axis's before the round's mapping is recorded, as cr review refuses to emit their prompts; QA S04 spec gaps. A test drives each refusal through the command and asserts nothing was stored.",
+      "source_sections": [
+        "### 4.5 Axis activation and honest reporting",
+        "### 4.4 Test adequacy"
+      ],
+      "started_at": "2026-09-14T09:29:58.237015Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:06:44.303248Z",
+      "closed_reason": "- cr cells record refuses a file naming one unit and role twice with exit 1, naming both lines, and stores nothing (1f5db7d, cellsrefusals_test).\n- QA D-S04-2 reproduced before the fix (exit 0, two lines stored) and refused after (exit 1, nothing stored).\n- A test-axis cell with no test_paths, or an empty list beside covered or partially-covered, is refused with exit 1 on coverage.test_paths, while an uncovered verdict may rest on no test path, as the existing package test states.\n- Such a cell is refused instead of stored with test_paths [].\n- QA D-S04-3 reproduced before (exit 0) and refused after (exit 1).\n- An undefined cell key or coverage key and an na cell at a seat holding records are refused with exit 1, and cells off the intent axis before the mapping exits 4 through coverage.MappingRequiredError, the same axis check cr review makes.\n- QA S04 spec gaps reproduced before (all exit 0) and refused after.\n- cellsrefusals_test drives every refusal through the command and asserts the stored file is unchanged; eight overlay mutants each turn a test red.\n",
+      "gate_passed_at": "2026-09-14T10:06:44.303248Z",
+      "commit_sha": "1f5db7d",
+      "commit_shas": [
+        "1f5db7d"
+      ],
+      "commit_files": [
+        "internal/cli/cellcomputed_test.go",
+        "internal/cli/cells.go",
+        "internal/cli/cells_test.go",
+        "internal/cli/cellsrefusals_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/recordpass_test.go",
+        "internal/coverage/cell.go",
+        "internal/coverage/cell_test.go"
+      ]
+    },
+    {
+      "id": "qa-review-id-blocks-and-axis-flag",
+      "title": "Keep id blocks stable and refuse an empty axis",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A prompt's record id block is fixed for the round by the role's place in the resolved role corpus and the unit's id, not by the set of roles active at emission, so a re-emission after the active roles change never reassigns a block that an earlier emission gave out; QA S04 spec gap (a re-brief that changed the active roles re-assigned blocks and merge refused files written from the earlier emission).\n- cr review --axis with an empty value is refused with exit 2 naming the valid axes, instead of emitting every prompt; QA S04 spec gap. Tests drive both through cr review.",
+      "source_sections": [
+        "### 4.6 Review fan-out"
+      ],
+      "started_at": "2026-09-14T09:29:49.697168Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:05:39.965597Z",
+      "closed_reason": "- A prompt's id block is now placed by internal/review/ids.go blockPlaces, every shipped role id ascending and then every other role id the resolved corpus holds ascending, times the unit's index, instead of by the role's index in the active set, and TestAReBriefThatChangesTheActiveRolesKeepsEveryIDBlockAnEarlierEmissionGave drives cr review over a round whose active roles gain a global role, gain a per-repository override of correctness and then lose convention, asserting every prompt keeps the run the first emission gave it and that cr merge accepts the first emission's files beside the joining role's (8 merged).\n- The QA S04 gap reproduced with a fresh build before the fix (intent-coverage/u1 moved from f401 to f601 after adding a global money-safety role and re-briefing) and the rebuilt binary keeps f401-f500 and f501-f600 across the same steps, with the plain corpus order rejected because it puts global and per-repository role files before the built-ins and so still moves every built-in row when a role file is added, and a role file whose id sorts before another non-shipped role's id still moves that role's row, which only a stored assignment could close.\n- cr review now tests cmd.Flags().Changed(\"axis\") instead of a non-empty value, so an empty --axis is refused as unknownAxisFlagError with exit 2 and the message --axis \"\" is not an axis id, v0.1 has exactly intent, correctness, convention, test, per section 1.5, as the dogfood binary printed.\n- That closes the QA S04 empty axis gap, which before the fix read an empty value as no flag.\n- TestAnEmptyAxisIsAUsageErrorNamingTheAxes drives cr review with both spellings of an empty value and asserts the whole message, the exit code and that nothing is printed, TestBlockPlacesPutTheShippedRolesFirstWhateverLayerResolvedThem pins the order, and go test -overlay mutants reverting to r.Active, dropping the sort and restoring the non-empty check each turned their test red.\n",
+      "gate_passed_at": "2026-09-14T10:05:39.965597Z",
+      "commit_sha": "91f44e2",
+      "commit_shas": [
+        "91f44e2"
+      ],
+      "commit_files": [
+        "internal/cli/idblockstable_test.go",
+        "internal/cli/review.go",
+        "internal/review/emit.go",
+        "internal/review/emit_test.go",
+        "internal/review/ids.go",
+        "internal/review/ids_test.go",
+        "internal/review/run.go"
+      ]
+    },
+    {
+      "id": "qa-status-completeness-reasons",
+      "title": "Name missing cells and require the intent pass",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- When cells are missing or stale, cr status's reason names each (unit, role) seat that lacks a current cell, not only a count, as its claims and records reasons name their ids; QA D-S04-1.\n- While the intent axis is active, a round is not complete until its claims and its mapping have been recorded, and the reason says which is missing; QA S04 spec gap (complete:true with no claims or mapping ever recorded).\n- A cell citing a retracted note is reported as needing re-evaluation per §3.6.6 and blocks completeness, and cr cells record refuses a note_id that does not exist for the issue key with exit 1; QA S04 spec gap. Tests drive cr status and cr cells record for each.",
+      "source_sections": [
+        "### 10.2 Completeness",
+        "### 3.6 Context store"
+      ],
+      "started_at": "2026-09-14T10:43:34.583723Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:19:42.730087Z",
+      "closed_reason": "- cr status's §10.2.2 reason now names every (unit, role) seat lacking a current cell after the count, with \"(filled for an earlier unit hash)\" beside a stale one: internal/coverage/rows.go MissingSeats, Conditions.Missing and rowReason in internal/coverage/completeness.go, read once with the counts by statusCoverage in internal/cli/status.go; TestAnIncompleteRowReasonNamesEachSeatWithoutACurrentCell asserts the whole reason through cr status.\n- QA D-S04-1 reproduced with a HEAD build on a scratch PR (\"§10.2.2: 2 of 2 unit(s) hold no complete row ...\" and no seat), and the fixed build prints \"... at their current unit hash, missing u1/convention, u1/correctness, u2/convention, u2/correctness\".\n- While the intent axis is active cr status adds a §4.6.5 reason naming whether the claims, the mapping, or both are unrecorded and the command that records each (intentReason over coverage.IntentPass, built by intentPassOf from the round's axes, its claim count and meta.json's mapping stamp); TestARoundIsNotCompleteUntilItsIntentPassIsRecorded drives cr status over no mapping, no claims, neither, and the unavailable-axis control that stays complete.\n- The QA S04 gap reproduced with a HEAD build (empty mapping recorded, no claims, every cell filled: complete true) and the fixed build reports \"§4.6.5: the intent axis is active and this round has recorded no claims: record them with `cr claims record`, then the mapping again with `cr map record`\"; TestARoundThatFormedNoUnitIsNotReportedComplete now asserts its §10.2.2 reason as the first of the reasons.\n- A cell citing a retracted or dangling note blocks completeness with a §3.6.6 reason naming the seat, the note and its standing (noteReason over the cells unstandingCells takes from the unstanding_notes report), and cr cells record refuses a note_id naming no note of the round's issue key, a retracted one, or any note_id on a keyless round with exit 1 (cellChecker.cited in internal/coverage/cell.go, store loaded by cellNotes in internal/cli/cells.go).\n- The QA S04 gaps reproduced with a HEAD build (CR-1#n7 accepted with exit 0; after cr note --remove the round still read complete true), and the fixed build refuses CR-1#n7 and a retracted CR-1#n1 with exit 1 and prints \"§3.6.6: 1 cell(s) cite a note that no longer stands and need re-evaluation: u1/intent-coverage (CR-1#n1 retracted)\".\n- TestACellCitingARetractedNoteBlocksCompleteness drives cr cells record, cr note --remove and cr status (complete, blocked, complete again once the cell is re-filed without the note), and TestCellsRecordRefusesANoteIDThatDoesNotStand drives cr cells record over an unknown key's note, an unknown id and a retracted note, asserting exit 1, the whole message and an unchanged coverage.ndjson.\n",
+      "gate_passed_at": "2026-09-14T11:19:42.730087Z",
+      "commit_sha": "429b3a3",
+      "commit_shas": [
+        "429b3a3"
+      ],
+      "commit_files": [
+        "internal/cli/cells.go",
+        "internal/cli/completenessreasons_test.go",
+        "internal/cli/emptyround_test.go",
+        "internal/cli/status.go",
+        "internal/cli/statusnotes.go",
+        "internal/coverage/cell.go",
+        "internal/coverage/completeness.go",
+        "internal/coverage/rows.go"
+      ]
+    },
+    {
+      "id": "qa-left-anchor-deleted-lines-only",
+      "title": "Refuse a LEFT anchor on a line the diff did not delete",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- cr merge and cr record refuse, with exit 1 naming the record and line, an anchor with side LEFT whose start_line..line range is not entirely lines the diff removed from the base (a context line or a line outside every hunk), so no draft or post payload ever carries a LEFT comment GitHub would reject; QA D-S05-2 (a LEFT anchor on unchanged context line 10 of src/Order.php on PR #1 was recorded, drafted and built into the dry-run payload; internal/cli/anchorunit.go removedHeadRange counted context lines as removed).\n- A test drives cr record over LEFT anchors on a removed line (accepted), a context line and a line outside every hunk (both refused), on a fixture whose diff removes lines.",
+      "source_sections": [
+        "### 9.2 Anchors",
+        "### 6.1 Record schema"
+      ],
+      "started_at": "2026-09-14T09:33:39.59843Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:06:45.256086Z",
+      "closed_reason": "- cr merge and cr record now refuse, with exit 1 (finding.RejectedRecordError, field anchor, the file's line, and the record id in the message), a LEFT anchor whose start_line..line is not entirely lines one hunk removed: git.Hunk gained Removed (the merge-base numbers of every removed line, whichever side Changed is on), internal/cli/anchorunit.go removedHeadRange asks Removed instead of the hunk's BaseStart..BaseLines range, refuseUnremovedLeft runs first in refuseForeignAnchors (cr record) and through refuseUnremovedLeftAnchors in merge.go readPerRole (cr merge), and positionInDiff (cr post) reads the same function, so no draft or payload carries such a comment.\n- QA D-S05-2 reproduced before the fix with a fresh build and a gh shim on the S05 B4 state: `cr record 1 fx/r08-left10.ndjson` exit 0 stored LEFT src/Order.php:10, `cr draft 1` queued 1 and `cr post 1` built the payload comment {\"path\":\"src/Order.php\",\"line\":10,\"side\":\"LEFT\"}; `cr merge` of the same file also exit 0. After the fix both commands exit 1 with \"anchor of record f602 is LEFT src/Order.php:10-10, and the round's diff does not remove every one of those merge-base lines\" and nothing is stored, while a RIGHT record (fx/rA.ndjson) still records at exit 0.\n- The cause was removedHeadRange treating a hunk's whole merge-base range, three context lines on each side included, as removed lines; the anchorunit_test.go table now pins leading and trailing context lines, a range running past the removed lines, and a range spanning a context line between two removed lines as refused, and promptvalues_test.go anchors its LEFT records on the removed line the prompt's hunk shows.\n- internal/cli/leftanchor_test.go drives cr record and cr merge on deletingHome, a checkout whose diff removes base line 4 of lib.go (`@@ -1,7 +1,6 @@`): a LEFT anchor on line 4 is accepted (stored LEFT 4-4 / merge output written), and LEFT 5 (context inside the hunk), LEFT 11 (outside every hunk) and LEFT 4-5 are each refused with the whole RejectedRecordError asserted, exit 1, nothing stored and no merge output; with the pre-fix removedHeadRange mapped in through go test -overlay, the context-line and 4-5 cases go red in both tests.\n",
+      "gate_passed_at": "2026-09-14T10:06:45.256086Z",
+      "commit_sha": "e3b38cc",
+      "commit_shas": [
+        "e3b38cc"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/anchorunit_test.go",
+        "internal/cli/leftanchor_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/promptvalues_test.go",
+        "internal/git/hunk.go",
+        "internal/git/hunk_test.go"
+      ]
+    },
+    {
+      "id": "qa-next-free-id-within-block",
+      "title": "Suggest a free id inside the refused prompt's block",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- When cr merge or cr record refuses a repeated or already-stored id, the hint names, for the role file whose line is refused, the next id inside the block its (unit, role) prompt was given that is neither stored nor used elsewhere in the input, and blames only the file that departed from its block when one did; when the block is full it says so; QA D-S05-1 (release notes known limitation: the hint named the round-wide next id, f2 then f702, inside other prompts' blocks).\n- A test reproduces the S05 collision and asserts the hint, and that following it lets cr merge accept the files.",
+      "source_sections": [
+        "### 4.6 Review fan-out",
+        "### 6.5 Merge"
+      ],
+      "started_at": "2026-09-14T12:50:28.407017Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T13:25:19.252687Z",
+      "closed_reason": "- When cr merge or cr record refuses a repeated or already-stored id, internal/cli/recordids.go refuseHeldIDs now names the next id inside the block of the refused record's own (unit, role) prompt, from review.BlockOf in internal/review/ids.go (Round.ids over the same stored records, corpus block places and round units, so the block is the one cr review emitted), skipping every stored id and every id any input line carries, and it refuses the line whose id lies outside its block when only one of the two lines sharing the id does, whichever was read first.\n- When no free id is left in that block the refusal says the block is full, naming its range, and a record whose role or unit was given no block falls back to the round-wide next id.\n- Reproduced the S05 collision on cr-qa PR #1 with a fresh build before the fix: correctness u3 f1 beside test-adequacy u3 f1 hinted f2, and after following it the in-block convention u1 file was blamed with hint f702; after the fix the first refusal hints f1701 (cr review --axis intent on the same round emits intent-coverage u3 as f1201..f1300, so test-adequacy u3 is f1701..f1800), the second blames the test-adequacy file line 1 against convention line 2 with hint f1701, and with f1701 written cr merge exits 0 with merged 4.\n- internal/cli/idblockhint_test.go reproduces the collision on recordedHome through cr merge and cr record (whole RejectedRecordError with hint f701), the departed-file blame and a merge accepting the hinted ids f301, f701, f1 and f2, and a full block; overlays disabling the blame swap or the block hint each turn those tests red, and mergeids_test.go and recordids_test.go now assert the block hints f201, f303 and f207.\n",
+      "gate_passed_at": "2026-09-14T13:25:19.252687Z",
+      "commit_sha": "9439528",
+      "commit_shas": [
+        "9439528"
+      ],
+      "commit_files": [
+        "internal/cli/idblockhint_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/mergeids_test.go",
+        "internal/cli/record.go",
+        "internal/cli/recordids.go",
+        "internal/cli/recordids_test.go",
+        "internal/review/ids.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "qa-summary-counts-without-merge",
+      "title": "Count raised and waived records that skip cr merge",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- summary.json's raised and waived counts include records handed straight to cr record without cr merge, so a round's summary accounts for every record stored and every record a waiver dropped, as the record command's own output does; QA D-S05-3 (raised absent and waived dropped 0 beside record's dropped 1; internal/cli/summary.go let only merge write those keys; release notes known limitation).\n- A test records a file directly, including one record an active waiver drops, and asserts summary.json's raised and waived against the stored records.",
+      "source_sections": [
+        "### 10.3 Round summary",
+        "### 7.4 Waivers"
+      ],
+      "started_at": "2026-09-14T10:06:49.861097Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:36:20.524557Z",
+      "closed_reason": "- summary.json's raised, waived and already_posted now count records handed straight to cr record: internal/cli/intake.go gives the three keys to ownerIntake (\"cr merge and cr record\"), cr merge keeps its share in merge_intake (the ids its output holds and its two drops) and cr record keeps its share in record_intake (each recorded file's drops, keyed by the file's normalised hash so recording one file again replaces its entry), and both commands write the three through writeIntakeCounts under the PR lock as raised = every stored or merge-output id once plus every drop, waived and already_posted = the merge's drops plus each record run's (a run over the last merge's output adds its drops to waived only, and one over an earlier merge's output is left out).\n- QA D-S05-3 reproduced with a fresh build and a gh shim: on the B4 state `cr record 1 fx/m11-conv-block.ndjson` left summary.json with no raised key, and on B5 after a wrong-disposition draft wrote waiver wr1, `cr record 1 fx/r21.ndjson` reported waived dropped 1 while summary.json still read waived dropped 0 and raised 3; after the fix the same runs leave raised 2 on B4 and raised 4 with waived {\"dropped\":1,\"waivers\":[\"wr1\"]} on B5, matching the record output.\n- The cause was summary.go's owner table giving raised, waived and already_posted to cr merge alone; the table now names ownerIntake plus the two share keys, and summary_test.go states their shapes and asserts the new owners.\n- The v0.1.0 release notes' known limitation on raised is what this closes; the release notes are left as released.\n- internal/cli/intakecounts_test.go records a file directly on gradedHome with an active waiver dropping one of its three records and asserts summary.json's raised equals the stored records plus the reported drop (3) and waived equals cr record's own reported Drops with the waiver id; further tests pin that recording an all-waived file twice counts once, that a merge after a direct record adds (raised 3), and that a drop cr record applies to a merge output is counted once before and after a re-merge; overlay mutants ignoring record_intake, adding a merged entry's drops to raised, and counting a stale merged entry each turn a test red.\n",
+      "gate_passed_at": "2026-09-14T10:36:20.524557Z",
+      "commit_sha": "5305de5",
+      "commit_shas": [
+        "5305de5"
+      ],
+      "commit_files": [
+        "internal/cli/intake.go",
+        "internal/cli/intakecounts_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/record.go",
+        "internal/cli/recorddrops.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go"
+      ]
+    },
+    {
+      "id": "qa-protected-settings-every-command",
+      "title": "Refuse protected CR_ variables and fields on every command",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- Every command refuses with exit 3 a CR_-prefixed environment variable that would address the confirmation gate, the argued forcing or the question label (for example CR_ARGUED_FORCING=0), before doing any work, including cr record, cr merge, cr cells record, cr claims record, cr map record, cr rules check, cr waivers list and cr context, which accepted it; QA D-S05-5.\n- A profile or role file field whose name addresses one of them (for example a profile field forcing) is refused with exit 3 naming the file and field instead of being ignored; QA D-S05-5.\n- A test iterates every command of the tree with CR_ARGUED_FORCING set and asserts exit 3 for each.",
+      "source_sections": [
+        "### 2.7 Configuration layers",
+        "### 6.3 The argued rule"
+      ],
+      "started_at": "2026-09-14T10:35:05.458238Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:21:03.224023Z",
+      "closed_reason": "- Every command of the tree now refuses a CR_ variable addressing the confirmation gate, the argued forcing or the question label with exit 3 before any work: the root PersistentPreRunE in internal/cli/root.go calls the new config CheckEnviron over os Environ ahead of the output settle, so cr record, cr merge, cr cells record, cr claims record, cr map record, cr rules check, cr waivers list, cr context and cr init all answer exit 3 with the ProtectedError row's hint, and fromEnv in internal/config/config.go shares the same check\n- QA D-S05-5 reproduced before the fix with a fresh build (CR_ARGUED_FORCING=0 gave cr waivers list and cr context exit 0 and cr record, merge, cells record, map record and draft ran on into exit 4) and after it every one of those runs exits 3 naming CR_ARGUED_FORCING, and CR_POST_CONFIRM=1 cr waivers list exits 3 naming the confirmation gate\n- A profile field whose name addresses one of those decisions is refused with exit 3 naming the file and the field: profile Parse walks every object key at any depth through the new config CheckName and returns the file path wrapped around config ProtectedError with the dotted field, so a fresh-build cr rules list over a generic profile carrying forcing now exits 3 with the profile path and the field forcing, where it exited 0 before, and a role file carrying such a key is refused by its existing key fence as role MalformedError naming the file and the key, exit 3, asserted through cr status in TestARoleFieldAddressingAProtectedDecisionIsRefused\n- TestAProfileFieldAddressingAProtectedDecisionIsRefused drives cr rules list for forcing, post confirm and tests question_label and asserts the field name, exit 3 and the whole error text, the profile subtest of TestNoChannelOverridesTheArguedForcing now asserts the refusal, and overlaying the HEAD profile file turns every case red, which closes QA D-S05-5 for profiles\n- TestEveryCommandRefusesAProtectedVariable in internal/cli/protectedeverycommand_test.go walks every runnable command of newRootCmd, help and completion included, with arguments derived from each Use line, and for each of CR_ARGUED_FORCING, CR_POST_CONFIRM and CR_QUESTION_LABEL asserts config ProtectedError naming the variable, exit 3 and a state root left empty, and overlaying the HEAD root file turns 100 of its cases red\n",
+      "gate_passed_at": "2026-09-14T11:21:03.224023Z",
+      "commit_sha": "8ec41d5",
+      "commit_shas": [
+        "8ec41d5"
+      ],
+      "commit_files": [
+        "internal/cli/protectedeverycommand_test.go",
+        "internal/cli/root.go",
+        "internal/cli/unoverridable_test.go",
+        "internal/config/config.go",
+        "internal/profile/profile.go"
+      ]
+    },
+    {
+      "id": "qa-post-edited-suggestion-indent",
+      "title": "Warn on the indentation of the suggestion actually posted",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr draft and cr post compare the leading whitespace of the suggestion that will be sent, including one the reviewer edited in draft.md, against the first replaced line, and warn showing both when they differ, while still posting it; QA D-S09-1 (an edited suggestion was posted with no warning because only the stored record's suggestion was checked; internal/cli/indentation.go).\n- A test edits a suggestion block's indentation in draft.md and asserts the warning in cr draft and in the cr post dry run, and that the payload carries the edited suggestion.",
+      "source_sections": [
+        "### 8.2 Suggestion validation"
+      ],
+      "started_at": "2026-09-14T09:47:41.105218Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:34:30.461941Z",
+      "closed_reason": "- cr draft and cr post now compare the first line of the suggestion that will be sent against the first replaced line: internal/draft/sent.go SentSuggestion returns the stored suggestion for an untouched block and the first suggestion fence of the preserved body for a block the reviewer edited in draft.md, suggestion.WarnIndentation compares that text, internal/cli/indentation.go computes the warnings from it, cr draft passes triage.Preserved, and cr post (warnedPayload in internal/cli/post.go, reported on postResult.warnings, on the TTY after the payload, and on the confirmed send's result through send.go) warns showing both lines while the payload still carries the block as written\n- QA D-S09-1 reproduced with a fresh build on the S09 clone and a B4 home behind an offline gh shim: before the fix the edited f201 fence gave cr draft warnings [] and cr post no warnings key, after it both print the warning with suggestion \"        {\" and replaces \"    {\", and cr post still exits 0 with posted false\n- internal/cli/indentation.go no longer reads record.Suggestion alone, which was the cause QA named\n- internal/cli/editedsuggestionindent_test.go TestAnEditedSuggestionIsWarnedAboutInTheDraftAndThePost drafts a record whose stored suggestion agrees with its line (warnings []), re-indents the fence in draft.md and adds a line, then asserts the whole warning string from cr draft and from the cr post dry run and that the payload comment's suggestion block is the edited one; overlays killing it: SentSuggestion ignoring the preserved body (both halves red), cr post dropping its warnings, cr draft passing nil preserved; internal/draft/sent_test.go and internal/suggestion/indent_test.go cover the untouched, edited, removed, added, unclosed and first-of-two fences\n",
+      "gate_passed_at": "2026-09-14T10:34:30.461941Z",
+      "commit_sha": "297aa5e",
+      "commit_shas": [
+        "297aa5e"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/editedsuggestionindent_test.go",
+        "internal/cli/indentation.go",
+        "internal/cli/post.go",
+        "internal/cli/send.go",
+        "internal/draft/draft.go",
+        "internal/draft/sent.go",
+        "internal/draft/sent_test.go",
+        "internal/suggestion/indent.go",
+        "internal/suggestion/indent_test.go"
+      ]
+    },
+    {
+      "id": "qa-post-unresolved-visible",
+      "title": "Surface post_unresolved and refuse reconcile with confirm",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- While a round carries post_unresolved, cr status reports it with the command to run next, and a cr post dry run says the round's outcome is unknown and that cr post --reconcile must run before a send, instead of printing the payload as if a send were possible; QA D-S09-2.\n- cr post --reconcile --confirm is refused with exit 2 naming the two flags, instead of silently ignoring --confirm; QA D-S09-3.\n- The terminal view of a comment and of a rejected position names its full line range (src/Order.php:33-35), not only its last line; QA D-S09-4. Tests drive each through the command.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 10.1 Coverage report"
+      ],
+      "started_at": "2026-09-14T17:32:23.295053Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T18:16:29.276114Z",
+      "closed_reason": "- While a round carries post_unresolved, cr status puts unresolvedDisclosure (internal/cli/reconcile.go) into its honesty channel right after the head comparison, naming `cr post \u003cpr\u003e --reconcile --repo \u003cowner/repo\u003e`, and a cr post dry run carries the same sentence in a new postResult.Honesty field that Text prints before the payload, saying the outcome of the review-creation call is unknown and no send happens until the reconcile has run; the payload is still printed and the run exits 0 per section 8.5.1 (TestStatusReportsAnUnresolvedPost, TestTheDryRunReportsAnUnresolvedPostFirst, both through the command, the second through a pty).\n- QA D-S09-2 reproduced before and after on the S09 home-UO snapshot with an offline gh shim: the QA binary's cr status honesty held no unresolved line, this build's honesty[1] reads \"§8.4.4: round 1 carries post_unresolved: the outcome of its review-creation call is unknown, so its review may already be on the pull request, and no send happens until `cr post 1 --reconcile --repo deligoez/cr-qa` adopts that review or clears the flag for a retry\".\n- cr post --reconcile --confirm (either order) is refused before any read with ReconcileWithConfirmError, a new ExitUsage row in internal/cli/exit.go whose message names both flags and whose hint says to run --reconcile alone and then --confirm; TestReconcileWithConfirmIsRefusedAsUsage asserts exit 2, the whole message and hint, no gh call and no state change.\n- QA D-S09-3 before and after on home-UO: the QA binary exited 0 and ran the reconciliation (clearing post_unresolved), this build exits 2 with the refusal and leaves every state file byte-identical.\n- post.Lines in internal/post/reject.go renders a comment's range as start-line when the comment spans lines, used by the dry-run terminal view in postResult.payload and by InvalidPosition.String, which now carries StartLine, so the terminal and the rejection name src/Order.php:33-35 rather than :35.\n- QA D-S09-4 is asserted through the command by TestARejectedCommentIsNamedByItsWholeRange (cr post --confirm against a gh shim answering 422, whole error string with internal/api/handler.go:42-44) and by the pty test TestTheDryRunPrintsThePayloadToATerminalToo, both of which read :44 before the change.\n- Each behaviour is driven through the cr command in internal/cli/unresolvedvisible_test.go and internal/cli/dryrun_test.go, and the full race suite, golangci-lint, scripts/deadcode.sh and Go 1.27.1 gofmt are green.\n",
+      "gate_passed_at": "2026-09-14T18:16:29.276114Z",
+      "commit_sha": "707e7c59bd713ff292bfaeead48d47807a0bb301",
+      "commit_shas": [
+        "707e7c59bd713ff292bfaeead48d47807a0bb301"
+      ],
+      "commit_files": [
+        "internal/cli/dryrun_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/post.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/rejectedpost_test.go",
+        "internal/cli/send.go",
+        "internal/cli/status.go",
+        "internal/cli/unresolvedvisible_test.go",
+        "internal/post/reject.go"
+      ]
+    },
+    {
+      "id": "qa-review-body-reader-disclosure",
+      "title": "Word the review body's lens disclosure for the author",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- The review body cr post builds states each lens that did not run and why in terms the pull request's author can read (which lens, which files, and that it did not look at them), without operator instructions such as adding a glob to a profile's match.globs and without section numbers, while cr brief, cr review and cr status keep the operator wording; QA D-S09-5 (release notes known limitation: the body told the author to add a glob).\n- A test asserts the body's disclosure lines for an unindexed-files lens, a disabled axis and a skipped role, and that none contains match.globs or a § reference.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 4.5 Axis activation and honest reporting"
+      ],
+      "started_at": "2026-09-14T11:16:18.888259Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:40:21.89523Z",
+      "closed_reason": "- The review body cr post builds now words each lens that did not run for the author (which axis, lens or role, which files a lens did not look at, and what cr therefore did not check, with no configuration, command or section number): render.ReviewBody takes each entry's AuthorDisclosure, which activation.Disabled, intent.Unavailable, reinvention.Unavailable, testadequacy.Unavailable and coverage.SkippedRole now carry beside Disclosure, while cr brief, cr review and cr status keep printing Disclosure's reviewer wording, and post.go is untouched (the wording source only).\n- QA D-S09-5 reproduced with a HEAD build on a scratch PR under a profile whose match.globs miss lib.go: the dry-run body said \"add a glob covering them to the profile's match.globs\" with §4.3.1/§4.5.2/§4.6.4 references, and the fixed build's body says \"lens convention/reinvention did not look at lib.go: cr's index of the repository's existing code does not cover it, so cr did not check whether the change there re-implements code the repository already has, ...\", the same payload hash, while cr status keeps the operator line.\n- TestTheReviewBodyWordsEveryLensThatDidNotRunForTheAuthor (internal/cli/reviewbodyauthor_test.go) drives cr record, cr draft and a dry-run cr post over a laravel-pest round with the test axis switched off and a generic-only role, asserts the body's five disclosure lines whole (disabled axis, both unindexed-files lens halves, both skipped roles), that none contains match.globs or §, and that cr status still prints the reviewer wording; reviewbody_test.go and unindexedunits_test.go now assert the author wording too.\n",
+      "gate_passed_at": "2026-09-14T11:40:21.89523Z",
+      "commit_sha": "4810d5e",
+      "commit_shas": [
+        "4810d5e"
+      ],
+      "commit_files": [
+        "internal/activation/activation.go",
+        "internal/cli/reviewbody_test.go",
+        "internal/cli/reviewbodyauthor_test.go",
+        "internal/cli/unindexedunits_test.go",
+        "internal/coverage/lenses.go",
+        "internal/coverage/skipped.go",
+        "internal/intent/intent.go",
+        "internal/reinvention/unavailable.go",
+        "internal/reinvention/unavailable_test.go",
+        "internal/render/reviewbody.go",
+        "internal/testadequacy/attach.go",
+        "internal/testadequacy/attach_test.go",
+        "internal/testadequacy/unindexed_test.go"
+      ]
+    },
+    {
+      "id": "qa-new-classes-survive-triage",
+      "title": "Keep a round's new classes after its records are discarded",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A cr draft run after triage reports, and writes to summary.json, the same new_classes the round's first draft reported, including classes whose records were all discarded, as cr stats' first_seen does; QA D-S10-1 (after deleting one block and marking another wrong, the next draft wrote new_classes [] over [naming, reinvention]; internal/cli/triage.go passed only queued records to finding.NewClasses).\n- A test drafts, triages both records away, drafts again and asserts new_classes in the output and summary.json.",
+      "source_sections": [
+        "### 7.3 Triage statistics"
+      ],
+      "started_at": "2026-09-14T10:40:29.078412Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:20:39.378339Z",
+      "closed_reason": "- cr draft after triage now reports and writes to summary.json the same new_classes its first run reported, including classes whose records were all discarded, matching cr stats' first_seen: internal/cli/triage.go newDraftClasses passes finding.NewClasses raisedInRound(records), the round's queued, discarded and posted records (never duplicate or suppressed), and internal/cli/draft.go summarizeDraft hands it the round's records rather than the queued ones.\n- QA D-S10-1 reproduced on the S08 B6 state with a HEAD build: deleting f1701's block and marking f1 wrong made cr draft print and write new_classes [tax-rounding] over [reinvention, tax-rounding, untested-branch]; the fixed build /tmp/cr-dev/cr-qa-new-classes-survive-triage prints and writes all three on that draft and on the next one.\n- The cause named in the task was the one found: newDraftClasses received only the queued records, so a discarded class was no longer a candidate.\n- internal/cli/newclasstriage_test.go TestANewClassSurvivesTheDiscardOfEveryRecordOfIt drafts two new classes, deletes one block and marks the other wrong, drafts twice more and asserts new_classes [naming, reinvention] in the output and summary.json each time, with a never-raised duplicate's class absent; TestANewClassSurvivesThePostingOfItsRecords asserts the same after cr post --confirm; overlay mutants (queued only, no filter, posted dropped) each turn one of them red.\n",
+      "gate_passed_at": "2026-09-14T11:20:39.378339Z",
+      "commit_sha": "5bcb5ab",
+      "commit_shas": [
+        "5bcb5ab"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/newclasstriage_test.go",
+        "internal/cli/triage.go"
+      ]
+    },
+    {
+      "id": "qa-rule-fix-and-scope-visible",
+      "title": "Show a rule's fix in the prompt and its profile scope in rules list",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A review prompt that attaches a rule hit whose rule carries a fix shows the fix's replacement text beside the hit, so the agent that names the rule sees the suggestion cr will attach before it confirms it; QA S10 rule-12.\n- cr rules list names every rule of the corpus that the selected profile's scope leaves out, with the profile it is scoped to, instead of omitting it silently; QA S10 rule-05. Tests drive cr review and cr rules list.",
+      "source_sections": [
+        "### 2.6 Rules"
+      ],
+      "started_at": "2026-09-14T10:07:50.756031Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:34:43.317811Z",
+      "closed_reason": "- cr review now writes, under every rule hit whose rule carries a fix, the replacement that fix gives for the hit's line as a fenced suggestion block with the fix.replace/fix.with pair and the conditions under which cr record attaches it (names the rule, cites path:line, no suggestion of its own, anchor §8.2 admits), or a line saying the fix changes nothing on that line: internal/review/text.go Round.fix reads Round.Matchers, which internal/review/attach.go detect now keeps from rule.Compile, and calls Matcher.Replacement, the call cr record makes.\n- QA S10 rule-12 reproduced with a HEAD build on a clone of cr-qa (zero-floor fix, TaxRate.php:24): the u4 prompt carried the hit and the rule but no fix text; after the change it carries \"fix: replacing `Rounding::half\\(` with `Money::round(` ...\" and the block `        return Money::round($amount * $this-\u003erate);`, and internal/cli/rulefixprompt_test.go asserts the exact lines under the hit in every prompt, that the text cr record then stores is that suggestion, the no-change line, and no fix line for a rule without a fix.\n- cr rules list now prints out_of_profile beside rules: every rule of the resolved corpus rule.ForProfile leaves out under the selected profile, with its id, title, layer, path and the profiles it is scoped to (internal/cli/rules.go outOfProfileRules, scopedRule, and a text section), an empty list rather than null when nothing is scoped.\n- QA S10 rule-05 reproduced with the HEAD build: a repo rule scoped to laravel-pest under profile crqa was absent from rules list with no mention; after the change out_of_profile names pest-only, layer repo, profiles [laravel-pest].\n- internal/cli/ruleoutofprofile_test.go drives cr rules list over layered rules (a scoped per-repository rule, a scoped per-repository rule shadowing a global one listed once, a global rule scoped to the selected profile staying effective, and a checkout no profile matches putting every scoped rule out of profile) plus the empty-list case, and rulefixprompt_test.go drives cr review and cr record; go test -race ./..., golangci-lint run and scripts/deadcode.sh were run at close.\n",
+      "gate_passed_at": "2026-09-14T10:34:43.317811Z",
+      "commit_sha": "29a95bd",
+      "commit_shas": [
+        "29a95bd"
+      ],
+      "commit_files": [
+        "internal/cli/rulefixprompt_test.go",
+        "internal/cli/ruleoutofprofile_test.go",
+        "internal/cli/rules.go",
+        "internal/review/attach.go",
+        "internal/review/emit.go",
+        "internal/review/text.go"
+      ]
+    },
+    {
+      "id": "qa-merge-refuses-cross-hunk-anchor",
+      "title": "Refuse in cr merge the anchors cr record refuses",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-left-anchor-deleted-lines-only"
+      ],
+      "estimate_minutes": 20,
+      "acceptance": "- cr merge refuses with exit 1, naming the record and file line, every anchor cr record would refuse on the same round (a range spanning two hunks, a range outside its unit, a LEFT anchor on a line the diff did not remove), from the same check, so a merged file never fails at record for an anchor merge accepted; QA S10 observation.\n- A test merges files carrying each such anchor and asserts the refusal matches cr record's.",
+      "source_sections": [
+        "### 6.5 Merge",
+        "### 9.2 Anchors"
+      ],
+      "started_at": "2026-09-14T10:40:25.166102Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:21:04.02361Z",
+      "closed_reason": "- cr merge now runs refuseForeignAnchors, the same check cr record runs through settleAnchors, in internal/cli/merge.go readPerRole over the round's units (roundUnitsOf), so a range spanning two hunks of its unit, a range outside its unit and a LEFT anchor on a line the diff did not remove are refused with exit 1 as finding.RejectedRecordError naming the role file's line, and the unit refusal in internal/cli/anchorunit.go now names the record id beside the anchor; the separate LEFT-only refuseUnremovedLeftAnchors is gone, so a merged file cannot meet at record an anchor refusal merge skipped.\n- Reproduced with a fresh build on cr-qa PR #1 before the fix: a review-correctness.ndjson record anchored RIGHT tests/OrderTest.php:6-20 on u5 merged with exit 0 and cr record refused the merged file with exit 1; after the fix cr merge exits 1 with \"line 1: anchor of record f1 is RIGHT tests/OrderTest.php:6-20, which does not lie inside unit u5\" and writes no output.\n- internal/cli/mergeanchors_test.go TestMergeRefusesEveryAnchorRecordRefuses merges a role file carrying each such anchor on a two-hunk unit and runs cr record on the same record, asserting both refusals are the whole RejectedRecordError with the same line, field and problem and exit 1, no output and nothing stored, plus a control an in-hunk anchor merge accepts and record then stores; an overlay restoring the LEFT-only merge check turns the two RIGHT cases red, and merge_test.go's aRoleRecord now anchors inside the unit it names.\n",
+      "gate_passed_at": "2026-09-14T11:21:04.02361Z",
+      "commit_sha": "10e188e",
+      "commit_shas": [
+        "10e188e"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/merge.go",
+        "internal/cli/merge_test.go",
+        "internal/cli/mergeanchors_test.go"
+      ]
+    },
+    {
+      "id": "qa-probe-patch-strict-and-reasons",
+      "title": "Refuse patch lines cr does not execute and record error reasons",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- cr probe run refuses with exit 1, naming the patch line, a patch carrying any line its parser would not execute (a rename, copy or mode header, or any line outside a file header or hunk), so a probe record's input never contains a step cr did not run; QA D-S06-3 (a rename to ../../moved.php was accepted, never executed, and shown in the evidence; internal/git/patch.go).\n- A probe recorded as error carries the reason in its record and output: for a patch that did not apply, the file, line and the expected and found text; for a runner that could not start or exited on a signal, which, and the signal; QA D-S06-4 (internal/cli/probe.go dropped the apply detail).\n- Tests drive cr probe run over each case and assert the refusal or the recorded reason.",
+      "source_sections": [
+        "### 5.3 Mutation probe",
+        "### 5.5 Probe record"
+      ],
+      "started_at": "2026-09-14T10:05:44.562809Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:34:45.957817Z",
+      "closed_reason": "- cr probe run now refuses with exit 1, naming the patch file and line, a patch holding a rename, copy or mode header or any other line outside a file header or hunk, before any suite runs and before anything is recorded, so a probe record's input never holds a step cr did not run; `diff --git` and `index` lines stay accepted, and a patch naming no file at all keeps the no-hunk refusal naming --no-ext-diff\n- QA D-S06-3 before, with the QA binary from 9ef2474 (no change since in these paths) against run-S06/home: mut-rename.diff exited 0 as p17 no-test-failed with \"rename to\" in the stored input; after, the fresh build exits 1 with \"mut-rename.diff line 13: \\\"similarity index 100%\\\" is a rename, copy or mode header, which cr does not execute\" and probes.ndjson stays at 19 lines\n- internal/git/patch.go ParsePatch keeps the first stray line (firstStray, unexecuted, extendedHeaders) and strayed returns it as a *git.MalformedPatchError once the patch names a file; its cognitive complexity stays at the measured 34\n- A probe recorded as error now carries `reason` in probes.ndjson and in the command output (JSON and a text reason line); for a patch that did not apply it is \"§5.3.4's first rung: the mutation patch did not apply cleanly, so no tests were run: \" followed by git.ApplyError's file, line, expected and found text, via internal/probe Reason, Outcome.Reason and Measured.Detail filled in internal/cli/probe.go mutationRuns\n- For a runner that could not start the reason is the rung plus \"the runner could not be started: \" and the sandbox.RunError text, and for one that exited on a signal it is the rung plus \"the runner exited on a signal (killed)\", the name coming from the new sandbox.RunExit Signal, for both kinds (Reason and GapReason); the §5.5 field table gained the reason row, as run.Record carries timed_out and contaminated beyond §5.2.4\n- QA D-S06-4 before: mut-badctx.diff gave p18 result error with no reason anywhere, and the signal runner mode gave p19 error the same way; after, the fresh build records p21 with the first-rung reason naming \"src/Order.php line 31: the hunk does not match the file: the patch expected \\\"    public function shipping(): int\\\" and the file holds \\\"    public function shipping(): float\\\"\" and p20 with the killed signal, in both the record and the output\n- internal/cli/probereasons_test.go drives cr probe run over a rename, a mode change and a stray line (whole refusal message, exit 1, no suite run, nothing recorded), a non-applying patch, an unstartable runner and a signalled runner for both kinds (whole reason in record and output), plus the text rendering; overlay mutants dropping the stray refusal, the signal name and Outcome.Reason each turn those tests red\n",
+      "gate_passed_at": "2026-09-14T10:34:45.957817Z",
+      "commit_sha": "1d769ff",
+      "commit_shas": [
+        "1d769ff"
+      ],
+      "commit_files": [
+        "internal/cli/probe.go",
+        "internal/cli/probereasons_test.go",
+        "internal/git/patch.go",
+        "internal/probe/gap.go",
+        "internal/probe/mutation.go",
+        "internal/probe/outcome.go",
+        "internal/probe/record.go",
+        "internal/probe/record_test.go",
+        "internal/sandbox/run.go"
+      ]
+    },
+    {
+      "id": "qa-probe-runner-signal-cleanup",
+      "title": "Stop the test runner when cr is interrupted or killed",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- When cr test or cr probe run receives SIGINT or SIGTERM, it kills the runner's whole process group, reverts or marks the sandbox unclean, and exits, so no runner outlives it; QA D-S06-5 (no signal handling; the runner in its own process group survived Ctrl+C, SIGTERM and SIGKILL of cr).\n- After cr is killed with SIGKILL, the next cr test or cr probe run finds a runner process group a previous run left alive for that sandbox and kills it before it recreates the sandbox or runs anything; QA D-S06-5.\n- Tests send each signal to a cr probe run whose runner sleeps and assert no runner process remains and the next run starts on a clean sandbox.",
+      "source_sections": [
+        "### 5.3 Mutation probe",
+        "### 5.6 Isolation and budget",
+        "### 5.1 Sandbox"
+      ],
+      "started_at": "2026-09-14T11:54:13.924927Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T13:56:38.075017Z",
+      "closed_reason": "- A cr test or cr probe run that receives SIGINT or SIGTERM while its runner runs now kills and reaps the runner's whole process group and exits: internal/sandbox/run.go RunExit installs signal.Notify before the start and on a signal returns sandbox.InterruptedError, which unwinds through the revert state.UnderSandboxMutation always performs and the probe lock release, records nothing, and maps to exit 4 in internal/cli/exit.go with a hint to run the command again.\n- QA D-S06-5 reproduced with a fresh pre-fix build on a clone of cr-qa with a sleeping runner: SIGTERM to cr probe run exited 143 and `sleep 7071` was still running after the next cr test; the fixed build exited 4 with \"cr received terminated while the test runner ran: the runner's process group was killed and nothing was recorded for the run\" and no sleep left.\n- The runner in its own process group is now reached however cr ends: signal handling covers Ctrl+C and SIGTERM, and a runner lock covers SIGKILL.\n- After a SIGKILL the next run finds and kills the runner group before it recreates the sandbox or runs anything: every runner inherits a per-pull-request runner lock (internal/state/runnerlock.go, under the locks directory) holding its process group, cr alone holds an owner lock, and sandbox.Ensure (called by cr test and cr probe run first) kills a recorded group whose runner lock is held while its owner lock is free, waits for the lock to free, and discloses \"a test runner an earlier cr run left running in process group N was killed before this run, per §5.3.3\".\n- QA D-S06-5 on the fixed build: SIGKILL left `sleep 7071` running (1), and the next cr test printed that disclosure and left 0; a live cr's runner is never touched because its owner lock is held.\n- TestAStoppedProbeLeavesNoRunnerAndTheNextRunStartsClean sends SIGINT, SIGTERM and SIGKILL to a cr probe run whose runner sleeps on the mutated file, polls with bounded deadlines, and asserts exit 4 and a dead process group with the mutation reverted for the first two, the group killed by the next cr test for SIGKILL, no probe record, and the next run on the head's code; an overlay dropping signal.Notify turns the INT and TERM cases red and one dropping the Ensure stop turns the KILL case red, and the two existing killed-probe tests now also assert the disclosure.\n",
+      "gate_passed_at": "2026-09-14T13:56:38.075017Z",
+      "commit_sha": "cb63782",
+      "commit_shas": [
+        "cb63782"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/cli/runnersignal_test.go",
+        "internal/cli/test.go",
+        "internal/sandbox/clean.go",
+        "internal/sandbox/run.go",
+        "internal/sandbox/sandbox_test.go",
+        "internal/state/runnerlock.go"
+      ]
+    },
+    {
+      "id": "qa-sandbox-setup-failure-cleanup",
+      "title": "Clean up a sandbox whose setup failed and fix profile hints",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- When a sandbox.setup command fails, cr sandbox create removes the half-built worktree and its registration before exiting 3, so the next cr sandbox create succeeds instead of exiting 4; QA D-S06-1.\n- The hints for a profile without tests.cmd or tests.filter_flag name the profile file that must declare it and its path, instead of cr config --resolved, which shows no profile fields; QA D-S06-2 (internal/cli/exit.go). Tests drive both.",
+      "source_sections": [
+        "### 5.1 Sandbox",
+        "### 2.4 Profiles"
+      ],
+      "started_at": "2026-09-14T11:33:37.176253Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T12:47:16.586929Z",
+      "closed_reason": "- A failed sandbox.setup command no longer leaves a half-built sandbox: internal/sandbox/sandbox.go Create hands everything after git.AddWorktree to prepare, and on any failure abandon removes the worktree and its .git/worktrees registration through removeSandbox before the error returns (a failed removal is joined beside it), so cr sandbox create exits 3 with no sandbox directory, no registration and no baseline, and the next cr sandbox create after the profile is repaired exits 0 where it exited 4.\n- QA D-S06-1 reproduced with a fresh build on a clone of cr-qa with setup [\"false\"]: before, exit 3 then `git worktree list` showed the sandbox and the second create exited 4; after, exit 3 with .git/worktrees absent, the second create exited 3 again on the still-failing setup, and 0 once setup was removed; TestASandboxWhoseSetupFailedIsRemovedSoTheNextCreateRuns drives both creates and turns red under an overlay that drops the abandon call.\n- A profile missing tests.cmd or tests.filter_flag is now hinted by the file that must declare it: profile.UnavailableError.Hint returns \"declare \u003cfield\u003e in the profile file \u003cpath\u003e, which is the profile this round resolved; `cr config --resolved` does not show profile fields\", and names how to give a round a profile when none was resolved, and hintFor asks the error for it as it asks config.LayerError.\n- QA D-S06-2 in internal/cli/exit.go: the row's own text no longer points at cr config --resolved, and the fresh build's cr test --filter against the QA profile printed the new hint with the profile's path where it printed \"set the field the message names in the resolved profile\".\n- Tests drive both: TestAProfileMissingATestFieldIsHintedByItsFile runs cr test and cr probe run for a missing filter_flag, a missing tests.cmd and no resolved profile, asserting exit 3 and the whole message and hint, and turns red under an overlay that skips the new hintFor branch.\n",
+      "gate_passed_at": "2026-09-14T12:47:16.586929Z",
+      "commit_sha": "4a7e859",
+      "commit_shas": [
+        "4a7e859"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/setupfailure_test.go",
+        "internal/profile/testargv.go",
+        "internal/sandbox/sandbox.go"
+      ]
+    },
+    {
+      "id": "qa-meta-profile-id-containment",
+      "title": "Refuse a stored profile id that escapes the profiles directory",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A meta.json profile_id that is not a single profile file stem (a path separator, .. or an absolute path) is refused with exit 3 and state.UnusableHint naming meta.json, before any profile is loaded or any tests.cmd run, so no command loads or executes a profile from outside the profiles directory; QA D-S07-6 (profile_id ../../x loaded an out-of-tree x.json and ran its tests.cmd; internal/state/layout.go joined it unchecked).\n- A test stores profile_id ../../x beside an existing out-of-tree profile and asserts exit 3, the hint, and that the runner never started.",
+      "source_sections": [
+        "### 2.2 State layout",
+        "### 2.4 Profiles"
+      ],
+      "started_at": "2026-09-14T09:53:39.241572Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:05:39.446977Z",
+      "closed_reason": "- A meta.json profile_id holding a path separator (/ or \\) is now refused where meta.json is decoded: internal/state/meta.go decodeMeta calls layout.go's profileStem and returns a *state.FileError naming meta.json with state.UnusableHint, carrying *state.ProfileIDError\n- An id naming . or .., or rooted, is refused the same way, and internal/state/briefed.go Briefed passes that error through instead of wrapping it as NotBriefedError, so cr test and cr probe run exit 3 before roundProfile loads any profile or any tests.cmd runs; no command reads a round without decodeMeta (ReadMeta, updateMeta, Briefed)\n- The QA repro D-S07-6 was run with a fresh build against run-S07/home-c with profile_id ../../x beside run-S07/x.json: before, cr test exited 0 as run r3 and runner.log gained a line; after, cr test and cr probe run --kind gap both exit 3 with \"cannot use .../pr-1/meta.json: profile_id \\\"../../x\\\" is not one profile's file stem\" and the unusable-state hint, runner.log unchanged at 51 lines\n- The unchecked join in internal/state/layout.go Profile is no longer reachable with a stored id, because the id is refused at decode before any caller joins it\n- internal/cli/metaprofilestem_test.go TestAStoredProfileIDThatLeavesTheProfilesDirectoryIsRefused drives cr test and cr probe run with profile_id ../../x stored beside a valid out-of-tree x.json whose runner writes a log, and asserts the whole error message naming meta.json, exit 3, state.UnusableHint and that the log was never written; internal/state/metaprofile_test.go pins the stem table; overlay mutants removing the decodeMeta check (the runner ran, no error) and the Briefed pass-through (exit 4) each turn the cli test red\n",
+      "gate_passed_at": "2026-09-14T10:05:39.446977Z",
+      "commit_sha": "0e5eaa6",
+      "commit_shas": [
+        "0e5eaa6"
+      ],
+      "commit_files": [
+        "internal/cli/metaprofilestem_test.go",
+        "internal/state/briefed.go",
+        "internal/state/layout.go",
+        "internal/state/meta.go",
+        "internal/state/metaprofile_test.go"
+      ]
+    },
+    {
+      "id": "qa-gap-probe-errors-explained",
+      "title": "Explain gap probe baseline and forced-error outcomes",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-probe-patch-strict-and-reasons"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- A gap probe whose fresh baseline run is unusable exits 3 with a hint naming the sandbox and cr sandbox destroy, instead of exit 2 with the malformed-invocation hint; QA D-S07-1 (internal/probe/resolve.go plain error).\n- A run record for a runner that could not be started carries no exit_code 0 or duration that reads as success; it states the runner did not start; QA D-S07-3.\n- A probe forced to error by the post-run cleanliness check says so, naming the changed tracked file or leftover artefact, in its output honesty and record, the next recreation notice names that cause, and cr record explains the drop of a record resting on it; QA D-S07-4. Tests drive each.",
+      "source_sections": [
+        "### 5.4 Gap probe",
+        "### 5.1 Sandbox"
+      ],
+      "started_at": "2026-09-14T10:35:11.771524Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:18:58.955877Z",
+      "closed_reason": "- A probe whose freshly performed baseline does not stand now exits 3 with a hint naming the sandbox path and `cr sandbox destroy \u003cpr\u003e --repo \u003cowner/repo\u003e`: internal/probe/resolve.go Ensure returns a typed *probe.NoBaselineError, and internal/cli/probe.go probeBaselines wraps it in unusableBaseline as a *state.FileError on the sandbox (the file-failure floor of exit.go, so no new exit.go row) whose message adds what §5.1.6's check found after the baseline run; TestAGapProbeWhoseBaselineRunLeftTheSandboxUncleanExitsThree drives a gap probe whose runner leaves tests/cr_probe_zz.txt during the baseline and asserts the whole message, exit 3, the whole hint and that no probe was recorded\n- QA D-S07-1 before and after on run-S07/home-g04 with runner mode mkprobe (a mutation probe with a new filter, since that home already holds an unfiltered baseline; same Ensure path): the 9ef2474 binary exited 2 with the malformed-invocation hint, the fresh build exits 3 with \"cannot use .../pr-1/sandbox: no baseline run stands at be7e2c7... for a mutation probe: the run performed for it was not one §5.2.6 admits; §5.1.6's check after that run found that a probe artefact was left behind: tests/cr_probe_p1Test.php\" and the hint \"the baseline run left the sandbox .../pr-1/sandbox unclean, so it measured nothing; run `cr sandbox destroy 1 --repo deligoez/cr-qa`, keep the suite from leaving that behind, and run the probe again\"\n- A run record for a runner that could not be started no longer stores exit_code 0: internal/run/run.go Record gains `unstarted` (omitempty, a row of the fields table beside timed_out) and internal/cli/probe.go perform sets it and exit_code -1, so no status reads as success; duration_ms is the measured time of the failed start\n- The record states the runner did not start with `unstarted: true`, beside the probe reason from the previous task naming what the start attempt reported; TestARunWhoseRunnerCouldNotStartIsStoredAsNotStarted removes the runner and asserts unstarted true, exit_code -1 and passed false on both the baseline and the probe run\n- QA D-S07-3 before and after on run-S07/home-m14 with tests.cmd [\"/nope/runner\"]: the 9ef2474 binary stored r12 with \"exit_code\":0 and no reason; the fresh build stores r13 with \"exit_code\":-1,\"unstarted\":true and p8 with the reason \"§5.4.3's second rung: the runner could not be started: cannot run /nope/runner --filter cancelled: fork/exec /nope/runner: no such file or directory\"\n- A probe voided by the post-run cleanliness check now says so with what the check found, in its record reason (probe.Outcome keeps unclean, Outcome.Reason words it), in its output honesty (probeDisclosures), and in the next run's recreation notice (sandbox.ForceRecreation(src, cause) writes the cause into sandbox-baseline.json as `forced`, which Unclean reports as \"§5.1.7 forced its recreation: probe pN was voided after its run: ...\"); cr record now explains a record resting on a mutation probe in `probes[]` via internal/cli/gapsupport.go mutationSupport, quoting the probe's own reason\n- QA D-S07-4 before and after on run-S07/home-m14 with runner mode dirty: the 9ef2474 binary gave p5 with honesty [], no reason, a next recreation notice \"no post-setup baseline was recorded for it\" and `cr record` probes []; the fresh build gives p6 with reason and honesty \"probe p6 voided, per §5.1.7: tracked files differ from the post-setup baseline: src/Money.php; ...\", the next cr test notice \"§5.1.7 forced its recreation: probe p6 was voided after its run: tracked files differ from the post-setup baseline: src/Money.php\", and cr record of f704 on p6 printing supports false with the §5.3.5 reason quoting that cause\n- Tests drive each: TestAVoidedProbeNamesWhatTheCheckFoundHereAndInTheNextRecreation (whole reason, whole honesty, next cr test's whole notice), TestRecordExplainsWhatAMutationProbeSupports (four results through cr record, whole probes[] entry and agreeing grade), the two tests above, and override_test's whole recreation reason; overlay mutants removing the exit-3 wrap, the -1 exit code, the voided honesty, the forced check, mutationSupport and the voided Outcome.Reason each turn a test red\n",
+      "gate_passed_at": "2026-09-14T11:18:58.955877Z",
+      "commit_sha": "6d01e24",
+      "commit_shas": [
+        "6d01e24"
+      ],
+      "commit_files": [
+        "internal/cli/gapsupport.go",
+        "internal/cli/probe.go",
+        "internal/cli/probeerrors_test.go",
+        "internal/probe/outcome.go",
+        "internal/probe/resolve.go",
+        "internal/run/run.go",
+        "internal/sandbox/baseline.go",
+        "internal/sandbox/clean.go",
+        "internal/sandbox/override_test.go"
+      ]
+    },
+    {
+      "id": "qa-left-unit-base-ranges",
+      "title": "Give deletion-only units merge-base line ranges",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- A unit made only of deleted lines reports side LEFT with the merge-base line numbers of the removed lines (and a deleted file's actual removed range, never 0-0), so the review prompt's LEFT anchors count in the merge base as its schema says; QA D-W1-1 (PR-A's deletion reported hunk_ranges 46-51 labelled LEFT while the removed base lines were 49-54; internal/unit/unit.go used HeadRange for both sides).\n- The unit's own lines for §6.2.1 grading are the removed lines and the insertion point, not the unchanged context lines around a deletion-only hunk, so a citation to an adjacent unchanged line is graded cited; QA D-W1-2 (internal/git/hunk.go).\n- Tests drive cr brief, cr review and cr record on a fixture with a deletion-only hunk and a deleted file and assert the ranges and the grade.",
+      "source_sections": [
+        "### 3.4 Diff ingestion and unit clustering",
+        "### 6.2 Evidence grades"
+      ],
+      "started_at": "2026-09-14T11:21:13.687898Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:33:19.027473Z",
+      "closed_reason": "- A LEFT unit now reports hunk_ranges as the merge-base lines its hunks remove, first to last, from git.Hunk.SideRange in internal/git/hunk.go, a deleted file included, and cr review matches a unit's hunks by SideRange (internal/review/run.go belongs), so the prompt's LEFT hunk ranges count in the merge base as its schema says.\n- Reproduced on cr-qa PR #2 with a fresh build: before the fix cr brief printed u1 src/Order.php LEFT hunk_ranges 46-51 and u2 src/Rounding.php LEFT 0-0; after it u1 is 49-54 and u2 is 1-19, and the review prompt reads \"src/Order.php, LEFT side, formed by adjacency, 6 changed line(s), hunk ranges 49-54.\"\n- internal/unit/unit.go Cluster.record, which used HeadRange for both sides, now fills HunkRanges from SideRange and a new head_ranges field from HeadRange.\n- internal/unit/contains.go Contains measures head_ranges, and git.Hunk.HeadRange gives a hunk that adds no lines its insertion point (the head line each run of removals follows, first to last) instead of the header's context-inclusive head range, so on PR #2 u1's head_ranges is 48-48 and a record citing unchanged head line 46 is graded cited and kept a finding, where the build before graded it argued and forced it to a question; a record without head_ranges, written before the field, is measured by its hunk_ranges as before.\n- The D-W1-2 cause in internal/git/hunk.go HeadRange is the one changed, and internal/unit/contains.go and the LEFT-anchor binding in internal/cli/anchorunit.go both read it.\n- internal/cli/leftunit_test.go builds a checkout whose pull request removes lib.go base lines 7-8 and deletes gone.go, drives cr brief (u1 gone.go LEFT hunk 1-3 head 0-0, u2 lib.go LEFT hunk 7-8 head 6-6), cr review --axis intent (the prompt sentences with hunk ranges 1-3 and 7-8) and cr record (citations to head 4, 7 and 9 graded cited, to the insertion point 6 argued), and overlays turning off the new HeadRange or SideRange branch each turn the tests red; internal/git/hunk_test.go, internal/unit/order_test.go, unit_test.go and contains_test.go pin the multi-run, top-of-file, deleted-file and legacy-record values.\n",
+      "gate_passed_at": "2026-09-14T11:33:19.027473Z",
+      "commit_sha": "a8549e1",
+      "commit_shas": [
+        "a8549e1"
+      ],
+      "commit_files": [
+        "internal/brief/store.go",
+        "internal/cli/leftunit_test.go",
+        "internal/git/hunk.go",
+        "internal/git/hunk_test.go",
+        "internal/review/run.go",
+        "internal/review/text.go",
+        "internal/unit/contains.go",
+        "internal/unit/contains_test.go",
+        "internal/unit/order_test.go",
+        "internal/unit/unit.go",
+        "internal/unit/unit_test.go"
+      ]
+    },
+    {
+      "id": "qa-anchors-on-changed-lines-only",
+      "title": "Refuse RIGHT anchors on unchanged lines of deletion-only units",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-left-anchor-deleted-lines-only",
+        "qa-left-unit-base-ranges"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- cr record, cr merge and cr post refuse with exit 1 a RIGHT anchor inside a deletion-only unit that lies on an unchanged head line, and a draft marker edited to a LEFT line the diff did not remove, from the same check as cr record's LEFT refusal, so neither is graded or reaches a payload; QA D-W1-3 (a RIGHT anchor on unchanged head line 49 inside a deletion-only unit was graded probed and stayed a finding; a marker edited to LEFT line 55 reached the dry-run payload).\n- Tests drive cr record and a marker edit followed by cr post and assert the refusals.",
+      "source_sections": [
+        "### 9.2 Anchors",
+        "### 7.2 Triage verbs"
+      ],
+      "started_at": "2026-09-14T11:34:04.02936Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T12:50:09.207253Z",
+      "closed_reason": "- cr record and cr merge refuse with exit 1 (finding.RejectedRecordError naming the file line and record) a RIGHT anchor naming a unit that only removes lines, from refuseUnchangedLines in internal/cli/anchorunit.go, the function that also holds the LEFT refusal through removedHeadRange, and cr post refuses a draft marker moved to a LEFT line the diff did not remove through positionInDiff, which reads the same removedHeadRange, with PositionError exit 1 before any payload, so neither anchor is graded or reaches a payload.\n- Reproduced on cr-qa PR #2 with a fresh build: before the fix a RIGHT anchor on unchanged head line 48 of deletion-only u1 recorded with exit 0 and was graded (line 49 was already refused by qa-left-unit-base-ranges' insertion-point containment, which also removed the probed case), and after it both 48 and 49 exit 1 with \"unit u1 only removes lines, so the diff changed no head line of it\".\n- A marker edited from LEFT 52 to LEFT 55 on the same round is refused by cr post with exit 1 (\"the comment on record f303 is anchored at LEFT src/Order.php:55-55, which no one hunk of this round's diff carries on that side\") and the gh shim logged no write, at HEAD before and after this commit, since e3b38cc routed positionInDiff through removedHeadRange.\n- internal/cli/unchangedanchor_test.go drives cr record and cr merge on a deletion-only fixture (RIGHT on the insertion point, RIGHT on a context line, LEFT on a context line refused with the whole problem and nothing stored, LEFT on the removed lines recorded) and a marker edit onto base line 9 followed by cr post, dry run and confirmed, asserting PositionError for f1 at LEFT lib.go:9-9, exit 1, nothing printed and posted.json unchanged; an overlay turning the RIGHT-in-LEFT case off turns both RIGHT rows red.\n",
+      "gate_passed_at": "2026-09-14T12:50:09.207253Z",
+      "commit_sha": "2f6bf3e",
+      "commit_shas": [
+        "2f6bf3e"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/leftanchor_test.go",
+        "internal/cli/unchangedanchor_test.go"
+      ]
+    },
+    {
+      "id": "qa-pr-state-disclosed",
+      "title": "Disclose a closed or merged pull request",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr brief, cr status and cr post (dry run and --confirm) read the pull request's state and, when it is closed or merged, say so with the state and the time GitHub reports, in the dry-run text a human reads and printed again by cr post --confirm before the request, not only in JSON honesty, so a reviewer never posts on a closed or merged pull request without being told; posting itself is not refused; QA D-W1-6 (brief, review, status and post looked the same for closed PR #10 and merged PR #11 and --confirm went straight to the POST).\n- A test drives the commands with a gh shim answering state CLOSED and MERGED and asserts the disclosure.",
+      "source_sections": [
+        "### 3.7 Orientation",
+        "### 8.5 Confirmation gate"
+      ],
+      "started_at": "2026-09-14T18:16:46.270809Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T18:26:44.865756Z",
+      "closed_reason": "- The pull request query in internal/gh/pr.go now reads state, closedAt and mergedAt, and closureDisclosure (internal/cli/prstate.go) turns a CLOSED or MERGED answer into one sentence naming the state and the time GitHub reports; cr brief puts it first in honesty and prints it under the pull request's name, cr status puts it first in honesty (read from the same pull request read briefedRound's head comparison makes, via a new optional out-parameter), a cr post dry run carries it first in honesty and as the first terminal line, and cr post --confirm writes it to standard error before posted.json and the review-creation request (sending.warned in internal/cli/send.go) and carries it in the confirmed result; dogfood on a local scratch repo with an offline gh shim answering MERGED: the build without the disclosure printed nothing, this build prints \"acme/web#1 is merged: GitHub reports it merged at 2026-09-12T10:15:00Z, so a review posted now reaches a pull request that is no longer open; cr does not refuse the post, and whether to send it stays --confirm's\" under the brief header and as status honesty[0].\n- Posting is not refused: the confirmed run in TestPostDisclosesAClosedOrMergedPullRequestBeforeTheRequest exits 0 and the shim records exactly one review-creation call.\n- QA D-W1-6 is covered for brief, status and post (dry run and --confirm) as the user decided, warning only.\n- TestBriefAndStatusDiscloseAClosedOrMergedPullRequest and TestPostDisclosesAClosedOrMergedPullRequestBeforeTheRequest in internal/cli/prstate_test.go drive the commands against gh shims answering CLOSED and MERGED (and OPEN as the control), asserting the whole sentence in JSON honesty, in the terminal through a pty, and in the standard error the shim copied at the moment of the POST; under an overlay making closureDisclosure return nil every one of those assertions fails.\nOut of scope: cr review, named in the QA note, still says nothing about a closed or merged pull request; it lives in internal/review, the rules unit's area, and the acceptance names brief, status and post.\n",
+      "gate_passed_at": "2026-09-14T18:26:44.865756Z",
+      "commit_sha": "ef754c9168fea48dd6d5ab6373c4a14c68a8ecc4",
+      "commit_shas": [
+        "ef754c9168fea48dd6d5ab6373c4a14c68a8ecc4"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/brief.go",
+        "internal/cli/head.go",
+        "internal/cli/output_test.go",
+        "internal/cli/post.go",
+        "internal/cli/prstate.go",
+        "internal/cli/prstate_test.go",
+        "internal/cli/send.go",
+        "internal/cli/status.go",
+        "internal/gh/pr.go"
+      ]
+    },
+    {
+      "id": "qa-draft-reports-cap-and-classes",
+      "title": "Print the comment cap and full class counts from cr draft",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-new-classes-survive-triage"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- cr draft prints the comment count against post.max_comments in its JSON and terminal output, including under --quiet, as §11.1 requires; QA D-S08-2 (only draft.md and summary.json carried it; internal/cli/draft.go).\n- A draft run after triage keeps each class's forced_to_question count for the round, including classes whose records were discarded; QA D-S08-1 (internal/cli/draft.go counted queued records only).\n- An argued record whose stored kind was changed to finding and that cr draft forces back to a question is reported under forced_to_question, not as the reviewer's softening; QA D-S08-3 (internal/draft/ingest.go). Tests drive cr draft for each.",
+      "source_sections": [
+        "### 7.1 Draft format",
+        "### 6.3 The argued rule",
+        "### 11.1 Global flags"
+      ],
+      "started_at": "2026-09-14T11:29:54.358751Z",
+      "duration_source": "implicit",
+      "closed_at": "2026-09-14T11:29:54.359048Z",
+      "closed_reason": "- cr draft now prints the comment count against post.max_comments in its JSON (comments {count, max}) and on a terminal as \"§1.6.2: 3 comments queued against post.max_comments 1, 2 over the cap\" through writer.disclose, which reads no flag, so --quiet keeps both (internal/cli/draft.go draftResult.Comments and Text).\n- QA D-S08-2 reproduced on the S08 B6 state at post.max_comments 1 with a HEAD build: neither --json --quiet nor the terminal text carried the cap; the fixed build prints comments {\"count\":3,\"max\":1} and the §1.6.2 line under --quiet.\n- The location named, internal/cli/draft.go, was the one changed: summarizeDraft already computed the cap and draftResult never carried it.\n- A draft after triage keeps the round's forced_to_question count per class: internal/cli/triage.go withSettledForcings adds every raised record a triage discarded or posted that an earlier moment of §6.3.1 moved (forced_records) and that is still argued; on the S08 state with f1701 deleted and f1 marked wrong the fixed build reports and writes [untested-branch 1] where HEAD wrote [].\n- QA D-S08-1's cause was the one named, the forcing count taken over queued records only, and it is fixed in internal/cli/draft.go produceDraft beside the forceQuestions call.\n- An argued record whose stored kind was hand-edited to finding while its marker still reads question is now forced and reported under forced_to_question rather than as softened: internal/draft/edits.go markerEdit.kind treats a question marker over a record that cannot assert as no retype; on the S08 state the fixed build reports triaged [] and forced_to_question [tax-rounding 1, untested-branch 1] with f701 kept in forced_records, where HEAD reported f701 softened.\n- The defect sat in internal/draft/edits.go's kind row, which internal/draft/ingest.go's Triage.read calls, rather than in ingest.go itself.\n- internal/cli/draftroundcounts_test.go drives cr draft for each: TestADraftPrintsItsCommentCountAgainstTheCap (JSON and terminal, with and without --quiet), TestADraftKeepsTheForcingCountOfADiscardedRecord (count 2 before and after deleting a forced block, output and summary.json, with a never-forced and a cited forced-id record excluded) and TestADraftForcingAStoredArguedFindingIsNotASoftening; six overlay mutants (no settled count, queued double count, grade check dropped, no cap line, no cap field, question retyped) each turn one of them red.\n",
+      "gate_passed_at": "2026-09-14T11:29:54.359048Z",
+      "commit_sha": "ea836ac",
+      "commit_shas": [
+        "ea836ac"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/draftroundcounts_test.go",
+        "internal/cli/triage.go",
+        "internal/draft/edits.go"
+      ]
+    },
+    {
+      "id": "qa-draft-marker-id-edit-message",
+      "title": "Name the edited marker when a marker id is changed",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A draft.md whose marker id was changed to another record's id is refused naming the edited marker's line and the id it now repeats, with a hint to restore the id, instead of naming cr's untouched marker and suggesting cr draft; and deleting the other block does not let a body silently move to another record's id and anchor; QA D-S08-4 (internal/draft/ingest.go, internal/cli/exit.go).\n- A test edits a marker id to another record's and asserts the refusal names the edited line, and that deleting the other block is still refused.",
+      "source_sections": [
+        "### 7.1 Draft format"
+      ],
+      "started_at": "2026-09-14T11:03:18.164856Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:32:09.491375Z",
+      "closed_reason": "- A draft.md whose marker id was changed to another record's is now refused as draft.MarkerIDEditError (exit 1) at the edited marker's line, naming the id it repeats, the line of the block that carries it and the id to restore, with its own exit.go hint to put back the id cr wrote and no offer to run cr draft again: internal/draft/ingest.go indexBlocks names, of the two markers, the one reading less of the record's location, severity and grade (a pasted copy reading it alike stays the malformed second block); on the S08 B6 state the fixed build says \"draft line 11, record f1: the marker's id was changed to f1, which the block at line 21 already carries ... restore id \\\"f701\\\" on line 11\" from cr draft and cr post, where HEAD blamed line 21.\n- Deleting the other block no longer lets a body move to another record's id and anchor: internal/draft/ingest.go refuseMovedIDs refuses a remaining block that holds a missing record's rendered marker fields or rendered body under another id, so on the S08 state with f1's block deleted the fixed build refuses line 11 naming f701 and leaves all three records queued, where HEAD discarded f701 with a waiver and softened, re-anchored and re-severitied f1 onto Order.php:44.\n- QA D-S08-4's named locations were the ones changed: internal/draft/ingest.go (blocksOf now reads through readBlocks and indexBlocks) and internal/cli/exit.go (one new MarkerIDEditError row), with the error type in internal/draft/edits.go; 72d972b is a gocritic follow-up passing markers by pointer.\n- internal/cli/markeridedit_test.go TestAMarkerIDChangedToAnotherRecordsIsRefusedAtTheEditedLine drives cr draft and cr post: the edited earlier marker is named with Kept and Restore, the other block deleted (plain, with a severity edit, with a reworded body) is still refused with nothing triaged, and two controls (twin records at one location, a deletion beside an edit of the kept block) still triage as deletions; seven overlay mutants each turn a subtest red.\n",
+      "gate_passed_at": "2026-09-14T11:32:09.491375Z",
+      "commit_sha": "3cedbc7",
+      "commit_shas": [
+        "3cedbc7",
+        "72d972b"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/markeridedit_test.go",
+        "internal/draft/edits.go",
+        "internal/draft/ingest.go"
+      ]
+    },
+    {
+      "id": "qa-cells-followups",
+      "title": "Mirror the na refusal in cr record and document cell rules",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-cells-record-validation"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- cr record refuses a record at a (unit, role) seat that holds an na cell with exit 1, as it refuses one at a pass cell, mirroring cr cells record's refusal of an na cell at a seat holding records; QA follow-up of qa-cells-record-validation (internal/cli/recordpass.go checked pass only).\n- skills/cr/SKILL.md states that a test-axis cell carries test_paths (empty only beside uncovered) and that cells off the intent axis are refused until the mapping is recorded.\n- The test-only coverage.Decode wrapper is removed by moving its last caller to DecodeInRound, so deadcode ./... prints the 11 deliberate lines again.",
+      "source_sections": [
+        "### 4.5 Axis activation and honest reporting"
+      ],
+      "started_at": "2026-09-14T11:21:36.337637Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:31:52.072948Z",
+      "closed_reason": "- cr record now refuses with exit 1 a record whose (unit, role) seat holds an na cell of the round, as it refuses one at a pass cell: internal/cli/recordpass.go refusePassedSeats keeps pass and na seats with their result and names the cell's result in the refusal (\"round 2 holds a na cell ... a role that had nothing to say about a unit raised no record there\"), and recordna_test.go asserts the whole message, exit 1 and a byte-identical findings.ndjson for both results, plus an na at another seat accepted; a pass-only overlay mutant turns the na subtest red.\n- This is the QA follow-up of qa-cells-record-validation, mirroring cr cells record's refusal of an na cell beside a record; dogfooded with /tmp/cr-dev/cr-qa-cells-followups on a scratch repo: cells record of an na correctness cell on u1 exited 0, then cr record of a correctness question on u1 exited 1 with that refusal and findings.ndjson stayed 0 bytes.\n- skills/cr/SKILL.md's cell paragraph now says test_paths is required on every test-axis cell that is not na and may be empty only beside uncovered (refused with exit 1 otherwise), that pass or na cells and records at one seat refuse each other, and that while the intent axis is active and no mapping is recorded a cell off the intent axis is refused with exit 4, checked against cellsrefusals_test.go and exit.go's coverage.MappingRequiredError row at HEAD.\n- coverage.Decode is gone from internal/coverage/cell.go (its doc folded into DecodeInRound's): internal/review/explained_test.go calls coverage.DecodeInRound with nil unmapped and notes, and the coverage package's own tests keep a Decode helper in the new test file internal/coverage/decode_test.go.\n- With it gone, deadcode ./... prints 11 lines (12 before), the deliberate list, and scripts/deadcode.sh exits 0.\n",
+      "gate_passed_at": "2026-09-14T11:31:52.072948Z",
+      "commit_sha": "86b9005",
+      "commit_shas": [
+        "86b9005"
+      ],
+      "commit_files": [
+        "internal/cli/recordna_test.go",
+        "internal/cli/recordpass.go",
+        "internal/coverage/cell.go",
+        "internal/coverage/decode_test.go",
+        "internal/review/explained_test.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "qa-meta-decode-exit-three",
+      "title": "Report an undecodable meta.json as unusable state",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- A meta.json that exists but does not decode (truncated, invalid JSON) makes every command that reads it exit 3 with state.UnusableHint naming the file, instead of exit 4 with the has-no-round hint that cr brief then cannot follow; only an absent meta.json is not briefed; QA D-S11-1 (internal/state/briefed.go wrapped every ReadMeta error in NotBriefedError).\n- A test truncates meta.json and drives cr status, cr record and cr brief and asserts exit 3 and the hint.",
+      "source_sections": [
+        "### 2.2 State layout",
+        "### 11.2 Exit codes"
+      ],
+      "started_at": "2026-09-14T10:34:50.444427Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:37:32.335165Z",
+      "closed_reason": "- A meta.json that is there and does not decode now reaches every command through Layout.Briefed as the *state.FileError decodeMeta builds, \"cannot read \u003cmeta.json path\u003e: unexpected end of JSON input\" with state.UnusableHint, which exit.go's FileError row codes 3, instead of a *state.NotBriefedError coded 4 with the run-cr-brief hint.\n- Only an absent meta.json is not briefed: internal/state/briefed.go Briefed wraps a ReadMeta error in NotBriefedError only when errors.Is(err, fs.ErrNotExist), returns every other read or decode failure as it is (which also covers the profile_id refusal the removed ProfileIDError branch handled), and a readable meta.json naming round 0 still refuses as before.\n- QA D-S11-1 reproduced with a HEAD build on a clone of cr-qa with meta.json cut to 115 bytes: cr status exited 4 with \"has no round\" and the run-cr-brief hint while cr brief exited 3 with UnusableHint; the fixed build and the test give 3 with UnusableHint from status, record and brief.\n- internal/cli/metadecode_test.go truncates meta.json to half its bytes and drives cr status, cr record and cr brief (brief with --issue and --intent-file), asserting a *state.FileError that is not a NotBriefedError, the exact message, exit 3 and state.UnusableHint, plus a control that removes meta.json and gets NotBriefedError, exit 4 and the brief hint from status and record; mapped over HEAD's briefed.go with go test -overlay, the status and record truncated cases fail.\n",
+      "gate_passed_at": "2026-09-14T10:37:32.335165Z",
+      "commit_sha": "98df0c8",
+      "commit_shas": [
+        "98df0c8"
+      ],
+      "commit_files": [
+        "internal/cli/metadecode_test.go",
+        "internal/state/briefed.go"
+      ]
+    },
+    {
+      "id": "qa-brief-reports-staled-records",
+      "title": "Report the records a new round made stale",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- The cr brief that opens a new round on a moved head reports how many open records it moved to stale and their ids, in its JSON and terminal output, as transitions.ndjson records; QA D-S11-3 (the brief said nothing, honesty []).\n- A test opens round 2 over three open records and asserts the count and ids in the brief's output.",
+      "source_sections": [
+        "### 9.3 A changed head"
+      ],
+      "started_at": "2026-09-14T10:58:36.083371Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:22:29.609299Z",
+      "closed_reason": "- The cr brief that opens a new round on a moved head now reports the ids of the open records the §9.3.4 sweep moved, as staled_records in its JSON (Brief.Staled, filled by staleOpenRecords in internal/brief/invalidate.go from the same moves it journals, empty on a run that opens no round) and as the terminal line \"staled     N open record(s) moved to stale, per §9.3.4: ids\" beside the round's head (internal/cli/brief.go identity).\n- QA D-S11-3 reproduced with a HEAD build on a scratch PR (round 2 opened, f1/f2/f4 journaled draft/queued to stale, and the brief printed neither a count nor an id), and the fixed build prints \"staled     3 open record(s) moved to stale, per §9.3.4: f1, f2, f4\" and staled_records [] on the same-head brief that follows.\n- TestABriefOpeningARoundReportsTheRecordsItStaled opens round 2 over three open records and a posted one and asserts staled_records equals [f1 f2 f4], equals the transitions.ndjson record ids, and is [] on a second brief, and TestATerminalBriefOpeningARoundNamesTheRecordsItStaled asserts the whole terminal line, both in internal/cli/briefstaled_test.go.\n",
+      "gate_passed_at": "2026-09-14T11:22:29.609299Z",
+      "commit_sha": "617d743",
+      "commit_shas": [
+        "617d743"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/invalidate.go",
+        "internal/cli/brief.go",
+        "internal/cli/briefstaled_test.go"
+      ]
+    },
+    {
+      "id": "qa-reconcile-adopts-own-round-only",
+      "title": "Adopt only a review posted for the round's own head",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- cr post --reconcile adopts a review only when it carries the round's payload hash, its commit is the round's head, and it is not already in the pull request's posted index for an earlier round; a hash match on another head or an already-adopted review clears post_unresolved for a retry with a message naming the review and why it was not adopted; QA D-W2-5 (round 2 on PR #15 hashed like round 1 and reconcile adopted round 1's review 5196399134 at another commit, marking round-2 records posted with round-1 thread ids; internal/cli/reconcile.go reviewCarrying matched the hash alone).\n- On a round that is not unresolved, --reconcile reports the round's known payload hash instead of an empty string; QA D-W2-3.\n- Tests drive cr post --reconcile with a gh shim listing a same-hash review at another commit, an already-adopted one, and the round's own, and assert each outcome.",
+      "source_sections": [
+        "### 8.4 Partial failure"
+      ],
+      "started_at": "2026-09-14T10:19:39.562258Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:21:01.991606Z",
+      "closed_reason": "- cr post --reconcile now adopts a review only when its body carries the round's payload hash, the commit GitHub names for it (the review listing in internal/gh now asks for commit oid) is the round's head, and the posted index holds it for no earlier round: reviewCarrying in internal/cli/reconcile walks every hash match through notThisRounds, and every posted index entry now carries the node id of the review its record reached the author in (the new PostedEntry field review, written by cr post --confirm from the created review and by --reconcile from the adopted one)\n- A hash match at another head, with no commit, or held by the index for an earlier round is passed over, and when no review of the round remains post_unresolved is cleared for a retry and the report lists each passed-over review under not_adopted with its url and reason (\"its commit be7e2c75aeb661ba3c96d7a7634f3f8e84bb7b91 is not round 2's head 254ccebd041d4d92ab7d977f64d7efaa2e1061fe\", \"the posted index already holds it for round 1\"), which a terminal prints as \"review URL carries payload hash H and was not adopted: REASON\"\n- QA D-W2-5 replayed with the fresh build over a hand-built round-2 state of PR 15 and a gh shim listing review 5196399134 at be7e2c75 exits 0 with adopted empty, not_adopted naming that review, f1803, f2603 and f3803 still queued with no thread id, the index at its 3 lines and post_unresolved false, where the QA binary over the same state adopted 5196399134 and marked all three posted\n- TestReconcilePassesOverAReviewThatIsNotTheRoundsOwn drives that answer (round 1's review id, url and commit as GitHub returned them, with its threads listed) and failed before the change with round 1's review adopted and f1 and f2 keyed onto its threads PRRT_kwDOShimA and PRRT_kwDOShimB\n- On a round without post_unresolved, --reconcile reports the payload hash the round summary records the round as posted under, and an empty hash only for a round never posted\n- TestReconcilingAPostedRoundReportsItsPayloadHash adopts, reconciles again and asserts the hash, an empty not_adopted and the terminal line \"round 2 has no unresolved posting to reconcile: it is posted under payload hash H\", and failed before the change with an empty hash\n- TestReconcilePassesOverAReviewThatIsNotTheRoundsOwn (another commit, no commit, an index entry for round 1), TestReconcileAdoptsTheRoundsOwnReviewPastOnesThatAreNot (all three listed before the round's own review, which is adopted with its own threads while the index already holds it for this round) and TestAConfirmedSendIndexesTheReviewItCreated drive cr post through a gh shim on PATH, and overlays turning the earlier-round comparison into less-or-equal and dropping the no-commit branch each turn one of them red; the gate (race tests, golangci-lint, deadcode, gofmt under Go 1.27.1) is green and deadcode ./... still prints 12 lines\n",
+      "gate_passed_at": "2026-09-14T11:21:01.991606Z",
+      "commit_sha": "090422a",
+      "commit_shas": [
+        "090422a"
+      ],
+      "commit_files": [
+        "internal/cli/briefunresolved_test.go",
+        "internal/cli/doublepost_test.go",
+        "internal/cli/posted.go",
+        "internal/cli/posted_test.go",
+        "internal/cli/postedindex_test.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcile_test.go",
+        "internal/cli/reconcileownround_test.go",
+        "internal/cli/reconcilethreads_test.go",
+        "internal/cli/send.go",
+        "internal/cli/transitions_test.go",
+        "internal/finding/postedindex.go",
+        "internal/gh/reviews.go"
+      ]
+    },
+    {
+      "id": "qa-post-summary-final-counts",
+      "title": "Write the posted round's final counts to summary.json",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-summary-counts-without-merge",
+        "qa-draft-reports-cap-and-classes"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- A confirmed cr post writes the comment count the review actually carried, confirm_given, posted and payload_hash into summary.json, including when every record was discarded and nothing was sent, so the summary never keeps the draft-time comment count beside a different posted count; QA D-W2-1 (comments.count 10 beside posted 8) and D-W2-4 (an all-discarded confirmed post wrote none of those keys).\n- Tests drive a post that discards records and an all-discarded confirmed post and assert summary.json.",
+      "source_sections": [
+        "### 10.3 Round summary"
+      ],
+      "started_at": "2026-09-14T11:35:48.545444Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T13:15:57.207267Z",
+      "closed_reason": "- A confirmed cr post now finalises summary.json with the comment count its review carried, confirm_given, posted and payload_hash, including when every record was discarded and nothing was sent: internal/cli/summary.go gives comments to a new ownerComments row (\"cr draft, then cr post --confirm\"), cr draft writes its queued count through it, writeAdopted (send and reconcile adoption) writes the round's posted records as the review's comments beside postCounts, and storeDiscards writes posted 0, comments 0, an empty payload_hash and confirm_given true for an all-discarded confirmed post, so the draft-time count never stands beside a different posted count; refusePostedRound reads an empty hash with no posted record as a round without a review, so a second run is still refused with EmptyReviewError.\n- QA D-W2-1 and D-W2-4 both reproduced red at HEAD a8549e1 through the command, with comments count 3 beside posted 1 after a confirmed post that discarded two of three records, and with no confirm_given, posted or payload_hash after an all-discarded confirmed post, and both are green at 8332d88.\n- internal/cli/postsummaryfinal_test.go drives cr draft and cr post through the command with a gh shim: a confirmed post that deletes one block and marks one wrong asserts summary.json holds comments {count 1, max 20}, posted 1, the sent payload's hash and confirm_given true, and an all-discarded confirmed post asserts comments {count 0, max 20}, posted 0, payload_hash \"\" and confirm_given true after a dry run that finalised nothing, no POST, EmptyReviewError on a second run and an empty hash from --reconcile; three overlay mutants (no ownerComments write in writeAdopted, no ownerPost write in storeDiscards, the old recorded-key refusal) each turn a test red.\n",
+      "gate_passed_at": "2026-09-14T13:15:57.207267Z",
+      "commit_sha": "8332d88",
+      "commit_shas": [
+        "8332d88"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/post.go",
+        "internal/cli/postsummaryfinal_test.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/settlediscards_test.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go"
+      ]
+    },
+    {
+      "id": "qa-brief-skips-answered-threads",
+      "title": "Stop offering an answered reply as a candidate note",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- cr brief does not offer as a candidate note a thread reply whose text is already stored as a note from cr answer or cr note for the issue key, so the agent is not invited to store it twice; QA D-W2-2 (after cr answer stored the author's reply as CR-1#n2, the next brief still offered it; internal/brief/brief.go).\n- A test stores a reply with cr answer and asserts the next brief no longer offers it.",
+      "source_sections": [
+        "### 3.6 Context store",
+        "### 3.5 Existing threads"
+      ],
+      "started_at": "2026-09-14T11:02:19.378761Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:38:04.457121Z",
+      "closed_reason": "- cr brief no longer offers as a candidate note an author reply whose body is, under §1.4's normalisation, the text of a note stored for the issue key by cr answer or cr note (retracted notes included, so a withdrawn fact is not invited back): candidateNotes in internal/brief/candidates.go now takes the key's whole store, which assemble in internal/brief/brief.go already loads, and skips a reply it holds while every other author reply stays offered.\n- QA D-W2-2 reproduced with a HEAD build on a scratch PR: after cr answer 1 f1 stored alice's reply PRRC_2 as CR-1#n2 (with a doubled space), the next brief still offered PRRC_2 and PRRC_3, and the fixed build offers only PRRC_3, in the JSON and in the terminal's \"candidate notes 1\" section.\n- The fix is in internal/brief/candidates.go and the one call in internal/brief/brief.go that hands it the loaded notes, and TestAReplyTheStoreHoldsIsNotOffered in internal/brief/candidates_test.go covers a whitespace-different note, a retracted note and an unheld reply at the package level.\n- TestABriefStopsOfferingAReplyTheContextStoreHolds in internal/cli/briefanswered_test.go briefs a PR whose author replied twice, stores one reply with cr answer (differing in whitespace runs), asserts the next brief offers only the other, then stores that one with cr note and asserts the brief offers [].\n",
+      "gate_passed_at": "2026-09-14T11:38:04.457121Z",
+      "commit_sha": "771bc7c",
+      "commit_shas": [
+        "771bc7c"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/brief/candidates.go",
+        "internal/brief/candidates_test.go",
+        "internal/cli/briefanswered_test.go"
+      ]
+    },
+    {
+      "id": "qa-post-validates-sent-suggestion",
+      "title": "Validate the suggestion actually sent, not the stored one",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-post-edited-suggestion-indent"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- cr post applies §8.2.1 and §8.2.2 to the suggestion that will be sent, as draft.SentSuggestion gives it: a suggestion fence the reviewer added in draft.md (including on a LEFT anchor) is range-checked and refused with exit 1 naming the record, and a stored suggestion the reviewer removed from the body no longer blocks posting; QA follow-up of qa-post-edited-suggestion-indent (suggestion.Validate in internal/cli/positions.go checked only the stored suggestion).\n- A test adds a fence on a LEFT anchor and one outside its hunk in draft.md and asserts the refusal, and removes an invalid stored suggestion's fence and asserts the dry run passes.",
+      "source_sections": [
+        "### 8.2 Suggestion validation"
+      ],
+      "started_at": "2026-09-14T11:26:58.495406Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:34:27.560843Z",
+      "closed_reason": "- cr post now holds the suggestion that will be sent to §8.2.1 and §8.2.2: internal/cli/positions.go validatePositions takes the preserved bodies post.go builds the payload from and validates a copy of each record whose Suggestion is draft.SentSuggestion, so a fence the reviewer added in draft.md, on a LEFT anchor or outside its hunk, is refused with exit 1 as suggestion.RangeError naming the record.\n- A stored suggestion the reviewer removed from the body no longer blocks posting, because SentSuggestion reads the preserved body and finds no fence; on the S08 B6q state with f1 moved to src/Order.php:3 and a fence added, the fixed build refuses \"the suggestion on record f1 replaces lines 3-3 of src/Order.php ... §8.2.1\" where HEAD refused only the position, and the QA PR has no removed line, so the LEFT half was reproduced through the test below against the unfixed tree.\n- The cause named, suggestion.Validate in internal/cli/positions.go reading only the stored field, was the one fixed; the post.go change is the one call site passing triage.Preserved.\n- internal/cli/sentsuggestion_test.go TestPostRangeChecksTheSuggestionItWillSend drives the cr post dry run: a fence added on a LEFT anchor and one added on a marker moved outside the diff are refused as RangeError naming f1 with exit 1, an invalid stored LEFT suggestion left in the body is still refused, and removing it from the body lets the dry run pass with no fence in the payload; the first three failing cases were red on the tree before the fix, and a fence inside the hunk posts as the control.\n",
+      "gate_passed_at": "2026-09-14T11:34:27.560843Z",
+      "commit_sha": "c61a304",
+      "commit_shas": [
+        "c61a304"
+      ],
+      "commit_files": [
+        "internal/cli/positions.go",
+        "internal/cli/post.go",
+        "internal/cli/sentsuggestion_test.go"
+      ]
+    },
+    {
+      "id": "qa-tests-never-reach-real-tracker",
+      "title": "Keep the test suite from running the real tracker",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- The internal/cli test harness puts a tracker stub first on PATH for every test (as it fences gh), which fails the test naming the command line it was given, so a test that runs cr brief or cr claims record without --intent-file can never start the machine's own jira; QA follow-up (a new brief test without --intent-file ran jira issue view CR-7 against the real tracker).\n- A test proves the fence: a cr brief without --intent-file under the harness fails through the stub, never through a real jira.",
+      "source_sections": [
+        "### 3.1 Intent source"
+      ],
+      "started_at": "2026-09-14T10:39:04.435053Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T11:21:30.266531Z",
+      "closed_reason": "- internal/cli/noghbinary_test.go TestMain now writes a refusing jira (the program the default intent.cmd names) into the fence directory it already prepends to PATH for gh, so every test and every cr binary a test spawns resolves jira to the stub: it writes \"refused: a test reached the production tracker: jira \u003cargv\u003e. Pass --intent-file, or install a shim on the test own PATH.\" to stderr, which intent.CommandError surfaces, appends \"jira \u003cargv\u003e\" to the file CR_TEST_TRACKER_FENCE_LOG names, and exits 97, and TestMain fails the package after m.Run naming every recorded command line, so even a test that only asserts an error cannot pass over a reach (proved with an overlay adding a test that runs cr brief --issue CR-9 and only requires an error: the test passed and the package failed printing \"jira issue view CR-9 --plain\").\n- This is the QA follow-up for the brief test that ran jira issue view CR-7 against the real tracker: a full go test -count=1 ./internal/cli run with the fence prints no recorded tracker line, so no current test reaches it.\n- TestNoTestInThisPackageCanReachTheProductionTracker drives cr brief --issue CR-7 without --intent-file on detectedHome's round and asserts an *intent.CommandError whose Args are exactly [jira issue view CR-7 --plain], whose Stderr is the stub's whole refusal, exit code 3, and the recorded line \"jira issue view CR-7 --plain\\n\" in its own log; an overlay stub that records nothing turns it red on the log assertion.\n",
+      "gate_passed_at": "2026-09-14T11:21:30.266531Z",
+      "commit_sha": "c8ca747",
+      "commit_shas": [
+        "c8ca747"
+      ],
+      "commit_files": [
+        "internal/cli/noghbinary_test.go"
+      ]
+    },
+    {
+      "id": "qa-status-reports-moved-head-first",
+      "title": "Report both heads before reading a head the clone lacks",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-status-completeness-reasons"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- cr status on a pull request whose head moved reports the round stale with both heads per §9.3.1 and names cr brief, before and without reading the round's recorded head from the clone, so a clone that lacks the old head object (a fresh clone after a force-push) never fails with a raw git ls-tree error; QA D-W3-1 (internal/cli/status.go roundHalves read symbol.Head at the recorded head first).\n- A cr brief or cr status whose head is not in the clone because it was never fetched exits 3 with a hint naming git fetch; QA W3 setup note.\n- Tests drive cr status after a simulated force-push in a clone without the old head, and cr brief before a fetch.",
+      "source_sections": [
+        "### 9.3 A changed head",
+        "### 10.2 Completeness"
+      ],
+      "started_at": "2026-09-14T11:44:28.725249Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T13:31:11.572873Z",
+      "closed_reason": "- cr status on a round whose head moved now reads nothing at the recorded head: statusLenses and statusFilesOf in internal/cli/status.go skip the reinvention and symbol halves and the file counts when round.Stale(), headReport puts both heads and `run cr brief \u003cpr\u003e --repo \u003cowner\u003e/\u003crepo\u003e` in the first honesty line and names what was not reported in the second, and the files key is omitted rather than zeroed, so a fresh clone after a force-push reports the stale round with exit 0 instead of git ls-tree's exit 3\n- QA D-W3-1 reproduced with a fresh build against the W3 clone2 and home-H-r2 (exit 3, ls-tree not a tree object) and re-run after the fix (exit 0, honesty naming ccef737, 79e2aa0 and cr brief 9), since roundHalves' symbol.Head read at the recorded head is no longer reached on a moved head\n- A head the clone never fetched is now a git.MissingCommitError from git.RequireCommit (internal/git/commit.go, rev-parse --verify --quiet), asked by cr brief before its merge base (internal/brief/brief.go unitsOf) and by cr status before any read at an unmoved head, and its row in internal/cli/exit.go codes it 3 with a hint naming git fetch\n- QA W3 setup note reproduced with a no-local clone lacking 79e2aa0 (brief and status exit 3, merge-base and ls-tree refusals, hint run it yourself) and re-run after the fix (both exit 3 naming the commit, hint naming git fetch)\n- internal/cli/headabsent_test.go drives cr status over a force-pushed history in a no-local clone that lacks the recorded head (TestStatusReportsAMovedHeadTheCloneNeverHeld, whole honesty lines, completeness reason, files absent), and cr brief then cr status before a fetch (TestAHeadTheCloneNeverFetchedIsAFetch, whole message, exit code and hint, no round opened), and internal/git/commit_test.go holds RequireCommit's three answers\n- With the pre-fix status.go mapped over through go test -overlay both cli tests go red, and with the pre-fix brief.go the fetch test does, and deadcode still prints 11 lines\n",
+      "gate_passed_at": "2026-09-14T13:31:11.572873Z",
+      "commit_sha": "8814bb2",
+      "commit_shas": [
+        "8814bb2"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/exit.go",
+        "internal/cli/headabsent_test.go",
+        "internal/cli/status.go",
+        "internal/git/commit.go",
+        "internal/git/commit_test.go"
+      ]
+    },
+    {
+      "id": "qa-outdated-threads-in-prompts",
+      "title": "Show outdated threads on a unit's file in its prompts",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A thread GitHub marks outdated (line 0, original_line kept) is listed in the review prompts of the units in its file with its original line, author, state and body excerpt, marked outdated, so an agent sees an earlier reviewer comment on code that has since changed and does not re-raise it unknowingly; the §3.5 attachment of current threads is unchanged; QA D-W3-2 (outdated threads attached to no unit and appeared in no prompt or honesty line, so the same comment could be posted twice).\n- A test ingests an outdated thread through a gh shim and asserts it appears, marked outdated, in the prompts of its file's units and in no other file's.",
+      "source_sections": [
+        "### 3.5 Existing threads",
+        "### 4.6 Review fan-out"
+      ],
+      "started_at": "2026-09-14T10:41:46.637571Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T10:59:32.775786Z",
+      "closed_reason": "- internal/review/text.go now writes, after the attached-threads section of every prompt, a section \"Outdated human threads on \u003cpath\u003e (§3.5.1)\" built by internal/review/threads.go outdatedOn: each human thread on the unit's file that GitHub marks outdated with no current line is listed as \"\u003cid\u003e, outdated, originally at \u003cpath\u003e:\u003coriginal_start\u003e-\u003coriginal_line\u003e (\u003cside\u003e), by \u003cauthor\u003e, resolved \u003cstate\u003e:\" followed by its body and replies, under a line saying it names no current line and that suppression by it stays the agent's call (§3.5.4), and a file with none says \"No human thread on \u003cpath\u003e is outdated.\"\n- Threads (the §3.5.3 positional attachment) is untouched, internal/review/threads_test.go still pins the outdated thread as unattached, and TestAFileListsItsOutdatedHumanThreadsAndNothingElse (internal/review/outdated_test.go) asserts Threads over a mixed set still attaches exactly the current and the outdated-but-placed thread while outdatedOn lists only the human outdated line-less thread on the named file (not a bot's, another file's, a current one, an outdated one GitHub still places, or a line-less one GitHub does not call outdated)\n- QA D-W3-2 reproduced on real PR deligoez/cr-qa#13 with a fresh build before the fix (cr review 13 --axis intent: PRRT_kwDOUJJL386iEFyj, ...EFyr and ...EFy3 in 0 of 7 prompts and in no honesty line) and after it (all three listed, marked outdated with original lines 9-9, 42-44 and 44-44, in the prompts of u4 and u5 on src/Order.php and in none of u1, u2, u3, u6, u7)\n- TestAnOutdatedThreadIsListedInThePromptsOfItsFilesUnitsOnly (internal/cli/outdatedthreads_test.go) ingests through a gh shim an outdated thread and a current thread on lib.go, runs cr brief --issue --intent-file and cr review --axis intent, and asserts whole section text: lib.go's prompt lists the outdated thread marked outdated with original line 4, author, state, body and reply and attaches only the current thread by position, other.go's says no thread on it is outdated and attaches none, and overlay mutants that drop the path check or list nothing turn it red\n",
+      "gate_passed_at": "2026-09-14T10:59:32.775786Z",
+      "commit_sha": "d29bfe3",
+      "commit_shas": [
+        "d29bfe3"
+      ],
+      "commit_files": [
+        "internal/cli/outdatedthreads_test.go",
+        "internal/review/outdated_test.go",
+        "internal/review/text.go",
+        "internal/review/threads.go"
+      ]
+    },
+    {
+      "id": "qa-prompt-threads-fenced-and-file-level",
+      "title": "Fence thread bodies and list file-level threads in prompts",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-outdated-threads-in-prompts"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- Every thread body and reply a review prompt quotes is fenced so its own Markdown (a suggestion fence, cr's evidence and label markers, headings) cannot read as the prompt's structure or as cr's markers; QA follow-up of qa-outdated-threads-in-prompts (a posted suggestion fence and cr:evidence markers landed raw in the prompt).\n- A human file-level thread (no line, not outdated) is listed in the prompts of its file's units, marked as file-level, as outdated threads are; QA follow-up.\n- Tests assert a body carrying a suggestion fence and a cr marker is quoted inert, and a file-level thread appears in its file's prompts only.",
+      "source_sections": [
+        "### 3.5 Existing threads",
+        "### 4.6 Review fan-out"
+      ],
+      "started_at": "2026-09-14T13:13:29.090078Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T14:17:13.630245Z",
+      "closed_reason": "- Every thread comment and reply a review prompt quotes is now written by conversation in internal/review/text.go through page.block, a fence one backtick longer than any run the body holds, and both thread sections say that nothing inside a fence is a section of the prompt, an instruction, or a marker of cr's\n- Reproduced with a fresh build on deligoez/cr-qa PR 13 in a scratch home (cr review --axis intent printed PRRT_kwDOUJJL386iEFyr's suggestion fence and cr:evidence markers raw at column 0) and re-run after the fix (the same body inside a four-backtick text fence, cr:label and cr:evidence bodies inside three-backtick fences)\n- A human thread with no line that GitHub does not call outdated is now listed as file-level: unplacedOn in internal/review/threads.go returns every human thread on the file with a zero line, and the section renamed to Human threads on \u003cpath\u003e with no current line (§3.5.1) marks each through placement as outdated with its original lines, file-level on the file as a whole, or both\n- The file-level thread reaches only the prompts of units on its own file, as the outdated ones do, and §3.5.3's positional attachment is unchanged\n- internal/cli/outdatedthreads_test.go drives cr brief and cr review --axis intent over a gh answer holding a body with cr label and evidence markers, a heading and a suggestion fence, plus a file-level thread, and asserts the whole section text on lib.go (body fenced, suggestion fence once) and that other.go's prompt holds neither thread, while internal/review/outdated_test.go holds unplacedOn and placement; the cli test goes red with conversation writing the raw body and with unplacedOn requiring Outdated, both mapped through go test -overlay, and deadcode still prints 11 lines\n",
+      "gate_passed_at": "2026-09-14T14:17:13.630245Z",
+      "commit_sha": "490c107",
+      "commit_shas": [
+        "490c107"
+      ],
+      "commit_files": [
+        "internal/cli/outdatedthreads_test.go",
+        "internal/review/outdated_test.go",
+        "internal/review/text.go",
+        "internal/review/threads.go"
+      ]
+    },
+    {
+      "id": "qa-config-profile-stem-and-patch-hint",
+      "title": "Refuse a configured profile path and fix the patch hint",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-meta-profile-id-containment",
+        "qa-probe-patch-strict-and-reasons"
+      ],
+      "estimate_minutes": 20,
+      "acceptance": "- A profile configuration value that is not a single profile file stem (a path separator, .. or an absolute path) is refused with exit 3 naming the layer and key before any profile is loaded, as meta.json's profile_id now is; QA follow-up (profile.Select still loaded ../x from outside the profiles directory).\n- The hint for a refused patch names what was refused (a rename, copy or mode header, or a stray line) instead of always describing ---/+++ headers and --no-ext-diff; QA follow-up. Tests drive cr brief with a configured profile ../x and cr probe run with a rename header.",
+      "source_sections": [
+        "### 2.4 Profiles",
+        "### 5.3 Mutation probe"
+      ],
+      "started_at": "2026-09-14T13:38:54.331458Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T13:59:34.132808Z",
+      "closed_reason": "- A configured profile value holding a path separator is no longer a single profile file stem cr accepts: TestAConfiguredProfileThatIsNotAFileStemIsRefused covers nested/x and ../x.\n- A configured profile value that is absolute, holds a path separator, or is . or .. is now refused in internal/config/config.go Resolve, after every layer has settled and so before profile.Select loads anything, as a config.LayerError naming the layer and the key profile (exit 3, the layer hint), through the same rule meta.json's profile_id uses, exported as state.ProfileStem in internal/state/layout.go.\n- QA follow-up reproduced with a fresh pre-fix build: `profile: ../x` in the per-repository config made cr brief exit 0 with the profile loaded from CR_HOME/x.json; the fixed build exits 3 with \"profile, as the per-repository config file ... sets it, is invalid: \\\"../x\\\" is not one profile's file stem\".\n- A refused rename, copy or mode header or stray patch line now carries its own step: internal/git/patch.go MalformedPatchError has a Step field and Hint method, unexecuted returns \"remove the rename, copy or mode header on the line the message names from the `--patch` file, and write the mutation as @@ hunks against files the sandbox already holds\" or the stray-line removal, and hintFor in internal/cli/exit.go asks the error for it, while the no-hunk refusal keeps the ---/+++ and --no-ext-diff step.\n- QA follow-up on the S06 rename patch: the pre-fix build hinted the ---/+++ and --no-ext-diff step, the fixed build names the rename header removal.\n- Tests drive both commands: TestAConfiguredProfileThatIsNotAFileStemIsRefused runs cr brief with profile ../x and /tmp/x in the per-repository config and nested/x in CR_PROFILE beside an unparseable CR_HOME/x.json, asserting exit 3, the origin, the key and the whole reason, and TestAPatchLineCrWouldNotExecuteIsRefused now asserts the whole hint for cr probe run with a rename, a mode change and a stray line; overlays skipping the new check and the new hintFor branch turn each red.\n",
+      "gate_passed_at": "2026-09-14T13:59:34.132808Z",
+      "commit_sha": "13ff894",
+      "commit_shas": [
+        "13ff894"
+      ],
+      "commit_files": [
+        "internal/cli/configprofilestem_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/probereasons_test.go",
+        "internal/config/config.go",
+        "internal/git/patch.go",
+        "internal/state/layout.go",
+        "internal/state/meta.go"
+      ]
+    },
+    {
+      "id": "qa-units-mapping-kept-per-round",
+      "title": "Keep earlier rounds' units and mapping lines",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-status-reports-moved-head-first"
+      ],
+      "estimate_minutes": 35,
+      "acceptance": "- The cr brief that opens a new round appends that round's units to units.ndjson and leaves every earlier round's units and mapping lines in place, instead of clearing the files, so a stale record's unit stays resolvable from state; every command still reads only the current round's lines per §9.3.5; QA D-S11-2 (internal/brief/invalidate.go cleared units and mapping, 5 to 0 and 7 to 0 lines), decided with cr-smart as an implementation reading of §9.3.4 and §2.3.3, not a spec change.\n- State whose earlier rounds were already cleared stays readable with no migration.\n- A test opens round 2 over round 1's units and mapping and asserts round 1's lines survive and round 2's commands see only round 2's.",
+      "source_sections": [
+        "### 9.3 A changed head",
+        "### 2.3 Per-PR state"
+      ],
+      "started_at": "2026-09-14T14:18:39.228238Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T15:42:25.228731Z",
+      "closed_reason": "- The cr brief that opens a new round now adds that round's units to units.ndjson beside every earlier round's and leaves earlier rounds' mapping lines in place: internal/brief/store.go write uses state.ReplaceStamped (replaces the brief's own round only) instead of WriteStamped, and internal/brief/invalidate.go clearMapping clears the round being opened instead of the closing one; dogfood on deligoez/cr-qa PR 1 with a read-only gh shim moving the head to 2ce81fe: the QA binary left units r1=0 r2=5 and mapping r1=0, this build leaves units r1=5 r2=5 and mapping r1=7 r2=0.\n- Every reader of both files was checked and reads only the current round's lines: roundUnitsOf (internal/cli/record.go, used by cells, draft, grade, map, merge, rules check, status, statusfiles), internal/cli/status.go and internal/review/run.go read through state.ReadStamped, and the one whole-file mapping read (internal/cli/grade.go readRoundEvidence, declared in TestEveryStampedReadIsRoundScopedOrDeclared) filters by round in probe.MapClaim and mapping.Unmapped; cr status after the dogfood brief reports round 2 with 5 units and 0 mapped.\n- Decided as an implementation reading of §9.3.4 and §2.3.3 per QA D-S11-2, with no spec change.\n- State whose earlier rounds were already cleared needs no migration: TestStateWhoseEarlierRoundsWereClearedStaysReadable in internal/cli/roundhistory_test.go briefs a moved head over a round-2 state holding only round 2's unit and an empty mapping, and asserts units.ndjson then holds round 2's and round 3's lines and cr status reads round 3 alone.\n- TestANewRoundKeepsEarlierRoundsUnitsAndMappingAndReadsOnlyItsOwn in internal/cli/roundhistory_test.go drives cr brief over round 1's unit, claim and mapping and asserts the whole units and mapping line lists (round 1's survive), that cr status counts only round 2's unit and mapping, and that cr map record replaces round 2's mapping while round 1's line stays; both tests failed before the change on the history assertions, and internal/brief/invalidate_test.go now asserts round 1's unit and mapping lines survive the increment.\n",
+      "gate_passed_at": "2026-09-14T15:42:25.228731Z",
+      "commit_sha": "86d7008",
+      "commit_shas": [
+        "86d7008"
+      ],
+      "commit_files": [
+        "internal/brief/invalidate.go",
+        "internal/brief/invalidate_test.go",
+        "internal/brief/nojudgement_test.go",
+        "internal/brief/store.go",
+        "internal/cli/roundhistory_test.go"
+      ]
+    },
+    {
+      "id": "qa-merge-refuses-out-of-block-id",
+      "title": "Refuse a record id outside its prompt's block",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-next-free-id-within-block"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- cr merge and cr record refuse with exit 1, naming the file line, the record, its (unit, role) and that seat's block, a new record whose id falls outside the id block the round gives its (unit, role), so a block shift or a role ignoring its prompt is loud instead of two roles silently sharing ids; decided with cr-smart as the condition for keeping the sorted-role block scheme.\n- A test records an id inside and outside the block and asserts acceptance and the refusal.",
+      "source_sections": [
+        "### 4.6 Review fan-out",
+        "### 6.5 Merge"
+      ],
+      "started_at": "2026-09-14T13:28:27.433793Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T15:00:57.406006Z",
+      "closed_reason": "- cr merge and cr record now refuse with exit 1 (finding.RejectedRecordError naming the file line, the record id, its role and unit and that prompt's block f\u003cstart\u003e..f\u003clast\u003e with its next free id) a new record whose id lies outside the block review.BlockOf gives its (role, unit): internal/cli/recordids.go refuseHeldIDs runs refuseDeparted after the repeat and held passes, so a record that is not new (re-recorded in its round, or carried into a later round) is refused as held and never as out of block, a record whose role or unit has no block is not measured, and a round cr review has emitted no prompts for (no fan-out directory, read through the new state.Layout.FannedOut in internal/state/fanout.go, whose unreadable directory is a FileError coded 3) holds no record to a block, so a block shift or a role ignoring its prompt is loud instead of two roles silently sharing ids\n- this is the condition decided with cr-smart for keeping the sorted-role block scheme, and skills/cr/SKILL.md names the refusal beside the repeat and held ones\n- internal/cli/outofblockid_test.go drives cr review then cr merge and cr record with one record two past its prompt's block (refused, exact error, exit 1, nothing written) and every record at its prompt's first id (accepted), re-records a stored role file in its own round and after openRound(2) (refused as held with the current round's block hint), records f1 on correctness/u1 before any fan-out (accepted) and f2 after it (refused naming f201..f300), and seals the fan-out round directory (exit 3); overlay mutants dropping refuseDeparted, the emission gate, the FileFailure branch, and moving the check ahead of the held pass each turn a test red, and promptvalues_test.go and unindexedunits_test.go now write at the ids their prompts name\n",
+      "gate_passed_at": "2026-09-14T15:00:57.406006Z",
+      "commit_sha": "dde360e",
+      "commit_shas": [
+        "dde360e"
+      ],
+      "commit_files": [
+        "internal/cli/outofblockid_test.go",
+        "internal/cli/promptvalues_test.go",
+        "internal/cli/recordids.go",
+        "internal/cli/unindexedunits_test.go",
+        "internal/state/fanout.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "qa-claims-record-accepts-empty",
+      "title": "Accept an explicitly empty claims file",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-status-completeness-reasons"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- cr claims record accepts an empty claims file and records that the round has zero claims, so an issue that legitimately yields no claims can satisfy the intent pass's claims condition of cr status, while a round with no claims recording at all stays incomplete; decided with cr-smart.\n- A test records an empty claims file and an empty mapping and asserts cr status no longer names missing claims.",
+      "source_sections": [
+        "### 3.3 Claim extraction",
+        "### 10.2 Completeness"
+      ],
+      "started_at": "2026-09-14T17:12:47.695162Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T17:32:12.238548Z",
+      "closed_reason": "- cr claims record now stamps meta.json with claims_round and claims_head (state.Lock.StampClaims, set last in storeClaims in internal/cli/claims.go), state.Meta.ClaimsRecorded reads the stamp for the round and head, cr status passes it as coverage.IntentPass.ClaimsRecorded, and intentReason in internal/coverage/completeness.go counts claims recorded when the round holds one or the stamp names it, so an empty claims recording satisfies the claims condition while a round no cr claims record reached still names its missing claims; brief.metaOf carries the stamp through a same-head brief and moves it with the claims section 9.3.4 carries into a new round (TestTheClaimsStampFollowsTheCarriedClaims, TestAClaimsStampCountsOnlyForTheRoundAndHeadItNames); dogfood on a local scratch repo with an offline gh shim, empty claims, empty mapping and three cells: the HEAD build (overlay) printed complete false with \"§4.6.5: the intent axis is active and this round has recorded no claims\", this build prints complete true with reasons [].\n- The decision recorded with cr-smart is implemented as stated: an empty file is a recording of zero claims, and absence of any recording keeps the round incomplete, asserted by the control stage of TestAnEmptyClaimsFileRecordedSatisfiesTheIntentPass.\n- TestAnEmptyClaimsFileRecordedSatisfiesTheIntentPass in internal/cli/emptyclaims_test.go drives cr brief, cr claims record with an empty file, cr map record with an empty file and cr cells record, and asserts the whole reason list of cr status at each stage (neither recorded, then no mapping, then only the §10.2.2 row reason, then complete with []); under an overlay of the HEAD sources it fails with the \"recorded no claims\" reason.\n",
+      "gate_passed_at": "2026-09-14T17:32:12.238548Z",
+      "commit_sha": "3a30a17e9f1355f6a3596e8a7e578826edcbb375",
+      "commit_shas": [
+        "3a30a17e9f1355f6a3596e8a7e578826edcbb375"
+      ],
+      "commit_files": [
+        "internal/brief/mappingstamp_test.go",
+        "internal/brief/store.go",
+        "internal/cli/claims.go",
+        "internal/cli/emptyclaims_test.go",
+        "internal/cli/status.go",
+        "internal/coverage/completeness.go",
+        "internal/state/meta.go",
+        "internal/state/meta_test.go"
+      ]
+    },
+    {
+      "id": "qa-draft-moved-block-hint",
+      "title": "Name the escape in the moved-block refusal",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-draft-marker-id-edit-message"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- The refusal of a block that carries a deleted record's location, severity and grade or body under another id hints the natural escape: keep the record at that location and edit its body instead of deleting it and moving another onto its line; decided with cr-smart.\n- A test asserts the hint.",
+      "source_sections": [
+        "### 7.2 Triage verbs"
+      ],
+      "started_at": "2026-09-14T13:18:04.482493Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T15:12:55.689511Z",
+      "closed_reason": "- The refusal of a block carrying a deleted record's location, severity and grade or its body under another id (draft.MarkerIDEditError from refuseMovedIDs in internal/draft/ingest.go) now hints the escape through its row in internal/cli/exit.go: \"put back the id cr wrote on the marker line the message names, a block never changes record\" followed by \"To say something else at a record's location, keep that record there and edit its body instead of deleting it and moving another record onto its line\", and the hint still offers no second cr draft run\n- The wording is the joint-review decision taken with cr-smart, carried by the one existing hint row rather than a new error type, because the same escape answers the both-blocks-present variant of that refusal too\n- TestTheMovedBlockRefusalHintsKeepingTheRecordAndEditingItsBody in internal/cli/movedblockhint_test.go drives cr draft and cr post over the moved block with the marker fields carried and with only the body carried, asserts the whole MarkerIDEditError value and the whole hint string, and goes red for both cases when the old hint is overlaid onto exit.go with go test -overlay\n",
+      "gate_passed_at": "2026-09-14T15:12:55.689511Z",
+      "commit_sha": "01a3009",
+      "commit_shas": [
+        "01a3009"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/movedblockhint_test.go"
+      ]
+    },
+    {
+      "id": "qa-rules-detect-unit-files-only",
+      "title": "Detect rule hits only in files that formed units",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- cr rules check and the review's rule attachment detect hits only in changed files that formed units after §3.4's exclusion and listing, so a generated or listed file yields no hit and no citation into it carries origin rule; QA D-W1-5, decided with cr-smart as a reading of §2.6's the diff, recorded in the release notes' readings.\n- A test changes a listed generated file matching a rule and asserts no hit is stored or attached.",
+      "source_sections": [
+        "### 2.6 Rules",
+        "### 3.4 Diff ingestion and unit clustering"
+      ],
+      "started_at": "2026-09-14T17:12:18.71933Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T18:24:00.964903Z",
+      "closed_reason": "- cr rules check and the review's rule attachment now detect hits only in the changed files that formed a unit of the round: rule.Reviewed (internal/rule/attach.go) keeps the hunks of the units' files, and detectRound in internal/cli/rulescheck.go and Round.detect in internal/review/attach.go evaluate over it, so an ignored, binary or generated file yields no hit, no rule-stats.ndjson entry, and no origin rule on a citation into it; dogfood on deligoez/cr-qa PR 4 with rule w1-public and a read-only gh shim: the QA binary reported and stored 8 hits (6 in the listed src/Generated/Client.php), this build reports and stores src/Money.php:12 and :13 only.\n- Recorded as QA D-W1-5, a reading of §2.6's the diff as the changed files left after §3.4's exclusion and listing, for the release notes' readings.\n- TestRuleHitsAreDetectedOnlyInFilesThatFormedAUnit in internal/cli/rulesunitfiles_test.go briefs a pull request adding the same panic to lib.go, an ignored vendor/dep.go and a linguist-generated api.pb.go, and asserts through cr rules check, cr record and cr review that only lib.go:4 is reported, attached, stored in the ledger, and stamped origin rule while the api.pb.go:4 citation is origin agent; it failed before the change, and two overlay mutants that drop the filter at the rules check call or the review call each turn it red.\n",
+      "gate_passed_at": "2026-09-14T18:24:00.964903Z",
+      "commit_sha": "1869fa1",
+      "commit_shas": [
+        "1869fa1"
+      ],
+      "commit_files": [
+        "internal/cli/rulescheck.go",
+        "internal/cli/rulesunitfiles_test.go",
+        "internal/review/attach.go",
+        "internal/rule/attach.go"
+      ]
+    },
+    {
+      "id": "qa-ladders-require-clean-exit",
+      "title": "Require a clean exit before a zero failed count counts",
+      "status": "done",
+      "tags": [
+        "qa",
+        "spec-change"
+      ],
+      "depends_on": [
+        "qa-probe-runner-signal-cleanup"
+      ],
+      "estimate_minutes": 35,
+      "acceptance": "- §5.3.4's rung \"the failed count is zero → no-test-failed\" holds only when the run exited 0, otherwise the result is inconclusive, and §5.4.3's rung \"the failed count is zero → passed\" likewise holds only on exit 0, otherwise inconclusive; the spec text says so with no rung renumbered, and cr implements both; USER DECISION 2026-09-14 on QA S-S06-1 (a runner printing 3 ran, 0 failed and exiting 255 scored no-test-failed and graded a finding probed), refined with cr-smart.\n- Tests drive cr probe run for both kinds with a runner that reports zero failures and exits non-zero and assert inconclusive and no probed grade; the release notes record the change.",
+      "source_sections": [
+        "### 5.3 Mutation probe",
+        "### 5.4 Gap probe"
+      ],
+      "started_at": "2026-09-14T15:09:00.224157Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T17:36:00.81829Z",
+      "closed_reason": "- A zero failed count now counts only on a clean exit: internal/probe/mutation.go Ladder answers the failed-count-zero rung with no-test-failed when ExitCode is 0 and inconclusive otherwise, and internal/probe/gap.go GapLadder answers its failed-count-zero rung with passed only on exit 0, otherwise inconclusive; the rung order and numbering are unchanged, and a failed count above zero stays failed whatever the exit code. Reproduced S-S06-1 on a no-hardlinks clone of cr-qa behind a gh shim with a runner that prints \"Tests: 3 ran\" and exits 255 on the mutated line: the pre-change build printed result no-test-failed, establishes gap, with its run r3 exit_code 255, passed false; the fresh build printed result inconclusive, establishes nothing, for the same r3.\n- The spec text is not edited by this commit: per the orchestrator, spec/0.2.0.md carries the rung wording and spec/0.1.0.md stays frozen; code comments citing rung numbers that the orchestrator keeps aligned are internal/probe/mutation.go (rung 1..6 on Measured and Ladder, and the new rung 6 paragraph), internal/probe/gap.go (rung 1, 2, 4, the new rung 5 paragraph citing section 5.3.4's rung 6), internal/probe/record.go:48 (fifth rung), internal/run/run.go:232 (5.3.4 rung 4, 5.4.3 rung 3), internal/cli/probe.go:66,226,274,1026, internal/git/patch.go:102,284, internal/state/mutate.go:26, internal/sandbox/run.go:157, internal/finding/gapbound.go:35 and internal/cli/exit.go:629, none of which cite the changed rungs by number except the new paragraphs.\n- cr implements both ladders: internal/probe/mutation_test.go and gap_test.go split the failed-count-zero rung predicate into its exit-0 and non-zero-exit halves, add a 255 case answering inconclusive and a failing case exiting 1 staying failed, and the exhaustive totality tests over exit codes -9, 0 and 1 still find exactly one rung per run; overlay mutants changing the new ExitCode != 0 test to ExitCode \u003c 0 in either file turn both ladder tests of that package red.\n- internal/cli/cleanexit_test.go TestAZeroFailedCountCountsOnlyOnACleanExit drives cr probe run for a mutation and a gap probe whose runner prints \"Tests:  4 passed\" and exits 255 and asserts result inconclusive, establishes nothing, the stored probe run exit_code 255 with tests_run 4 and tests_failed 0, and then cr record over a test-adequacy record resting on p1 stored with grade argued and kind question; the controls exiting 0 reach no-test-failed with grade probed and finding, and passed; the mutation overlay turns only the mutation 255 subtest red (no-test-failed, gap, probed, finding) and the gap overlay only the gap 255 subtest (passed, behaviour).\n- The release note is in commit a72573b's message (\"Release note (v0.2.0): a mutation probe's no-test-failed and a gap probe's passed now require the probe run to exit 0\"), and skills/cr/SKILL.md's probe section says the same; no v0.2.0 release notes file exists in the tree yet, so the orchestrator carries it into the release notes when that file is written.\n",
+      "gate_passed_at": "2026-09-14T17:36:00.81829Z",
+      "commit_sha": "a72573b",
+      "commit_shas": [
+        "a72573b"
+      ],
+      "commit_files": [
+        "internal/cli/cleanexit_test.go",
+        "internal/probe/gap.go",
+        "internal/probe/gap_test.go",
+        "internal/probe/mutation.go",
+        "internal/probe/mutation_test.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "qa-review-post-pins-commit",
+      "title": "Pin the posted review to the round's head",
+      "status": "done",
+      "tags": [
+        "qa",
+        "spec-change"
+      ],
+      "depends_on": [
+        "qa-reconcile-adopts-own-round-only"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- cr post --confirm sends the round's head as commit_id in the review-creation request, beside event, body and comments, so GitHub places every line comment on the diff cr validated even if the pull request's head moved after cr's check; posted.json stores the commit_id sent and cr post --reconcile compares a review's commit against that stored value; no comment body, the review body or the draft carries the id; USER DECISION 2026-09-14 (QA follow-up of qa-reconcile-adopts-own-round-only), agreed with cr-smart.\n- CLAUDE.md's convention that the request body is exactly event, body and comments names commit_id too, and its guard test pins the four keys; a test drives cr post --confirm through a gh shim and asserts the request body's keys and commit_id equal to the round head.",
+      "source_sections": [
+        "### 8.3 Batching",
+        "### 8.4 Partial failure"
+      ],
+      "started_at": "2026-09-14T14:00:53.007237Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T15:06:51.282285Z",
+      "closed_reason": "- cr post --confirm now sends the round's head as commit_id beside event, body and comments: post.Review gained CommitID (json commit_id) and buildPayload in internal/cli/post.go sets it from round.Head, so GitHub places the line comments on the diff cr validated; TestTheReviewRequestCarriesOnlyTheReviewPayload in internal/cli/requestbody_test.go drives cr post --confirm through a gh shim and asserts commit_id equals draftHead in the request body, and a dogfood build posting acme/web#1 through a shim sent keys body, comments, commit_id, event with commit_id 9b1006351c774432ddba27a54dd0ae6027517fe9, the round head.\n- posted.json stores the commit_id sent, because Sent embeds Review and writePosted writes the exact payload, and cr post --reconcile compares a review's commit against it: sentAt in internal/cli/reconcile.go reads the stored commit_id and falls back to the round head for a posted.json written before this change, and notThisRounds names that commit in its reason; TestReconcileHoldsAReviewAgainstTheCommitPostedJSONStores stores a commit other than the head and adopts the review at it, TestReconcilePassesOverAReviewThatIsNotTheRoundsOwn covers the fallback, and overlay mutants dropping the assignment, ignoring the stored value or dropping the fallback each turned a test red.\n- No comment body, the review body or the draft carries the id: the guard test asserts the full and seven-character head absent from every sent comment body, the review body and draft.md, and the dogfood draft.md and request bodies held neither.\n- USER DECISION 2026-09-14 (QA follow-up of qa-reconcile-adopts-own-round-only), agreed with cr-smart: implemented as decided, and the normative sentence for §8.3 lands in spec/0.2.0.md, not in the frozen spec/0.1.0.md; the §8.3.3 payload hash is unchanged, its pre-image being the comments alone.\n- CLAUDE.md's convention that the request body is the payload alone now names commit_id, event, body and comments, and its guard test pins the four keys in the request and commit_id among posted.json's members.\n- A test drives cr post --confirm through a gh shim and asserts the request body's keys and commit_id equal to the round head: TestTheReviewRequestCarriesOnlyTheReviewPayload, gate green with go test -race -count=1, golangci-lint 0 issues, scripts/deadcode.sh clean, deadcode at 11 lines, gofmt and Go 1.27.1 gofmt silent.\nOut of scope: skills/cr/SKILL.md line 428 still says the request body carries only event, body and comments; it needs commit_id before the next release.\n",
+      "gate_passed_at": "2026-09-14T15:06:51.282285Z",
+      "commit_sha": "96ad883",
+      "commit_shas": [
+        "96ad883"
+      ],
+      "commit_files": [
+        "CLAUDE.md",
+        "internal/cli/post.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/reconcile_test.go",
+        "internal/cli/reconcileownround_test.go",
+        "internal/cli/reconcilepinnedcommit_test.go",
+        "internal/cli/requestbody_test.go",
+        "internal/post/review.go"
+      ]
+    },
+    {
+      "id": "qa-patch-missing-file-exit-one",
+      "title": "Refuse a patch naming a missing sandbox file with exit 1",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-probe-runner-signal-cleanup"
+      ],
+      "estimate_minutes": 15,
+      "acceptance": "- A mutation patch naming a file that does not exist in the sandbox is refused with exit 1 naming the patch line and the file, instead of exit 2 with the usage hint from an unmapped lstat error; QA follow-up of qa-probe-runner-signal-cleanup.\n- The duplicated doc comment on sandbox.Run is removed; a test drives cr probe run with such a patch and asserts exit 1 and the message.",
+      "source_sections": [
+        "### 5.3 Mutation probe",
+        "### 11.2 Exit codes"
+      ],
+      "started_at": "2026-09-14T17:36:10.312589Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T17:56:13.920956Z",
+      "closed_reason": "- A mutation patch whose file header names a path the sandbox holds no file at is now refused with exit 1 as git.MalformedPatchError \"\u003cpatch\u003e line \u003cn\u003e: the file header names \"\u003cpath\u003e\", which is not a file the sandbox holds: ...\", with the step \"correct the file header on the line the message names so it names a file the pull request's head holds, as a path from the repository root\": internal/state/mutate.go insideSandbox returns the new state.AbsentFromSandboxError when resolving the path reports not-exist, internal/git/patch.go records each file section's +++ line as PatchedFile.HeaderLine, internal/cli/probe.go absentFromPatch turns the refusal into the patch-line error before any suite runs, and internal/cli/exit.go gives AbsentFromSandboxError its own exit-1 row for a refusal reaching the writer. Dogfooded on a cr-qa clone behind a gh shim with a patch naming src/Gone.php: the pre-change build exited 2 with \"cannot resolve .../sandbox/src/Gone.php: lstat ...: no such file or directory\" and the usage hint; the fresh build exits 1 with \"gone.diff line 3: the file header names \"src/Gone.php\", which is not a file the sandbox holds\" and the new hint, recording no probe.\n- This closes the follow-up QA left on qa-probe-runner-signal-cleanup (cb63782) and qa-config-profile-stem-and-patch-hint (13ff894), where the unmapped lstat error reached exitCodeFor's usage floor.\n- The duplicated first copy of the doc comment on sandbox.Run in internal/sandbox/run.go is removed, leaving the one that also documents the timeout, the process-group kill and the runner lock.\n- internal/cli/patchmissingfile_test.go TestAPatchNamingAFileTheSandboxLacksIsRefusedWithOne drives cr probe run with a patch whose only file is absent (line 2), one whose second file section is absent behind an existing one (line 9) and one through a directory the sandbox lacks (line 2), asserting the whole message, exit 1, the whole hint, no runner log and no probe record, plus the exit row for a bare AbsentFromSandboxError; overlay mutants dropping the absentFromPatch conversion, matching a different error in insideSandbox, or recording the header line off by one each turn all three subtests red.\n",
+      "gate_passed_at": "2026-09-14T17:56:13.920956Z",
+      "commit_sha": "739f671",
+      "commit_shas": [
+        "739f671"
+      ],
+      "commit_files": [
+        "internal/cli/exit.go",
+        "internal/cli/patchmissingfile_test.go",
+        "internal/cli/probe.go",
+        "internal/git/patch.go",
+        "internal/sandbox/run.go",
+        "internal/state/mutate.go"
+      ]
+    },
+    {
+      "id": "qa-killed-probe-test-load-flake",
+      "title": "Make the killed-probe sandbox test deterministic under load",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [
+        "qa-probe-runner-signal-cleanup"
+      ],
+      "estimate_minutes": 20,
+      "acceptance": "- TestAKilledProbeLeavesASandboxTheNextRunRecreates and TestAKilledGapProbeLeavesAFileTheNextRunRecreates pass under a loaded machine: every wait polls for the observable state with a bounded deadline instead of a fixed sleep, so a slow runner start or kill cannot fail them; QA follow-up (both failed once in a full race run and passed alone, while other suites ran concurrently).\n- Measured: each test passes 10 of 10 runs with -race -count=10 while a second go test -race of internal/cli runs at the same time.",
+      "source_sections": [
+        "### 5.1 Sandbox",
+        "### 5.3 Mutation probe"
+      ],
+      "started_at": "2026-09-14T17:57:59.837065Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T18:13:57.064371Z",
+      "closed_reason": "- Both killed-probe tests now wait for the state a SIGKILL needs rather than for the probe's artefact alone: in internal/cli/probe_test.go each awaitOnDisk condition also requires runnerRecorded, which polls the pull request's runner lock for a recorded process group above 1 under awaitOnDisk's existing 60-second deadline, because cr writes the mutation or probe file before it takes the runner lock, starts the runner and records its group, so a kill landing in that window left no runner and the next cr test printed one disclosure where the tests assert two; no fixed sleep remains in either test.\n- QA follow-up reproduced as a signature: with a 1.5s sleep overlaid before LockRunner in internal/cli/probe.go (go test -overlay), both tests failed on the old wait with honesty holding only the section 5.1.6 recreation notice, and passed on the new wait, reaching the state on disk after about 3.5s.\n- Measured: with the change, go test -race -count=10 -run of the two tests reported 10 PASS for TestAKilledProbeLeavesASandboxTheNextRunRecreates and 10 PASS for TestAKilledGapProbeLeavesAFileTheNextRunRecreates while a second go test -race -count=1 of internal/cli ran at the same time (it passed in 144s), commit 621e2a0.\n",
+      "gate_passed_at": "2026-09-14T18:13:57.064371Z",
+      "commit_sha": "621e2a0",
+      "commit_shas": [
+        "621e2a0"
+      ],
+      "commit_files": [
+        "internal/cli/probe_test.go"
+      ]
+    },
+    {
+      "id": "qa-writestamped-test-only",
+      "title": "Remove the test-only WriteStamped writer",
+      "status": "done",
+      "tags": [
+        "qa"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 0,
+      "acceptance": "- state.WriteStamped, test-only since 86d7008 moved units.ndjson to ReplaceStamped, is deleted: every test that seeded a stamped file through it seeds through a production writer (ReplaceStamped), and no code or comment names it.\n- Measured: deadcode ./... prints only the 11 deliberate lines, with nothing added to the deliberate list, and go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 2.3 Per-PR state"
+      ],
+      "started_at": "2026-09-14T18:05:56.938221Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T18:18:58.86001Z",
+      "closed_reason": "- state.WriteStamped is deleted from internal/state/records.go: no production code reached it after 86d7008, every stamped file is written through AppendStamped or ReplaceStamped, and the nine test seeding calls (cellcomputed, cellrecord, draft, draftroundcounts, intentgapposted, newclass, positions twice, finding_test) plus the three in records_test.go now use state.ReplaceStamped, while every comment, the answer_test guard list and the run_test message name the writer that does the job; git grep WriteStamped finds nothing outside spec history.\n- Measured: deadcode prints exactly the 11 deliberate lines (MarkerFields, Actors, WithRunner, Langs, Layout.Rule, Layout.RepoRole, Layout.RepoRule, Layout.EnsureContext, PRFiles, StampedFiles, RoundFiles) with no entry added to any list.\n- go test -race -count=1 passed for internal/state, internal/finding, internal/mapping, internal/run, internal/probe and internal/intent and for the affected internal/cli tests, commit c36c64e.\n",
+      "gate_passed_at": "2026-09-14T18:18:58.86001Z",
+      "commit_sha": "c36c64e",
+      "commit_shas": [
+        "c36c64e"
+      ],
+      "commit_files": [
+        "internal/cli/answer_test.go",
+        "internal/cli/cellcomputed_test.go",
+        "internal/cli/cellrecord_test.go",
+        "internal/cli/draft_test.go",
+        "internal/cli/draftroundcounts_test.go",
+        "internal/cli/intentgapposted_test.go",
+        "internal/cli/mapcmd.go",
+        "internal/cli/newclass_test.go",
+        "internal/cli/noproberewrite_test.go",
+        "internal/cli/positions_test.go",
+        "internal/finding/fields.go",
+        "internal/finding/finding_test.go",
+        "internal/finding/waiverstore.go",
+        "internal/intent/claim.go",
+        "internal/mapping/gap.go",
+        "internal/mapping/join_test.go",
+        "internal/probe/record.go",
+        "internal/run/run.go",
+        "internal/run/run_test.go",
+        "internal/state/records.go",
+        "internal/state/records_test.go",
+        "internal/state/roundscope.go",
+        "internal/state/roundscope_test.go"
       ]
     }
   ]
