@@ -2,15 +2,17 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.1.0.** The release implements the contract in
-> [`spec/0.1.0.md`](spec/0.1.0.md); its notes are in
-> [`spec/0.1.0-release-notes.md`](spec/0.1.0-release-notes.md).
+> **Status: v0.2.0.** The release implements the contract in
+> [`spec/0.2.0.md`](spec/0.2.0.md); its notes, including the upgrade notes
+> for v0.1 state, are in
+> [`spec/0.2.0-release-notes.md`](spec/0.2.0-release-notes.md).
 
 `cr` reviews a pull request someone else wrote. It reads the intent from your
 tracker, proves that every changed unit was examined, grades every finding by
 the evidence behind it, and hands you a draft to edit before anything is posted.
-v0.1 ends at posting: when the pull request's head moves, the round goes stale
-and `cr brief` opens a new one. Following the conversation after posting is v0.2.
+v0.2 ends at posting: when the pull request's head moves, the round goes stale
+and `cr brief` opens a new one. Following the conversation after posting, and
+migrating anchors across a head change, is v0.3.
 
 `cr` never calls a language model. It fetches, executes, validates and records;
 the agent driving it forms the judgements. Read [`VISION.md`](VISION.md) for the
@@ -32,9 +34,11 @@ problems it is built to solve.
   and a disabled or unavailable axis is reported with its reason.
 - **You are still the reviewer.** `cr` writes a draft; you edit it. Deleting a
   block discards it for this pull request; marking it `disposition="wrong"`
-  discards it repository-wide and counts against its class. Nothing reaches
-  GitHub without `cr post --confirm`, all comments go in one review, and a round
-  posts at most one. Comment bodies follow `render.lang` (default `tr`); the
+  discards it repository-wide and counts against its class. A waiver holds while
+  the anchored lines and the context lines around them are unchanged. Nothing
+  reaches GitHub without `cr post --confirm`, all comments go in one review
+  pinned to the round's head (`commit_id`), and a round posts at most one. A
+  closed or merged pull request is disclosed before you confirm, never refused. Comment bodies follow `render.lang` (default `tr`); the
   review body is always English.
 - **Conventions are data.** Project rules live in a versioned corpus, carry their
   rationale, and can ship their own fix as a ready suggestion. A comment body
@@ -47,7 +51,8 @@ brew install deligoez/tap/cr                     # Homebrew formula
 go install github.com/deligoez/cr/cmd/cr@latest  # or Go
 ```
 
-`cr` needs `git`, an authenticated `gh`, and a tracker command
+`cr` needs `git`, `gh` authenticated through its own configuration under `HOME`
+(`cr` does not pass `GH_TOKEN` to it), and a tracker command
 (`intent.cmd`, default `jira issue view {key} --plain`) unless the issue text is
 passed with `--intent-file`. State lives under `~/.cr/` (`CR_HOME` overrides it);
 `cr` never writes inside the repository under review.
@@ -78,8 +83,8 @@ A record that names a probe is recorded after the probe runs; `cr record` may
 run again in the round. If `cr post --confirm` exits 4 because the call's
 outcome is unknown (a 5xx, a timeout, a dropped connection), run
 `cr post 1 --reconcile` before anything else: until it adopts the review or
-clears the flag, `cr post --confirm`, `cr draft` and a `cr brief` on a moved head
-are refused, because each could post the review twice or move records it may
+clears the flag, `cr status` and a `cr post` dry run report it, and
+`cr post --confirm`, `cr draft` and a `cr brief` on a moved head are refused, because each could post the review twice or move records it may
 already have posted.
 
 ## Commands
