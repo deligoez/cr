@@ -159,10 +159,6 @@ The relationship is one-directional and clean: **cr is developed using tp.**
 
 ## 5. Roadmap
 
-| Version | Theme |
-|---------|-------|
-| v0.1 | One-head reviewer loop: intent, four axes, probes, draft, human triage, post |
-| v0.2 | The conversation: anchor migration, recheck, verification, resolution, withdrawal |
-| v0.3 | Author side: ingest incoming review comments as a work list |
-| v0.4 | Write context supplements back to the tracker; share the context store |
-| v0.5 | Profile ecosystem beyond the first two profiles |
+The roadmap lives in `ROADMAP.md`, which is revised as releases ship and measurements land. The table this
+section first held put the conversation in v0.2; v0.2.0 became the release that repaired the loop against
+real pull requests, and every theme after v0.1 moved one version later.

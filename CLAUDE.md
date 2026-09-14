@@ -2,7 +2,8 @@
 
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
-`VISION.md` explains why this exists and what it bets on. `spec/0.2.0.md` is the
+`VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
+sequenced next, and what must be measured before it is decided. `spec/0.2.0.md` is the
 normative v0.2 contract. This file holds the working conventions and the rules
 that are easy to violate by accident.
 
