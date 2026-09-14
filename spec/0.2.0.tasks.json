@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-14T18:41:40.292875Z",
+  "updated_at": "2026-09-14T19:51:39.659223Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 4,
+    "mapped_sections": 5,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -65,7 +65,6 @@
       "### 8.1 Render contract",
       "### 8.2 Suggestion validation",
       "### 8.3 Batching",
-      "### 8.4 Partial failure",
       "### 8.5 Confirmation gate",
       "## 9. Record states",
       "### 9.1 States",
@@ -87,7 +86,7 @@
     {
       "id": "draft-marker-carries-side",
       "title": "Carry side in the draft marker",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2"
       ],
@@ -98,16 +97,31 @@
         "### 7.1 Draft format",
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T18:42:34.91611Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T19:34:11.834767Z",
+      "closed_reason": "- The §7.1.1 marker carries side between path and start_line (internal/draft/marker.go markerFieldNames, Marker.Side, markerOf, values, markerFrom), and triage reads it back: TestADraftMarkerCarriesTheSideAndAnUnchangedDraftPostsAsRendered in internal/cli/draftside_test.go drives cr record and cr draft on a LEFT record on a deletion, parses the rendered marker to the whole Marker with Side LEFT, and cr post on the unchanged draft builds the comment at lib.go 7-8 on LEFT with the stored anchor unchanged.\n- An edited side is re-validated per §6.1.2 with path, start_line and line (internal/draft/edits.go markerEdit.anchor compares and re-stamps Side; ingest.go drift counts it): TestAnEditedSideIsReValidatedAgainstTheTreeItNames refuses a LEFT-to-RIGHT edit on the deleted gone.go with exit 1 and MarkerEditError{ID f1, Field anchor}, storing nothing, and re-anchors lib.go 7-8 to RIGHT with the head content hash.\n- A marker missing side is refused with exit 1 by both cr draft and cr post: MalformedMarkerError now carries the record id and its message quotes the grammar, asserted as a whole value and string by TestAMarkerWithoutASideIsRefusedNamingTheRecordAndTheGrammar; no default side is assumed.\n- Proven through the command in internal/cli tests including a LEFT-anchored record on a deletion, with the 8-field grammar pins updated in internal/draft/marker_test.go, internal/draft/draft_test.go, internal/cli/manualcomment_test.go and internal/cli/rulessuggest_test.go; overlay mutants of markerOf's side, the side comparison, the side assignment and the id naming each turn the new tests red, and go test -race -count=1 over the whole tree passes.\nOut of scope: skills/cr/SKILL.md lines 294 and 398 still quote the eight-field marker and the old refusal text.\n",
+      "gate_passed_at": "2026-09-14T19:34:11.834767Z",
+      "commit_sha": "aba1704",
+      "commit_shas": [
+        "aba1704"
+      ],
+      "commit_files": [
+        "internal/cli/draftside_test.go",
+        "internal/cli/manualcomment_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/rulessuggest_test.go",
+        "internal/draft/draft_test.go",
+        "internal/draft/edits.go",
+        "internal/draft/ingest.go",
+        "internal/draft/marker.go",
+        "internal/draft/marker_test.go"
+      ]
     },
     {
       "id": "waiver-key-hashes-context",
       "title": "Key waivers and posted index by context",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2"
       ],
@@ -118,11 +132,85 @@
         "### 7.4 Waivers",
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T18:42:53.521432Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T19:31:13.164601Z",
+      "closed_reason": "- finding.WaiverKeyOf (internal/finding/waiver.go) now hashes, through the new finding.ContextKeyHash (internal/finding/anchor.go), the anchor's context_before, the anchored lines and its context_after joined by LF and normalised per section 1.4, and that one key feeds WaiverFor, PostedEntryFor, DropWaived and DropPosted; TestTheKeyHashIsTheContextAndTheAnchoredLinesJoinedByLF pins the pre-image.\n- StampAnchor and AnchorContentHash are unchanged, so the anchor content_hash and every citation content_hash stay over the anchored or cited lines alone; TestAWaiverStopsMatchingOnceTheContextAroundTheAnchoredLinesChanges asserts the anchor hash is equal while the key differs.\n- No stored field was added: a stored record keeps the window and only the hash of the anchored lines, so the key reads those lines again from the trees of the record's own head through cli.keyTrees (anchorTrees in production), and an anchor the tree cannot give lines for is refused as a state.FileError with UnusableHint.\n- TestAWaiverAndAPostedEntryStopSuppressingOnceTheAnchoredLinesContextChanges (internal/cli/contextkey_test.go) records two findings, writes the waiver with cr draft from a deleted block and the posted-index entry with the writer cr post uses, then runs cr merge a round later: both drop at unchanged code and past the three-line window, and neither drops when only the line above or below the anchored lines changed; overlaying WaiverKeyOf with the v0.1 key turns exactly the two edited-window cases red.\n- TestAWaiverOrPostedEntryUnderTheV01KeySuppressesNothingAndStaysRemovable seeds both scopes' waivers and a posted-index entry under the v0.1 key, and cr merge drops neither while cr waivers list --pr lists both ids and cr waivers remove deletes each; a dogfood of the built binary listed and removed a hand-seeded v0.1 waiver line.\n- go test -race -count=1 over the whole tree passed through the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes with deadcode at 11 lines, and Go 1.27.1 gofmt -l prints nothing.\n",
+      "gate_passed_at": "2026-09-14T19:31:13.164601Z",
+      "commit_sha": "f351e25",
+      "commit_shas": [
+        "f351e25"
+      ],
+      "commit_files": [
+        "internal/cli/anchorstamp_test.go",
+        "internal/cli/contextkey_test.go",
+        "internal/cli/draft_test.go",
+        "internal/cli/intakecounts_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/merge_test.go",
+        "internal/cli/orphanedduplicate_test.go",
+        "internal/cli/posted.go",
+        "internal/cli/postedindex_test.go",
+        "internal/cli/quiet_test.go",
+        "internal/cli/reconcile_test.go",
+        "internal/cli/reconcileownround_test.go",
+        "internal/cli/record.go",
+        "internal/cli/recordanchors.go",
+        "internal/cli/recorddrops.go",
+        "internal/cli/recorddrops_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/statelock_test.go",
+        "internal/cli/summary_test.go",
+        "internal/cli/waiversremove_test.go",
+        "internal/finding/anchor.go",
+        "internal/finding/dedup.go",
+        "internal/finding/postedindex.go",
+        "internal/finding/waived.go",
+        "internal/finding/waived_test.go",
+        "internal/finding/waiver.go",
+        "internal/finding/waiver_test.go",
+        "internal/finding/waiverstore.go",
+        "internal/finding/waiverstore_test.go",
+        "internal/text/normalise.go"
+      ]
+    },
+    {
+      "id": "post-keys-before-send",
+      "title": "Compute waiver and index keys before sending",
+      "status": "done",
+      "tags": [
+        "v0.2"
+      ],
+      "depends_on": [
+        "waiver-key-hashes-context"
+      ],
+      "estimate_minutes": 45,
+      "acceptance": "- `cr post --confirm` reads every tree the §7.4.1 waiver keys of the draft's discards and the §9.3.6 posted-index keys of the payload's records need before `post_unresolved` is set and before the request. A read that fails refuses the post with exit code 3 and a hint, with no network write, no `post_unresolved`, and posted.json, findings and waivers left as they were. After a successful request cr writes the keys it already computed and reads no checkout or pull request.\n- Proven through the command in internal/cli tests: with a key tree that cannot be read, the gh shim logs no POST and the round is still postable once the tree is readable. With readable trees, a post whose checkout read would fail after the request still marks the records posted, writes the waivers and the index entries, and clears `post_unresolved`. `cr post --reconcile` keeps working when it adopts a review.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 8.4 Partial failure",
+        "### 7.4 Waivers",
+        "### 9.3 A changed head"
+      ],
+      "started_at": "2026-09-14T19:33:23.252802Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T19:51:39.64506Z",
+      "closed_reason": "- cr post --confirm now forms every waiver key of the draft's discards (discardWaivers) and every posted-index entry of the payload's unposted records (postedEntries) in sending.formKeys (internal/cli/send.go), called right after the post_unresolved refusal and before posted.json, the sent sections, post_unresolved and post.Create.\n- A read that fails returns the read's own error wrapped in \"round N was not posted and nothing was sent\", so it exits 3 with that cause's hint (git.CommandError, gh errors, state.FileError), with no gh POST and nothing written; TestAKeyTreeThatCannotBeReadRefusesThePostBeforeAnythingIsSent compares the whole state root byte for byte before and after.\n- After a successful request, storeKeys writes the precomputed waivers through writeWaivers and markPosted walks the precomputed records and appends the precomputed entries through writeAdopted/appendPostedIndex, stamped with the created review id, with no tree read; TestAKeyTreeThatStopsReadingAfterTheRequestLeavesThePostWhole counts zero key reads after the POST.\n- internal/cli/postkeys_test.go drives cr post --confirm with a gh shim on PATH: with the discard's or the posted record's key tree failing, the shim logs no POST, exit is 3 with the git hint, and the state root is unchanged.\n- In both rows the same round then posts once the tree reads: one POST, a pull-request waiver for the discard, and one index entry for f1.\n- With a tree that fails once the shim has logged the POST, the records are posted and discarded, the waiver and the index entry (review PRR_shim) are written, and post_unresolved is cleared; cr post --reconcile still forms its index at adoption through the same postedEntries and the existing reconcile tests (TestAnUnresolvedPostingIsReconciledToAnAdoptAndToAClear, reconcileownround, reconciletriage, draftunresolved) pass; all three new cases fail with the previous send.go, posted.go, reconcile.go and regenerate.go mapped in through go test -overlay.\n- go test -race -count=1 ./... passed for every package under the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes with deadcode ./... at 11 lines, and Go 1.27.1 gofmt -l internal cmd prints nothing.\n",
+      "gate_passed_at": "2026-09-14T19:51:39.64506Z",
+      "commit_sha": "c08137674b1dfe480372a5e8f4eaa86a03882e95",
+      "commit_shas": [
+        "c08137674b1dfe480372a5e8f4eaa86a03882e95",
+        "c227f2032a1fa60136f98d5d74ddc7c6ab0f1d52"
+      ],
+      "commit_files": [
+        "internal/cli/contextkey_test.go",
+        "internal/cli/posted.go",
+        "internal/cli/posted_test.go",
+        "internal/cli/postedindex_test.go",
+        "internal/cli/postkeys_test.go",
+        "internal/cli/reconcile.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/send.go"
+      ]
     }
   ]
 }
