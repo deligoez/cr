@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-14T05:27:27.029744Z",
+  "updated_at": "2026-09-14T05:45:55.262201Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10362,6 +10362,31 @@
       "commit_sha": "d4f207b",
       "commit_shas": [
         "d4f207b"
+      ],
+      "commit_files": [
+        "internal/cli/jsonspelling_test.go",
+        "internal/cli/output.go"
+      ]
+    },
+    {
+      "id": "failure-json-flag-parse-tree",
+      "title": "Shape a failure from the command's own flag parse",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A failing command decides JSON or text from --json as the failing command's own pflag parse reads it, so a flag value that consumes a literal --json token (cr merge a.ndjson -o --json --pr 1, cr test 1 --filter --json, cr review 1 --axis --json=1, cr status 1 --repo --json) does not count as asking for JSON, and the raw-argument scan remains only for a failure the command tree cannot parse; audit round 11 spec-coverage row task-failure-json-flag-spelling (asksForJSON returned true where newRootCmd's parse set json=false), internal/cli/output.go reportFailure.\n- A test drives a failing command in a pseudo-terminal with a string flag consuming --json and asserts text, and keeps the round 10 rows (--json=1 and --json=TRUE JSON, --json --json=false text) green.",
+      "source_sections": [
+        "## 12. Output contract"
+      ],
+      "started_at": "2026-09-14T05:37:15.740533Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T05:45:55.252342Z",
+      "closed_reason": "- A failing command now decides JSON or text from --json as its own pflag parse reads it: internal/cli/output.go asksForJSON resolves the command with newRootCmd().Find(args) and reads json from that command's ParseFlags, and only when Find or the parse fails does it fall back to scansForJSON, the raw-argument scan d4f207b wrote, so cr record --json --bogus still prints the document through the fallback while reportFailure keeps calling asksForJSON with the raw arguments and a usage error refused before PersistentPreRunE keeps its shape.\n- The audit round 11 spec-coverage row task-failure-json-flag-spelling divergence is gone at internal/cli/output.go reportFailure: the dogfood binary in a script(1) pseudo-terminal printed error:/hint: prose for cr status 1 --repo --json, cr test 1 --filter --json, cr review 1 --axis --json=1 and cr merge a.ndjson -o --json --pr 1, each of which printed a JSON document at HEAD 20f2d34.\n- internal/cli/jsonspelling_test.go TestAFailureInATerminalReadsEveryJSONSpellingPflagReads now takes whole argument lists and adds cr status abc --repo --json and cr test abc --repo o/r --filter --json, both asserted as two parsed error:/hint: lines with the usage hint at exit 2, beside the unchanged --json=1 and --json=TRUE JSON rows and --json --json=false and --json=maybe --json prose rows; under GOFLAGS=-overlay the old raw-scan decision fails both new rows, a root-only parse fails the --filter row, an asked-or-scanned mutant fails both new rows, and a fallback returning false fails TestAFailureInATerminalIsProseUnlessJSONIsAsked, while the unmutated tree is green.\n",
+      "gate_passed_at": "2026-09-14T05:45:55.252342Z",
+      "commit_sha": "a4d1a51",
+      "commit_shas": [
+        "a4d1a51"
       ],
       "commit_files": [
         "internal/cli/jsonspelling_test.go",
