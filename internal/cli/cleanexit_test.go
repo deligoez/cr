@@ -83,6 +83,62 @@ func TestAZeroFailedCountCountsOnlyOnACleanExit(t *testing.T) {
 	}
 }
 
+// §5.3.4's rung 5 and §5.4.3's rung 4 through `cr probe run`: a probe run whose
+// output carries no count is `inconclusive` too, and its reason names that rung
+// rather than an exit code, so the two `inconclusive` rungs are told apart.
+func TestAnUndeterminedCountNamesItsRung(t *testing.T) {
+	const undetermined = "the executed or failed count is undetermined, because no tests.count_pattern " +
+		"is configured or the run's output did not yield the counts through it"
+	for _, tc := range []struct {
+		name   string
+		runner string
+		run    func(t *testing.T) map[string]any
+		reason string
+	}{
+		{
+			name:   "mutation",
+			runner: onlyWhenMutated("  echo 'no recap'\n  exit 0\n"),
+			run:    func(t *testing.T) map[string]any { return runProbe(t, writePatch(t, fixtureDiff)) },
+			reason: "§5.3.4's fifth rung: " + undetermined,
+		},
+		{
+			name:   "gap",
+			runner: onlyWithTheProbeFile("  echo 'no recap'\n  exit 0\n"),
+			run:    func(t *testing.T) map[string]any { return runGap(t, writeProbeTest(t)) },
+			reason: "§5.4.3's fourth rung: " + undetermined,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, _, _, _ := probeFixture(t, tc.runner, gapProbeTemplate)
+
+			shown := tc.run(t)
+			assert.Equal(t, "inconclusive", shown["result"])
+			probes := storedRecords(t, prepared, state.FileProbes)
+			require.Len(t, probes, 1)
+			assertReason(t, tc.reason, shown, probes[0])
+
+			runs := storedRecords(t, prepared, state.FileRuns)
+			require.Len(t, runs, 2, "the baseline and the probe run")
+			assert.Equal(t, []any{float64(0), nil, nil},
+				[]any{runs[1]["exit_code"], runs[1]["tests_run"], runs[1]["tests_failed"]},
+				"the probe run exited 0 and its output determined no count")
+		})
+	}
+}
+
+// assertReason holds the command's document and the stored probe record to the
+// same reason, and to none at all where want is empty.
+func assertReason(t *testing.T, want string, shown, stored map[string]any) {
+	t.Helper()
+	if want == "" {
+		assert.NotContains(t, shown, "reason", "the document carries no reason")
+		assert.NotContains(t, stored, "reason", "the record carries no reason")
+		return
+	}
+	assert.Equal(t, want, shown["reason"])
+	assert.Equal(t, want, stored["reason"])
+}
+
 // recordOnTheProbe runs `cr record` over one test-adequacy record resting on
 // probe p1, anchored on the line the probes target, and returns the record as
 // cr stored it.
