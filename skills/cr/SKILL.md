@@ -43,6 +43,13 @@ several remotes, a non-GitHub remote, or an owner or name that is `.` or `..`
 }
 ```
 
+`--repo` need not match the clone's remote: a fork's clone briefs the upstream
+pull request as long as it holds the pull request's commits. When the clone
+lacks one, `cr brief` and `cr status` exit 3 with a hint to `git fetch`; when
+`--repo` also names a repository no GitHub remote of the clone points at, the
+hint names both repositories and gives
+`git fetch https://github.com/<owner>/<repo> pull/<pr>/head` instead.
+
 `cr` needs `git`, `gh` (authenticated), and, unless you pass `--intent-file`, the
 configured tracker command (`intent.cmd`, default `jira issue view {key} --plain`).
 
