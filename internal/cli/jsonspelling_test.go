@@ -25,18 +25,20 @@ import (
 // joins the two the way Execute does.
 //
 // `--json=maybe --json` is a value pflag refuses: it stops there with a usage
-// error before reaching the bare flag, so the run is prose.
+// error before reaching the bare flag, so the run is prose. A `--json` that a
+// string flag takes as its value — the root's `--repo`, or `cr test`'s own
+// `--filter` — is that flag's value and asks for nothing, so the run is prose.
 func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 	binary := crBinary(t)
 	home := filepath.Join(t.TempDir(), ".cr")
 
-	run := func(t *testing.T, flags ...string) string {
+	run := func(t *testing.T, args ...string) string {
 		t.Helper()
 		master, terminal, err := pty.Open()
 		require.NoError(t, err)
 		t.Cleanup(func() { master.Close(); terminal.Close() })
 
-		cmd := exec.Command(binary, append([]string{"status", "abc", "--repo", "o/r"}, flags...)...)
+		cmd := exec.Command(binary, args...)
 		cmd.Dir = t.TempDir()
 		cmd.Env = append(cmd.Environ(), state.HomeEnv+"="+home)
 		cmd.Stdout = terminal
@@ -51,17 +53,19 @@ func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 
 	refusals := make(map[string]string)
 	for _, row := range []struct {
-		flags  []string
+		args   []string
 		asJSON bool
 	}{
-		{[]string{"--json=1"}, true},
-		{[]string{"--json=TRUE"}, true},
-		{[]string{"--json", "--json=false"}, false},
-		{[]string{"--json=maybe", "--json"}, false},
+		{[]string{"status", "abc", "--repo", "o/r", "--json=1"}, true},
+		{[]string{"status", "abc", "--repo", "o/r", "--json=TRUE"}, true},
+		{[]string{"status", "abc", "--repo", "o/r", "--json", "--json=false"}, false},
+		{[]string{"status", "abc", "--repo", "o/r", "--json=maybe", "--json"}, false},
+		{[]string{"status", "abc", "--repo", "--json"}, false},
+		{[]string{"test", "abc", "--repo", "o/r", "--filter", "--json"}, false},
 	} {
-		name := strings.Join(row.flags, " ")
+		name := strings.Join(row.args, " ")
 		t.Run(name, func(t *testing.T) {
-			stderr := run(t, row.flags...)
+			stderr := run(t, row.args...)
 			var reported failure
 			if row.asJSON {
 				require.NoError(t, json.Unmarshal([]byte(stderr), &reported), "a terminal under %s was given %q", name, stderr)
@@ -78,6 +82,13 @@ func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 			refusals[name] = reported.Error
 		})
 	}
-	assert.Equal(t, refusals["--json=1"], refusals["--json=TRUE"])
-	assert.Equal(t, refusals["--json=1"], refusals["--json --json=false"])
+	pr := "status abc --repo o/r --json=1"
+	for _, name := range []string{
+		"status abc --repo o/r --json=TRUE",
+		"status abc --repo o/r --json --json=false",
+		"status abc --repo --json",
+		"test abc --repo o/r --filter --json",
+	} {
+		assert.Equal(t, refusals[pr], refusals[name], name)
+	}
 }

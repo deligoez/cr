@@ -517,12 +517,28 @@ func reportFailure(stdout, stderr io.Writer, args []string, err error) error {
 	return werr
 }
 
-// asksForJSON reports whether the arguments set §11.1's `--json`, read the way
-// pflag reads a boolean flag: bare, or with any value strconv.ParseBool
+// asksForJSON reports whether the arguments set §11.1's `--json`, as the
+// command they name reads it: the tree resolves the command and that command's
+// own flag set parses the rest, so a string flag that takes a literal `--json`
+// as its value has not asked for anything. Only arguments that parse fails on
+// fall back to scanning.
+func asksForJSON(args []string) bool {
+	cmd, flags, err := newRootCmd().Find(args)
+	if err == nil && cmd.ParseFlags(flags) == nil {
+		// Every command inherits the root's `--json`, so the lookup has
+		// nothing to refuse.
+		asked, _ := cmd.Flags().GetBool("json")
+		return asked
+	}
+	return scansForJSON(args)
+}
+
+// scansForJSON reads `--json` off arguments no command's flag set could parse,
+// the way pflag reads a boolean flag: bare, or with any value strconv.ParseBool
 // accepts, the last occurrence deciding, and never after the `--` that ends
 // flag parsing. A value ParseBool refuses is where pflag stops with a usage
 // error, so the answer is the one the occurrences before it left.
-func asksForJSON(args []string) bool {
+func scansForJSON(args []string) bool {
 	asked := false
 	for _, arg := range args {
 		if arg == "--" {
