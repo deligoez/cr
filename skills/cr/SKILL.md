@@ -290,8 +290,11 @@ record with `"probe": "p1"`; it supports that record only when its target lies
 inside the record's RIGHT anchor range. `cr sandbox destroy 1` removes the
 worktree. `cr test` and `cr probe run` share one lock per repository root and
 profile, from any subdirectory, and exit 4 when `probe.lock_timeout_seconds`
-passes while another run holds it. The lock lives under the state root, so two
-runs with different `CR_HOME` values do not serialise. A Ctrl+C or SIGTERM
+passes while another run holds it. The lock is held under the state root and
+again under the temporary directory, so runs with different `CR_HOME` values
+serialise too: per user on macOS, where that directory is the per-user
+`$TMPDIR`, and per machine on Linux, where it is `/tmp`; two runs that see
+different `TMPDIR` values do not. A Ctrl+C or SIGTERM
 while the runner runs kills the runner's process group, records nothing and
 exits 4; run the command again.
 
