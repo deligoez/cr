@@ -34,6 +34,21 @@ func (e *RejectedRecordError) Error() string {
 	return fmt.Sprintf("%s line %d: %s %s", e.File, e.Line, e.Field, e.Problem)
 }
 
+// ForeignAnchorError is §6.1.3's rejection of a record whose anchor does not lie
+// inside the unit it names.
+//
+// It is a RejectedRecordError, which it unwraps to, so `cr record` and
+// `cr merge` report it as every other §6.1.3 rejection. It is a type of its own
+// because §7.2's location row reaches the same refusal from a marker edit, where
+// the record's unit is not the reviewer's to change and the way forward differs.
+type ForeignAnchorError struct {
+	*RejectedRecordError
+}
+
+func (e *ForeignAnchorError) Unwrap() error {
+	return e.RejectedRecordError
+}
+
 // UnattributableFileError reports an input `cr merge` cannot bind to a role.
 //
 // §6.5.1 has `cr merge` read per-role files, and §6.1.3 has it reject a record

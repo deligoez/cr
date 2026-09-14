@@ -29,12 +29,13 @@ type Draft struct {
 	// Trees are §6.1.2's two revisions, read only when a marker moves an
 	// anchor. Nothing here opens either otherwise.
 	Trees finding.Trees
-	// Unchanged is §9.2.1's refusal `cr record` makes of an anchor on lines
-	// the round's diff did not change, asked of a copy of the record
-	// carrying the anchor a marker moved it to once that anchor resolves.
-	// A *finding.RejectedRecordError it returns is the location row's
-	// abort, naming the record. Nil asks nothing.
-	Unchanged func(moved *finding.Finding) error
+	// AnchorRules are the refusals `cr record` makes of an anchor, §6.1.3's
+	// containment in the record's own unit and §9.2.1's lines the round's
+	// diff did not change, asked of a copy of the record carrying the anchor
+	// a marker moved it to once that anchor resolves. A
+	// *finding.RejectedRecordError it returns is the location row's abort,
+	// naming the record. Nil asks nothing.
+	AnchorRules func(moved *finding.Finding) error
 	// Posted are the ids of the round's records §9.1 already holds in
 	// `posted`. Their blocks are records this round rendered, so a draft
 	// still holding one is not refused as naming an unknown id, and nothing

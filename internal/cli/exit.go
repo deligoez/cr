@@ -332,6 +332,14 @@ var codes = []mapped{
 		"repair the marker on the line the message names to the grammar it prints; a draft cr v0.1 " +
 			"rendered has no `side` in its markers, so add each record's anchor side (side=\"RIGHT\" or " +
 			"side=\"LEFT\") between `path` and `start_line` in every marker"},
+	// §7.2's location row refusing a marker that moves its record's anchor
+	// out of the record's unit, per §6.1.3. It wraps a MarkerEditError, so it
+	// sits above that row, and its way forward is not a value of the field:
+	// the unit is the record's, and a comment elsewhere is another record.
+	{is[*draft.MarkerUnitEditError](), ExitValidation,
+		"§6.1.3 keeps a record's anchor inside its own unit, which no marker edit changes; move the " +
+			"marker back onto lines of that unit, or delete the block. A comment on another unit needs a " +
+			"record a role produced for that unit, since §7.2.3 gives the draft no manual-comment channel"},
 	// §7.2 codes every marker edit its table does not admit 1, naming the
 	// record id, and §7.2.3 codes an unknown id the same. The draft read
 	// and the marker parsed; what is refused is what the reviewer asked for

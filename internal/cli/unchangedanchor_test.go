@@ -29,7 +29,9 @@ func onRemovalUnit(side string, start, line int) map[string]any {
 // 7 and 8, so every head line it reaches is one the diff did not change — head
 // line 6, the insertion point it is measured at, as much as head line 4 above
 // it. A RIGHT anchor naming it is refused, with exit 1 and the file's line,
-// before it can be graded, and so is a LEFT anchor on base line 9, a context
+// before it can be graded: on the insertion point, which lies inside u2, for
+// the lines the diff did not change, and on head line 4, which does not, as
+// lying outside the unit it names. So is a LEFT anchor on base line 9, a context
 // line of the same hunk. The LEFT anchor on the removed lines is recorded.
 func TestAnAnchorOnLinesADeletionDidNotChangeIsRefused(t *testing.T) {
 	unchanged := func(at string) string {
@@ -47,9 +49,11 @@ func TestAnAnchorOnLinesADeletionDidNotChangeIsRefused(t *testing.T) {
 			problem: unchanged("RIGHT lib.go:6-6"),
 		},
 		{
-			name:    "a RIGHT anchor on a context line above the removal",
-			record:  onRemovalUnit("RIGHT", 4, 4),
-			problem: unchanged("RIGHT lib.go:4-4"),
+			name:   "a RIGHT anchor on a context line above the removal",
+			record: onRemovalUnit("RIGHT", 4, 4),
+			problem: `of record f1 is RIGHT lib.go:4-4, which does not lie inside unit "u2", the unit this record ` +
+				"names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, so name " +
+				"the unit whose hunk holds it",
 		},
 		{
 			name:   "a LEFT anchor on a context line below the removal",

@@ -189,28 +189,35 @@ func longFileRound(t *testing.T, record *finding.Finding) (layout state.Layout, 
 	return layout, layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 1, state.FileDraft)
 }
 
-// §8.4.1 over a comment carrying no suggestion: the reviewer moves its marker in
-// draft.md onto a line the head holds and the diff does not, and `cr post`
-// refuses before the atomic call, naming the record, whether or not --confirm
-// was given.
+// §8.4.1 over a comment carrying no suggestion: a record whose anchor lies on a
+// line the head holds and the diff does not is refused before the atomic call,
+// naming the record, whether or not --confirm was given. The confirmed run is
+// the one that would have sent it, and it writes no posted.json, which §8.3.3
+// writes before the call.
 //
-// §7.2's location row re-validates a moved marker against the tree alone, so
-// this refusal is the only thing standing between the move and a review GitHub
-// rejects whole. The confirmed run is the one that would have sent it, and it
-// writes no posted.json, which §8.3.3 writes before the call.
-func TestACommentMovedOutsideTheDiffIsRefusedBeforeTheCall(t *testing.T) {
+// The record's round holds no unit and no marker moved it, so §6.1.3's
+// containment, which §7.2's location row applies to a moved marker, never looks
+// at it: the position check is the only thing standing between the record and
+// a review GitHub rejects whole. A marker moved outside the diff is refused
+// before this check, as leaving its unit, by TestAMarkerMovedIntoAnotherUnitIsRefused.
+func TestACommentOutsideTheDiffIsRefusedBeforeTheCall(t *testing.T) {
 	// The subtest names reach a shell: the gh shim's path is under t.TempDir,
 	// which is named after the test, so they hold no character sh reads.
 	for name, flags := range map[string][]string{"dry run": nil, "confirmed": {"--confirm"}} {
 		t.Run(name, func(t *testing.T) {
-			layout, drafted := longFileRound(t, plainQuestion(git.Right, 4))
+			layout := longFileHome(t)
+			held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+			require.NoError(t, err)
+			require.NoError(t, held.Write(state.FileUnits, nil))
+			require.NoError(t, state.ReplaceStamped(
+				held, state.FileFindings, state.Stamp{Round: 1}, []*finding.Finding{plainQuestion(git.Right, 25)},
+			))
+			require.NoError(t, held.Unlock())
+			_, err = runDraft(t, fixturePR, "--repo", fixtureSlug)
+			require.NoError(t, err)
 			posted := layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 1, state.FilePosted)
 			before, err := os.ReadFile(posted)
 			require.NoError(t, err)
-			body, err := os.ReadFile(drafted)
-			require.NoError(t, err)
-			moved := markerEdit(t, string(body), "f1", `start_line="4" line="4"`, `start_line="25" line="25"`)
-			require.NoError(t, os.WriteFile(drafted, []byte(moved), 0o600))
 
 			printed, err := runPost(t, append([]string{fixturePR, "--repo", fixtureSlug}, flags...)...)
 
@@ -220,7 +227,7 @@ func TestACommentMovedOutsideTheDiffIsRefusedBeforeTheCall(t *testing.T) {
 			assert.Equal(t, "f1", refused.Record, "the refusal names the record id")
 			assert.Equal(t, [3]any{git.Right, 25, 25},
 				[3]any{refused.Anchor.Side, refused.Anchor.StartLine, refused.Anchor.Line},
-				"and the position the draft moved it to")
+				"and the position the record holds")
 			assert.Equal(t, ExitValidation, exitCodeFor(err))
 			assert.Empty(t, printed, "the run refused before it reported a payload")
 			after, err := os.ReadFile(posted)

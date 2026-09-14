@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,6 +150,19 @@ func draftedAgainst(t *testing.T, head string, records ...*finding.Finding) stat
 	return layout
 }
 
+// formedUnit writes the round's units.ndjson as one unit u1 adding head lines
+// start to end of path, stamped with head, so §6.1.3's containment has the unit
+// a moved anchor is measured against.
+func formedUnit(t *testing.T, layout state.Layout, head, path string, start, end int) {
+	t.Helper()
+	held, err := layout.LockPR(draftOwner, draftRepo, draftPRNum)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileUnits, fmt.Appendf(nil,
+		`{"id":"u1","path":%q,"side":"RIGHT","head_ranges":[{"start":%d,"end":%d}],"head":%q,"round":%d}`+"\n",
+		path, start, end, head, draftRound)))
+	require.NoError(t, held.Unlock())
+}
+
 // §7.2's `path`, `start_line` and `line` row through the command: re-validated
 // per §6.1.2 against the round's head, applied to the stored record when it
 // resolves, and refused when it does not — and, per round 12's
@@ -164,6 +178,7 @@ func TestAMovedAnchorIsRevalidatedAgainstTheHeadAndRehashed(t *testing.T) {
 	record := aStoredRecord("f1", finding.StateDraft)
 	record.Anchor = finding.Anchor{Path: anchored, Side: "RIGHT", StartLine: 2, Line: 2, ContentHash: "stale"}
 	layout := draftedAgainst(t, head, record)
+	formedUnit(t, layout, head, anchored, 1, 4)
 	redraft(t)
 	first := readDraft(t, layout)
 

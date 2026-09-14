@@ -46,7 +46,8 @@ func anchoredOn(side string, start, line int) map[string]any {
 // for the anchor text at.
 func foreignAnchorProblem(at string) string {
 	return "of record f1 is " + at + `, which does not lie inside unit "u1", the unit this record names; ` +
-		"§6.2.1 measures a record's own unit by its anchor, so name the unit whose hunk holds it"
+		"§6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, " +
+		"so name the unit whose hunk holds it"
 }
 
 // QA S10: `cr merge` accepted a RIGHT anchor spanning two hunks of its unit and

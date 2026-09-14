@@ -64,7 +64,7 @@ func assertSuggestionRefused(t *testing.T, because string) {
 // the fence the reviewer wrote in draft.md, and positions.go still range-checked
 // the stored field alone. A fence added by hand on a LEFT anchor — which §8.2.1
 // never admits, and which §8.4.1's position check lets through because the diff
-// carries that base line — was sent; one added on a marker moved out of the diff
+// carries that base line — was sent; one added on a comment outside the diff
 // was refused as a position rather than as the suggestion it is; and a stored
 // suggestion the reviewer had deleted from the body still blocked the round.
 func TestPostRangeChecksTheSuggestionItWillSend(t *testing.T) {
@@ -75,12 +75,8 @@ func TestPostRangeChecksTheSuggestionItWillSend(t *testing.T) {
 		assertSuggestionRefused(t, "§8.2.1 admits a range on the RIGHT side alone")
 	})
 
-	t.Run("a fence added on a marker moved outside the diff", func(t *testing.T) {
-		_, drafted := longFileRound(t, plainQuestion(git.Right, 4))
-		body, err := os.ReadFile(drafted)
-		require.NoError(t, err)
-		moved := markerEdit(t, string(body), "f1", `start_line="4" line="4"`, `start_line="25" line="25"`)
-		require.NoError(t, os.WriteFile(drafted, []byte(moved), 0o600))
+	t.Run("a fence added on a comment outside the diff", func(t *testing.T) {
+		_, drafted := longFileRound(t, plainQuestion(git.Right, 25))
 		addFence(t, drafted, "// note 23, reworded")
 
 		assertSuggestionRefused(t, "§8.2.1 refuses the replacement before §8.4.1 refuses the position")

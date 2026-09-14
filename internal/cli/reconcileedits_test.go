@@ -24,6 +24,7 @@ func editedRound(t *testing.T, head string) state.Layout {
 	// §8.1.5 posts a question only when its body asks one.
 	regraded.Summary = "Does the caller ever see the error Decode returns?"
 	layout := draftedAgainst(t, head, edited, regraded)
+	formedUnit(t, layout, head, "internal/api/handler.go", 1, 60)
 	redraft(t)
 	draft := markerEdit(t, readDraft(t, layout), "f1", `severity="high"`, `severity="low"`)
 	// The whole pair is replaced, for the reason markeredits_test.go gives.

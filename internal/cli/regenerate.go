@@ -65,12 +65,12 @@ func ingestDraft(
 		return triaged{}, err
 	}
 	triage, err := draft.Ingest(rendered, &draft.Draft{
-		Name:      l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
-		Body:      string(file),
-		Rendered:  entries,
-		Trees:     anchorTrees(owner, repo, pr, round.Head),
-		Unchanged: unchangedAnchors(l, owner, repo, pr, round),
-		Posted:    posted,
+		Name:        l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
+		Body:        string(file),
+		Rendered:    entries,
+		Trees:       anchorTrees(owner, repo, pr, round.Head),
+		AnchorRules: anchorRules(l, owner, repo, pr, round),
+		Posted:      posted,
 	})
 	if err != nil {
 		return triaged{}, err

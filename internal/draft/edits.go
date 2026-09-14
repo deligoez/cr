@@ -39,6 +39,22 @@ func (e *MarkerEditError) Error() string {
 	return fmt.Sprintf("draft line %d, record %s: %s %s", e.At, e.ID, e.Field, e.Problem)
 }
 
+// MarkerUnitEditError is the MarkerEditError of §7.2's location row for a
+// marker that moves its record's anchor outside the record's unit, which
+// §6.1.3 refuses.
+//
+// It is a type of its own because its way forward is not a value of the field:
+// the record's unit is not the reviewer's to change, so the comment either stays
+// inside that unit or its block goes, and a comment on another unit needs a
+// record a role produced for that unit.
+type MarkerUnitEditError struct {
+	*MarkerEditError
+}
+
+func (e *MarkerUnitEditError) Unwrap() error {
+	return e.MarkerEditError
+}
+
 // MarkerIDEditError reports a marker whose id was changed to the id of another
 // record the round renders, which §7.2's immutable `id` refuses with exit code
 // 1, naming the record id.
@@ -205,9 +221,10 @@ func listedSeverities() string {
 // counted in the other tree, so it is resolved and stamped there, and a side
 // outside §9.2's two is refused by the same validation `cr record` applies.
 //
-// An anchor that resolves is then held to in.Unchanged, the §9.2.1 refusal
-// `cr record` makes of the same anchor, so the draft never stores a location
-// the record could not have carried.
+// An anchor that resolves is then held to in.AnchorRules, the §6.1.3 and
+// §9.2.1 refusals `cr record` makes of the same anchor against the record's
+// own unit, so the draft never stores a location the record could not have
+// carried.
 //
 // It returns nil when the marker leaves the location where cr wrote it, which
 // is what keeps `cr draft` from opening the repository — or, for a LEFT anchor,
@@ -223,10 +240,10 @@ func (e *markerEdit) anchor(in *Draft) (*finding.Anchor, error) {
 	if err := finding.StampAnchor(in.Trees, in.Name, e.at, &moved); err != nil {
 		return nil, e.rejected(err)
 	}
-	if in.Unchanged != nil {
+	if in.AnchorRules != nil {
 		carried := *e.record
 		carried.Anchor = moved
-		if err := in.Unchanged(&carried); err != nil {
+		if err := in.AnchorRules(&carried); err != nil {
 			return nil, e.rejected(err)
 		}
 	}
@@ -237,13 +254,19 @@ func (e *markerEdit) anchor(in *Draft) (*finding.Anchor, error) {
 // and err itself otherwise.
 //
 // A location the tree cannot answer for, or one `cr record` refuses, is this
-// row's abort and carries the record id with it. A git that refuses is not: it
+// row's abort and carries the record id with it; an anchor outside the record's
+// unit is that abort as a MarkerUnitEditError. A git that refuses is not: it
 // is §3.1.3's external command failure, and rewriting it here would code an
 // unreadable repository 1 and tell the reviewer to edit a marker that is fine.
 func (e *markerEdit) rejected(err error) error {
 	var rejected *finding.RejectedRecordError
-	if errors.As(err, &rejected) {
-		return e.refuse("anchor", rejected.Problem)
+	if !errors.As(err, &rejected) {
+		return err
 	}
-	return err
+	refused := &MarkerEditError{ID: e.record.ID, At: e.at, Field: "anchor", Problem: rejected.Problem}
+	var foreign *finding.ForeignAnchorError
+	if errors.As(err, &foreign) {
+		return &MarkerUnitEditError{MarkerEditError: refused}
+	}
+	return refused
 }
