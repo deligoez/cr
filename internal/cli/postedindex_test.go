@@ -19,6 +19,17 @@ func aPostingRound(round int, head string) *state.Meta {
 	}
 }
 
+// recordPostedIndex writes §9.3.6's entries for records, sent in the review the
+// shim creates, the way both of `cr post`'s paths do: formed by postedEntries,
+// appended by appendPostedIndex.
+func recordPostedIndex(l state.Layout, round *state.Meta, records []*finding.Finding) error {
+	entries, err := postedEntries(round, records, createdReviewID)
+	if err != nil {
+		return err
+	}
+	return appendPostedIndex(l, round, entries)
+}
+
 // §9.3.6 over the boundary it exists for: a record posted in round 1 puts an
 // entry in `posted-index.ndjson`, and the identical finding raised again in
 // round 2 is dropped before anything is written, with the drop counted.
@@ -39,7 +50,7 @@ func TestAFindingPostedInRoundOneIsDroppedInRoundTwo(t *testing.T) {
 	posted.Round, posted.Head = draftRound, draftHead
 
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}, createdReviewID))
+		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}))
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
@@ -81,7 +92,7 @@ func TestThePostedIndexIsReadAcrossRoundsAndAcrossHeads(t *testing.T) {
 	posted := aStoredRecord("f1", finding.StatePosted)
 	posted.Round, posted.Head = draftRound, draftHead
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}, createdReviewID))
+		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{posted}))
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
@@ -113,9 +124,9 @@ func TestThePostedIndexHoldsOneEntryPerKey(t *testing.T) {
 	second.Round, second.Head = draftRound+1, "9a8b7c6"
 
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{first}, createdReviewID))
+		layout, aPostingRound(draftRound, draftHead), []*finding.Finding{first}))
 	require.NoError(t, recordPostedIndex(
-		layout, aPostingRound(draftRound+1, "9a8b7c6"), []*finding.Finding{second}, createdReviewID))
+		layout, aPostingRound(draftRound+1, "9a8b7c6"), []*finding.Finding{second}))
 
 	index, err := finding.PostedIndex(layout, draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)

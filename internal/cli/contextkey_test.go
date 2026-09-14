@@ -130,7 +130,7 @@ func TestAWaiverAndAPostedEntryStopSuppressingOnceTheAnchoredLinesContextChanges
 			require.NoError(t, err)
 			posted := recordOf(asPointers(recordedFindings(t, layout)), "f2")
 			require.NotNil(t, posted)
-			require.NoError(t, recordPostedIndex(layout, &meta, []*finding.Finding{posted}, createdReviewID))
+			require.NoError(t, recordPostedIndex(layout, &meta, []*finding.Finding{posted}))
 
 			lines := make([]int, 0, 2)
 			if edit.offset > 0 {

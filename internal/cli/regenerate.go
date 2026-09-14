@@ -348,16 +348,51 @@ func (t *triaged) retriaged() []retriagedRecord {
 // discards the record again, and finding.Waive returns the waiver already
 // there instead of writing a second.
 //
+// Every key is read, through discardWaivers, before the first waiver is written.
+func waiveDiscards(l state.Layout, owner, repo string, pr int, discarded []*finding.Finding) error {
+	waivers, err := discardWaivers(owner, repo, pr, discarded)
+	if err != nil {
+		return err
+	}
+	return writeWaivers(l, owner, repo, pr, waivers)
+}
+
+// discardWaiver is the waiver one discard calls for, beside the discard whose
+// round and head its provenance names.
+type discardWaiver struct {
+	// record is the discarded record.
+	record *finding.Finding
+	// waiver is the waiver finding.WaiverFor formed for it.
+	waiver finding.Waiver
+}
+
+// discardWaivers forms the waiver each discard calls for, in the order given,
+// and writes nothing.
+//
 // §7.4.1's key hashes the anchored lines with their context, and a stored record
 // holds the context and only the hash of the lines, so the lines are read again
-// from the trees of the head the record was produced against.
-func waiveDiscards(l state.Layout, owner, repo string, pr int, discarded []*finding.Finding) error {
+// from the trees of the head the record was produced against. It is the one
+// place a discard's waiver is formed: waiveDiscards forms it here, and a
+// confirmed `cr post` forms it here before its request, so the two cannot key
+// one discard differently.
+func discardWaivers(owner, repo string, pr int, discarded []*finding.Finding) ([]discardWaiver, error) {
+	waivers := make([]discardWaiver, 0, len(discarded))
 	for _, record := range discarded {
 		waiver, err := finding.WaiverFor(keyTrees(owner, repo, pr, record.Head), record)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if _, err := finding.Waive(l, owner, repo, &waiver, finding.WaiverProvenance{
+		waivers = append(waivers, discardWaiver{record: record, waiver: waiver})
+	}
+	return waivers, nil
+}
+
+// writeWaivers stores waivers discardWaivers formed, each under the round, the
+// pull request and the head of its discard. It reads no tree.
+func writeWaivers(l state.Layout, owner, repo string, pr int, waivers []discardWaiver) error {
+	for i := range waivers {
+		record := waivers[i].record
+		if _, err := finding.Waive(l, owner, repo, &waivers[i].waiver, finding.WaiverProvenance{
 			Round: record.Round, PR: pr, Head: record.Head,
 		}); err != nil {
 			return err

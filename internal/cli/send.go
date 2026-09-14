@@ -78,17 +78,27 @@ type sending struct {
 // author a duplicate comment.
 //
 // §7.4's waivers for the draft's discards are written once the call has
-// succeeded and ahead of that walk, through the waiveDiscards `cr draft` calls,
-// so a block deleted or marked `wrong` and then posted without a redraft is
-// waived exactly as a redraft would have waived it. They are not written before
-// the call: a review GitHub refuses leaves the discarded records queued, and a
-// waiver already standing would outlive a disposition the reviewer then clears
-// — a `wrong` silencing its class across the repository for a record that was
-// posted after all. They go ahead of the walk, which stores the discards,
-// because a discard stored with its waiver lost is never read again. The
-// discards are named in posted.json before the call, so a call whose outcome cr
-// never learned, or a waiver write that fails after the call while
-// `post_unresolved` is still set, leaves them for §8.4.4's adoption to waive.
+// succeeded and ahead of that walk, formed by discardWaivers as `cr draft`
+// forms them, so a block deleted or marked `wrong` and then posted without a
+// redraft is waived exactly as a redraft would have waived it. They are not
+// written before the call: a review GitHub refuses leaves the discarded records
+// queued, and a waiver already standing would outlive a disposition the
+// reviewer then clears — a `wrong` silencing its class across the repository
+// for a record that was posted after all. They go ahead of the walk, which
+// stores the discards, because a discard stored with its waiver lost is never
+// read again. The discards are named in posted.json before the call, so a call
+// whose outcome cr never learned, or a waiver write that fails after the call
+// while `post_unresolved` is still set, leaves them for §8.4.4's adoption to
+// waive.
+//
+// Every key those waivers and §9.3.6's entries carry is read first of all,
+// before posted.json and before `post_unresolved`: §7.4.1's key hashes anchored
+// lines read from the trees of the record's head, which is a checkout read and,
+// for a LEFT anchor, a pull-request read for the merge base. A read that fails
+// then refuses a post that has written and sent nothing, and the writes after a
+// successful call only store what was already formed — none of them reads a
+// tree, so none can leave a review that exists on GitHub behind a round that
+// failed to record it.
 //
 // `post_unresolved` is set before the call and cleared only once the records
 // are marked posted, so the refusal send opens with rests on a write that
@@ -100,6 +110,10 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	owner, repo, pr := s.round.Owner, s.round.Repo, s.round.PR
 	if s.round.PostUnresolved {
 		return &UnresolvedPostError{Owner: owner, Repo: repo, PR: pr, Round: s.round.Round}
+	}
+	keys, err := s.formKeys()
+	if err != nil {
+		return err
 	}
 	// A closed or merged pull request is said once more before the request,
 	// and before the writes that precede it, so a failure to say it leaves
@@ -138,15 +152,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 		// other branch.
 		return postOutcome(s.layout, s.round, s.review, err)
 	}
-	if err := waiveDiscards(s.layout, owner, repo, pr, s.triage.discarded()); err != nil {
-		return fmt.Errorf(
-			"the review was created and the draft's waivers could not be written for round %d; "+
-				"post_unresolved stays set, so nothing can be sent twice, and `cr post %d --reconcile` "+
-				"adopts the review and writes them: %w",
-			s.round.Round, pr, err,
-		)
-	}
-	if err := s.markPosted(reviewID); err != nil {
+	if err := s.storeKeys(keys, reviewID); err != nil {
 		return err
 	}
 	if err := setPostUnresolved(s.layout, s.round, false); err != nil {
@@ -166,6 +172,20 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	})
 }
 
+// storeKeys writes what formKeys formed once the call has created the review:
+// the draft's waivers first, then markPosted's walk and index, in send's order.
+func (s *sending) storeKeys(keys *sendKeys, reviewID string) error {
+	if err := writeWaivers(s.layout, s.round.Owner, s.round.Repo, s.round.PR, keys.waivers); err != nil {
+		return fmt.Errorf(
+			"the review was created and the draft's waivers could not be written for round %d; "+
+				"post_unresolved stays set, so nothing can be sent twice, and `cr post %d --reconcile` "+
+				"adopts the review and writes them: %w",
+			s.round.Round, s.round.PR, err,
+		)
+	}
+	return s.markPosted(keys, reviewID)
+}
+
 // markPosted walks §9.1's `queued` → `posted` row over the records the payload
 // carried, and writes §9.3.6's index entries for them.
 //
@@ -177,26 +197,22 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 // `cr post --reconcile` on the same row — and two writers of `posted` that
 // could disagree about the index is exactly what §9.3.6 cannot survive.
 //
-// A record already in `posted` is passed over rather than moved again. §9.1
-// lists no move out of `posted`, so asking for one would refuse the whole walk
-// on the strength of an earlier run having worked.
+// The records it walks and the index entries it writes are the ones formKeys
+// formed before the call, so nothing here reads a tree.
 //
 // reviewID is the node id of the review the call created, which the index
 // entries carry.
-func (s *sending) markPosted(reviewID string) error {
-	sent := make([]*finding.Finding, 0, len(s.review.Comments))
-	for i := range s.review.Comments {
-		record := recordOf(s.records, s.review.Comments[i].Record)
-		if record == nil || record.State == finding.StatePosted {
-			continue
-		}
+func (s *sending) markPosted(keys *sendKeys, reviewID string) error {
+	for _, record := range keys.sent {
 		if err := s.journal.Move(
 			record.ID, finding.Existing(record.State), finding.StatePosted,
 		); err != nil {
 			return err
 		}
 		record.State = finding.StatePosted
-		sent = append(sent, record)
+	}
+	for i := range keys.index {
+		keys.index[i].Review = reviewID
 	}
 	// §8.3.3's hash of the payload that was just sent, which §10.3 records
 	// in the round summary beside the posted count.
@@ -204,7 +220,59 @@ func (s *sending) markPosted(reviewID string) error {
 	if err != nil {
 		return err
 	}
-	return writeAdopted(s.layout, s.round, s.records, sent, hash, reviewID, s.journal)
+	return writeAdopted(s.layout, s.round, s.records, keys.index, hash, s.journal)
+}
+
+// sendKeys are the values §7.4.1's key is read into for one send: the waivers
+// of the draft's discards, the records the payload moves to `posted`, and
+// §9.3.6's entry for each of them.
+type sendKeys struct {
+	// waivers are the discards' waivers, in the draft's discard order.
+	waivers []discardWaiver
+	// sent are the records the payload's comments were drawn from that are
+	// not yet in `posted`, in payload order.
+	sent []*finding.Finding
+	// index holds one entry per record of sent, in the same order, whose
+	// review is filled in once the call has named it.
+	index []finding.PostedEntry
+}
+
+// formKeys reads every tree the send's waivers and index entries need, and
+// writes nothing.
+//
+// A record already in `posted` is passed over rather than moved again: §9.1
+// lists no move out of `posted`, so asking for one would refuse the whole walk
+// on the strength of an earlier run having worked.
+//
+// A read that fails is returned wrapped in a sentence saying nothing was sent,
+// and keeps its own exit code and hint: a failed git or gh read, and an anchor
+// the head's tree cannot hold, are §11.2's 3.
+func (s *sending) formKeys() (*sendKeys, error) {
+	owner, repo, pr := s.round.Owner, s.round.Repo, s.round.PR
+	refused := func(err error) error {
+		return fmt.Errorf(
+			"round %d was not posted and nothing was sent: a waiver or posted-index key "+
+				"could not be read, and `cr post %d --confirm` can run again once it can: %w",
+			s.round.Round, pr, err,
+		)
+	}
+	waivers, err := discardWaivers(owner, repo, pr, s.triage.discarded())
+	if err != nil {
+		return nil, refused(err)
+	}
+	sent := make([]*finding.Finding, 0, len(s.review.Comments))
+	for i := range s.review.Comments {
+		record := recordOf(s.records, s.review.Comments[i].Record)
+		if record == nil || record.State == finding.StatePosted {
+			continue
+		}
+		sent = append(sent, record)
+	}
+	index, err := postedEntries(s.round, sent, "")
+	if err != nil {
+		return nil, refused(err)
+	}
+	return &sendKeys{waivers: waivers, sent: sent, index: index}, nil
 }
 
 // adoptReturnedThreads is §8.3.3's second half: posted.json updated with the

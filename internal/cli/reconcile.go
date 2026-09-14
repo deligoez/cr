@@ -357,11 +357,15 @@ func adoptAsPosted(
 		adopted = append(adopted, record)
 		ids = append(ids, record.ID)
 	}
+	index, err := postedEntries(round, adopted, reviewID)
+	if err != nil {
+		return nil, err
+	}
 	hash, err := sent.Hash()
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAdopted(l, round, records, adopted, hash, reviewID, sendJournal, journal); err != nil {
+	if err := writeAdopted(l, round, records, index, hash, sendJournal, journal); err != nil {
 		return nil, err
 	}
 	if err := setPostUnresolved(l, round, false); err != nil {
@@ -467,10 +471,12 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // sent. Nothing else about the gate is recorded, because §8.5.4 allows nothing
 // more.
 //
-// The index is written from the records this run moved rather than from every
-// record in `posted`: a round reconciled twice would otherwise re-append what
-// the first run already recorded, and AppendPosted's key check is a second
-// guard rather than the reason this one holds.
+// The index is the entries postedEntries formed for the records this run moved
+// rather than for every record in `posted`: a round reconciled twice would
+// otherwise re-append what the first run already recorded, and AppendPosted's
+// key check is a second guard rather than the reason this one holds. The
+// entries arrive formed, so nothing here reads a tree: `cr post --confirm`
+// forms them before its request.
 //
 // The summary is finalised here because this is the one place §9.1's `posted`
 // is written, by `cr post --confirm` and `cr post --reconcile` alike. A round
@@ -491,13 +497,13 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // published under: an adoption passes the confirmed send's discards ahead of
 // its own posted moves, which is the order that send's one journal holds them.
 //
-// review is the node id of the review the adopted records reached the author
-// in, which the index entries carry.
+// Each index entry carries the node id of the review the adopted records
+// reached the author in.
 func writeAdopted(
-	l state.Layout, round *state.Meta, records, adopted []*finding.Finding, hash, review string,
+	l state.Layout, round *state.Meta, records []*finding.Finding, index []finding.PostedEntry, hash string,
 	journals ...*finding.Journal,
 ) error {
-	if err := recordPostedIndex(l, round, adopted, review); err != nil {
+	if err := appendPostedIndex(l, round, index); err != nil {
 		return err
 	}
 	posted := postedCount(records)

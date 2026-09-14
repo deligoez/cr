@@ -179,8 +179,38 @@ func writePosted(
 	return payload, nil
 }
 
-// recordPostedIndex is §9.3.6's writer: one entry per record this run moved to
-// `posted`, appended to `posted-index.ndjson`.
+// postedEntries forms §9.3.6's entry for each record, in the order given, and
+// writes nothing.
+//
+// review is the node id of the review the records reached the author in, which
+// every entry carries.
+//
+// Each entry's key reads the record's anchored lines from the trees of the head
+// the record was produced against, for the reason discardWaivers gives. It is
+// the one place an entry is formed, for `cr post --confirm` and for
+// `cr post --reconcile`'s adoption alike, so the two cannot key one record
+// differently. `--confirm` forms them before its request, with the review not
+// yet created, so a read that fails refuses a post that has sent nothing; an
+// adoption forms them once it has matched its review, and a read that fails
+// there leaves `post_unresolved` set, so the next `--reconcile` forms them again.
+func postedEntries(
+	round *state.Meta, records []*finding.Finding, review string,
+) ([]finding.PostedEntry, error) {
+	entries := make([]finding.PostedEntry, 0, len(records))
+	for _, record := range records {
+		entry, err := finding.PostedEntryFor(
+			keyTrees(round.Owner, round.Repo, round.PR, record.Head), record, review)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+// appendPostedIndex is §9.3.6's writer: one entry per record this run moved to
+// `posted`, as postedEntries formed them, appended to `posted-index.ndjson`. It
+// reads no tree.
 //
 // `cr post` is the writer, and round 8's unassigned-writer is why that is
 // written down rather than inferred. The file is load-bearing in one direction
@@ -192,26 +222,8 @@ func writePosted(
 // It is appended after the network write has returned, beside the thread ids:
 // an entry written before the call would suppress next round's finding about a
 // comment the author never got.
-//
-// review is the node id of the review the records reached the author in, which
-// every entry carries.
-//
-// Each entry's key reads the record's anchored lines from the trees of the head
-// the record was produced against, for the reason waiveDiscards gives. A read
-// that fails leaves the index unwritten and `post_unresolved` set, so
-// `cr post --reconcile` writes it.
-func recordPostedIndex(
-	l state.Layout, round *state.Meta, records []*finding.Finding, review string,
-) error {
+func appendPostedIndex(l state.Layout, round *state.Meta, entries []finding.PostedEntry) error {
 	owner, repo, pr := round.Owner, round.Repo, round.PR
-	entries := make([]finding.PostedEntry, 0, len(records))
-	for _, record := range records {
-		entry, err := finding.PostedEntryFor(keyTrees(owner, repo, pr, record.Head), record, review)
-		if err != nil {
-			return err
-		}
-		entries = append(entries, entry)
-	}
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
