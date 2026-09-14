@@ -92,6 +92,12 @@ func (r *briefResult) identity(w *writer, out *strings.Builder) {
 	fmt.Fprintf(out, "%s %s round %d\n",
 		w.accent("pull request"), r.Owner+"/"+r.Repo+"#"+strconv.Itoa(r.PR), r.Round)
 	fmt.Fprintf(out, "  head       %s\n", r.Head)
+	// §9.3.4's sweep, said where the round it opened is: a reader shown
+	// round 2 is told in the same place which records the move closed.
+	if len(r.Staled) > 0 {
+		fmt.Fprintf(out, "  staled     %d open record(s) moved to stale, per §9.3.4: %s\n",
+			len(r.Staled), strings.Join(r.Staled, ", "))
+	}
 	fmt.Fprintf(out, "  merge base %s\n", r.MergeBase)
 	if r.Profile.Selected {
 		fmt.Fprintf(out, "  profile    %s, selected by %s\n",

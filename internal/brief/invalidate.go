@@ -48,9 +48,11 @@ func invalidate(held *state.Lock, assembled *Brief) error {
 	// decided and before findings.ndjson publishes them — the order `cr
 	// record`, `cr draft` and `cr post` write theirs in.
 	journal := finding.NewJournal(finding.ActorBrief, assembled.Head, time.Now())
-	if err := staleOpenRecords(held, journal); err != nil {
+	staled, err := staleOpenRecords(held, journal)
+	if err != nil {
 		return err
 	}
+	assembled.Staled = staled
 	if err := clearMapping(held, assembled); err != nil {
 		return err
 	}
@@ -117,8 +119,12 @@ func clearMapping(held *state.Lock, assembled *Brief) error {
 // `"State"` is swept as every read of it decodes it.
 // RewriteStamped puts the file's path and the line's number in front, because
 // the line is what the user has to open and only the walk knows which it was.
-func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
-	return state.RewriteStamped(held, state.FileFindings,
+//
+// It returns the ids it moved, in the file's order, which are the records the
+// journal holds a line for.
+func staleOpenRecords(held *state.Lock, journal *finding.Journal) ([]string, error) {
+	staled := make([]string, 0)
+	err := state.RewriteStamped(held, state.FileFindings,
 		func(fields map[string]json.RawMessage) (bool, error) {
 			var current finding.State
 			if written, supplied := fields[fieldState]; supplied {
@@ -153,6 +159,7 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 				return false, err
 			}
 			fields[fieldState] = stale
+			staled = append(staled, id)
 			return true, nil
 		},
 		// The journal is appended once every move is decided and before
@@ -161,6 +168,10 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) error {
 		// them again. Publishing first would leave the records stale
 		// with no line, and the re-run would find nothing left to move.
 		func() error { return journal.Write(held) })
+	if err != nil {
+		return nil, err
+	}
+	return staled, nil
 }
 
 // unusable is the refusal of one stored findings.ndjson field the sweep could

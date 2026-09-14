@@ -139,6 +139,12 @@ type Brief struct {
 	// because §4.5.1 defines the two together and one run must answer both
 	// from the same axis decision and the same resolved profile.
 	ActiveRoles []string `json:"active_roles"`
+	// Staled are the ids of the records §9.3.4's sweep moved to `stale`
+	// when this run opened a new round, in findings.ndjson's order — the
+	// records transitions.ndjson journals the move for — and empty on a
+	// run that opened none. They are reported by the command that made the
+	// move, so a driving agent does not learn of it only from the journal.
+	Staled []string `json:"staled_records"`
 	// round is §9.3.3's decision for this run: the round above, and the
 	// round it was opened from. §9.3.4 reads both — whether an increment
 	// happened at all, and which round's records the increment invalidates.
@@ -216,6 +222,9 @@ func Run(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Empty until §9.3.4's sweep says otherwise, which only a run that
+	// opens a round makes, inside persist.
+	assembled.Staled = make([]string, 0)
 	if err := persist(src, assembled); err != nil {
 		return nil, err
 	}
