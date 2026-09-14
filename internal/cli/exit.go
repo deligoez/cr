@@ -329,7 +329,9 @@ var codes = []mapped{
 	// the line, and §7.2 codes every marker edit it does not admit 1. The
 	// draft read; what is wrong is what the reviewer typed into it.
 	{is[*draft.MalformedMarkerError](), ExitValidation,
-		"repair the marker on the line the message names, or run `cr draft` again"},
+		"repair the marker on the line the message names to the grammar it prints; a draft cr v0.1 " +
+			"rendered has no `side` in its markers, so add each record's anchor side (side=\"RIGHT\" or " +
+			"side=\"LEFT\") between `path` and `start_line` in every marker"},
 	// §7.2 codes every marker edit its table does not admit 1, naming the
 	// record id, and §7.2.3 codes an unknown id the same. The draft read
 	// and the marker parsed; what is refused is what the reviewer asked for

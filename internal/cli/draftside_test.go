@@ -158,6 +158,11 @@ func TestAMarkerWithoutASideIsRefusedNamingTheRecordAndTheGrammar(t *testing.T) 
 				"draft line %d, record f1, is a malformed record marker: %s\n  read: %s\n  grammar: %s",
 				at, problem, line, draft.MarkerGrammar), malformed.Error())
 			assert.Equal(t, ExitValidation, exitCodeFor(err))
+			// QA D-V3-3: the hint offered `cr draft` again, which reads the
+			// same draft back and refuses it the same way.
+			assert.Equal(t, "repair the marker on the line the message names to the grammar it prints; "+
+				"a draft cr v0.1 rendered has no `side` in its markers, so add each record's anchor side "+
+				`(side="RIGHT" or side="LEFT") between `+"`path` and `start_line` in every marker", hintFor(err))
 			assert.Equal(t, finding.StateQueued, storedFindings(t, layout)[0].State, "nothing was triaged")
 		})
 	}

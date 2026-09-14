@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,20 @@ func TestTheDriftReportChecksANoteClaimAgainstItsNote(t *testing.T) {
 	}
 	assert.Equal(t, map[string]bool{fixtureIssue + "#c1": false, fixtureIssue + "#c2": true}, occurs,
 		"the tracker span went with the rewording; the note claim's span is still its note's body")
+
+	// QA D-V1a-7: the terminal said the note claim's span still occurs in the
+	// issue text, which never held it.
+	spans := make([]string, 0, 2)
+	for line := range strings.SplitSeq(throughATerminal(t, "brief", fixturePR, "--repo", fixtureSlug,
+		"--issue", fixtureIssue, "--intent-file", moved, "--no-color"), "\n") {
+		if strings.Contains(line, "  span ") {
+			spans = append(spans, line)
+		}
+	}
+	assert.Equal(t, []string{
+		"  " + fixtureIssue + "#c1  span no longer occurs in the issue text",
+		"  " + fixtureIssue + "#c2  span still occurs in note " + fixtureIssue + "#n1",
+	}, spans, "each line names the text its span was checked in, as span_occurs does")
 }
 
 // A §4.1.8 set-aside resting on a note §3.6.6 retracts is reported by

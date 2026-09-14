@@ -170,10 +170,11 @@ func rowReason(c *Conditions) string {
 	return said + ", missing " + strings.Join(c.Missing, ", ")
 }
 
-// intentReason is §4.6.5's intent pass, asked of a round whose intent axis is
-// active: its claims and its mapping are recorded. It names which is missing
-// and the command that records it. `cr claims record` clears the mapping, so a
-// round missing its claims is told to record the mapping after them.
+// intentReason is §10.2.5, asked of a round whose intent axis is active: the
+// claims and the mapping of §4.6.5's intent pass are recorded. It names which
+// is missing and the command that records it. `cr claims record` clears the
+// mapping, so a round missing its claims is told to record the mapping after
+// them.
 //
 // Claims count as recorded when the round holds one, or when the claims stamp
 // says an empty set was recorded: an issue can legitimately yield no claims.
@@ -186,13 +187,13 @@ func intentReason(c *Conditions) string {
 	noClaims := c.Intent.Claims == 0 && !c.Intent.ClaimsRecorded
 	switch {
 	case noClaims && !c.Intent.Mapped:
-		return "§4.6.5: the intent axis is active and this round has recorded neither its claims " +
+		return "§10.2.5: the intent axis is active and this round has recorded neither its claims " +
 			"nor its mapping: record the claims with `cr claims record`, then the mapping with `cr map record`"
 	case noClaims:
-		return "§4.6.5: the intent axis is active and this round has recorded no claims: " +
+		return "§10.2.5: the intent axis is active and this round has recorded no claims: " +
 			"record them with `cr claims record`, then the mapping again with `cr map record`"
 	case !c.Intent.Mapped:
-		return "§4.6.5: the intent axis is active and this round has recorded no mapping: " +
+		return "§10.2.5: the intent axis is active and this round has recorded no mapping: " +
 			"record it with `cr map record`"
 	}
 	return ""

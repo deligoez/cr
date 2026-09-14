@@ -87,7 +87,7 @@ func TestAPatternThatDoesNotCompileAbortsNamingTheRule(t *testing.T) {
 	assert.Contains(t, malformed.Error(), profileFile, "and the file it is written in")
 }
 
-// §2.6.1.2 closes `detect.mode` at `regex` in v0.1.
+// §2.6.1.2 closes `detect.mode` at `regex` in v0.2.
 //
 // The blank case is the one worth deciding out loud. §2.6's table gives `axis`,
 // `severity` and `kind` a default in the table itself and gives `mode` none, so

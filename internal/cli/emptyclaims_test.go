@@ -38,7 +38,7 @@ func TestAnEmptyClaimsFileRecordedSatisfiesTheIntentPass(t *testing.T) {
 	unrecorded := readCompleteness(t)
 	assert.Equal(t, []string{
 		rows,
-		"§4.6.5: the intent axis is active and this round has recorded neither its claims nor " +
+		"§10.2.5: the intent axis is active and this round has recorded neither its claims nor " +
 			"its mapping: record the claims with `cr claims record`, then the mapping with `cr map record`",
 	}, unrecorded.Completeness.Reasons, "the control: a round with no claims recording at all")
 
@@ -48,7 +48,7 @@ func TestAnEmptyClaimsFileRecordedSatisfiesTheIntentPass(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		rows,
-		"§4.6.5: the intent axis is active and this round has recorded no mapping: record it with `cr map record`",
+		"§10.2.5: the intent axis is active and this round has recorded no mapping: record it with `cr map record`",
 	}, readCompleteness(t).Completeness.Reasons, "the empty claims are recorded, and the mapping is not yet")
 
 	_, err = runCLIPrinting(t, "map", "record", fixturePR, empty, "--repo", fixtureSlug)

@@ -83,15 +83,15 @@ func TestARoundIsNotCompleteUntilItsIntentPassIsRecorded(t *testing.T) {
 		want      []string
 	}{
 		{name: "no mapping", unstamped: true, want: []string{
-			"§4.6.5: the intent axis is active and this round has recorded no mapping: " +
+			"§10.2.5: the intent axis is active and this round has recorded no mapping: " +
 				"record it with `cr map record`",
 		}},
 		{name: "no claims", noClaims: true, want: []string{
-			"§4.6.5: the intent axis is active and this round has recorded no claims: " +
+			"§10.2.5: the intent axis is active and this round has recorded no claims: " +
 				"record them with `cr claims record`, then the mapping again with `cr map record`",
 		}},
 		{name: "neither", unstamped: true, noClaims: true, want: []string{
-			"§4.6.5: the intent axis is active and this round has recorded neither its claims nor " +
+			"§10.2.5: the intent axis is active and this round has recorded neither its claims nor " +
 				"its mapping: record the claims with `cr claims record`, then the mapping with `cr map record`",
 		}},
 		{name: "intent axis unavailable", unstamped: true, noClaims: true, noKey: true, want: []string{}},

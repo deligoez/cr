@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -145,21 +146,29 @@ func (r *briefResult) claims(w *writer, out *strings.Builder) {
 	}
 	fmt.Fprintf(out, "\n%s %d recorded; %s\n",
 		w.accent("claims"), len(r.Claims), drifted)
+	sources := make(map[string]string, len(r.Claims))
 	for i := range r.Claims {
 		fmt.Fprintf(out, "  %s  %s\n", r.Claims[i].ID, r.Claims[i].Text)
+		if r.Claims[i].Source == intent.ClaimFromNote {
+			sources[r.Claims[i].ID] = "note " + r.Claims[i].NoteID
+		}
 	}
 	for i := range r.Drift.Claims {
-		fmt.Fprintf(out, "  %s  span %s\n",
-			r.Drift.Claims[i].ID, spanState(r.Drift.Claims[i].SpanOccurs))
+		id := r.Drift.Claims[i].ID
+		fmt.Fprintf(out, "  %s  span %s\n", id, spanState(r.Drift.Claims[i].SpanOccurs, sources[id]))
 	}
 }
 
-// spanState words §3.3.3's per-claim answer.
-func spanState(occurs bool) string {
-	if occurs {
-		return "still occurs in the issue text"
+// spanState words §3.3.3's per-claim answer, naming the text the span was
+// checked in: the issue text, or for a claim drawn from a note, that note.
+func spanState(occurs bool, source string) string {
+	if source == "" {
+		source = "the issue text"
 	}
-	return "no longer occurs in the issue text"
+	if occurs {
+		return "still occurs in " + source
+	}
+	return "no longer occurs in " + source
 }
 
 // units is §3.7.4: the units of §3.4 with their file paths, hunk ranges, and
