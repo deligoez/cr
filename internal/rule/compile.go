@@ -95,6 +95,16 @@ func (r *Resolved) compile() (*regexp.Regexp, error) {
 			),
 		}
 	}
+	if r.Rule.Detect.Pattern == "" {
+		return nil, &MalformedError{
+			File:  r.Path,
+			Field: "detect.pattern",
+			Problem: fmt.Sprintf(
+				"of rule %q is absent or empty, and an empty regular expression matches every changed line",
+				r.Rule.ID,
+			),
+		}
+	}
 	pattern, err := regexp.Compile(r.Rule.Detect.Pattern)
 	if err != nil {
 		return nil, &MalformedError{
