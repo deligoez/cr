@@ -269,11 +269,15 @@ type mergeOutcome struct {
 	records []*finding.Finding
 	// raised is how many records the per-role files held, before any of
 	// §6.5.1's passes removed one: §10.3's `raised`.
-	raised   int
-	waived   finding.Drops
-	posted   finding.PostedDrops
-	overlaps finding.Overlaps
-	counts   mergeCounts
+	raised int
+	waived finding.Drops
+	posted finding.PostedDrops
+	// waivedKeys and postedKeys are the intake keys of the records each
+	// drop took out, which the round summary counts them by.
+	waivedKeys []string
+	postedKeys []string
+	overlaps   finding.Overlaps
+	counts     mergeCounts
 }
 
 // mergeRecords reads every per-role file and applies §6.5.1's four passes in
@@ -310,7 +314,7 @@ func mergeRecords(
 	if err != nil {
 		return nil, err
 	}
-	kept, waived, err := finding.DropWaived(trees, records, waivers)
+	unwaived, waived, err := finding.DropWaived(trees, records, waivers)
 	if err != nil {
 		return nil, err
 	}
@@ -322,18 +326,20 @@ func mergeRecords(
 	if err != nil {
 		return nil, err
 	}
-	kept, posted, err := finding.DropPosted(trees, kept, index)
+	kept, posted, err := finding.DropPosted(trees, unwaived, index)
 	if err != nil {
 		return nil, err
 	}
 	// §6.4.1 and §6.4.2, and the `duplicate_of` §6.5.1 lets this command
 	// write. The state §6.4.3 names is `cr record`'s to stamp.
 	return &mergeOutcome{
-		records:  kept,
-		raised:   len(records),
-		waived:   waived,
-		posted:   posted,
-		overlaps: finding.MarkDuplicates(kept, role.Order(corpus)),
+		records:    kept,
+		raised:     len(records),
+		waived:     waived,
+		posted:     posted,
+		waivedKeys: droppedKeys(records, unwaived),
+		postedKeys: droppedKeys(unwaived, kept),
+		overlaps:   finding.MarkDuplicates(kept, role.Order(corpus)),
 		// §6.5.1's four breakdowns, over the records that reach the
 		// output file and after every pass that could remove one.
 		counts: mergeCountsOf(corpus, kept),

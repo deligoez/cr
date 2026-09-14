@@ -11,6 +11,10 @@ import (
 type recordDrops struct {
 	waived finding.Drops
 	posted finding.PostedDrops
+	// waivedKeys and postedKeys are the intake keys of the records each
+	// drop took out, which the round summary counts them by.
+	waivedKeys []string
+	postedKeys []string
 	// input is §1.4's normalised hash of the file the drops were taken out
 	// of, which keys `cr record`'s share of the round summary's intake.
 	input string
@@ -69,7 +73,7 @@ func dropRecorded(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	kept, waived, err := finding.DropWaived(trees, records, waivers)
+	unwaived, waived, err := finding.DropWaived(trees, records, waivers)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
@@ -77,7 +81,7 @@ func dropRecorded(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	kept, posted, err := finding.DropPosted(trees, kept, index)
+	kept, posted, err := finding.DropPosted(trees, unwaived, index)
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
@@ -85,7 +89,10 @@ func dropRecorded(
 	if err != nil {
 		return nil, nil, recordDrops{}, err
 	}
-	return kept, orphaned(kept, stored), recordDrops{waived: waived, posted: posted, input: input}, nil
+	return kept, orphaned(kept, stored), recordDrops{
+		waived: waived, posted: posted, input: input,
+		waivedKeys: droppedKeys(records, unwaived), postedKeys: droppedKeys(unwaived, kept),
+	}, nil
 }
 
 // orphaned clears the `duplicate_of` of every kept record whose representative

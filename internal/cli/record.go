@@ -409,9 +409,10 @@ func writeRecordIntake(
 	if err != nil {
 		return err
 	}
-	recorded[dropped.input] = recordIntake{
-		Merged: dropped.input == mergedHash, Waived: dropped.waived, AlreadyPosted: dropped.posted,
-	}
+	recorded[dropped.input] = recordIntake{Merged: dropped.input == mergedHash, intakeDrops: intakeDrops{
+		Waived: dropped.waived, WaivedKeys: dropped.waivedKeys,
+		AlreadyPosted: dropped.posted, PostedKeys: dropped.postedKeys,
+	}}
 	counts = append(counts, summaryCount{key: summaryRecordIntake, value: recorded})
 	if err := writeSummary(held, round.Round, ownerRecord, counts); err != nil {
 		return err

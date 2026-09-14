@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
@@ -34,30 +35,66 @@ const (
 	summaryRecordIntake = "record_intake"
 )
 
-// mergeIntake is summaryMergeIntake's shape.
+// intakeDrops is what one share's two drops took out: §6.4.4's and §9.3.6's
+// reports, and the intake key of every record each drop removed.
 //
-// It carries record ids only for the records the output file holds, never for
-// the ones a drop took out: §6.4.4 lets only the count of those reach the round
-// summary.
+// The keys are what the counts are made of. One finding can reach both
+// commands — a role file merged and also recorded, in either order — and each
+// drops it again; a count kept per share would add the second drop to the
+// first. A set of keys joins them, so one record is one drop however many
+// shares took it out.
+type intakeDrops struct {
+	Waived        finding.Drops       `json:"waived"`
+	WaivedKeys    []string            `json:"waived_keys"`
+	AlreadyPosted finding.PostedDrops `json:"already_posted"`
+	PostedKeys    []string            `json:"posted_keys"`
+}
+
+// mergeIntake is summaryMergeIntake's shape.
 type mergeIntake struct {
 	// Records are the ids of the records the merge's output file holds.
 	Records []string `json:"records"`
-	// Waived and AlreadyPosted are the merge's §6.4.4 and §9.3.6 drops.
-	Waived        finding.Drops       `json:"waived"`
-	AlreadyPosted finding.PostedDrops `json:"already_posted"`
+	// intakeDrops are the merge's §6.4.4 and §9.3.6 drops.
+	intakeDrops
 }
 
 // recordIntake is one entry of summaryRecordIntake: one file `cr record` read.
 type recordIntake struct {
 	// Merged is whether the file was the output `cr merge` last wrote for
-	// the round when it was recorded. Such a file's records are already
-	// counted in that merge's share, so only its drops are added, and only
+	// the round when it was recorded. Such a file's drops are counted only
 	// while that merge is still the round's last: a later merge applies the
 	// same drops to the same role files itself.
 	Merged bool `json:"merged"`
-	// Waived and AlreadyPosted are the drops `cr record` applied to the file.
-	Waived        finding.Drops       `json:"waived"`
-	AlreadyPosted finding.PostedDrops `json:"already_posted"`
+	// intakeDrops are the drops `cr record` applied to the file.
+	intakeDrops
+}
+
+// intakeKey is the key a record is counted under in the intake: its id, which
+// §6.1 keeps stable for the life of the pull request, or §6.4.1's identity for
+// a record that carries none. The identity is spelled with spaces, which no
+// id holds, so the two never name one another.
+func intakeKey(record *finding.Finding) string {
+	if record.ID != "" {
+		return record.ID
+	}
+	key := finding.DedupKeyOf(record)
+	return fmt.Sprintf("%q %s %d %q", key.Path, key.Side, key.Line, key.Class)
+}
+
+// droppedKeys is the intake key of every record in before that a drop left out
+// of kept, in before's order.
+func droppedKeys(before, kept []*finding.Finding) []string {
+	left := make(map[*finding.Finding]bool, len(kept))
+	for _, record := range kept {
+		left[record] = true
+	}
+	keys := make([]string, 0)
+	for _, record := range before {
+		if !left[record] {
+			keys = append(keys, intakeKey(record))
+		}
+	}
+	return keys
 }
 
 // newMergeIntake is a merge's share of the intake.
@@ -66,7 +103,10 @@ func newMergeIntake(merged *mergeOutcome) *mergeIntake {
 	for _, record := range merged.records {
 		ids = append(ids, record.ID)
 	}
-	return &mergeIntake{Records: ids, Waived: merged.waived, AlreadyPosted: merged.posted}
+	return &mergeIntake{Records: ids, intakeDrops: intakeDrops{
+		Waived: merged.waived, WaivedKeys: merged.waivedKeys,
+		AlreadyPosted: merged.posted, PostedKeys: merged.postedKeys,
+	}}
 }
 
 // readIntake reads both shares of the round's intake and the digest of the
@@ -87,6 +127,17 @@ func readIntake(
 	if recorded == nil {
 		recorded = make(map[string]recordIntake)
 	}
+	// An entry a summary kept before the keys were has none, and `cr record`
+	// writes every entry back: an empty list, never null.
+	for input, entry := range recorded {
+		if entry.WaivedKeys == nil {
+			entry.WaivedKeys = make([]string, 0)
+		}
+		if entry.PostedKeys == nil {
+			entry.PostedKeys = make([]string, 0)
+		}
+		recorded[input] = entry
+	}
 	mergedHash, _, err = state.ReadRoundSection[string](l, owner, repo, pr, round, state.FileSummary, summaryMergedHash)
 	return merge, recorded, mergedHash, err
 }
@@ -105,54 +156,61 @@ func writeIntakeCounts(
 	})
 }
 
-// intakeTotals adds the two shares up.
+// intakeTotals adds the two shares up, by key.
 //
-// Raised is every record the round holds or the last merge's output holds, each
-// id once, and every finding a drop took out before it could be stored. A drop
-// `cr record` applied to the last merge's own output is not added to raised a
-// second time, because that output's records are already among the ids; and a
-// drop it applied to an earlier merge's output is left out altogether, because
-// the last merge applied its drops to the same role files again.
+// Raised is every record the round holds, the last merge's output holds, or a
+// drop took out before it could be stored, each key once. Waived and already
+// posted are the keys each drop took out, each once across every share, so a
+// finding dropped by `cr merge` and by `cr record` alike is one drop. A drop
+// `cr record` applied to an earlier merge's output is left out altogether,
+// because the last merge applied its drops to the same role files again.
 //
 // The recorded entries are added in digest order and the waiver and posted ids
 // joined without repeats, so the same state gives the same document.
 func intakeTotals(
 	merge *mergeIntake, recorded map[string]recordIntake, mergedHash string, stored []*finding.Finding,
 ) (raised int, waived finding.Drops, posted finding.PostedDrops) {
-	ids := make(map[string]bool, len(stored)+len(merge.Records))
+	keys := make(map[string]bool, len(stored)+len(merge.Records))
 	for _, record := range stored {
-		ids[record.ID] = true
+		keys[intakeKey(record)] = true
 	}
 	for _, id := range merge.Records {
-		ids[id] = true
+		keys[id] = true
 	}
-	raised = len(ids) + merge.Waived.Dropped + merge.AlreadyPosted.Dropped
 	waived = finding.Drops{Waivers: make([]string, 0)}
 	posted = finding.PostedDrops{Posted: make([]string, 0)}
-	addDrops(&waived, &posted, merge.Waived, merge.AlreadyPosted)
+	waivedKeys, postedKeys := make(map[string]bool), make(map[string]bool)
+	addDrops(&waived, &posted, waivedKeys, postedKeys, &merge.intakeDrops)
 	for _, input := range slices.Sorted(maps.Keys(recorded)) {
 		entry := recorded[input]
 		if entry.Merged && input != mergedHash {
 			continue
 		}
-		if !entry.Merged {
-			raised += entry.Waived.Dropped + entry.AlreadyPosted.Dropped
-		}
-		addDrops(&waived, &posted, entry.Waived, entry.AlreadyPosted)
+		addDrops(&waived, &posted, waivedKeys, postedKeys, &entry.intakeDrops)
 	}
-	return raised, waived, posted
+	waived.Dropped, posted.Dropped = len(waivedKeys), len(postedKeys)
+	maps.Copy(keys, waivedKeys)
+	maps.Copy(keys, postedKeys)
+	return len(keys), waived, posted
 }
 
-// addDrops adds one share's two drops into the totals.
-func addDrops(waived *finding.Drops, posted *finding.PostedDrops, w finding.Drops, p finding.PostedDrops) {
-	waived.Dropped += w.Dropped
-	for _, id := range w.Waivers {
+// addDrops adds one share's two drops into the totals: its keys into the two
+// sets and its waiver and posted ids into the two reports.
+func addDrops(
+	waived *finding.Drops, posted *finding.PostedDrops, waivedKeys, postedKeys map[string]bool, share *intakeDrops,
+) {
+	for _, key := range share.WaivedKeys {
+		waivedKeys[key] = true
+	}
+	for _, id := range share.Waived.Waivers {
 		if !slices.Contains(waived.Waivers, id) {
 			waived.Waivers = append(waived.Waivers, id)
 		}
 	}
-	posted.Dropped += p.Dropped
-	for _, id := range p.Posted {
+	for _, key := range share.PostedKeys {
+		postedKeys[key] = true
+	}
+	for _, id := range share.AlreadyPosted.Posted {
 		if !slices.Contains(posted.Posted, id) {
 			posted.Posted = append(posted.Posted, id)
 		}
