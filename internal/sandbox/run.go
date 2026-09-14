@@ -288,12 +288,18 @@ func stopLeftRunner(src *Sources) (*StoppedRunner, error) {
 // It reads the process state's own description rather than its wait status:
 // this file may name only the process-control identifiers of `syscall`, and
 // os spells a signalled exit as `signal: <name>` for every such process.
+//
+// os appends ` (core dumped)` where the kernel wrote a core, which Linux does
+// for a segmentation fault and macOS by default does not. The suffix is
+// dropped so one run names its signal the same way on every platform; CI on
+// Linux measured `segmentation fault (core dumped)` where macOS gave
+// `segmentation fault`.
 func signalOf(exit *exec.ExitError) string {
 	name, signalled := strings.CutPrefix(exit.String(), "signal: ")
 	if !signalled {
 		return ""
 	}
-	return name
+	return strings.TrimSuffix(name, " (core dumped)")
 }
 
 // setupArgv splits one `sandbox.setup` entry into the argv it runs as.
