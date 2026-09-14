@@ -168,15 +168,25 @@ func TestAMovedHeadStalesTheOpenRecordsAndCarriesTheClaimsForward(t *testing.T) 
 		}
 	})
 
-	t.Run("the mapping is cleared and not carried forward", func(t *testing.T) {
-		assert.Empty(t, lines(t, src, state.FileMapping),
-			"§9.3.4 clears the closing round's mapping, and the opening round has none: "+
-				"§4.1.6's join names unit ids the recomputation has taken away")
+	t.Run("the mapping is not carried forward and round 1's stays as history", func(t *testing.T) {
+		stored := lines(t, src, state.FileMapping)
+		require.Len(t, stored, 1, "§9.3.4 opens round 2 with no mapping, and §9.3.5 keeps round 1's")
+		assert.Equal(t, "1", string(stored[0]["round"]))
+		assert.Equal(t, "u1", field(t, stored[0], "unit"))
+		assert.Equal(t, first, field(t, stored[0], "head"))
 	})
 
 	t.Run("units are recomputed and renumbered for the new head", func(t *testing.T) {
-		stored, err := state.ReadRecords[unit.Record](
-			src.Layout, testOwner, testRepo, testPR, state.FileUnits)
+		kept, err := state.ReadStamped[unit.Record](
+			src.Layout, testOwner, testRepo, testPR, state.FileUnits, 1)
+		require.NoError(t, err)
+		require.Len(t, kept, 1, "§9.3.5 keeps round 1's unit, which its stale records and mapping name")
+		assert.Equal(t, "u1", kept[0].ID)
+		assert.Equal(t, "order.go", kept[0].Path)
+		assert.Equal(t, first, kept[0].Head)
+
+		stored, err := state.ReadStamped[unit.Record](
+			src.Layout, testOwner, testRepo, testPR, state.FileUnits, 2)
 		require.NoError(t, err)
 		require.Len(t, stored, 2, "the new head touches two files, where the old one touched one")
 
@@ -276,7 +286,7 @@ func TestASameHeadBriefPerformsNoneOfSection934(t *testing.T) {
 // This is the carve-out the same-head fence in nojudgement_test.go cannot make.
 // That guard compares the whole §2.3 table and permits three rows, which is the
 // right answer for every brief that opens no round; on an increment §9.3.4
-// requires three more, findings.ndjson among them, and a guard that forbade
+// requires more, findings.ndjson among them, and a guard that forbade
 // them everywhere would forbid the section. So the exception is written out
 // here as its own closed list, against the same whole table: a brief that
 // started writing a fourth row on a moved head fails this, and one that started
@@ -325,7 +335,7 @@ func TestAnIncrementWritesTheRowsSection934NamesAndNoOthers(t *testing.T) {
 			continue
 		}
 		assert.Equalf(t, before[name], after[name],
-			"§9.3.4 and §9.1.1 name four rows beside §3.7's derived inputs, and %s is not one of them", name)
+			"§9.3.4 and §9.1.1 name three rows beside §3.7's derived inputs, and %s is not one of them", name)
 	}
 	for name, line := range sentinel {
 		if slices.Contains(derivedFiles, name) {
@@ -336,13 +346,13 @@ func TestAnIncrementWritesTheRowsSection934NamesAndNoOthers(t *testing.T) {
 }
 
 // invalidated are the rows §9.3.4 writes on top of §3.7's derived inputs:
-// findings.ndjson holds the records it moves to `stale`, mapping.ndjson is the
-// file it clears, and claims.ndjson holds the claims it carries forward — plus
-// transitions.ndjson, where §9.1.1 has each of those moves to `stale` leave its
-// journal line.
+// findings.ndjson holds the records it moves to `stale`, and claims.ndjson holds
+// the claims it carries forward — plus transitions.ndjson, where §9.1.1 has each
+// of those moves to `stale` leave its journal line. mapping.ndjson is not among
+// them: §9.3.4 clears the opening round's mapping, which holds no line, and
+// §9.3.5 keeps every earlier round's.
 var invalidated = map[string]bool{
 	state.FileFindings:    true,
-	state.FileMapping:     true,
 	state.FileClaims:      true,
 	state.FileTransitions: true,
 }

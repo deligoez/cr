@@ -47,6 +47,11 @@ func persist(src *Sources, assembled *Brief) error {
 // write publishes the three files through the held lock, preceded on §9.3.3's
 // increment by §9.3.4's invalidation.
 //
+// The units replace this round's lines of units.ndjson and leave every earlier
+// round's lines in place (§9.3.5), so a same-head brief rewrites its own round's
+// units and a new round's units are added beside the history its stale records
+// and mapping name.
+//
 // meta.json is written last, and that is the whole of what makes an interrupted
 // increment recoverable. The comparison §9.3.3 makes is against the head
 // meta.json records, so while that file still names the closing round every
@@ -62,7 +67,7 @@ func write(src *Sources, held *state.Lock, assembled *Brief) error {
 		}
 	}
 	stamp := state.Stamp{Head: assembled.Head, Round: assembled.Round}
-	if err := state.WriteStamped(held, state.FileUnits, stamp, records(assembled.Units)); err != nil {
+	if err := state.ReplaceStamped(held, state.FileUnits, stamp, records(assembled.Units)); err != nil {
 		return err
 	}
 	if err := gh.WriteThreads(held, assembled.Threads); err != nil {

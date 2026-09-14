@@ -75,11 +75,10 @@ func rows(t *testing.T, src *Sources) map[string]string {
 //
 // Both briefs here run at the same head, and that is the whole scope of this
 // guard rather than an incidental detail of the fixture. §9.3.4 requires an
-// increment to write three rows this list does not permit — it stales the
-// records in findings.ndjson, clears mapping.ndjson, and carries claims.ndjson
-// forward — so a version of this test that also ran at a moved head would
-// forbid the section. The increment has a fence of its own, with its own closed
-// list against the same whole table:
+// increment to write rows this list does not permit — it stales the records
+// in findings.ndjson and carries claims.ndjson forward — so a version of this
+// test that also ran at a moved head would forbid the section. The increment
+// has a fence of its own, with its own closed list against the same whole table:
 // TestAnIncrementWritesTheRowsSection934NamesAndNoOthers in invalidate_test.go.
 func TestABriefWritesTheDerivedInputsAndNoJudgementArtefact(t *testing.T) {
 	dir, head, base := repository(t)

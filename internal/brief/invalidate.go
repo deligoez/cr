@@ -59,31 +59,20 @@ func invalidate(held *state.Lock, assembled *Brief) error {
 	return carryClaims(held, assembled)
 }
 
-// clearMapping is §9.3.4's second clause, and the round it clears is the one
-// being closed rather than the one being opened.
+// clearMapping is §9.3.4's second clause, scoped by §9.3.5 to the round being
+// opened: that round starts with no mapping, and every earlier round's pairs
+// stay in the file as history.
 //
-// §9.3.5 scopes a clearing to the current round, and at the moment this runs
-// the current round is still the recorded one: `meta.json` has not been written
-// yet, and every reader arriving before it sees the round this brief is closing.
-// So the two sentences agree, and they agree on the only reading that does
-// anything — clearing the round being opened would clear a round that has
-// never held a record, and §9.3.4 would be a sentence with no effect.
+// The closing round's pairs are not dangling. `write` adds the opening round's
+// units to units.ndjson beside the closing round's rather than replacing them,
+// so every pair a round recorded still names a unit that round's lines hold,
+// and a stale record's unit stays resolvable from state. No command of the
+// opening round reads them: each reads its own round's lines per §9.3.5.
 //
-// Deleting it is not deleting history, which is what §9.3.5 protects. A mapping
-// is §4.1.6's join between a claim and a unit, and the unit half does not
-// survive: units.ndjson is republished whole on every brief, so the ids the
-// closing round's pairs name are gone the moment the units are recomputed.
-// What would be kept is a set of dangling references, and §4.1.6 rejects a pair
-// naming an unknown unit id — so a round that kept them would be holding rows
-// it would itself refuse.
-//
-// The claims the pairs name do survive, because carryClaims records them into
-// the round being opened. That asymmetry is the whole content of §9.3.4's
-// second and third clauses read together: the claims are still the claims, the
-// units are not still the units, and the mapping between them has to be made
-// again.
+// §9.3.2 refuses `cr map record` until this brief has opened the round, so
+// the clearing removes no pair any earlier round recorded.
 func clearMapping(held *state.Lock, assembled *Brief) error {
-	return state.ClearStamped(held, state.FileMapping, assembled.round.carries)
+	return state.ClearStamped(held, state.FileMapping, assembled.Round)
 }
 
 // staleOpenRecords is §9.3.4's first clause: every record still in `draft` or
