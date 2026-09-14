@@ -250,7 +250,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	}
 	// §10.3's counts this command owns, read off the round as this run
 	// leaves it and before §7.3.1's events below add this round's own.
-	summary, err := summarizeDraft(l, owner, repo, pr, round, queued)
+	summary, err := summarizeDraft(l, owner, repo, pr, round, records, queued)
 	if err != nil {
 		return err
 	}
@@ -574,9 +574,9 @@ const summaryNewClasses = "new_classes"
 // round undraftable once its last experiment had run.
 func summarizeDraft(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
-	queued []*finding.Finding,
+	records, queued []*finding.Finding,
 ) (draftSummary, error) {
-	fresh, err := newDraftClasses(l, owner, repo, pr, round.Round, queued)
+	fresh, err := newDraftClasses(l, owner, repo, pr, round.Round, records)
 	if err != nil {
 		return draftSummary{}, err
 	}

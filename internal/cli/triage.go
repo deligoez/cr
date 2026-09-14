@@ -38,7 +38,7 @@ func (t *triaged) discardedSettlements() []finding.Settled {
 }
 
 // newDraftClasses is §7.3.3's report for one round: the classes among the
-// records this draft queues that the repository's ledger has not held on any
+// round's raised records that the repository's ledger has not held on any
 // other occasion.
 //
 // The read is lock-free per §2.3.2 and is taken before the round's own events
@@ -46,13 +46,35 @@ func (t *triaged) discardedSettlements() []finding.Settled {
 // did — finding.NewClasses excludes this pull request and round for the same
 // reason, so the two guards hold whether or not this read happens to run first.
 func newDraftClasses(
-	l state.Layout, owner, repo string, pr, round int, queued []*finding.Finding,
+	l state.Layout, owner, repo string, pr, round int, records []*finding.Finding,
 ) ([]string, error) {
 	held, err := finding.TriageEvents(l, owner, repo)
 	if err != nil {
 		return nil, err
 	}
-	return finding.NewClasses(held, pr, round, queued), nil
+	return finding.NewClasses(held, pr, round, raisedInRound(records)), nil
+}
+
+// raisedInRound are the round's records a draft has raised: the ones it holds
+// in `queued`, and the ones a triage has since moved on to `discarded` or
+// `posted`.
+//
+// A discarded record is kept among them because §7.3.3 is a report about the
+// round and not about the draft that happens to be current. A class whose every
+// record the reviewer deleted or marked `wrong` was still first seen in this
+// round — the ledger's `raised` events and `cr stats`' first_seen both say so —
+// and a regeneration that forgot it would overwrite summary.json with a report
+// that disagrees with the first run's. The records a draft never raised,
+// `duplicate` and `suppressed` ones, stay out: nothing was said about them.
+func raisedInRound(records []*finding.Finding) []*finding.Finding {
+	raised := make([]*finding.Finding, 0, len(records))
+	for _, record := range records {
+		switch record.State {
+		case finding.StateQueued, finding.StateDiscarded, finding.StatePosted:
+			raised = append(raised, record)
+		}
+	}
+	return raised
 }
 
 // triageOccasion is the pull request, round, head and moment one command writes
