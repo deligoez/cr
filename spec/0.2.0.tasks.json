@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-14T21:56:28.802827Z",
+  "updated_at": "2026-09-14T22:44:05.025349Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 11,
+    "mapped_sections": 20,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -31,11 +31,9 @@
       "#### 2.6.3 Harvesting",
       "## 3. Inputs",
       "### 3.1 Intent source",
-      "### 3.2 Issue key resolution",
       "### 3.3 Claim extraction",
       "### 3.4 Diff ingestion and unit clustering",
       "### 3.5 Existing threads",
-      "### 3.6 Context store",
       "### 3.7 Orientation",
       "## 4. Review axes",
       "### 4.1 Intent coverage",
@@ -45,12 +43,7 @@
       "### 4.5 Axis activation and honest reporting",
       "### 4.6 Review fan-out",
       "## 5. Probes",
-      "### 5.1 Sandbox",
       "### 5.2 Test runs",
-      "### 5.3 Mutation probe",
-      "### 5.4 Gap probe",
-      "### 5.5 Probe record",
-      "### 5.6 Isolation and budget",
       "## 6. Findings",
       "### 6.3 The argued rule",
       "### 6.4 Dedup",
@@ -65,8 +58,6 @@
       "## 9. Record states",
       "### 9.1 States",
       "## 10. Reporting and completeness",
-      "### 10.1 Coverage report",
-      "### 10.3 Round summary",
       "## 11. Command surface",
       "### 11.1 Global flags",
       "### 11.2 Exit codes",
@@ -361,6 +352,222 @@
         "skills/cr/SKILL.md",
         "spec/0.2.0-release-notes.md"
       ]
+    },
+    {
+      "id": "h1-set-aside-counts-standing-notes",
+      "title": "Count only set-asides whose note stands",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- `cr status` counts in `set_aside` only claims whose set-aside note still stands, and lists a set-aside whose note was retracted under `unstanding_notes`, so the count and the §10.2 reason never disagree (repro D-V1a-4 in scratchpad/qa-v020/results-V1a.md).\n- Proven through `cr status` in both directions: a standing note gives `set_aside:1` with no reason naming the claim; a retracted note gives `set_aside:0`, the claim under `unstanding_notes`, and the §10.2 reason naming it; JSON and terminal agree.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 10.1 Coverage report",
+        "### 3.6 Context store"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h2-summary-intake-per-record",
+      "title": "Count summary intake once per record",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- The intake counts `cr record` and `cr merge` accumulate in `rounds/\u003cn\u003e/summary.json` (`raised`, `waived.dropped` and their siblings) are keyed by record id, falling back to §6.4.1 identity for an item without one, so one finding given to both commands, in either order and any number of times, is counted once (repro D-V1a-5 in scratchpad/qa-v020/results-V1a.md).\n- Proven through the commands: the repro file through `cr record` then `cr merge` gives `raised` 4 and `waived.dropped` 1, and the same through `cr merge` then `cr record`; two distinct findings still count 2.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 10.3 Round summary"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h3-marker-unit-refusal-clause",
+      "title": "Give the marker unit refusal its own clause",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A marker edit refused for leaving its record's unit keeps the problem text `cr record` shares, but its final clause is the marker path's own: keep the comment within its unit or delete the block, and it never tells the reviewer to name a unit (repro D-V5-2 in scratchpad/qa-v020/results-V5.md); `cr record`'s own refusal still ends with its advice.\n- Proven through `cr draft` and `cr record` with whole-message assertions, and skills/cr/SKILL.md quotes the new text; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 7.2 Triage verbs"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h4-inconclusive-probe-reason",
+      "title": "Name why a probe is inconclusive",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- A mutation or gap probe answered `inconclusive` because the run reported zero failures and exited non-zero carries a `reason` naming the rung and the exit code, in the shape `reason` already has on `error`; every other `inconclusive` rung also names its rung (repro D-V1b-2 in scratchpad/qa-v020/results-V1b.md).\n- Proven through `cr probe run` for exit 255 and exit 1 on both kinds, and a run exiting 0 with zero failures still records `no-test-failed`/`passed` with an empty reason; skills/cr/SKILL.md documents the field.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 5.3 Mutation probe",
+        "### 5.4 Gap probe",
+        "### 5.5 Probe record"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h5-repo-remote-mismatch-hint",
+      "title": "Name a --repo that differs from the remote",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- When `--repo` names a repository other than the one the clone's remote points at (owner/repo compared after normalising ssh, https and `.git` forms, read through internal/git's runner), a git failure to find the pull request's commits carries a hint naming both repositories instead of only `git fetch`; nothing is refused for the mismatch alone (repro D-V1a-1 in scratchpad/qa-v020/results-V1a.md).\n- Proven through `cr brief`: the mismatch hint appears only when the remotes differ, a matching remote in each URL form keeps the `git fetch` hint, and a fork remote that holds the commits still works.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 3.2 Issue key resolution"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h6-context-refuses-off-pattern-key",
+      "title": "Refuse an off-pattern key in cr context",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- `cr context \u003ckey\u003e` refuses a key that does not match `intent.key_pattern` with exit code 2, the way `cr note` does, sharing `cr note`'s check (repro D-V1a-3 in scratchpad/qa-v020/results-V1a.md).\n- Proven through `cr context` in both directions: an on-pattern key lists its notes, an off-pattern spelling exits 2 naming the pattern; a note stored by v0.1 under an off-pattern key is still removable with `cr note --remove \u003cid\u003e`.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 3.6 Context store"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h7-head-not-fetched-hint-shared",
+      "title": "Share the unfetched-head hint across commands",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 40,
+      "acceptance": "- One predicate classifies a git failure as the pull request's head or merge base not being present in the clone, and `cr brief`, `cr status`, `cr review` and `cr post` all use it to give the same `git fetch` hint with exit code 3.\n- Proven through `cr review` and `cr post` on a head the clone never fetched (they gain the hint), and through `cr brief` and `cr status` (unchanged); a git failure of another kind keeps its own hint.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 9.3 A changed head"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h8-rulefix-over-units",
+      "title": "Build rule fixes only from unit lines",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 35,
+      "acceptance": "- The fix suggestion `cr record` attaches to a record naming a rule is built from hits detected over the units' RIGHT lines only, through the same `rule.Reviewed(hunks, units)` scope detection uses per §2.6.1.1.\n- Proven through `cr record`: a hit inside a unit still attaches its fix to a confirming record; a hit in a file that formed no unit (a generated or listed file) attaches no fix and no hit.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 2.6 Rules"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h9-probe-lock-per-clone",
+      "title": "Serialise probes per clone across state roots",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 60,
+      "acceptance": "- Besides the lock under `CR_HOME`, a probe or test run takes a second flock keyed by the clone's absolute path and the profile id under os.TempDir, with the same timeout, acquired after the CR_HOME lock and released in reverse order; nothing is written in the repository under review.\n- Proven with two `CR_HOME` roots on one clone: the second run waits and exits 4 at the timeout as within one root, while two different clones do not block each other.\n- The release notes' per-CR_HOME limitation is replaced by the honest scope (per user on macOS, per machine on Linux) and go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 5.6 Isolation and budget"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h10-runner-start-window-closed",
+      "title": "Close the SIGKILL window at runner start",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [
+        "h9-probe-lock-per-clone"
+      ],
+      "estimate_minutes": 90,
+      "acceptance": "- A SIGKILL of `cr` between starting the test runner and recording its process group can no longer leave an unrecorded runner: the runner is held on a pipe until the group is recorded, so a killed `cr` closes the pipe and the runner never starts, without changing how `tests.cmd` argv is executed; if that cannot be done without a shell wrapper, record the run's intent before start and have the next command report a possible orphan instead, and say which was chosen and why in the closure.\n- Proven with an injected kill between start and release: no runner process exists afterwards and the sandbox holds no mutation; the ordinary path still records the run.\n- The release notes' SIGKILL limitation is removed or corrected, and go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 5.1 Sandbox",
+        "### 5.3 Mutation probe"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "h11-pin-left-edit-in-mixed-hunk",
+      "title": "Pin a LEFT side edit in a mixed hunk",
+      "status": "open",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- A test pins that a marker edit from RIGHT to LEFT onto removed lines of a hunk that also adds lines stays inside the unit and is accepted, per §9.2.1, and the dry-run payload of `cr post` carries `side: LEFT` with `line` the merge-base line and the regenerated marker says LEFT; it also records whether the anchors-on-changed-lines check agrees, and if it refuses that anchor the unit stops and reports.\n- skills/cr/SKILL.md states in one sentence that the out-of-block id refusal applies once `cr review` has emitted the round; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 9.2 Anchors",
+        "### 7.2 Triage verbs"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
