@@ -98,12 +98,6 @@ Sequenced after the reviewer side has been measured, because it is a second prod
 
 ## Questions to settle by measurement
 
-- **Can cr take over the implementation audit of `tp`?** Its intent axis already does the audit's backward
-  pass (every requirement mapped, unmapped ones reported as gaps), with executed evidence where an audit
-  reads. It cannot yet give a forward verdict with convergence (needs 3), and it sees cross-cutting and
-  tree-state requirements poorly (5). Decide with the reversed-fixes experiment in 1; the likely answer is a
-  hybrid: cr on the change, audit roles only on the requirements cr's mapping flags as cross-cutting or
-  unmappable. cr's own releases keep external QA whatever the result.
 - **Does the question channel converge?** If the question-to-finding ratio on a real spec is high, a
   convergence rule that counts open questions never reaches clean, and one that does not count them loses
   recall.
