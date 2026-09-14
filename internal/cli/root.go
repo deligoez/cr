@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // version is the tag a release build injects via
@@ -29,12 +31,7 @@ func newRootCmd() *cobra.Command {
 		Version:       versionOf(version, debug.ReadBuildInfo),
 		Args:          cobra.NoArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			// §2.7 refuses a CR_ variable addressing a protected
-			// decision, and the refusal cannot wait for a command to
-			// resolve its configuration: `cr record` and `cr waivers
-			// list` resolve none, and accepted one in silence. So every
-			// command in the tree makes the check here, before its work.
-			if err := config.CheckEnviron(os.Environ()); err != nil {
+			if err := refuseProtected(cmd); err != nil {
 				return err
 			}
 			return out.settle(cmd)
@@ -86,6 +83,36 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newRulesCmd(out))
 
 	return root
+}
+
+// refuseProtected makes §2.7's refusal of a name addressing a protected
+// decision for every command in the tree, before its work: a CR_ variable, a
+// key of either config layer, and a field of a profile file. The refusal cannot
+// wait for a command to resolve its configuration or load its profile, because
+// `cr record`, `cr merge` and `cr waivers list` do neither, and QA found them
+// accepting all three in silence (D-S05-5, D-V1a-6).
+//
+// The per-repository layer is the one repoOf locates, as for `cr config`.
+// Where the state root, or the repository, cannot be located, that part is left
+// to the command: one that needs it refuses by its own name, and one that does
+// not, such as `cr init` outside a clone, is not refused for it.
+func refuseProtected(cmd *cobra.Command) error {
+	if err := config.CheckEnviron(os.Environ()); err != nil {
+		return err
+	}
+	layout, layoutErr := state.Default()
+	if layoutErr != nil {
+		return nil
+	}
+	if err := config.CheckFile(layout.Config()); err != nil {
+		return err
+	}
+	if owner, repo, repoErr := repoOf(cmd); repoErr == nil {
+		if err := config.CheckFile(layout.RepoConfig(owner, repo)); err != nil {
+			return err
+		}
+	}
+	return profile.CheckDir(layout.ProfilesDir())
 }
 
 // Execute runs the root command and maps errors onto cr's exit codes.
