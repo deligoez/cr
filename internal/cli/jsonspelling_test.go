@@ -27,12 +27,18 @@ import (
 // joins the two the way Execute does.
 //
 // `--json=maybe --json` is a value pflag refuses: it stops there with a usage
-// error before reaching the bare flag, so the run is prose. A `--json` that a
-// string flag takes as its value — the root's `--repo`, or `cr test`'s own
-// `--filter` — is that flag's value and asks for nothing, so the run is prose.
-// It stays prose beside a flag cobra adds only when it executes: the help flag
-// in both spellings, the root's version flag, and the flags of the completion
-// command cobra registers.
+// error before reaching the bare flag, so the run is prose, and `--json
+// --json=maybe` is prose too, because pflag stores the refused value's false
+// before it stops. A `--json` that a string flag takes as its value — the
+// root's `--repo`, or `cr test`'s own `--filter` — is that flag's value and
+// asks for nothing, so the run is prose. It stays prose beside a flag cobra
+// adds only when it executes: the help flag in both spellings, the root's
+// version flag, and the flags of the completion command cobra registers.
+//
+// An unknown flag stops the parse where it stands, and the answer is what the
+// flags before it set: `--json --bogus` is JSON, while `--bogus --json` never
+// reaches `--json` and `--repo --json --bogus` gave it to `--repo`, so both
+// are prose.
 func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 	binary := crBinary(t)
 	home := filepath.Join(t.TempDir(), ".cr")
@@ -65,6 +71,10 @@ func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 		{[]string{"status", "abc", "--repo", "o/r", "--json=TRUE"}, true},
 		{[]string{"status", "abc", "--repo", "o/r", "--json", "--json=false"}, false},
 		{[]string{"status", "abc", "--repo", "o/r", "--json=maybe", "--json"}, false},
+		{[]string{"status", "abc", "--repo", "o/r", "--json", "--json=maybe"}, false},
+		{[]string{"status", "abc", "--repo", "--json", "--bogus"}, false},
+		{[]string{"status", "abc", "--bogus", "--json"}, false},
+		{[]string{"status", "abc", "--json", "--bogus"}, true},
 		{[]string{"status", "abc", "--repo", "--json"}, false},
 		{[]string{"test", "abc", "--repo", "o/r", "--filter", "--json"}, false},
 		{[]string{"status", "abc", "--repo", "--json", "--help=false"}, false},
@@ -112,6 +122,12 @@ func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 // flag the executed command defines set to false, which reaches the help,
 // version and completion flags cobra adds only at execute time.
 //
+// It must also read it as the run did where the run's parse refused the line:
+// an unknown flag after `--repo --json`, after `--json`, and before `--json`,
+// where pflag's flag set holds what it had set when it stopped. An unknown
+// command is swept as a path of its own, because the run parses its flags only
+// while the root's Args leaves cobra's lookup nothing to refuse.
+//
 // The executed side is a real in-process run; crHome, a temporary working
 // directory and TestMain's gh fence keep what the commands do to themselves.
 func TestTheFailurePathReadsJSONAsTheExecutedCommandDoes(t *testing.T) {
@@ -136,12 +152,18 @@ func TestTheFailurePathReadsJSONAsTheExecutedCommandDoes(t *testing.T) {
 		}
 	}
 	walk(execute([]string{"--help"}).Root(), []string{})
+	paths = append(paths, []string{"x"})
 
 	flagged := make(map[string]bool)
 	checked := 0
 	for _, path := range paths {
 		base := append(append([]string{}, path...), "--repo", "--json")
-		lines := [][]string{base}
+		lines := [][]string{
+			base,
+			append(append([]string{}, base...), "--bogus"),
+			append(append([]string{}, path...), "--json", "--bogus"),
+			append(append([]string{}, path...), "--bogus", "--json"),
+		}
 		execute(base).Flags().VisitAll(func(f *pflag.Flag) {
 			if f.Value.Type() != "bool" || f.Name == "json" {
 				return

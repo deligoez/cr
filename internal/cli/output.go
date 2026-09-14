@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -520,59 +519,36 @@ func reportFailure(stdout, stderr io.Writer, args []string, err error) error {
 // asksForJSON reports whether the arguments set §11.1's `--json`, as the
 // command they name reads it: the tree resolves the command and that command's
 // own flag set parses the rest, so a string flag that takes a literal `--json`
-// as its value has not asked for anything. Only arguments that parse fails on
-// fall back to scanning.
+// as its value has not asked for anything.
+//
+// A parse that refuses the line is read the same way. pflag sets each flag as
+// it reaches it and stops at the first it refuses, so the flag set holds what
+// the run's own parse held when it stopped: `--json --bogus` asked, and
+// `--bogus --json` and `--repo --json --bogus` did not. A `--json=<v>` whose
+// value strconv.ParseBool refuses is where it stops too, and pflag has already
+// stored that value's false by then.
 //
 // The fresh tree is first prepared as cobra's ExecuteC prepared the one the run
 // parsed, in its order: the help and completion commands on the root, then the
 // help and version flags on the command found. Without them a line the run
-// parsed, such as one carrying `--help=false`, fails to parse here and the scan
-// answers instead. ExecuteC's hidden `__complete` command is not added: cobra
+// parsed, such as one carrying `--help=false`, would be refused here on a flag
+// the run knew. ExecuteC's hidden `__complete` command is not added: cobra
 // adds it only when the arguments name it, and it parses no flags.
+//
+// Find's only refusal is an unknown command on a root that sets no Args, and
+// cr's root sets cobra.NoArgs, so Find refuses nothing here and the command it
+// returns is always the one whose flags the run parsed.
 func asksForJSON(args []string) bool {
 	root := newRootCmd()
 	root.InitDefaultHelpCmd()
 	root.InitDefaultCompletionCmd(args...)
-	cmd, flags, err := root.Find(args)
-	if err != nil {
-		return scansForJSON(args)
-	}
+	cmd, flags, _ := root.Find(args)
 	cmd.InitDefaultHelpFlag()
 	cmd.InitDefaultVersionFlag()
-	if cmd.ParseFlags(flags) != nil {
-		return scansForJSON(args)
-	}
+	_ = cmd.ParseFlags(flags)
 	// Every command inherits the root's `--json`, so the lookup has nothing
 	// to refuse.
 	asked, _ := cmd.Flags().GetBool("json")
-	return asked
-}
-
-// scansForJSON reads `--json` off arguments no command's flag set could parse,
-// the way pflag reads a boolean flag: bare, or with any value strconv.ParseBool
-// accepts, the last occurrence deciding, and never after the `--` that ends
-// flag parsing. A value ParseBool refuses is where pflag stops with a usage
-// error, so the answer is the one the occurrences before it left.
-func scansForJSON(args []string) bool {
-	asked := false
-	for _, arg := range args {
-		if arg == "--" {
-			return asked
-		}
-		if arg == "--json" {
-			asked = true
-			continue
-		}
-		value, ok := strings.CutPrefix(arg, "--json=")
-		if !ok {
-			continue
-		}
-		parsed, err := strconv.ParseBool(value)
-		if err != nil {
-			return asked
-		}
-		asked = parsed
-	}
 	return asked
 }
 
