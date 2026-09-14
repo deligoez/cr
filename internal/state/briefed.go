@@ -3,6 +3,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 )
 
 // NotBriefedError reports per-PR state no `cr brief` has opened a round in.
@@ -29,8 +30,9 @@ type NotBriefedError struct {
 	// not there at all. §9.3.3 numbers rounds from 1, so 0 is a state
 	// directory no brief has opened rather than a round of its own.
 	Round int
-	// Err is the read that failed, and nil when meta.json read cleanly and
-	// named no round.
+	// Err is the read that found meta.json absent, and nil when meta.json
+	// read cleanly and named no round. A meta.json that is there and does
+	// not decode is not this error: Briefed returns that read's own failure.
 	Err error
 }
 
@@ -79,14 +81,16 @@ func (e *NotBriefedError) Unwrap() error { return e.Err }
 // The read takes no lock, per §2.3.2.
 func (l Layout) Briefed(owner, repo string, pr int, current CurrentHead) (Round, error) {
 	recorded, err := l.ReadMeta(owner, repo, pr)
-	var stem *ProfileIDError
-	if errors.As(err, &stem) {
-		// A round is recorded, and it names a profile no file of §2.2's
-		// profiles directory can be: a brief would not repair the file.
-		return Round{}, err
+	if errors.Is(err, fs.ErrNotExist) {
+		return Round{}, &NotBriefedError{Owner: owner, Repo: repo, PR: pr, Err: err}
 	}
 	if err != nil {
-		return Round{}, &NotBriefedError{Owner: owner, Repo: repo, PR: pr, Err: err}
+		// meta.json is there and cannot be used: it does not decode, or it
+		// names a profile no file of §2.2's profiles directory can be. That
+		// is cr's own state file, which §11.2 codes 3 with UnusableHint, and
+		// `cr brief` reads the same file and refuses it too, so a hint naming
+		// the brief would send the reader to a command that cannot follow.
+		return Round{}, err
 	}
 	if recorded.Round < 1 {
 		return Round{}, &NotBriefedError{Owner: owner, Repo: repo, PR: pr, Round: recorded.Round}
