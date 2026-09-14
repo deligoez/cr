@@ -293,7 +293,7 @@ func mutationSupport(found *roundEvidence, meta *state.Meta, record *finding.Fin
 				"supports no probed grade, so the record stays argued (§6.2) and is asked as a "+
 				"question (§6.3)", mutated.Result)
 		if mutated.Reason != "" {
-			answered.Reason += "; the probe recorded why it is error: " + mutated.Reason
+			answered.Reason += "; the probe recorded why it is " + string(mutated.Result) + ": " + mutated.Reason
 		}
 	case !resolved:
 		answered.Reason = fmt.Sprintf(
