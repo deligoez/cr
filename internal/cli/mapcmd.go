@@ -205,10 +205,9 @@ func storeMapping(
 
 // publishMapping publishes the three files through the held lock.
 //
-// The gaps are written with ReplaceStamped rather than WriteStamped for the
-// reason the mapping is: §9.3.5 scopes a replacement to the current round, and
-// an entry raised in an earlier round is history that round's report was
-// written against.
+// The gaps are written with ReplaceStamped for the reason the mapping is:
+// §9.3.5 scopes a replacement to the current round, and an entry raised in an
+// earlier round is history that round's report was written against.
 //
 // The previously recorded entries are read back and handed to mapping.Gaps,
 // which is what carries a §4.1.8 set-aside through a re-recorded mapping. The

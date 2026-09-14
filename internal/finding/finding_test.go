@@ -117,7 +117,7 @@ func TestARecordNeverSerialisesASliceAsNull(t *testing.T) {
 // The struct is the resolved record, not the line an agent hands in, and head
 // and round are where the two forms already come apart: §2.3.3 has cr write the
 // pair and state.DecodeStamped refuses a line that supplied either, while
-// state.WriteStamped is what puts it on the stored record. A record type
+// state's stamped writers are what put it on the stored record. A record type
 // inherits both only by embedding state.Stamp, and §6.1.4's wider rejection is
 // built on the same separation, so it has to hold for a findings.ndjson line.
 func TestHeadAndRoundReachARecordOnlyFromTheWriter(t *testing.T) {
@@ -139,7 +139,7 @@ func TestHeadAndRoundReachARecordOnlyFromTheWriter(t *testing.T) {
 	held, err := l.LockPR("acme", "web", 42)
 	require.NoError(t, err)
 	at := state.Stamp{Head: "0f1e2d3", Round: 2}
-	require.NoError(t, state.WriteStamped(held, state.FileFindings, at, records))
+	require.NoError(t, state.ReplaceStamped(held, state.FileFindings, at, records))
 	require.NoError(t, held.Unlock())
 
 	stored, err := state.ReadRecords[Finding](l, "acme", "web", 42, state.FileFindings)

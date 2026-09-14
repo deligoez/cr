@@ -128,7 +128,7 @@ func TestADraftForcingAStoredArguedFindingIsNotASoftening(t *testing.T) {
 	edited.Class, edited.Grade = "tax-rounding", finding.GradeArgued
 	held, err := layout.LockPR(draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
-	require.NoError(t, state.WriteStamped(held, state.FileFindings,
+	require.NoError(t, state.ReplaceStamped(held, state.FileFindings,
 		state.Stamp{Head: draftHead, Round: draftRound}, []*finding.Finding{edited}))
 	require.NoError(t, held.Unlock())
 

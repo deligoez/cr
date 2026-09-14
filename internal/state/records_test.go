@@ -55,7 +55,7 @@ func TestTheWriterOwnsHeadAndRound(t *testing.T) {
 		{ID: "c1"},
 		{ID: "c2", Stamp: Stamp{Head: "deadbee", Round: 99}},
 	}
-	require.NoError(t, WriteStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
+	require.NoError(t, ReplaceStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
 	require.NoError(t, held.Unlock())
 
 	got, err := ReadRecords[stampedRecord](l, "acme", "web", 42, FileClaims)
@@ -81,11 +81,11 @@ func TestAFileIsWrittenThroughTheWriterItsSchemaRequires(t *testing.T) {
 		FileProbes, FileRuns, FileIntentGaps, FileCoverage,
 	} {
 		assert.Error(t, WriteRecords(held, name, []plainRecord{}), name)
-		assert.NoError(t, WriteStamped(held, name, at, []*stampedRecord{}), name)
+		assert.NoError(t, ReplaceStamped(held, name, at, []*stampedRecord{}), name)
 	}
 	for _, name := range []string{FilePostedIndex, FileThreads, FileTransitions, FileWaivers} {
 		assert.NoError(t, WriteRecords(held, name, []plainRecord{}), name)
-		assert.Error(t, WriteStamped(held, name, at, []*stampedRecord{}), name)
+		assert.Error(t, ReplaceStamped(held, name, at, []*stampedRecord{}), name)
 	}
 }
 
@@ -239,7 +239,7 @@ func TestALineGivingOneKeyTwiceIsRefused(t *testing.T) {
 }
 
 // Decoding is the road from an agent's file to the writer: what it returns is
-// what WriteStamped stamps. An empty file is no records rather than a null
+// what ReplaceStamped stamps. An empty file is no records rather than a null
 // slice (§12.3).
 func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
 	l := unlockedPR(t)
@@ -250,7 +250,7 @@ func TestDecodedRecordsAreStampedOnTheWayOut(t *testing.T) {
 		FileClaims, []byte("{\"id\":\"c1\"}\n{\"id\":\"c2\"}\n"), nil,
 	)
 	require.NoError(t, err)
-	require.NoError(t, WriteStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
+	require.NoError(t, ReplaceStamped(held, FileClaims, Stamp{Head: "0f1e2d3", Round: 2}, records))
 	require.NoError(t, held.Unlock())
 
 	got, err := ReadRecords[stampedRecord](l, "acme", "web", 42, FileClaims)
@@ -290,11 +290,11 @@ func TestAnUndecodableAgentLineIsNamedByItsNumber(t *testing.T) {
 //
 // findings.ndjson is the file this is about. §2.3 has it hold every finding and
 // question in every state, so a round adds to it, and §9.3.5 leaves earlier
-// rounds intact. WriteStamped cannot be used for that: it stamps every record
-// it is handed, so reading the file back and rewriting it through WriteStamped
-// would carry every earlier round into the head being recorded now — the first
-// round's records would claim to have been produced against a commit that did
-// not exist when they were written.
+// rounds intact. A stamping rewrite cannot be used for that: it stamps every
+// record it is handed, so reading the file back and writing it again through
+// one would carry every earlier round into the head being recorded now — the
+// first round's records would claim to have been produced against a commit
+// that did not exist when they were written.
 //
 // The first append lands on a file that is not there yet, which is what a state
 // directory opened by LockPR alone has: an absent file holds as many records as
@@ -312,7 +312,7 @@ func TestAnAppendLeavesEarlierRoundsAsTheyWere(t *testing.T) {
 		[]*stampedRecord{{ID: "f2", Stamp: first}, {ID: "f3"}}))
 
 	// A file §2.3.3 does not list carries no pair at all, and is refused
-	// here for the reason WriteStamped refuses it.
+	// here for the reason ReplaceStamped refuses it.
 	assert.Error(t, AppendStamped(held, FileThreads, first, []*stampedRecord{}))
 	require.NoError(t, held.Unlock())
 

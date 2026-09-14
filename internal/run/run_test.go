@@ -74,7 +74,7 @@ func TestEveryFieldOfARunRecordIsWrittenByCR(t *testing.T) {
 
 	var record any = &Record{}
 	_, stampable := record.(state.Stamped)
-	assert.True(t, stampable, "state.WriteStamped is the one writer of head and round")
+	assert.True(t, stampable, "state.AppendStamped is the one writer of head and round")
 }
 
 // Round 12's unstorable-value finding, which is what `timed_out` is for.

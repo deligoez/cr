@@ -37,7 +37,7 @@ func TestAnIntentGapReachesStatusAndNeverTheDraftOrThePayload(t *testing.T) {
 	require.NoError(t, err)
 	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
-	require.NoError(t, state.WriteStamped(held, state.FileFindings,
+	require.NoError(t, state.ReplaceStamped(held, state.FileFindings,
 		state.Stamp{Head: meta.Head, Round: meta.Round}, []*finding.Finding{queued}))
 	require.NoError(t, held.Unlock())
 

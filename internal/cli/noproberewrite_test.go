@@ -16,10 +16,10 @@ import (
 // already holds through untouched and adds to the end, which is §5.5.1's
 // immutability in the only form a file can have it: no stored line is
 // re-encoded, restamped, or replaced by a write that was meant to extend the
-// file. WriteStamped, the other door §2.3.3 opens onto a stamped file, is
-// exactly what §5.5.1 forbids here — it stamps every record it is handed, so
-// reading probes.ndjson back and passing it through would rewrite every earlier
-// probe with the round now being written.
+// file. ReplaceStamped, the other door §2.3.3 opens onto a stamped file, is
+// exactly what §5.5.1 forbids here — it replaces the current round's records
+// with the ones it is handed, so a second write in one round would replace
+// every probe that round had already recorded.
 //
 // ReadStamped is the second read, and it is a read in exactly the sense
 // ReadRecords is: §9.3.5 has it return one round's records and it writes
@@ -36,7 +36,7 @@ var probeFileCalls = map[string]string{
 //
 // A test can show that one write left the earlier lines alone. It cannot show
 // that the write someone adds next year will — and the way §5.5.1 gets broken
-// is not a deliberate rewrite but an ordinary-looking `WriteStamped` reaching
+// is not a deliberate rewrite but an ordinary-looking `ReplaceStamped` reaching
 // for the file that sits beside seven others in §2.3.3's list. What can show
 // the absence of that is the absence of a call site, and this asserts it: every
 // place production code names probes.ndjson is a read or the one append.

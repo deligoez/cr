@@ -47,7 +47,7 @@ func draftedHome(t *testing.T, records ...*finding.Finding) state.Layout {
 		Owner: draftOwner, Repo: draftRepo, PR: draftPRNum,
 		Round: draftRound, Head: draftHead,
 	}))
-	require.NoError(t, state.WriteStamped(
+	require.NoError(t, state.ReplaceStamped(
 		held, state.FileFindings,
 		state.Stamp{Head: draftHead, Round: draftRound}, records,
 	))

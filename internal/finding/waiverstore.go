@@ -32,7 +32,7 @@ const (
 // across rounds. Carrying the pair under the name every round-scoped reader
 // recognises would invite exactly the read the exemption forbids. Neither of
 // §7.4.4's files is one of §2.3.3's eight either, so the stamp's writer-owned
-// contract does not reach them — state.WriteStamped refuses `waivers.ndjson`
+// contract does not reach them — state.ReplaceStamped refuses `waivers.ndjson`
 // by name, and the repository-wide file is not per-PR state at all.
 //
 // Only the reason is optional, so only the reason is omitted when empty; a

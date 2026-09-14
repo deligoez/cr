@@ -68,7 +68,7 @@ func briefedAtUnit(t *testing.T, layout state.Layout, formed *unit.Unit) {
 		IssueKey: "CR-7", Round: 1, Head: cellsHead, MappingRound: 1, MappingHead: cellsHead,
 		ActiveRoles: []string{"convention", "correctness"},
 	}))
-	require.NoError(t, state.WriteStamped(held, state.FileUnits,
+	require.NoError(t, state.ReplaceStamped(held, state.FileUnits,
 		state.Stamp{Head: cellsHead, Round: 1}, []*unit.Record{{Unit: *formed}}))
 	require.NoError(t, held.Unlock())
 }

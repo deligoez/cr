@@ -21,7 +21,7 @@ func briefedWithARecord(t *testing.T) state.Layout {
 	require.Equal(t, "u1", raised.Unit)
 	held, err := layout.LockPR(cellsOwner, cellsRepo, cellsPR)
 	require.NoError(t, err)
-	require.NoError(t, state.WriteStamped(held, state.FileFindings,
+	require.NoError(t, state.ReplaceStamped(held, state.FileFindings,
 		state.Stamp{Head: cellsHead, Round: 1}, []*finding.Finding{raised}))
 	require.NoError(t, held.Unlock())
 	return layout

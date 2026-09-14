@@ -11,7 +11,7 @@ import (
 // roundsRecorded writes one line per round into name, so a round-scoped write
 // has history to leave alone. The lines go in as bytes rather than through a
 // writer: the round is the whole of what earlierRounds reads, and a fixture
-// built through WriteStamped could only ever hold one round at a time.
+// built through ReplaceStamped would already depend on earlierRounds.
 func roundsRecorded(t *testing.T, k *Lock, name string, rounds ...int) {
 	t.Helper()
 	var body []byte

@@ -14,7 +14,7 @@ import (
 
 // ReadStamped reads one of the eight §2.3.3 files and returns the records of
 // one round, in file order. It refuses a file §2.3.3 does not list, as
-// WriteStamped does.
+// AppendStamped does.
 //
 // It is §9.3.5's first sentence as a function: a command reads only the current
 // round's records, and earlier rounds are history. The scoping belongs at the
@@ -83,21 +83,17 @@ func unusableLine(path string, line int, err error) error {
 // ReplaceStamped replaces the current round's records in one of the eight
 // §2.3.3 files, stamping head and round onto every record it writes and leaving
 // every earlier round's line byte for byte. It refuses a file §2.3.3 does not
-// list, as WriteStamped does.
+// list, as AppendStamped does.
 //
 // claims.ndjson is what it exists for. §3.3.1 has `cr claims record` replace
 // that file, and §9.3.5 reads the same sentence back with a scope: a command
 // documented as replacing or clearing a file does so for the current round
 // only and MUST leave earlier rounds intact.
 //
-// Neither of the two writers already here can do that job, and each fails in
-// its own direction. WriteStamped publishes only what it is handed, so a
-// replacement written through it would take every earlier round's records out
-// of the file — the history §9.3.5 protects, deleted by the write that was
-// meant to replace one round of it. AppendStamped keeps them, and keeps the
-// current round's records too, so a second `cr claims record` in one round
-// would leave both extractions in the file and every reader would see each
-// claim twice.
+// AppendStamped cannot do that job. It keeps every earlier round's records,
+// and keeps the current round's records too, so a second `cr claims record` in
+// one round would leave both extractions in the file and every reader would
+// see each claim twice.
 //
 // The earlier rounds' bytes are carried through untouched rather than decoded
 // and re-encoded, for the reason AppendStamped gives: a record a later version
@@ -143,7 +139,7 @@ func ClearStamped(k *Lock, name string, round int) error {
 
 // RewriteStamped rewrites the records of one §2.3.3 file that apply changes and
 // leaves every other line byte for byte. It refuses a file §2.3.3 does not
-// list, as WriteStamped does.
+// list, as AppendStamped does.
 //
 // §9.3.4's stale sweep is what it exists for, and it is the one write here that
 // crosses a round boundary. Every other writer in this file is scoped by round,

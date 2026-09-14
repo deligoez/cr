@@ -62,7 +62,7 @@ type Record struct {
 	// Kind is §5.5's `kind`: the sort of probe §5.3 or §5.4 ran.
 	Kind Kind `json:"kind"`
 	// Stamp carries §5.5's `head` and §2.3.3's `round`. They are embedded
-	// rather than declared here because state.WriteStamped is their one
+	// rather than declared here because state.AppendStamped is their one
 	// author: a record cannot arrive carrying either.
 	state.Stamp
 	// Input is the patch or test file content, kept whole. §12.5 has
@@ -112,7 +112,7 @@ type field struct {
 	Name string
 	// Stamped marks the two rows §2.3.3 takes out of every writer's
 	// hands. They reach the record through the embedded state.Stamp,
-	// which is the only type state.WriteStamped writes through, so a
+	// which is the only type state.AppendStamped writes through, so a
 	// record cannot arrive carrying either.
 	Stamped bool
 }

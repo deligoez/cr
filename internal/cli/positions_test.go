@@ -65,7 +65,7 @@ func suggestingRound(t *testing.T, record *finding.Finding) {
 	layout := detectedHome(t)
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
-	require.NoError(t, state.WriteStamped(
+	require.NoError(t, state.ReplaceStamped(
 		held, state.FileFindings,
 		state.Stamp{Head: record.Head, Round: 1}, []*finding.Finding{record},
 	))
@@ -180,7 +180,7 @@ func longFileRound(t *testing.T, record *finding.Finding) (layout state.Layout, 
 	layout = longFileHome(t)
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
 	require.NoError(t, err)
-	require.NoError(t, state.WriteStamped(
+	require.NoError(t, state.ReplaceStamped(
 		held, state.FileFindings, state.Stamp{Round: 1}, []*finding.Finding{record},
 	))
 	require.NoError(t, held.Unlock())

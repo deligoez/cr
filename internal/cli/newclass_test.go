@@ -45,7 +45,7 @@ func reclass(t *testing.T, layout state.Layout, id, class string) {
 	record.Class = class
 	held, err := layout.LockPR(draftOwner, draftRepo, draftPRNum)
 	require.NoError(t, err)
-	require.NoError(t, state.WriteStamped(
+	require.NoError(t, state.ReplaceStamped(
 		held, state.FileFindings,
 		state.Stamp{Head: draftHead, Round: draftRound},
 		[]*finding.Finding{record},

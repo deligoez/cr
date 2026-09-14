@@ -22,7 +22,7 @@ const (
 	Computed
 	// Stamped marks the two rows the column answers "yes" but §2.3.3 takes
 	// out of the agent's hands. head and round are required of a stored
-	// record and refused on the wire: state.WriteStamped writes them on
+	// record and refused on the wire: state's stamped writers write them on
 	// every write and state.DecodeStamped rejects a line carrying either,
 	// so a validator that demanded them of an agent's line would demand the
 	// one thing that file may not contain.

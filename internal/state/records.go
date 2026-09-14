@@ -63,48 +63,35 @@ func StampedFiles() []string {
 func WriteRecords[T any](k *Lock, name string, records []T) error {
 	if slices.Contains(stampedFiles, name) {
 		return fmt.Errorf(
-			"%s: §2.3.3 requires head and round on every record, so it is written with WriteStamped",
+			"%s: §2.3.3 requires head and round on every record, so it is written with ReplaceStamped",
 			name,
 		)
 	}
 	return writeRecords(k, name, records)
 }
 
-// WriteStamped writes one of the eight §2.3.3 files, stamping head and round
-// onto every record on the way out, and refuses a file §2.3.3 does not list.
+// AppendStamped adds records to the end of one of the eight §2.3.3 files,
+// stamping head and round onto every record it adds and leaving what the file
+// already holds byte for byte. It refuses a file §2.3.3 does not list.
 //
 // The stamping belongs to the writer rather than to its callers. There is one
 // place that sets the pair, so the commands that take records from an agent
 // cannot forget it, cannot disagree about it, and cannot be talked into
 // carrying the agent's own values through: whatever a record already holds is
 // overwritten here.
-func WriteStamped[T Stamped](k *Lock, name string, at Stamp, records []T) error {
-	if err := checkStamped(name); err != nil {
-		return err
-	}
-	for _, record := range records {
-		record.setStamp(at)
-	}
-	return writeRecords(k, name, records)
-}
-
-// AppendStamped adds records to the end of one of the eight §2.3.3 files,
-// stamping head and round onto every record it adds and leaving what the file
-// already holds byte for byte. It refuses a file §2.3.3 does not list, as
-// WriteStamped does.
 //
 // findings.ndjson is what it exists for. §2.3 has that file hold all findings
 // and questions in all states, so a round adds its records to it rather than
 // replacing it, and §9.3.5 leaves earlier rounds intact.
 //
-// WriteStamped cannot do that job, and the reason is the property that makes it
-// worth having: it stamps every record it is handed. Reading the file's
-// existing records back and passing them through it would restamp each one with
-// the round now being written, and the history §9.3.5 protects would be rewritten
-// by the write that was meant to extend it. Carrying the previous bytes through
-// untouched is the only form of the append that cannot do that — and it also
-// keeps a record a later version wrote exactly as that version wrote it, rather
-// than re-encoding it through this one's struct.
+// Stamping cannot be carried through a rewrite of the file. Reading the file's
+// existing records back and passing them through a stamping writer would
+// restamp each one with the round now being written, and the history §9.3.5
+// protects would be rewritten by the write that was meant to extend it.
+// Carrying the previous bytes through untouched is the only form of the append
+// that cannot do that — and it also keeps a record a later version wrote
+// exactly as that version wrote it, rather than re-encoding it through this
+// one's struct.
 //
 // The read is unlocked-safe because the caller holds the §2.3.1 lock: no other
 // writer can be between this read and the Write that follows it.
@@ -204,14 +191,14 @@ var stampFields = []string{"head", "round"}
 // record type of one of the eight §2.3.3 files, and refuses a line that
 // supplied head or round.
 //
-// WriteStamped owns the pair, so a record arriving with either was written by
-// the agent, and §6.1.4 rejects that with exit code 1 naming the line and the
-// field. What is tested is presence on the wire rather than a non-zero Go
-// field: `"round": 0` is a value the agent chose exactly as much as
+// The stamped writers own the pair, so a record arriving with either was
+// written by the agent, and §6.1.4 rejects that with exit code 1 naming the
+// line and the field. What is tested is presence on the wire rather than a
+// non-zero Go field: `"round": 0` is a value the agent chose exactly as much as
 // `"round": 7` is, and a decoded struct reports the two alike.
 //
 // Decoding is one function rather than one per command because the commands of
-// §3.3.1, §4.1.6, §4.5.6 and §6.1.3 all reach WriteStamped through it. Each
+// §3.3.1, §4.1.6, §4.5.6 and §6.1.3 all reach a stamped writer through it. Each
 // inherits the rejection instead of restating it, so none of them can give the
 // agent a different answer about who owns head and round.
 //

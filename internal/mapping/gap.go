@@ -14,7 +14,7 @@ import "github.com/deligoez/cr/internal/state"
 // `cr status` per §10.1.2 and is never drafted or posted.
 //
 // The four fields are §4.1.3's. `claim` names what is unimplemented; `head` and
-// `round` are §2.3.3's stamp, written by state.WriteStamped and never by the
+// `round` are §2.3.3's stamp, written by state.ReplaceStamped and never by the
 // agent, which is what lets §9.3.5 scope a reader to the current round's
 // entries; `set_aside_note` is §4.1.8's, the note id `cr claims set-aside`
 // stamps once the agent has judged the claim out of scope, and §10.2.3 stops

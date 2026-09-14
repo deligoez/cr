@@ -40,7 +40,7 @@ type Record struct {
 	// pull request has recorded and never reused.
 	ID string `json:"id"`
 	// Stamp carries §5.2.4's `head` and §2.3.3's `round`. They are
-	// embedded rather than declared here because state.WriteStamped is
+	// embedded rather than declared here because state.AppendStamped is
 	// their one author: a record cannot arrive carrying either, and a
 	// local field would be a second place they could come from.
 	state.Stamp
@@ -133,7 +133,7 @@ const (
 	// measured marks a field cr allocates, measures, or takes from the
 	// runner it started.
 	measured author = iota
-	// stamped marks a field state.WriteStamped writes on the way out
+	// stamped marks a field state.AppendStamped writes on the way out
 	// (§2.3.3), which is why it reaches the record through state.Stamp
 	// rather than through a field of its own.
 	stamped
@@ -189,7 +189,7 @@ var _ = checkRecordFields()
 // It also proves where `head` and `round` come from. A run record that
 // declared them itself would encode identically and stamp nothing, so the
 // check requires that they arrive promoted from the embedded state.Stamp,
-// which is the only type state.WriteStamped can write through.
+// which is the only type state.AppendStamped can write through.
 func checkRecordFields() bool {
 	record := reflect.TypeFor[Record]()
 	stamp := reflect.TypeFor[state.Stamp]()

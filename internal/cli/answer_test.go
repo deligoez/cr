@@ -250,7 +250,7 @@ func answerSource(t *testing.T) []string {
 // findings.ndjson is not among them: §3.6.2's answer names a record the pull
 // request holds, so the answer reads that file, lock-free, to resolve the id.
 var stateWriters = []string{
-	"LockPR", "WriteStamped", "WriteRecords", "WriteMeta", "FileTransitions",
+	"LockPR", "ReplaceStamped", "WriteRecords", "WriteMeta", "FileTransitions",
 }
 
 // §3.6.2 forbids an answer to change the record's state, and the way that is

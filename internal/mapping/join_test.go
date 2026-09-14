@@ -9,7 +9,7 @@ import (
 )
 
 // pair is one stored line of mapping.ndjson, stamped with the round it was
-// recorded in the way state.WriteStamped stamps it.
+// recorded in the way state.ReplaceStamped stamps it.
 func pair(claim, unit string, round int) Pair {
 	return Pair{Claim: claim, Unit: unit, Stamp: state.Stamp{Head: "abc123", Round: round}}
 }

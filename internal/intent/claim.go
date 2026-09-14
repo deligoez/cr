@@ -24,7 +24,7 @@ const (
 	Computed
 	// Stamped marks the row the column answers "yes" but §2.3.3 takes out
 	// of the agent's hands. head is required of a stored claim and refused
-	// on the wire: state.WriteStamped writes it on every write and
+	// on the wire: state's stamped writers write it on every write and
 	// state.DecodeStamped rejects a line carrying it, so a validator that
 	// demanded it of an agent's line would demand the one thing that file
 	// may not contain.
