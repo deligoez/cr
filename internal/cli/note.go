@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -74,7 +75,13 @@ func newNoteCmd(out *writer) *cobra.Command {
 		Short: "Store an out-of-band fact against an issue key",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if retracting(cmd) {
-				return cobra.NoArgs(cmd, args)
+				// Not cobra.NoArgs, which reports a stray positional as
+				// an unknown command of a command that has none.
+				if len(args) > 0 {
+					return fmt.Errorf("unexpected argument %q: `cr note --remove <note-id>` takes "+
+						"the note id as the flag's value and no argument", args[0])
+				}
+				return nil
 			}
 			return cobra.ExactArgs(2)(cmd, args)
 		},
@@ -95,6 +102,12 @@ func newNoteCmd(out *writer) *cobra.Command {
 			parsed, err := note.ParseSource(source)
 			if err != nil {
 				return err
+			}
+			// Asked of the flag rather than its value, so an absent `--pr`
+			// is not reported as a pull request 0 nobody typed.
+			if !cmd.Flags().Changed("pr") {
+				return errors.New("--pr is required: §3.6.1 records the pull request a note came from, " +
+					"so name it, e.g. --pr 42")
 			}
 			layout, err := state.Default()
 			if err != nil {
@@ -117,8 +130,9 @@ func newNoteCmd(out *writer) *cobra.Command {
 	// retraction, which is a different row of §11's table reached through
 	// the same command. cobra's required flags are unconditional, so the
 	// requirement is kept where the append is made instead — ParseSource
-	// refuses an absent `--source` and note.Append an absent `--pr`, both
-	// through §11.2's code 2, which is where cobra put them too. Naming
+	// refuses an absent `--source`, the append path an absent `--pr`, and
+	// note.Append a `--pr` below 1, all through §11.2's code 2, which is
+	// where cobra put them too. Naming
 	// them as exclusions here means `--remove` with either is refused
 	// rather than quietly ignoring one.
 	cmd.MarkFlagsMutuallyExclusive("remove", "source")

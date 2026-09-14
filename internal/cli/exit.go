@@ -281,7 +281,7 @@ var codes = []mapped{
 	// the agent's data inside it, exactly as it is for the record rejection
 	// below.
 	{is[*intent.RejectedClaimError](), ExitValidation,
-		"correct the claim the message names in the file and record it again"},
+		"correct the field the message names on the line it names, then record the file again"},
 	// §3.3 closes the `source` row at four values, and a claim naming a
 	// fifth is refused while its line is being decoded rather than after.
 	// It is the same file and the same fault as the rejection above, so it
