@@ -425,10 +425,12 @@ draft line 41, record f15: anchor runs to line 99 of "order.go", which holds 10 
 A marker cannot move a comment to another unit: the record's `unit` is not a
 marker field, and the moved anchor must lie inside it. Keep the comment within
 its unit, or delete the block; a comment on another unit needs a record a role
-produced for that unit. The refusal carries that hint:
+produced for that unit. The refusal gives `cr record`'s reason for the same
+anchor, ends with that way forward instead of `cr record`'s advice to name the
+unit whose hunk holds it, and its hint says the same:
 
 ```text
-draft line 11, record f1: anchor of record f1 is RIGHT tax.go:12-12, which does not lie inside unit "u1", the unit this record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, so name the unit whose hunk holds it
+draft line 11, record f1: anchor of record f1 is RIGHT tax.go:12-12, which does not lie inside unit "u1", the unit this record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, so keep the comment within its unit or delete the block
 ```
 
 An edited `grade="probed"` on an argued record is accepted and rendered back as

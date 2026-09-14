@@ -148,8 +148,9 @@ const outsideUnitHint = "§6.1.3 keeps a record's anchor inside its own unit, wh
 // QA D-V4-1 and D-V4-2 through `cr draft` and `cr post`: §7.2's location row
 // re-validates a moved marker per §6.1.3, so an anchor moved out of the record's
 // unit is refused with exit 1 naming the record, in the words `cr record` refuses
-// the same anchor with, and nothing is stored, rewritten or put in front of the
-// review call.
+// the same anchor with up to their last clause, which is the marker's own way
+// forward rather than advice to name a unit (QA D-V5-2), and nothing is stored,
+// rewritten or put in front of the review call.
 //
 // D-V4-1 is the cited finding moved onto the very line its one citation lies
 // on, in another unit, which would have posted as an assertion: `cr record`
@@ -170,30 +171,39 @@ func TestAMarkerMovedIntoAnotherUnitIsRefused(t *testing.T) {
 		unit     string
 		cited    []map[string]any
 		from, to place
-		problem  string
+		// recorded is `cr record`'s Problem for the anchor the marker moves
+		// to, and refusal the marker's: the same words up to the last clause,
+		// which is each command's own way forward (QA D-V5-2).
+		recorded, refusal string
 	}{
 		{
 			name: "D-V4-1 a cited finding moved onto the line it cites",
 			unit: "u1", cited: []map[string]any{{"path": "tax.go", "line": 12}},
 			from: place{"money.go", "RIGHT", 12, 12}, to: place{"tax.go", "RIGHT", 12, 12},
-			problem: `of record f1 is RIGHT tax.go:12-12, which does not lie inside unit "u1", the unit this ` +
+			recorded: `of record f1 is RIGHT tax.go:12-12, which does not lie inside unit "u1", the unit this ` +
 				"record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, " +
 				"so name the unit whose hunk holds it",
+			refusal: `of record f1 is RIGHT tax.go:12-12, which does not lie inside unit "u1", the unit this ` +
+				"record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, " +
+				"so keep the comment within its unit or delete the block",
 		},
 		{
 			name: "D-V4-2 a record on a deletion moved onto lines another unit adds",
 			unit: "u2",
 			from: place{"order.go", "LEFT", 11, 12}, to: place{"money.go", "RIGHT", 12, 12},
-			problem: `of record f1 is RIGHT money.go:12-12, which does not lie inside unit "u2", the unit this ` +
+			recorded: `of record f1 is RIGHT money.go:12-12, which does not lie inside unit "u2", the unit this ` +
 				"record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, " +
 				"so name the unit whose hunk holds it",
+			refusal: `of record f1 is RIGHT money.go:12-12, which does not lie inside unit "u2", the unit this ` +
+				"record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, " +
+				"so keep the comment within its unit or delete the block",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			record := onUnit(tc.unit, tc.from.path, tc.from.side, tc.from.start, tc.from.line, tc.cited...)
 			_, recorded := recordedIn(t,
 				onUnit(tc.unit, tc.to.path, tc.to.side, tc.to.start, tc.to.line, tc.cited...))
-			require.Equal(t, tc.problem, recorded, "cr record refuses the anchor the marker moves to")
+			require.Equal(t, tc.recorded, recorded, "cr record refuses the anchor the marker moves to")
 
 			for name, command := range map[string][]string{
 				"draft": {"draft", fixturePR, "--repo", fixtureSlug},
@@ -217,8 +227,9 @@ func TestAMarkerMovedIntoAnotherUnitIsRefused(t *testing.T) {
 
 					var refused *draft.MarkerUnitEditError
 					require.ErrorAs(t, err, &refused)
-					assert.Equal(t, draft.MarkerEditError{ID: "f1", At: at, Field: "anchor", Problem: tc.problem},
+					assert.Equal(t, draft.MarkerEditError{ID: "f1", At: at, Field: "anchor", Problem: tc.refusal},
 						*refused.MarkerEditError)
+					assert.Equal(t, fmt.Sprintf("draft line %d, record f1: anchor %s", at, tc.refusal), err.Error())
 					assert.Equal(t, ExitValidation, exitCodeFor(err))
 					assert.Equal(t, outsideUnitHint, hintFor(err))
 					assert.Empty(t, printed, "the run refused before it reported a payload")

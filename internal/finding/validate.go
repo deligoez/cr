@@ -43,6 +43,10 @@ func (e *RejectedRecordError) Error() string {
 // the record's unit is not the reviewer's to change and the way forward differs.
 type ForeignAnchorError struct {
 	*RejectedRecordError
+	// Reason is Problem without its closing advice to name the unit whose
+	// hunk holds the anchor, which a caller that cannot change the unit
+	// replaces with its own way forward.
+	Reason string
 }
 
 func (e *ForeignAnchorError) Unwrap() error {

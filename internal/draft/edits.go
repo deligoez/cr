@@ -255,9 +255,12 @@ func (e *markerEdit) anchor(in *Draft) (*finding.Anchor, error) {
 //
 // A location the tree cannot answer for, or one `cr record` refuses, is this
 // row's abort and carries the record id with it; an anchor outside the record's
-// unit is that abort as a MarkerUnitEditError. A git that refuses is not: it
-// is §3.1.3's external command failure, and rewriting it here would code an
-// unreadable repository 1 and tell the reviewer to edit a marker that is fine.
+// unit is that abort as a MarkerUnitEditError. It keeps `cr record`'s words up
+// to their advice to name the unit whose hunk holds the anchor, which no marker
+// field can do, and ends with the marker's own way forward instead. A git that
+// refuses is not: it is §3.1.3's external command failure, and rewriting it here
+// would code an unreadable repository 1 and tell the reviewer to edit a marker
+// that is fine.
 func (e *markerEdit) rejected(err error) error {
 	var rejected *finding.RejectedRecordError
 	if !errors.As(err, &rejected) {
@@ -266,6 +269,7 @@ func (e *markerEdit) rejected(err error) error {
 	refused := &MarkerEditError{ID: e.record.ID, At: e.at, Field: "anchor", Problem: rejected.Problem}
 	var foreign *finding.ForeignAnchorError
 	if errors.As(err, &foreign) {
+		refused.Problem = foreign.Reason + ", so keep the comment within its unit or delete the block"
 		return &MarkerUnitEditError{MarkerEditError: refused}
 	}
 	return refused

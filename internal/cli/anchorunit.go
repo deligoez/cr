@@ -96,11 +96,14 @@ func refuseAnchor(file string, line int, record *finding.Finding, formed []round
 		}
 	}
 	if !anchorInsideUnit(anchor, unitOf(formed, record.Unit), hunks) {
-		return &finding.ForeignAnchorError{RejectedRecordError: rejected(fmt.Sprintf(
+		reason := fmt.Sprintf(
 			"of record %s is %s %s:%d-%d, which does not lie inside unit %q, the unit this record names; "+
-				"§6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, "+
-				"so name the unit whose hunk holds it",
-			record.ID, anchor.Side, anchor.Path, anchor.StartLine, anchor.Line, record.Unit))}
+				"§6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment",
+			record.ID, anchor.Side, anchor.Path, anchor.StartLine, anchor.Line, record.Unit)
+		return &finding.ForeignAnchorError{
+			RejectedRecordError: rejected(reason + ", so name the unit whose hunk holds it"),
+			Reason:              reason,
+		}
 	}
 	if anchor.Side == git.Right && sideOf(formed, record.Unit) == git.Left {
 		return rejected(fmt.Sprintf(

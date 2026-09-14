@@ -37,8 +37,8 @@ func recordedAnchorProblem(t *testing.T, record map[string]any) string {
 // and 8, outside that unit, are each refused with exit 1 naming the record, in
 // `cr record`'s words, and nothing is stored: findings.ndjson and the reviewer's
 // draft stay as they were. Only the last is the refusal of a marker leaving its
-// unit. A move `cr record` accepts, onto removed base line 8 alone, is
-// re-anchored.
+// unit, whose last clause is the marker's own way forward. A move `cr record`
+// accepts, onto removed base line 8 alone, is re-anchored.
 func TestAMarkerEditIsHeldToTheAnchorRulesOfRecord(t *testing.T) {
 	from := `side="LEFT" start_line="7" line="8"`
 	for _, tc := range []struct {
@@ -47,6 +47,9 @@ func TestAMarkerEditIsHeldToTheAnchorRulesOfRecord(t *testing.T) {
 		start   int
 		line    int
 		problem string
+		// refusal is the marker's Problem where it differs from `cr record`'s
+		// in its last clause, the way forward.
+		refusal string
 		outside bool
 	}{
 		{
@@ -67,6 +70,9 @@ func TestAMarkerEditIsHeldToTheAnchorRulesOfRecord(t *testing.T) {
 			problem: `of record f1 is RIGHT lib.go:7-8, which does not lie inside unit "u2", the unit this record ` +
 				"names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, so name " +
 				"the unit whose hunk holds it",
+			refusal: `of record f1 is RIGHT lib.go:7-8, which does not lie inside unit "u2", the unit this record ` +
+				"names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, so keep " +
+				"the comment within its unit or delete the block",
 			outside: true,
 		},
 	} {
@@ -83,9 +89,13 @@ func TestAMarkerEditIsHeldToTheAnchorRulesOfRecord(t *testing.T) {
 
 			_, err = runDraft(t, fixturePR, "--repo", fixtureSlug)
 
+			want := tc.problem
+			if tc.refusal != "" {
+				want = tc.refusal
+			}
 			var refused *draft.MarkerEditError
 			require.ErrorAs(t, err, &refused)
-			assert.Equal(t, draft.MarkerEditError{ID: "f1", At: at, Field: "anchor", Problem: tc.problem}, *refused)
+			assert.Equal(t, draft.MarkerEditError{ID: "f1", At: at, Field: "anchor", Problem: want}, *refused)
 			var left *draft.MarkerUnitEditError
 			assert.Equal(t, tc.outside, errors.As(err, &left), "refused as leaving the unit only when it does")
 			assert.Equal(t, ExitValidation, exitCodeFor(err))
