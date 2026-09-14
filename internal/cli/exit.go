@@ -227,6 +227,14 @@ var codes = []mapped{
 	{is[*UnknownOutcomeError](), ExitState,
 		"run `cr post <pr> --reconcile`, which adopts the review the call created or clears " +
 			"post_unresolved for a retry; a second `cr post --confirm` is refused until then"},
+	// The same missing head, read while `--repo` names a repository no
+	// GitHub remote of the repository under review points at. It wraps the
+	// missing commit, so it sits above that row; the code is the same 3,
+	// and hintFor prints the error's own step, which names both
+	// repositories.
+	{is[*RemoteMismatchError](), ExitFile,
+		"check that `--repo` names the pull request's repository; if it does, fetch the commit the " +
+			"message names from that repository, or run the command in a clone of it"},
 	// A head GitHub reports that the repository under review does not
 	// hold. git would refuse the next read of it, and §3.1.3 codes that
 	// 3, but the step is a fetch rather than reading git's refusal.
@@ -724,16 +732,18 @@ func exitCodeFor(err error) int {
 
 // hintFor is §12.4's next actionable step for one error.
 //
-// The row that decides the code decides the hint, with four exceptions: when
+// The row that decides the code decides the hint, with five exceptions: when
 // that row is the file-failure floor, the *state.FileError answers for itself,
 // which is what lets it name the command that writes the particular file that
 // was missing rather than one sentence for every file; when that row claims
 // a *config.LayerError, the error names the file or variable, the layer and the
 // key to correct, which one sentence for every layer could not; when that row
 // claims a *profile.UnavailableError, the error names the profile file that
-// has to declare the field, by its path; and when that row claims a
+// has to declare the field, by its path; when that row claims a
 // *git.MalformedPatchError, a refused rename, copy or mode header or stray line
-// names its own removal rather than the shape of a unified diff. A row above the
+// names its own removal rather than the shape of a unified diff; and when that
+// row claims a *RemoteMismatchError, the error names the repository `--repo`
+// names and the ones the remotes point at. A row above the
 // floor keeps its own even when the error it claims carries a file failure
 // inside — *state.NotBriefedError's `cr brief <pr>` is the step, not the bare
 // read that found no meta.json. An error no row claims takes the usage hint,
@@ -754,6 +764,10 @@ func hintFor(err error) string {
 	var patch *git.MalformedPatchError
 	if errors.As(err, &patch) && row.claims(patch) {
 		return patch.Hint()
+	}
+	var mismatch *RemoteMismatchError
+	if errors.As(err, &mismatch) && row.claims(mismatch) {
+		return mismatch.Hint()
 	}
 	// A zero *state.FileError built outside FileFailure carries no step of
 	// its own, and takes the floor's rather than an empty one.
