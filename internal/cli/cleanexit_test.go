@@ -21,19 +21,29 @@ import (
 // answer `inconclusive`, establish nothing, and the record resting on the
 // probe stays `argued` and is asked as a question.
 //
+// QA's D-V1b-2: that `inconclusive` carried no reason, so nothing but a join to
+// runs.ndjson said the exit code was why. The command's document and the stored
+// probe record now both name the rung and the exit code, for 255 and for 1.
+//
 // Each kind carries its control, the same runner exiting 0, so the case is not
 // passing on a fixture that could never reach the rung: the control has to
 // reach `no-test-failed` and a `probed` grade for the mutation, and `passed`
-// for the gap.
+// for the gap, and neither carries a reason.
 func TestAZeroFailedCountCountsOnlyOnACleanExit(t *testing.T) {
 	mutation := func(t *testing.T) map[string]any { return runProbe(t, writePatch(t, fixtureDiff)) }
 	gap := func(t *testing.T) map[string]any { return runGap(t, writeProbeTest(t)) }
+	const (
+		mutationRung = "§5.3.4's sixth rung: the failed count is zero but the runner exited "
+		gapRung      = "§5.4.3's fifth rung: the failed count is zero but the runner exited "
+		unsaid       = ", so the run has not said that nothing failed"
+	)
 	for _, tc := range []struct {
 		name        string
 		exit        int
 		runner      func(then string) string
 		run         func(t *testing.T) map[string]any
 		result      string
+		reason      string
 		establishes string
 		grade       string
 		kind        string
@@ -41,7 +51,12 @@ func TestAZeroFailedCountCountsOnlyOnACleanExit(t *testing.T) {
 	}{
 		{
 			name: "a mutation probe whose runner exited 255", exit: 255, runner: onlyWhenMutated, run: mutation,
-			result: "inconclusive", establishes: establishesNothing,
+			result: "inconclusive", reason: mutationRung + "255" + unsaid, establishes: establishesNothing,
+			grade: "argued", kind: "question", severity: "high",
+		},
+		{
+			name: "a mutation probe whose runner exited 1", exit: 1, runner: onlyWhenMutated, run: mutation,
+			result: "inconclusive", reason: mutationRung + "1" + unsaid, establishes: establishesNothing,
 			grade: "argued", kind: "question", severity: "high",
 		},
 		{
@@ -51,7 +66,12 @@ func TestAZeroFailedCountCountsOnlyOnACleanExit(t *testing.T) {
 		},
 		{
 			name: "a gap probe whose runner exited 255", exit: 255, runner: onlyWithTheProbeFile, run: gap,
-			result: "inconclusive", establishes: establishesNothing,
+			result: "inconclusive", reason: gapRung + "255" + unsaid, establishes: establishesNothing,
+			grade: "argued", kind: "question", severity: "medium",
+		},
+		{
+			name: "a gap probe whose runner exited 1", exit: 1, runner: onlyWithTheProbeFile, run: gap,
+			result: "inconclusive", reason: gapRung + "1" + unsaid, establishes: establishesNothing,
 			grade: "argued", kind: "question", severity: "medium",
 		},
 		{
@@ -67,6 +87,9 @@ func TestAZeroFailedCountCountsOnlyOnACleanExit(t *testing.T) {
 			shown := tc.run(t)
 			assert.Equal(t, tc.result, shown["result"])
 			assert.Equal(t, tc.establishes, shown["establishes"])
+			probes := storedRecords(t, prepared, state.FileProbes)
+			require.Len(t, probes, 1)
+			assertReason(t, tc.reason, shown, probes[0])
 
 			runs := storedRecords(t, prepared, state.FileRuns)
 			require.Len(t, runs, 2, "the baseline and the probe run")
