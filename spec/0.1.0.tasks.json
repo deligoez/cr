@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-14T05:45:55.262201Z",
+  "updated_at": "2026-09-14T06:07:21.008622Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10387,6 +10387,31 @@
       "commit_sha": "a4d1a51",
       "commit_shas": [
         "a4d1a51"
+      ],
+      "commit_files": [
+        "internal/cli/jsonspelling_test.go",
+        "internal/cli/output.go"
+      ]
+    },
+    {
+      "id": "failure-json-parse-mirrors-execute",
+      "title": "Prepare the failure-path command tree as cobra's execute does",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- The command tree asksForJSON parses on the failure path is prepared the way cobra's ExecuteC prepares the one the run parsed (the default help flag, and every other flag or command cobra adds at execute time in the pinned cobra version, read from its source), so a command line the real run parses is never refused by the failure-path parse and sent to the raw scan; audit round 12 spec-coverage row task-failure-json-flag-parse-tree (cr status abc --repo --json --help=false printed JSON on a pty while the same line without --help=false printed prose, because the fresh tree lacked --help), internal/cli/output.go asksForJSON.\n- A test drives a failing command in a pseudo-terminal with --repo --json --help=false and with -h=false and asserts prose, and a test asserts the failure-path parse and the executed command agree on json for every command in the tree given a string flag consuming --json.",
+      "source_sections": [
+        "## 12. Output contract"
+      ],
+      "started_at": "2026-09-14T05:55:30.603259Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T06:07:20.999315Z",
+      "closed_reason": "- The fresh tree asksForJSON parses on the failure path is now prepared with every step cobra v1.10.2's ExecuteC and execute take before ParseFlags, in their order, read from the module cache source: internal/cli/output.go asksForJSON calls root.InitDefaultHelpCmd, root.InitDefaultCompletionCmd(args...), root.Find, then cmd.InitDefaultHelpFlag and cmd.InitDefaultVersionFlag before cmd.ParseFlags, so the help flag, the root's version flag and the completion command's --no-descriptions all parse there as in the run, and the unexported initCompleteCmd is left out because cobra adds __complete only when the arguments name it and that command disables flag parsing (checkCommandGroups only panics, and cr's root sets no TraverseChildren).\n- Audit round 12 spec-coverage row task-failure-json-flag-parse-tree is closed: the dogfood binary on a pty printed \"error: invalid pull request \"abc\": pass the pull request number, e.g. 42\" and the hint as prose for cr status abc --repo --json --help=false, as for the same line with -h=false, x --repo --json --version=false and completion bash x --no-descriptions --repo --json, while cr status abc --repo o/r --json -h=false still printed the JSON document, and in internal/cli/output.go asksForJSON only a Find or ParseFlags failure reaches scansForJSON.\n- internal/cli/jsonspelling_test.go TestAFailureInATerminalReadsEveryJSONSpellingPflagReads runs the built binary on a pseudo-terminal with status abc --repo --json --help=false and -h=false (plus the version and completion rows) and asserts two prose lines with the usage hint and the same refusal as the other rows, red at a4d1a51's asksForJSON.\n- TestTheFailurePathReadsJSONAsTheExecutedCommandDoes walks every command an executed tree holds (help and completion included), runs `\u003ccommand\u003e --repo --json` bare and with each boolean flag the executed command defines set to false through a real in-process ExecuteC, and asserts asksForJSON equals the executed command's parsed json, requiring the sweep to reach help, version and no-descriptions; through GOFLAGS=-overlay the unmutated copy is green and dropping InitDefaultHelpFlag, InitDefaultVersionFlag or InitDefaultCompletionCmd turns both tests red, while dropping InitDefaultHelpCmd stays green because the help command defines no flag the root lacks.\n",
+      "gate_passed_at": "2026-09-14T06:07:20.999315Z",
+      "commit_sha": "e334847",
+      "commit_shas": [
+        "e334847"
       ],
       "commit_files": [
         "internal/cli/jsonspelling_test.go",
