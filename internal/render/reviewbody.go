@@ -57,7 +57,7 @@ func PayloadHashIn(body string) (string, bool) {
 // writes. The entries are produced by the package that knows why its lens did
 // not run — activation.Disabled, intent.Unavailable, reinvention.Unavailable,
 // testadequacy.Unavailable, coverage.SkippedRole — and are appended as those
-// packages word them.
+// packages word them for the author, per AuthorDisclosure.
 const (
 	// reviewBodyHeading opens the region, so the author can see whose block
 	// it is.
@@ -106,8 +106,31 @@ func ReviewBody(active []string, disclosed []finding.HonestyDisclosure, hash str
 	if len(disclosed) > 0 {
 		lines[len(lines)-1] = reviewBodyLenses
 		for _, entry := range disclosed {
-			lines = append(lines, "- "+entry.Disclosure())
+			lines = append(lines, "- "+forTheAuthor(entry))
 		}
 	}
 	return strings.Join(lines, "\n") + regionSeparator + PayloadHashComment(hash)
+}
+
+// AuthorDisclosure is a §4.5.4 entry that also words itself for the pull
+// request's author: which lens did not run, which files it did not look at, and
+// what it therefore did not check, with no configuration or command to change
+// and no section of the spec to read. Disclosure is worded for the reviewer, who
+// can act on the reason; the author cannot, and a body telling them to add a
+// glob to a profile is cr's operator talking to the wrong person.
+//
+// The sentence is produced where Disclosure is, by the package that knows why
+// its lens did not run, so the two cannot describe different causes.
+type AuthorDisclosure interface {
+	AuthorDisclosure() string
+}
+
+// forTheAuthor is one entry of the review body: its author wording, and its
+// reviewer wording only for a kind that carries none, since saying a lens did not
+// run in the reviewer's words is better than not saying it.
+func forTheAuthor(entry finding.HonestyDisclosure) string {
+	if worded, ok := entry.(AuthorDisclosure); ok {
+		return worded.AuthorDisclosure()
+	}
+	return entry.Disclosure()
 }

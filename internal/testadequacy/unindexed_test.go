@@ -19,6 +19,8 @@ func TestTheSymbolHalfOwesUnindexedFilesAnEntryOnlyWhenATestFileChanged(t *testi
 		Reason: "profile \"laravel-pest\" builds §4.3.1's symbol index over its match.globs, which cover none " +
 			"of src/Money.php, and those files declare symbols at the head, so a symbol the test files reference " +
 			"from them is not attached; add a glob covering them to the profile's match.globs",
+		author: "lens test/symbols did not look at src/Money.php: cr's index of the repository's existing code " +
+			"does not cover it, so cr did not read which code there the changed tests exercise",
 	}}, Unindexed(&p, []string{"src/Money.php", "tests/Unit/MoneyTest.php"}, outside))
 	assert.Equal(t, []Unavailable{}, Unindexed(&p, []string{"src/Money.php", "README.md"}, outside),
 		"no unit is a test file")

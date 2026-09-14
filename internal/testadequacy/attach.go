@@ -63,6 +63,11 @@ type Unavailable struct {
 	Lens string `json:"lens"`
 	// Reason is why it could not.
 	Reason string `json:"reason"`
+	// author is the same entry worded for the pull request's author, whom
+	// §8.4.3's review body reaches: which lens, which files, and that cr did
+	// not look at them, with no configuration to change and no section to
+	// read. Reason is worded for the reviewer who can act on it.
+	author string
 }
 
 // Disclosure satisfies finding.HonestyDisclosure, so the entry reaches the
@@ -71,6 +76,16 @@ type Unavailable struct {
 // so what is printed and what a caller reads as data cannot drift apart.
 func (u Unavailable) Disclosure() string {
 	return "lens " + u.Lens + " unavailable, per §4.5.4: " + u.Reason
+}
+
+// AuthorDisclosure is the entry as §8.4.3's review body words it for the pull
+// request's author, and names the lens alone for an entry that carries no such
+// wording.
+func (u Unavailable) AuthorDisclosure() string {
+	if u.author == "" {
+		return "lens " + u.Lens + " did not run"
+	}
+	return u.author
 }
 
 // Attachment is what §4.4.1 attaches: the test files the pull request changed,
@@ -120,12 +135,24 @@ func Unindexed(p *profile.Profile, paths, files []string) []Unavailable {
 	if len(files) == 0 || !slices.ContainsFunc(paths, p.IsTestFile) {
 		return out
 	}
+	named, pronoun := filesNamed(files)
 	return append(out, Unavailable{Lens: SymbolLens, Reason: fmt.Sprintf(
 		"profile %q builds §4.3.1's symbol index over its match.globs, which cover none of %s, "+
 			"and those files declare symbols at the head, so a symbol the test files reference from them "+
 			"is not attached; add a glob covering them to the profile's match.globs",
 		p.ID, strings.Join(files, ", "),
-	)})
+	), author: "lens " + SymbolLens + " did not look at " + named +
+		": cr's index of the repository's existing code does not cover " + pronoun +
+		", so cr did not read which code there the changed tests exercise"})
+}
+
+// filesNamed lists files for the author's sentence, with the pronoun that
+// refers back to them.
+func filesNamed(files []string) (named, pronoun string) {
+	if len(files) == 1 {
+		return files[0], "it"
+	}
+	return strings.Join(files, ", "), "them"
 }
 
 // PerUnit hands the round's attachment to every unit, which is the whole of
@@ -181,7 +208,11 @@ func testPaths(p *profile.Profile, hunks []git.Hunk) []string {
 func referenced(p *profile.Profile, refs References, paths []string) ([]string, []Unavailable) {
 	symbols, unavailable := make([]string, 0), make([]Unavailable, 0, 1)
 	if reason := indexReason(p, refs); reason != "" {
-		return symbols, append(unavailable, Unavailable{Lens: SymbolLens, Reason: reason})
+		return symbols, append(unavailable, Unavailable{
+			Lens: SymbolLens, Reason: reason,
+			author: "lens " + SymbolLens + " did not run: cr could not index the repository's existing code, " +
+				"so it did not read which code the changed tests exercise",
+		})
 	}
 	seen := make(map[string]struct{}, len(paths))
 	unread := make([]string, 0, len(paths))
@@ -204,9 +235,22 @@ func referenced(p *profile.Profile, refs References, paths []string) ([]string, 
 			Lens: SymbolLens,
 			Reason: "cr could not read " + strings.Join(unread, ", ") +
 				" at the head, so the symbols they reference are not attached",
+			author: unreadAuthor(unread),
 		})
 	}
 	return symbols, unavailable
+}
+
+// unreadAuthor words the entry for test files cr could not read for the pull
+// request's author.
+func unreadAuthor(unread []string) string {
+	named, pronoun := filesNamed(unread)
+	exercised := "which code those tests exercise"
+	if len(unread) == 1 {
+		exercised = "which code that test exercises"
+	}
+	return "lens " + SymbolLens + " did not look at " + named + ": cr could not read " + pronoun +
+		", so it did not read " + exercised
 }
 
 // indexReason names why no index can answer for any test file at all, and is

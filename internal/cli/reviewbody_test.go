@@ -43,23 +43,21 @@ func TestTheReviewBodyDisclosesEveryLensThatDidNotRun(t *testing.T) {
 
 	review := builtReview(t, layout)
 
-	for kind, entry := range map[string]string{
-		"an unavailable axis":       "axis intent unavailable, per §4.5.3:",
-		"§4.3.1's reinvention half": "lens convention/reinvention unavailable, per §4.3.1:",
-		"§4.4.1's symbol half":      "lens test/symbols unavailable, per §4.5.4:",
-		"a role skipped per §4.6.4": "role correctness skipped, per §4.6.4:",
-	} {
-		assert.Containsf(t, review.Body, entry, "§8.4.3 owes the author %s", kind)
-	}
-
-	// And the reason beside each names the cause. No profile matched, so
-	// there is no profile id to name and no profile to add symbols.lang to:
-	// both halves send the reader to choose one, as §2.4.4's report does.
-	noProfile := "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
-		"set `profile` in the per-repository config to name the profile this repository is"
 	lines := strings.Split(review.Body, "\n")
-	assert.Contains(t, lines, "- lens convention/reinvention unavailable, per §4.3.1: "+noProfile)
-	assert.Contains(t, lines, "- lens test/symbols unavailable, per §4.5.4: "+noProfile)
+	for kind, entry := range map[string]string{
+		"an unavailable axis": "- axis intent did not run: cr found no issue linked to this pull request, " +
+			"so it did not check the change against what an issue asks for",
+		"§4.3.1's reinvention half": "- lens convention/reinvention did not run: cr could not index the " +
+			"repository's existing code, so it did not check whether the change re-implements code the " +
+			"repository already has",
+		"§4.4.1's symbol half": "- lens test/symbols did not run: cr could not index the repository's " +
+			"existing code, so it did not read which code the changed tests exercise",
+		"a disabled axis": "- axis test did not run: cr has no command to run this repository's tests, " +
+			"so it did not check whether the change is adequately tested",
+		"a role skipped per §4.6.4": "- role test-adequacy did not look at this change: axis test did not run",
+	} {
+		assert.Containsf(t, lines, entry, "§8.4.3 owes the author %s, in words the author can read", kind)
+	}
 }
 
 // The review body of §8.4.3 is English whatever render.lang says, per the
@@ -104,14 +102,14 @@ func TestTheReviewBodyIsTheSameEnglishUnderEitherRenderLanguage(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{
-		"axis test disabled, per §4.5.2",
-		"axis intent unavailable, per §4.5.3",
-		"lens convention/reinvention unavailable, per §4.3.1",
-		"lens test/symbols unavailable, per §4.5.4",
-		"role convention skipped, per §4.6.4",
-		"role correctness skipped, per §4.6.4",
-		"role intent-coverage skipped, per §4.6.4",
-		"role test-adequacy skipped, per §4.6.4",
+		"axis test did not run",
+		"axis intent did not run",
+		"lens convention/reinvention did not run",
+		"lens test/symbols did not run",
+		"role convention did not look at this change",
+		"role correctness did not look at this change",
+		"role intent-coverage did not look at this change",
+		"role test-adequacy did not look at this change",
 	}, heads, "entries of every kind §4.5.4 names, in English")
 }
 

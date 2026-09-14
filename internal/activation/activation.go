@@ -86,6 +86,34 @@ func (d Disabled) Disclosure() string {
 	return "axis " + d.Axis + " disabled, per " + d.Rule + ": " + d.Reason
 }
 
+// AuthorDisclosure is the entry as §8.4.3's review body words it for the pull
+// request's author: which axis did not run and what cr therefore did not check,
+// with no configuration to change and no section to read. Reason is worded for
+// the reviewer who can act on it.
+func (d Disabled) AuthorDisclosure() string {
+	why := "it is switched off for this repository, so cr"
+	if d.Rule == RuleNoTestCommand {
+		why = "cr has no command to run this repository's tests, so it"
+	}
+	return "axis " + d.Axis + " did not run: " + why + " did not check " + unchecked(d.Axis)
+}
+
+// unchecked is what an axis that did not run left unchecked, as the author is
+// told it.
+func unchecked(id string) string {
+	switch id {
+	case axis.Intent:
+		return "the change against what its issue asks for"
+	case axis.Correctness:
+		return "whether the change is correct"
+	case axis.Convention:
+		return "whether the change follows the repository's conventions"
+	case axis.Test:
+		return "whether the change is adequately tested"
+	}
+	return "what that axis reviews"
+}
+
 // Activation is one round's answer to §4.5.1: the axes that run, and the two
 // kinds of entry §4.5.4 owes the reader for the ones that do not.
 //

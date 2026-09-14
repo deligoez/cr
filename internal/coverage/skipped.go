@@ -42,7 +42,9 @@ func Skipped(
 		if slices.Contains(active, r.ID) {
 			continue
 		}
-		out = append(out, SkippedRole{Role: r.ID, Reason: skipReason(axes, r, profileID)})
+		out = append(out, SkippedRole{
+			Role: r.ID, Reason: skipReason(axes, r, profileID), author: skipAuthor(axes, r, profileID),
+		})
 	}
 	return out
 }
@@ -80,6 +82,20 @@ func skipReason(axes activation.Activation, r *role.Role, profileID string) stri
 		}
 	}
 	return "its axis " + r.Axis + " did not run this round"
+}
+
+// skipAuthor is skipReason's decision worded for the pull request's author:
+// the same clause decides, and the author is told what it means for this change
+// rather than what would change it.
+func skipAuthor(axes activation.Activation, r *role.Role, profileID string) string {
+	said := "role " + r.ID + " did not look at this change: "
+	switch {
+	case !slices.Contains(axes.Active, r.Axis):
+		return said + "axis " + r.Axis + " did not run"
+	case len(axes.ActiveRoles([]role.Resolved{{Role: *r}}, profileID)) != 0:
+		return said + "it was not among the reviewers of this round"
+	}
+	return said + "it reviews only other kinds of repository than this one"
 }
 
 // notRecordedReason is the reason for a role the definition admits and the

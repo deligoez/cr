@@ -25,6 +25,20 @@ type SkippedRole struct {
 	Role string `json:"role"`
 	// Reason is why its prerequisites were unmet, and what would meet them.
 	Reason string `json:"reason"`
+	// author is the same entry worded for the pull request's author, whom
+	// §8.4.3's review body reaches: which reviewer did not look and why, with
+	// no command to run and no section to read.
+	author string
+}
+
+// AuthorDisclosure is the entry as §8.4.3's review body words it for the pull
+// request's author, and names the role alone for an entry that carries no such
+// wording.
+func (s SkippedRole) AuthorDisclosure() string {
+	if s.author == "" {
+		return "role " + s.Role + " did not look at this change"
+	}
+	return s.author
 }
 
 // Disclosure satisfies finding.HonestyDisclosure, so the entry reaches the

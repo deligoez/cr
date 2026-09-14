@@ -226,7 +226,9 @@ func TestEachWayTheSymbolIndexIsMissingHasItsOwnReason(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			attached := Attach(&tc.profile, nil, nil)
 
-			assert.Equal(t, []Unavailable{{Lens: SymbolLens, Reason: tc.reason}}, attached.Unavailable)
+			assert.Equal(t, []Unavailable{{Lens: SymbolLens, Reason: tc.reason, author: "lens test/symbols did not run: " +
+				"cr could not index the repository's existing code, so it did not read which code the changed tests exercise",
+			}}, attached.Unavailable)
 		})
 	}
 }

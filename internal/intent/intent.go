@@ -38,6 +38,15 @@ func (u Unavailable) Disclosure() string {
 	return "axis " + u.Axis + " unavailable, per §4.5.3: " + u.Reason
 }
 
+// AuthorDisclosure is the entry as §8.4.3's review body words it for the pull
+// request's author: the axis did not run and what cr therefore did not check,
+// with no flag to pass and no section to read. Reason is worded for the
+// reviewer who can act on it.
+func (u Unavailable) AuthorDisclosure() string {
+	return "axis " + u.Axis + " did not run: cr found no issue linked to this pull request, " +
+		"so it did not check the change against what an issue asks for"
+}
+
 // Intent is one run's issue text together with the key it was read for.
 //
 // The empty value is §3.2's empty intent: no key, no text. It is a state the

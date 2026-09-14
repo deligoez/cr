@@ -25,6 +25,14 @@ const (
 		"§4.3.1's symbol index over its match.globs, which cover none of src/Money.php, and those files " +
 		"declare symbols at the head, so a symbol the test files reference from them is not attached; " +
 		"add a glob covering them to the profile's match.globs"
+	// authorReinvention and authorTestSymbols are the same two entries as the
+	// review body words them for the pull request's author.
+	authorReinvention = "lens convention/reinvention did not look at src/Money.php: cr's index of the " +
+		"repository's existing code does not cover it, so cr did not check whether the change there " +
+		"re-implements code the repository already has, and did not offer anything declared there as " +
+		"an existing alternative"
+	authorTestSymbols = "lens test/symbols did not look at src/Money.php: cr's index of the repository's " +
+		"existing code does not cover it, so cr did not read which code there the changed tests exercise"
 )
 
 // unindexedHome is release QA's deligoez/cr-qa#1 in miniature: a plain PHP
@@ -38,6 +46,14 @@ const (
 // It briefs the round and records an empty mapping, so `cr review` emits every
 // axis, and returns the brief's printed document.
 func unindexedHome(t *testing.T) string {
+	t.Helper()
+	return unindexedHomeWith(t, func(state.Layout) {})
+}
+
+// unindexedHomeWith is unindexedHome with prepare run over the state root after
+// the shipped profiles are written and before the brief, so a test can change
+// the profile or the role corpus the round is briefed under.
+func unindexedHomeWith(t *testing.T, prepare func(state.Layout)) string {
 	t.Helper()
 	dir := t.TempDir()
 	write := func(name, body string) {
@@ -74,6 +90,7 @@ func unindexedHome(t *testing.T) string {
 	for id, body := range profile.Builtins() {
 		require.NoError(t, layout.EnsureProfile(id, body))
 	}
+	prepare(layout)
 	outside := t.TempDir()
 	issue := filepath.Join(outside, "issue.txt")
 	require.NoError(t, os.WriteFile(issue, []byte(fixtureIssue+": format money amounts.\n"), 0o600))
@@ -172,7 +189,7 @@ func TestAUnitTheSymbolIndexDoesNotCoverIsDisclosedEverywhere(t *testing.T) {
 	require.NotNil(t, report.Payload)
 	require.False(t, report.Posted)
 	body := strings.Split(report.Payload.Body, "\n")
-	assert.Contains(t, body, "- "+unindexedReinvention, "the review body")
-	assert.Contains(t, body, "- "+unindexedTestSymbols, "the review body")
+	assert.Contains(t, body, "- "+authorReinvention, "the review body, worded for the author")
+	assert.Contains(t, body, "- "+authorTestSymbols, "the review body, worded for the author")
 	assert.NotContains(t, body, "No lens was left unexamined.", "the review body")
 }

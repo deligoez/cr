@@ -104,6 +104,8 @@ func TestEachWayTheIndexIsMissingHasItsOwnReason(t *testing.T) {
 			Lens: profile.ReinventionLens,
 			Reason: "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
 				"set `profile` in the per-repository config to name the profile this repository is",
+			author: "lens convention/reinvention did not run: cr could not index the repository's existing code, " +
+				"so it did not check whether the change re-implements code the repository already has",
 		}}, attachments.Unavailable, "an empty profile id names no profile to add symbols.lang to")
 	})
 
