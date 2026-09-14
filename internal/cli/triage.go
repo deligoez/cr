@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -75,6 +77,35 @@ func raisedInRound(records []*finding.Finding) []*finding.Finding {
 		}
 	}
 	return raised
+}
+
+// withSettledForcings is §6.3.2's count per class over the round: forced, the
+// count ForceQuestions took over the records the draft holds, joined by every
+// record the round raised that a triage has since discarded or posted and that
+// an earlier moment of §6.3.1 moved from finding to question.
+//
+// The count is kept for those records for the reason raisedInRound keeps their
+// class: the forcing happened in this round, and a reviewer deleting the block
+// afterwards does not undo it. A regeneration that dropped them would overwrite
+// summary.json's forced_to_question with a report disagreeing with its own
+// forced_records.
+func withSettledForcings(forced finding.Forcings, records []*finding.Finding, earlier []string) finding.Forcings {
+	counts := make(map[string]int, len(forced))
+	for _, row := range forced {
+		counts[row.Class] += row.Count
+	}
+	for _, record := range raisedInRound(records) {
+		if record.State == finding.StateQueued || record.Grade != finding.GradeArgued ||
+			!slices.Contains(earlier, record.ID) {
+			continue
+		}
+		counts[record.Class]++
+	}
+	out := make(finding.Forcings, 0, len(counts))
+	for _, class := range slices.Sorted(maps.Keys(counts)) {
+		out = append(out, finding.Forcing{Class: class, Count: counts[class]})
+	}
+	return out
 }
 
 // triageOccasion is the pull request, round, head and moment one command writes

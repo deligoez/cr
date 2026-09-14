@@ -108,7 +108,15 @@ func (e *markerEdit) kind() (asked finding.Kind, retyped bool, err error) {
 	if asked == finding.Kind(e.was.Kind) {
 		return asked, false, nil
 	}
-	if asked == finding.KindFinding && !asserts(e.record.Grade) {
+	// A question over a stored finding cr graded below asserting is the
+	// register §6.3.1 renders that record in, so the marker says what cr
+	// wrote rather than what the reviewer chose: the draft's forcing moves
+	// it and §6.3.2 counts it, and reading it as §7.2's softening would
+	// charge cr's forcing to the class as the reviewer's verdict.
+	if !asserts(e.record.Grade) {
+		if asked == finding.KindQuestion {
+			return asked, false, nil
+		}
 		return "", false, e.refuse("kind", fmt.Sprintf(
 			"asks for %q on a record cr graded %q, and §6.3.3 admits that register only on %q or %q; "+
 				"leave it a %q or give the record an experiment",

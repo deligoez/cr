@@ -50,8 +50,9 @@ type draftResult struct {
 	// Preserved are the records whose edited body §7.1.6 carried into the
 	// new draft in place of the one cr renders.
 	Preserved []string `json:"preserved"`
-	// Forced is §6.3.2's count per class over the records this draft
-	// holds, which is also what reached summary.json. It is a field on the
+	// Forced is §6.3.2's count per class over the round: the records this
+	// draft holds and the ones the round's triage has since discarded or
+	// posted, which is also what reached summary.json. It is a field on the
 	// payload rather than a sentence alone, so an agent reading the
 	// document gets the numbers and not only the prose.
 	Forced finding.Forcings `json:"forced_to_question"`
@@ -67,6 +68,11 @@ type draftResult struct {
 	// the drift to be visible rather than silent, and the moment a
 	// reworded slug can still be caught cheaply is the run that raised it.
 	NewClasses []string `json:"new_classes"`
+	// Comments is §1.6.2's comment count against post.max_comments, the
+	// number §7.1.4's header and summary.json carry. §11.1 has it always
+	// printed, so the reviewer learns the round is over the cap from the
+	// draft they are about to triage rather than from `cr post`'s refusal.
+	Comments summaryCap `json:"comments"`
 	// Warnings are §8.2.3's, one per suggestion indented unlike the line it
 	// replaces. They are warnings and not refusals: the reviewer is shown
 	// both lines and decides, and a block left in place posts as written.
@@ -74,8 +80,8 @@ type draftResult struct {
 }
 
 // Text names the count, the round, and the file to open, then what the
-// regeneration took from the draft it replaced, and then §6.3.2's forcing
-// count and §3.6.6's.
+// regeneration took from the draft it replaced, and then §1.6.2's comment
+// count against the cap, §6.3.2's forcing count and §3.6.6's.
 //
 // The forcing line is printed on every run, whatever the flags say. §11.1
 // exempts it from `--quiet` by name, and a disclosure that is only printed
@@ -108,7 +114,8 @@ func (r *draftResult) Text(w *writer) string {
 		text.WriteString("§7.3.3: class(es) first seen in this round: " +
 			strings.Join(r.NewClasses, ", ") + "\n")
 	}
-	return text.String() + w.disclose("", "\n", r.Forced.Disclosure()) + w.disclose("", "", r.Withdrawn.Disclosure())
+	return text.String() + w.disclose("§1.6.2: ", "\n", finding.CommentCap(r.Comments).Disclosure()) +
+		w.disclose("", "\n", r.Forced.Disclosure()) + w.disclose("", "", r.Withdrawn.Disclosure())
 }
 
 // newDraftCmd renders the editable draft (§11, §7.1).
@@ -222,6 +229,9 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	// register in its marker, so a forcing applied after the rendering
 	// would be a forcing the draft does not show.
 	forced, moved := grading.forceQuestions(queued)
+	// §6.3.2's count is the round's, so the records the forcing moved and a
+	// triage has since taken out of the draft are still counted.
+	forced = withSettledForcings(forced, records, grading.forced)
 	// §6.3.3, over the records that are about to be written rather than
 	// over the rule that was just applied. Invariant 4 is a claim about
 	// what reaches the author, and nothing here can be talked past: no
@@ -272,6 +282,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Forced:     forced,
 		Withdrawn:  held,
 		NewClasses: summary.newClasses,
+		Comments:   summary.comments,
 		Warnings:   warnings,
 	})
 }
