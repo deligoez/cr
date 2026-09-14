@@ -522,15 +522,30 @@ func reportFailure(stdout, stderr io.Writer, args []string, err error) error {
 // own flag set parses the rest, so a string flag that takes a literal `--json`
 // as its value has not asked for anything. Only arguments that parse fails on
 // fall back to scanning.
+//
+// The fresh tree is first prepared as cobra's ExecuteC prepared the one the run
+// parsed, in its order: the help and completion commands on the root, then the
+// help and version flags on the command found. Without them a line the run
+// parsed, such as one carrying `--help=false`, fails to parse here and the scan
+// answers instead. ExecuteC's hidden `__complete` command is not added: cobra
+// adds it only when the arguments name it, and it parses no flags.
 func asksForJSON(args []string) bool {
-	cmd, flags, err := newRootCmd().Find(args)
-	if err == nil && cmd.ParseFlags(flags) == nil {
-		// Every command inherits the root's `--json`, so the lookup has
-		// nothing to refuse.
-		asked, _ := cmd.Flags().GetBool("json")
-		return asked
+	root := newRootCmd()
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd(args...)
+	cmd, flags, err := root.Find(args)
+	if err != nil {
+		return scansForJSON(args)
 	}
-	return scansForJSON(args)
+	cmd.InitDefaultHelpFlag()
+	cmd.InitDefaultVersionFlag()
+	if cmd.ParseFlags(flags) != nil {
+		return scansForJSON(args)
+	}
+	// Every command inherits the root's `--json`, so the lookup has nothing
+	// to refuse.
+	asked, _ := cmd.Flags().GetBool("json")
+	return asked
 }
 
 // scansForJSON reads `--json` off arguments no command's flag set could parse,

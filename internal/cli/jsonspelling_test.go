@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/creack/pty"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +30,9 @@ import (
 // error before reaching the bare flag, so the run is prose. A `--json` that a
 // string flag takes as its value — the root's `--repo`, or `cr test`'s own
 // `--filter` — is that flag's value and asks for nothing, so the run is prose.
+// It stays prose beside a flag cobra adds only when it executes: the help flag
+// in both spellings, the root's version flag, and the flags of the completion
+// command cobra registers.
 func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 	binary := crBinary(t)
 	home := filepath.Join(t.TempDir(), ".cr")
@@ -62,6 +67,10 @@ func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 		{[]string{"status", "abc", "--repo", "o/r", "--json=maybe", "--json"}, false},
 		{[]string{"status", "abc", "--repo", "--json"}, false},
 		{[]string{"test", "abc", "--repo", "o/r", "--filter", "--json"}, false},
+		{[]string{"status", "abc", "--repo", "--json", "--help=false"}, false},
+		{[]string{"status", "abc", "--repo", "--json", "-h=false"}, false},
+		{[]string{"x", "--repo", "--json", "--version=false"}, false},
+		{[]string{"completion", "bash", "x", "--no-descriptions", "--repo", "--json"}, false},
 	} {
 		name := strings.Join(row.args, " ")
 		t.Run(name, func(t *testing.T) {
@@ -88,7 +97,73 @@ func TestAFailureInATerminalReadsEveryJSONSpellingPflagReads(t *testing.T) {
 		"status abc --repo o/r --json --json=false",
 		"status abc --repo --json",
 		"test abc --repo o/r --filter --json",
+		"status abc --repo --json --help=false",
+		"status abc --repo --json -h=false",
 	} {
 		assert.Equal(t, refusals[pr], refusals[name], name)
 	}
+}
+
+// §12.1's failure path over the whole tree cobra executes. asksForJSON parses
+// a fresh tree, and every command the run's own ExecuteC leaves in the tree —
+// the help and completion commands it registers included — must read `--json`
+// there as it read it when executed: on `<command> --repo --json`, where the
+// string flag takes `--json` as its value, and on that line with each boolean
+// flag the executed command defines set to false, which reaches the help,
+// version and completion flags cobra adds only at execute time.
+//
+// The executed side is a real in-process run; crHome, a temporary working
+// directory and TestMain's gh fence keep what the commands do to themselves.
+func TestTheFailurePathReadsJSONAsTheExecutedCommandDoes(t *testing.T) {
+	crHome(t)
+	t.Chdir(t.TempDir())
+
+	execute := func(args []string) *cobra.Command {
+		root := newRootCmd()
+		root.SetOut(&discard{})
+		root.SetErr(&discard{})
+		root.SetArgs(args)
+		cmd, _ := root.ExecuteC()
+		return cmd
+	}
+
+	paths := make([][]string, 0)
+	var walk func(cmd *cobra.Command, path []string)
+	walk = func(cmd *cobra.Command, path []string) {
+		paths = append(paths, path)
+		for _, sub := range cmd.Commands() {
+			walk(sub, append(append([]string{}, path...), sub.Name()))
+		}
+	}
+	walk(execute([]string{"--help"}).Root(), []string{})
+
+	flagged := make(map[string]bool)
+	checked := 0
+	for _, path := range paths {
+		base := append(append([]string{}, path...), "--repo", "--json")
+		lines := [][]string{base}
+		execute(base).Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Value.Type() != "bool" || f.Name == "json" {
+				return
+			}
+			flagged[f.Name] = true
+			lines = append(lines, append(append([]string{}, base...), "--"+f.Name+"=false"))
+			if f.Shorthand != "" {
+				lines = append(lines, append(append([]string{}, base...), "-"+f.Shorthand+"=false"))
+			}
+		})
+		for _, line := range lines {
+			name := strings.Join(line, " ")
+			executed := execute(line)
+			require.True(t, executed.Flags().Parsed(), "the run did not parse `cr %s`", name)
+			asked, err := executed.Flags().GetBool("json")
+			require.NoError(t, err)
+			assert.Equal(t, asked, asksForJSON(line), "`cr %s`", name)
+			checked++
+		}
+	}
+	for _, name := range []string{"help", "version", "no-descriptions"} {
+		assert.True(t, flagged[name], "no executed command defined --%s, so the sweep never reached it", name)
+	}
+	require.Greater(t, checked, 3*len(paths), "the sweep checked too few lines to prove anything")
 }
