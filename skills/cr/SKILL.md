@@ -401,7 +401,8 @@ with exit 1 naming the draft line and the record:
 | `grade` | informational; cr recomputes it and ignores the edit |
 
 The refusals, as `cr draft 1` printed them (`hint` for all marker edits but a
-move out of the record's unit: "§7.2's table is the whole of what a marker may be
+move out of the record's unit and an id changed to another record's, which carry
+their own: "§7.2's table is the whole of what a marker may be
 edited to; correct that record's block in the draft"):
 
 ```text
