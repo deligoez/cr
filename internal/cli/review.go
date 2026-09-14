@@ -59,7 +59,7 @@ type unknownAxisFlagError struct {
 }
 
 func (e *unknownAxisFlagError) Error() string {
-	return fmt.Sprintf("--axis %q is not an axis id; v0.1 has exactly %s, per §1.5",
+	return fmt.Sprintf("--axis %q is not an axis id; v0.2 has exactly %s, per §1.5",
 		e.Value, strings.Join(axis.IDs(), ", "))
 }
 

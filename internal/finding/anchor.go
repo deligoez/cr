@@ -15,7 +15,7 @@ import (
 // §9.2.3 says what it is for and, in doing so, why the bound is enforced here
 // rather than left to whoever reads it. v0.1 never migrates an anchor, so
 // nothing in this version reads the window back at all; it is recorded only so
-// that a v0.2 migration has it for the rounds v0.1 produced. A window written
+// that a v0.3 migration has it for the rounds v0.1 produced. A window written
 // wider than the bound is therefore a fault no v0.1 command could ever notice.
 const contextWindow = 3
 

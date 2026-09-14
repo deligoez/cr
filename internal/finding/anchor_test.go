@@ -202,7 +202,7 @@ func TestAnAnchorNamesOneOfSection92sTwoSides(t *testing.T) {
 }
 
 // §9.2 bounds the context window at three lines on each side, and §9.2.3 gives
-// the bound its purpose: the window is recorded so that a v0.2 migration has
+// the bound its purpose: the window is recorded so that a v0.3 migration has
 // what it needs from the rounds v0.1 produced. v0.1 reads none of it back, so a
 // window written wider than the bound is a fault no command in this version
 // could notice on its own — which is exactly why it is refused at the record

@@ -23,7 +23,7 @@ var unimplementedClaims = []string{
 
 // §4.1.3 through the commands: an unimplemented-claim entry reaches `cr status`,
 // and it reaches neither findings.ndjson, nor draft.md, nor the payload `cr post`
-// would send — v0.1 has no unanchored comment channel per §1.6.1. The reviewer
+// would send — v0.2 has no unanchored comment channel per §1.6.1. The reviewer
 // raises it with the author out of band and records the answer as a §3.6 note,
 // and that note moves nothing into the draft either.
 func TestAnIntentGapReachesStatusAndNeverTheDraftOrThePayload(t *testing.T) {

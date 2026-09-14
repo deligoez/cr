@@ -92,7 +92,7 @@ func (e *UnknownLangError) Error() string {
 		codes = append(codes, known.code)
 	}
 	return fmt.Sprintf(
-		"%s is %q, which is not a language cr renders; v0.1 has exactly %s, "+
+		"%s is %q, which is not a language cr renders; v0.2 has exactly %s, "+
 			"whose §8.1.4 question labels are built in rather than configured — set %s to one of them",
 		Setting, e.Value, strings.Join(codes, " and "), Setting,
 	)

@@ -66,7 +66,7 @@ var unanchored = map[string]map[string]any{
 	},
 }
 
-// §1.6.1 leaves v0.1 no unanchored comment channel. The question this asks is
+// §1.6.1 leaves v0.2 no unanchored comment channel. The question this asks is
 // therefore not whether the decoder refuses an item with no code location —
 // §6.1.2 has it refuse, and TestAnItemWithNoCodeLocationNeverBecomesARecord
 // pins that — but whether it refuses one on every way in. A posted comment is

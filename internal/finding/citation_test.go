@@ -20,7 +20,7 @@ const citedLine = "\t\tif ($total  >  0) {   "
 // citedLineHash is §1.4's normalised hash of that line, written out as a
 // literal. An expected value computed the way the code computes it agrees with
 // any implementation, including a wrong one; this one has to disagree with all
-// but the right one. §6.2.3 stores the value so a v0.2 migration can compare
+// but the right one. §6.2.3 stores the value so a v0.3 migration can compare
 // against it, so a change that moves it is a change that makes every citation
 // hash already in ~/.cr incomparable.
 const citedLineHash = "0d6c58b99de69ac1"
@@ -32,7 +32,7 @@ const citedLineHash = "0d6c58b99de69ac1"
 const rawLineHash = "65abc82d59be1121"
 
 // §6.1 computes a citation's content hash and §6.2.3 stores it at record time,
-// so the value is cr's own and a v0.2 drift check reads it back. That makes the
+// so the value is cr's own and a v0.3 drift check reads it back. That makes the
 // value a contract rather than an artefact, and the three things worth fixing
 // about it are the value itself, that it follows the cited line's content, and
 // that it does not follow the line's whitespace — the last being what §1.4 is
@@ -73,7 +73,7 @@ var theseLines = []string{
 	"   \t ",
 }
 
-// §6.2.3 records the citation hash so a v0.2 migration can detect drift, and a
+// §6.2.3 records the citation hash so a v0.3 migration can detect drift, and a
 // drift check compares stored values: the citation's against the anchor's. That
 // only means anything while both are the same rule, and round 8's finding is
 // that nothing in the document said so.
@@ -140,7 +140,7 @@ var orderModel = map[string][]string{
 // both cited, because they are the two the range check can be wrong about while
 // looking right.
 //
-// The second entry arrives carrying a hash, which is the state a v0.2 drift
+// The second entry arrives carrying a hash, which is the state a v0.3 drift
 // check would read: a value taken at some earlier head. §6.2.3 has that hash do
 // no validating work in v0.1, so resolution overwrites it from the line it just
 // read and refuses nothing on account of it. A v0.1 that compared the two would

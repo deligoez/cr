@@ -32,7 +32,7 @@ import (
 //
 // The gaps are listed and not counted, because this is the only place they
 // appear. §4.1.3 keeps an unimplemented claim out of findings.ndjson and out of
-// every draft — v0.1 has no unanchored comment channel per §1.6.1 — so a reader
+// every draft — v0.2 has no unanchored comment channel per §1.6.1 — so a reader
 // given a number here would have no second place to go and read which claims it
 // stands for.
 type intentCoverage struct {

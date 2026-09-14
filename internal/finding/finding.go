@@ -165,7 +165,7 @@ type Citation struct {
 	// Line is its line, numbered in the current head.
 	Line int `json:"line"`
 	// ContentHash is the normalised hash of that line, computed by cr at
-	// record time per §6.2.3. It is recorded so a v0.2 migration can detect
+	// record time per §6.2.3. It is recorded so a v0.3 migration can detect
 	// drift and does no validating work in v0.1.
 	ContentHash string `json:"content_hash,omitempty"`
 	// Origin is stamped by cr per §6.2.5 by matching the citation
@@ -180,7 +180,7 @@ type Citation struct {
 // reviewer's standing with the author, so volume is a cost in itself,
 // independent of correctness — and an unanchored comment costs the most for
 // the least, because the author has to work out what it is about before they
-// can judge whether it is right. So v0.1 has one comment channel and this
+// can judge whether it is right. So v0.2 has one comment channel and this
 // field is it: an item cr cannot point at is reported by `cr status` (§10.1.2)
 // and never posted (§1.6.1).
 //
@@ -200,7 +200,7 @@ type Anchor struct {
 	// Line is its last line, inclusive.
 	Line int `json:"line"`
 	// ContentHash is the normalised hash of the anchored lines taken as one
-	// text, recorded for a v0.2 migration per §9.2.3.
+	// text, recorded for a v0.3 migration per §9.2.3.
 	ContentHash string `json:"content_hash"`
 	// ContextBefore holds up to three lines above the range, and
 	// ContextAfter up to three below, recorded for the same reason.

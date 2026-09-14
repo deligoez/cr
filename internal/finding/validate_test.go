@@ -111,7 +111,7 @@ func TestARecordMissingARequiredFieldIsNamedByLineAndField(t *testing.T) {
 }
 
 // §6.1.2 has every record carry an anchor, and §4.1.3 says why: an item with no
-// code location never becomes a record, because v0.1 has no unanchored comment
+// code location never becomes a record, because v0.2 has no unanchored comment
 // channel to post it through. An anchor object that names no path is that item
 // wearing the shape of a record.
 func TestAnItemWithNoCodeLocationNeverBecomesARecord(t *testing.T) {

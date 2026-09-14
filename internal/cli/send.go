@@ -73,7 +73,7 @@ type sending struct {
 // already read. §7.3.1's outcome events follow, because they describe a review
 // that now exists — round 8's triage-event-key-permits-contradiction is the
 // other half of that, and it is why nothing here runs on the rejection branch.
-// §8.3.3's thread ids come last: they are provenance for a v0.2 that migrates
+// §8.3.3's thread ids come last: they are provenance for a v0.3 that migrates
 // anchors, and losing them costs a reader one lookup rather than costing the
 // author a duplicate comment.
 //

@@ -6,7 +6,7 @@ import "fmt"
 // normalised hash per §1.4 of the single line the citation names.
 //
 // Round 8's finding undefined-hash-preimage is why the pre-image is named at
-// all. §6.1 marks the field computed and §6.2.3 records it so a v0.2 migration
+// all. §6.1 marks the field computed and §6.2.3 records it so a v0.3 migration
 // can detect drift, but neither said what is hashed — the one hash in the
 // document with no stated pre-image — so two implementations could both satisfy
 // every word and produce values that cannot be compared, which is exactly the
@@ -18,7 +18,7 @@ import "fmt"
 // second computation that agrees with it on the day it is written. A citation's
 // hash and a one-line anchor's over the same text are one value by
 // construction, and this cannot drift from §9.2 without §9.2 moving with it —
-// which is the point, because a v0.2 drift check comparing values produced by
+// which is the point, because a v0.3 drift check comparing values produced by
 // two rules would be reading the rules and calling it code.
 //
 // The content is the cited line's own text, which the caller reads out of the

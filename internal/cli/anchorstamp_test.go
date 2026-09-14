@@ -129,5 +129,5 @@ func TestAHeadChangeStalesTheRecordsAndMigratesNoAnchor(t *testing.T) {
 	assert.Equal(t, recorded, after[0].Anchor, "§9.2.2: the anchor is bound to the head it was produced against")
 	assert.Equal(t, 42, after[0].Anchor.StartLine, "no migration to the lines the content moved to")
 	assert.Equal(t, handlerLines(39, 41), after[0].Anchor.ContextBefore,
-		"§9.2.3: the context window survives on disk for a v0.2 migration")
+		"§9.2.3: the context window survives on disk for a v0.3 migration")
 }

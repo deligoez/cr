@@ -246,7 +246,7 @@ func (t *Triage) retype(record *finding.Finding, asked finding.Kind) {
 // taken from with no block and puts a block in the file under a name the round
 // does not hold, so §7.2's immutable `id` is enforced by refusing the second
 // half; and a block written by hand is that same block with no record behind it
-// at all. v0.1 has no manual-comment channel because every record carries a
+// at all. v0.2 has no manual-comment channel because every record carries a
 // role, an axis and a grade cr computed, and a hand-written block can carry
 // none of them.
 //
@@ -281,7 +281,7 @@ func refuseUnknownBlocks(
 		return nil
 	}
 	return &MarkerEditError{ID: firstID, At: firstAt, Field: "id",
-		Problem: "names no record this round rendered, and §7.2.3 gives v0.1 no manual-comment " +
+		Problem: "names no record this round rendered, and §7.2.3 gives v0.2 no manual-comment " +
 			"channel in the draft; restore the id cr wrote, and write a comment of your own on " +
 			"GitHub after posting"}
 }

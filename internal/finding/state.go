@@ -13,7 +13,7 @@ import (
 // §9's opening paragraph fixes how short that life is. A record's life in v0.1
 // ends when it is posted; everything after that — the author replying, pushing,
 // and the reviewer verifying, resolving, or withdrawing — is the re-review half
-// of the loop, and §1.3.6 puts it in v0.2. So there is no `verified`,
+// of the loop, and §1.3.6 puts it in v0.3. So there is no `verified`,
 // `resolved`, `accepted`, or `withdrawn` here, and the type is shaped so that
 // there cannot be one by accident either.
 //
@@ -150,7 +150,7 @@ func (e *UnknownStateError) Error() string {
 		names = append(names, known.name)
 	}
 	return fmt.Sprintf(
-		"%q is not a record state; v0.1 has exactly %s, and §1.3.6 puts verifying, resolving, and withdrawing in v0.2",
+		"%q is not a record state; v0.2 has exactly %s, and §1.3.6 puts verifying, resolving, and withdrawing in v0.3",
 		e.Value, strings.Join(names, ", "),
 	)
 }

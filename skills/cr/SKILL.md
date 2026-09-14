@@ -410,7 +410,7 @@ draft line 11, record f12: kind reads "nit", and §6.1's register is "finding" o
 draft line 11, record f12: disposition reads "not-here", which cr writes itself when a block is deleted; delete the block to say it
 draft line 11, record f12: disposition reads "maybe", and the one disposition §7.2 admits by hand is "wrong"; delete the block for the other
 draft line 41, record f15: severity reads "urgent", and §6.1's four are critical, high, medium, low
-draft line 11, record f99: id names no record this round rendered, and §7.2.3 gives v0.1 no manual-comment channel in the draft; restore the id cr wrote, and write a comment of your own on GitHub after posting
+draft line 11, record f99: id names no record this round rendered, and §7.2.3 gives v0.2 no manual-comment channel in the draft; restore the id cr wrote, and write a comment of your own on GitHub after posting
 draft line 41, record f15: anchor runs to line 99 of "order.go", which holds 10 lines at the head under review
 ```
 
@@ -686,7 +686,7 @@ only after it. A role naming an unknown axis:
 
 ```json
 {
-  "error": "…/repos/acme/shop/roles/money-safety.json: axis is \"money\", which is not an axis id; v0.1 has exactly intent, correctness, convention, test",
+  "error": "…/repos/acme/shop/roles/money-safety.json: axis is \"money\", which is not an axis id; v0.2 has exactly intent, correctness, convention, test",
   "hint": "§1.5 closes the axis set at intent, correctness, convention and test; correct the axis field of the file the message names"
 }
 ```

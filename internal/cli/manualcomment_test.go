@@ -31,7 +31,7 @@ var runsReadingTheDraft = map[string]func(*testing.T, ...string) (string, error)
 // §7.2.3: a block whose id is unknown aborts with exit code 1 rather than being
 // adopted as a new record.
 //
-// v0.1 has no manual-comment channel in the draft, and the reason is in the
+// v0.2 has no manual-comment channel in the draft, and the reason is in the
 // corpus rather than in the parser: every record carries a role, an axis and a
 // grade cr computed, and a hand-written block can carry none of them — so a
 // block adopted here would be a comment with no producer, on no axis, resting
