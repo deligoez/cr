@@ -85,12 +85,20 @@ var rungs = []rung{
 		result: resultInconclusive,
 	},
 	{
-		name: "6 · the failed count is zero",
+		name: "6 · the failed count is zero, and the run exited 0",
 		matches: func(m Measured) bool {
 			return ran(m) && m.TestsRun != nil && *m.TestsRun != 0 &&
-				m.TestsFailed != nil && *m.TestsFailed == 0
+				m.TestsFailed != nil && *m.TestsFailed == 0 && m.ExitCode == 0
 		},
 		result: resultNoTestFailed,
+	},
+	{
+		name: "6 · the failed count is zero, and the run did not exit 0",
+		matches: func(m Measured) bool {
+			return ran(m) && m.TestsRun != nil && *m.TestsRun != 0 &&
+				m.TestsFailed != nil && *m.TestsFailed == 0 && m.ExitCode != 0
+		},
+		result: resultInconclusive,
 	},
 	{
 		name: "7 · otherwise",
@@ -234,12 +242,28 @@ func TestTheLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 			rung:   rungs[5].name,
 		},
 		{
+			name: "a runner that printed its count and then exited non-zero has not said nothing failed",
+			measured: Measured{
+				Applied: true, ExitCode: 255, TestsRun: new(3), TestsFailed: new(0),
+			},
+			result: resultInconclusive,
+			rung:   rungs[6].name,
+		},
+		{
 			name: "a test caught the mutation",
 			measured: Measured{
 				Applied: true, TestsRun: new(12), TestsFailed: new(1),
 			},
 			result: resultFailed,
-			rung:   rungs[6].name,
+			rung:   rungs[7].name,
+		},
+		{
+			name: "a test caught the mutation and the runner exited non-zero, as runners do",
+			measured: Measured{
+				Applied: true, ExitCode: 1, TestsRun: new(12), TestsFailed: new(1),
+			},
+			result: resultFailed,
+			rung:   rungs[7].name,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

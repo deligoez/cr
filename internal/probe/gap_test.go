@@ -81,12 +81,20 @@ var gapRungs = []gapRung{
 		result: resultInconclusive,
 	},
 	{
-		name: "5 · the failed count is zero",
+		name: "5 · the failed count is zero, and the run exited 0",
 		matches: func(m GapMeasured) bool {
 			return gapRan(m) && m.TestsRun != nil && *m.TestsRun != 0 &&
-				m.TestsFailed != nil && *m.TestsFailed == 0
+				m.TestsFailed != nil && *m.TestsFailed == 0 && m.ExitCode == 0
 		},
 		result: resultPassed,
+	},
+	{
+		name: "5 · the failed count is zero, and the run did not exit 0",
+		matches: func(m GapMeasured) bool {
+			return gapRan(m) && m.TestsRun != nil && *m.TestsRun != 0 &&
+				m.TestsFailed != nil && *m.TestsFailed == 0 && m.ExitCode != 0
+		},
+		result: resultInconclusive,
 	},
 	{
 		name: "6 · otherwise",
@@ -208,10 +216,22 @@ func TestTheGapLadderAnswersEveryRunWithExactlyOneRung(t *testing.T) {
 			rung:     gapRungs[4].name,
 		},
 		{
+			name:     "a runner that printed its count and then exited non-zero has not said nothing failed",
+			measured: GapMeasured{ExitCode: 255, TestsRun: new(5), TestsFailed: new(0)},
+			result:   resultInconclusive,
+			rung:     gapRungs[5].name,
+		},
+		{
 			name:     "the supplied test ran and failed",
 			measured: GapMeasured{TestsRun: new(5), TestsFailed: new(1)},
 			result:   resultFailed,
-			rung:     gapRungs[5].name,
+			rung:     gapRungs[6].name,
+		},
+		{
+			name:     "the supplied test failed and the runner exited non-zero, as runners do",
+			measured: GapMeasured{ExitCode: 1, TestsRun: new(5), TestsFailed: new(1)},
+			result:   resultFailed,
+			rung:     gapRungs[6].name,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

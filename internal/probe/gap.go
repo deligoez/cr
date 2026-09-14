@@ -50,6 +50,10 @@ type GapMeasured struct {
 // that cannot report counts would drive every gap probe to `failed`, and §5.4.4
 // would raise it at severity `high` on no evidence at all.
 //
+// Rung 5 answers `passed` only for a run that exited 0, and `inconclusive`
+// otherwise, as §5.3.4's rung 6 does: a runner that printed its count and then
+// exited non-zero has not said that nothing failed.
+//
 // Rung 2 answers a runner that exited on a signal as well as one that never
 // started, which is round 9's probe-ladder-asymmetry finding. Without it a
 // runner killed by the out-of-memory killer, or one that segmentation-faulted
@@ -73,6 +77,9 @@ func GapLadder(m GapMeasured) Result {
 	case m.TestsRun == nil || m.TestsFailed == nil:
 		return resultInconclusive
 	case *m.TestsFailed == 0:
+		if m.ExitCode != 0 {
+			return resultInconclusive
+		}
 		return resultPassed
 	}
 	return resultFailed

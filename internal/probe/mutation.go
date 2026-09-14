@@ -59,6 +59,12 @@ type Measured struct {
 // rather than `inconclusive` — §5.3.5 refuses a `probed` grade to both, and the
 // reader is owed the difference.
 //
+// Rung 6 answers `no-test-failed` only for a run that exited 0, and
+// `inconclusive` otherwise. A runner that printed its count and then exited
+// non-zero — a fatal error on the mutated code after the recap — has not said
+// that nothing failed, and QA's S-S06-1 saw exactly that run prove a gap and
+// grade a finding `probed`.
+//
 // The result this returns is the ladder's, not the record's. §5.1.7 sits above
 // it and Decide is what applies that, so nothing here has to know about the
 // sandbox: a value produced here reaches probes.ndjson only through Decide.
@@ -75,6 +81,9 @@ func Ladder(m Measured) Result {
 	case m.TestsRun == nil || m.TestsFailed == nil:
 		return resultInconclusive
 	case *m.TestsFailed == 0:
+		if m.ExitCode != 0 {
+			return resultInconclusive
+		}
 		return resultNoTestFailed
 	}
 	return resultFailed

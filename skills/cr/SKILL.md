@@ -261,7 +261,9 @@ cr probe run 1 --kind gap --test gap_test.go --target order.go:5 --filter TestDi
 ```
 
 Only a mutation probe's `no-test-failed` over a passing baseline establishes a
-missing test. A gap probe's `failed` supports a finding only when its baseline
+missing test. Both `no-test-failed` and a gap probe's `passed` need the run to
+exit 0: a zero failed count from a runner that exited non-zero is
+`inconclusive`. A gap probe's `failed` supports a finding only when its baseline
 passed and the record's `claim` is mapped to its unit; `passed` shows the
 behaviour is present and supports no `probed` grade. Reference a probe from a
 record with `"probe": "p1"`; it supports that record only when its target lies
