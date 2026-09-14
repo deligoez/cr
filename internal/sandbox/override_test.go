@@ -47,13 +47,14 @@ func TestAProbeWhoseSandboxFailedItsCheckIsRecordedErrorAndForcesRecreation(t *t
 		"§5.1.7: the check overrides what §5.3.4's ladder produced")
 	require.True(t, outcome.Voided(), "§5.1.7: the probe grades no finding")
 
-	require.NoError(t, ForceRecreation(src))
+	require.NoError(t, ForceRecreation(src, "probe p1 was voided after its run: "+reason))
 
 	ready, err := Ensure(src, fixtureLeftoverGlob)
 	require.NoError(t, err)
 	require.NotNil(t, ready.Recreated, "§5.1.7: recreation is forced before the next run")
-	assert.Contains(t, ready.Recreated.Reason, "no post-setup baseline was recorded for it",
-		"the forcing is what recreated it, not the residue the check happened to find")
+	assert.Equal(t, "§5.1.7 forced its recreation: probe p1 was voided after its run: "+reason,
+		ready.Recreated.Reason,
+		"the forcing is what recreated it, and the notice names what the probe left behind")
 	assert.NoFileExists(t, artefact, "the rebuilt sandbox is a fresh checkout")
 	assert.NoFileExists(t, sentinel, "and the recreation really happened")
 }

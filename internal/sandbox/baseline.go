@@ -43,6 +43,10 @@ type Baseline struct {
 	// Paths are the tracked paths that deviated, so a failed check can
 	// name files instead of announcing that something differs.
 	Paths []string `json:"paths"`
+	// Forced is why ForceRecreation condemned the sandbox, and empty for a
+	// baseline Create recorded. A file carrying it describes no sandbox:
+	// §5.1.6 reads it as one to recreate, and names this as the reason.
+	Forced string `json:"forced,omitempty"`
 }
 
 // SnapshotBaseline reads the tracked-file state of the sandbox at path and
@@ -118,18 +122,26 @@ func (src *Sources) invalidateBaseline() error {
 // left in, which is what §5.1.7 requires of a probe whose post-run cleanliness
 // check failed.
 //
-// It works by dropping the post-setup baseline rather than by removing the
-// worktree, and both halves of that are deliberate. Dropping the baseline is
-// enough because §5.1.6 reads a missing one as a sandbox to recreate, and it is
-// what makes the forcing unconditional: relying on the sandbox still looking
-// dirty next time would be relying on the very check that has just proved
-// untrustworthy, and a probe that left an untracked file §5.1.6 ignores would
-// pass the next check while §5.1.7 was demanding a rebuild. Not removing the
-// worktree here is the other half — §5.1.7 forces the recreation "before the
-// next run", and a run that deleted the checkout on its way out would take the
-// probe's own output with it before anyone had read it.
-func ForceRecreation(src *Sources) error {
-	return src.invalidateBaseline()
+// It works by replacing the post-setup baseline with one that says why, rather
+// than by removing the worktree, and both halves of that are deliberate.
+// Replacing the baseline is enough because §5.1.6 reads a forced one as a
+// sandbox to recreate, and it is what makes the forcing unconditional: relying
+// on the sandbox still looking dirty next time would be relying on the very
+// check that has just proved untrustworthy, and a probe that left an untracked
+// file §5.1.6 ignores would pass the next check while §5.1.7 was demanding a
+// rebuild. Keeping cause in it is what lets the next run's recreation notice
+// name what the probe left behind rather than a baseline that is missing. Not
+// removing the worktree here is the other half — §5.1.7 forces the recreation
+// "before the next run", and a run that deleted the checkout on its way out
+// would take the probe's own output with it before anyone had read it.
+func ForceRecreation(src *Sources, cause string) error {
+	body, err := encodeBaseline(&Baseline{Head: src.Head, Forced: cause})
+	if err != nil {
+		return err
+	}
+	return src.underLock(func(held *state.Lock) error {
+		return held.Write(state.FileSandboxBaseline, body)
+	})
 }
 
 // underLock runs one write against the pull request's state under the exclusive

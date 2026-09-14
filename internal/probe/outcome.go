@@ -35,6 +35,8 @@ type Outcome struct {
 	result Result
 	// voided says §5.1.6's check failed after the run.
 	voided bool
+	// unclean is what that check found, and empty when it passed.
+	unclean string
 }
 
 // Decide applies §5.1.7 to a ladder outcome, given what §5.1.6's post-run check
@@ -55,7 +57,7 @@ func Decide(ladder Result, unclean string) Outcome {
 	if unclean == "" {
 		return Outcome{result: ladder}
 	}
-	return Outcome{result: ResultError, voided: true}
+	return Outcome{result: ResultError, voided: true, unclean: unclean}
 }
 
 // Result is the value §5.5's `result` column carries, which is the ladder's
@@ -69,10 +71,16 @@ func (o Outcome) Result() Result { return o.result }
 func (o Outcome) Voided() bool { return o.voided }
 
 // Reason is why the record carries `error`, given ladder, the ladder's own
-// reason from Reason or GapReason. It is empty for any other result, and for a
-// probe §5.1.7 voided, whose `error` the ladder did not produce.
+// reason from Reason or GapReason. A probe §5.1.7 voided carries what the
+// post-run check found instead, because its `error` is not the ladder's; any
+// other result carries none.
 func (o Outcome) Reason(ladder string) string {
-	if o.voided || o.result != ResultError {
+	switch {
+	case o.voided:
+		return "§5.1.7: the post-run cleanliness check failed, so the result is error whatever " +
+			"the ladder read, the probe grades no finding, and the sandbox is recreated before " +
+			"the next run: " + o.unclean
+	case o.result != ResultError:
 		return ""
 	}
 	return ladder

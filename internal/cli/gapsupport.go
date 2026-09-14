@@ -67,9 +67,11 @@ type gapEvidence struct {
 // passes could see two states of mapping.ndjson and report a support the grade
 // did not rest on.
 //
-// A record naming a probe that is not a gap probe is left alone. §5.3.5's
+// A record naming a mutation probe is held to no bound here: §5.3.5's
 // conditions are a different question about a different ladder, and the
-// mutation half of grading is the grade computation's to make.
+// mutation half of grading is the grade computation's to make. It is answered
+// all the same, by mutationSupport, so a record the grade leaves argued over a
+// probe that proves nothing is not left argued without a word.
 func resolveGapSupport(
 	found *roundEvidence, meta *state.Meta, records []*finding.Finding,
 ) (*gapEvidence, error) {
@@ -87,6 +89,9 @@ func resolveGapSupport(
 			return nil, err
 		}
 		if answered == nil {
+			if mutated := mutationSupport(found, meta, record); mutated != nil {
+				answers.support = append(answers.support, *mutated)
+			}
 			continue
 		}
 		answers.support = append(answers.support, *answered)
@@ -253,6 +258,59 @@ func answerGapSupport(
 			gap, runs, pairs, meta.Round, record)
 	}
 	return answered
+}
+
+// mutationSupport is §5.3.5 read over one record naming a mutation probe, and
+// nil for a record naming none.
+//
+// It decides nothing: gradeRecords asks probe.Establishes of the same probe,
+// baseline and anchor, and this says which of those conditions answered, in the
+// order Establishes asks them. QA found a record demoted to argued over a probe
+// §5.1.7 had voided with `probes` empty, so the demotion was unexplained; a
+// probe that recorded why it is `error` is named with that reason.
+func mutationSupport(found *roundEvidence, meta *state.Meta, record *finding.Finding) *gapSupport {
+	mutated := found.referenced(record.Probe)
+	if mutated == nil || mutated.Kind != probe.Mutation {
+		return nil
+	}
+	answered := gapSupport{Record: record.ID, Probe: mutated.ID, Result: string(mutated.Result)}
+	baseline, resolved := mutated.ResolveBaseline(found.runs)
+	switch {
+	case !mutated.Grades(meta.Head):
+		answered.Reason = fmt.Sprintf(
+			"the probe ran at %s and this round's head is %s; §5.5.3 keeps a probe from "+
+				"another head out of the current round's grading",
+			mutated.Head, meta.Head)
+	case !record.Anchor.Span().Holds(mutated.Target):
+		answered.Reason = fmt.Sprintf(
+			"the probe's target %s does not fall within the record's %s anchor %s:%d-%d; "+
+				"§6.2.2 lets a probe support only a record whose RIGHT anchor range holds its target, "+
+				"so the record stays argued (§6.2) and is asked as a question (§6.3)",
+			mutated.Target, record.Anchor.Side, record.Anchor.Path, record.Anchor.StartLine, record.Anchor.Line)
+	case !probe.Proven(mutated):
+		answered.Reason = fmt.Sprintf(
+			"§5.3.5: only no-test-failed proves a gap, and a mutation probe whose result is %s "+
+				"supports no probed grade, so the record stays argued (§6.2) and is asked as a "+
+				"question (§6.3)", mutated.Result)
+		if mutated.Reason != "" {
+			answered.Reason += "; the probe recorded why it is error: " + mutated.Reason
+		}
+	case !resolved:
+		answered.Reason = fmt.Sprintf(
+			"§5.2.6 admits no stored run as this probe's baseline %s, so §5.3.5's second "+
+				"condition cannot be read and the record stays argued (§6.2)", mutated.Baseline)
+	case !baseline.Passed():
+		answered.Reason = fmt.Sprintf(
+			"the baseline run %s did not pass per §5.2.5, so §5.3.5 lets this no-test-failed "+
+				"prove no gap and the record stays argued (§6.2)", baseline.ID())
+	default:
+		answered.Supports = true
+		answered.Reason = fmt.Sprintf(
+			"the result is no-test-failed and the baseline run %s passed per §5.2.5, so §5.3.5 "+
+				"lets the record rest on this probe, for the tests the run selected only (§5.3.6)",
+			baseline.ID())
+	}
+	return &answered
 }
 
 // failedGapSupport reads §5.4.4's two conditions over a failed gap probe.

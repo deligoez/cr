@@ -127,11 +127,24 @@ func Ensure(
 		// probe graded against a baseline that is not there is exactly
 		// the pre-existing failure §5.2.2 exists to keep off a
 		// colleague's pull request.
-		return Baseline{}, fmt.Errorf(
-			"no baseline run stands at %s for a %s probe: "+
-				"the run performed for it was not one §5.2.6 admits; "+
-				"run `cr sandbox destroy` and let the next run rebuild it",
-			head, kind)
+		return Baseline{}, &NoBaselineError{Head: head, Kind: kind}
 	}
 	return resolved, nil
+}
+
+// NoBaselineError reports a baseline Ensure performed that still does not stand.
+//
+// It names no next step, because the step is about the sandbox the run left
+// behind and this package does not know which sandbox that is; the caller that
+// ran it does, and says so.
+type NoBaselineError struct {
+	// Head is the head the baseline was performed at.
+	Head string
+	// Kind is the kind of probe it was performed for.
+	Kind Kind
+}
+
+func (e *NoBaselineError) Error() string {
+	return fmt.Sprintf("no baseline run stands at %s for a %s probe: "+
+		"the run performed for it was not one §5.2.6 admits", e.Head, e.Kind)
 }

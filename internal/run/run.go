@@ -66,6 +66,12 @@ type Record struct {
 	// reading of the counts, so the distinction has to survive into
 	// storage rather than being inferred from it.
 	TimedOut bool `json:"timed_out"`
+	// Unstarted says the runner could not be started at all, so there is
+	// no exit status of its own: ExitCode then holds -1 rather than a 0
+	// that would read as a run that succeeded. It is absent for a run
+	// that started, and §5.2.4's list has no slot for it, for the reason
+	// it has none for TimedOut.
+	Unstarted bool `json:"unstarted,omitempty"`
 	// Contaminated says §5.1.6's cleanliness check failed after the run,
 	// so the sandbox the suite executed in was not the pull request head.
 	//
@@ -155,6 +161,7 @@ var fields = []field{
 	{Name: "filter", Author: measured},
 	{Name: "exit_code", Author: measured},
 	{Name: "timed_out", Author: measured},
+	{Name: "unstarted", Author: measured},
 	{Name: "contaminated", Author: measured},
 	{Name: "duration_ms", Author: measured},
 	{Name: "tests_run", Author: measured},

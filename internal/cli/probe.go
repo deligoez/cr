@@ -271,19 +271,22 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 		unstarted, detail = true, unrunnable.Error()
 	}
 	executed, failed := counter.Counts()
-	return &measuredRun{
-		record: &run.Record{
-			Filter:      filter,
-			ExitCode:    exit.Code,
-			TimedOut:    exit.TimedOut,
-			DurationMS:  took.Milliseconds(),
-			TestsRun:    executed,
-			TestsFailed: failed,
-			OutputTail:  tail.String(),
-		},
-		unstarted: unstarted,
-		detail:    detail,
-	}, nil
+	record := &run.Record{
+		Filter:      filter,
+		ExitCode:    exit.Code,
+		TimedOut:    exit.TimedOut,
+		Unstarted:   unstarted,
+		DurationMS:  took.Milliseconds(),
+		TestsRun:    executed,
+		TestsFailed: failed,
+		OutputTail:  tail.String(),
+	}
+	if unstarted {
+		// A runner that never started returned no status, and the zero
+		// RunExit hands back would store one that reads as success.
+		record.ExitCode = -1
+	}
+	return &measuredRun{record: record, unstarted: unstarted, detail: detail}, nil
 }
 
 // newProbeCmd groups the probe commands of §11. It runs nothing itself, so an
@@ -849,7 +852,8 @@ func storeProbe(
 	// happens after the record lands, so the evidence the check found is
 	// on disk before the sandbox it describes is rebuilt.
 	if finished.outcome.Voided() {
-		if err := sandbox.ForceRecreation(setup.src); err != nil {
+		if err := sandbox.ForceRecreation(setup.src, fmt.Sprintf(
+			"probe %s was voided after its run: %s", probeID, finished.unclean)); err != nil {
 			return nil, err
 		}
 	}
@@ -875,7 +879,7 @@ func reportProbe(
 		Run:         finished.runID,
 		Voided:      finished.unclean,
 		Warnings:    []string{warning},
-		Honesty:     probeDisclosures(setup),
+		Honesty:     probeDisclosures(setup, finished),
 	})
 }
 
@@ -892,8 +896,17 @@ func reportProbe(
 //
 // The count disclosed is the round's after this run, because the number the
 // reader needs is how many probes the round has now spent.
-func probeDisclosures(setup *probeSetup) []string {
+//
+// A probe §5.1.7 voided says so too, naming what the post-run check found. Its
+// `error` is not the ladder's, and a reader told only `error` cannot tell a
+// suite that writes into tracked files from a runner that broke.
+func probeDisclosures(setup *probeSetup, finished *finishedProbe) []string {
 	disclosed := recreationNotice(setup.ready)
+	if finished.outcome.Voided() {
+		disclosed = append(disclosed, fmt.Sprintf(
+			"probe %s voided, per §5.1.7: %s; its result is error, it grades no finding, "+
+				"and the sandbox is recreated before the next run", finished.probeID, finished.unclean))
+	}
 	if spent := setup.capped.Ran(); spent.Reached() {
 		disclosed = append(disclosed, spent.Disclosure())
 	}
@@ -935,15 +948,44 @@ func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, 
 	if err != nil {
 		return nil, err
 	}
+	// unclean is what §5.1.6's check found after a baseline this run
+	// performed, kept for the refusal when that baseline does not stand.
+	var unclean string
 	performed.baseline, err = probe.Ensure(
 		stored, setup.round.Head, request.kind, request.filter,
 		func(spec probe.Spec) (run.Record, error) {
-			return baselineRun(setup, request, spec)
+			ran, found, err := baselineRun(setup, request, spec)
+			if found != "" {
+				unclean = found
+			}
+			return ran, err
 		})
+	if unusable := (*probe.NoBaselineError)(nil); errors.As(err, &unusable) {
+		return nil, unusableBaseline(setup, request, unclean, err)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return performed, nil
+}
+
+// unusableBaseline is the refusal of a probe whose freshly performed baseline
+// does not stand: §5.1.6's check failed after it, so it measured a sandbox
+// that had drifted from the head and is nobody's baseline.
+//
+// It is a failure of the sandbox the command used, which §11.2 codes 3, and the
+// step names that sandbox and the command that rebuilds it. Nothing about the
+// command line was wrong, so it is not the malformed invocation an unmapped
+// error would read as.
+func unusableBaseline(setup *probeSetup, request *probeRequest, unclean string, err error) error {
+	if unclean != "" {
+		err = fmt.Errorf("%w; §5.1.6's check after that run found that %s", err, unclean)
+	}
+	return state.FileFailure("use", setup.ready.Path, fmt.Sprintf(
+		"the baseline run left the sandbox %s unclean, so it measured nothing; run "+
+			"`cr sandbox destroy %d --repo %s/%s`, keep the suite from leaving that behind, "+
+			"and run the probe again",
+		setup.ready.Path, request.pr, request.owner, request.repo), err)
 }
 
 // mutationRuns performs §5.2.6's baselines and then the mutated run, all inside
@@ -1037,25 +1079,25 @@ func gapRuns(
 // it, which is what probe.Ensure hands back to §5.5's `baseline` column.
 func baselineRun(
 	setup *probeSetup, request *probeRequest, spec probe.Spec,
-) (run.Record, error) {
+) (stored run.Record, unclean string, err error) {
 	ran, err := setup.tests.perform(spec.Filter)
 	if err != nil {
-		return run.Record{}, err
+		return run.Record{}, "", err
 	}
 	// §5.1.6's check after this run too, for round 12's
 	// baseline-contamination reason: a baseline whose sandbox drifted
 	// under it is nobody's baseline, and §5.2.5's verdict is what says so.
-	unclean, err := sandbox.Unclean(setup.src, setup.glob)
+	unclean, err = sandbox.Unclean(setup.src, setup.glob)
 	if err != nil {
-		return run.Record{}, err
+		return run.Record{}, "", err
 	}
 	ran.record.Contaminated = unclean != ""
 	if _, err := recordRun(
 		setup.layout, request.owner, request.repo, request.pr,
 		setup.stamp, ran.record); err != nil {
-		return run.Record{}, err
+		return run.Record{}, "", err
 	}
-	return *ran.record, nil
+	return *ran.record, unclean, nil
 }
 
 // recordProbe stores §5.5's probe record and, when a run happened, §5.2.4's

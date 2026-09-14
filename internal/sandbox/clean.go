@@ -110,6 +110,9 @@ func Unclean(src *Sources, leftoverGlob string) (string, error) {
 	if recorded == nil {
 		return "no post-setup baseline was recorded for it", nil
 	}
+	if recorded.Forced != "" {
+		return "§5.1.7 forced its recreation: " + recorded.Forced, nil
+	}
 	// A baseline taken at some other head describes a sandbox that is
 	// already gone, whatever this one now holds.
 	if recorded.Head != src.Head {
