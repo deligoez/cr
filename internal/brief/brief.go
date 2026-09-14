@@ -319,7 +319,7 @@ func assemble(src *Sources) (*Brief, error) {
 		Files:          files,
 		Threads:        threads,
 		Notes:          notes,
-		CandidateNotes: candidateNotes(threads, pr.Author, resolved.Key.Value, src.PR),
+		CandidateNotes: candidateNotes(threads, pr.Author, resolved.Key.Value, src.PR, notes),
 		Axes:           axes,
 		ActiveRoles:    active,
 		halves:         halves,

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // CandidateNote is §3.5.5's offer: one reply the pull request's author wrote
@@ -31,14 +33,21 @@ type CandidateNote struct {
 const keyPlaceholder = "<ISSUE-KEY>"
 
 // candidateNotes is every reply the pull request's author wrote inside the
-// ingested threads, in thread order and reply order.
+// ingested threads, in thread order and reply order, that the issue key's
+// context store does not already hold.
 //
 // Only replies are offered. A thread the author opened is a comment on their own
 // change rather than an answer to a reviewer, and §3.5.5 names replies. An
 // author GitHub answered no login for — the account is gone — matches nothing,
 // because an empty login would otherwise match every reply whose account is gone
 // as well.
-func candidateNotes(threads []gh.Thread, author, key string, pr int) []CandidateNote {
+//
+// A reply whose body is, under §1.4's normalisation, the text of a note stored
+// for the key — by `cr answer` or `cr note`, and whether or not §3.6.6 has
+// since retracted it — is not offered: the offer is an invitation to store the
+// reply, and one already stored would be stored twice, or a withdrawn fact
+// stored again. stored is the key's whole store.
+func candidateNotes(threads []gh.Thread, author, key string, pr int, stored []note.Note) []CandidateNote {
 	offered := make([]CandidateNote, 0)
 	if author == "" {
 		return offered
@@ -46,10 +55,14 @@ func candidateNotes(threads []gh.Thread, author, key string, pr int) []Candidate
 	if key == "" {
 		key = keyPlaceholder
 	}
+	recorded := make(map[string]bool, len(stored))
+	for i := range stored {
+		recorded[normalised(stored[i].Text)] = true
+	}
 	record := fmt.Sprintf(`cr note %s "<text>" --source thread --pr %d`, key, pr)
 	for i := range threads {
 		for _, reply := range threads[i].Replies {
-			if reply.Author == author {
+			if reply.Author == author && !recorded[normalised(reply.Body)] {
 				offered = append(offered, CandidateNote{
 					Thread: threads[i].ID, Reply: reply, Record: record,
 				})
@@ -57,4 +70,15 @@ func candidateNotes(threads []gh.Thread, author, key string, pr int) []Candidate
 		}
 	}
 	return offered
+}
+
+// normalised is §1.4's normalisation of a reply body or a note text, and the
+// text as given when it is not valid UTF-8: such a text equals no normalised
+// one, so the reply stays offered.
+func normalised(in string) string {
+	out, err := text.Normalise(in)
+	if err != nil {
+		return in
+	}
+	return out
 }

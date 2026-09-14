@@ -4,11 +4,13 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/note"
 )
 
 // repliedThread is a page holding one human thread whose reviewer's question the
@@ -67,12 +69,34 @@ func TestAnAuthorReplyIsOfferedAsACandidateNoteAndNoNoteIsWritten(t *testing.T) 
 func TestAnAuthorWithNoLoginIsOfferedNoCandidate(t *testing.T) {
 	gone := []gh.Thread{{ID: "PRRT_1", Replies: []gh.Comment{{ID: "PRRC_2", Author: ""}}}}
 
-	assert.Empty(t, candidateNotes(gone, "", testIssue, 7))
-	assert.NotNil(t, candidateNotes(gone, "", testIssue, 7), "§12.3: an empty offer is [], not null")
+	assert.Empty(t, candidateNotes(gone, "", testIssue, 7, nil))
+	assert.NotNil(t, candidateNotes(gone, "", testIssue, 7, nil), "§12.3: an empty offer is [], not null")
 
 	answered := []gh.Thread{{ID: "PRRT_1", Replies: []gh.Comment{{ID: "PRRC_2", Author: "author"}}}}
-	offered := candidateNotes(answered, "author", "", 7)
+	offered := candidateNotes(answered, "author", "", 7, nil)
 	require.Len(t, offered, 1)
 	assert.Equal(t, `cr note <ISSUE-KEY> "<text>" --source thread --pr 7`, offered[0].Record,
 		"with no key resolved the command names the key it still needs")
+}
+
+// A reply whose body a stored note already holds under §1.4's normalisation is
+// not offered, and that holds for a note §3.6.6 has since retracted: offering
+// it would invite storing a withdrawn fact again. A reply no note holds stays
+// offered.
+func TestAReplyTheStoreHoldsIsNotOffered(t *testing.T) {
+	retractedAt := time.Date(2026, 9, 2, 9, 0, 0, 0, time.UTC)
+	threads := []gh.Thread{{ID: "PRRT_1", Replies: []gh.Comment{
+		{ID: "PRRC_2", Author: "author", Body: "Yes, free shipping was dropped."},
+		{ID: "PRRC_3", Author: "author", Body: "Tax is rounded once."},
+		{ID: "PRRC_4", Author: "author", Body: "Totals are cached."},
+	}}}
+	stored := []note.Note{
+		{ID: testIssue + "#n1", Text: "Yes,  free shipping was dropped.\t"},
+		{ID: testIssue + "#n2", Text: "Tax is rounded once.", RetractedAt: &retractedAt},
+	}
+
+	offered := candidateNotes(threads, "author", testIssue, 7, stored)
+
+	require.Len(t, offered, 1)
+	assert.Equal(t, "PRRC_4", offered[0].Reply.ID)
 }
