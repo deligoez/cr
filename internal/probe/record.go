@@ -76,11 +76,12 @@ type Record struct {
 	// Result is §5.5's `result`, and is always the value Decide produced:
 	// §5.1.7's check has had its say before the record is written.
 	Result Result `json:"result"`
-	// Reason says why Result is `error` — which rung produced it and
-	// what that rung read — and is absent for every other result. §5.5's
-	// table has no row for it; an `error` establishes nothing, and a
-	// record that said only that could not tell a stale patch from a
-	// runner that never started.
+	// Reason says why Result is `error` or `inconclusive` — which rung
+	// produced it and what that rung read — and is absent for every other
+	// result. §5.5's table has no row for it; an `error` establishes
+	// nothing, and a record that said only that could not tell a stale
+	// patch from a runner that never started, nor an `inconclusive` from a
+	// runner that exited non-zero from output that carried no count.
 	Reason string `json:"reason,omitempty"`
 	// TestsRun is the executed test count, absent when undetermined.
 	TestsRun *int `json:"tests_run,omitempty"`

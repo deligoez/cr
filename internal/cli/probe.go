@@ -41,8 +41,8 @@ type probeRunResult struct {
 	Filter string `json:"filter,omitempty"`
 	// Result is §5.5's `result`, after §5.1.7 has had its say.
 	Result string `json:"result"`
-	// Reason is the probe record's `reason`: why Result is `error`, and
-	// absent for every other result.
+	// Reason is the probe record's `reason`: why Result is `error` or
+	// `inconclusive`, and absent for every other result.
 	Reason string `json:"reason,omitempty"`
 	// Establishes is what the sections governing this kind let the result
 	// be read for: `gap` when a mutation probe proves one, `no-gap` when a
