@@ -395,14 +395,14 @@ with exit 1 naming the draft line and the record:
 |---|---|
 | `id` | immutable; a changed or unknown id aborts (there is no manual-comment channel) |
 | `kind` | `finding`→`question` softens; `question`→`finding` only when cr's grade is `probed` or `cited` |
-| `path`, `side`, `start_line`, `line` | re-validated against the head or, for `LEFT`, the merge base; aborts when the anchor no longer resolves |
+| `path`, `side`, `start_line`, `line` | re-validated against the head or, for `LEFT`, the merge base, and held to every anchor refusal `cr record` makes; aborts when the anchor no longer resolves or leaves the record's unit |
 | `severity` | freely editable within `critical`, `high`, `medium`, `low` |
 | `disposition` | only `wrong` by hand; `not-here` is cr's word for a deleted block |
 | `grade` | informational; cr recomputes it and ignores the edit |
 
-The refusals, as `cr draft 1` printed them (`hint` for all marker edits: "§7.2's
-table is the whole of what a marker may be edited to; correct that record's block
-in the draft"):
+The refusals, as `cr draft 1` printed them (`hint` for all marker edits but a
+move out of the record's unit: "§7.2's table is the whole of what a marker may be
+edited to; correct that record's block in the draft"):
 
 ```text
 draft line 41, record f15: kind asks for "finding" on a record cr graded "argued", and §6.3.3 admits that register only on "probed" or "cited"; leave it a "question" or give the record an experiment
@@ -412,6 +412,15 @@ draft line 11, record f12: disposition reads "maybe", and the one disposition §
 draft line 41, record f15: severity reads "urgent", and §6.1's four are critical, high, medium, low
 draft line 11, record f99: id names no record this round rendered, and §7.2.3 gives v0.2 no manual-comment channel in the draft; restore the id cr wrote, and write a comment of your own on GitHub after posting
 draft line 41, record f15: anchor runs to line 99 of "order.go", which holds 10 lines at the head under review
+```
+
+A marker cannot move a comment to another unit: the record's `unit` is not a
+marker field, and the moved anchor must lie inside it. Keep the comment within
+its unit, or delete the block; a comment on another unit needs a record a role
+produced for that unit. The refusal carries that hint:
+
+```text
+draft line 11, record f1: anchor of record f1 is RIGHT tax.go:12-12, which does not lie inside unit "u1", the unit this record names; §6.1.3 has a record's anchor lie inside its unit under §6.2.1's containment, so name the unit whose hunk holds it
 ```
 
 An edited `grade="probed"` on an argued record is accepted and rendered back as
