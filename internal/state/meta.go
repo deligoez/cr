@@ -43,6 +43,21 @@ type Meta struct {
 	// than inferred from the file.
 	MappingRound int    `json:"mapping_round"`
 	MappingHead  string `json:"mapping_head"`
+	// ClaimsRound and ClaimsHead are the round and head `cr claims record`
+	// last stored §3.3.1's claims for, and zero and empty before it has. An
+	// issue that yields no claims is recorded as an empty claims file, which
+	// leaves claims.ndjson with no line of the round, as one nobody recorded
+	// does, so the recording is stamped here for the reason the mapping is.
+	ClaimsRound int    `json:"claims_round"`
+	ClaimsHead  string `json:"claims_head"`
+}
+
+// ClaimsRecorded reports whether meta.json's claims stamp names the round and
+// head it records: a `cr claims record` stored this round's claims, empty or
+// not, or §9.3.4 carried a recorded set into it. A stamp left by an earlier
+// round names a round this one is not.
+func (m *Meta) ClaimsRecorded() bool {
+	return m.Round > 0 && m.ClaimsRound == m.Round && m.ClaimsHead == m.Head
 }
 
 // MappingRecorded reports whether meta.json's mapping stamp names the round and
@@ -115,6 +130,12 @@ func (k *Lock) StampMapping(round int, head string) error {
 // gate read the cleared file as a mapping this round recorded.
 func (k *Lock) ClearMapping() error {
 	return k.StampMapping(0, "")
+}
+
+// StampClaims sets the claims stamp `cr claims record` leaves on meta.json and
+// leaves every other field as the file holds it under the lock.
+func (k *Lock) StampClaims(round int, head string) error {
+	return k.updateMeta(func(m *Meta) { m.ClaimsRound, m.ClaimsHead = round, head })
 }
 
 // updateMeta is the read-modify-write of one meta.json field, with the read

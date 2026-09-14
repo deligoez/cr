@@ -382,6 +382,11 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 // that is gone. The stamp is cleared first, so a run that fails part way leaves
 // a round §4.6.5 refuses rather than one it unblocks.
 //
+// The claims stamp is set last, for the same reason: it is what `cr status`
+// reads as the round's claims recorded, and an empty claim set is recorded
+// only there, so a run that fails before it leaves a round still asking for
+// its claims.
+//
 // Clearing the entries clears every §4.1.8 set-aside they carried, and those
 // are returned the way `cr map record` returns the ones its derivation drops:
 // mapping.Gaps over no claim raises no entry, so every stamp the round recorded
@@ -406,7 +411,10 @@ func storeClaims(
 	if err := state.ClearStamped(k, state.FileMapping, at.Round); err != nil {
 		return nil, err
 	}
-	return dropped, state.ClearStamped(k, state.FileIntentGaps, at.Round)
+	if err := state.ClearStamped(k, state.FileIntentGaps, at.Round); err != nil {
+		return nil, err
+	}
+	return dropped, k.StampClaims(at.Round, at.Head)
 }
 
 // intentSource is §3.1's choice of where one run's issue text comes from,

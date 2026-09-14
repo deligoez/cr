@@ -20,6 +20,8 @@ func TestMetaSurvivesARoundTrip(t *testing.T) {
 		PostUnresolved: true,
 		MappingRound:   2,
 		MappingHead:    "0f1e2d3",
+		ClaimsRound:    2,
+		ClaimsHead:     "0f1e2d3",
 	}
 
 	held, err := l.LockPR("acme", "web", 42)
@@ -62,5 +64,22 @@ func TestAMappingStampCountsOnlyForTheRoundAndHeadItNames(t *testing.T) {
 		"no round opened":                 {Meta{}, false},
 	} {
 		assert.Equal(t, c.want, c.meta.MappingRecorded(), name)
+	}
+}
+
+// A claims stamp counts only for the round and head meta.json records, as the
+// mapping stamp does.
+func TestAClaimsStampCountsOnlyForTheRoundAndHeadItNames(t *testing.T) {
+	for name, c := range map[string]struct {
+		meta Meta
+		want bool
+	}{
+		"stamped for this round and head": {Meta{Round: 2, Head: "b", ClaimsRound: 2, ClaimsHead: "b"}, true},
+		"never stamped":                   {Meta{Round: 2, Head: "b"}, false},
+		"stamped by the closed round":     {Meta{Round: 2, Head: "b", ClaimsRound: 1, ClaimsHead: "a"}, false},
+		"same round, another head":        {Meta{Round: 2, Head: "b", ClaimsRound: 2, ClaimsHead: "a"}, false},
+		"no round opened":                 {Meta{}, false},
+	} {
+		assert.Equal(t, c.want, c.meta.ClaimsRecorded(), name)
 	}
 }

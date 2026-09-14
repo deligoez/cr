@@ -62,6 +62,10 @@ type Conditions struct {
 type IntentPass struct {
 	// Claims is how many claims the round holds.
 	Claims int
+	// ClaimsRecorded is meta.json's claims stamp read for the round and
+	// head, state.Meta.ClaimsRecorded: an issue that yields no claims is
+	// recorded as an empty set, which holds as many claims as none recorded.
+	ClaimsRecorded bool
 	// Mapped is meta.json's mapping stamp read for the round and head,
 	// state.Meta.MappingRecorded: an empty mapping leaves mapping.ndjson
 	// byte-identical to one nobody recorded.
@@ -170,15 +174,21 @@ func rowReason(c *Conditions) string {
 // active: its claims and its mapping are recorded. It names which is missing
 // and the command that records it. `cr claims record` clears the mapping, so a
 // round missing its claims is told to record the mapping after them.
+//
+// Claims count as recorded when the round holds one, or when the claims stamp
+// says an empty set was recorded: an issue can legitimately yield no claims.
+// A round holding claims and no stamp is state written before the stamp
+// existed, and its claims were recorded all the same.
 func intentReason(c *Conditions) string {
 	if c.Intent == nil {
 		return ""
 	}
+	noClaims := c.Intent.Claims == 0 && !c.Intent.ClaimsRecorded
 	switch {
-	case c.Intent.Claims == 0 && !c.Intent.Mapped:
+	case noClaims && !c.Intent.Mapped:
 		return "§4.6.5: the intent axis is active and this round has recorded neither its claims " +
 			"nor its mapping: record the claims with `cr claims record`, then the mapping with `cr map record`"
-	case c.Intent.Claims == 0:
+	case noClaims:
 		return "§4.6.5: the intent axis is active and this round has recorded no claims: " +
 			"record them with `cr claims record`, then the mapping again with `cr map record`"
 	case !c.Intent.Mapped:

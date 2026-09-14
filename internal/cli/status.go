@@ -444,7 +444,9 @@ func intentPassOf(axes activation.Activation, claims int, round *state.Meta) *co
 	if !slices.Contains(axes.Active, axis.Intent) {
 		return nil
 	}
-	return &coverage.IntentPass{Claims: claims, Mapped: round.MappingRecorded()}
+	return &coverage.IntentPass{
+		Claims: claims, ClaimsRecorded: round.ClaimsRecorded(), Mapped: round.MappingRecorded(),
+	}
 }
 
 // intentCoverageOf counts §10.1.2 over the round's claims, its mapping, and

@@ -105,10 +105,19 @@ func write(src *Sources, held *state.Lock, assembled *Brief) error {
 // writes it, and a same-head brief that dropped it would hold a round §4.6.5
 // had already unblocked. A stamp carried past §9.3.3's increment names the
 // round being closed, which state.Meta.MappingRecorded reads as no mapping.
+//
+// The claims stamp is carried through too, and past the increment it moves
+// with the claims: §9.3.4 carries the closing round's claims forward
+// unchanged, so a closing round that recorded its claims, an empty set
+// included, opens a round whose claims are recorded.
 func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 	recorded, err := src.Layout.ReadMeta(src.Owner, src.Repo, src.PR)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
+	}
+	claimsRound, claimsHead := recorded.ClaimsRound, recorded.ClaimsHead
+	if assembled.round.opened() && recorded.ClaimsRecorded() {
+		claimsRound, claimsHead = assembled.Round, assembled.Head
 	}
 	return &state.Meta{
 		Owner:          src.Owner,
@@ -122,6 +131,8 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 		PostUnresolved: recorded.PostUnresolved,
 		MappingRound:   recorded.MappingRound,
 		MappingHead:    recorded.MappingHead,
+		ClaimsRound:    claimsRound,
+		ClaimsHead:     claimsHead,
 	}, nil
 }
 
