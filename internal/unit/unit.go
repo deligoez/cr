@@ -9,17 +9,17 @@ import (
 	"github.com/deligoez/cr/internal/text"
 )
 
-// Range is one hunk's line range as §3.4.6 records it, both ends inclusive.
+// Range is one hunk's line range, both ends inclusive.
 //
-// The numbers are head-side, whatever side the unit's changed lines are
-// numbered on, because §6.2.1 evaluates containment "entirely in head
-// coordinates" against "the head-side range of one of its hunks — for a hunk
-// that adds no lines, its head-side insertion point". That is exactly what
-// git.Hunk.HeadRange answers, so the record carries the coordinates the one
-// question asked of it is answered in rather than a second pair a caller would
-// have to convert.
+// A unit records two lists of them. HunkRanges is §3.4.6's "its hunk ranges",
+// numbered on the side §3.4.1 numbers the unit's changed lines on — head lines
+// for a RIGHT unit, merge-base lines for a LEFT one — which is the numbering a
+// reader's anchor on that side counts in. HeadRanges is what §6.2.1 evaluates
+// containment against "entirely in head coordinates": "the head-side range of
+// one of its hunks — for a hunk that adds no lines, its head-side insertion
+// point". git.Hunk.SideRange and git.Hunk.HeadRange answer the two.
 type Range struct {
-	// Start is the range's first head line.
+	// Start is the range's first line.
 	Start int `json:"start"`
 	// End is its last, equal to Start for an insertion point.
 	End int `json:"end"`
@@ -43,9 +43,13 @@ type Unit struct {
 	Path string `json:"path"`
 	// Side is the side the unit's changed lines are numbered on.
 	Side git.Side `json:"side"`
-	// HunkRanges are the head-side ranges of the unit's hunks, in
-	// ascending order.
+	// HunkRanges are the ranges of the unit's hunks, in ascending order,
+	// numbered on Side: a LEFT unit's are the merge-base lines its hunks
+	// remove, first to last.
 	HunkRanges []Range `json:"hunk_ranges"`
+	// HeadRanges are the same hunks' head-side ranges, index for index,
+	// which Contains measures in. A LEFT unit's are insertion points.
+	HeadRanges []Range `json:"head_ranges"`
 	// ChangedLines is how many changed lines the unit holds.
 	ChangedLines int `json:"changed_lines"`
 	// Hash is §3.4.6's unit hash.
@@ -152,16 +156,19 @@ func (c *Cluster) record(n int) (Unit, error) {
 	if err != nil {
 		return Unit{}, err
 	}
-	ranges := make([]Range, len(c.Hunks))
+	ranges, head := make([]Range, len(c.Hunks)), make([]Range, len(c.Hunks))
 	for i := range c.Hunks {
-		start, end := c.Hunks[i].HeadRange()
+		start, end := c.Hunks[i].SideRange()
 		ranges[i] = Range{Start: start, End: end}
+		start, end = c.Hunks[i].HeadRange()
+		head[i] = Range{Start: start, End: end}
 	}
 	return Unit{
 		ID:           "u" + strconv.Itoa(n),
 		Path:         c.Path,
 		Side:         c.Side,
 		HunkRanges:   ranges,
+		HeadRanges:   head,
 		ChangedLines: changedLines(c.Hunks),
 		Hash:         hash,
 		Formation:    c.Formation,

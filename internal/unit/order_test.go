@@ -120,11 +120,14 @@ func TestUnitIdsOrderLeftBeforeRightAtTheSameLineNumber(t *testing.T) {
 		"§8.3.3's convention: every LEFT unit of a file before every RIGHT one")
 	assert.Equal(t, 12, units[0].ChangedLines, "the first LEFT unit is the twelve-line removal")
 	assert.Equal(t, 2, units[1].ChangedLines, "then the removal of merge-base 53 and 54")
-	assert.Equal(t, []Range{{Start: 21, End: 26}}, units[0].HunkRanges)
-	assert.Equal(t, []Range{{Start: 39, End: 44}}, units[1].HunkRanges)
+	assert.Equal(t, []Range{{Start: 23, End: 34}}, units[0].HunkRanges, "a LEFT unit's removed merge-base lines")
+	assert.Equal(t, []Range{{Start: 53, End: 54}}, units[1].HunkRanges)
 	assert.Equal(t, []Range{{Start: 1, End: 7}}, units[2].HunkRanges,
 		"the addition at head 4 sorts behind both LEFT units, not ahead of them")
 	assert.Equal(t, []Range{{Start: 50, End: 56}}, units[3].HunkRanges)
+	assert.Equal(t, [][]Range{{{Start: 23, End: 23}}, {{Start: 41, End: 41}}, {{Start: 1, End: 7}}, {{Start: 50, End: 56}}},
+		[][]Range{units[0].HeadRanges, units[1].HeadRanges, units[2].HeadRanges, units[3].HeadRanges},
+		"a LEFT unit is measured at the head line its removal follows, a RIGHT one over its hunk")
 
 	assert.Equal(t, units, unitsOf(t, collision),
 		"§2.1.1: the same input gives the same units, ids included")

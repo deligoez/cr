@@ -24,19 +24,23 @@ import (
 // The unit's own Side is RIGHT in one case and LEFT in another, and the answers
 // do not move with it. §6.2.1 says "no side is compared", and a unit whose
 // changed lines are numbered in the merge base still answers this question in
-// head coordinates, because that is the only coordinate system the ranges are
-// recorded in.
+// head coordinates: its HeadRanges, never the merge-base HunkRanges a reader's
+// LEFT anchor counts in. A record written before HeadRanges existed carried
+// head-side HunkRanges, and is measured by them.
 func TestContainmentIsDecidedInHeadCoordinates(t *testing.T) {
 	changed := Unit{
 		Path: "internal/api/handler.go", Side: git.Right,
 		HunkRanges: []Range{{Start: 40, End: 44}, {Start: 90, End: 92}},
+		HeadRanges: []Range{{Start: 40, End: 44}, {Start: 90, End: 92}},
 	}
 	deleted := Unit{
 		Path: "internal/api/legacy.go", Side: git.Left,
-		// A hunk that adds no lines: §3.4.6 records its head-side
-		// insertion point, which is one line wide.
-		HunkRanges: []Range{{Start: 17, End: 17}},
+		// A hunk that adds no lines: §3.4.6 records the merge-base lines
+		// it removes, and its head-side insertion point, one line wide.
+		HunkRanges: []Range{{Start: 30, End: 34}},
+		HeadRanges: []Range{{Start: 17, End: 17}},
 	}
+	legacy := Unit{Path: "internal/api/handler.go", Side: git.Right, HunkRanges: []Range{{Start: 40, End: 44}}}
 
 	for name, tc := range map[string]struct {
 		unit   Unit
@@ -55,6 +59,9 @@ func TestContainmentIsDecidedInHeadCoordinates(t *testing.T) {
 		"a delete-only insertion point is in": {deleted, "internal/api/legacy.go", 17, true},
 		"one line above that point is out":    {deleted, "internal/api/legacy.go", 16, false},
 		"one line below that point is out":    {deleted, "internal/api/legacy.go", 18, false},
+		"a removed merge-base number is out":  {deleted, "internal/api/legacy.go", 32, false},
+		"a legacy record's hunk is inside":    {legacy, "internal/api/handler.go", 42, true},
+		"a legacy record's next line is out":  {legacy, "internal/api/handler.go", 45, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.inside, tc.unit.Contains(tc.path, tc.line))

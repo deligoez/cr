@@ -104,17 +104,53 @@ type Hunk struct {
 //
 // §6.2.1 evaluates containment in head coordinates against "the head-side range
 // of one of its hunks — for a hunk that adds no lines, its head-side insertion
-// point". A hunk whose head side is empty — HeadLines is zero, which happens
-// when the change deletes or empties the file — has no range to fall inside, so
-// both ends are the insertion point git wrote as the header's start: the line
-// the removal follows, and zero when the removal reaches the top of the file.
-// Whether a hunk adds any line at all is Side, which is Left for exactly the
-// hunk §3.4.1 describes in merge-base coordinates.
+// point". A hunk that adds lines answers with the range its header gives.
+//
+// A hunk that adds none — Side Left — answers with its insertion point: the
+// head line its removal follows, and zero when the removal reaches the top of
+// the file. The header's head range is not that point. It covers the context
+// lines git keeps around the removal, and those lines were changed by nobody, so
+// a location on one of them is outside the unit rather than inside it. A hunk
+// whose removals are separated by context has one insertion point per run of
+// removed lines, and its range runs from the first of them to the last.
+//
+// Every head line of such a hunk is a context line, and each maps to the next
+// merge-base line that is not a removal, so the head line before the i-th
+// removed line r is HeadStart plus the context lines ahead of r, less one. A
+// hunk whose head side is empty — HeadLines is zero, which happens when the
+// change deletes or empties the file — has only the point git wrote as the
+// header's start.
 func (h *Hunk) HeadRange() (start, end int) {
 	if h.HeadLines == 0 {
 		return h.HeadStart, h.HeadStart
 	}
+	if h.Side == Left && len(h.Removed) > 0 {
+		last := len(h.Removed) - 1
+		return h.insertionBefore(0), h.insertionBefore(last)
+	}
 	return h.HeadStart, h.HeadStart + h.HeadLines - 1
+}
+
+// insertionBefore is the head line that the i-th removed line of a hunk adding
+// no lines follows: HeadStart plus the context lines ahead of it, less one.
+func (h *Hunk) insertionBefore(i int) int {
+	return h.HeadStart + (h.Removed[i] - h.BaseStart - i) - 1
+}
+
+// SideRange returns the range §3.4.6 records for the hunk, numbered on the side
+// its changed lines are, both ends inclusive.
+//
+// §3.4.1 numbers a hunk that adds lines on the RIGHT and one that adds none on
+// the LEFT, in the merge base. A hunk that adds lines answers with HeadRange. A
+// hunk that adds none answers with its first and last removed lines, which a
+// LEFT anchor counts in: not the header's merge-base range, whose context lines
+// no LEFT anchor may name, and not a head line, which would put a reader's
+// LEFT anchor on the wrong file version.
+func (h *Hunk) SideRange() (start, end int) {
+	if h.Side == Left && len(h.Removed) > 0 {
+		return h.Removed[0], h.Removed[len(h.Removed)-1]
+	}
+	return h.HeadRange()
 }
 
 // hunkHeader matches a hunk header, whose trailing section heading is not part

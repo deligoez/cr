@@ -14,11 +14,12 @@ import (
 // fixture that gives all three formations, so a record missing one or filling
 // one from the wrong place fails on the field and not on a count.
 //
-// The hunk ranges are head-side on purpose, because §6.2.1 evaluates
-// containment "entirely in head coordinates" against "the head-side range of
-// one of its hunks". A record keeping the merge-base numbers would look right
-// on this fixture, whose two sides agree nowhere, and would put every §6.2.1
-// answer one file version out.
+// Every unit here is RIGHT, so its hunk ranges and its head ranges are the same
+// head-side numbers: §3.4.1 numbers a RIGHT unit at the head, and §6.2.1
+// evaluates containment "entirely in head coordinates" against "the head-side
+// range of one of its hunks". A record keeping the merge-base numbers would
+// look right on this fixture, whose two sides agree nowhere, and would put every
+// §6.2.1 answer one file version out.
 //
 // The hash is lifted out of the comparison rather than pinned twice: its value
 // is a contract with §1.4 and is fixed by the test below, and restating it here
@@ -61,16 +62,19 @@ func TestAUnitRecordsTheFieldsSection346Names(t *testing.T) {
 		{
 			ID: "u1", Path: moneyPath, Side: git.Right,
 			HunkRanges:   []Range{{Start: 96, End: 98}},
+			HeadRanges:   []Range{{Start: 96, End: 98}},
 			ChangedLines: 0, Formation: ByFallback,
 		},
 		{
 			ID: "u2", Path: moneyPath, Side: git.Right,
 			HunkRanges:   []Range{{Start: 10, End: 13}, {Start: 39, End: 42}},
+			HeadRanges:   []Range{{Start: 10, End: 13}, {Start: 39, End: 42}},
 			ChangedLines: 2, Formation: BySymbol,
 		},
 		{
 			ID: "u3", Path: moneyPath, Side: git.Right,
 			HunkRanges:   []Range{{Start: 79, End: 82}, {Start: 87, End: 90}},
+			HeadRanges:   []Range{{Start: 79, End: 82}, {Start: 87, End: 90}},
 			ChangedLines: 2, Formation: ByAdjacency,
 		},
 	}, units)

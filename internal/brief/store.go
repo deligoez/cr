@@ -124,8 +124,8 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 // head and round are stamped onto each of them on the way out.
 func records(units []unit.Unit) []*unit.Record {
 	stored := make([]*unit.Record, 0, len(units))
-	for _, formed := range units {
-		stored = append(stored, &unit.Record{Unit: formed})
+	for i := range units {
+		stored = append(stored, &unit.Record{Unit: units[i]})
 	}
 	return stored
 }

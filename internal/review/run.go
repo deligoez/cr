@@ -473,9 +473,9 @@ func diffOf(src *Sources, head string) ([]git.Hunk, []string, error) {
 // withHunks gives every recorded unit the hunks its ranges name, and refuses a
 // unit the diff cannot rebuild whole.
 //
-// A hunk belongs to a unit when it is on the unit's file and side and its
-// head-side range is one the unit recorded — the coordinates §3.4.6 stores a
-// range in, taken from git.Hunk.HeadRange as the record was.
+// A hunk belongs to a unit when it is on the unit's file and side and its range
+// is one the unit recorded — numbered on that side, the coordinates §3.4.6
+// stores a range in, taken from git.Hunk.SideRange as the record was.
 func withHunks(
 	src *Sources, meta *state.Meta, records []unit.Record, hunks []git.Hunk, texts []string,
 ) ([]Unit, error) {
@@ -504,7 +504,7 @@ func belongs(u *unit.Unit, hunk *git.Hunk) bool {
 	if hunk.Path != u.Path || hunk.Side != u.Side {
 		return false
 	}
-	start, end := hunk.HeadRange()
+	start, end := hunk.SideRange()
 	return slices.Contains(u.HunkRanges, unit.Range{Start: start, End: end})
 }
 

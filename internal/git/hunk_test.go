@@ -300,19 +300,75 @@ func TestAHunkAnswersForItsHeadSideRange(t *testing.T) {
 	assert.Equal(t, 1, start)
 	assert.Equal(t, 3, end)
 
-	// A hunk that adds none still has one, as long as the removal left
-	// context standing around it.
+	// A hunk that adds none answers with its insertion point, head line 4
+	// ("d"), which the removal of base line 5 follows, and not with the
+	// context lines its header's head range covers.
 	assert.Equal(t, Left, hunks[1].Side)
 	start, end = hunks[1].HeadRange()
-	assert.Equal(t, 2, start)
-	assert.Equal(t, 7, end)
+	assert.Equal(t, [2]int{4, 4}, [2]int{start, end})
 
-	// It collapses to the insertion point when nothing of the file is left
-	// at the head. Zero is the top of the file: the removal follows no line.
+	// The same point when nothing of the file is left at the head. Zero is
+	// the top of the file: the removal follows no line.
 	assert.Equal(t, Left, hunks[2].Side)
 	start, end = hunks[2].HeadRange()
-	assert.Equal(t, 0, start)
-	assert.Equal(t, 0, end)
+	assert.Equal(t, [2]int{0, 0}, [2]int{start, end})
+}
+
+// A hunk that adds no lines answers, from the lines it removes, with the head
+// line each run of removals follows, and SideRange with the merge-base lines
+// it removes, first to last. A hunk that adds lines answers both at the head.
+//
+// The multi-run hunk removes base 3 and base 6 with two context lines between
+// them: base 3 follows head line 2, and base 6, the third base line after two
+// kept ones and one removal, follows head line 4. The top-of-file hunk removes
+// the first two lines and keeps what follows, so its removal follows no line.
+func TestAHunkAnswersForItsInsertionPointsAndItsRemovedLines(t *testing.T) {
+	hunks, err := ParseHunks(`--- a/runs.txt
++++ b/runs.txt
+@@ -1,8 +1,6 @@
+ a
+ b
+-c
+ d
+ e
+-f
+ g
+ h
+--- a/top.txt
++++ b/top.txt
+@@ -1,5 +1,3 @@
+-x
+-y
+ z
+ w
+ v
+--- a/edited.txt
++++ b/edited.txt
+@@ -1,3 +1,3 @@
+ one
+-two
++deux
+ three
+--- a/gone.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-x
+-y
+`)
+	require.NoError(t, err)
+	require.Len(t, hunks, 4)
+
+	for i, want := range []struct{ head, side [2]int }{
+		{head: [2]int{2, 4}, side: [2]int{3, 6}},
+		{head: [2]int{0, 0}, side: [2]int{1, 2}},
+		{head: [2]int{1, 3}, side: [2]int{1, 3}},
+		{head: [2]int{0, 0}, side: [2]int{1, 2}},
+	} {
+		start, end := hunks[i].HeadRange()
+		assert.Equal(t, want.head, [2]int{start, end}, "%s head", hunks[i].Path)
+		start, end = hunks[i].SideRange()
+		assert.Equal(t, want.side, [2]int{start, end}, "%s side", hunks[i].Path)
+	}
 }
 
 // The parser and the diff flags of diffArgs are one contract, and a patch that

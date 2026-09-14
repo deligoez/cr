@@ -114,7 +114,7 @@ func hunks(p *page, u *Unit) {
 	}
 }
 
-// ranges renders a unit's head-side hunk ranges.
+// ranges renders a unit's hunk ranges, numbered on the unit's side.
 func ranges(u *Unit) string {
 	spans := make([]string, 0, len(u.HunkRanges))
 	for _, span := range u.HunkRanges {
