@@ -35,16 +35,7 @@ type Rows struct {
 // for that unit's current unit hash" and a cell filled against older code is a
 // gap however it reads.
 func RowsOf(round int, units []unit.Unit, active []string, cells []Cell) Rows {
-	current := make(map[string]string, len(units))
-	for i := range units {
-		current[units[i].ID] = units[i].Hash
-	}
-	filled := make(map[cellKey]bool, len(cells))
-	for i := range cells {
-		if cells[i].Round == round && cells[i].UnitHash == current[cells[i].Unit] {
-			filled[cellKey{unit: cells[i].Unit, role: cells[i].Role}] = true
-		}
-	}
+	filled := filledSeats(round, units, cells)
 	rows := Rows{Units: len(units), Roles: len(active)}
 	for i := range units {
 		if units[i].Oversized {
@@ -57,6 +48,55 @@ func RowsOf(round int, units []unit.Unit, active []string, cells []Cell) Rows {
 		}
 	}
 	return rows
+}
+
+// MissingSeats names every `(unit, role)` seat RowsOf counts as a gap, as
+// `unit/role` in unit order and then in the active set's order, so §10.2.2's
+// reason can say which cells to fill rather than only how many rows lack one.
+//
+// A seat whose round holds a cell filled for a hash the unit no longer carries
+// is named with that said beside it: the cell exists and reads as filled in
+// coverage.ndjson, and a reader told only that the seat is missing would look
+// for a cell that is there.
+func MissingSeats(round int, units []unit.Unit, active []string, cells []Cell) []string {
+	filled := filledSeats(round, units, cells)
+	earlier := make(map[cellKey]bool, len(cells))
+	for i := range cells {
+		if cells[i].Round == round {
+			earlier[cellKey{unit: cells[i].Unit, role: cells[i].Role}] = true
+		}
+	}
+	missing := make([]string, 0)
+	for i := range units {
+		for _, role := range active {
+			seat := cellKey{unit: units[i].ID, role: role}
+			if filled[seat] {
+				continue
+			}
+			named := units[i].ID + "/" + role
+			if earlier[seat] {
+				named += " (filled for an earlier unit hash)"
+			}
+			missing = append(missing, named)
+		}
+	}
+	return missing
+}
+
+// filledSeats is the seats holding a cell RowsOf counts: filled in round, for
+// the unit's current hash.
+func filledSeats(round int, units []unit.Unit, cells []Cell) map[cellKey]bool {
+	current := make(map[string]string, len(units))
+	for i := range units {
+		current[units[i].ID] = units[i].Hash
+	}
+	filled := make(map[cellKey]bool, len(cells))
+	for i := range cells {
+		if cells[i].Round == round && cells[i].UnitHash == current[cells[i].Unit] {
+			filled[cellKey{unit: cells[i].Unit, role: cells[i].Role}] = true
+		}
+	}
+	return filled
 }
 
 // cellKey is §4.5.6's key: a cell sits at one `(unit, role)`.

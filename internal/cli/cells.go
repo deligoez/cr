@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -207,9 +208,29 @@ func decodeCells(
 	if err != nil {
 		return nil, nil, err
 	}
+	notes, err := cellNotes(l, round.IssueKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	cells, err := coverage.DecodeInRound(
-		file, body, roundUnitIDs(formed), active, raisedSeats(records), unmapped)
+		file, body, roundUnitIDs(formed), active, raisedSeats(records), unmapped, notes)
 	return cells, formed, err
+}
+
+// cellNotes is the context store a cell's `note_id` is held to: the round's
+// issue key and its notes, loaded whole as note.StandingOf requires. A round
+// that resolved no key has no store to open, and every `note_id` is refused.
+func cellNotes(l state.Layout, issueKey string) (*coverage.Notes, error) {
+	notes := &coverage.Notes{IssueKey: issueKey, Stored: make([]note.Note, 0)}
+	if issueKey == "" {
+		return notes, nil
+	}
+	stored, err := note.Load(l, issueKey)
+	if err != nil {
+		return nil, err
+	}
+	notes.Stored = stored
+	return notes, nil
 }
 
 // awaitingMapping is §4.6.5's gate as `cr review` asks it: the round when its

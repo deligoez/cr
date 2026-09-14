@@ -7,8 +7,8 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 )
 
-// Conditions are the four answers §10.2 asks about one round, each read from
-// the state that holds it.
+// Conditions are the answers §10.2 asks about one round, with §4.6.5's intent
+// pass and §3.6.6's cells beside them, each read from the state that holds it.
 //
 // They are supplied rather than gathered here for the reason Lenses collects
 // its four kinds rather than deriving them: §10.2's conditions live in four
@@ -27,6 +27,20 @@ type Conditions struct {
 	// Units is read too, because a round that formed none has no row to
 	// count and rowReason refuses to call it complete.
 	Rows Rows
+	// Missing are the seats MissingSeats names for the same round, which
+	// §10.2.2's reason lists so a reader knows which cells to fill.
+	Missing []string
+	// Intent is the intent pass §4.6.5 runs before the remaining axes, and
+	// nil when the round's intent axis is not active: §4.6.6 then asks for
+	// no claims and no mapping. A round whose intent axis is active is not
+	// complete over a pass that stored neither, because §10.2.3 holds
+	// vacuously over zero claims and §10.2.2 counts cells whatever the
+	// pass left behind.
+	Intent *IntentPass
+	// Unstanding are the round's cells citing a note that no longer
+	// stands. §3.6.6 has each reported as needing re-evaluation rather than
+	// silently retained, so a row resting on one is not counted settled.
+	Unstanding []UnstandingCell
 	// Unsettled is §10.2.3's blocking set: the round's claims that its
 	// mapping maps to no unit and that §4.1.8 has not set aside.
 	//
@@ -42,6 +56,26 @@ type Conditions struct {
 	// §9.1.2's open set — derived from the terminal list rather than
 	// written out, so this condition and §9.1's table cannot drift.
 	Records []*finding.Finding
+}
+
+// IntentPass is what the intent pass of §4.6.5 has stored for a round.
+type IntentPass struct {
+	// Claims is how many claims the round holds.
+	Claims int
+	// Mapped is meta.json's mapping stamp read for the round and head,
+	// state.Meta.MappingRecorded: an empty mapping leaves mapping.ndjson
+	// byte-identical to one nobody recorded.
+	Mapped bool
+}
+
+// UnstandingCell is one cell citing a note §3.6.6 no longer lets stand.
+type UnstandingCell struct {
+	// Seat is the cell's `(unit, role)`, as `unit/role`.
+	Seat string
+	// Note is the note id the cell cites, and Standing what the store says
+	// of it: `retracted` or `dangling`.
+	Note     string
+	Standing string
 }
 
 // Completeness is §10.2's verdict over one round: whether all four conditions
@@ -73,13 +107,14 @@ func (c Completeness) Reason() string {
 
 // Complete answers §10.2 over one round.
 //
-// The four checks run in §10.2's own numbering and each contributes at most one
-// reason, so the reasons a reader is given are the items of §10.2 they can go
-// and read.
+// The checks run in §10.2's own numbering, with §4.6.5's intent pass beside
+// §10.2.2 and §3.6.6's re-evaluation after §10.2.3, and each contributes at most
+// one reason, so the reasons a reader is given are the items they can go and
+// read.
 func Complete(c *Conditions) Completeness {
-	reasons := make([]string, 0, 4)
+	reasons := make([]string, 0, 6)
 	for _, check := range []func(*Conditions) string{
-		headReason, rowReason, claimReason, recordReason,
+		headReason, rowReason, intentReason, claimReason, noteReason, recordReason,
 	} {
 		if said := check(c); said != "" {
 			reasons = append(reasons, said)
@@ -111,6 +146,9 @@ func headReason(c *Conditions) string {
 // `cr status` would print that a review was complete over a review of nothing,
 // the stronger claim than the round supports that §10.2's verdict exists to
 // refuse. So an empty round carries §10.2.2's reason, naming why.
+//
+// The seats lacking a current cell are named after the count, as §10.2.3's
+// reason names its claims and §10.2.4's its records.
 func rowReason(c *Conditions) string {
 	if c.Rows.Units == 0 {
 		return "§10.2.2: this round formed no unit from its diff, so no cell was filled " +
@@ -119,9 +157,50 @@ func rowReason(c *Conditions) string {
 	if c.Rows.Gaps == 0 {
 		return ""
 	}
-	return "§10.2.2: " + strconv.Itoa(c.Rows.Gaps) + " of " + strconv.Itoa(c.Rows.Units) +
+	said := "§10.2.2: " + strconv.Itoa(c.Rows.Gaps) + " of " + strconv.Itoa(c.Rows.Units) +
 		" unit(s) hold no complete row of cells for all " + strconv.Itoa(c.Rows.Roles) +
 		" active role(s) at their current unit hash"
+	if len(c.Missing) == 0 {
+		return said
+	}
+	return said + ", missing " + strings.Join(c.Missing, ", ")
+}
+
+// intentReason is §4.6.5's intent pass, asked of a round whose intent axis is
+// active: its claims and its mapping are recorded. It names which is missing
+// and the command that records it. `cr claims record` clears the mapping, so a
+// round missing its claims is told to record the mapping after them.
+func intentReason(c *Conditions) string {
+	if c.Intent == nil {
+		return ""
+	}
+	switch {
+	case c.Intent.Claims == 0 && !c.Intent.Mapped:
+		return "§4.6.5: the intent axis is active and this round has recorded neither its claims " +
+			"nor its mapping: record the claims with `cr claims record`, then the mapping with `cr map record`"
+	case c.Intent.Claims == 0:
+		return "§4.6.5: the intent axis is active and this round has recorded no claims: " +
+			"record them with `cr claims record`, then the mapping again with `cr map record`"
+	case !c.Intent.Mapped:
+		return "§4.6.5: the intent axis is active and this round has recorded no mapping: " +
+			"record it with `cr map record`"
+	}
+	return ""
+}
+
+// noteReason is §3.6.6 over the round's cells: a cell citing a note that no
+// longer stands needs re-evaluation, and until it is filled again without it,
+// or on a note that stands, the round is not complete.
+func noteReason(c *Conditions) string {
+	if len(c.Unstanding) == 0 {
+		return ""
+	}
+	named := make([]string, 0, len(c.Unstanding))
+	for _, cell := range c.Unstanding {
+		named = append(named, cell.Seat+" ("+cell.Note+" "+cell.Standing+")")
+	}
+	return "§3.6.6: " + strconv.Itoa(len(c.Unstanding)) +
+		" cell(s) cite a note that no longer stands and need re-evaluation: " + strings.Join(named, ", ")
 }
 
 // claimReason is §10.2.3: every claim is mapped to at least one unit, and an

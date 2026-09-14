@@ -2,12 +2,14 @@ package cli
 
 import (
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/activation"
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
@@ -249,7 +251,7 @@ func newStatusCmd(out *writer) *cobra.Command {
 func statusOf(
 	l state.Layout, owner, repo string, pr int, round *state.Round,
 ) (*statusResult, error) {
-	rows, err := roundCoverage(l, owner, repo, pr, &round.Meta)
+	rows, missing, err := statusCoverage(l, owner, repo, pr, &round.Meta)
 	if err != nil {
 		return nil, err
 	}
@@ -279,10 +281,13 @@ func statusOf(
 		return nil, err
 	}
 	verdict := coverage.Complete(&coverage.Conditions{
-		HeadMoved: round.Stale(),
-		Rows:      rows,
-		Unsettled: unsettled,
-		Records:   records,
+		HeadMoved:  round.Stale(),
+		Rows:       rows,
+		Missing:    missing,
+		Intent:     intentPassOf(axes, covered.Claims, &round.Meta),
+		Unstanding: unstandingCells(unstanding),
+		Unsettled:  unsettled,
+		Records:    records,
 	})
 	disclosed, err := statusHonesty(
 		l, owner, repo, pr, round, lenses, records, verdict)
@@ -336,6 +341,40 @@ func statusHonesty(
 		return nil, err
 	}
 	return append(honesty, waived, duplicateDisclosure(records)), nil
+}
+
+// statusCoverage is §10.1.1's counts, as roundCoverage gives `cr draft`'s
+// header, together with the seats §10.2.2's reason names: both are taken from
+// one read of the round's units and cells, so the count and the list cannot
+// describe two different files.
+func statusCoverage(
+	l state.Layout, owner, repo string, pr int, round *state.Meta,
+) (coverage.Rows, []string, error) {
+	formed, err := roundUnitsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return coverage.Rows{}, nil, err
+	}
+	cells, err := state.ReadStamped[coverage.Cell](
+		l, owner, repo, pr, state.FileCoverage, round.Round)
+	if err != nil {
+		return coverage.Rows{}, nil, err
+	}
+	units := make([]unit.Unit, 0, len(formed))
+	for i := range formed {
+		units = append(units, formed[i].Unit)
+	}
+	return coverage.RowsOf(round.Round, units, round.ActiveRoles, cells),
+		coverage.MissingSeats(round.Round, units, round.ActiveRoles, cells), nil
+}
+
+// intentPassOf is what §4.6.5's intent pass has stored for the round, and nil
+// when the round's intent axis is not active: §4.6.6 asks for no claims and no
+// mapping then. The axes are lensesOf's, the ones the report prints.
+func intentPassOf(axes activation.Activation, claims int, round *state.Meta) *coverage.IntentPass {
+	if !slices.Contains(axes.Active, axis.Intent) {
+		return nil
+	}
+	return &coverage.IntentPass{Claims: claims, Mapped: round.MappingRecorded()}
 }
 
 // intentCoverageOf counts §10.1.2 over the round's claims, its mapping, and

@@ -70,7 +70,9 @@ func TestARoundThatFormedNoUnitIsNotReportedComplete(t *testing.T) {
 	reason := "§10.2.2: this round formed no unit from its diff, so no cell was filled " +
 		"and there is no row of cells its coverage could be complete over"
 	assert.False(t, report.Completeness.Complete)
-	assert.Equal(t, []string{reason}, report.Completeness.Reasons)
+	require.NotEmpty(t, report.Completeness.Reasons)
+	assert.Equal(t, reason, report.Completeness.Reasons[0],
+		"the round never ran its intent pass either, which the reasons after this one name")
 	for shape, said := range map[string]string{
 		"the document": strings.Join(report.Honesty, "\n"), "the terminal": shown,
 	} {

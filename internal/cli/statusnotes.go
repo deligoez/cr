@@ -149,6 +149,20 @@ func citedNotes(
 	return report
 }
 
+// unstandingCells is the cells of §3.6.6's report, one per cell, which §10.2
+// holds back from completeness until each is filled again.
+func unstandingCells(report []unstandingNote) []coverage.UnstandingCell {
+	cells := make([]coverage.UnstandingCell, 0)
+	for i := range report {
+		for _, seat := range report[i].Cells {
+			cells = append(cells, coverage.UnstandingCell{
+				Seat: seat, Note: report[i].Note, Standing: string(report[i].Standing),
+			})
+		}
+	}
+	return cells
+}
+
 // claimNotes is the note behind each claim of the round that was drawn from the
 // context store, by claim id.
 //

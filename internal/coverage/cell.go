@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/testadequacy"
@@ -137,16 +138,20 @@ func (e *RejectedCellError) Error() string {
 func Decode(
 	file string, body []byte, units []string, active []role.Role, raised Raised,
 ) ([]*Cell, error) {
-	return DecodeInRound(file, body, units, active, raised, nil)
+	return DecodeInRound(file, body, units, active, raised, nil, nil)
 }
 
 // DecodeInRound is Decode, holding every cell to §4.6.5 as well: unmapped is
 // the round when its remaining axes still wait for the intent pass, and nil
-// when they do not; see gated.
+// when they do not; see gated. notes is the context store a cell's `note_id`
+// is held to; see cited.
 func DecodeInRound(
-	file string, body []byte, units []string, active []role.Role, raised Raised, unmapped *Unmapped,
+	file string, body []byte, units []string, active []role.Role, raised Raised,
+	unmapped *Unmapped, notes *Notes,
 ) ([]*Cell, error) {
-	against := cellChecker{file: file, units: units, active: active, raised: raised, unmapped: unmapped}
+	against := cellChecker{
+		file: file, units: units, active: active, raised: raised, unmapped: unmapped, notes: notes,
+	}
 	seen := make(map[Seat]int)
 	return state.DecodeStamped[Cell](file, body,
 		func(line int, supplied map[string]json.RawMessage, cell *Cell) error {
@@ -238,6 +243,15 @@ type cellChecker struct {
 	active   []role.Role
 	raised   Raised
 	unmapped *Unmapped
+	notes    *Notes
+}
+
+// Notes is the context store of §3.6 a cell's `note_id` is held to: the issue
+// key the round resolved, and that key's notes whole, as note.StandingOf
+// requires.
+type Notes struct {
+	IssueKey string
+	Stored   []note.Note
 }
 
 // check holds one line to §4.5.5 and to §4.5.6's role half.
@@ -273,6 +287,9 @@ func (c *cellChecker) check(line int, supplied map[string]json.RawMessage, cell 
 		return err
 	}
 	if err := c.result(line, supplied, cell); err != nil {
+		return err
+	}
+	if err := c.cited(line, cell); err != nil {
 		return err
 	}
 	if err := c.consistent(line, cell); err != nil {
@@ -464,6 +481,44 @@ func (c *cellChecker) result(line int, supplied map[string]json.RawMessage, cell
 			Problem: fmt.Sprintf(
 				"is the explanation §4.5.5 attaches to %s alone, and this cell is a %s",
 				ResultNA, cell.Result),
+		}
+	}
+	return nil
+}
+
+// cited refuses a `note_id` naming no note of the round's issue key, or one
+// §3.6.6 has retracted.
+//
+// §4.5.5 has a cell cite the note that explained an unmapped unit per §4.1.5,
+// so the id is the explanation's provenance. An id the store holds no note for
+// is an explanation nobody recorded, and `cr status` would report it dangling
+// only after the round had counted the cell; a retracted one is a note §3.6.6
+// already has re-evaluated, which `cr claims set-aside` refuses for the same
+// reason. An empty `note_id` cites nothing and is passed over.
+func (c *cellChecker) cited(line int, cell *Cell) error {
+	if c.notes == nil || cell.NoteID == "" {
+		return nil
+	}
+	if c.notes.IssueKey == "" {
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "note_id",
+			Problem: fmt.Sprintf("names %q, and this round resolved no issue key, so §3.6 "+
+				"holds no note for a cell to cite; drop the field", cell.NoteID),
+		}
+	}
+	switch note.StandingOf(c.notes.Stored, cell.NoteID) {
+	case note.StandingDangling:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "note_id",
+			Problem: fmt.Sprintf("names %q, which is no note of issue %s; §4.5.5 cites a note "+
+				"of §3.6 for the round's issue key, and `cr context %s` lists them",
+				cell.NoteID, c.notes.IssueKey, c.notes.IssueKey),
+		}
+	case note.StandingRetracted:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "note_id",
+			Problem: fmt.Sprintf("names %q, which §3.6.6 has retracted, so it explains "+
+				"nothing; cite a note that stands, or drop the field", cell.NoteID),
 		}
 	}
 	return nil
