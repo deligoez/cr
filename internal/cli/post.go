@@ -297,7 +297,7 @@ func buildReview(
 	// rather than over the records the round recorded — which is why it
 	// stands after the forcings and the draft's discards, and before
 	// anything is rendered.
-	if err := validatePositions(owner, repo, pr, round, queued); err != nil {
+	if err := validatePositions(owner, repo, pr, round, queued, triage.Preserved); err != nil {
 		return err
 	}
 	review, warnings, err := warnedPayload(l, owner, repo, pr, round, queued, triage.Preserved)

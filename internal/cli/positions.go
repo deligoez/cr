@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/deligoez/cr/internal/draft"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
@@ -54,12 +55,20 @@ var positionHunks = roundHunks
 // anchored on a line GitHub was never shown. A record carrying a suggestion is
 // held to §8.2.1 and §8.2.2 first, so its refusal still names the suggestion.
 //
+// The suggestion held to them is the one the comment will carry, as
+// draft.SentSuggestion reads it out of the body that will be posted, and never
+// the stored field alone: preserved is §7.1.6's kept bodies, the map the
+// payload is built from. A fence the reviewer wrote into draft.md reaches the
+// author, so it is range-checked — on a LEFT anchor the diff carries too, which
+// the position check below would let through — and a stored suggestion they
+// deleted from the body reaches nobody, so it blocks nothing.
+//
 // The set asked about is the queued one, after the draft's discards and after
 // §6.3 and §4.1.4 have run. Those are what decide which records become
 // comments, and §8.4.1 is about the comments the call would carry rather than
 // about the records the round recorded. A round queuing none reads no diff.
 func validatePositions(
-	owner, repo string, pr int, round *state.Meta, queued []*finding.Finding,
+	owner, repo string, pr int, round *state.Meta, queued []*finding.Finding, preserved map[string]string,
 ) error {
 	if len(queued) == 0 {
 		return nil
@@ -69,7 +78,9 @@ func validatePositions(
 		return err
 	}
 	for _, record := range queued {
-		if err := suggestion.Validate(record, hunks); err != nil {
+		sent := *record
+		sent.Suggestion = draft.SentSuggestion(record, preserved)
+		if err := suggestion.Validate(&sent, hunks); err != nil {
 			return err
 		}
 		if !positionInDiff(&record.Anchor, hunks) {
