@@ -233,6 +233,35 @@ func refuseProtectedFields(path string, data []byte) error {
 	return nil
 }
 
+// CheckDir refuses the first profile file in dir, in file name order, holding a
+// field whose name addresses a protected decision, with the error Parse gives
+// it, and checks nothing else. Every profile file is one a command may resolve:
+// automatic selection loads them all, and the `profile` setting and a round's
+// profile_id each name one of them. A directory or file that cannot be read,
+// and a file that is not JSON, is left to the command that loads it: this is
+// the check every command makes before its work.
+func CheckDir(dir string) error {
+	entries, listErr := os.ReadDir(dir)
+	if listErr != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), fileExt) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		data, readErr := os.ReadFile(path)
+		var document any
+		if readErr != nil || json.Unmarshal(data, &document) != nil {
+			continue
+		}
+		if err := protectedName("", document); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	return nil
+}
+
 // protectedName walks one decoded JSON value and checks every object key it
 // holds, in sorted order so a file carrying two such fields names the same one
 // on every run. An element of a list is named by its index.
