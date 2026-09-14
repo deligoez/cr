@@ -133,7 +133,9 @@ Spawn one sub-agent per prompt. Each writes its findings, one JSON record per
 line, to the `output` path the prompt names, and nothing else. Each record takes
 its `id` from the prompt's own block, `first_id` through `last_id` in order: no
 other prompt of the round is given those ids, so parallel roles never write the
-same one and `cr merge` accepts their files together. A role reports
+same one and `cr merge` accepts their files together. cr refuses a new record
+whose id lies outside its prompt's block only once `cr review` has emitted the
+round's prompts for that record's unit. A role reports
 every unit it looked at as a coverage cell:
 
 ```bash
