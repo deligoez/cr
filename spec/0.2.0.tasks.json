@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-14T20:58:51.478623Z",
+  "updated_at": "2026-09-14T21:56:28.802827Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 9,
+    "mapped_sections": 11,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -52,8 +52,6 @@
       "### 5.5 Probe record",
       "### 5.6 Isolation and budget",
       "## 6. Findings",
-      "### 6.1 Record schema",
-      "### 6.2 Evidence grades",
       "### 6.3 The argued rule",
       "### 6.4 Dedup",
       "### 6.5 Merge",
@@ -314,6 +312,54 @@
         "internal/rule/compile.go",
         "internal/rule/compile_test.go",
         "internal/rule/rule.go"
+      ]
+    },
+    {
+      "id": "qa3-marker-edit-stays-in-unit",
+      "title": "Refuse a marker moved outside its unit",
+      "status": "done",
+      "tags": [
+        "v0.2",
+        "qa3"
+      ],
+      "depends_on": [
+        "qa2-draft-anchor-edit-rules"
+      ],
+      "estimate_minutes": 45,
+      "acceptance": "- A marker edit to `path`, `side`, `start_line` or `line` that leaves the anchor outside the record's `unit` is refused by `cr draft` and `cr post` with exit code 1 and the message `cr record` gives for the same anchor, naming the record id, with nothing stored and no POST (repros D-V4-1 and D-V4-2 in qa-v020/results-V4.md); the check is the one `cr record` calls, shared, not copied.\n- A move within the record's unit still re-anchors, and its grade is recomputed per §6.2 so a citation inside the unit leaves the record argued and forced to a question; proven through `cr post` in internal/cli tests, including the f702 case where a cited finding moved onto its own citation's line must not post as an assertion.\n- The release-notes known-limitation sentence about marker edits is corrected to what the code now does; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 7.2 Triage verbs",
+        "### 6.1 Record schema",
+        "### 6.2 Evidence grades"
+      ],
+      "started_at": "2026-09-14T21:21:53.010129Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T21:56:28.780579Z",
+      "closed_reason": "- A marker edit that moves an anchor outside the record's unit is refused by cr draft, cr post and cr post --confirm with exit 1 as draft.MarkerUnitEditError naming the record and draft line, carrying the Problem cr record gives for the same anchor, with findings.ndjson, draft.md and posted.json unchanged: TestAMarkerMovedIntoAnotherUnitIsRefused in internal/cli/markerunit_test.go drives D-V4-1 and D-V4-2 on a briefed three-unit checkout, asserts cr record's refusal of the destination anchor, the whole error, exit code and escape hint, and the D-V4-2 move now reports the unit rather than the old unit's side; a fresh binary on a scratch repository printed exit 1 with that message at draft, post and post --confirm and the gh shim logged no POST.\n- The check is shared: refuseAnchor in internal/cli/anchorunit.go is the one anchor validator cr record, cr merge and the section 7.2 location row run (the draft reaches it through the Draft.AnchorRules callback built by anchorRules), ordered LEFT-unremoved, then unit containment per section 6.1.3 returned as finding.ForeignAnchorError, then RIGHT on a deletion-only unit; the new tests go red under go test -overlay mutants that disable the draft's anchor rules, skip containment on the draft path, or restore the side-first order.\n- A move within the record's unit still re-anchors and is graded again: TestAMarkerMovedWithinItsUnitReanchorsAndIsRegraded moves a finding from money.go 12 to 13 inside u1 and asserts the stored unit, anchor line, rehashed content and grade, cited with a citation in another unit and argued with a citation inside the unit.\n- Proven through cr post: the same test asserts the dry-run payload comment at money.go 13 RIGHT as a finding in the first case and as a forced question in the second; the f702 case, a cited finding moved onto its own citation's line in another unit, is refused at draft, post and post --confirm, and TestTheRefusedMoveNamesAnAnchorItsOwnUnitGradesArgued shows cr record grades that anchor argued question under the unit holding it; tests that moved anchors outside their unit now write a units file or use a stored anchor, and TestACommentOutsideTheDiffIsRefusedBeforeTheCall keeps cr post's position check proven for an unmoved record in a round holding no unit.\n- The known limitation about marker edits is removed from spec/0.2.0-release-notes.md and the Draft and post repair bullet now says a marker moved outside its record's unit is refused rather than re-homed; skills/cr/SKILL.md's marker table and refusal examples say the same.\n- go test -race -count=1 over the whole tree passed through the gate lock (exit 0), golangci-lint reported 0 issues, Go 1.27.1 gofmt printed nothing, and deadcode lists 11 lines.\n",
+      "gate_passed_at": "2026-09-14T21:56:28.780579Z",
+      "commit_sha": "075198d",
+      "commit_shas": [
+        "075198d",
+        "5cb38a2",
+        "2c8f553"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/draftanchorrules_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/markeredits_test.go",
+        "internal/cli/markerunit_test.go",
+        "internal/cli/mergeanchors_test.go",
+        "internal/cli/positions_test.go",
+        "internal/cli/reconcileedits_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/sentsuggestion_test.go",
+        "internal/cli/unchangedanchor_test.go",
+        "internal/draft/edits.go",
+        "internal/draft/ingest.go",
+        "internal/finding/validate.go",
+        "skills/cr/SKILL.md",
+        "spec/0.2.0-release-notes.md"
       ]
     }
   ]
