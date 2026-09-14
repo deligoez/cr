@@ -43,7 +43,7 @@ func TestAConfiguredProfileThatIsNotAFileStemIsRefused(t *testing.T) {
 			} else {
 				require.NoError(t, os.MkdirAll(filepath.Dir(source), 0o700))
 				require.NoError(t, os.WriteFile(source,
-					[]byte(fmt.Sprintf(`{"profile": %q}`, fixture.value)), 0o600))
+					fmt.Appendf(nil, `{"profile": %q}`, fixture.value), 0o600))
 			}
 			issue := filepath.Join(t.TempDir(), "issue.txt")
 			require.NoError(t, os.WriteFile(issue, []byte("CR-1: retry the upload\n"), 0o600))
