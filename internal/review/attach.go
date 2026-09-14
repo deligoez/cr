@@ -92,6 +92,7 @@ func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error
 	if err != nil {
 		return err
 	}
+	r.Matchers = matchers
 	formed := make([]unit.Unit, 0, len(r.Units))
 	for i := range r.Units {
 		formed = append(formed, r.Units[i].Unit)

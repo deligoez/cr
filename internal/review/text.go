@@ -274,6 +274,7 @@ func (r *Round) hits(p *page, lens *role.Role, at int) {
 		if standard := r.standard(hit.RuleID); standard != nil {
 			p.line("  %s", strings.ReplaceAll(standard.Injection(), "\n", "\n  "))
 		}
+		r.fix(p, &hit)
 	}
 	p.section("Standards without a detector (§2.6.1.4)")
 	injected := rule.Injected(r.Rules, lens.Axis)
@@ -283,6 +284,39 @@ func (r *Round) hits(p *page, lens *role.Role, at int) {
 	for i := range injected {
 		p.line("")
 		p.line("%s", injected[i].Injection())
+	}
+}
+
+// fix writes the suggestion §2.6.2.1 generates from the hit's rule for the
+// hit's line, which is the text `cr record` attaches to a record confirming the
+// hit. The agent names the rule to confirm the hit, and §2.6.2.4 has it confirm
+// the suggestion too, so the replacement is shown here, before that decision,
+// and not first in the draft. A rule with no `fix` block writes nothing, and a
+// fix that changes nothing on the line says no suggestion follows.
+//
+// The replacement comes from the round's own matcher through
+// Matcher.Replacement, the call `cr record` makes, so the prompt cannot show
+// one text and the record carry another.
+func (r *Round) fix(p *page, hit *rule.Hit) {
+	for i := range r.Matchers {
+		matcher := &r.Matchers[i]
+		if matcher.Rule.ID != hit.RuleID || matcher.Fix == nil {
+			continue
+		}
+		text, produced := matcher.Replacement(hit)
+		if !produced {
+			p.line("  fix: replacing `%s` with `%s` changes nothing on this line, "+
+				"so `cr record` attaches no suggestion to a record confirming this hit (§2.6.2.1).",
+				matcher.Rule.Fix.Replace, matcher.Rule.Fix.With)
+			return
+		}
+		p.line("  fix: replacing `%s` with `%s` gives the suggestion below. `cr record` attaches it, "+
+			"marked suggestion_origin: rule and labelled machine generated in the draft (§2.6.2.4), "+
+			"to a record that names rule %s, cites %s:%d, carries no suggestion of its own, "+
+			"and is anchored where §8.2 admits a suggestion. A record carrying its own suggestion keeps that one.",
+			matcher.Rule.Fix.Replace, matcher.Rule.Fix.With, hit.RuleID, hit.Path, hit.Line)
+		p.block("suggestion", text)
+		return
 	}
 }
 

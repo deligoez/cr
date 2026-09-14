@@ -46,18 +46,39 @@ type listedRule struct {
 // The profile is reported because it decides the third layer and §2.6's
 // `profiles` scoping, and it is selected from the checkout the command runs
 // in exactly as `cr brief` selects it; an empty profile is §2.4.4's outcome.
+//
+// OutOfProfile names the rules of the resolved corpus that §2.6's `profiles`
+// row keeps out of that profile, each with the profiles it is scoped to, so a
+// rule no command will run under this checkout is reported rather than missing.
 type rulesListResult struct {
-	Repo    string       `json:"repo"`
-	Profile string       `json:"profile"`
-	Rules   []listedRule `json:"rules"`
-	Honesty []string     `json:"honesty"`
+	Repo         string       `json:"repo"`
+	Profile      string       `json:"profile"`
+	Rules        []listedRule `json:"rules"`
+	OutOfProfile []scopedRule `json:"out_of_profile"`
+	Honesty      []string     `json:"honesty"`
 }
 
-// Text names the repository and profile, then one line per rule with its layer.
+// scopedRule is a rule of the resolved corpus that its `profiles` list keeps
+// out of the selected profile, beside the profiles the list names.
+type scopedRule struct {
+	listedRule
+	Profiles []string `json:"profiles"`
+}
+
+// Text names the repository and profile, then one line per rule with its layer,
+// then every rule the profile's scope leaves out with the profiles it names.
 func (r *rulesListResult) Text(w *writer) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "%s: %d effective rule(s)", w.accent(r.Repo), len(r.Rules))
 	writeListedRules(w, &out, r.Rules)
+	if len(r.OutOfProfile) > 0 {
+		fmt.Fprintf(&out, "\n%d rule(s) scoped by `profiles` to other profiles, so not run under this checkout (§2.6):",
+			len(r.OutOfProfile))
+	}
+	for _, scoped := range r.OutOfProfile {
+		fmt.Fprintf(&out, "\n  %s  %s  %s  profiles: %s", w.accent(scoped.ID), scoped.From, scoped.Path,
+			strings.Join(scoped.Profiles, ", "))
+	}
 	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
@@ -180,10 +201,11 @@ func effectiveRules(l state.Layout, owner, repo string) (*effective, int, error)
 	if err != nil {
 		return nil, 0, err
 	}
+	outOfProfile := outOfProfileRules(corpus, selection.Profile.ID)
 	corpus = rule.ForProfile(corpus, selection.Profile.ID)
 	result := &rulesListResult{
 		Repo: owner + "/" + repo, Profile: selection.Profile.ID,
-		Rules: listedRules(corpus), Honesty: make([]string, 0, 1),
+		Rules: listedRules(corpus), OutOfProfile: outOfProfile, Honesty: make([]string, 0, 1),
 	}
 	if !selection.Selected {
 		result.Honesty = append(result.Honesty, "no profile matched this checkout (§2.4.4), "+
@@ -302,4 +324,26 @@ func listedRules(corpus []rule.Resolved) []listedRule {
 		})
 	}
 	return listed
+}
+
+// outOfProfileRules is the rules of a resolved corpus that §2.6's `profiles`
+// row keeps out of one profile, in corpus order, each beside the profiles it
+// names. It is rule.ForProfile's complement over the same corpus, so every
+// resolved rule is either listed as effective or listed here.
+//
+// Resolution has already run, so a per-repository rule scoped to another
+// profile that shadows a global rule of the same id is listed once, as the rule
+// that won: §2.6 item 2 overrode the other whole, and neither runs.
+func outOfProfileRules(corpus []rule.Resolved, profileID string) []scopedRule {
+	scoped := make([]scopedRule, 0)
+	for i := range corpus {
+		if corpus[i].Rule.InProfile(profileID) {
+			continue
+		}
+		scoped = append(scoped, scopedRule{
+			listedRule: listedRules(corpus[i : i+1])[0],
+			Profiles:   corpus[i].Rule.Profiles,
+		})
+	}
+	return scoped
 }

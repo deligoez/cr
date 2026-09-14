@@ -86,6 +86,10 @@ type Round struct {
 	// Rules is the round's rule corpus of §2.6, which §2.6.1.4 injects into
 	// its axis role's prompt where a rule carries no detector.
 	Rules []rule.Resolved
+	// Matchers are Rules compiled, the matchers `cr record` generates
+	// §2.6.2.1's suggestion with, so a hit's prompt shows the replacement
+	// its rule's fix gives before the agent confirms the hit.
+	Matchers []rule.Matcher
 	// Hits are §4.3.6's attachments, one per unit in Units' order.
 	Hits []rule.Attachment
 	// Tests are §4.4.1's attachments, one per unit in Units' order.
