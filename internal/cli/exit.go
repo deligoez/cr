@@ -338,11 +338,14 @@ var codes = []mapped{
 		"§7.2's table is the whole of what a marker may be edited to; correct " +
 			"that record's block in the draft"},
 	// §7.2's immutable `id`, changed to the id of another record the round
-	// renders. The way forward is the one edit that undoes it, and running
-	// `cr draft` again cannot help: it reads the same file.
+	// renders. The way forward is the one edit that undoes it, beside the
+	// edit the reviewer was reaching for, and running `cr draft` again cannot
+	// help: it reads the same file.
 	{is[*draft.MarkerIDEditError](), ExitValidation,
 		"put back the id cr wrote on the marker line the message names; a block never " +
-			"changes record, and `cr draft` reads the same file again"},
+			"changes record. To say something else at a record's location, keep that record " +
+			"there and edit its body instead of deleting it and moving another record onto " +
+			"its line. `cr draft` reads the same file again"},
 	// §5.4.4's floor and §5.4.5's ceiling, refused by `cr record` before
 	// anything is stored and by `cr post` before the payload is built. The
 	// record parsed and every field §6.1 requires is there; what is wrong
