@@ -120,6 +120,14 @@ static analyser** in a way it is not for `go test` or `-race`: what the analyser
 sees depends on the standard library, and that depends on the toolchain. Verify
 a new pin locally before writing it into a workflow.
 
+The formatter is part of that claim. Measured at the v0.1.0 tag, 2026-09-14: the
+local gate ran Go 1.26.5 and passed, while both workflows resolved `stable` to
+Go 1.27.1, whose gofmt indents a multi-value `return` of composite literals one
+tab less, and failed the tag's release on `internal/post/review_test.go:52`.
+Before tagging, run the gofmt of the Go version CI resolves, for example
+`$(GOTOOLCHAIN=go1.27.1 go env GOROOT)/bin/gofmt -l internal cmd`; the first
+run downloads that toolchain.
+
 A fourth condition follows from the third: **a pin is the version that worked on
 a date, so it carries one, and the date is a test rather than a comment.** The
 failure mode is not the pin going stale — it is nobody noticing: v2.13.0 shipped
