@@ -418,6 +418,12 @@ var codes = []mapped{
 	// §11.2 codes 4 beside the stale unit above.
 	{is[*review.MappingRequiredError](), ExitState,
 		"run the intent pass and record its mapping with `cr map record` first"},
+	// The same refusal reached from `cr cells record`: a cell for a role off
+	// the intent axis, in a round with no mapping, was filled without the
+	// prompt §4.6.5 withholds. The file is well formed; what refuses is where
+	// the round stands, so it takes the 4 `cr review` gets for it.
+	{is[*coverage.MappingRequiredError](), ExitState,
+		"run the intent pass and record its mapping with `cr map record`, then record the cells again"},
 	// §4.6.6 is the other side of that refusal: a round whose intent axis
 	// is unavailable has no mapping to record, so `cr map record` is not
 	// accepted. The command line is right and the file may be well formed;

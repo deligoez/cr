@@ -21,6 +21,7 @@ package coverage
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -126,16 +127,95 @@ func (e *RejectedCellError) Error() string {
 // separate list of test roles could be handed two lists that disagree.
 //
 // raised is the current round's records by the seat each was raised at, which
-// a `pass` cell is held to; see consistent.
+// a `pass` or an `na` cell is held to; see consistent.
 //
 // The checks run inside the decode rather than after it because
 // state.DecodeStamped is the one place that counts lines, blank ones included,
 // and every refusal here has to name the line the user must open.
+//
+// It holds no cell to §4.6.5's round standing; DecodeInRound does.
 func Decode(
 	file string, body []byte, units []string, active []role.Role, raised Raised,
 ) ([]*Cell, error) {
-	against := cellChecker{file: file, units: units, active: active, raised: raised}
-	return state.DecodeStamped[Cell](file, body, against.check)
+	return DecodeInRound(file, body, units, active, raised, nil)
+}
+
+// DecodeInRound is Decode, holding every cell to §4.6.5 as well: unmapped is
+// the round when its remaining axes still wait for the intent pass, and nil
+// when they do not; see gated.
+func DecodeInRound(
+	file string, body []byte, units []string, active []role.Role, raised Raised, unmapped *Unmapped,
+) ([]*Cell, error) {
+	against := cellChecker{file: file, units: units, active: active, raised: raised, unmapped: unmapped}
+	seen := make(map[Seat]int)
+	return state.DecodeStamped[Cell](file, body,
+		func(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+			if err := against.check(line, supplied, cell); err != nil {
+				return err
+			}
+			return refuseRepeatedSeat(file, seen, line, cell)
+		})
+}
+
+// refuseRepeatedSeat refuses a cell at a `(unit, role)` an earlier line of the
+// same file already filled, naming both lines, as `cr claims record` refuses a
+// repeated claim id. seen maps each seat met so far to its line.
+//
+// §4.5.6 replaces the one cell a seat holds, so a file naming a seat twice asks
+// for two verdicts where one is kept. Storing both would leave the seat saying
+// two things at once, and §10.2.2 would count the row complete over a verdict
+// nobody can read; keeping either would discard the other without a word.
+func refuseRepeatedSeat(file string, seen map[Seat]int, line int, cell *Cell) error {
+	seat := Seat{Unit: cell.Unit, Role: cell.Role}
+	if first, repeated := seen[seat]; repeated {
+		return &RejectedCellError{
+			File: file, Line: line, Field: "unit",
+			Problem: fmt.Sprintf(
+				"%q and role %q repeat the seat of line %d; §4.5.6 replaces the one cell a "+
+					"(unit, role) holds, so give each seat one cell in the file",
+				cell.Unit, cell.Role, first),
+		}
+	}
+	seen[seat] = line
+	return nil
+}
+
+// Unmapped is a round whose intent axis is active and which holds no mapping
+// yet: §4.6.5 refuses the remaining axes until the intent pass has recorded
+// one for the round and head.
+type Unmapped struct {
+	// Round and Head are the round that holds no mapping.
+	Round int
+	Head  string
+}
+
+// MappingRequiredError reports a cell for a role off the intent axis, recorded
+// in a round §4.6.5 has not yet let past its intent pass.
+//
+// It is `cr review`'s refusal of the same round, reached from the other end:
+// the prompts for those roles are not emitted until a mapping exists, so a cell
+// they filled was filled without them. The cli layer maps it onto §11.2's code
+// 4, as it does `cr review`'s: the file is well-formed, and what refuses is
+// where the round stands, which recording the mapping undoes.
+type MappingRequiredError struct {
+	// File is the NDJSON file the agent handed the command.
+	File string
+	// Line is the one-based line the cell sits on, counting blank lines.
+	Line int
+	// Role and Axis are the role the cell names and the axis it is on.
+	Role string
+	Axis string
+	// Round and Head are the round that holds no mapping.
+	Round int
+	Head  string
+}
+
+func (e *MappingRequiredError) Error() string {
+	return fmt.Sprintf(
+		"%s line %d: role %q is on the %s axis, and round %d at head %s has no mapping; §4.6.5 "+
+			"refuses the remaining axes until the intent pass has recorded one, so record the "+
+			"mapping with `cr map record` and record this cell again",
+		e.File, e.Line, e.Role, e.Axis, e.Round, e.Head)
 }
 
 // Seat is the `(unit, role)` a cell sits at, and the unit and role a record was
@@ -151,12 +231,13 @@ type Raised map[Seat][]string
 
 // cellChecker holds what one file's cells are checked against: the file they
 // arrived in, the units and active roles of the round, and the records the
-// round holds.
+// round holds, and whether §4.6.5 still holds the round's remaining axes back.
 type cellChecker struct {
-	file   string
-	units  []string
-	active []role.Role
-	raised Raised
+	file     string
+	units    []string
+	active   []role.Role
+	raised   Raised
+	unmapped *Unmapped
 }
 
 // check holds one line to §4.5.5 and to §4.5.6's role half.
@@ -170,8 +251,15 @@ type cellChecker struct {
 // conditional on it. Presence is read off the wire rather than off the decoded
 // cell, for the reason state.DecodeStamped gives about head and round — `""` is
 // a value the agent chose exactly as much as a sentence is.
-func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+//
+// A key the cell schema does not define is refused right after authorship, for
+// the same reason: the answer is to drop it. §4.5.6's round standing is asked
+// once the role is known, because it is the role's axis that decides it.
+func (c *cellChecker) check(line int, supplied map[string]json.RawMessage, cell *Cell) error {
 	if err := c.computed(line, supplied); err != nil {
+		return err
+	}
+	if err := c.fields(line, supplied); err != nil {
 		return err
 	}
 	if err := c.unit(line, supplied, cell); err != nil {
@@ -181,13 +269,66 @@ func (c cellChecker) check(line int, supplied map[string]json.RawMessage, cell *
 	if err != nil {
 		return err
 	}
+	if err := c.gated(line, &filled); err != nil {
+		return err
+	}
 	if err := c.result(line, supplied, cell); err != nil {
 		return err
 	}
 	if err := c.consistent(line, cell); err != nil {
 		return err
 	}
-	return c.coverage(line, &filled, cell)
+	return c.coverage(line, &filled, supplied, cell)
+}
+
+// cellFields are the keys §4.5.5 has the agent write on a cell line, in the
+// order a rejection lists them. unit_hash, head and round are the cell's too,
+// and cr writes them; they are refused before this is asked.
+var cellFields = []string{"unit", "role", "result", "reason", "note_id", "coverage"}
+
+// fields refuses a key the cell schema does not define, naming the first in
+// sorted order so the same line is always refused by the same key.
+//
+// encoding/json drops such a key without a word, so a line carrying one would
+// be stored as something other than what its author wrote: a `"comment"` the
+// agent meant as the explanation of a `pass` would vanish, and the cell would
+// read as an unqualified pass. §12.4 has cr name what it did not accept rather
+// than accept part of a line.
+func (c *cellChecker) fields(line int, supplied map[string]json.RawMessage) error {
+	unknown := make([]string, 0)
+	for key := range supplied {
+		if !slices.Contains(cellFields, key) {
+			unknown = append(unknown, key)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	slices.Sort(unknown)
+	return &RejectedCellError{
+		File: c.file, Line: line, Field: unknown[0],
+		Problem: "is not a cell field; §4.5.5 has the agent write exactly " + listed(cellFields) +
+			", and cr writes unit_hash, head and round itself",
+	}
+}
+
+// gated is §4.6.5's refusal of the remaining axes, held at the cell a role on
+// one of them filled.
+//
+// `cr review` does not emit their prompts until the intent pass has recorded a
+// mapping, so a cell for one of those roles in a round with none was filled
+// without the prompt §4.6.1 builds for it — the claims mapped to the unit
+// included. Accepting it would let §10.2.2 count a row, and a round reach
+// complete, over lenses that never ran against the round's intent. The intent
+// axis's own cells pass: that pass is what produces the mapping.
+func (c *cellChecker) gated(line int, filled *role.Role) error {
+	if c.unmapped == nil || filled.Axis == axis.Intent {
+		return nil
+	}
+	return &MappingRequiredError{
+		File: c.file, Line: line, Role: filled.ID, Axis: filled.Axis,
+		Round: c.unmapped.Round, Head: c.unmapped.Head,
+	}
 }
 
 // cellComputed are the fields of §4.5.5 that cr writes onto a cell itself, in
@@ -217,7 +358,7 @@ var cellComputed = []string{"unit_hash"}
 // code. Presence alone is the test, as it is there: `"unit_hash": ""` is a key
 // the agent wrote, and the field has the same author whatever value sits under
 // it.
-func (c cellChecker) computed(line int, supplied map[string]json.RawMessage) error {
+func (c *cellChecker) computed(line int, supplied map[string]json.RawMessage) error {
 	for _, field := range cellComputed {
 		if _, ok := supplied[field]; ok {
 			return &state.ReservedFieldError{File: c.file, Line: line, Field: field}
@@ -234,7 +375,7 @@ func (c cellChecker) computed(line int, supplied map[string]json.RawMessage) err
 // a cell checked against the whole of units.ndjson would be accepted at a unit
 // this round never formed, and §10.2.2 would count it towards a row it does not
 // belong to.
-func (c cellChecker) unit(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+func (c *cellChecker) unit(line int, supplied map[string]json.RawMessage, cell *Cell) error {
 	switch {
 	case !written(supplied["unit"]):
 		return &RejectedCellError{
@@ -264,7 +405,7 @@ func (c cellChecker) unit(line int, supplied map[string]json.RawMessage, cell *C
 // is evidence about a lens the completeness check will never ask after. It
 // would raise the number of filled cells without raising the number of proven
 // ones, which is P6 read backwards.
-func (c cellChecker) role(
+func (c *cellChecker) role(
 	line int, supplied map[string]json.RawMessage, cell *Cell,
 ) (role.Role, error) {
 	if !written(supplied["role"]) {
@@ -296,7 +437,7 @@ func (c cellChecker) role(
 // reason on any other verdict is the same fault mirrored — it is the word
 // §4.5.5 attaches to `na` alone, and a `pass` carrying one reads as a qualified
 // pass that nothing downstream qualifies.
-func (c cellChecker) result(line int, supplied map[string]json.RawMessage, cell *Cell) error {
+func (c *cellChecker) result(line int, supplied map[string]json.RawMessage, cell *Cell) error {
 	switch {
 	case !written(supplied["result"]):
 		return &RejectedCellError{
@@ -328,13 +469,15 @@ func (c cellChecker) result(line int, supplied map[string]json.RawMessage, cell 
 	return nil
 }
 
-// consistent refuses a `pass` cell at a seat where the current round holds a
-// record from that role on that unit, naming the cell's line, unit and role and
-// the records beside it.
+// consistent refuses a `pass` or an `na` cell at a seat where the current round
+// holds a record from that role on that unit, naming the cell's line, unit and
+// role and the records beside it.
 //
 // Without it a role could file a record and a `pass` for the same unit in the
 // same round, and `cr status` would count a complete row with a clean verdict
-// over a unit the role had found something on.
+// over a unit the role had found something on. An `na` there is the same
+// contradiction in the other register: it says the role had nothing to say
+// about the unit, beside a record it said.
 //
 // This direction admits no legitimate exception. §6.4.4's waiver drop and
 // §9.3.6's posted-index drop can only remove records, never create them, so a
@@ -344,18 +487,22 @@ func (c cellChecker) result(line int, supplied map[string]json.RawMessage, cell 
 // `question` cell at a seat holding no record is the expected outcome of those
 // same two drops, which remove the record and leave the cell the role filled
 // when it raised it.
-func (c cellChecker) consistent(line int, cell *Cell) error {
+func (c *cellChecker) consistent(line int, cell *Cell) error {
 	ids := c.raised[Seat{Unit: cell.Unit, Role: cell.Role}]
-	if cell.Result != ResultPass || len(ids) == 0 {
+	if (cell.Result != ResultPass && cell.Result != ResultNA) || len(ids) == 0 {
 		return nil
+	}
+	said := "did not find nothing"
+	if cell.Result == ResultNA {
+		said = "had something to say about it"
 	}
 	return &RejectedCellError{
 		File: c.file, Line: line, Field: "result",
 		Problem: fmt.Sprintf(
 			"is %s at unit %q and role %q, and this round holds record(s) %s from that role on "+
-				"that unit; a role that raised a record there did not find nothing, so file "+
+				"that unit; a role that raised a record there %s, so file "+
 				"the cell as %s or %s",
-			ResultPass, cell.Unit, cell.Role, listed(ids), ResultFinding, ResultQuestion),
+			cell.Result, cell.Unit, cell.Role, listed(ids), said, ResultFinding, ResultQuestion),
 	}
 }
 
@@ -378,7 +525,9 @@ func (c cellChecker) consistent(line int, cell *Cell) error {
 // object is refused rather than merely optional: a classification beside a
 // verdict that says no judgement was reached is a judgement with nothing behind
 // it.
-func (c cellChecker) coverage(line int, filled *role.Role, cell *Cell) error {
+func (c *cellChecker) coverage(
+	line int, filled *role.Role, supplied map[string]json.RawMessage, cell *Cell,
+) error {
 	classifies := filled.Axis == axis.Test && cell.Result != ResultNA
 	switch {
 	case classifies && cell.Coverage == nil:
@@ -409,9 +558,68 @@ func (c cellChecker) coverage(line int, filled *role.Role, cell *Cell) error {
 	}
 	// The classification itself is not checked here. §4.4.1's closed set
 	// is testadequacy.Coverage's own, refused inside its UnmarshalJSON
-	// before this ever runs, and `test_paths` is normalised to [] there
-	// per §12.3. A second check would be a second reading of the same
-	// three words, and the two could disagree.
+	// before this ever runs. A second check would be a second reading of
+	// the same three words, and the two could disagree.
+	return c.testPaths(line, supplied["coverage"], cell.Coverage)
+}
+
+// coverageFields are the keys of §4.5.5's `coverage` object, in the order a
+// rejection lists them.
+var coverageFields = []string{"classification", "test_paths"}
+
+// testPaths holds a test-axis cell's `coverage` object to its own keys and to
+// §4.4.1's "together with the test paths it rested on".
+//
+// The object's keys are folded and fenced as the line's are, and for the same
+// reasons: a key given twice is decoded from parts of both copies, and a key
+// the object does not define is dropped by the decode without a word.
+//
+// `test_paths` itself is required. testadequacy.Coverage turns an absent list
+// into [] per §12.3, so a cell that never said what its classification rested
+// on would be stored saying it rested on nothing, and nobody would have said
+// so. An empty list is refused beside `covered` and `partially-covered`, which
+// are verdicts that tests exercise the unit and so rest on at least the tests
+// that do. It stands beside `uncovered`: that verdict can rest on no test at
+// all, when the pull request attached none, and refusing it would have the
+// role name a test path it never read to satisfy cr.
+func (c *cellChecker) testPaths(line int, object json.RawMessage, recorded *testadequacy.Coverage) error {
+	keys, err := state.FoldedFields(object)
+	if repeated := (*state.RepeatedKeyError)(nil); errors.As(err, &repeated) {
+		return &state.RepeatedKeyError{File: c.file, Line: line, Key: "coverage." + repeated.Key}
+	}
+	if err != nil {
+		return &state.MalformedLineError{File: c.file, Line: line, Err: err}
+	}
+	unknown := make([]string, 0)
+	for key := range keys {
+		if !slices.Contains(coverageFields, key) {
+			unknown = append(unknown, key)
+		}
+	}
+	if len(unknown) > 0 {
+		slices.Sort(unknown)
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage." + unknown[0],
+			Problem: "is not a field of §4.5.5's coverage object, which has exactly " +
+				listed(coverageFields),
+		}
+	}
+	switch {
+	case !written(keys["test_paths"]):
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage.test_paths",
+			Problem: "is required by §4.5.5, and §4.4.1 records the classification together with " +
+				"the test paths it rested on; write [] only when an uncovered verdict rested on none",
+		}
+	case len(recorded.TestPaths()) == 0 && recorded.Classification() != testadequacy.Uncovered:
+		return &RejectedCellError{
+			File: c.file, Line: line, Field: "coverage.test_paths",
+			Problem: fmt.Sprintf(
+				"is empty, and the classification is %s; §4.4.1 records the classification together "+
+					"with the test paths it rested on, so name the tests that exercise the unit",
+				recorded.Classification()),
+		}
+	}
 	return nil
 }
 

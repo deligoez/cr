@@ -186,12 +186,12 @@ func TestTheCoverageObjectBelongsToTheTestAxisAlone(t *testing.T) {
 		assert.Contains(t, err.Error(), "covered, partially-covered, uncovered")
 	})
 
-	// An uncovered unit rests on no test path, and §12.3 has the empty list
-	// serialise as [] rather than null.
+	// An uncovered unit can rest on no test path, and §12.3 has the empty
+	// list serialise as [] rather than null.
 	t.Run("an uncovered unit names no test path", func(t *testing.T) {
 		cells, err := Decode(cellsFile,
 			[]byte(`{"unit":"u1","role":"test-adequacy","result":"question",`+
-				`"coverage":{"classification":"uncovered"}}`+"\n"), units(), active(), nil)
+				`"coverage":{"classification":"uncovered","test_paths":[]}}`+"\n"), units(), active(), nil)
 		require.NoError(t, err)
 		require.Len(t, cells, 1)
 

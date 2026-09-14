@@ -65,7 +65,7 @@ func briefedAtUnit(t *testing.T, layout state.Layout, formed *unit.Unit) {
 	require.NoError(t, err)
 	require.NoError(t, held.WriteMeta(&state.Meta{
 		Owner: cellsOwner, Repo: cellsRepo, PR: cellsPR,
-		IssueKey: "CR-7", Round: 1, Head: cellsHead,
+		IssueKey: "CR-7", Round: 1, Head: cellsHead, MappingRound: 1, MappingHead: cellsHead,
 		ActiveRoles: []string{"convention", "correctness"},
 	}))
 	require.NoError(t, state.WriteStamped(held, state.FileUnits,

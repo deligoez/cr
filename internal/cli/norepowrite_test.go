@@ -1046,8 +1046,10 @@ func runOrder(t *testing.T, runs map[string][]string) []string {
 	// `cr draft` and `cr post` go after it for the same reason: the draft
 	// queues the record `cr record` stores, and `cr post` builds its review
 	// from that draft, since a round with nothing queued is refused before
-	// any payload is built.
-	deferred := []string{"claims set-aside", "draft", "post"}
+	// any payload is built. `cr cells record` goes after `cr map record`,
+	// because §4.6.5 refuses a correctness cell until the round's mapping
+	// is recorded.
+	deferred := []string{"cells record", "claims set-aside", "draft", "post"}
 	for _, name := range append(slices.Clone(hoisted), deferred...) {
 		require.Contains(t, runs, name, "the ordered %s has no invocation to run", name)
 	}

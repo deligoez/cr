@@ -162,6 +162,9 @@ func briefedForCells(t *testing.T) state.Layout {
 		Owner: cellsOwner, Repo: cellsRepo, PR: cellsPR,
 		IssueKey: "CR-7", Round: 1, Head: cellsHead,
 		ActiveRoles: []string{"convention", "correctness"},
+		// §4.6.5: the intent pass has recorded its mapping, so the
+		// remaining axes' cells are the round's to record.
+		MappingRound: 1, MappingHead: cellsHead,
 	}))
 	require.NoError(t, held.Write(state.FileUnits,
 		[]byte(`{"id":"u1","path":"src/Order.php","hash":"38372bc96eb4010e",`+

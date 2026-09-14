@@ -24,7 +24,7 @@ func recordedHomeWithCells(t *testing.T) state.Layout {
 	require.NoError(t, err)
 	require.NoError(t, held.WriteMeta(&state.Meta{
 		Owner: recordOwner, Repo: recordRepo, PR: recordPRNum,
-		Round: recordRound, Head: recordHead,
+		Round: recordRound, Head: recordHead, MappingRound: recordRound, MappingHead: recordHead,
 		ActiveRoles: []string{"convention", "correctness"},
 	}))
 	require.NoError(t, held.Unlock())

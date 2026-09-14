@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"os"
 	"slices"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/activation"
+	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/role"
@@ -199,8 +203,44 @@ func decodeCells(
 	if err != nil {
 		return nil, nil, err
 	}
-	cells, err := coverage.Decode(file, body, roundUnitIDs(formed), active, raisedSeats(records))
+	unmapped, err := awaitingMapping(l, round)
+	if err != nil {
+		return nil, nil, err
+	}
+	cells, err := coverage.DecodeInRound(
+		file, body, roundUnitIDs(formed), active, raisedSeats(records), unmapped)
 	return cells, formed, err
+}
+
+// awaitingMapping is §4.6.5's gate as `cr review` asks it: the round when its
+// intent axis is active and no mapping is recorded for its round and head, and
+// nil otherwise.
+//
+// The axes are activation.OfRound's over what meta.json recorded, the call
+// `cr review` and `cr status` make, so a round whose prompts `cr review` would
+// refuse is the round whose cells this refuses, and one whose intent axis did
+// not run — §4.6.6, no mapping to wait for — is refused by neither.
+func awaitingMapping(l state.Layout, round *state.Meta) (*coverage.Unmapped, error) {
+	if round.MappingRecorded() {
+		return nil, nil
+	}
+	resolved, err := config.Resolve(config.Sources{
+		Environ:      os.Environ(),
+		GlobalConfig: l.Config(),
+		RepoConfig:   l.RepoConfig(round.Owner, round.Repo),
+	})
+	if err != nil {
+		return nil, err
+	}
+	p, err := statusProfile(l, round.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, resolved.String(intentKeyPattern))
+	if !slices.Contains(axes.Active, axis.Intent) {
+		return nil, nil
+	}
+	return &coverage.Unmapped{Round: round.Round, Head: round.Head}, nil
 }
 
 // raisedSeats is the round's records by the `(unit, role)` each was raised at,
