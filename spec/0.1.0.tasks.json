@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-13T21:33:54.460511Z",
+  "updated_at": "2026-09-14T05:27:27.029744Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10341,6 +10341,31 @@
       "commit_files": [
         "internal/brief/invalidate.go",
         "internal/cli/briefinvalidate_test.go"
+      ]
+    },
+    {
+      "id": "failure-json-flag-spelling",
+      "title": "Read --json on failure the way pflag does",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- A failing command reports its error as JSON for every --json spelling pflag accepts as true (--json, --json=1, --json=t, --json=T, --json=true, --json=TRUE, --json=True) and as text on a terminal for every spelling pflag accepts as false, with the last occurrence before -- deciding as pflag's does (--json --json=false is text on a terminal), so the failure shape and the success shape never disagree; audit round 10 spec-coverage list-51-1 and output-mode-switching rows (cr status abc --repo o/r --json=1 in a pseudo-terminal printed error:/hint: text while cr config --json=1 printed JSON), internal/cli/output.go asksForJSON.\n- A test drives a failing command in a pseudo-terminal with --json=1, --json=TRUE and --json --json=false and asserts JSON, JSON and text respectively.",
+      "source_sections": [
+        "## 12. Output contract"
+      ],
+      "started_at": "2026-09-14T05:17:07.540172Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T05:27:27.019769Z",
+      "closed_reason": "- A failing command now reports its error as JSON for every --json spelling pflag accepts as true and as text on a terminal for every spelling it accepts as false, with the last occurrence before -- deciding: internal/cli/output.go asksForJSON reads a bare --json as true and a --json=\u003cv\u003e through strconv.ParseBool, keeps the latest parsed value, returns at -- and returns the value held so far at a value ParseBool refuses (where pflag itself stops with a usage error, so --json=maybe --json is text and --json --json=maybe is JSON), while reportFailure still decides from the raw arguments so a usage error refused before PersistentPreRunE keeps its shape.\n- The audit round 10 list-51-1 and output-mode-switching divergence is gone at internal/cli/output.go asksForJSON: the dogfood binary in a script(1) pseudo-terminal printed the JSON document for cr status abc --repo o/r with --json=1, --json=t and --json=True, the error:/hint: prose for --json=0 and --json --json=false, and cr config --json=1 printed JSON while cr config --json --json=false printed text, so the failure shape and the success shape agree.\n- internal/cli/jsonspelling_test.go TestAFailureInATerminalReadsEveryJSONSpellingPflagReads builds the binary and runs cr status abc --repo o/r with stdout on a pty.Open terminal, asserting a decoded JSON failure for --json=1 and --json=TRUE and two parsed error:/hint: lines for --json --json=false and --json=maybe --json, each with the usage hint and exit 2; under GOFLAGS=-overlay the HEAD asksForJSON fails all four rows, a skip-on-refused-value mutant fails the --json=maybe --json row and a first-true-wins mutant fails the --json --json=false row.\n",
+      "gate_passed_at": "2026-09-14T05:27:27.019769Z",
+      "commit_sha": "d4f207b",
+      "commit_shas": [
+        "d4f207b"
+      ],
+      "commit_files": [
+        "internal/cli/jsonspelling_test.go",
+        "internal/cli/output.go"
       ]
     }
   ]
