@@ -60,9 +60,11 @@ func TestARejectedCallNamesEveryPositionAndMovesNothing(t *testing.T) {
 	var rejected *post.RejectedError
 	require.ErrorAs(t, refused, &rejected)
 	assert.Equal(t, ExitState, exitCodeFor(refused), "§8.4.2 exits 4")
-	assert.Contains(t, refused.Error(), "f1 internal/api/handler.go:44:")
-	assert.Contains(t, refused.Error(), "f2 internal/api/f2.go:44:")
-	assert.Contains(t, refused.Error(), "line must be part of the diff")
+	assert.Equal(t,
+		"§8.4.2: GitHub rejected the review, so nothing was posted: Validation Failed (HTTP 422)\n"+
+			"  f1 internal/api/handler.go:42-44: line: line must be part of the diff\n"+
+			"  f2 internal/api/f2.go:42-44: line: line must be part of the diff",
+		refused.Error(), "each position names the whole range of its comment (QA D-S09-4)")
 
 	stored, err := state.ReadRecords[finding.Finding](
 		layout, draftOwner, draftRepo, draftPRNum, state.FileFindings)

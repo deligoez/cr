@@ -151,7 +151,7 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	return out.emit(&postResult{
 		Round: s.round.Round, Comments: commentedRecords(s.review, s.queued),
 		Payload: s.review, Discarded: discardedIDs(s.triage), Forced: s.forced, Withdrawn: s.withdrawn,
-		Warnings: s.warnings, posting: posting{Posted: true, ConfirmGiven: true},
+		Warnings: s.warnings, Honesty: make([]string, 0), posting: posting{Posted: true, ConfirmGiven: true},
 	})
 }
 

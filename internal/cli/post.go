@@ -63,6 +63,11 @@ type postResult struct {
 	// are warnings and not refusals: the payload still carries the
 	// suggestion as written.
 	Warnings []string `json:"warnings"`
+	// Honesty is what a reviewer about to give `--confirm` is owed before
+	// the payload: that the round carries §8.4.4's `post_unresolved`, so a
+	// review of this payload may already exist and no send happens until
+	// `cr post --reconcile` has run. It is empty and never nil.
+	Honesty []string `json:"honesty"`
 	// posting is §12.6's field, which §8.5.1 requires of the dry run in as
 	// many words: a run that sent nothing reports `"posted": false`.
 	posting
@@ -95,6 +100,7 @@ type postedComment struct {
 // says so in place of the count and names each discard.
 func (r *postResult) Text(w *writer) string {
 	var text strings.Builder
+	text.WriteString(w.disclose("", "\n", r.Honesty...))
 	if r.Payload == nil {
 		text.WriteString("built no review for round " + strconv.Itoa(r.Round) +
 			": the draft discards every queued record, so there is no comment to post\n")
@@ -132,7 +138,7 @@ func (r *postResult) payload() string {
 	for i := range r.Payload.Comments {
 		comment := &r.Payload.Comments[i]
 		text.WriteString("\n" + comment.Record + " " + comment.Path + ":" +
-			strconv.Itoa(comment.Line) + " " + string(comment.Side) + "\n" + comment.Body + "\n")
+			post.Lines(comment.StartLine, comment.Line) + " " + string(comment.Side) + "\n" + comment.Body + "\n")
 	}
 	return text.String() + "\n"
 }
@@ -166,6 +172,15 @@ func newPostCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			reconcile, err := cmd.Flags().GetBool("reconcile")
+			if err != nil {
+				return err
+			}
+			// --reconcile sends nothing, so a --confirm beside it would
+			// be a permission the run silently does not use.
+			if reconcile && confirmed {
+				return &ReconcileWithConfirmError{}
+			}
 			pr, err := parsePR(args[0])
 			if err != nil {
 				return err
@@ -194,7 +209,7 @@ func newPostCmd(out *writer) *cobra.Command {
 			// §9.3.2's sentence true of the built flag: what
 			// §8.4.4 does anchors nothing, reads the pull request,
 			// and writes only cr's own account of what it found.
-			if reconcile, err := cmd.Flags().GetBool("reconcile"); err == nil && reconcile {
+			if reconcile {
 				return reconcilePost(out, layout, &round)
 			}
 			if err := round.RefuseStale(); err != nil {
@@ -310,7 +325,7 @@ func buildReview(
 		return out.emit(&postResult{
 			Round: round.Round, Comments: commentedRecords(review, queued),
 			Payload: review, Discarded: discardedIDs(&triage), Forced: forced, Withdrawn: held,
-			Warnings: warnings, posting: posting{Posted: false, ConfirmGiven: false},
+			Warnings: warnings, Honesty: postDisclosures(round), posting: posting{Posted: false, ConfirmGiven: false},
 		})
 	}
 	// §8.5.2 and §8.5.3: the permission travels as a value minted from the
@@ -458,6 +473,13 @@ func refusePostedRound(l state.Layout, round *state.Meta, records []*finding.Fin
 	}
 }
 
+// postDisclosures is what a `cr post` run that sends nothing tells its reader
+// before the payload: §8.4.4's `post_unresolved`, when the round carries it.
+// It is empty and never nil.
+func postDisclosures(round *state.Meta) []string {
+	return append(make([]string, 0, 1), unresolvedDisclosure(round)...)
+}
+
 // discardedIDs are the ids of the records this run's draft discards, in the
 // order the verbs are read, never nil.
 func discardedIDs(triage *triaged) []string {
@@ -491,6 +513,7 @@ func settleDiscards(
 	result := &postResult{
 		Round: round.Round, Comments: make([]postedComment, 0), Discarded: discardedIDs(triage),
 		Forced: make(finding.Forcings, 0), Withdrawn: make(finding.Withdrawn, 0),
+		Honesty: postDisclosures(round),
 		posting: posting{Posted: false, ConfirmGiven: confirmed},
 	}
 	if !confirmed {

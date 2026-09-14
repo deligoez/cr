@@ -684,6 +684,11 @@ var codes = []mapped{
 	// codes 2.
 	{is[*RepositoryDetectionError](), ExitUsage,
 		"run cr inside a clone whose one remote is its GitHub repository, or pass --repo <owner/repo>"},
+	// `cr post --reconcile --confirm` pairs a run that sends nothing with the
+	// permission for a send. The command line is what is wrong: §11.2's 2.
+	{is[*ReconcileWithConfirmError](), ExitUsage,
+		"run `cr post <pr> --reconcile` alone to settle the round, then `cr post <pr> --confirm` " +
+			"if its review is still to be sent"},
 	// A file cr had to read, write or use and could not: an input the
 	// caller named, a file of §2.2's tree a command required, or a §2.3
 	// write that did not land. §11.2 codes all three 3.

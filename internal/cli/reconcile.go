@@ -611,6 +611,36 @@ func (e *UnresolvedPostError) Error() string {
 	)
 }
 
+// unresolvedDisclosure is §8.4.4's `post_unresolved` as a report tells a reader
+// about it, with the command that settles it, and nothing for a round that does
+// not carry it. `cr status` and a `cr post` dry run both print it, so the one
+// state in which a send is refused whatever the payload holds is visible before
+// anyone reaches for `--confirm`.
+func unresolvedDisclosure(round *state.Meta) []string {
+	if !round.PostUnresolved {
+		return nil
+	}
+	return []string{fmt.Sprintf(
+		"§8.4.4: round %d carries post_unresolved: the outcome of its review-creation call is "+
+			"unknown, so its review may already be on the pull request, and no send happens until "+
+			"`cr post %d --reconcile --repo %s/%s` adopts that review or clears the flag for a retry",
+		round.Round, round.PR, round.Owner, round.Repo,
+	)}
+}
+
+// ReconcileWithConfirmError is the refusal of `cr post --reconcile --confirm`.
+// `--reconcile` reads the pull request's reviews and sends nothing, so the
+// `--confirm` beside it would be §8.5.2's permission for a send the run silently
+// does not make. §11.2 codes it 2: the two flags do not belong on one command
+// line.
+type ReconcileWithConfirmError struct{}
+
+func (*ReconcileWithConfirmError) Error() string {
+	return "--reconcile and --confirm cannot be given together: --reconcile settles an unknown " +
+		"posting outcome by reading the pull request's reviews and sends nothing, and --confirm " +
+		"is the permission for a send"
+}
+
 // UnknownOutcomeError is §8.4.4's report of a review-creation call whose outcome
 // cr could not establish: a timeout, a server error, a dropped connection, or a
 // response it cannot parse. The review may exist, so `post_unresolved` is set

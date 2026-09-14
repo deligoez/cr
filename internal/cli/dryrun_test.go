@@ -110,8 +110,8 @@ func TestTheDryRunPrintsThePayloadToATerminalToo(t *testing.T) {
 	assert.Contains(t, printed, "not posted: --confirm was not given, and nothing was sent to GitHub")
 	assert.Contains(t, printed, render.Reserved+"payload-hash ",
 		"§8.4.3's body reaches the reviewer, and this is the only command that prints it")
-	assert.Contains(t, printed, "internal/api/handler.go:44 RIGHT",
-		"every comment is printed with the position it would land at")
+	assert.Contains(t, printed, "f1 internal/api/handler.go:42-44 RIGHT",
+		"every comment is printed with the whole range it would land at (QA D-S09-4)")
 }
 
 // §11.2 and §8.5.1 together: validation runs before the gate, so a payload that

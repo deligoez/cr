@@ -12,11 +12,13 @@ type InvalidPosition struct {
 	// Record is the id of the record the position was drawn from, which
 	// §8.4.2 requires to be named beside it.
 	Record string
-	// Path and Line are the position as the payload carried it, so the
-	// reviewer can open the file GitHub refused rather than work out
-	// which comment a field name was about.
-	Path string
-	Line int
+	// Path, StartLine and Line are the position as the payload carried
+	// it, so the reviewer can open the file GitHub refused rather than
+	// work out which comment a field name was about. StartLine is zero
+	// for a comment on one line, as the payload leaves it out.
+	Path      string
+	StartLine int
+	Line      int
 	// Field is the field GitHub named, when it named one.
 	Field string
 	// Message is GitHub's own words, carried verbatim: what the API
@@ -31,7 +33,17 @@ func (p InvalidPosition) String() string {
 	if p.Field != "" {
 		said = p.Field + ": " + said
 	}
-	return p.Record + " " + p.Path + ":" + strconv.Itoa(p.Line) + ": " + strings.TrimSpace(said)
+	return p.Record + " " + p.Path + ":" + Lines(p.StartLine, p.Line) + ": " + strings.TrimSpace(said)
+}
+
+// Lines names a comment's lines the way a reader opens them: `33-35` for a
+// comment spanning three lines, and `35` for one on a single line, where the
+// payload carries no start line.
+func Lines(start, line int) string {
+	if start <= 0 || start >= line {
+		return strconv.Itoa(line)
+	}
+	return strconv.Itoa(start) + "-" + strconv.Itoa(line)
 }
 
 // RejectedError is §8.4.2's refusal: the review-creation call was rejected, so
@@ -181,7 +193,7 @@ func attribute(review *Review, field, message string) []InvalidPosition {
 			continue
 		}
 		named = append(named, InvalidPosition{
-			Record: comment.Record, Path: comment.Path, Line: comment.Line,
+			Record: comment.Record, Path: comment.Path, StartLine: comment.StartLine, Line: comment.Line,
 			Field: field, Message: message,
 		})
 	}

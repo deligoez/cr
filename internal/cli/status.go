@@ -362,8 +362,9 @@ func statusFilesOf(
 }
 
 // statusHonesty is the disclosure channel §11.1 exempts from `--quiet`:
-// §9.3.1's comparison first, then §10.2's verdict together with every lens of
-// §4.5.4 that did not run, then §10.1.6's waiver and duplicate counts.
+// §9.3.1's comparison first, then §8.4.4's `post_unresolved` when the round
+// carries it, then §10.2's verdict together with every lens of §4.5.4 that did
+// not run, then §10.1.6's waiver and duplicate counts.
 //
 // The verdict and the lenses arrive as one block from coverage.Lenses.Verdict,
 // and that is the whole of why §10.2's sentence is reachable nowhere else:
@@ -385,8 +386,10 @@ func statusHonesty(
 ) ([]string, error) {
 	said := lenses.Verdict(verdict.Complete, verdict.Reason())
 	moved := headReport(owner, repo, pr, round)
-	honesty := make([]string, 0, 2+len(moved)+len(said))
+	unresolved := unresolvedDisclosure(&round.Meta)
+	honesty := make([]string, 0, 2+len(moved)+len(unresolved)+len(said))
 	honesty = append(honesty, moved...)
+	honesty = append(honesty, unresolved...)
 	honesty = append(honesty, said...)
 	waived, err := waiverDisclosure(l, owner, repo, pr, round.Round)
 	if err != nil {
