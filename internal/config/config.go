@@ -494,12 +494,37 @@ func readFile(file Origin) (map[string]any, error) {
 	}
 	flat := make(map[string]any, len(nested))
 	flatten("", nested, flat)
-	for _, key := range sortedKeys(flat) {
-		if err := checkProtected(key, key); err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
-		}
+	if err := protectedKey(path, flat); err != nil {
+		return nil, err
 	}
 	return flat, nil
+}
+
+// protectedKey refuses the first dotted key of the config file at path, in
+// sorted order, that addresses a protected decision, prefixed with the file.
+func protectedKey(path string, flat map[string]any) error {
+	for _, key := range sortedKeys(flat) {
+		if err := checkProtected(key, key); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// CheckFile refuses a key of the config file at path whose name addresses a
+// protected decision, exactly as Resolve refuses it, and checks nothing else.
+// A file that is missing, unreadable or not a JSON object is left to the
+// command that resolves it: this is the check every command makes before its
+// work, and a command that reads no layer must not fail for a fault in one.
+func CheckFile(path string) error {
+	data, readErr := os.ReadFile(path)
+	var nested map[string]any
+	if readErr != nil || json.Unmarshal(data, &nested) != nil {
+		return nil
+	}
+	flat := make(map[string]any, len(nested))
+	flatten("", nested, flat)
+	return protectedKey(path, flat)
 }
 
 // flatten turns a nested config object into the dotted keys of §2.7, so a
