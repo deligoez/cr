@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -12,8 +13,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// configHonesty is the key a configuration listing's honesty disclosures sit
+// under, beside the settings. It holds no dot, so no setting of §2.7's table
+// can ever be spelled the same, and it is present only when there is something
+// to disclose: every other key of the listing is a setting.
+const configHonesty = "honesty"
+
 // configResult is the effective configuration of spec/0.1.0.md §2.7, keyed by
-// the flat dotted names that section gives its settings.
+// the flat dotted names that section gives its settings, and carrying
+// configHonesty when a layer was not consulted.
 type configResult map[string]any
 
 // Text lists every setting, one per line, in key order. The order is sorted
@@ -21,10 +29,18 @@ type configResult map[string]any
 // most of what reading the effective configuration is for.
 func (r configResult) Text(w *writer) string {
 	lines := make([]string, 0, len(r))
-	for _, key := range slices.Sorted(maps.Keys(r)) {
+	for _, key := range settingKeys(r) {
 		lines = append(lines, fmt.Sprintf("%s = %v", w.accent(key), r[key]))
 	}
-	return strings.Join(lines, "\n")
+	notes, _ := r[configHonesty].([]string)
+	return strings.Join(lines, "\n") + w.disclose("\n", "", notes...)
+}
+
+// settingKeys are a listing's keys in order, without configHonesty.
+func settingKeys[V any](listing map[string]V) []string {
+	return slices.DeleteFunc(slices.Sorted(maps.Keys(listing)), func(key string) bool {
+		return key == configHonesty
+	})
 }
 
 // resolvedSetting is one setting as `cr config --resolved` reports it: the
@@ -49,8 +65,9 @@ type resolvedSetting struct {
 }
 
 // resolvedConfigResult is §2.7's annotated configuration, keyed by the same
-// flat dotted names configResult uses.
-type resolvedConfigResult map[string]resolvedSetting
+// flat dotted names configResult uses: a resolvedSetting under each, and
+// configHonesty when a layer was not consulted.
+type resolvedConfigResult map[string]any
 
 // Text lists every setting with its value and where that value came from, in
 // key order, for the reason configResult sorts: two runs are diffed against
@@ -63,15 +80,16 @@ type resolvedConfigResult map[string]resolvedSetting
 // built-in defaults are in cr itself.
 func (r resolvedConfigResult) Text(w *writer) string {
 	lines := make([]string, 0, len(r))
-	for _, key := range slices.Sorted(maps.Keys(r)) {
-		setting := r[key]
+	for _, key := range settingKeys(r) {
+		setting, _ := r[key].(resolvedSetting)
 		from := setting.From
 		if setting.Source != "" {
 			from += " " + setting.Source
 		}
 		lines = append(lines, fmt.Sprintf("%s = %v  (%s)", w.accent(key), setting.Value, from))
 	}
-	return strings.Join(lines, "\n")
+	notes, _ := r[configHonesty].([]string)
+	return strings.Join(lines, "\n") + w.disclose("\n", "", notes...)
 }
 
 // annotated joins the resolved values to the layers that supplied them, which
@@ -102,6 +120,15 @@ func annotated(resolved config.Config) resolvedConfigResult {
 // second pass over the layers — config.Config carries the provenance it settled
 // — so the annotated listing cannot name a layer for a value the plain listing
 // does not print.
+//
+// The per-repository layer is located the way a pull-request command locates
+// it, through repoOf: `--repo` when given, and otherwise the repository
+// detected from the checkout's one GitHub remote. So the value and the layer
+// printed inside a clone are the ones `cr brief` there reads. Where detection
+// names no repository, the listing is still the effective configuration of
+// every other layer, and it says the per-repository layer was not consulted and
+// why, rather than printing a value a pull-request command would not use as if
+// it were the whole answer.
 func newConfigCmd(out *writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -122,15 +149,17 @@ func newConfigCmd(out *writer) *cobra.Command {
 				Environ:      os.Environ(),
 				GlobalConfig: layout.Config(),
 			}
-			repo, err := cmd.Flags().GetString("repo")
-			if err != nil {
+			var notes []string
+			owner, name, err := repoOf(cmd)
+			var undetected *RepositoryDetectionError
+			switch {
+			case errors.As(err, &undetected):
+				notes = append(notes, fmt.Sprintf("the %s layer of §2.7 was not consulted: %v; "+
+					"run cr config inside a clone of the repository, or pass --repo <owner/repo>",
+					config.LayerRepoConfig, undetected))
+			case err != nil:
 				return err
-			}
-			if repo != "" {
-				owner, name, err := splitRepo(repo)
-				if err != nil {
-					return err
-				}
+			default:
 				sources.RepoConfig = layout.RepoConfig(owner, name)
 			}
 			resolved, err := config.Resolve(sources)
@@ -138,9 +167,17 @@ func newConfigCmd(out *writer) *cobra.Command {
 				return err
 			}
 			if annotate {
-				return out.emit(annotated(resolved))
+				listing := annotated(resolved)
+				if len(notes) > 0 {
+					listing[configHonesty] = notes
+				}
+				return out.emit(listing)
 			}
-			return out.emit(configResult(resolved.Map()))
+			listing := configResult(resolved.Map())
+			if len(notes) > 0 {
+				listing[configHonesty] = notes
+			}
+			return out.emit(listing)
 		},
 	}
 	cmd.Flags().Bool("resolved", false, "annotate each setting with the layer it came from")

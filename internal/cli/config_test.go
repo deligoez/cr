@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -131,4 +132,63 @@ func TestTheAnnotatedListingReportsThePlainListingsValues(t *testing.T) {
 		assert.Equal(t, value, annotated[key].Value, "%s", key)
 		assert.NotEmpty(t, annotated[key].From, "%s: §2.7 names a layer for every setting", key)
 	}
+}
+
+// QA D-S01-2: `cr config` inside a clone resolves the per-repository layer the
+// way a pull-request command there does, detecting the repository from the
+// checkout's remote when `--repo` is absent, so the value and the layer it
+// prints are the ones `cr brief` in that clone reads. Before, the layer was
+// consulted only under `--repo`, and a reader checking a setting inside the
+// clone was shown the global value with nothing saying a layer was skipped.
+//
+// intent.cmd is the setting because nothing but the per-repository file sets
+// it here: a listing that skipped the layer reports the built-in default, which
+// no other assertion could mistake for the right answer. Outside any clone the
+// listing is still printed, and says the layer was not consulted and why — the
+// why being exactly what detection refused with in that directory.
+func TestConfigInsideACloneConsultsTheDetectedRepositorysLayer(t *testing.T) {
+	root := crHome(t)
+	perRepo := filepath.Join(root, "repos", "acme", "web", "config.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(perRepo), 0o700))
+	require.NoError(t, os.WriteFile(perRepo, []byte(`{"intent": {"cmd": ["tracker", "{key}"]}}`), 0o600))
+
+	listing := func(t *testing.T) map[string]json.RawMessage {
+		t.Helper()
+		printed, err := runIn(t, "config", "--resolved")
+		require.NoError(t, err)
+		var document map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal([]byte(printed), &document))
+		return document
+	}
+	setting := func(t *testing.T, document map[string]json.RawMessage, key string) resolvedSetting {
+		t.Helper()
+		var decoded resolvedSetting
+		require.NoError(t, json.Unmarshal(document[key], &decoded), key)
+		return decoded
+	}
+
+	t.Run("inside a clone", func(t *testing.T) {
+		t.Chdir(standingIn(t, "acme/web"))
+		document := listing(t)
+		assert.Equal(t, resolvedSetting{
+			Value: []any{"tracker", "{key}"}, From: "per-repository config", Source: perRepo,
+		}, setting(t, document, "intent.cmd"))
+		assert.NotContains(t, document, configHonesty, "a layer that was consulted discloses nothing")
+	})
+
+	t.Run("outside any clone", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		_, _, refused := detectRepo()
+		var undetected *RepositoryDetectionError
+		require.ErrorAs(t, refused, &undetected, "the fixture has to be a directory detection refuses")
+
+		document := listing(t)
+		assert.Equal(t, "built-in default", setting(t, document, "intent.cmd").From)
+		var notes []string
+		require.NoError(t, json.Unmarshal(document[configHonesty], &notes))
+		assert.Equal(t, []string{fmt.Sprintf(
+			"the per-repository config layer of §2.7 was not consulted: %v; "+
+				"run cr config inside a clone of the repository, or pass --repo <owner/repo>", undetected)},
+			notes)
+	})
 }
