@@ -86,7 +86,7 @@ already have posted.
 
 | Command | Purpose |
 |---------|---------|
-| `cr init [--eject-roles]` | Create `~/.cr`, write default profiles, roles, and rules |
+| `cr init [--eject-roles]` | Create the `~/.cr` tree and write the default profiles; `--eject-roles` also writes the built-in roles as editable files |
 | `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
 | `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |

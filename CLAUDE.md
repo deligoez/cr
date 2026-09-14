@@ -416,7 +416,7 @@ source of truth; this table is a map, not a promise.
 
 | Command | Purpose |
 |---------|---------|
-| `cr init [--eject-roles]` | Create `~/.cr`, write default profiles, roles, and rules |
+| `cr init [--eject-roles]` | Create the `~/.cr` tree and write the default profiles; `--eject-roles` also writes the built-in roles as editable files |
 | `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
 | `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths |
 | `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
