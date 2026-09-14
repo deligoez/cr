@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.1.0.md",
   "created_at": "2026-08-05T10:43:59.85306Z",
-  "updated_at": "2026-09-14T06:07:21.008622Z",
+  "updated_at": "2026-09-14T07:38:20.683152Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10416,6 +10416,256 @@
       "commit_files": [
         "internal/cli/jsonspelling_test.go",
         "internal/cli/output.go"
+      ]
+    },
+    {
+      "id": "failure-json-partial-parse",
+      "title": "Read --json from pflag's partial parse on a refused command line",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- When the failing command's own ParseFlags refuses the command line, asksForJSON reads --json from what pflag had parsed before it stopped instead of scanning the raw arguments, so cr status abc --repo --json --bogus and cr status abc --bogus --json print prose on a terminal and cr status abc --json --bogus prints JSON; audit round 14 spec-coverage row list-51-1 (the raw scan ignored that --repo had consumed --json before the unknown flag), internal/cli/output.go scansForJSON.\n- A pty test drives those three command lines and asserts prose, prose and JSON, and the round 10 to 13 rows stay green.",
+      "source_sections": [
+        "## 12. Output contract"
+      ],
+      "started_at": "2026-09-14T06:32:45.883781Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:08:10.814819Z",
+      "closed_reason": "- A refused command line now shapes its failure from the --json value pflag had set when it stopped: internal/cli/output.go asksForJSON parses with the failing command's own flag set and reads json from it whether ParseFlags succeeded or not, and scansForJSON is deleted because nothing reaches it (Find refuses only an unknown command on an Args-less root and cr's root sets cobra.NoArgs, and no command in the tree disables flag parsing), so the dogfood binary on a pty printed error:/hint: prose for cr status abc --repo --json --bogus and cr status abc --bogus --json and the JSON document for cr status abc --json --bogus, each at exit 2.\n- Audit round 14 spec-coverage row list-51-1 is repaired at a84c255: the raw scan that ignored --repo consuming --json is gone, and a --json=\u003cv\u003e ParseBool refuses reads the false pflag's boolValue.Set stores before it errors, so --json --json=maybe is now prose where the scan made it JSON while --json=maybe --json stays prose.\n- internal/cli/jsonspelling_test.go TestAFailureInATerminalReadsEveryJSONSpellingPflagReads drives the built binary on a pty.Open terminal and asserts two parsed error:/hint: lines for status abc --repo --json --bogus and status abc --bogus --json and a decoded JSON failure for status abc --json --bogus (plus prose for --json --json=maybe), and TestTheFailurePathReadsJSONAsTheExecutedCommandDoes now compares asksForJSON with the executed command's partially parsed --json for an unknown flag after --repo --json, after --json and before --json on every command and on an unknown command x; the round 10 to 13 rows in both tests stay green, go test -race -count=1 ./..., golangci-lint run, scripts/deadcode.sh and gofmt -l are clean, and under GOFLAGS=-overlay the HEAD raw-scan fallback fails three pty rows and the sweep, a refused-parse-returns-false mutant fails the --json --bogus row, a refused-parse-returns-true mutant fails four prose rows, and a root without Args fails the sweep on cr x --repo --json.\n",
+      "gate_passed_at": "2026-09-14T07:08:10.814819Z",
+      "commit_sha": "a84c255",
+      "commit_shas": [
+        "a84c255"
+      ],
+      "commit_files": [
+        "internal/cli/jsonspelling_test.go",
+        "internal/cli/output.go"
+      ]
+    },
+    {
+      "id": "review-prompt-value-domains",
+      "title": "State record value domains in the review prompt",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- Every prompt cr review emits states §6.1's record schema with its value domains, not only field names: the allowed kind and severity values, the class form, and the anchor object's fields and their types, drawn from the same definitions the validator uses so the two cannot drift; audit round 14 spec-coverage row list-25-2 (internal/review/contract.go listed field names only, so an agent working from the prompt could not write a valid anchor).\n- A test asserts each emitted prompt names every enum value finding validation accepts and every anchor field, and a record an agent writes from the prompt's stated schema passes cr merge.",
+      "source_sections": [
+        "### 4.6 Review fan-out"
+      ],
+      "started_at": "2026-09-14T06:37:20.038611Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:05:07.06325Z",
+      "closed_reason": "- Every prompt cr review emits now states §6.1's value domains after the field list: internal/review/contract.go domains writes the id's spelling (finding.IDForm), kind's and suggestion_origin's closed sets (finding.Kinds, finding.Origins, which finding/validate.go's closedValue calls now take in place of literal pairs), severity's four (finding.Severities), class's form (finding.ClassForm, which classPattern anchors and InvalidClassError names), and the anchor object key by key from finding.AnchorFields in internal/finding/anchor.go, whose clauses are built from the bounds ValidateAnchor checks (firstLine, contextWindow, git.Sides, the set git.ParseSide now closes): path, side, start_line and line required with their types, content_hash, context_before and context_after optional and recorded by cr; nothing in internal/review retypes an enum string.\n- Audit round 14 spec-coverage row list-25-2 is closed at HEAD fbef220: the dogfood binary's cr review on a scratch pull request printed \"- kind: one of \\\"finding\\\", \\\"question\\\"\", \"- severity: one of \\\"critical\\\", \\\"high\\\", \\\"medium\\\", \\\"low\\\"\" and \"  - side: required; one of \\\"RIGHT\\\", \\\"LEFT\\\", the file version both line numbers are counted in: RIGHT in the head, LEFT in the merge base\", and two records written from those lines (a RIGHT question and a LEFT finding) passed cr merge with merged 2.\n- internal/cli/promptvalues_test.go TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge drives cr review on the status fixture, asserts each prompt's parsed kind, severity, suggestion_origin and side sets equal the decoder's exports and that every finding.AnchorFields key is named, then writes records from only each prompt's stated values (every kind, severity and side, the unit's path, the lowest start_line) to the paths the prompts name and runs cr merge over them, asserting merged equals the count; a go test -overlay mutant of contract.go stating start_line 0 turned it red through cr merge's own refusal, and internal/review/domains_test.go and internal/finding/anchorfields_test.go hold the prompt's anchor keys to finding.Anchor's JSON tags and AnchorFields' Required column to what the decoder refuses a line without.\n",
+      "gate_passed_at": "2026-09-14T07:05:07.06325Z",
+      "commit_sha": "fbef220",
+      "commit_shas": [
+        "fbef220"
+      ],
+      "commit_files": [
+        "internal/cli/promptvalues_test.go",
+        "internal/finding/anchor.go",
+        "internal/finding/anchorfields_test.go",
+        "internal/finding/class.go",
+        "internal/finding/finding.go",
+        "internal/finding/id.go",
+        "internal/finding/validate.go",
+        "internal/git/hunk.go",
+        "internal/review/contract.go",
+        "internal/review/domains_test.go"
+      ]
+    },
+    {
+      "id": "dead-rule-window-undated-rounds",
+      "title": "Order undated rounds correctly in the dead-rule window",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- cr rules list --dead's last-N-rounds window orders a recorded round that left no dated rule-stats entry or triage event by a date it does have (its recording, or another recorded timestamp of the round) instead of time zero, so a clean round recorded after a rule's last hit counts toward that rule's silence; audit round 14 spec-coverage row list-11-4 (a clean PR 13 round 2 sorted oldest and the window skipped it, internal/rule/dead.go).\n- A test drives cr record and cr rules list --dead with dead_after 2 over a hit round, a triaged round and a later clean round in another pull request and asserts the rule is reported dead.",
+      "source_sections": [
+        "### 2.6 Rules"
+      ],
+      "started_at": "2026-09-14T06:50:28.303721Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:06:17.864817Z",
+      "closed_reason": "- cr rules list --dead now dates every recorded round by its recording instead of a bound that could be time zero: nothing in state dated a clean round (cr record wrote no moment, and transitions, rule-stats and triage lines exist only when a record or triage does), so internal/cli/record.go's recordRetiredCounts writes a recorded_at section in UTC beside deduplicated and suppressed_by_thread (a row of summaryOwners in internal/cli/summary.go, owned by cr record and rewritten on every run, so it is the latest recording), and internal/cli/rules.go windowRounds reads it into rule.LedgerRound with dated true, keeping internal/rule/dead.go's earlier-round bound only for a round recorded before the key existed; the dogfood binary over a state holding a PR 7 round 1 hit (2001) and clean recorded rounds PR 13 round 2 (2026) and PR 14 round 1 (2025) at dead_after 2 printed window PR 13 r2, PR 14 r1 and dead no-todo, where the previous build printed window PR 7 r1, PR 13 r2 at 0001-01-01 dated false and no dead rule.\n- This closes audit round 14 spec-coverage row list-11-4, where a clean PR 13 round 2 sorted oldest and the window skipped it; the summary shape, section-replacement and rerun tests in internal/cli/summary_test.go state the new section, the reproduction test in internal/cli/reproducible_test.go masks it as it masks the journal's at, and TestTheDeadWindowCountsARoundNoRuleHitIn in internal/cli/ruleslist_test.go now expects the recorded round dated by its recording.\n- internal/cli/deadwindowrecorded_test.go TestTheDeadWindowDatesACleanRoundByItsRecording records a no-todo hit in PR 7 round 1, a triage event in PR 7 round 2, runs cr record over PR 13 round 2 with an empty merged file and cr rules list --dead at dead_after 2, and asserts the whole window (PR 13 round 2 dated within the recording run, PR 7 round 2) and no-todo reported dead; with rules.go overlaid to ignore recorded_at it fails exactly as the audit measured (window PR 7 r2, PR 7 r1, no dead rule), and TestARecordedRoundWithoutAMomentIsOrderedAtItsBound keeps the undated bound covered.\n",
+      "gate_passed_at": "2026-09-14T07:06:17.864817Z",
+      "commit_sha": "0f475c7",
+      "commit_shas": [
+        "0f475c7"
+      ],
+      "commit_files": [
+        "internal/cli/deadwindowrecorded_test.go",
+        "internal/cli/record.go",
+        "internal/cli/reproducible_test.go",
+        "internal/cli/rules.go",
+        "internal/cli/ruleslist_test.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go",
+        "internal/rule/dead.go"
+      ]
+    },
+    {
+      "id": "rule-detect-empty-pattern-refused",
+      "title": "Refuse a detect block with an empty pattern",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 15,
+      "acceptance": "- A rule file whose detect block has an absent or empty pattern is refused at load with exit 3 and a hint naming the file and the field, as a blank mode already is, wherever rules are loaded; audit round 14 spec-coverage row list-9-2 (rules/no-pattern.json with detect {\"mode\":\"regex\"} was accepted by cr rules list and would match every changed line, internal/rule/compile.go).\n- A test drives cr rules list over a detect block with no pattern and with an empty pattern and asserts exit 3, the hint and the file name.",
+      "source_sections": [
+        "### 2.6 Rules"
+      ],
+      "started_at": "2026-09-14T06:37:36.080333Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T06:50:22.245982Z",
+      "closed_reason": "- A rule whose detect block carries no pattern, an empty pattern or a null pattern is now refused at load with exit 3: internal/rule/compile.go's compile returns a MalformedError on field detect.pattern naming the file and the rule (\"of rule \\\"no-pattern\\\" is absent or empty, and an empty regular expression matches every changed line\") right after the blank-mode check, and because the loader's compiles and Compile both call compile, every command that loads the corpus refuses it with the rule-file hint, as a blank detect.mode already was; the dogfood binary running cr rules list over ~/.cr/rules/no-pattern.json with detect {\"mode\":\"regex\"} printed that error with the hint \"repair the rule file the message names: the key it names, or the file itself when it cannot be read\" at exit 3.\n- This closes audit round 14 spec-coverage row list-9-2, where the same file was listed at exit 0 and its empty regexp would have matched every changed RIGHT-side line.\n- internal/cli/ruleemptypattern_test.go TestRulesListRefusesADetectBlockWithoutAPattern drives cr rules list over a detect block with the pattern absent, empty and null and asserts the whole MalformedError (file, field detect.pattern, problem), ExitFile (3) from exitCodeFor, the whole hint and an empty listing; with the check removed through go test -overlay all three subtests fail with \"An error is expected but got nil\".\n",
+      "gate_passed_at": "2026-09-14T06:50:22.245982Z",
+      "commit_sha": "6325b69",
+      "commit_shas": [
+        "6325b69"
+      ],
+      "commit_files": [
+        "internal/cli/ruleemptypattern_test.go",
+        "internal/rule/compile.go"
+      ]
+    },
+    {
+      "id": "unindexed-units-disclosed",
+      "title": "Disclose units the symbol index does not cover",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- A changed file the head symbol index does not cover (for example a src/ file under a profile whose match.globs name only app/, config/ and tests/) never yields a prompt stating the diff declares no function, method or class in its unit, nor test-adequacy context stating its tests reference no symbols, when the diff does declare or reference them: either the declarations and references are read for that file, or the reinvention half and the test-symbol context are marked unavailable for the units it holds, with the reason and the files named, in cr brief, cr review and cr status per §4.5; release QA on deligoez/cr-qa#1 (laravel-pest auto-selected, src/Money.php declaring class Money, round() and format() was prompted as declaring nothing, honesty was [] and the review body said No lens was left unexamined).\n- The §8.4.3 review body cr post builds states no lens was left unexamined only when no axis or lens half was disabled or unavailable in the round, and names each unavailable one otherwise.\n- A test drives cr brief, cr review, cr status and a dry-run cr post over a repository whose changed source lies outside the selected profile's globs and asserts the disclosure in each and the absence of the full-coverage sentence.",
+      "source_sections": [
+        "### 4.3 Convention and reinvention",
+        "### 4.5 Axis activation and honest reporting",
+        "### 4.4 Test adequacy"
+      ],
+      "started_at": "2026-09-14T06:43:37.010127Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:08:14.439276Z",
+      "closed_reason": "- A changed file the head symbol index does not cover and that declares symbols at the head is now marked unavailable for both halves with the files named, rather than read, which is the spec reading chosen: internal/symbol/head.go Unindexed returns the round's unit files the index was not built over whose own scanner finds a declaration (README.md or composer.json outside the globs costs nothing and is not named), reinvention.Unindexed and testadequacy.Unindexed word the entries (the symbol half only when a unit is a test file), Attachments.MarkUnindexed records them so review/text.go prints the reason instead of \"The diff declares no function, method, or class inside this unit.\" for those units and the test section reads \"Symbols they reference, of those cr could read:\", and brief.unitsOf, review/attach.go and cli/status.go roundHalves all compute them from the same index and the round's unit paths, so cr brief, cr review and cr status report them per §4.5.4. Reading instead of disclosing was rejected because §4.3.1 draws candidates from the head index and the index is match.globs, so reading only the changed src/ files would attach added symbols against a pool missing every unchanged src/ file and state \"no candidate qualified\" falsely, and indexing outside the globs is the vendored-tree pool head.go refuses; no normative spec change was needed.\n- On release QA's own clone of deligoez/cr-qa#1 (local copy, gh shim, laravel-pest auto-selected) the dogfood binary's brief, review and status honesty each carried \"lens convention/reinvention unavailable, per §4.3.1: profile \"laravel-pest\" builds §4.3.1's symbol index over its match.globs, which cover none of src/Money.php, src/Order.php, src/TaxRate.php, and those files declare symbols at the head, ...\" and the matching lens test/symbols entry, where QA measured honesty [] and src/Money.php prompted as declaring nothing.\n- The §8.4.3 body cr post builds already states \"No lens was left unexamined.\" only when coverage.Lenses.Disclosures is empty and otherwise lists each entry; the missing entries were the defect, and the dogfood dry-run cr post body on that clone now reads \"Lenses that did not run, and why:\" followed by both entries, with no full-coverage sentence.\n- internal/cli/unindexedunits_test.go TestAUnitTheSymbolIndexDoesNotCoverIsDisclosedEverywhere builds a PHP repository whose composer.json and phpunit.xml select laravel-pest and whose pull request adds src/Money.php, tests/MoneyTest.php and a README line, then drives cr brief, cr map record, cr review, cr status, cr record, cr draft and a dry-run cr post and asserts the two whole entries in each, their Unavailable lines in every prompt, no \"The diff declares no function, method, or class inside this unit.\" on the src/Money.php unit, no \"Symbols they reference: none.\" and no \"No lens was left unexamined.\" in the body; through go test -overlay, Unindexed returning nothing (the pre-fix behaviour) turns brief, review, status, every prompt and the body red, reporting a declaration-free file (\u003e= 0) turns it red on the whole-value entries, and Covers answering true for a marked file turns it red on the src/Money.php prompts, while internal/testadequacy/unindexed_test.go pins the test-file condition.\n",
+      "gate_passed_at": "2026-09-14T07:08:14.439276Z",
+      "commit_sha": "5fe9938",
+      "commit_shas": [
+        "5fe9938"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/status.go",
+        "internal/cli/unindexedunits_test.go",
+        "internal/reinvention/attach.go",
+        "internal/reinvention/unavailable.go",
+        "internal/review/attach.go",
+        "internal/review/text.go",
+        "internal/symbol/head.go",
+        "internal/testadequacy/attach.go",
+        "internal/testadequacy/unindexed_test.go"
+      ]
+    },
+    {
+      "id": "fanout-disjoint-record-ids",
+      "title": "Give every review prompt its own record id block",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- Every prompt one cr review run emits names the record ids its role may write for its unit as a block no other prompt of the round is given and that starts past every id already stored for the pull request, so parallel roles following their prompts never write the same f\u003cn\u003e and cr merge never refuses their files for a repeated id; release QA on deligoez/cr-qa#1 (every parallel role would start at f1, and cr merge refuses a repeated id with exit 1).\n- A test runs cr review over several roles and units, writes one record per prompt at the first id its prompt names, and asserts cr merge accepts the files and no two prompts' blocks overlap, including after a round that already stored records.",
+      "source_sections": [
+        "### 4.6 Review fan-out",
+        "### 6.1 Record schema"
+      ],
+      "started_at": "2026-09-14T07:09:16.937052Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:38:13.691566Z",
+      "closed_reason": "- Every prompt cr review emits now names a block of a hundred record ids for its role on its unit, as first_id and last_id in its JSON and as the sentence \"Give the records you write here the ids fA through fB, in order from fA. No other prompt of round N is given any of them, and none is held by a stored record.\" in its Output section: internal/review/ids.go places the block by the prompt's cell in the round's whole grid (Round.Active in corpus order times every unit in id order, never the invocation's emitted subset, so --axis and the second intent pass get the full fan-out's blocks), starts every block past the highest id a record stored by an earlier round holds (findings.ndjson, the only store finding.NextID counts and the one refuseHeldIDs checks), and moves a prompt's first id past the ids this round's stored records already hold inside its own block, so blocks never move within a round and the offered ids are never a stored id; review.Run reads findings.ndjson whole (declared in roundscope_test.go's crossRoundReaders), the output is a function of state, head and inputs only, and a role that runs past its hundred ids lands in the next prompt's block, where cr merge's existing repeated-id refusal (exit 1) catches a collision; finding.IDOf spells the ids, and skills/cr/SKILL.md tells the agent to take ids from the block.\n- Release QA's collision on deligoez/cr-qa#1 is gone: the dogfood binary over a local scratch repository (two units, three active roles, gh shimmed) emitted convention/u1 f1-f100, convention/u2 f101-f200, correctness f201-f400, intent-coverage f401-f600, cr merge over one record per prompt at each first id printed merged 6 at exit 0, and after cr record stored them a re-run of cr review gave the same blocks starting at f2, f102, f202, f302, f402 and f502.\n- internal/cli/fanoutids_test.go TestEveryReviewPromptNamesARunOfIDsNoOtherPromptOfTheRoundIsGiven drives cr review over statusHome's three roles and two units, parses each prompt's first_id and last_id and holds the text to the same whole sentence, asserts no two runs overlap, writes one record per prompt at its first id and has cr merge accept all six, records them, then asserts a same-round re-run keeps every block and starts one past the stored id (and merges again), that an --axis intent run hands its prompts the full fan-out's runs, and that after opening round 2 every run starts past every stored id, is disjoint and merges; internal/review/ids_test.go pins the block arithmetic, the in-block skip and the block whose last id is held; each of four mutants applied with go test -overlay (role ignored in the grid place, current-round records counted in the base, base zero, in-block skip removed) turned both tests red.\n",
+      "gate_passed_at": "2026-09-14T07:38:13.691566Z",
+      "commit_sha": "6e0e24e",
+      "commit_shas": [
+        "6e0e24e"
+      ],
+      "commit_files": [
+        "internal/cli/fanoutids_test.go",
+        "internal/cli/roundscope_test.go",
+        "internal/finding/id.go",
+        "internal/review/contract.go",
+        "internal/review/emit.go",
+        "internal/review/emit_test.go",
+        "internal/review/ids.go",
+        "internal/review/ids_test.go",
+        "internal/review/run.go",
+        "internal/review/text.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "probe-cap-counted-under-lock",
+      "title": "Count the round's probes under the probe lock",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr probe run checks the per-round probe cap after it holds the probe lock (and again before it writes the probe record), so concurrent probe runs on one pull request never leave more probe records in the round than the cap allows; audit round 14 spec-coverage row list-31-4 (with cap 2 and one probe recorded, two concurrent runs both passed the count taken before the lock and left three records, internal/cli/probe.go probeBudget).\n- A test starts two concurrent cr probe run processes against a round one probe below the cap and asserts exactly one probe record is added and the other run exits with the cap refusal.",
+      "source_sections": [
+        "### 5.6 Isolation and budget"
+      ],
+      "started_at": "2026-09-14T07:07:07.745014Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:34:14.740317Z",
+      "closed_reason": "- cr probe run now counts probe.max_per_round again once the probe lock is held and keeps that lock until the probe record is written: internal/cli/probe.go underProbeLock calls probeBudget after lockProbe (refusing with probe.RoundCapReachedError, exit 1, before any suite runs) and runs the locked half, which ends in storeProbe's recordProbe, before it unlocks, and appendProbe checks roundCap over probes.ndjson under the per-PR lock and refuses a record past the cap with RoundCapReachedError{Performed: true}, whose message in internal/probe/cap.go says the run's record was not stored instead of that nothing was run, so concurrent runs, including runs from checkouts holding differently named probe locks, never leave more records in the round than the cap.\n- Audit round 14 list-31-4 is reproduced and closed: with both new checks removed through a go test -overlay copy (HEAD's behaviour) TestConcurrentProbeRunsNeverPassTheRoundCap fails with both processes exiting 0, and the dogfood binary /tmp/cr-dev/cr-probe-cap-counted-under-lock at cap 2 with p1 recorded ran two concurrent probe runs to p2 with honesty \"2 of 2 probes run this round against probe.max_per_round, so the cap is reached\" and the other exiting 1 with \"this run would be number 3, so nothing was run\", the runner log growing by one run and probes.ndjson holding p1 and p2.\n- internal/cli/probecapunderlock_test.go TestConcurrentProbeRunsNeverPassTheRoundCap holds the probe lock while it starts two re-executed cr probe run processes against a round at one of cap 2, releases it, and asserts one exits 0 reporting p2 with the whole 2-of-2 disclosure, the other exits 1 with the whole RoundCapReachedError document and empty stdout, probes.ndjson holds exactly p1 and p2, and the runner started once; TestAProbeRecordPastTheRoundCapIsRefusedAtItsWrite drives recordProbe past cap 1 and asserts the whole Performed refusal, nothing stored and the next round still recording, and overlay mutants removing the under-lock count, the write-time check, or negating Performed each turn a test red.\n",
+      "gate_passed_at": "2026-09-14T07:34:14.740317Z",
+      "commit_sha": "133a9df",
+      "commit_shas": [
+        "133a9df"
+      ],
+      "commit_files": [
+        "internal/cli/probe.go",
+        "internal/cli/probecapunderlock_test.go",
+        "internal/probe/cap.go"
+      ]
+    },
+    {
+      "id": "qa-hints-and-forcing-counts",
+      "title": "Fix the QA-found hint, reason and forcing count",
+      "status": "done",
+      "tags": [],
+      "depends_on": [],
+      "estimate_minutes": 25,
+      "acceptance": "- cr claims record's hint for a failed tracker command names a flag the command accepts (--intent-file), never --issue, which it does not have; release QA on deligoez/cr-qa#1.\n- The probe-support reason cr record gives when the mapping does not join a record's claim to its unit reads as one grammatical sentence naming the record, its claim or the absence of one, and the unit (QA saw \"this round's mapping.ndjson does not join the claim the record does not name to unit u3\").\n- The round summary's forced_to_question count per class counts only records §6.3.1 changed from finding to question, never a record the role already wrote as a question; a test records an argued finding and an argued question of one class and asserts a count of one.",
+      "source_sections": [
+        "### 6.3 The argued rule",
+        "## 12. Output contract"
+      ],
+      "started_at": "2026-09-14T07:08:10.870173Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T07:38:20.669083Z",
+      "closed_reason": "- cr claims record's failure for a refusing tracker now names only --intent-file: internal/intent/run.go CommandError carries Resolved, which intent.Resolve sets (cr brief's path, where --issue corrects the key) and cr claims record's intent.Read leaves false, so Error appends wayPastRecorded naming `--intent-file \u003cpath\u003e` alone, and exit.go's hint already names only --intent-file; TestClaimsRecordNamesOnlyTheFlagItHasWhenTheTrackerRefuses drives the command with CR_INTENT_CMD at a stub answering 404 and asserts the whole error and hint document, and run_test.go and intent_test.go pin both wordings and Resolve setting the flag.\n- Reproduced as release QA on deligoez/cr-qa#1 saw it on a local scratch repository with a gh shim and a 404 tracker stub: the HEAD binary's cr claims record error named \"`--issue \u003cKEY\u003e` corrects a key cr read off the wrong one\", the new binary's ends \"§3.1.4's `--intent-file \u003cpath\u003e` supplies the issue text without running this command at all\", and cr brief on the same tracker still names --issue.\n- The §5.4.4 probe-support reason for an unjoined claim is now one sentence per case built by internal/cli/gapsupport.go unjoinedClaim: \"record f1 names no claim for this round's mapping.ndjson to join to unit u1, so §5.4.4's second condition is unmet\" and \"this round's mapping.ndjson does not join claim CR-1#c2, which record f1 names, to unit u1, so §5.4.4's second condition is unmet\", asserted whole in TestAFailedGapProbeSupportsARecordOnlyOnABaselineAndAMappedClaim; the scratch run of cr record over a claimless record on a failed gap probe printed the old spliced sentence on the HEAD binary and the first sentence on the new one.\n- forced_to_question now counts only records §6.3.1 moved from finding to question: finding.ForceQuestions(records, earlier) counts a record it moves or an argued record whose id an earlier moment moved, and returns the ids it moved; cr record (recordRetiredCounts) and cr draft (publishDraft) keep them under the round summary's forced_records section through keepForced, a row of summaryOwners owned by \"cr record and cr draft\" and re-read under the lock, and cr draft and cr post count through roundGrading.forceQuestions over the kept ids, so record, draft, the regenerated draft, the summary and post's dry run agree; on the scratch repository the HEAD binary reported silent-tax 2 for an argued finding plus an argued question and the new binary reports silent-tax 1 in cr draft twice, summary.json and cr post.\n- TestTheForcedCountOmitsAnArguedQuestionItsRoleWrote records an argued finding and an argued question of class unchecked-error through cr record and asserts a count of one in cr draft's report and summary.json on two runs and in cr post's dry run; overlay mutants counting by grade alone, keeping no ids at record time, or keeping no ids at draft time each turn a test red (this test twice, TestTheForcingCountDoesNotFadeOnASecondRun for the draft one), and TestAnArguedQuestionItsRoleWroteIsNotCounted pins the rule in internal/finding.\n",
+      "gate_passed_at": "2026-09-14T07:38:20.669083Z",
+      "commit_sha": "ec977de",
+      "commit_shas": [
+        "ec977de"
+      ],
+      "commit_files": [
+        "internal/cli/claimstracker_test.go",
+        "internal/cli/draft.go",
+        "internal/cli/forcedcount_test.go",
+        "internal/cli/gapsupport.go",
+        "internal/cli/gapsupport_test.go",
+        "internal/cli/grade.go",
+        "internal/cli/post.go",
+        "internal/cli/record.go",
+        "internal/cli/summary.go",
+        "internal/cli/summary_test.go",
+        "internal/finding/forcing.go",
+        "internal/finding/forcings_test.go",
+        "internal/intent/intent.go",
+        "internal/intent/intent_test.go",
+        "internal/intent/run.go",
+        "internal/intent/run_test.go"
       ]
     }
   ]
