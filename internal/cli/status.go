@@ -43,7 +43,10 @@ type intentCoverage struct {
 	Mapped int `json:"mapped"`
 	// Gaps are §4.1.3's unimplemented-claim entries for the round, whole.
 	Gaps []mapping.Gap `json:"gaps"`
-	// SetAside is how many of those entries still carry the §4.1.8 stamp.
+	// SetAside is how many of those entries still carry the §4.1.8 stamp on
+	// a note that still stands, per setAsideStands. An entry stamped on a
+	// note §3.6.6 retracted is left out: `unstanding_notes` names it, and
+	// §10.2.3's reason names its claim as not set aside.
 	//
 	// It is the surviving half of §4.1.7's carry-forward, and it is
 	// reported because `cr map record` reports only the other half: that
@@ -496,7 +499,7 @@ func intentCoverageOf(
 	report := intentCoverage{Claims: len(claims), Gaps: make([]mapping.Gap, 0, len(stored))}
 	for i := range stored {
 		report.Gaps = append(report.Gaps, stored[i])
-		if stored[i].SetAsideNote != "" {
+		if setAsideStands(&stored[i], notes) {
 			report.SetAside++
 		}
 	}
@@ -551,7 +554,7 @@ func mappedClaims(claims []string, mapped map[string]bool) int {
 func unsettledClaims(claims []string, mapped map[string]bool, gaps []mapping.Gap, notes []note.Note) []string {
 	aside := make(map[string]bool, len(gaps))
 	for i := range gaps {
-		if gaps[i].SetAsideNote != "" && note.StandingOf(notes, gaps[i].SetAsideNote).Stands() {
+		if setAsideStands(&gaps[i], notes) {
 			aside[gaps[i].Claim] = true
 		}
 	}
@@ -562,6 +565,14 @@ func unsettledClaims(claims []string, mapped map[string]bool, gaps []mapping.Gap
 		}
 	}
 	return blocking
+}
+
+// setAsideStands is whether a gap entry carries §4.1.8's stamp on a note that
+// still stands. §10.1.2's count and §10.2.3's blocking set both ask it, so the
+// number `cr status` reports set aside is the number completeness treats as
+// settled: a set-aside on a note §3.6.6 retracted is neither.
+func setAsideStands(gap *mapping.Gap, notes []note.Note) bool {
+	return gap.SetAsideNote != "" && note.StandingOf(notes, gap.SetAsideNote).Stands()
 }
 
 // lensesOf is §10.1.3: the round's axes, and §4.5.4's report of every lens that
