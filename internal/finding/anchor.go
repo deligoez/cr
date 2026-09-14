@@ -101,7 +101,7 @@ func ValidateAnchor(file string, line int, anchor *Anchor) error {
 			anchor.Side, git.Right, git.Left,
 		))
 	}
-	if anchor.StartLine < 1 {
+	if anchor.StartLine < firstLine {
 		return reject(fmt.Sprintf(
 			"starts at line %d, which no file has; §9.2 requires a start_line and both trees number their lines from 1",
 			anchor.StartLine,
@@ -120,6 +120,51 @@ func ValidateAnchor(file string, line int, anchor *Anchor) error {
 		))
 	}
 	return nil
+}
+
+// firstLine is the number both trees give a file's first line, and so the
+// lowest start_line ValidateAnchor lets a range begin at.
+const firstLine = 1
+
+// AnchorField is one key of §9.2's anchor object: its row, and the values a
+// record's line may hold under it, as a clause for the agent writing the line
+// (§4.6.2).
+type AnchorField struct {
+	Field
+	// Values says what the key holds, in the terms ValidateAnchor and
+	// StampAnchor hold it to.
+	Values string
+}
+
+// AnchorFields returns the anchor object key by key, in Anchor's field order.
+//
+// The Required rows are the four ValidateAnchor refuses a line without: a
+// missing path is empty, a missing side names neither value, and a missing
+// start_line or line decodes to zero, which starts before firstLine or runs
+// backwards. The Optional rows are the three StampAnchor records from the tree
+// whatever the line carried, so a line without them is complete. Each clause is
+// built from the bound ValidateAnchor checks rather than restating it, so the
+// sentence a role reads and the check its line meets cannot come apart.
+func AnchorFields() []AnchorField {
+	return []AnchorField{
+		{Field{Name: "path", Requirement: Required}, "a non-empty string, the path of the file the record is about"},
+		{Field{Name: "side", Requirement: Required}, fmt.Sprintf(
+			"one of %s, the file version both line numbers are counted in: %s in the head, %s in the merge base",
+			quoted(git.Sides()), git.Right, git.Left,
+		)},
+		{Field{Name: "start_line", Requirement: Required}, fmt.Sprintf(
+			"an integer, %d or greater, the first line of the range", firstLine,
+		)},
+		{Field{Name: "line", Requirement: Required}, "an integer, start_line or greater, the last line of the " +
+			"range; the range is inclusive, so a one-line anchor writes the same number twice"},
+		{Field{Name: "content_hash", Requirement: Optional}, "cr records it from the lines the anchor names"},
+		{Field{Name: "context_before", Requirement: Optional}, fmt.Sprintf(
+			"up to %d lines above the range, which cr records from the same tree", contextWindow,
+		)},
+		{Field{Name: "context_after", Requirement: Optional}, fmt.Sprintf(
+			"up to %d lines below the range, which cr records from the same tree", contextWindow,
+		)},
+	}
 }
 
 // The two trees §6.1.2 resolves an anchor against, as the user is told them.

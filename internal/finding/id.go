@@ -75,3 +75,8 @@ func parseID(id string) (int, bool) {
 	}
 	return n, true
 }
+
+// IDForm is how parseID's spelling is told to a person: the refusal of an id
+// that is not one, and the prompt telling a role how to write one (§4.6.2), read
+// the same words.
+const IDForm = idPrefix + "<n>, numbered from one"

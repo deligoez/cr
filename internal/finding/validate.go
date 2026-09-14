@@ -164,10 +164,10 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 	if !ValidID(record.ID) {
 		return &RejectedRecordError{
 			File: c.file, Line: line, Field: "id",
-			Problem: fmt.Sprintf("reads %q, and §6.1 spells a record id f<n>, numbered from one", record.ID),
+			Problem: fmt.Sprintf("reads %q, and §6.1 spells a record id %s", record.ID, IDForm),
 		}
 	}
-	if err := closedValue(c.file, line, "kind", record.Kind, KindFinding, KindQuestion); err != nil {
+	if err := closedValue(c.file, line, "kind", record.Kind, Kinds()...); err != nil {
 		return err
 	}
 	// §6.1's class row, in the table's order: present by now, so what is left
@@ -188,7 +188,7 @@ func (c checker) check(line int, supplied map[string]json.RawMessage, record *Fi
 	// supplied is held to the two the row names.
 	if record.SuggestionOrigin != "" {
 		if err := closedValue(c.file, line, "suggestion_origin", record.SuggestionOrigin,
-			OriginAgent, OriginRule); err != nil {
+			Origins()...); err != nil {
 			return err
 		}
 	}
@@ -224,14 +224,20 @@ func closedValue[T ~string](file string, line int, field string, value T, allowe
 	if slices.Contains(allowed, value) {
 		return nil
 	}
-	named := make([]string, 0, len(allowed))
-	for _, one := range allowed {
-		named = append(named, strconv.Quote(string(one)))
-	}
 	return &RejectedRecordError{
 		File: file, Line: line, Field: field,
-		Problem: fmt.Sprintf("reads %q, and §6.1 allows only %s", string(value), strings.Join(named, ", ")),
+		Problem: fmt.Sprintf("reads %q, and §6.1 allows only %s", string(value), quoted(allowed)),
 	}
+}
+
+// quoted names a closed set's values as a sentence does, each quoted as JSON
+// writes it and in the set's own order.
+func quoted[T ~string](values []T) string {
+	named := make([]string, 0, len(values))
+	for _, one := range values {
+		named = append(named, strconv.Quote(string(one)))
+	}
+	return strings.Join(named, ", ")
 }
 
 // computed holds one line to §6.1.4: `cr` writes the computed fields, and a

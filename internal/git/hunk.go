@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -44,7 +45,16 @@ const (
 // rather than an error anybody sees.
 func ParseSide(value string) (Side, bool) {
 	side := Side(value)
-	return side, side == Right || side == Left
+	return side, slices.Contains(sides, side)
+}
+
+// sides is §9.2's two values, the set ParseSide closes.
+var sides = []Side{Right, Left}
+
+// Sides returns that set, RIGHT first. The result is a copy, so a caller telling
+// a person which sides there are (§4.6.2) names exactly the ones ParseSide reads.
+func Sides() []Side {
+	return append(make([]Side, 0, len(sides)), sides...)
 }
 
 // ChangedLine is one line §3.4.1 counts as changed.

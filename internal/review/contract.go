@@ -2,6 +2,7 @@ package review
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/deligoez/cr/internal/finding"
@@ -59,6 +60,8 @@ func contract(p *page, lens *role.Role, output string) {
 		p.line("- %s: %s", field.Name, word)
 	}
 	p.line("")
+	domains(p)
+	p.line("")
 	p.line("Each entry of citations carries:")
 	for _, field := range finding.CitationFields() {
 		p.line("- %s: %s", field.Name, findingWords[field.Requirement])
@@ -89,6 +92,38 @@ func forbidden() []string {
 		}
 	}
 	return names
+}
+
+// domains writes the values §6.1's fields take where the decoder holds them to
+// more than presence: the id's spelling, kind's, severity's and
+// suggestion_origin's closed sets, class's form, and §9.2's anchor object key
+// by key.
+//
+// Every value is read out of what the decoder refuses by — finding.Kinds,
+// finding.Severities, finding.Origins, finding.ClassForm, finding.IDForm and
+// finding.AnchorFields — so a role told a value here is told one `cr merge`
+// accepts, and a value the decoder stops accepting leaves this list with it.
+func domains(p *page) {
+	p.line("cr merge and cr record reject a record whose values fall outside these, with exit code 1 (§6.1, §9.2):")
+	p.line("- id: %s", finding.IDForm)
+	p.line("- kind: %s", oneOf(finding.Kinds()))
+	p.line("- class: kebab-case, matching %s", finding.ClassForm)
+	p.line("- severity: %s", oneOf(finding.Severities()))
+	p.line("- anchor: an object carrying")
+	for _, field := range finding.AnchorFields() {
+		p.line("  - %s: %s; %s", field.Name, findingWords[field.Requirement], field.Values)
+	}
+	p.line("- suggestion_origin: %s", oneOf(finding.Origins()))
+}
+
+// oneOf names a closed set's values for the prompt, each quoted as a JSON line
+// writes it, in the set's own order.
+func oneOf[T ~string](values []T) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, strconv.Quote(string(value)))
+	}
+	return "one of " + strings.Join(quoted, ", ")
 }
 
 // claimSchema writes §3.3's claim record for an intent role, whose lens is the

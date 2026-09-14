@@ -39,6 +39,20 @@ const (
 	KindQuestion Kind = "question"
 )
 
+// kinds is §6.1's two registers, the closed set the decoder holds a line's kind
+// to.
+var kinds = []Kind{KindFinding, KindQuestion}
+
+// Kinds returns §6.1's two registers. The result is a copy, so a caller can
+// neither widen the set nor reorder it.
+//
+// It is the list the decoder refuses by, handed out rather than restated, so a
+// prompt telling a role which values kind takes (§4.6.2) names exactly the
+// values `cr merge` and `cr record` accept.
+func Kinds() []Kind {
+	return append(make([]Kind, 0, len(kinds)), kinds...)
+}
+
 // Severity is the four-value scale of §6.1, ordered critical, high, medium,
 // low. §6.4.2 compares two records by it when picking a duplicate group's
 // representative.
@@ -109,6 +123,15 @@ const (
 	// OriginRule marks what a rule of §2.6 produced.
 	OriginRule Origin = "rule"
 )
+
+// origins is the two values §6.1's suggestion_origin row names.
+var origins = []Origin{OriginAgent, OriginRule}
+
+// Origins returns those two values, under the rule Kinds gives: the result is a
+// copy of the list the decoder refuses a suggestion_origin by.
+func Origins() []Origin {
+	return append(make([]Origin, 0, len(origins)), origins...)
+}
 
 // Disposition is why a record was discarded during triage (§7.2). The two are
 // deliberately distinct: they write waivers of different scope, and only wrong

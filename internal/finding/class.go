@@ -9,7 +9,12 @@ import (
 // [a-z0-9-]+, anchored end to end so nothing but a class matches it. Go's $
 // ends the text rather than a line, so a value carrying a newline is not a
 // class either.
-var classPattern = regexp.MustCompile(`^[a-z0-9-]+$`)
+var classPattern = regexp.MustCompile("^" + ClassForm + "$")
+
+// ClassForm is §6.1's class form as the table writes it, unanchored: the
+// pattern classPattern anchors, and the form a refusal and a prompt (§4.6.2)
+// name.
+const ClassForm = "[a-z0-9-]+"
 
 // InvalidClassError reports a record whose class is not the form §6.1 fixes.
 // It carries the file and the line so the user can open the record, and the
@@ -26,8 +31,8 @@ type InvalidClassError struct {
 
 func (e *InvalidClassError) Error() string {
 	return fmt.Sprintf(
-		"%s line %d: class %q is not kebab-case; §6.1 fixes the form at [a-z0-9-]+",
-		e.File, e.Line, e.Class,
+		"%s line %d: class %q is not kebab-case; §6.1 fixes the form at %s",
+		e.File, e.Line, e.Class, ClassForm,
 	)
 }
 
