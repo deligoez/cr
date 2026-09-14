@@ -115,10 +115,12 @@ var codes = []mapped{
 	// `tests.cmd` for §5.2.1's run, `tests.filter_flag` for its `--filter`
 	// — or §2.4.4's no profile at all. Nothing is malformed and the
 	// invocation is right; what refuses is the configuration, which §11.2
-	// codes 3 alongside the malformed file above.
+	// codes 3 alongside the malformed file above. hintFor prints the error's
+	// own step, which names the profile file by its path; the row carries
+	// the same step in general terms because init requires every row to.
 	{is[*profile.UnavailableError](), ExitFile,
-		"set the field the message names in the resolved profile; " +
-			"`cr config --resolved` shows the effective configuration"},
+		"declare the field the message names in the profile file it names; " +
+			"`cr config --resolved` does not show profile fields"},
 	// §5.2.1 runs the command the profile names, and cr has never heard of
 	// it. A runner that could not be started is the external command
 	// failure §3.1.3 fixes the shape of — and not a test result: a suite
@@ -684,12 +686,14 @@ func exitCodeFor(err error) int {
 
 // hintFor is §12.4's next actionable step for one error.
 //
-// The row that decides the code decides the hint, with two exceptions: when
+// The row that decides the code decides the hint, with three exceptions: when
 // that row is the file-failure floor, the *state.FileError answers for itself,
 // which is what lets it name the command that writes the particular file that
-// was missing rather than one sentence for every file; and when that row claims
+// was missing rather than one sentence for every file; when that row claims
 // a *config.LayerError, the error names the file or variable, the layer and the
-// key to correct, which one sentence for every layer could not. A row above the
+// key to correct, which one sentence for every layer could not; and when that
+// row claims a *profile.UnavailableError, the error names the profile file that
+// has to declare the field, by its path. A row above the
 // floor keeps its own even when the error it claims carries a file failure
 // inside — *state.NotBriefedError's `cr brief <pr>` is the step, not the bare
 // read that found no meta.json. An error no row claims takes the usage hint,
@@ -702,6 +706,10 @@ func hintFor(err error) string {
 	var layer *config.LayerError
 	if errors.As(err, &layer) && row.claims(layer) {
 		return layer.Hint()
+	}
+	var unavailable *profile.UnavailableError
+	if errors.As(err, &unavailable) && row.claims(unavailable) {
+		return unavailable.Hint()
 	}
 	// A zero *state.FileError built outside FileFailure carries no step of
 	// its own, and takes the floor's rather than an empty one.

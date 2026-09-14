@@ -43,6 +43,27 @@ func (e *UnavailableError) Error() string {
 	return fmt.Sprintf("%s: %s is not set: %s", e.File, e.Field, e.Needs)
 }
 
+// Hint is §12.4's next actionable step: the profile file that has to declare
+// the field, by its path.
+//
+// The step names the file rather than a command that prints configuration,
+// because none prints a profile's fields — `cr config --resolved` shows the
+// configuration layers of §2.7, and a profile is a separate file cr reads
+// whole. The round's profile is read again on every run, so an edit to that
+// file is all the next run needs. With no profile resolved there is no file
+// to name, and the step is to give the round one.
+func (e *UnavailableError) Hint() string {
+	if e.File == "" {
+		return fmt.Sprintf(
+			"no profile file was resolved for this round: add a profile declaring %s under the "+
+				"profiles directory of cr's state root, select it with match.files or the `profile` "+
+				"configuration key, and run `cr brief <pr>` so the round records it", e.Field)
+	}
+	return fmt.Sprintf(
+		"declare %s in the profile file %s, which is the profile this round resolved; "+
+			"`cr config --resolved` does not show profile fields", e.Field, e.File)
+}
+
 // TestArgv returns the argv §5.2.1 runs inside the sandbox, narrowed to filter
 // when one was given.
 //

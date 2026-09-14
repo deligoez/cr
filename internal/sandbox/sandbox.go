@@ -130,7 +130,31 @@ func Create(src *Sources) (*Result, error) {
 	if err := git.AddWorktree(src.RepoDir, path, src.Head); err != nil {
 		return nil, err
 	}
+	created, err := src.prepare(path)
+	if err != nil {
+		return nil, src.abandon(path, err)
+	}
+	return created, nil
+}
 
+// abandon removes the worktree a creation added and could not finish, and
+// returns the failure that stopped it.
+//
+// A half-prepared sandbox is one no later command can use: §5.1.1 refuses to
+// create over it, and nothing records it as ready. Removing it with its
+// registration leaves the pull request where it stood before the command, so
+// the next `cr sandbox create` runs again once the profile is repaired. A
+// removal that fails too is reported beside the failure, never in place of it.
+func (src *Sources) abandon(path string, failed error) error {
+	if _, err := removeSandbox(src, path); err != nil {
+		return errors.Join(failed, fmt.Errorf("cannot remove the half-prepared sandbox %s: %w", path, err))
+	}
+	return failed
+}
+
+// prepare fills a newly added worktree with §5.1.2's copies, runs §5.1.3's
+// setup commands in it, and records §5.1.6's post-setup baseline.
+func (src *Sources) prepare(path string) (*Result, error) {
 	created := &Result{
 		Path:   path,
 		Head:   src.Head,
