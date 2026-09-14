@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -516,19 +517,32 @@ func reportFailure(stdout, stderr io.Writer, args []string, err error) error {
 	return werr
 }
 
-// asksForJSON reports whether the arguments carry §11.1's `--json`, read the
-// way pflag reads a boolean flag: bare or as `--json=true`, and never after the
-// `--` that ends flag parsing.
+// asksForJSON reports whether the arguments set §11.1's `--json`, read the way
+// pflag reads a boolean flag: bare, or with any value strconv.ParseBool
+// accepts, the last occurrence deciding, and never after the `--` that ends
+// flag parsing. A value ParseBool refuses is where pflag stops with a usage
+// error, so the answer is the one the occurrences before it left.
 func asksForJSON(args []string) bool {
+	asked := false
 	for _, arg := range args {
-		switch arg {
-		case "--":
-			return false
-		case "--json", "--json=true":
-			return true
+		if arg == "--" {
+			return asked
 		}
+		if arg == "--json" {
+			asked = true
+			continue
+		}
+		value, ok := strings.CutPrefix(arg, "--json=")
+		if !ok {
+			continue
+		}
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return asked
+		}
+		asked = parsed
 	}
-	return false
+	return asked
 }
 
 // isTerminal reports whether out is a terminal.
