@@ -278,6 +278,54 @@ type Config struct {
 	origins map[string]Origin
 }
 
+// LayerError reports a layer of §2.7 cr could not use as written: a config file
+// it could not read or parse, or a value that is not of its setting's type or
+// lies outside its setting's domain.
+//
+// It carries the layer and the file or variable, and the key when the fault is
+// one setting's, because with five layers a refusal naming only the key leaves
+// the reader to find which of them said it. §11.2 codes it 3: the command line
+// is right, and what cannot be used is the configuration.
+type LayerError struct {
+	// Origin is the layer, and the file or variable within it.
+	Origin Origin
+	// Key is the setting whose value was refused, and empty when the file
+	// as a whole could not be used.
+	Key string
+	// Err is the cause.
+	Err error
+}
+
+func (e *LayerError) Error() string {
+	if e.Key == "" {
+		return fmt.Sprintf("%s cannot be used: %v", e.place(), e.Err)
+	}
+	return fmt.Sprintf("%s, as %s sets it, is invalid: %v", e.Key, e.place(), e.Err)
+}
+
+func (e *LayerError) Unwrap() error { return e.Err }
+
+// Hint is §12.4's next actionable step, naming the place a reader edits.
+func (e *LayerError) Hint() string {
+	if e.Key == "" {
+		return fmt.Sprintf("repair %s so it parses as a JSON object, or remove it: "+
+			"a missing file supplies nothing", e.place())
+	}
+	return fmt.Sprintf("correct %s in %s to a value the message says it accepts, "+
+		"or remove it there so a lower layer supplies it", e.Key, e.place())
+}
+
+// place names the layer and where within it the fault sits.
+func (e *LayerError) place() string {
+	switch e.Origin.From {
+	case LayerFlag:
+		return "the " + LayerFlag
+	case LayerEnv:
+		return "the " + LayerEnv + " variable " + e.Origin.Source
+	}
+	return "the " + e.Origin.From + " file " + e.Origin.Source
+}
+
 // Resolve reads every layer and returns the effective configuration.
 func Resolve(src Sources) (Config, error) {
 	values := make(map[string]any, len(defaults))
@@ -293,21 +341,23 @@ func Resolve(src Sources) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	written, err := apply(values, fromEnvironment, LayerEnv)
-	if err != nil {
-		return Config{}, err
-	}
 	// The variable and not the layer, per §2.7's annotation: `CR_` plus
 	// the key is what a reader unsets, and envName is where that spelling
 	// already lives.
-	for _, key := range written {
-		origins[key] = Origin{From: LayerEnv, Source: envName(key)}
-	}
-	if written, err = apply(values, src.Flags, LayerFlag); err != nil {
+	fromVariable := func(key string) Origin { return Origin{From: LayerEnv, Source: envName(key)} }
+	written, err := apply(values, fromEnvironment, fromVariable)
+	if err != nil {
 		return Config{}, err
 	}
 	for _, key := range written {
-		origins[key] = Origin{From: LayerFlag}
+		origins[key] = fromVariable(key)
+	}
+	fromFlag := func(string) Origin { return Origin{From: LayerFlag} }
+	if written, err = apply(values, src.Flags, fromFlag); err != nil {
+		return Config{}, err
+	}
+	for _, key := range written {
+		origins[key] = fromFlag(key)
 	}
 	resolved := Config{values: values, origins: origins}
 	// §8.1.1's language is the one setting with a closed domain, and it is
@@ -316,9 +366,9 @@ func Resolve(src Sources) (Config, error) {
 	// leaves §6.3's forcing with nothing to reach the reader through — and
 	// the run that would discover it is the run that is about to post. Every
 	// layer has settled by this point, so the value checked is the value a
-	// command would read.
+	// command would read, and the layer named is the one that supplied it.
 	if _, err := render.ParseLang(resolved.String(render.Setting)); err != nil {
-		return Config{}, err
+		return Config{}, &LayerError{Origin: origins[render.Setting], Key: render.Setting, Err: err}
 	}
 	return resolved, nil
 }
@@ -337,16 +387,17 @@ func resolveFiles(values map[string]any, origins map[string]Origin, src Sources)
 		if file.path == "" {
 			continue
 		}
-		overrides, err := readFile(file.path)
+		fromFile := func(string) Origin { return Origin{From: file.layer, Source: file.path} }
+		overrides, err := readFile(fromFile(""))
 		if err != nil {
 			return err
 		}
-		written, err := apply(values, overrides, file.path)
+		written, err := apply(values, overrides, fromFile)
 		if err != nil {
 			return err
 		}
 		for _, key := range written {
-			origins[key] = Origin{From: file.layer, Source: file.path}
+			origins[key] = fromFile(key)
 		}
 	}
 	return nil
@@ -361,8 +412,9 @@ func resolveFiles(values map[string]any, origins map[string]Origin, src Sources)
 // answers would have to agree about which names this layer settled — an
 // unknown key writes nothing and must annotate nothing, and a caller counting
 // the overrides instead would credit the layer with a setting it did not
-// supply.
-func apply(values, overrides map[string]any, origin string) ([]string, error) {
+// supply. origin names where a key's value came from, for the refusal of one
+// that cannot be coerced.
+func apply(values, overrides map[string]any, origin func(key string) Origin) ([]string, error) {
 	written := make([]string, 0, len(overrides))
 	for _, key := range sortedKeys(overrides) {
 		def, known := defaults[key]
@@ -371,7 +423,7 @@ func apply(values, overrides map[string]any, origin string) ([]string, error) {
 		}
 		value, err := coerce(def, overrides[key])
 		if err != nil {
-			return nil, fmt.Errorf("%s: %s is invalid: %w", origin, key, err)
+			return nil, &LayerError{Origin: origin(key), Key: key, Err: err}
 		}
 		values[key] = value
 		written = append(written, key)
@@ -381,17 +433,18 @@ func apply(values, overrides map[string]any, origin string) ([]string, error) {
 
 // readFile reads one config.json and returns its dotted keys. A missing file is
 // not an error: an absent layer supplies nothing, exactly like an empty one.
-func readFile(path string) (map[string]any, error) {
+func readFile(file Origin) (map[string]any, error) {
+	path := file.Source
 	data, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil, nil
 	case err != nil:
-		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+		return nil, &LayerError{Origin: file, Err: fmt.Errorf("cannot read it: %w", err)}
 	}
 	var nested map[string]any
 	if err := json.Unmarshal(data, &nested); err != nil {
-		return nil, fmt.Errorf("cannot parse %s: %w", path, err)
+		return nil, &LayerError{Origin: file, Err: fmt.Errorf("it does not parse as a JSON object: %w", err)}
 	}
 	flat := make(map[string]any, len(nested))
 	flatten("", nested, flat)

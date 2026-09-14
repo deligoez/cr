@@ -158,6 +158,15 @@ var codes = []mapped{
 	{is[*config.ProtectedError](), ExitFile,
 		"§2.7 protects this decision from configuration; remove the variable or " +
 			"key the message names"},
+	// §2.7: a layer cr could not use as written — a config file it could not
+	// read or parse, a value not of its setting's type, a render.lang outside
+	// the two v0.1 enumerates — is a configuration failure, which §11.2
+	// codes 3. It sits above the unknown language it may carry, and hintFor
+	// asks it for its own step, which names the file or variable, the layer
+	// and the key: with five layers, one sentence for all of them would
+	// leave the reader to find which one said it.
+	{is[*config.LayerError](), ExitFile,
+		"correct or remove the setting the message names, in the layer and file it names"},
 	// §8.1.1 takes the language of every author-facing body from
 	// render.lang, and §8.1.4 builds the question label in per language. A
 	// value outside the two v0.1 enumerates has no built-in label, so
@@ -647,18 +656,24 @@ func exitCodeFor(err error) int {
 
 // hintFor is §12.4's next actionable step for one error.
 //
-// The row that decides the code decides the hint, with one exception: when
+// The row that decides the code decides the hint, with two exceptions: when
 // that row is the file-failure floor, the *state.FileError answers for itself,
 // which is what lets it name the command that writes the particular file that
-// was missing rather than one sentence for every file. A row above the floor
-// keeps its own even when the error it claims carries a file failure inside —
-// *state.NotBriefedError's `cr brief <pr>` is the step, not the bare read that
-// found no meta.json. An error no row claims takes the usage hint, because a
-// malformed invocation is what exitCodeFor concluded about it.
+// was missing rather than one sentence for every file; and when that row claims
+// a *config.LayerError, the error names the file or variable, the layer and the
+// key to correct, which one sentence for every layer could not. A row above the
+// floor keeps its own even when the error it claims carries a file failure
+// inside — *state.NotBriefedError's `cr brief <pr>` is the step, not the bare
+// read that found no meta.json. An error no row claims takes the usage hint,
+// because a malformed invocation is what exitCodeFor concluded about it.
 func hintFor(err error) string {
 	row := rowFor(err)
 	if row == nil {
 		return usageHint
+	}
+	var layer *config.LayerError
+	if errors.As(err, &layer) && row.claims(layer) {
+		return layer.Hint()
 	}
 	// A zero *state.FileError built outside FileFailure carries no step of
 	// its own, and takes the floor's rather than an empty one.
