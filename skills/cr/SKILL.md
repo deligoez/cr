@@ -49,8 +49,8 @@ configured tracker command (`intent.cmd`, default `jira issue view {key} --plain
 ## The loop
 
 brief → review fan-out → merge → record → probe → draft → **human read** → post.
-**v0.1 stops at posting.** Whether the author addressed anything is outside what
-cr can observe; re-review is v0.2.
+**v0.2 stops at posting.** Whether the author addressed anything is outside what
+cr can observe; re-review is v0.3.
 
 ### 1. Brief
 
@@ -58,9 +58,9 @@ cr can observe; re-review is v0.2.
 cr brief 1 --issue CR-5 --intent-file issue.txt
 ```
 
-Prints the orientation payload and opens round 1: PR identity, head and merge
-base, the selected profile and the layer that chose it, the issue key and text,
-recorded claims and drift, the units of the diff, files excluded by
+Prints the orientation payload and opens round 1: PR identity, its state when it
+is not open, head and merge base, the selected profile and the layer that chose
+it, the issue key and text, recorded claims and drift, the units of the diff, files excluded by
 `ignore.globs` and binary or generated files listed but not clustered, ingested
 threads, notes and candidate notes, and the active, disabled and unavailable
 axes with reasons.
@@ -76,6 +76,14 @@ axes with reasons.
   "honesty": []
 }
 ```
+
+**A closed or merged pull request is disclosed, never refused.** `cr brief`,
+`cr status` and a `cr post` dry run put it first in `honesty`, with the time
+GitHub reports ("acme/shop#1 is merged: GitHub reports it merged at …, so a
+review posted now reaches a pull request that is no longer open; cr does not
+refuse the post, and whether to send it stays --confirm's"), and
+`cr post --confirm` prints it on standard error before the request. Tell the
+user before they confirm.
 
 Extract the claims from the issue text yourself — each a verbatim span — and
 record them. `claims record` re-reads the issue, so it takes `--intent-file` too:
@@ -154,7 +162,9 @@ Cells follow the fan-out's order. While the round's intent axis is active and
 no mapping is recorded, a cell for a role off the intent axis is refused with
 exit 4 ("… has no mapping; §4.6.5 refuses the remaining axes until the intent
 pass has recorded one"); record the intent pass's cells, then `cr map record`,
-then the other roles' cells.
+then the other roles' cells. A cell's `note_id` must name a standing note of the
+round's issue key; one naming no such note, or a retracted one, is refused with
+exit 1.
 
 A claim with no implementation is not a finding (there is no code to anchor it
 to): it appears only in `cr status`. Take it out of scope with a note:
@@ -263,14 +273,18 @@ cr probe run 1 --kind gap --test gap_test.go --target order.go:5 --filter TestDi
 Only a mutation probe's `no-test-failed` over a passing baseline establishes a
 missing test. Both `no-test-failed` and a gap probe's `passed` need the run to
 exit 0: a zero failed count from a runner that exited non-zero is
-`inconclusive`. A gap probe's `failed` supports a finding only when its baseline
-passed and the record's `claim` is mapped to its unit; `passed` shows the
+`inconclusive`. A gap probe whose runner exited on a signal is `error`, as one
+that never started is, and a probe recorded as `error` carries its `reason`. A
+gap probe's `failed` supports a finding only when its baseline passed and the record's `claim` is mapped to its unit; `passed` shows the
 behaviour is present and supports no `probed` grade. Reference a probe from a
 record with `"probe": "p1"`; it supports that record only when its target lies
 inside the record's RIGHT anchor range. `cr sandbox destroy 1` removes the
 worktree. `cr test` and `cr probe run` share one lock per repository root and
 profile, from any subdirectory, and exit 4 when `probe.lock_timeout_seconds`
-passes while another run holds it.
+passes while another run holds it. The lock lives under the state root, so two
+runs with different `CR_HOME` values do not serialise. A Ctrl+C or SIGTERM
+while the runner runs kills the runner's process group, records nothing and
+exits 4; run the command again.
 
 ### 5. Draft
 
@@ -291,7 +305,7 @@ cr draft 1
 ```
 
 The draft holds one block per record under a marker line, e.g.
-`<!-- cr:record id="f2" kind="finding" path="order.go" start_line="5" line="6" severity="high" grade="probed" disposition="" -->`,
+`<!-- cr:record id="f2" kind="finding" path="order.go" side="RIGHT" start_line="5" line="6" severity="high" grade="probed" disposition="" -->`,
 then the body you edit, then for a probed record a cr-owned evidence region (the
 probe's kind, target, filter, result, input and output tail).
 
@@ -334,6 +348,16 @@ decision, and never counts against the class. `wrong` means the finding is false
 it is the only signal that demotes a class. Never mark a true finding `wrong` to
 make room.
 
+**What a waiver matches.** A waiver, and the posted index `cr merge` and
+`cr record` drop already-posted findings by, is keyed by the anchor's path and
+side, the record's class, and the normalised hash of the anchor's context lines
+before, the anchored lines, and the context lines after. It stops suppressing
+once that code or the code around it changes. Waivers and posted-index entries
+written by cr v0.1 hashed the anchored lines alone, so they match nothing
+unless the anchor's context is empty or blank: a finding once waived or posted
+under v0.1 is raised again. `cr waivers list` still shows such waivers and
+`cr waivers remove` still removes them.
+
 After deleting f13's block, marking f12 `disposition="wrong"`, changing f14 to
 `kind="question"` (rewording its body as a question) and f15's severity from
 `high` to `medium`, `cr draft 1` printed:
@@ -371,7 +395,7 @@ with exit 1 naming the draft line and the record:
 |---|---|
 | `id` | immutable; a changed or unknown id aborts (there is no manual-comment channel) |
 | `kind` | `finding`→`question` softens; `question`→`finding` only when cr's grade is `probed` or `cited` |
-| `path`, `start_line`, `line` | re-validated against the head; aborts when the anchor no longer resolves |
+| `path`, `side`, `start_line`, `line` | re-validated against the head or, for `LEFT`, the merge base; aborts when the anchor no longer resolves |
 | `severity` | freely editable within `critical`, `high`, `medium`, `low` |
 | `disposition` | only `wrong` by hand; `not-here` is cr's word for a deleted block |
 | `grade` | informational; cr recomputes it and ignores the edit |
@@ -392,13 +416,17 @@ draft line 41, record f15: anchor runs to line 99 of "order.go", which holds 10 
 
 An edited `grade="probed"` on an argued record is accepted and rendered back as
 `grade="argued"`. A marker missing a field or out of order is malformed, and both
-`cr draft` and `cr post` refuse it with exit 1:
+`cr draft` and `cr post` refuse it with exit 1, naming the record once the line
+named one, then printing the line as read and the grammar:
 
 ```text
-draft line 11 is a malformed record marker: " grade=" does not follow, and §7.1.1 fixes the eight fields and their order
+draft line 11, record f1, is a malformed record marker: " side=" does not follow, and §7.1.1 fixes the nine fields and their order
 ```
 
-Fix the line the refusal names and run `cr draft` again.
+Fix the line the refusal names and run `cr draft` again. A draft rendered by
+cr v0.1 has eight-field markers and is refused this way, by `cr draft` too,
+because it reads the existing draft back before rendering: add each record's
+anchor side (`side="RIGHT"` or `side="LEFT"`) between `path` and `start_line`.
 
 ### 7. Post
 
@@ -410,10 +438,12 @@ cr post 1
 {
   "round": 1,
   "comments": [{"id": "f1", "kind": "question"}, {"id": "f2", "kind": "finding"}],
-  "payload": {"event": "COMMENT", "body": "**cr — review coverage**\n\nAxes reviewed: intent, correctness, convention, test\n\nNo lens was left unexamined.\n\n<!-- cr:payload-hash ebe5e6f668048750 -->", "comments": [{"path": "order.go", "line": 8, "side": "RIGHT", "body": "…"}, …]},
+  "payload": {"commit_id": "e23991d…", "event": "COMMENT", "body": "**cr — review coverage**\n\nAxes reviewed: intent, correctness, convention, test\n\nNo lens was left unexamined.\n\n<!-- cr:payload-hash ebe5e6f668048750 -->", "comments": [{"path": "order.go", "line": 8, "side": "RIGHT", "body": "…"}, …]},
   "discarded": [],
   "forced_to_question": [{"class": "negative-discount", "count": 1}],
   "forced_by_retraction": [],
+  "warnings": [],
+  "honesty": [],
   "posted": false,
   "confirm_given": false
 }
@@ -429,7 +459,9 @@ cr post 1 --confirm
 
 **Every network write needs `--confirm`.** No setting, environment variable or
 profile field makes it implicit. All comments go in one review, and the request
-body carries only `event`, `body` and `comments`. The review body is written in
+body carries only `commit_id`, `event`, `body` and `comments`. `commit_id` is the
+round's head, so GitHub places every comment on the diff cr validated even if the
+head moves after cr compared it; `posted.json` records the same `commit_id`. The review body is written in
 English whatever `render.lang` says; `render.lang` (default `tr`) sets the
 language of the comment bodies and their question labels.
 
@@ -458,8 +490,9 @@ cr cannot know whether the review exists. It sets `post_unresolved` and exits 4:
 }
 ```
 
-Until it is settled, `cr post --confirm`, `cr draft` and a `cr brief` on a moved
-head all refuse with exit 4 and the hint "run `cr post <pr> --reconcile` to adopt
+Until it is settled, `cr status` and a `cr post` dry run report
+`post_unresolved` in `honesty`, and `cr post --confirm`, `cr draft` and a
+`cr brief` on a moved head all refuse with exit 4 and the hint "run `cr post <pr> --reconcile` to adopt
 the review the earlier call created, or to clear post_unresolved for a retry":
 each would either post the review twice or move the records the send may already
 have posted. Run the one command they name:
@@ -472,8 +505,10 @@ cr post 1 --reconcile
 {"round": 1, "payload_hash": "ebe5e6f668048750", "adopted": "https://github.com/…#pullrequestreview-…", "records": ["f1", "f2"], "post_unresolved": false, "honesty": […]}
 ```
 
-`--reconcile` only reads GitHub. When a review carries the payload hash it adopts
-it and stores what a successful send stores: the records as posted with their
+`--reconcile` only reads GitHub, and `cr post --reconcile --confirm` is refused
+with exit 2. When a review carries the payload hash, was created at the round's
+`commit_id`, and is not a review an earlier round's posted records went out in,
+it adopts that review and stores what a successful send stores: the records as posted with their
 thread ids, the draft's discards and waivers, and the triage outcomes. When none
 does it clears `post_unresolved`, and `cr post 1 --confirm` may send again. It
 runs on a moved head too, so settle it before `cr brief` opens the next round.
@@ -492,7 +527,9 @@ cr status 1
 }
 ```
 
-A complete round is not an approval: cr never approves a pull request.
+While the intent axis is active, a round is not complete until both
+`cr claims record` and `cr map record` have run for it; the reason names what is
+missing. A complete round is not an approval: cr never approves a pull request.
 
 ### A moved head
 
@@ -506,8 +543,11 @@ except `cr post --reconcile` refuses with exit 4:
 }
 ```
 
-`cr brief 1` opens round 2: open records move to `stale`, the mapping is
-cleared, units are recomputed, claims carry forward. Anchors are never migrated.
+`cr status 1` on a moved head names both heads and `cr brief`, and leaves out the
+reinvention and symbol halves and the file counts, which it would have to read at
+the old head. `cr brief 1` opens round 2: open records move to `stale`, units are
+recomputed, round 2 starts with no mapping (earlier rounds' units and mapping
+stay in state), claims carry forward. Anchors are never migrated; that is v0.3.
 Re-run the loop for the new round.
 
 ## The argued rule
@@ -733,8 +773,9 @@ cr rules check 1
 }
 ```
 
-`detect` runs only over added and modified RIGHT-side lines, in Go `regexp`
-syntax. A rule whose `detect.mode` is not `regex`, or whose `detect.pattern` or
+`detect` runs only over added and modified RIGHT-side lines of the files that
+formed a unit, in Go `regexp` syntax: a file `ignore.globs` excludes, or a
+binary or generated file cr lists without clustering, produces no hit. A rule whose `detect.mode` is not `regex`, or whose `detect.pattern` or
 `fix.replace` does not compile, is malformed: every command that loads the
 rules, `cr rules list` included, refuses it with exit 3 naming the file
 (`detect.pattern of rule "bad-pattern" is not a Go regexp: …`). A hit is a hit, never a
@@ -793,7 +834,7 @@ cr config --resolved
 |---|---|---|
 | 0 | success | every step of the loop above |
 | 1 | validation failure | a question body with no `?` at `cr post`; a marker edit §7.2 does not admit; a round over `post.max_comments`; an unknown waiver id; an input line that is not JSON or gives a key twice; a repeated claim id; a `suppressed_by` naming no ingested thread |
-| 2 | usage error | no detectable repository and no `--repo`; an owner or name of `.` or `..`; `cr note` without `--pr` |
+| 2 | usage error | no detectable repository and no `--repo`; an owner or name of `.` or `..`; `cr note` without `--pr`; `cr post --reconcile --confirm` |
 | 3 | file, configuration or external command failure | a config key addressing the argued forcing; a malformed role or rule file, including a `detect` block that cannot run; a profile tie; a stored state line cr cannot use; a lock file cr cannot take |
 | 4 | state conflict, lock timeout, partial post | a write after the head moved; an unknown post outcome, and every `cr post --confirm`, `cr draft` or moved-head `cr brief` after it until `cr post --reconcile`; a second review for a posted round; a round with nothing queued |
 
