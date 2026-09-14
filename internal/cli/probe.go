@@ -490,9 +490,10 @@ type probeSetup struct {
 	// stamp is §2.3.3's head and round, written onto every record.
 	stamp state.Stamp
 	// capped is §5.6.4's budget as it stood before this run, kept so the
-	// run that fills it can say so. It is measured in prepareProbe rather
-	// than at the write, because the refusal has to land before anything
-	// is done in the sandbox.
+	// run that fills it can say so. It is measured in prepareProbe, because
+	// the refusal has to land before anything is done in the sandbox, and
+	// measured again by underProbeLock once §5.6.1's lock is held, which is
+	// the count this field carries from then on.
 	capped probe.RoundCap
 }
 
@@ -580,6 +581,23 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 func probeBudget(
 	l state.Layout, owner, repo string, pr, round int,
 ) (probe.RoundCap, error) {
+	stored, err := state.ReadStamped[probe.Record](l, owner, repo, pr, state.FileProbes, round)
+	if err != nil {
+		return probe.RoundCap{}, err
+	}
+	capped, err := roundCap(l, owner, repo, stored, round)
+	if err != nil {
+		return probe.RoundCap{}, err
+	}
+	return capped, capped.Err()
+}
+
+// roundCap measures stored against the resolved `probe.max_per_round`, so the
+// count before a run, the count under §5.6.1's lock and the count at the
+// record's write are one measurement taken at three moments.
+func roundCap(
+	l state.Layout, owner, repo string, stored []probe.Record, round int,
+) (probe.RoundCap, error) {
 	resolved, err := config.Resolve(config.Sources{
 		Environ:      os.Environ(),
 		GlobalConfig: l.Config(),
@@ -588,12 +606,42 @@ func probeBudget(
 	if err != nil {
 		return probe.RoundCap{}, err
 	}
-	stored, err := state.ReadStamped[probe.Record](l, owner, repo, pr, state.FileProbes, round)
+	return probe.RoundCapFor(stored, round, resolved.Int("probe.max_per_round")), nil
+}
+
+// underProbeLock performs a probe's locked half inside §5.6.1's lock, and
+// returns what it stored with §5.6.3's warning.
+//
+// §5.6.4's cap is counted again once the lock is held, and the lock is held
+// until locked has written the record. prepareProbe's count is taken before the
+// lock, so every run started while another was waiting or running passes it;
+// only a count taken under the lock, with the previous holder's record already
+// on disk, sees what the runs before it spent. A run refused here has performed
+// no suite.
+//
+// The lock is taken once around every run this command performs. The baselines
+// of §5.2.6 run the same suite against the same test database as the probe
+// does, so a lock taken per run would either leave the gaps between them open
+// or, taken twice over, wait on itself for the whole of
+// `probe.lock_timeout_seconds`.
+func underProbeLock(
+	setup *probeSetup, request *probeRequest, locked func() (*finishedProbe, error),
+) (*finishedProbe, string, error) {
+	held, err := lockProbe(
+		setup.layout, request.owner, request.repo, setup.dir, setup.round.ProfileID)
 	if err != nil {
-		return probe.RoundCap{}, err
+		return nil, "", err
 	}
-	capped := probe.RoundCapFor(stored, round, resolved.Int("probe.max_per_round"))
-	return capped, capped.Err()
+	var finished *finishedProbe
+	capped, err := probeBudget(setup.layout, request.owner, request.repo, request.pr, setup.stamp.Round)
+	if err == nil {
+		setup.capped = capped
+		finished, err = locked()
+	}
+	if err := errors.Join(err, held.Unlock()); err != nil {
+		return nil, "", err
+	}
+	return finished, held.CollisionWarning(), nil
 }
 
 // runMutationProbe performs §5.3.2's cycle and records what it produced.
@@ -622,43 +670,40 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 		}
 	}
 
-	// §5.6.1's lock, taken once around every run this command performs.
-	// The baselines of §5.2.6 run the same suite against the same test
-	// database as the probe does, so a lock taken per run would either
-	// leave the gaps between them open or, taken twice over, wait on
-	// itself for the whole of `probe.lock_timeout_seconds`.
-	locked, err := lockProbe(
-		setup.layout, request.owner, request.repo, setup.dir, setup.round.ProfileID)
+	finished, warning, err := underProbeLock(setup, request, func() (*finishedProbe, error) {
+		performed, measured, err := mutationRuns(setup, request)
+		if err != nil {
+			return nil, err
+		}
+		// §5.1.6's check, now that the suite has finished and the
+		// mutation is off disk again. A check run before the revert
+		// would find every probe's own mutation and void every probe.
+		unclean, err := sandbox.Unclean(setup.src, setup.glob)
+		if err != nil {
+			return nil, err
+		}
+		outcome := probe.Decide(probe.Ladder(measured), unclean)
+		return storeProbe(setup, request, &finishedProbe{
+			performed: performed, outcome: outcome, unclean: unclean,
+			establishes: establishedBy(outcome, performed.baseline),
+			record: &probe.Record{
+				Kind:        probe.Mutation,
+				Input:       request.patch,
+				Filter:      request.filter,
+				Result:      outcome.Result(),
+				TestsRun:    measured.TestsRun,
+				TestsFailed: measured.TestsFailed,
+				Target:      aimed,
+				Baseline:    performed.baseline.ID(),
+				DurationMS:  performed.durationMS,
+				OutputTail:  performed.outputTail,
+			},
+		})
+	})
 	if err != nil {
 		return err
 	}
-	performed, measured, err := mutationRuns(setup, request)
-	if err := errors.Join(err, locked.Unlock()); err != nil {
-		return err
-	}
-
-	// §5.1.6's check, now that the suite has finished and the mutation is
-	// off disk again. A check run before the revert would find every
-	// probe's own mutation and void every probe.
-	unclean, err := sandbox.Unclean(setup.src, setup.glob)
-	if err != nil {
-		return err
-	}
-	outcome := probe.Decide(probe.Ladder(measured), unclean)
-	record := &probe.Record{
-		Kind:        probe.Mutation,
-		Input:       request.patch,
-		Filter:      request.filter,
-		Result:      outcome.Result(),
-		TestsRun:    measured.TestsRun,
-		TestsFailed: measured.TestsFailed,
-		Target:      aimed,
-		Baseline:    performed.baseline.ID(),
-		DurationMS:  performed.durationMS,
-		OutputTail:  performed.outputTail,
-	}
-	return finishProbe(out, setup, request, performed, record, outcome, unclean,
-		establishedBy(outcome, performed.baseline), locked.CollisionWarning())
+	return reportProbe(out, setup, request, finished, warning)
 }
 
 // runGapProbe performs §5.4.2's cycle and records what it produced.
@@ -706,83 +751,105 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 		request.owner, request.repo, request.pr, placement); err != nil {
 		return err
 	}
-
-	locked, err := lockProbe(
-		setup.layout, request.owner, request.repo, setup.dir, setup.round.ProfileID)
+	finished, warning, err := underProbeLock(setup, request, func() (*finishedProbe, error) {
+		performed, measured, err := gapRuns(setup, request, placement)
+		if err != nil {
+			return nil, err
+		}
+		// §5.1.6's check, now that the suite has finished and the probe
+		// file is off disk again. A check run before the removal would
+		// find every gap probe's own test file and void every gap probe.
+		unclean, err := sandbox.Unclean(setup.src, setup.glob)
+		if err != nil {
+			return nil, err
+		}
+		outcome := probe.Decide(probe.GapLadder(measured), unclean)
+		record := &probe.Record{
+			ID:          reserved,
+			Kind:        probe.Gap,
+			Input:       request.test,
+			Filter:      request.filter,
+			Result:      outcome.Result(),
+			TestsRun:    measured.TestsRun,
+			TestsFailed: measured.TestsFailed,
+			Target:      request.target,
+			Baseline:    performed.baseline.ID(),
+			DurationMS:  performed.durationMS,
+			OutputTail:  performed.outputTail,
+		}
+		return storeProbe(setup, request, &finishedProbe{
+			performed: performed, record: record, outcome: outcome, unclean: unclean,
+			establishes: gapEstablishedBy(record),
+		})
+	})
 	if err != nil {
 		return err
 	}
-	performed, measured, err := gapRuns(setup, request, placement)
-	if err := errors.Join(err, locked.Unlock()); err != nil {
-		return err
-	}
-
-	// §5.1.6's check, now that the suite has finished and the probe file
-	// is off disk again. A check run before the removal would find every
-	// gap probe's own test file and void every gap probe.
-	unclean, err := sandbox.Unclean(setup.src, setup.glob)
-	if err != nil {
-		return err
-	}
-	outcome := probe.Decide(probe.GapLadder(measured), unclean)
-	record := &probe.Record{
-		ID:          reserved,
-		Kind:        probe.Gap,
-		Input:       request.test,
-		Filter:      request.filter,
-		Result:      outcome.Result(),
-		TestsRun:    measured.TestsRun,
-		TestsFailed: measured.TestsFailed,
-		Target:      request.target,
-		Baseline:    performed.baseline.ID(),
-		DurationMS:  performed.durationMS,
-		OutputTail:  performed.outputTail,
-	}
-	return finishProbe(out, setup, request, performed, record, outcome, unclean,
-		gapEstablishedBy(record), locked.CollisionWarning())
+	return reportProbe(out, setup, request, finished, warning)
 }
 
-// finishProbe writes §5.5's record, applies §5.1.7's third consequence, and
-// reports.
+// finishedProbe is what a probe's locked half hands to its report: the stored
+// record, what it was decided from, and the ids its write allocated.
+type finishedProbe struct {
+	performed *performedProbe
+	record    *probe.Record
+	outcome   probe.Outcome
+	// unclean is §5.1.6's post-run answer, and establishes what the result
+	// may be read for.
+	unclean, establishes string
+	// runID and probeID are what recordProbe allocated.
+	runID, probeID string
+}
+
+// storeProbe writes §5.5's record and applies §5.1.7's third consequence.
 //
 // It is shared by both kinds because none of it differs between them: the
-// contamination flag, the ordering of the record against the recreation, and
-// the payload are the same acts on the same values. What differs — which ladder
-// read the run, and what the result may be read for — is settled by the caller
-// before it gets here.
-func finishProbe(
-	out *writer, setup *probeSetup, request *probeRequest, performed *performedProbe,
-	record *probe.Record, outcome probe.Outcome, unclean, establishes, warning string,
-) error {
-	if performed.underProbe != nil {
-		performed.underProbe.Contaminated = unclean != ""
+// contamination flag and the ordering of the record against the recreation are
+// the same acts on the same values. What differs — which ladder read the run,
+// and what the result may be read for — is settled by the caller before it gets
+// here. It runs inside §5.6.1's lock, so the record §5.6.4 counts has landed
+// before the next run holding the lock counts it.
+func storeProbe(
+	setup *probeSetup, request *probeRequest, finished *finishedProbe,
+) (*finishedProbe, error) {
+	if finished.performed.underProbe != nil {
+		finished.performed.underProbe.Contaminated = finished.unclean != ""
 	}
 	runID, probeID, err := recordProbe(
 		setup.layout, request.owner, request.repo, request.pr,
-		setup.stamp, performed.underProbe, record)
+		setup.stamp, finished.performed.underProbe, finished.record)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	finished.runID, finished.probeID = runID, probeID
 	// §5.1.7: a voided probe forces recreation before the next run. It
 	// happens after the record lands, so the evidence the check found is
 	// on disk before the sandbox it describes is rebuilt.
-	if outcome.Voided() {
+	if finished.outcome.Voided() {
 		if err := sandbox.ForceRecreation(setup.src); err != nil {
-			return err
+			return nil, err
 		}
 	}
+	return finished, nil
+}
+
+// reportProbe emits what a stored probe run produced, once §5.6.1's lock has
+// been released.
+func reportProbe(
+	out *writer, setup *probeSetup, request *probeRequest, finished *finishedProbe, warning string,
+) error {
 	return out.emit(&probeRunResult{
-		Probe:       probeID,
-		Kind:        string(record.Kind),
+		Probe:       finished.probeID,
+		Kind:        string(finished.record.Kind),
 		Sandbox:     setup.ready.Path,
-		Command:     performed.command,
+		Command:     finished.performed.command,
 		Filter:      request.filter,
-		Result:      string(outcome.Result()),
-		Establishes: establishes,
-		Target:      record.Target,
-		Baseline:    performed.baseline.ID(),
-		Run:         runID,
-		Voided:      unclean,
+		Result:      string(finished.outcome.Result()),
+		Establishes: finished.establishes,
+		Target:      finished.record.Target,
+		Baseline:    finished.performed.baseline.ID(),
+		Run:         finished.runID,
+		Voided:      finished.unclean,
 		Warnings:    []string{warning},
 		Honesty:     probeDisclosures(setup),
 	})
@@ -1016,6 +1083,18 @@ func appendProbe(
 	stored, err := state.ReadRecords[probe.Record](layout, owner, repo, pr, state.FileProbes)
 	if err != nil {
 		return "", "", err
+	}
+	// §5.6.4 once more, at the write, where §2.3.1's lock makes the count
+	// exact. §5.6.1's lock is named after the repository's path, so two cr
+	// runs from two checkouts of one pull request hold different probe
+	// locks and write the same probes.ndjson; this is the check neither
+	// lock covers. Such a run has been performed, and its refusal says so.
+	capped, err := roundCap(layout, owner, repo, stored, at.Round)
+	if err != nil {
+		return "", "", err
+	}
+	if capped.Reached() {
+		return "", "", &probe.RoundCapReachedError{Cap: capped, Performed: true}
 	}
 	switch next := probe.NextID(stored); {
 	case record.ID == "":

@@ -108,9 +108,19 @@ type RoundCapReachedError struct {
 	// Cap is the decision that refused the run, so the count and the cap
 	// reach a caller as numbers and not only as text inside a message.
 	Cap RoundCap
+	// Performed marks a refusal met at the record's write rather than
+	// before the run: the run was performed and its record is what is
+	// refused, so the message must not say that nothing was run.
+	Performed bool
 }
 
 func (e *RoundCapReachedError) Error() string {
+	if e.Performed {
+		return fmt.Sprintf(
+			"%s: this run's record would be number %d, so it was not stored; raise %s, or open a "+
+				"new round with cr brief when the head moves",
+			e.Cap.Disclosure(), e.Cap.Count+1, setting)
+	}
 	return fmt.Sprintf(
 		"%s: this run would be number %d, so nothing was run; raise %s, or open a new round "+
 			"with cr brief when the head moves",
