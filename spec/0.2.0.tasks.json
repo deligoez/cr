@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-14T19:51:39.659223Z",
+  "updated_at": "2026-09-14T20:58:51.478623Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 5,
+    "mapped_sections": 9,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -26,11 +26,9 @@
       "### 2.3 Per-PR state",
       "### 2.4 Profiles",
       "### 2.5 Roles",
-      "### 2.6 Rules",
       "#### 2.6.1 Detection",
       "#### 2.6.2 Fixes",
       "#### 2.6.3 Harvesting",
-      "### 2.7 Configuration layers",
       "## 3. Inputs",
       "### 3.1 Intent source",
       "### 3.2 Issue key resolution",
@@ -68,10 +66,8 @@
       "### 8.5 Confirmation gate",
       "## 9. Record states",
       "### 9.1 States",
-      "### 9.2 Anchors",
       "## 10. Reporting and completeness",
       "### 10.1 Coverage report",
-      "### 10.2 Completeness",
       "### 10.3 Round summary",
       "## 11. Command surface",
       "### 11.1 Global flags",
@@ -210,6 +206,114 @@
         "internal/cli/reconcile.go",
         "internal/cli/regenerate.go",
         "internal/cli/send.go"
+      ]
+    },
+    {
+      "id": "qa2-protected-settings-all-commands",
+      "title": "Refuse protected config keys on every command",
+      "status": "done",
+      "tags": [
+        "v0.2",
+        "qa2"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- Every command that resolves configuration or a profile refuses a protected setting the way `cr config` does: a config key such as `grading.argued` in any layer and a profile field such as `forcing` are refused with exit code 3 naming the file and key, on `cr record`, `cr merge`, `cr cells record`, `cr claims record`, `cr map record`, `cr waivers list`, `cr context`, `cr answer` and `cr claims set-aside`, as they already are on `cr brief`, `cr draft` and `cr post` (repro: qa-v020/results-V1a.md, D-V1a-6).\n- One table-driven internal/cli test drives each of those commands with the key in a config layer and with the field in the resolved profile, and asserts the exit code and the named key. A command that resolves neither configuration nor a profile is named in the test as exempt, with the reason.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 2.7 Configuration layers"
+      ],
+      "started_at": "2026-09-14T20:20:33.650587Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T20:55:42.631894Z",
+      "closed_reason": "- Every command now refuses a protected config key in either config layer and a protected profile field with exit 3 naming the file and the key: the root PersistentPreRunE calls refuseProtected (internal/cli/root.go), which after config.CheckEnviron runs config.CheckFile on the global config and on the per-repository config repoOf locates (internal/config/config.go) and profile.CheckDir over every profile file (internal/profile/profile.go), so cr record, cr merge, cr cells record, cr claims record, cr map record, cr waivers list, cr context, cr answer and cr claims set-aside refuse exactly as cr brief, cr draft and cr post do; dogfooded with grading.argued in the global config, where cr waivers list and cr record exit 3 with the config.json path and key, while cr --version, and cr init and cr config on a clean home, still exit 0.\n- TestEveryCommandRefusesAProtectedConfigKeyOrProfileField (internal/cli/protectedsettings_test.go) is table-driven over the global config, the per-repository config and a profile file and drives every runnable command of the tree, asserting the ProtectedError name, exit 3, the message prefixed with the file and an unchanged state tree, and requires the walk to reach each command QA named; it failed 104 subtests at c5a0b06 (33 global config, 33 repository config, 38 profile), and a go test -overlay mutant skipping the repository layer turned 33 repository-config subtests red and nothing else.\n- The same test names cr --version and cr --help as exempt in exemptFromProtectedSettings, with the reason that cobra answers both before any hook and reads no layer, and asserts both exit 0 with every protected file in place.\n- The race suite (go test -race -count=1 over the whole module), golangci-lint, scripts/deadcode.sh and Go 1.27.1 gofmt all passed on a git archive of c1772ce, with deadcode listing 11 lines; TestNoChannelOverridesTheArguedForcing in internal/cli/unoverridable_test.go now asserts cr record and cr draft refuse the protected profile field instead of running past it.\n",
+      "gate_passed_at": "2026-09-14T20:55:42.631894Z",
+      "commit_sha": "ec33676",
+      "commit_shas": [
+        "ec33676",
+        "d8e72a0",
+        "a8a7bd3",
+        "21d74c1",
+        "c1772ce"
+      ],
+      "commit_files": [
+        "internal/cli/protectedsettings_test.go",
+        "internal/cli/root.go",
+        "internal/cli/unoverridable_test.go",
+        "internal/config/config.go",
+        "internal/profile/profile.go"
+      ]
+    },
+    {
+      "id": "qa2-draft-anchor-edit-rules",
+      "title": "Apply record's anchor rules to marker edits",
+      "status": "done",
+      "tags": [
+        "v0.2",
+        "qa2"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- A marker edit to `path`, `side`, `start_line` or `line` is refused by `cr draft` exactly where `cr record` refuses the same anchor, with exit code 1 naming the record id: a LEFT anchor on a merge-base line the diff did not remove (repro D-V2-1 in qa-v020/results-V2.md) and a RIGHT anchor on a unit that only removes lines (repro D-V3-1 in qa-v020/results-V3.md), with nothing stored.\n- A marker edit that `cr record` would accept is still accepted and re-anchored. Both directions are proven through `cr draft` in internal/cli tests sharing the check `cr record` uses, not a copy of it.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 7.2 Triage verbs",
+        "### 9.2 Anchors"
+      ],
+      "started_at": "2026-09-14T20:33:50.732997Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T20:58:51.46927Z",
+      "closed_reason": "- cr draft now refuses a marker edit to path, side, start_line or line exactly where cr record refuses the same anchor: draft.Draft carries Unchanged, which markerEdit.anchor (internal/draft/edits.go) asks of the moved anchor once it resolves, and ingestDraft supplies it as unchangedAnchors (internal/cli/anchorunit.go), which calls refuseUnchangedLines, the check cr record and cr merge run; TestAMarkerEditIsHeldToTheAnchorRulesOfRecord drives cr draft on removalHome for a LEFT anchor moved onto base line 9, a context line (D-V2-1), and a RIGHT anchor moved onto head lines 7-8 of the deletion-only unit (D-V3-1), asserting the whole MarkerEditError with record f1, the draft line and cr record's own Problem, exit 1, findings.ndjson unchanged and the draft left as saved; both subtests were red at HEAD before the change (cr draft exit 0).\n- A marker edit cr record accepts is still accepted and re-anchored: the same test moves the anchor to removed base line 8, which cr record accepts, and cr draft stores LEFT 8-8 with the recomputed hash, and TestAnEditedSideIsReValidatedAgainstTheTreeItNames now moves a RIGHT anchor on longFileHome's rewrite to base line 3 and stores LEFT 3-3 with the merge-base hash.\n- Both directions run through cr draft in internal/cli tests that call the shared refuseUnchangedLines rather than a copy, and each refusal subtest first takes the Problem from cr record on the same anchor; overlay mutants skipping the call or never reading the hunks for a LEFT anchor each turned these tests red, and since cr post reads the draft through the same row TestAMarkerMovedOntoALineTheDiffDidNotRemoveIsRefusedAtPost now expects that MarkerEditError.\n- go test -race -count=1 over the whole tree passed through the gate lock (30 packages ok), golangci-lint run reported 0 issues, scripts/deadcode.sh passed, Go 1.27.1 gofmt -l printed nothing, and deadcode stays at 11 lines.\n",
+      "gate_passed_at": "2026-09-14T20:58:51.46927Z",
+      "commit_sha": "a26d95c",
+      "commit_shas": [
+        "a26d95c"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/draftanchorrules_test.go",
+        "internal/cli/draftside_test.go",
+        "internal/cli/regenerate.go",
+        "internal/cli/unchangedanchor_test.go",
+        "internal/draft/edits.go",
+        "internal/draft/ingest.go"
+      ]
+    },
+    {
+      "id": "qa2-low-message-fixes",
+      "title": "Correct four stale labels and hints",
+      "status": "done",
+      "tags": [
+        "v0.2",
+        "qa2"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 30,
+      "acceptance": "- The completeness reason for claims or mapping not recorded names §10.2.5, not §4.6.5 (D-V1a-2/D-V3-2), and a rule `detect.mode` refusal names v0.2 (D-V3-4); tests assert the whole message.\n- The refusal of a draft whose marker lacks `side` gives a hint that works: it names adding `side` to each marker, not re-running `cr draft`, which refuses the same file (D-V3-3); a test asserts the hint.\n- In a terminal, `cr brief`'s drift report for a note-sourced claim says the span occurs in the note, matching the JSON (D-V1a-7); a test asserts the text. go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 10.2 Completeness",
+        "### 2.6 Rules",
+        "### 7.1 Draft format"
+      ],
+      "started_at": "2026-09-14T20:34:02.600335Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T20:49:48.34483Z",
+      "closed_reason": "- cr status's completeness reason for an intent pass missing its claims, its mapping or both now names §10.2.5 instead of §4.6.5 (intentReason in internal/coverage/completeness.go), and a rule whose detect.mode is not regex is refused with \"§2.6.1.2 admits only \"regex\" in v0.2\" (internal/rule/compile.go), dogfooded with /tmp/cr-dev/cr-qa2-low-message-fixes rules list on a scratch home holding a glob rule: exit 3 naming v0.2.\n- Tests assert the whole message: TestARoundIsNotCompleteUntilItsIntentPassIsRecorded and TestAnEmptyClaimsFileRecordedSatisfiesTheIntentPass assert every whole reason through cr status, and TestRulesListRefusesARuleWhoseDetectBlockCannotRun asserts the whole MalformedError through cr rules list.\n- The draft.MalformedMarkerError row in internal/cli/exit.go no longer offers running cr draft again; its hint says to repair the marker to the grammar the message prints and, for a draft cr v0.1 rendered, to add each record's anchor side (side=\"RIGHT\" or side=\"LEFT\") between path and start_line in every marker.\n- A test asserts the hint: TestAMarkerWithoutASideIsRefusedNamingTheRecordAndTheGrammar in internal/cli/draftside_test.go asserts that whole hint for both cr draft and cr post, and under a go test -overlay of the old hint both subtests go red.\n- cr brief's terminal drift line for a claim whose source is note now reads \"span still occurs in note \u003cnote id\u003e\" (or \"no longer occurs in note \u003cnote id\u003e\"), keyed from the claim's source and note_id in briefResult.claims in internal/cli/brief.go, matching the JSON span_occurs, while a tracker claim keeps \"the issue text\".\n- A test asserts the text: TestTheDriftReportChecksANoteClaimAgainstItsNote drives cr brief through a pseudo-terminal after the issue text moves and asserts both drift lines whole beside the JSON span_occurs, and an overlay that drops the note source turns it red.\n- go test -race -count=1 of the edited packages passes as part of the full gate run, Go 1.27.1 gofmt -l prints nothing, golangci-lint reports 0 issues, and deadcode ./... stays at 11 lines.\n",
+      "gate_passed_at": "2026-09-14T20:49:48.34483Z",
+      "commit_sha": "9de0f5b",
+      "commit_shas": [
+        "9de0f5b"
+      ],
+      "commit_files": [
+        "internal/cli/brief.go",
+        "internal/cli/completenessreasons_test.go",
+        "internal/cli/draftside_test.go",
+        "internal/cli/emptyclaims_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/noteclaimsretraction_test.go",
+        "internal/cli/ruledetectload_test.go",
+        "internal/coverage/completeness.go",
+        "internal/rule/compile.go",
+        "internal/rule/compile_test.go",
+        "internal/rule/rule.go"
       ]
     }
   ]
