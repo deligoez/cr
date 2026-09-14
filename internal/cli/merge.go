@@ -432,6 +432,9 @@ func readPerRole(
 		if err != nil {
 			return nil, err
 		}
+		if err := refuseUnremovedLeftAnchors(owner, repo, pr, round, file, body, read); err != nil {
+			return nil, err
+		}
 		if err := stampAnchors(owner, repo, pr, round, file, body, read); err != nil {
 			return nil, err
 		}

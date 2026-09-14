@@ -92,6 +92,12 @@ type Hunk struct {
 	Side Side
 	// Changed holds the hunk's changed lines in ascending line order.
 	Changed []ChangedLine
+	// Removed holds the merge-base numbers of every line the hunk removes,
+	// in ascending order, whichever side Changed is on. §9.2.1 lets a LEFT
+	// anchor name only a removed line, and a modification's removed half is
+	// in no Changed, while the context lines BaseStart and BaseLines cover
+	// were removed by nobody.
+	Removed []int
 }
 
 // HeadRange returns the hunk's head-side line range, both ends inclusive.
@@ -199,7 +205,7 @@ func parse(patch string) ([]Hunk, []string, error) {
 				return nil, nil, fmt.Errorf("diff line %d: %q is not a hunk line", n+1, line)
 			}
 			if baseLeft <= 0 && headLeft <= 0 {
-				current.Side, current.Changed = Right, added
+				current.Side, current.Changed, current.Removed = Right, added, lineNumbers(removed)
 				if len(added) == 0 {
 					current.Side, current.Changed = Left, removed
 				}
@@ -243,6 +249,15 @@ func parse(patch string) ([]Hunk, []string, error) {
 		return nil, nil, fmt.Errorf("the patch ends inside the hunk at %s:%d", current.Path, current.HeadStart)
 	}
 	return hunks, texts, nil
+}
+
+// lineNumbers is the numbers of lines, in their order.
+func lineNumbers(lines []ChangedLine) []int {
+	numbers := make([]int, 0, len(lines))
+	for _, line := range lines {
+		numbers = append(numbers, line.Line)
+	}
+	return numbers
 }
 
 // headerPath reads the path out of a --- or +++ file header.

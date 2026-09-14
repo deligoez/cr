@@ -48,7 +48,8 @@ func spelled[T ~string](values []T) []string {
 // decoder accepts for kind, severity, suggestion_origin and side, and every key
 // of the anchor object; and records written from nothing but what each prompt
 // states — its unit's path, every kind, severity and side it names, the lowest
-// start_line it allows — to the output path it names pass `cr merge` (audit
+// start_line it allows, and for LEFT a line its hunk shows removed — to the
+// output path it names pass `cr merge` (audit
 // round 14's list-25-2, where the prompt carried field names only and a role
 // could not write a valid anchor).
 func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
@@ -82,6 +83,18 @@ func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 		var first int
 		_, err := fmt.Sscanf(startLine, "an integer, %d or greater", &first)
 		require.NoError(t, err)
+		// §9.2.1 lets a LEFT anchor name a removed line only, which cr merge
+		// refuses otherwise, and the prompt shows the unit's hunks: a LEFT
+		// record anchors on the first line the first of them removes, and a
+		// RIGHT one on the lowest start_line the prompt allows.
+		_, block, found := strings.Cut(text, "```diff\n")
+		require.True(t, found, "the prompt shows the unit's hunks")
+		block, _, _ = strings.Cut(block, "\n```")
+		shown, err := git.ParseHunks(block + "\n")
+		require.NoError(t, err)
+		require.NotEmpty(t, shown)
+		require.NotEmpty(t, shown[0].Removed, "the fixture's hunk removes a line")
+		lineOn := map[string]int{string(git.Right): first, string(git.Left): shown[0].Removed[0]}
 
 		var body strings.Builder
 		for _, kind := range kinds {
@@ -91,7 +104,7 @@ func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 					line, err := json.Marshal(map[string]any{
 						"id": "f" + strconv.Itoa(id), "kind": kind, "role": prompt.Role,
 						"class": "unchecked-error", "severity": severity, "unit": prompt.Unit,
-						"anchor":  map[string]any{"path": path, "side": side, "start_line": first, "line": first},
+						"anchor":  map[string]any{"path": path, "side": side, "start_line": lineOn[side], "line": lineOn[side]},
 						"summary": "The error Load returns is dropped.", "evidence": "Nothing reads the result.",
 					})
 					require.NoError(t, err)

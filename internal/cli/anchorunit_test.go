@@ -94,18 +94,21 @@ func TestAForgeryAfterALeftAnchorIsStillRefused(t *testing.T) {
 // reaches head coordinates only through the hunk that removed it, so a LEFT
 // anchor whose lines no hunk removed has no head location and is inside no
 // unit. The straddle is the case a check of the two ends alone would pass: both
-// lie in the unit, the lines between them do not.
+// lie in the unit, the lines between them do not. A hunk's context lines are
+// inside its merge-base range and were removed by nobody, so §9.2.1 gives a
+// LEFT anchor on one of them no hunk either.
 func TestAnAnchorIsInsideItsUnitOnlyWhenEveryLineIsInHeadCoordinates(t *testing.T) {
 	own := &unit.Unit{
 		Path:       "lib.go",
 		HunkRanges: []unit.Range{{Start: 1, End: 7}, {Start: 20, End: 26}},
 	}
-	// The first hunk rewrote base lines 1 to 3 into head lines 1 to 7; the
-	// second removed base lines 30 to 32, leaving head lines 20 to 26 as its
-	// context.
+	// The first hunk rewrote base lines 1 and 3, keeping line 2 between
+	// them, into head lines 1 to 7; the second removed base lines 30 to 32,
+	// leaving base lines 28, 29, 33 and 34 as its context and head lines 20
+	// to 26 as its range.
 	hunks := []git.Hunk{
-		{Path: "lib.go", BaseStart: 1, BaseLines: 3, HeadStart: 1, HeadLines: 7},
-		{Path: "lib.go", BaseStart: 28, BaseLines: 7, HeadStart: 20, HeadLines: 7},
+		{Path: "lib.go", BaseStart: 1, BaseLines: 3, HeadStart: 1, HeadLines: 7, Removed: []int{1, 3}},
+		{Path: "lib.go", BaseStart: 28, BaseLines: 7, HeadStart: 20, HeadLines: 7, Removed: []int{30, 31, 32}},
 	}
 	for name, tc := range map[string]struct {
 		anchor finding.Anchor
@@ -123,21 +126,35 @@ func TestAnAnchorIsInsideItsUnitOnlyWhenEveryLineIsInHeadCoordinates(t *testing.
 		"a LEFT anchor on lines a hunk removed": {
 			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 30, Line: 32}, own, true,
 		},
-		// The hunk's first and last merge-base lines are its own, and the line
-		// after the last is the next hunk's or no hunk's: a record anchored
-		// there has no head location, so it is refused rather than measured
-		// against a unit it was never in.
-		"a LEFT anchor on a hunk's first merge-base line": {
-			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 28, Line: 28}, own, true,
+		// The hunk's first and last removed lines are its own, and the context
+		// line on either side of them is the hunk's range and nobody's removal:
+		// a record anchored there has no head location, so it is refused rather
+		// than measured against a unit it was never in.
+		"a LEFT anchor on a hunk's first removed line": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 30, Line: 30}, own, true,
 		},
-		"a LEFT anchor on a hunk's last merge-base line": {
-			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 34, Line: 34}, own, true,
+		"a LEFT anchor on a hunk's last removed line": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 32, Line: 32}, own, true,
+		},
+		"a LEFT anchor on a hunk's leading context line": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 29, Line: 29}, own, false,
+		},
+		"a LEFT anchor on a hunk's trailing context line": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 33, Line: 33}, own, false,
 		},
 		"a LEFT anchor one line past a hunk's merge-base lines": {
 			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 35, Line: 35}, own, false,
 		},
-		"a LEFT anchor running one line past a hunk's merge-base lines": {
-			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 30, Line: 35}, own, false,
+		"a LEFT anchor running one line past a hunk's removed lines": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 30, Line: 33}, own, false,
+		},
+		"a LEFT anchor on a hunk's one removed line after its context": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 3, Line: 3}, own, true,
+		},
+		// Both ends are removed lines of one hunk and the line between them is
+		// its context, so the anchor is not removed lines only.
+		"a LEFT anchor spanning a context line between two removed lines": {
+			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 1, Line: 3}, own, false,
 		},
 		"a LEFT anchor on lines no hunk removed": {
 			finding.Anchor{Path: "lib.go", Side: git.Left, StartLine: 10, Line: 10}, own, false,

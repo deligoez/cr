@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
@@ -25,19 +26,21 @@ import (
 // carried into head coordinates through the hunk that removed them — its
 // head-side range, which is where §6.2.1 places a hunk's changed lines — and the
 // round's diff is read only when some record carries such an anchor.
+//
+// A LEFT anchor on lines no hunk removed is refused first, with its own reason,
+// the refusal `cr merge` makes through refuseUnremovedLeftAnchors.
 func refuseForeignAnchors(
 	owner, repo string, pr int, round *state.Meta, file string, body []byte,
 	formed []roundUnit, records []*finding.Finding,
 ) error {
+	hunks, err := leftAnchorHunks(owner, repo, pr, round.Head, records)
+	if err != nil {
+		return err
+	}
 	at := state.RecordLines(body)
-	var hunks []git.Hunk
 	for i, record := range records {
-		if record.Anchor.Side == git.Left && hunks == nil {
-			read, err := roundHunks(owner, repo, pr, round.Head)
-			if err != nil {
-				return err
-			}
-			hunks = read
+		if err := refuseUnremovedLeft(file, at[i], record, hunks); err != nil {
+			return err
 		}
 		if !anchorInsideUnit(&record.Anchor, unitOf(formed, record.Unit), hunks) {
 			return &finding.RejectedRecordError{
@@ -51,6 +54,61 @@ func refuseForeignAnchors(
 		}
 	}
 	return nil
+}
+
+// refuseUnremovedLeftAnchors rejects a record whose LEFT anchor names a
+// merge-base line the round's diff did not remove.
+//
+// §9.2.1 has LEFT anchor a removed line and nothing else. A context line of a
+// hunk, or a line outside every hunk, is a line GitHub shows on the RIGHT if at
+// all, and a review comment sent to it on the LEFT is refused by the
+// review-creation call, which loses the whole round's review over one position.
+// `cr merge` and `cr record` both refuse it, naming the file's line, so no draft
+// and no payload ever carries one.
+func refuseUnremovedLeftAnchors(
+	owner, repo string, pr int, round *state.Meta, file string, body []byte, records []*finding.Finding,
+) error {
+	hunks, err := leftAnchorHunks(owner, repo, pr, round.Head, records)
+	if err != nil {
+		return err
+	}
+	at := state.RecordLines(body)
+	for i, record := range records {
+		if err := refuseUnremovedLeft(file, at[i], record, hunks); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// leftAnchorHunks reads the round's hunks when some record carries a LEFT
+// anchor, and nothing otherwise: a RIGHT anchor needs no diff to be measured.
+func leftAnchorHunks(owner, repo string, pr int, head string, records []*finding.Finding) ([]git.Hunk, error) {
+	for _, record := range records {
+		if record.Anchor.Side == git.Left {
+			return roundHunks(owner, repo, pr, head)
+		}
+	}
+	return nil, nil
+}
+
+// refuseUnremovedLeft is §9.2.1's refusal for one record on line of file.
+func refuseUnremovedLeft(file string, line int, record *finding.Finding, hunks []git.Hunk) error {
+	anchor := &record.Anchor
+	if anchor.Side != git.Left {
+		return nil
+	}
+	if _, _, found := removedHeadRange(anchor, hunks); found {
+		return nil
+	}
+	return &finding.RejectedRecordError{
+		File: file, Line: line, Field: "anchor",
+		Problem: fmt.Sprintf(
+			"of record %s is %s %s:%d-%d, and the round's diff does not remove every one of those merge-base lines; "+
+				"§9.2.1 has a LEFT anchor name removed lines only, so anchor a line the change kept or added on the RIGHT, at its head line",
+			record.ID, anchor.Side, anchor.Path, anchor.StartLine, anchor.Line,
+		),
+	}
 }
 
 // anchorInsideUnit reports whether every line of the anchor lies inside own, in
@@ -80,17 +138,26 @@ func anchorInsideUnit(anchor *finding.Anchor, own finding.Containment, hunks []g
 	return true
 }
 
-// removedHeadRange is the head-side range of the hunk whose merge-base lines
-// hold a LEFT anchor whole, and false when no hunk of the round's diff removed
-// those lines.
+// removedHeadRange is the head-side range of the hunk that removed every
+// merge-base line of a LEFT anchor, and false when no one hunk of the round's
+// diff removed them all.
+//
+// A hunk's merge-base range, BaseStart for BaseLines, holds its context lines as
+// well as its removed ones, so it is not asked: a context line was removed by
+// nobody. Removed is ascending and holds no number twice, so the anchor's lines
+// are all in it exactly when its first line is and its last line sits as far
+// past the first in Removed as in the file. A last line Removed lacks indexes
+// at -1, which lies before the first, and finding.ValidateAnchor has already
+// refused an anchor whose line lies before its start_line.
 func removedHeadRange(anchor *finding.Anchor, hunks []git.Hunk) (start, end int, found bool) {
 	for i := range hunks {
 		hunk := &hunks[i]
-		if hunk.Path != anchor.Path || hunk.BaseLines == 0 {
+		if hunk.Path != anchor.Path {
 			continue
 		}
-		last := hunk.BaseStart + hunk.BaseLines - 1
-		if anchor.StartLine >= hunk.BaseStart && anchor.Line <= last {
+		first := slices.Index(hunk.Removed, anchor.StartLine)
+		last := slices.Index(hunk.Removed, anchor.Line)
+		if first >= 0 && last-first == anchor.Line-anchor.StartLine {
 			start, end = hunk.HeadRange()
 			return start, end, true
 		}

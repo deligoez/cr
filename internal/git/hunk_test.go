@@ -51,6 +51,7 @@ func TestChangedLinesCarryTheSideTheyAreNumberedOn(t *testing.T) {
 	adds := byPath["added.txt"]
 	assert.Equal(t, Right, adds.Side)
 	assert.Equal(t, []ChangedLine{{Side: Right, Line: 4, Text: "the added line"}}, adds.Changed)
+	assert.Equal(t, []int{}, adds.Removed, "a hunk that only adds removes nothing")
 
 	// A unified diff has no marker for a modification: an edited line is a
 	// removal and an addition standing together. The head-side half is the
@@ -59,6 +60,9 @@ func TestChangedLinesCarryTheSideTheyAreNumberedOn(t *testing.T) {
 	modifies := byPath["modified.txt"]
 	assert.Equal(t, Right, modifies.Side)
 	assert.Equal(t, []ChangedLine{{Side: Right, Line: 2, Text: "the modified line"}}, modifies.Changed)
+	// The replaced pre-image is still a removed line, and it is the only line
+	// of the hunk a LEFT anchor may name: base lines 1 and 3 are context.
+	assert.Equal(t, []int{2}, modifies.Removed)
 
 	// A hunk that adds none has nothing at the head to point at, so it is
 	// its removed lines, numbered in the merge base. Line 5 is where "5"
@@ -66,6 +70,7 @@ func TestChangedLinesCarryTheSideTheyAreNumberedOn(t *testing.T) {
 	removes := byPath["removed.txt"]
 	assert.Equal(t, Left, removes.Side)
 	assert.Equal(t, []ChangedLine{{Side: Left, Line: 5, Text: "5"}}, removes.Changed)
+	assert.Equal(t, []int{5}, removes.Removed)
 }
 
 // The header shapes that hide an off-by-one, and the content shapes that look
@@ -91,6 +96,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 				Path: "tiny.txt", BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 2,
 				Side:    Right,
 				Changed: []ChangedLine{{Side: Right, Line: 2, Text: "two"}},
+				Removed: []int{},
 			}},
 		},
 		{
@@ -107,6 +113,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 				Path: "keep.txt", BaseStart: 1, BaseLines: 3, HeadStart: 1, HeadLines: 4,
 				Side:    Right,
 				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "the new first line"}},
+				Removed: []int{},
 			}},
 		},
 		{
@@ -124,6 +131,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 					{Side: Right, Line: 1, Text: "first"},
 					{Side: Right, Line: 2, Text: "second"},
 				},
+				Removed: []int{},
 			}},
 		},
 		{
@@ -143,6 +151,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 					{Side: Right, Line: 43, Text: "two"},
 					{Side: Right, Line: 44, Text: "three"},
 				},
+				Removed: []int{},
 			}},
 		},
 		{
@@ -162,6 +171,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 					{Side: Left, Line: 2, Text: "y"},
 					{Side: Left, Line: 3, Text: "z"},
 				},
+				Removed: []int{1, 2, 3},
 			}},
 		},
 		{
@@ -178,6 +188,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 				Path: "tail.txt", BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 1,
 				Side:    Right,
 				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "the last line, edited"}},
+				Removed: []int{1},
 			}},
 		},
 		{
@@ -201,6 +212,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 					{Side: Right, Line: 4, Text: "@@ -1 +1 @@"},
 					{Side: Right, Line: 5, Text: "-old"},
 				},
+				Removed: []int{},
 			}},
 		},
 		{
@@ -210,6 +222,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 				Path: "with space.txt", BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 1,
 				Side:    Right,
 				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "new"}},
+				Removed: []int{1},
 			}},
 		},
 		{
@@ -224,6 +237,7 @@ func TestTheAwkwardShapesOfAHunk(t *testing.T) {
 				Path: `we"ird.txt`, BaseStart: 1, BaseLines: 1, HeadStart: 1, HeadLines: 1,
 				Side:    Right,
 				Changed: []ChangedLine{{Side: Right, Line: 1, Text: "new"}},
+				Removed: []int{1},
 			}},
 		},
 		{
