@@ -27,11 +27,21 @@ import (
 // §8.4.2 and §8.4.4 untested, and that fork is the whole of criterion one.
 //
 // It returns the state root and the §8.4.3 hash of the payload that was sent.
+// The payload names no commit_id, as a posted.json written before cr sent one
+// does; anUnresolvedPostingAt writes one.
 func anUnresolvedPosting(t *testing.T) (layout state.Layout, hash string) {
+	t.Helper()
+	return anUnresolvedPostingAt(t, "")
+}
+
+// anUnresolvedPostingAt is anUnresolvedPosting over a payload whose commit_id
+// is commit.
+func anUnresolvedPostingAt(t *testing.T, commit string) (layout state.Layout, hash string) {
 	t.Helper()
 	layout = draftedHome(t,
 		aStoredRecord("f1", finding.StateQueued), aStoredRecord("f2", finding.StateQueued))
 	review := aPostedReview()
+	review.CommitID = commit
 	_, err := writePosted(layout, draftOwner, draftRepo, draftPRNum, draftRound, review)
 	require.NoError(t, err)
 

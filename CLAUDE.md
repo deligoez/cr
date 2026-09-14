@@ -763,9 +763,9 @@ Mirrors tp so the experience transfers.
   differ's output instead of a unified diff. §2.1.1 requires the same inputs to
   give the same result, and git reads a lot of ambient state.
 - **The review request body is the payload alone.** `cr post --confirm` hands gh
-  exactly `event`, `body` and `comments` on standard input (`--input -`), never
-  `posted.json`, whose records, discards and outcomes sections exist for
-  `--reconcile` and must not reach GitHub.
+  exactly `commit_id`, `event`, `body` and `comments` on standard input
+  (`--input -`), never `posted.json`, whose records, discards and outcomes
+  sections exist for `--reconcile` and must not reach GitHub.
 
 ## Distribution
 

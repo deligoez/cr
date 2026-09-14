@@ -128,7 +128,7 @@ func reconcilePost(out *writer, l state.Layout, round *state.Round) error {
 	if result.PayloadHash, err = sent.Hash(); err != nil {
 		return err
 	}
-	adopted, skipped, err := reviewCarrying(l, &round.Meta, result.PayloadHash)
+	adopted, skipped, err := reviewCarrying(l, &round.Meta, result.PayloadHash, sentAt(sent, &round.Meta))
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,11 @@ func postedPayload(l state.Layout, round *state.Meta) (*post.Sent, error) {
 // them would mean the round was posted twice already, which nothing this run
 // does can undo; adopting the earlier one is the answer that names the review
 // the author read first.
-func reviewCarrying(l state.Layout, round *state.Meta, hash string) (*gh.Review, []notAdopted, error) {
+//
+// commit is the commit the round's review was sent for, as sentAt reads it.
+func reviewCarrying(
+	l state.Layout, round *state.Meta, hash, commit string,
+) (*gh.Review, []notAdopted, error) {
 	reviews, err := ghClient().Reviews(round.Owner, round.Repo, round.PR)
 	if err != nil {
 		return nil, nil, err
@@ -236,7 +240,7 @@ func reviewCarrying(l state.Layout, round *state.Meta, hash string) (*gh.Review,
 		if embedded, found := render.PayloadHashIn(reviews[i].Body); !found || embedded != hash {
 			continue
 		}
-		if reason := notThisRounds(round, &reviews[i], index); reason != "" {
+		if reason := notThisRounds(round, commit, &reviews[i], index); reason != "" {
 			skipped = append(skipped, notAdopted{Review: reviews[i].URL, Reason: reason})
 			continue
 		}
@@ -250,22 +254,33 @@ func reviewCarrying(l state.Layout, round *state.Meta, hash string) (*gh.Review,
 //
 // A review §9.3.6's index already holds for an earlier round is that round's:
 // its records were posted in it. A review GitHub created at a commit other than
-// the round's head was not created by this round's call, which §9.3.2 sends only
-// while the pull request's head is the round's.
-func notThisRounds(round *state.Meta, review *gh.Review, index []finding.PostedEntry) string {
+// commit, the one the round's call named as its commit_id, was not created by
+// that call.
+func notThisRounds(round *state.Meta, commit string, review *gh.Review, index []finding.PostedEntry) string {
 	for _, entry := range index {
 		if entry.Review == review.ID && entry.Round < round.Round {
 			return fmt.Sprintf("the posted index already holds it for round %d", entry.Round)
 		}
 	}
 	if review.Commit.OID == "" {
-		return fmt.Sprintf("GitHub names no commit for it, so it is not shown to be at round %d's head %s",
-			round.Round, round.Head)
+		return fmt.Sprintf("GitHub names no commit for it, so it is not shown to be at %s, "+
+			"the commit round %d's review was sent for", commit, round.Round)
 	}
-	if review.Commit.OID != round.Head {
-		return fmt.Sprintf("its commit %s is not round %d's head %s", review.Commit.OID, round.Round, round.Head)
+	if review.Commit.OID != commit {
+		return fmt.Sprintf("its commit %s is not %s, the commit round %d's review was sent for",
+			review.Commit.OID, commit, round.Round)
 	}
 	return ""
+}
+
+// sentAt is the commit the round's review was sent for: the commit_id
+// posted.json stores, and the round's head for a posted.json written before cr
+// sent one, whose call ran while the pull request's head was the round's.
+func sentAt(sent *post.Sent, round *state.Meta) string {
+	if sent.CommitID != "" {
+		return sent.CommitID
+	}
+	return round.Head
 }
 
 // adoptAsPosted walks §9.1's `queued` → `posted` row over the records the

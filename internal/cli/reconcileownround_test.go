@@ -110,7 +110,7 @@ func TestReconcilePassesOverAReviewThatIsNotTheRoundsOwn(t *testing.T) {
 			review: reviewNode(roundOneReviewID, roundOneReviewURL, roundOneCommit, ""),
 			want: notAdopted{
 				Review: roundOneReviewURL,
-				Reason: "its commit " + roundOneCommit + " is not round 2's head " + draftHead,
+				Reason: "its commit " + roundOneCommit + " is not " + draftHead + ", the commit round 2's review was sent for",
 			},
 		},
 		{
@@ -120,7 +120,8 @@ func TestReconcilePassesOverAReviewThatIsNotTheRoundsOwn(t *testing.T) {
 			},
 			want: notAdopted{
 				Review: roundOneReviewURL,
-				Reason: "GitHub names no commit for it, so it is not shown to be at round 2's head " + draftHead,
+				Reason: "GitHub names no commit for it, so it is not shown to be at " + draftHead +
+					", the commit round 2's review was sent for",
 			},
 		},
 		{
@@ -198,7 +199,7 @@ func TestReconcileAdoptsTheRoundsOwnReviewPastOnesThatAreNot(t *testing.T) {
 	assert.Equal(t, adoptedReviewURL, report.Adopted)
 	assert.Equal(t, []string{"f1", "f2"}, report.Records)
 	assert.Equal(t, []notAdopted{
-		{Review: roundOneReviewURL, Reason: "its commit " + roundOneCommit + " is not round 2's head " + draftHead},
+		{Review: roundOneReviewURL, Reason: "its commit " + roundOneCommit + " is not " + draftHead + ", the commit round 2's review was sent for"},
 		{Review: earlierReviewURL, Reason: "the posted index already holds it for round 1"},
 	}, report.NotAdopted)
 	assert.False(t, report.Unresolved)

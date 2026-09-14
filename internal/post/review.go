@@ -58,6 +58,13 @@ type Comment struct {
 // Review is a round's single review: every comment it holds, and the review's
 // own body.
 type Review struct {
+	// CommitID is the round's head, the commit GitHub places every line
+	// comment against. Without it GitHub takes the pull request's head at
+	// the time of the call, and a head that moved after cr's stale-head
+	// check would carry the comments onto a diff cr never validated. It is
+	// a request field and nothing a reader sees: no comment body, the
+	// review body and the draft do not carry it.
+	CommitID string `json:"commit_id"`
 	// Event is §8.3.2's, written from the constant above and never from a
 	// caller. It is a field because the request document has one.
 	Event string `json:"event"`
@@ -125,7 +132,8 @@ func (r *Review) Payload() ([]byte, error) {
 // They live in this document rather than in one of their own for the reason
 // the returned thread ids do: §2.3's table gives a round one posted.json.
 type Sent struct {
-	// Review is the payload as it was sent.
+	// Review is the payload as it was sent, its commit_id included: the
+	// commit §8.4.4's match holds a review's commit against.
 	Review
 	// Records are the ids of the records the comments were drawn from, in
 	// payload order, as cr wrote them beside the payload.

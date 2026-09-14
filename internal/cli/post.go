@@ -612,6 +612,7 @@ func buildPayload(
 		return nil, err
 	}
 	review := post.Build(queued, bodies)
+	review.CommitID = round.Head
 	if err := discloseInBody(l, owner, repo, pr, round, review); err != nil {
 		return nil, err
 	}
