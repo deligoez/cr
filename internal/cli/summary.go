@@ -46,6 +46,12 @@ const (
 	// the only one that knows which it moved. Both write the section
 	// through keepForced.
 	ownerForcing summaryOwner = "cr record and cr draft"
+	// ownerComments is §1.6.2's comment count, which has two writers because
+	// §10.3 has `cr post` finalise what `cr draft` counted: the draft counts
+	// the comments it queues, and a confirmed `cr post` the comments the
+	// round's review carried once the draft's discards were read — none, when
+	// they took every record, through commentCount.
+	ownerComments summaryOwner = "cr draft, then cr post --confirm"
 )
 
 // The keys `rounds/<n>/summary.json` holds §10.3's counts under. Three more are
@@ -80,13 +86,16 @@ const (
 	// them in.
 	//
 	// They are §10.3's finalisation, written only once `cr post --confirm`
-	// has built a payload and sent it, or `--reconcile` has adopted the
-	// review that carried it — and absent otherwise, never null and never
-	// the dry run's hash. A round drafted and never posted, or run only
-	// through §8.5.1's dry run, sent no payload, so there is no hash that
-	// could honestly stand there: a dry-run hash would name a review nobody
-	// received, and a null would read as a count cr failed to take. Such a
-	// round keeps a summary without either key, and that unfinalised
+	// has built a payload and sent it, `--reconcile` has adopted the review
+	// that carried it, or `cr post --confirm` has settled a draft that
+	// discarded every queued record — and absent otherwise, never null and
+	// never the dry run's hash. The settled round built no payload, so its
+	// hash is empty and its posted count zero, which no sent review can
+	// carry. A round drafted and never posted, or run only through §8.5.1's
+	// dry run, sent no payload and was never confirmed, so there is no hash
+	// that could honestly stand there: a dry-run hash would name a review
+	// nobody received, and a null would read as a count cr failed to take.
+	// Such a round keeps a summary without either key, and that unfinalised
 	// summary is a valid terminal state for it rather than a gap.
 	summaryPosted      = "posted"
 	summaryPayloadHash = "payload_hash"
@@ -140,7 +149,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryDrafted:            ownerDraft,
 	summaryDiscardedNotHere:   ownerDiscards,
 	summaryDiscardedWrong:     ownerDiscards,
-	summaryComments:           ownerDraft,
+	summaryComments:           ownerComments,
 	summaryProbeCap:           ownerDraft,
 	summaryPosted:             ownerPost,
 	summaryPayloadHash:        ownerPost,
@@ -194,6 +203,41 @@ func discardCounts(records []*finding.Finding) []summaryCount {
 	return []summaryCount{
 		{key: summaryDiscardedNotHere, value: notHere},
 		{key: summaryDiscardedWrong, value: wrong},
+	}
+}
+
+// commentCount is ownerComments' section: count comments measured against
+// post.max_comments, resolved from the layers the draft resolves it from.
+func commentCount(l state.Layout, owner, repo string, count int) ([]summaryCount, error) {
+	settings, err := resolveDraftSettings(l, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	return []summaryCount{
+		{key: summaryComments, value: summaryCap{Count: count, Max: settings.maxComments}},
+	}, nil
+}
+
+// postedCount is how many of records §9.1 holds in `posted`.
+func postedCount(records []*finding.Finding) int {
+	posted := 0
+	for _, record := range records {
+		if record.State == finding.StatePosted {
+			posted++
+		}
+	}
+	return posted
+}
+
+// postCounts is ownerPost's section for a confirmed round: how many of its
+// records are posted, the §8.3.3 hash of the payload they were posted in, and
+// §8.5.4's confirmation. A round whose draft discarded every queued record built
+// no payload, and its hash is empty.
+func postCounts(posted int, hash string) []summaryCount {
+	return []summaryCount{
+		{key: summaryPosted, value: posted},
+		{key: summaryPayloadHash, value: hash},
+		{key: summaryConfirmGiven, value: true},
 	}
 }
 

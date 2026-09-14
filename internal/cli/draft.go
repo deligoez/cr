@@ -486,6 +486,11 @@ func publishDraft(
 		func() error { return held.WriteRound(round.Round, state.FileDraft, []byte(out.file)) },
 		func() error { return writeRendered(held, round.Round, out.rendered) },
 		func() error { return writeSummary(held, round.Round, ownerDraft, summary.counts()) },
+		func() error {
+			return writeSummary(held, round.Round, ownerComments, []summaryCount{
+				{key: summaryComments, value: summary.comments},
+			})
+		},
 		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
 		func() error { return keepForced(held, l, round, summary.moved) },
 	}
@@ -537,7 +542,8 @@ type draftSummary struct {
 	newClasses []string
 	// drafted is how many records §7.1 rendered into the draft.
 	drafted int
-	// comments is §1.6.2's comment count against post.max_comments.
+	// comments is §1.6.2's comment count against post.max_comments. It is
+	// not one of counts' rows: ownerComments writes it, not ownerDraft.
 	comments summaryCap
 	// probes is §5.6.4's probe cap over the round.
 	probes summaryCap
@@ -550,7 +556,6 @@ func (s *draftSummary) counts() []summaryCount {
 		{key: summaryForcedByRetraction, value: s.withdrawn},
 		{key: summaryNewClasses, value: s.newClasses},
 		{key: summaryDrafted, value: s.drafted},
-		{key: summaryComments, value: s.comments},
 		{key: summaryProbeCap, value: s.probes},
 	}
 }

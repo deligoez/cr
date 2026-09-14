@@ -90,10 +90,11 @@ func TestADraftDiscardingEveryRecordSettlesWithoutAReview(t *testing.T) {
 		assert.True(t, recorded, key)
 		assert.Equal(t, want, count, key)
 	}
-	_, recorded, err := state.ReadRoundSection[string](
+	hash, recorded, err := state.ReadRoundSection[string](
 		layout, draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary, summaryPayloadHash)
 	require.NoError(t, err)
-	assert.False(t, recorded, "§10.3: a round that sent no payload records no payload hash")
+	assert.True(t, recorded, "§8.5.4: the confirmed round records its payload hash")
+	assert.Empty(t, hash, "§10.3: a round that built no payload records an empty payload hash")
 
 	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
 	var empty *EmptyReviewError

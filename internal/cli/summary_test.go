@@ -129,7 +129,9 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 			if err := json.Unmarshal(raw, &hash); err != nil {
 				return err
 			}
-			if !payloadHashShape.MatchString(hash) {
+			// Empty for a confirmed round whose draft discarded every
+			// record, which built no payload.
+			if hash != "" && !payloadHashShape.MatchString(hash) {
 				return fmt.Errorf("%q is not a §1.4 normalised hash", hash)
 			}
 			return nil
@@ -188,7 +190,7 @@ func assertSummaryShape(t *testing.T, body []byte, ran ...summaryOwner) map[stri
 // left it: every count the section requires has a named writer, and the two the
 // round found unowned or merged are where the findings put them.
 func TestEverySection103CountHasANamedWriter(t *testing.T) {
-	writers := []summaryOwner{ownerMerge, ownerRecord, ownerDraft, ownerPost, ownerDiscards, ownerIntake}
+	writers := []summaryOwner{ownerMerge, ownerRecord, ownerDraft, ownerPost, ownerDiscards, ownerIntake, ownerComments}
 	for _, key := range section103Counts {
 		owner, named := summaryOwners[key]
 		if assert.Truef(t, named, "§10.3 requires %q and no writer is named for it", key) {
@@ -211,6 +213,8 @@ func TestEverySection103CountHasANamedWriter(t *testing.T) {
 	assert.Equal(t, ownerDiscards, summaryOwners["discarded_not_here"],
 		"§7.2: cr draft and cr post both store the draft's discards, so both write their counts")
 	assert.Equal(t, ownerDiscards, summaryOwners["discarded_wrong"])
+	assert.Equal(t, ownerComments, summaryOwners["comments"],
+		"QA D-W2-1: cr post finalises the comment count cr draft took")
 
 	for key := range summaryOwners {
 		assert.Containsf(t, summaryShapes(), key, "summaryOwners lists %q with no stated shape", key)
@@ -292,7 +296,7 @@ func TestTheRoundSummaryCarriesEveryPrePostWritersCounts(t *testing.T) {
 
 	body, err := layout.ReadRound(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerMerge, ownerRecord, ownerDraft, ownerDiscards, ownerForcing)
+	document := assertSummaryShape(t, body, ownerMerge, ownerRecord, ownerDraft, ownerComments, ownerDiscards, ownerForcing)
 
 	for key, want := range map[string]string{
 		"raised":               "3",
@@ -333,7 +337,7 @@ func TestConfirmFinalisesTheRoundSummary(t *testing.T) {
 
 	body, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerDraft, ownerDiscards, ownerPost)
+	document := assertSummaryShape(t, body, ownerDraft, ownerComments, ownerDiscards, ownerPost)
 	assert.JSONEq(t, "2", string(document["posted"]), "§9.1 moved both queued records to posted")
 	hash, err := payload.Hash()
 	require.NoError(t, err)
@@ -378,7 +382,7 @@ func TestConfirmCountsTheDiscardsItStores(t *testing.T) {
 
 	body, err := layout.ReadRound(draftOwner, draftRepo, draftPRNum, draftRound, state.FileSummary)
 	require.NoError(t, err)
-	document := assertSummaryShape(t, body, ownerDraft, ownerDiscards, ownerPost)
+	document := assertSummaryShape(t, body, ownerDraft, ownerComments, ownerDiscards, ownerPost)
 	assert.JSONEq(t, fmt.Sprint(discarded[finding.DispositionNotHere]), string(document["discarded_not_here"]),
 		"§10.3's not-here count is the stored records'")
 	assert.JSONEq(t, fmt.Sprint(discarded[finding.DispositionWrong]), string(document["discarded_wrong"]),

@@ -437,22 +437,19 @@ func (e *PostedRoundError) Error() string {
 // summary's payload hash, which writeAdopted records for both, and records in
 // `posted`, which §9.1 lets only those two moves store. Either is enough, so a
 // summary lost or a record rewritten cannot reopen the round to a second send.
+// An empty hash is not a review's: storeDiscards records it for a confirmed
+// round whose draft discarded every record, and no review was sent for it.
 func refusePostedRound(l state.Layout, round *state.Meta, records []*finding.Finding) error {
 	if round.PostUnresolved {
 		return nil
 	}
-	hash, recorded, err := state.ReadRoundSection[string](
+	hash, _, err := state.ReadRoundSection[string](
 		l, round.Owner, round.Repo, round.PR, round.Round, state.FileSummary, summaryPayloadHash)
 	if err != nil {
 		return err
 	}
-	posted := 0
-	for _, record := range records {
-		if record.State == finding.StatePosted {
-			posted++
-		}
-	}
-	if !recorded && posted == 0 {
+	posted := postedCount(records)
+	if hash == "" && posted == 0 {
 		return nil
 	}
 	return &PostedRoundError{
@@ -516,14 +513,20 @@ func settleDiscards(
 }
 
 // storeDiscards publishes the round's records with the draft's discards in
-// `discarded`, §9.1.1's lines for the moves, and the discard counts §10.3 gives
-// the discarding commands, under one §2.3.1 lock.
+// `discarded`, §9.1.1's lines for the moves, and the round summary §10.3 has
+// `cr post` finalise, under one §2.3.1 lock.
 //
-// None of `cr post`'s own summary counts is written: no payload was sent, so
-// there is no hash to record and no review whose posted count it would be.
+// The summary is finalised as a confirmed round that sent nothing: §8.5.4's
+// confirmation, no posted record, no comment, the discard counts, and an empty
+// payload hash, since no payload was built. The empty hash is what
+// refusePostedRound reads as a round without a review.
 func storeDiscards(
 	l state.Layout, round *state.Meta, records []*finding.Finding, journal *finding.Journal,
 ) error {
+	comments, err := commentCount(l, round.Owner, round.Repo, 0)
+	if err != nil {
+		return err
+	}
 	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
 	if err != nil {
 		return err
@@ -532,6 +535,8 @@ func storeDiscards(
 	writes := []func() error{
 		func() error { return journal.Write(held) },
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
+		func() error { return writeSummary(held, round.Round, ownerPost, postCounts(postedCount(records), "")) },
+		func() error { return writeSummary(held, round.Round, ownerComments, comments) },
 		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
 	}
 	for _, write := range writes {

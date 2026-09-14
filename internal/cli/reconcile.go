@@ -463,6 +463,10 @@ func recordOf(records []*finding.Finding, id string) *finding.Finding {
 // dry run — keeps a summary without `cr post`'s counts, which is a truer record
 // of that round than a count of zero beside a hash nothing was sent under.
 //
+// §1.6.2's comment count is rewritten with them, as the comments the review
+// carried: the draft counted the comments it queued, and a discard read out of
+// draft.md at the send is not among the review's.
+//
 // The two discard counts are rewritten beside them, over the records stored
 // here: a confirmed send stores the draft's discards itself, and a round posted
 // with no redraft after a deletion would otherwise keep the last `cr draft`'s
@@ -481,30 +485,25 @@ func writeAdopted(
 	if err := recordPostedIndex(l, round, adopted, review); err != nil {
 		return err
 	}
+	posted := postedCount(records)
+	// One review per round, so its comments are the round's posted records.
+	comments, err := commentCount(l, round.Owner, round.Repo, posted)
+	if err != nil {
+		return err
+	}
 	held, err := l.LockPR(round.Owner, round.Repo, round.PR)
 	if err != nil {
 		return err
 	}
 	stamp := state.Stamp{Head: round.Head, Round: round.Round}
-	posted := 0
-	for _, record := range records {
-		if record.State == finding.StatePosted {
-			posted++
-		}
-	}
-	writes := make([]func() error, 0, len(journals)+3)
+	writes := make([]func() error, 0, len(journals)+4)
 	for _, journal := range journals {
 		writes = append(writes, func() error { return journal.Write(held) })
 	}
 	writes = append(writes,
 		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
-		func() error {
-			return writeSummary(held, round.Round, ownerPost, []summaryCount{
-				{key: summaryPosted, value: posted},
-				{key: summaryPayloadHash, value: hash},
-				{key: summaryConfirmGiven, value: true},
-			})
-		},
+		func() error { return writeSummary(held, round.Round, ownerPost, postCounts(posted, hash)) },
+		func() error { return writeSummary(held, round.Round, ownerComments, comments) },
 		func() error { return writeSummary(held, round.Round, ownerDiscards, discardCounts(records)) },
 	)
 	for _, write := range writes {
