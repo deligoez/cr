@@ -203,7 +203,9 @@ A record the agent writes:
 refuses, with exit 1, a repeated record id or one a stored record already holds
 (the message blames the line whose id left its prompt's block when only one did,
 and names the next free id inside that line's own block, or says the block is
-full), an id not spelled `f<n>`, a `kind` or `severity` outside §6.1, an anchor
+full), a new record whose id lies outside the block `cr review` gave its role on
+its unit, once `cr review` has emitted that round's prompts (the message names
+the block and its next free id), an id not spelled `f<n>`, a `kind` or `severity` outside §6.1, an anchor
 outside the unit the record names, a `probe`
 naming no probe record or one from another head, a correctness record whose
 `claim` is not mapped to its own unit, a `class` that differs from the class of

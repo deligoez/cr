@@ -1,7 +1,10 @@
 package state
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 )
@@ -30,6 +33,22 @@ func fanOutDir(round int, unit string) string {
 // repository under review).
 func (l Layout) FanOutDir(owner, repo string, pr, round int, unit string) string {
 	return filepath.Join(l.PRDir(owner, repo, pr), fanOutDir(round, unit))
+}
+
+// FannedOut reports whether one unit of one round has its fan-out directory,
+// which `cr review` creates for every unit of the round before it emits a
+// prompt, so a round no `cr review` has emitted prompts for has none. It takes
+// no lock, per §2.3.2.
+func (l Layout) FannedOut(owner, repo string, pr, round int, unit string) (bool, error) {
+	dir := l.FanOutDir(owner, repo, pr, round, unit)
+	_, err := os.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, FileFailure("read", dir, dirHint, err)
+	}
+	return true, nil
 }
 
 // EnsureFanOut creates one round's fan-out directory for every unit named, so

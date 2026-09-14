@@ -54,7 +54,7 @@ func refuseHeldIDs(l state.Layout, owner, repo string, pr, round int, units []st
 	for i := range stored {
 		held[stored[i].ID] = &stored[i]
 	}
-	free := &freeIDs{l: l, owner: owner, repo: repo, round: round, units: units, stored: stored, inputs: inputs}
+	free := &freeIDs{l: l, owner: owner, repo: repo, pr: pr, round: round, units: units, stored: stored, inputs: inputs}
 	seen := make(map[string]idPlace)
 	for _, input := range inputs {
 		at := state.RecordLines(input.body)
@@ -80,7 +80,7 @@ func refuseHeldIDs(l state.Layout, owner, repo string, pr, round int, units []st
 			}
 		}
 	}
-	return nil
+	return free.refuseDeparted()
 }
 
 // idPlace is one record of an input and the file line it sits on.
@@ -96,7 +96,7 @@ type idPlace struct {
 type freeIDs struct {
 	l            state.Layout
 	owner, repo  string
-	round        int
+	pr, round    int
 	units        []string
 	stored       []finding.Finding
 	inputs       []idInput
@@ -158,6 +158,58 @@ func (f *freeIDs) repeat(here, first idPlace) error {
 			"%q repeats the id of %s; §6.1 makes a record id stable for the life of the pull request, "+
 				"so give each record an id of its own; %s", refused.record.ID, where, hint),
 	}
+}
+
+// refuseDeparted refuses the first record, in the order the inputs were read,
+// whose id lies outside the block `cr review` gave its own prompt — its role
+// over its unit — naming the line, the record, that prompt and its block.
+//
+// It runs once every repeat and every stored id has been refused, so each
+// record it reads is new to the pull request and its id is the only one any
+// line carries. A record of a round recorded earlier, or of an earlier round,
+// never reaches it: its id is stored, and refuseHeldIDs has already refused it
+// as held. A record whose role the corpus does not resolve, or whose unit the
+// round did not form, was given no block and has not been shown to leave one.
+// Nor was a record of a round `cr review` has emitted no prompt for, which
+// FannedOut reads off the unit's fan-out directory: no prompt told its role
+// which ids to write, so no prompt was ignored and no block handed out moved.
+//
+// §4.6.2 gives every prompt of the round a block no other prompt is given, so a
+// new id outside its prompt's block is either a role that ignored its prompt or
+// a block that moved since the prompt was emitted, and in both cases two roles
+// can come to share ids. Refusing it here is what makes that loud.
+func (f *freeIDs) refuseDeparted() error {
+	for _, input := range f.inputs {
+		at := state.RecordLines(input.body)
+		for i, record := range input.records {
+			out, err := f.departed(record)
+			if err != nil {
+				return err
+			}
+			if !out {
+				continue
+			}
+			emitted, err := f.l.FannedOut(f.owner, f.repo, f.pr, f.round, record.Unit)
+			if err != nil {
+				return err
+			}
+			if !emitted {
+				continue
+			}
+			hint, err := f.hint(record)
+			if err != nil {
+				return err
+			}
+			return &finding.RejectedRecordError{
+				File: input.file, Line: at[i], Field: "id",
+				Problem: fmt.Sprintf(
+					"%q lies outside the block of ids cr review gave its prompt; §4.6.2 gives every prompt of round %d "+
+						"a block no other prompt is given, so an id outside it may be another prompt's; %s",
+					record.ID, f.round, hint),
+			}
+		}
+	}
+	return nil
 }
 
 // hint names the id to give the record instead: the first id of its prompt's

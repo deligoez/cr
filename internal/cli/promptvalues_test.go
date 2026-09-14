@@ -49,9 +49,9 @@ func spelled[T ~string](values []T) []string {
 // of the anchor object; and records written from nothing but what each prompt
 // states — its unit's path, every kind, severity and side it names, the lowest
 // start_line it allows, and for LEFT a line its hunk shows removed — to the
-// output path it names pass `cr merge` (audit
-// round 14's list-25-2, where the prompt carried field names only and a role
-// could not write a valid anchor).
+// output path it names, numbered from the first id of the block it names, pass
+// `cr merge` (audit round 14's list-25-2, where the prompt carried field names
+// only and a role could not write a valid anchor).
 func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 	statusHome(t)
 	printed, err := runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug)
@@ -61,9 +61,12 @@ func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 	require.NotEmpty(t, fanout.Prompts)
 
 	files := make([]string, 0, len(fanout.Prompts))
-	id := 0
+	written := 0
 	for _, prompt := range fanout.Prompts {
 		text := prompt.Text
+		id, numbered := finding.IDSuffix(prompt.FirstID)
+		require.True(t, numbered, "the prompt names the first id of its block")
+		id--
 		kinds := promptValues(t, text, "- kind:")
 		severities := promptValues(t, text, "- severity:")
 		sides := promptValues(t, text, "  - side: required;")
@@ -101,6 +104,7 @@ func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 			for _, severity := range severities {
 				for _, side := range sides {
 					id++
+					written++
 					line, err := json.Marshal(map[string]any{
 						"id": "f" + strconv.Itoa(id), "kind": kind, "role": prompt.Role,
 						"class": "unchecked-error", "severity": severity, "unit": prompt.Unit,
@@ -122,5 +126,5 @@ func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 	args := append([]string{"merge"}, files...)
 	merged, err := runCLIPrinting(t, append(args, "-o", out, "--repo", fixtureSlug, "--pr", fixturePR)...)
 	require.NoError(t, err, "a record written from the prompt's stated values passes cr merge")
-	assert.Equal(t, id, decodeMergeResult(t, merged).Merged)
+	assert.Equal(t, written, decodeMergeResult(t, merged).Merged)
 }

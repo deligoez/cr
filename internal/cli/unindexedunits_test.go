@@ -144,13 +144,18 @@ func TestAUnitTheSymbolIndexDoesNotCoverIsDisclosedEverywhere(t *testing.T) {
 			Role string `json:"role"`
 			Unit string `json:"unit"`
 			Text string `json:"prompt"`
+			// FirstID is where the record written below takes its id from.
+			FirstID string `json:"first_id"`
 		} `json:"prompts"`
 		Honesty []string `json:"honesty"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(printed), &fanout))
 	assert.Equal(t, []string{unindexedReinvention, unindexedTestSymbols}, fanout.Honesty, "cr review")
-	onMoney := 0
+	onMoney, id := 0, ""
 	for _, prompt := range fanout.Prompts {
+		if prompt.Role == "correctness" && prompt.Unit == money {
+			id = prompt.FirstID
+		}
 		lines := strings.Split(prompt.Text, "\n")
 		assert.NotContains(t, lines, "Symbols they reference: none.", "%s on %s", prompt.Role, prompt.Unit)
 		assert.Contains(t, lines, "Unavailable: "+unindexedTestSymbols, "%s on %s", prompt.Role, prompt.Unit)
@@ -162,6 +167,7 @@ func TestAUnitTheSymbolIndexDoesNotCoverIsDisclosedEverywhere(t *testing.T) {
 		}
 	}
 	require.Positive(t, onMoney, "cr review emits prompts for the src/Money.php unit")
+	require.NotEmpty(t, id, "cr review gives the correctness prompt on src/Money.php a block of ids")
 
 	reported, err := runCLIPrinting(t, "status", fixturePR, "--repo", fixtureSlug)
 	require.NoError(t, err)
@@ -173,7 +179,7 @@ func TestAUnitTheSymbolIndexDoesNotCoverIsDisclosedEverywhere(t *testing.T) {
 	assert.Contains(t, status.Honesty, unindexedTestSymbols, "cr status")
 
 	merged := filepath.Join(t.TempDir(), "merged.ndjson")
-	require.NoError(t, os.WriteFile(merged, []byte(`{"id":"f1","kind":"question","role":"correctness",`+
+	require.NoError(t, os.WriteFile(merged, []byte(`{"id":"`+id+`","kind":"question","role":"correctness",`+
 		`"class":"unchecked-input","severity":"medium","unit":"`+money+`",`+
 		`"anchor":{"path":"src/Money.php","side":"RIGHT","start_line":13,"line":13,"content_hash":"0123456789abcdef"},`+
 		`"summary":"Should round() round half up rather than truncate?",`+
