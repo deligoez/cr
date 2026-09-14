@@ -32,6 +32,9 @@ type GapMeasured struct {
 	TestsRun *int
 	// TestsFailed is the failed test count, nil when undetermined.
 	TestsFailed *int
+	// Detail is what rung 2 read, for GapReason to name: what the attempt
+	// to start the runner reported, or the signal the runner exited on.
+	Detail string
 }
 
 // GapLadder is §5.4.3: the result of a gap probe, by the first matching rung.
@@ -73,4 +76,18 @@ func GapLadder(m GapMeasured) Result {
 		return resultPassed
 	}
 	return resultFailed
+}
+
+// GapReason says why GapLadder answered `error`, and is empty for every other
+// rung, as Reason does for §5.3.4's ladder.
+func GapReason(m GapMeasured) string {
+	switch {
+	case m.TimedOut:
+		return ""
+	case m.Unstarted:
+		return "§5.4.3's second rung: " + notStarted(m.Detail)
+	case m.ExitCode < 0:
+		return "§5.4.3's second rung: " + exitedOnSignal(m.Detail)
+	}
+	return ""
 }

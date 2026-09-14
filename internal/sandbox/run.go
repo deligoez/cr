@@ -135,6 +135,28 @@ func (e *RunError) Unwrap() error { return e.Err }
 func Run(
 	argv []string, dir string, log io.Writer, timeout time.Duration,
 ) (code int, timedOut bool, err error) {
+	exit, err := RunExit(argv, dir, log, timeout)
+	return exit.Code, exit.TimedOut, err
+}
+
+// Exit is how one run of the test command ended.
+type Exit struct {
+	// Code is the runner's own exit status, negative for a process that
+	// exited on a signal rather than by returning.
+	Code int
+	// TimedOut says the run was killed for exceeding its timeout.
+	TimedOut bool
+	// Signal names the signal a run that was not timed out exited on, and
+	// is empty when it returned. §5.3.4's third rung and §5.4.3's second
+	// answer such a run `error`, and the name is what tells a runner that
+	// crashed from one that never started.
+	Signal string
+}
+
+// RunExit is Run, reporting the signal a run exited on beside its status.
+func RunExit(
+	argv []string, dir string, log io.Writer, timeout time.Duration,
+) (Exit, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
@@ -142,7 +164,7 @@ func Run(
 	cmd.Stderr = log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		return 0, false, &RunError{Args: slices.Clone(argv), Err: err}
+		return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
 	}
 	// Read before the waiting goroutine exists, so the pid the kill uses is
 	// never read beside a concurrent Wait.
@@ -161,11 +183,11 @@ func Run(
 		var exit *exec.ExitError
 		switch {
 		case err == nil:
-			return 0, false, nil
+			return Exit{}, nil
 		case errors.As(err, &exit):
-			return exit.ExitCode(), false, nil
+			return Exit{Code: exit.ExitCode(), Signal: signalOf(exit)}, nil
 		}
-		return 0, false, &RunError{Args: slices.Clone(argv), Err: err}
+		return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
 	case <-expired:
 		// The error is discarded because there is nothing left to do
 		// about it: a group that has already exited answers ESRCH,
@@ -176,10 +198,24 @@ func Run(
 		// than on a grandchild that outlived its parent.
 		var exit *exec.ExitError
 		if errors.As(<-finished, &exit) {
-			return exit.ExitCode(), true, nil
+			return Exit{Code: exit.ExitCode(), TimedOut: true}, nil
 		}
-		return 0, true, nil
+		return Exit{TimedOut: true}, nil
 	}
+}
+
+// signalOf names the signal a finished process exited on, in the words os
+// gives it, and is empty for one that returned.
+//
+// It reads the process state's own description rather than its wait status:
+// this file may name only the process-control identifiers of `syscall`, and
+// os spells a signalled exit as `signal: <name>` for every such process.
+func signalOf(exit *exec.ExitError) string {
+	name, signalled := strings.CutPrefix(exit.String(), "signal: ")
+	if !signalled {
+		return ""
+	}
+	return name
 }
 
 // setupArgv splits one `sandbox.setup` entry into the argv it runs as.

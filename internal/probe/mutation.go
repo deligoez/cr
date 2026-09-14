@@ -42,6 +42,10 @@ type Measured struct {
 	TestsRun *int
 	// TestsFailed is the failed test count, nil when undetermined.
 	TestsFailed *int
+	// Detail is what the rung answering `error` read, for Reason to name:
+	// the refusal of a patch that did not apply, what the attempt to
+	// start the runner reported, or the signal the runner exited on.
+	Detail string
 }
 
 // Ladder is §5.3.4: the result of a mutation probe, by the first matching rung.
@@ -74,6 +78,41 @@ func Ladder(m Measured) Result {
 		return resultNoTestFailed
 	}
 	return resultFailed
+}
+
+// Reason says why Ladder answered `error`, and is empty for every other rung.
+//
+// An `error` establishes nothing, and the reader deciding what to do next
+// needs the rung that produced it: a stale patch, a drifted sandbox, a missing
+// runner and a crashing one are four different fixes.
+func Reason(m Measured) string {
+	switch {
+	case !m.Applied:
+		return "§5.3.4's first rung: the mutation patch did not apply cleanly, so no tests were run: " +
+			m.Detail
+	case m.TimedOut:
+		return ""
+	case m.Unstarted:
+		return "§5.3.4's third rung: " + notStarted(m.Detail)
+	case m.ExitCode < 0:
+		return "§5.3.4's third rung: " + exitedOnSignal(m.Detail)
+	}
+	return ""
+}
+
+// notStarted words a runner that could not be started, with what the attempt
+// reported.
+func notStarted(failure string) string {
+	return "the runner could not be started: " + failure
+}
+
+// exitedOnSignal words a runner that exited on a signal, naming the signal when
+// the process status said which.
+func exitedOnSignal(signal string) string {
+	if signal == "" {
+		return "the runner exited on a signal"
+	}
+	return "the runner exited on a signal (" + signal + ")"
 }
 
 // Proves is §5.3.5: this probe proves the gap, and so may be what a record

@@ -76,6 +76,12 @@ type Record struct {
 	// Result is §5.5's `result`, and is always the value Decide produced:
 	// §5.1.7's check has had its say before the record is written.
 	Result Result `json:"result"`
+	// Reason says why Result is `error` — which rung produced it and
+	// what that rung read — and is absent for every other result. §5.5's
+	// table has no row for it; an `error` establishes nothing, and a
+	// record that said only that could not tell a stale patch from a
+	// runner that never started.
+	Reason string `json:"reason,omitempty"`
 	// TestsRun is the executed test count, absent when undetermined.
 	TestsRun *int `json:"tests_run,omitempty"`
 	// TestsFailed is the failed test count, absent when undetermined.
@@ -125,6 +131,7 @@ var fields = []field{
 	{Name: "input"},
 	{Name: "filter"},
 	{Name: "result"},
+	{Name: "reason"},
 	{Name: "tests_run"},
 	{Name: "tests_failed"},
 	{Name: "baseline"},

@@ -97,6 +97,9 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 		open               bool
 		current            PatchHunk
 		baseLeft, headLeft int
+		// stray is the first line outside every hunk that is no file
+		// header, which strayed reports once the whole patch is read.
+		stray *MalformedPatchError
 	)
 
 	// finish ends the open hunk and files it under the file it belongs to.
@@ -178,6 +181,12 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 			}
 			baseLeft, headLeft = current.BaseLines, current.HeadLines
 			open = true
+		case strings.HasPrefix(line, "diff --git "), strings.HasPrefix(line, "index "):
+			// git's own headers, walked past: the --- and +++ lines
+			// name the file again, and neither line asks cr to do
+			// anything those two and the hunks do not.
+		default:
+			stray = firstStray(stray, n+1, line)
 		}
 	}
 	if open {
@@ -188,6 +197,27 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 		// ordinary shape: a diff of one hunk stops there.
 		finish()
 	}
+	return strayed(files, stray)
+}
+
+// firstStray keeps the first line outside every hunk that is no file header,
+// with why cr would not execute it.
+func firstStray(kept *MalformedPatchError, line int, text string) *MalformedPatchError {
+	if kept != nil {
+		return kept
+	}
+	return &MalformedPatchError{Line: line, Problem: unexecuted(text)}
+}
+
+// strayed refuses a patch holding a stray line, unless it named no file at all.
+//
+// A patch with no file header is not a diff with one line too many; it is the
+// report a configured diff.external writes in a diff's place, and the caller's
+// no-hunk refusal names the flag that fixes it.
+func strayed(files []PatchedFile, stray *MalformedPatchError) ([]PatchedFile, error) {
+	if stray != nil && len(files) > 0 {
+		return nil, stray
+	}
 	return files, nil
 }
 
@@ -195,6 +225,34 @@ func ParsePatch(patch string) ([]PatchedFile, error) {
 // one hunk line that follows a hunk's last counted line rather than being one.
 func endOfFileMarker(line string) bool {
 	return line != "" && line[0] == '\\'
+}
+
+// extendedHeaders are the header lines git writes for a rename, a copy, a mode
+// change, a created or deleted file, and the similarity a rename or copy is
+// measured by.
+var extendedHeaders = []string{
+	"old mode ", "new mode ", "new file mode ", "deleted file mode ",
+	"similarity index ", "dissimilarity index ",
+	"rename from ", "rename to ", "copy from ", "copy to ",
+}
+
+// unexecuted says why ParsePatch refuses a line outside every hunk that is no
+// file header.
+//
+// A probe applies hunks to files the sandbox already holds and does nothing
+// else, so a rename, a copy or a mode change is a step cr never takes. Walking
+// past such a line would still store it in §5.5's `input`, which `cr draft`
+// shows a colleague as the experiment that ran; refusing it keeps the stored
+// patch and the executed one the same patch, as §5.3.2's evidence chain needs.
+func unexecuted(line string) string {
+	for _, header := range extendedHeaders {
+		if strings.HasPrefix(line, header) {
+			return fmt.Sprintf("%q is a rename, copy or mode header, which cr does not execute: "+
+				"a probe only applies hunks to files the sandbox holds, so the probe record's input "+
+				"would show a step that never ran", line)
+		}
+	}
+	return fmt.Sprintf("%q is neither a file header nor a hunk line, so cr would not execute it", line)
 }
 
 // ApplyError reports a hunk that does not match the file it addresses, which is

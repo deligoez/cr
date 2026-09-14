@@ -67,3 +67,13 @@ func (o Outcome) Result() Result { return o.result }
 // the probe grades no finding, and the sandbox is recreated before the next
 // run.
 func (o Outcome) Voided() bool { return o.voided }
+
+// Reason is why the record carries `error`, given ladder, the ladder's own
+// reason from Reason or GapReason. It is empty for any other result, and for a
+// probe §5.1.7 voided, whose `error` the ladder did not produce.
+func (o Outcome) Reason(ladder string) string {
+	if o.voided || o.result != ResultError {
+		return ""
+	}
+	return ladder
+}

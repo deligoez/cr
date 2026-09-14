@@ -18,6 +18,11 @@ import (
 // It is written out again here rather than read from record.go, because a table
 // checked against itself checks nothing: checkRecordFields holds the struct to
 // the table, and this holds the table to the section.
+//
+// `reason` is the one row §5.5 does not write, beside the `result` it explains.
+// It is there for the reason run.Record carries `timed_out` and `contaminated`
+// beyond §5.2.4's list: an `error` another section mandates has to say which
+// rung produced it, and the result value alone cannot carry that.
 var specFields = []field{
 	{Name: "id"},
 	{Name: "kind"},
@@ -26,6 +31,7 @@ var specFields = []field{
 	{Name: "input"},
 	{Name: "filter"},
 	{Name: "result"},
+	{Name: "reason"},
 	{Name: "tests_run"},
 	{Name: "tests_failed"},
 	{Name: "baseline"},
@@ -50,9 +56,10 @@ func TestTheProbeFieldTableIsTheOneTheSpecWrites(t *testing.T) {
 // against the struct a second reflective walk would report.
 //
 // The three rows §5.5's Required column answers "no" are asserted from the
-// other side too: a record that derived no counts and narrowed to no filter
-// omits exactly those three and no others, which is what keeps §5.3.4's fifth
-// rung able to tell a count of zero from no count at all.
+// other side too, with `reason` beside them: a record that derived no counts,
+// narrowed to no filter and carries no `error` omits exactly those four and no
+// others, which is what keeps §5.3.4's fifth rung able to tell a count of zero
+// from no count at all.
 func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 	four, none := 4, 0
 	filled := &Record{
@@ -61,7 +68,8 @@ func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 		Stamp:       state.Stamp{Head: "9f2c1ab", Round: 2},
 		Input:       "--- a/app.go\n+++ b/app.go\n",
 		Filter:      "Retry",
-		Result:      resultNoTestFailed,
+		Result:      ResultError,
+		Reason:      "§5.3.4's third rung: the runner exited on a signal (killed)",
 		TestsRun:    &four,
 		TestsFailed: &none,
 		Baseline:    "r1",
@@ -77,13 +85,14 @@ func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 		"§5.5: every row of the table, and nothing the table does not name")
 
 	sparse := *filled
+	sparse.Result, sparse.Reason = resultNoTestFailed, ""
 	sparse.Filter, sparse.TestsRun, sparse.TestsFailed = "", nil, nil
 	assert.ElementsMatch(t,
 		slices.DeleteFunc(named, func(name string) bool {
-			return name == "filter" || name == "tests_run" || name == "tests_failed"
+			return name == "filter" || name == "tests_run" || name == "tests_failed" || name == "reason"
 		}),
 		wireKeys(t, &sparse),
-		"§5.5: the three rows the Required column answers no are the three that may be absent")
+		"§5.5: the three rows the Required column answers no, and reason, are the ones that may be absent")
 }
 
 // wireKeys is the keys of one record as probes.ndjson holds them.

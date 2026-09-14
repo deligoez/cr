@@ -41,6 +41,9 @@ type probeRunResult struct {
 	Filter string `json:"filter,omitempty"`
 	// Result is §5.5's `result`, after §5.1.7 has had its say.
 	Result string `json:"result"`
+	// Reason is the probe record's `reason`: why Result is `error`, and
+	// absent for every other result.
+	Reason string `json:"reason,omitempty"`
 	// Establishes is what the sections governing this kind let the result
 	// be read for: `gap` when a mutation probe proves one, `no-gap` when a
 	// test caught the mutation, `nothing` when neither, and `undecided`
@@ -90,6 +93,9 @@ func (r *probeRunResult) Text(w *writer) string {
 		fmt.Fprintf(&out, "  %s\n", w.accent("voided, per §5.1.7: "+r.Voided))
 	}
 	fmt.Fprintf(&out, "  result   %s\n", w.accent(r.Result))
+	if r.Reason != "" {
+		fmt.Fprintf(&out, "  reason   %s\n", r.Reason)
+	}
 	fmt.Fprintf(&out, "  evidence %s\n", establishedClause[r.Establishes])
 	fmt.Fprintf(&out, "  probe    %s", r.Probe)
 	for _, warned := range r.Warnings {
@@ -218,6 +224,10 @@ type measuredRun struct {
 	// command failing: a probe whose runner is missing has a result, and
 	// it is `error`.
 	unstarted bool
+	// detail is what the attempt to start the runner reported, or the
+	// signal a started runner exited on, and is empty when neither
+	// happened. It is what the reason an `error` result carries names.
+	detail string
 }
 
 // perform runs the suite once, narrowed to filter.
@@ -242,10 +252,10 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 	budget := time.Duration(s.profile.Tests.TimeoutSeconds) * time.Second
 
 	started := time.Now()
-	code, timedOut, err := sandbox.Run(argv, s.path, log, budget)
+	exit, err := sandbox.RunExit(argv, s.path, log, budget)
 	took := time.Since(started)
 
-	unstarted := false
+	unstarted, detail := false, exit.Signal
 	if err != nil {
 		var unrunnable *sandbox.RunError
 		if !errors.As(err, &unrunnable) {
@@ -258,20 +268,21 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 		// a probe was asked what the suite says, and "nothing, it
 		// would not start" is an answer §5.3.5 and §5.4.5 already
 		// refuse to grade on.
-		unstarted = true
+		unstarted, detail = true, unrunnable.Error()
 	}
 	executed, failed := counter.Counts()
 	return &measuredRun{
 		record: &run.Record{
 			Filter:      filter,
-			ExitCode:    code,
-			TimedOut:    timedOut,
+			ExitCode:    exit.Code,
+			TimedOut:    exit.TimedOut,
 			DurationMS:  took.Milliseconds(),
 			TestsRun:    executed,
 			TestsFailed: failed,
 			OutputTail:  tail.String(),
 		},
 		unstarted: unstarted,
+		detail:    detail,
 	}, nil
 }
 
@@ -691,6 +702,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 				Input:       request.patch,
 				Filter:      request.filter,
 				Result:      outcome.Result(),
+				Reason:      outcome.Reason(probe.Reason(measured)),
 				TestsRun:    measured.TestsRun,
 				TestsFailed: measured.TestsFailed,
 				Target:      aimed,
@@ -735,20 +747,8 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 		return err
 	}
 	reserved := probe.NextID(stored)
-	placement := setup.tests.profile.ProbePath(reserved)
-	if placement == "" {
-		return &profile.MalformedError{
-			File:  setup.tests.file,
-			Field: "tests.probe_path_template",
-			Problem: "resolves to no path, so §5.4.2 has nowhere to place a gap probe's test; " +
-				"set it, or set tests.globs for it to be defaulted from",
-		}
-	}
-	// §5.4.2's abort, asked before §5.2.6 performs a baseline suite for a
-	// probe that cannot be placed. It is the writer's own function, so the
-	// answer here and the answer the placement is held to cannot disagree.
-	if _, err := setup.layout.FreeInSandbox(
-		request.owner, request.repo, request.pr, placement); err != nil {
+	placement, err := gapPlacement(setup, request, reserved)
+	if err != nil {
 		return err
 	}
 	finished, warning, err := underProbeLock(setup, request, func() (*finishedProbe, error) {
@@ -770,6 +770,7 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 			Input:       request.test,
 			Filter:      request.filter,
 			Result:      outcome.Result(),
+			Reason:      outcome.Reason(probe.GapReason(measured)),
 			TestsRun:    measured.TestsRun,
 			TestsFailed: measured.TestsFailed,
 			Target:      request.target,
@@ -786,6 +787,28 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 		return err
 	}
 	return reportProbe(out, setup, request, finished, warning)
+}
+
+// gapPlacement resolves the sandbox path a gap probe reserved as id places its
+// test file at, and refuses one it cannot place.
+func gapPlacement(setup *probeSetup, request *probeRequest, reserved string) (string, error) {
+	placement := setup.tests.profile.ProbePath(reserved)
+	if placement == "" {
+		return "", &profile.MalformedError{
+			File:  setup.tests.file,
+			Field: "tests.probe_path_template",
+			Problem: "resolves to no path, so §5.4.2 has nowhere to place a gap probe's test; " +
+				"set it, or set tests.globs for it to be defaulted from",
+		}
+	}
+	// §5.4.2's abort, asked before §5.2.6 performs a baseline suite for a
+	// probe that cannot be placed. It is the writer's own function, so the
+	// answer here and the answer the placement is held to cannot disagree.
+	if _, err := setup.layout.FreeInSandbox(
+		request.owner, request.repo, request.pr, placement); err != nil {
+		return "", err
+	}
+	return placement, nil
 }
 
 // finishedProbe is what a probe's locked half hands to its report: the stored
@@ -845,6 +868,7 @@ func reportProbe(
 		Command:     finished.performed.command,
 		Filter:      request.filter,
 		Result:      string(finished.outcome.Result()),
+		Reason:      finished.record.Reason,
 		Establishes: finished.establishes,
 		Target:      finished.record.Target,
 		Baseline:    finished.performed.baseline.ID(),
@@ -952,8 +976,9 @@ func mutationRuns(
 		// result rather than a failure of the command — the agent
 		// asked what the suite says about this mutation, and cr can
 		// say that the mutation was never made. The zero Measured is
-		// that run: Applied is false, which is the rung itself.
-		return performed, probe.Measured{}, nil
+		// that run: Applied is false, which is the rung itself, and
+		// the refusal is what the record's reason names.
+		return performed, probe.Measured{Detail: refused.Error()}, nil
 	case err != nil:
 		return nil, probe.Measured{}, err
 	}
@@ -967,6 +992,7 @@ func mutationRuns(
 		ExitCode:    mutated.record.ExitCode,
 		TestsRun:    mutated.record.TestsRun,
 		TestsFailed: mutated.record.TestsFailed,
+		Detail:      mutated.detail,
 	}, nil
 }
 
@@ -1003,6 +1029,7 @@ func gapRuns(
 		ExitCode:    placed.record.ExitCode,
 		TestsRun:    placed.record.TestsRun,
 		TestsFailed: placed.record.TestsFailed,
+		Detail:      placed.detail,
 	}, nil
 }
 
