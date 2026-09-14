@@ -95,8 +95,8 @@ var leftAnchorCases = []struct {
 // not all remove draws, for the anchor text at.
 func unremovedLeftProblem(at string) string {
 	return "of record f1 is " + at + ", and the round's diff does not remove every one of those " +
-		"merge-base lines; §9.2.1 has a LEFT anchor name removed lines only, so anchor a line the " +
-		"change kept or added on the RIGHT, at its head line"
+		"merge-base lines; §9.2.1 has a LEFT anchor name removed lines only, so anchor the lines a " +
+		"hunk removes, or on the RIGHT a head line of a unit that adds lines"
 }
 
 // QA D-S05-2 through `cr record`: a LEFT anchor on a line the diff removed is

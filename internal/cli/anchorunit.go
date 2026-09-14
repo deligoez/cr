@@ -27,12 +27,14 @@ import (
 // head-side range, which is where §6.2.1 places a hunk's changed lines — and the
 // round's diff is read only when some record carries such an anchor.
 //
-// A LEFT anchor on lines no hunk removed is refused first, with its own reason.
+// An anchor on lines the diff did not change is refused first, with its own
+// reason: a LEFT anchor on lines no hunk removed, and a RIGHT anchor naming a
+// unit made only of removed lines.
 //
 // `cr merge` and `cr record` both run it, over the units of the same round, so a
 // file `cr merge` wrote never meets at `cr record` an anchor refusal the merge
 // could have made: a range spanning two hunks of its unit, a range outside it,
-// and a LEFT anchor on a line the diff did not remove are refused at whichever
+// and an anchor on lines the diff did not change are refused at whichever
 // command reads the record first, in the same words.
 func refuseForeignAnchors(
 	owner, repo string, pr int, round *state.Meta, file string, body []byte,
@@ -44,7 +46,7 @@ func refuseForeignAnchors(
 	}
 	at := state.RecordLines(body)
 	for i, record := range records {
-		if err := refuseUnremovedLeft(file, at[i], record, hunks); err != nil {
+		if err := refuseUnchangedLines(file, at[i], record, sideOf(formed, record.Unit), hunks); err != nil {
 			return err
 		}
 		if !anchorInsideUnit(&record.Anchor, unitOf(formed, record.Unit), hunks) {
@@ -73,28 +75,52 @@ func leftAnchorHunks(owner, repo string, pr int, head string, records []*finding
 	return nil, nil
 }
 
-// refuseUnremovedLeft is §9.2.1's refusal for one record on line of file.
+// refuseUnchangedLines is §9.2.1's refusal for one record on line of file, whose
+// unit is on side.
 //
 // §9.2.1 has LEFT anchor a removed line and nothing else. A context line of a
 // hunk, or a line outside every hunk, is a line GitHub shows on the RIGHT if at
 // all, and a review comment sent to it on the LEFT is refused by the
 // review-creation call, which loses the whole round's review over one position.
-func refuseUnremovedLeft(file string, line int, record *finding.Finding, hunks []git.Hunk) error {
+//
+// The same sentence has LEFT anchor every record about a deletion, and a unit
+// whose side is LEFT is made only of removed lines: every head line it can
+// reach, its insertion point included, is one the diff did not change. A RIGHT
+// anchor naming such a unit would be graded, and could reach `probed`, as an
+// assertion about a line the pull request left alone.
+func refuseUnchangedLines(file string, line int, record *finding.Finding, side git.Side, hunks []git.Hunk) error {
 	anchor := &record.Anchor
-	if anchor.Side != git.Left {
-		return nil
-	}
-	if _, _, found := removedHeadRange(anchor, hunks); found {
-		return nil
-	}
-	return &finding.RejectedRecordError{
-		File: file, Line: line, Field: "anchor",
-		Problem: fmt.Sprintf(
+	var problem string
+	switch {
+	case anchor.Side == git.Right && side == git.Left:
+		problem = fmt.Sprintf(
+			"of record %s is %s %s:%d-%d, and unit %q only removes lines, so the diff changed no head line of it; "+
+				"§9.2.1 anchors a record about a deletion on the LEFT, so anchor the merge-base lines the unit removes",
+			record.ID, anchor.Side, anchor.Path, anchor.StartLine, anchor.Line, record.Unit)
+	case anchor.Side == git.Left:
+		if _, _, found := removedHeadRange(anchor, hunks); found {
+			return nil
+		}
+		problem = fmt.Sprintf(
 			"of record %s is %s %s:%d-%d, and the round's diff does not remove every one of those merge-base lines; "+
-				"§9.2.1 has a LEFT anchor name removed lines only, so anchor a line the change kept or added on the RIGHT, at its head line",
-			record.ID, anchor.Side, anchor.Path, anchor.StartLine, anchor.Line,
-		),
+				"§9.2.1 has a LEFT anchor name removed lines only, so anchor the lines a hunk removes, "+
+				"or on the RIGHT a head line of a unit that adds lines",
+			record.ID, anchor.Side, anchor.Path, anchor.StartLine, anchor.Line)
+	default:
+		return nil
 	}
+	return &finding.RejectedRecordError{File: file, Line: line, Field: "anchor", Problem: problem}
+}
+
+// sideOf is the side of the round's unit id, and empty when the round holds no
+// unit by that id, which anchorInsideUnit then refuses on its own.
+func sideOf(formed []roundUnit, id string) git.Side {
+	for i := range formed {
+		if formed[i].ID == id {
+			return formed[i].Side
+		}
+	}
+	return ""
 }
 
 // anchorInsideUnit reports whether every line of the anchor lies inside own, in
