@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -91,9 +92,7 @@ func TestTheRecordingCommandsRefuseASuppliedHeadOrRound(t *testing.T) {
 				before, err := os.ReadFile(stored)
 				require.NoError(t, err)
 				line := make(map[string]any, len(cmd.line)+1)
-				for key, v := range cmd.line {
-					line[key] = v
-				}
+				maps.Copy(line, cmd.line)
 				line[field] = value
 				path := writeRecordFile(t, filepath.Base(stored), line)
 

@@ -97,7 +97,7 @@ func replacedLine(anchor *finding.Anchor, hunks []git.Hunk, texts []string) (str
 func headLine(hunk *git.Hunk, text string, n int) (string, bool) {
 	_, body, _ := strings.Cut(text, "\n")
 	at := hunk.HeadStart
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "+") {
 			continue
 		}
