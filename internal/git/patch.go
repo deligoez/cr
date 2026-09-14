@@ -64,6 +64,23 @@ type MalformedPatchError struct {
 	Line int
 	// Problem says what is wrong there.
 	Problem string
+	// Step is §12.4's next actionable step when the refusal has one of its
+	// own, and empty for the refusals the general step answers.
+	Step string
+}
+
+// malformedPatchStep is the step for a patch that is not a unified diff at all:
+// the shape to write, and the flag that makes `git diff` write it.
+const malformedPatchStep = "correct the `--patch` file at the line the message names so it is a unified diff " +
+	"with --- and +++ headers and @@ hunks; if it came from `git diff`, re-run it with --no-ext-diff"
+
+// Hint is §12.4's next actionable step for the refusal: its own when it has one,
+// and otherwise the shape of a unified diff.
+func (e *MalformedPatchError) Hint() string {
+	if e.Step != "" {
+		return e.Step
+	}
+	return malformedPatchStep
 }
 
 func (e *MalformedPatchError) Error() string {
@@ -206,7 +223,8 @@ func firstStray(kept *MalformedPatchError, line int, text string) *MalformedPatc
 	if kept != nil {
 		return kept
 	}
-	return &MalformedPatchError{Line: line, Problem: unexecuted(text)}
+	problem, step := unexecuted(text)
+	return &MalformedPatchError{Line: line, Problem: problem, Step: step}
 }
 
 // strayed refuses a patch holding a stray line, unless it named no file at all.
@@ -237,22 +255,29 @@ var extendedHeaders = []string{
 }
 
 // unexecuted says why ParsePatch refuses a line outside every hunk that is no
-// file header.
+// file header, and the step that removes what it refused.
 //
 // A probe applies hunks to files the sandbox already holds and does nothing
 // else, so a rename, a copy or a mode change is a step cr never takes. Walking
 // past such a line would still store it in §5.5's `input`, which `cr draft`
 // shows a colleague as the experiment that ran; refusing it keeps the stored
 // patch and the executed one the same patch, as §5.3.2's evidence chain needs.
-func unexecuted(line string) string {
+//
+// The patch around such a line is a diff, so the step names what was refused
+// rather than the shape of a unified diff and the flag for an external differ.
+func unexecuted(line string) (problem, step string) {
 	for _, header := range extendedHeaders {
 		if strings.HasPrefix(line, header) {
 			return fmt.Sprintf("%q is a rename, copy or mode header, which cr does not execute: "+
-				"a probe only applies hunks to files the sandbox holds, so the probe record's input "+
-				"would show a step that never ran", line)
+					"a probe only applies hunks to files the sandbox holds, so the probe record's input "+
+					"would show a step that never ran", line),
+				"remove the rename, copy or mode header on the line the message names from the `--patch` " +
+					"file, and write the mutation as @@ hunks against files the sandbox already holds"
 		}
 	}
-	return fmt.Sprintf("%q is neither a file header nor a hunk line, so cr would not execute it", line)
+	return fmt.Sprintf("%q is neither a file header nor a hunk line, so cr would not execute it", line),
+		"remove the line the message names from the `--patch` file: outside its @@ hunks a probe's patch " +
+			"holds only diff --git, index, --- and +++ file header lines"
 }
 
 // ApplyError reports a hunk that does not match the file it addresses, which is

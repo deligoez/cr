@@ -38,6 +38,9 @@ import (
 // EnvPrefix marks an environment variable as addressing a setting (§2.7).
 const EnvPrefix = "CR_"
 
+// profileSetting is §2.4.1's override: the id of the profile to load.
+const profileSetting = "profile"
+
 // setting is one configurable key together with its built-in default, the
 // lowest layer of §2.7. This table is the whole configuration surface: a name
 // absent from it is not a setting, and no layer can introduce one.
@@ -62,7 +65,7 @@ var settings = []setting{
 	{render.MaxProbeInputSetting, 4096},
 	{"probe.lock_timeout_seconds", 300},
 	{"probe.max_per_round", 10},
-	{"profile", ""},
+	{profileSetting, ""},
 	// §4.3.2's two knobs on the reinvention search. min_similarity is the
 	// only fractional setting in the table, and it is fractional because
 	// §4.3.2 defines similarity as a ratio: rounding it to an integer here
@@ -402,6 +405,16 @@ func Resolve(src Sources) (Config, error) {
 	// command would read, and the layer named is the one that supplied it.
 	if _, err := render.ParseLang(resolved.String(render.Setting)); err != nil {
 		return Config{}, &LayerError{Origin: origins[render.Setting], Key: render.Setting, Err: err}
+	}
+	// `profile` is joined into a profile file's path before that profile is
+	// loaded and its tests.cmd run, so a value that is not one file stem is
+	// refused here, naming the layer that supplied it, as meta.json's
+	// profile_id is refused where it is read.
+	if configured := resolved.String(profileSetting); configured != "" && state.ProfileStem(configured) != nil {
+		return Config{}, &LayerError{Origin: origins[profileSetting], Key: profileSetting, Err: fmt.Errorf(
+			"%q is not one profile's file stem: §2.4 makes a profile's id the name of a file directly "+
+				"under ~/.cr/profiles, so it is not absolute, holds no path separator, and is neither . nor .. alone",
+			configured)}
 	}
 	return resolved, nil
 }

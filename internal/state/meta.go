@@ -78,7 +78,7 @@ func decodeMeta(body []byte, path string) (Meta, error) {
 	// refused here, where every reader of the round meets it first. The empty
 	// id is a directory no round has resolved a profile for.
 	if m.ProfileID != "" {
-		if err := profileStem(m.ProfileID); err != nil {
+		if err := ProfileStem(m.ProfileID); err != nil {
 			return Meta{}, FileFailure("use", path, UnusableHint, err)
 		}
 	}

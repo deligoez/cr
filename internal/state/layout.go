@@ -67,18 +67,18 @@ func (l Layout) ProfilesDir() string { return filepath.Join(l.root, "profiles") 
 // Profile is one global profile file.
 func (l Layout) Profile(id string) string { return filepath.Join(l.ProfilesDir(), id+".json") }
 
-// profileStem refuses a profile id that is not one file stem, so the path
+// ProfileStem refuses a profile id that is not one file stem, so the path
 // Profile joins it into stays a file of ProfilesDir. §2.4 makes a profile's id
 // its file stem, so an id holding a separator, naming . or .., or rooted
 // elsewhere names no profile §2.2's tree holds.
-func profileStem(id string) error {
+func ProfileStem(id string) error {
 	if id == "." || id == ".." || strings.ContainsAny(id, `/\`) || filepath.IsAbs(id) {
 		return &ProfileIDError{ID: id}
 	}
 	return nil
 }
 
-// ProfileIDError is a stored profile id profileStem refuses. It is carried
+// ProfileIDError is a stored profile id ProfileStem refuses. It is carried
 // inside the *FileError naming the file that recorded it, which is what sets
 // the exit code and the hint; the type lets a door that reads a missing file as
 // a missing round tell this file apart as one that is present and unusable.

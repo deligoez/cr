@@ -26,10 +26,20 @@ import (
 // the first case also holds.
 func TestAPatchLineCrWouldNotExecuteIsRefused(t *testing.T) {
 	const hunk = "diff --git a/app.go b/app.go\nindex 1a2b3c4..5d6e7f8 100644\n" + fixtureDiff
+	// The step names what was refused: the patch around it is a diff, so the
+	// general step's ---/+++ shape and --no-ext-diff would send the reader
+	// after a problem the patch does not have.
+	const (
+		headerStep = "remove the rename, copy or mode header on the line the message names from the `--patch` " +
+			"file, and write the mutation as @@ hunks against files the sandbox already holds"
+		strayStep = "remove the line the message names from the `--patch` file: outside its @@ hunks a probe's " +
+			"patch holds only diff --git, index, --- and +++ file header lines"
+	)
 	cases := map[string]struct {
 		patch   string
 		line    int
 		problem string
+		hint    string
 	}{
 		"a rename": {
 			patch: hunk + "diff --git a/app.go b/../../moved.go\nsimilarity index 100%\n" +
@@ -38,6 +48,7 @@ func TestAPatchLineCrWouldNotExecuteIsRefused(t *testing.T) {
 			problem: `"similarity index 100%" is a rename, copy or mode header, which cr does not execute: ` +
 				"a probe only applies hunks to files the sandbox holds, so the probe record's input " +
 				"would show a step that never ran",
+			hint: headerStep,
 		},
 		"a mode change": {
 			patch: "diff --git a/app.go b/app.go\nold mode 100644\nnew mode 100755\n" + fixtureDiff,
@@ -45,11 +56,13 @@ func TestAPatchLineCrWouldNotExecuteIsRefused(t *testing.T) {
 			problem: `"old mode 100644" is a rename, copy or mode header, which cr does not execute: ` +
 				"a probe only applies hunks to files the sandbox holds, so the probe record's input " +
 				"would show a step that never ran",
+			hint: headerStep,
 		},
 		"a line that is no header": {
 			patch:   fixtureDiff + "applied by hand afterwards\n",
 			line:    8,
 			problem: `"applied by hand afterwards" is neither a file header nor a hunk line, so cr would not execute it`,
+			hint:    strayStep,
 		},
 	}
 	for name, c := range cases {
@@ -63,6 +76,7 @@ func TestAPatchLineCrWouldNotExecuteIsRefused(t *testing.T) {
 			require.True(t, errors.As(err, &malformed), "refused as a patch cr cannot read: %v", err)
 			assert.Equal(t, fmt.Sprintf("%s line %d: %s", patch, c.line, c.problem), err.Error())
 			assert.Equal(t, ExitValidation, exitCodeFor(err))
+			assert.Equal(t, c.hint, hintFor(err))
 			assert.NoFileExists(t, log, "the refusal comes before any suite is run")
 			assert.Empty(t, storedRecords(t, prepared, state.FileProbes), "nothing is recorded")
 		})
