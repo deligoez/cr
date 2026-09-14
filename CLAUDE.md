@@ -128,6 +128,16 @@ Before tagging, run the gofmt of the Go version CI resolves, for example
 `$(GOTOOLCHAIN=go1.27.1 go env GOROOT)/bin/gofmt -l internal cmd`; the first
 run downloads that toolchain.
 
+The operating system is part of the same claim, and a clean local gate on macOS
+cannot stand in for CI's Linux. Measured on 2026-09-15: a gate that passed on a
+clean clone with both Go versions failed on CI in one test, because Go words a
+signalled exit `segmentation fault (core dumped)` where the kernel wrote a core,
+which Linux did and macOS did not. So push and read CI before tagging. Tools
+analysing Go 1.27 code must also be installed by Go 1.27: locally installed
+`golangci-lint` and `deadcode` built by Go 1.26 failed on 1.27.1's standard
+library (`method must have no type parameters`), while the same pins installed
+with `GOTOOLCHAIN=go1.27.1 go install` passed.
+
 A fourth condition follows from the third: **a pin is the version that worked on
 a date, so it carries one, and the date is a test rather than a comment.** The
 failure mode is not the pin going stale — it is nobody noticing: v2.13.0 shipped
