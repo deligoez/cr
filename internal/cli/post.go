@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -197,7 +198,8 @@ func newPostCmd(out *writer) *cobra.Command {
 			// `cr draft` gives: the draft this reads back lives
 			// under rounds/<n>/, and a pull request no round has
 			// been opened on has no <n>. §11.2 codes that 4.
-			round, err := briefedRound(layout, owner, repo, pr)
+			var opened gh.PullRequest
+			round, err := briefedRound(layout, owner, repo, pr, &opened)
 			if err != nil {
 				return err
 			}
@@ -215,7 +217,8 @@ func newPostCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
-			return buildReview(out, layout, owner, repo, pr, &round.Meta, confirmed)
+			warned := &forewarning{closure: closureDisclosure(owner, repo, pr, &opened), to: cmd.ErrOrStderr()}
+			return buildReview(out, layout, owner, repo, pr, &round.Meta, confirmed, warned)
 		},
 	}
 	cmd.Flags().Bool("confirm", false, "perform the network write (§8.5.2)")
@@ -251,7 +254,7 @@ func newPostCmd(out *writer) *cobra.Command {
 // only a payload that passed all of them reaches either branch of the gate.
 func buildReview(
 	out *writer, l state.Layout,
-	owner, repo string, pr int, round *state.Meta, confirmed bool,
+	owner, repo string, pr int, round *state.Meta, confirmed bool, warned *forewarning,
 ) error {
 	records, err := roundFindingsOf(l, owner, repo, pr, round.Round)
 	if err != nil {
@@ -282,7 +285,7 @@ func buildReview(
 		// §7.2's discards took every queued record, so there is nothing
 		// to post and the run settles them without a review.
 		if len(triage.discarded()) > 0 {
-			return settleDiscards(out, l, round, records, &triage, journal, confirmed)
+			return settleDiscards(out, l, round, records, &triage, journal, confirmed, warned)
 		}
 		return emptyReview(round, records)
 	}
@@ -325,7 +328,7 @@ func buildReview(
 		return out.emit(&postResult{
 			Round: round.Round, Comments: commentedRecords(review, queued),
 			Payload: review, Discarded: discardedIDs(&triage), Forced: forced, Withdrawn: held,
-			Warnings: warnings, Honesty: postDisclosures(round), posting: posting{Posted: false, ConfirmGiven: false},
+			Warnings: warnings, Honesty: warned.disclosures(round), posting: posting{Posted: false, ConfirmGiven: false},
 		})
 	}
 	// §8.5.2 and §8.5.3: the permission travels as a value minted from the
@@ -334,7 +337,7 @@ func buildReview(
 	// variable, a profile field or an alias could arrive through.
 	sender := &sending{
 		layout: l, round: round, review: review, records: records,
-		queued: queued, forced: forced, withdrawn: held, warnings: warnings, triage: &triage, journal: journal,
+		queued: queued, forced: forced, withdrawn: held, warnings: warnings, triage: &triage, journal: journal, warned: warned,
 	}
 	return sender.send(out, gh.Confirm(confirmed))
 }
@@ -473,11 +476,24 @@ func refusePostedRound(l state.Layout, round *state.Meta, records []*finding.Fin
 	}
 }
 
-// postDisclosures is what a `cr post` run that sends nothing tells its reader
-// before the payload: §8.4.4's `post_unresolved`, when the round carries it.
-// It is empty and never nil.
-func postDisclosures(round *state.Meta) []string {
-	return append(make([]string, 0, 1), unresolvedDisclosure(round)...)
+// forewarning is what `cr post` tells its reader about the pull request before
+// the payload: that it is closed or merged. A confirmed send says it again, on
+// to, immediately before the request, so it is the last thing a reviewer sees
+// before the review leaves.
+type forewarning struct {
+	// closure is closureDisclosure's, and empty for an open pull request.
+	closure []string
+	// to is where a confirmed send prints it before the request: standard
+	// error, which a JSON document on standard output leaves readable.
+	to io.Writer
+}
+
+// disclosures is what a `cr post` run that sends nothing tells its reader
+// before the payload: the pull request's closure, then §8.4.4's
+// `post_unresolved` when the round carries it. It is empty and never nil.
+func (f *forewarning) disclosures(round *state.Meta) []string {
+	said := append(make([]string, 0, 2), f.closure...)
+	return append(said, unresolvedDisclosure(round)...)
 }
 
 // discardedIDs are the ids of the records this run's draft discards, in the
@@ -508,12 +524,12 @@ func discardedIDs(triage *triaged) []string {
 // that learns it.
 func settleDiscards(
 	out *writer, l state.Layout, round *state.Meta, records []*finding.Finding,
-	triage *triaged, journal *finding.Journal, confirmed bool,
+	triage *triaged, journal *finding.Journal, confirmed bool, warned *forewarning,
 ) error {
 	result := &postResult{
 		Round: round.Round, Comments: make([]postedComment, 0), Discarded: discardedIDs(triage),
 		Forced: make(finding.Forcings, 0), Withdrawn: make(finding.Withdrawn, 0),
-		Honesty: postDisclosures(round),
+		Honesty: warned.disclosures(round),
 		posting: posting{Posted: false, ConfirmGiven: confirmed},
 	}
 	if !confirmed {

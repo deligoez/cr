@@ -42,6 +42,32 @@ type PullRequest struct {
 	// account is gone. §3.5.5 offers that login's replies inside the
 	// ingested threads as candidate context notes.
 	Author string `json:"author"`
+	// State is GitHub's PullRequestState for it: OPEN, CLOSED or MERGED.
+	State string `json:"state"`
+	// ClosedAt and MergedAt are the times GitHub reports the pull request
+	// closed and merged, as it writes them, and empty while it has not.
+	ClosedAt string `json:"closed_at"`
+	MergedAt string `json:"merged_at"`
+}
+
+// The PullRequestState values GitHub answers for a pull request that is no
+// longer open.
+const (
+	StateClosed = "CLOSED"
+	StateMerged = "MERGED"
+)
+
+// Closure is the state and the time GitHub reports for a pull request that is
+// no longer open, and ok false for one that is open or whose state GitHub did
+// not answer.
+func (p *PullRequest) Closure() (state, at string, ok bool) {
+	switch p.State {
+	case StateMerged:
+		return "merged", p.MergedAt, true
+	case StateClosed:
+		return "closed", p.ClosedAt, true
+	}
+	return "", "", false
 }
 
 // AnswerError reports a `gh api graphql` call that ran, returned zero, and
@@ -79,6 +105,7 @@ const pullRequestQuery = `query($owner:String!,$repo:String!,$number:Int!){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$number){
       number title body headRefName headRefOid baseRefName baseRefOid author{login}
+      state closedAt mergedAt
     }
   }
 }`
@@ -92,6 +119,11 @@ type pullRequestNode struct {
 	HeadRefOid  string `json:"headRefOid"`
 	BaseRefName string `json:"baseRefName"`
 	BaseRefOid  string `json:"baseRefOid"`
+	State       string `json:"state"`
+	// ClosedAt and MergedAt are null while the pull request is open, which
+	// decodes as the empty string.
+	ClosedAt string `json:"closedAt"`
+	MergedAt string `json:"mergedAt"`
 	// Author is null when the account that opened the pull request is
 	// gone, as a comment's is.
 	Author *struct {
@@ -156,6 +188,9 @@ func (c Client) PullRequest(owner, repo string, number int) (PullRequest, error)
 		Head:        node.HeadRefOid,
 		BaseRefName: node.BaseRefName,
 		Base:        node.BaseRefOid,
+		State:       node.State,
+		ClosedAt:    node.ClosedAt,
+		MergedAt:    node.MergedAt,
 	}
 	if node.Author != nil {
 		opened.Author = node.Author.Login

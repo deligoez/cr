@@ -48,24 +48,24 @@ func crHome(t *testing.T) string {
 // the seam with a head of its own.
 func unmovedHead(t *testing.T, root string) {
 	t.Helper()
-	restore := currentHead
-	currentHead = func(owner, repo string, pr int) (string, error) {
+	restore := currentPullRequest
+	currentPullRequest = func(owner, repo string, pr int) (gh.PullRequest, error) {
 		recorded, err := state.New(root).ReadMeta(owner, repo, pr)
 		if err != nil {
-			return "", err
+			return gh.PullRequest{}, err
 		}
-		return recorded.Head, nil
+		return gh.PullRequest{Head: recorded.Head}, nil
 	}
-	t.Cleanup(func() { currentHead = restore })
+	t.Cleanup(func() { currentPullRequest = restore })
 }
 
 // movedHead installs a §9.3.1 seam answering head, whatever the round recorded,
 // which is the force-push §9.3 is about.
 func movedHead(t *testing.T, head string) {
 	t.Helper()
-	restore := currentHead
-	currentHead = func(_, _ string, _ int) (string, error) { return head, nil }
-	t.Cleanup(func() { currentHead = restore })
+	restore := currentPullRequest
+	currentPullRequest = func(_, _ string, _ int) (gh.PullRequest, error) { return gh.PullRequest{Head: head}, nil }
+	t.Cleanup(func() { currentPullRequest = restore })
 }
 
 // execute runs one command with its output on file.

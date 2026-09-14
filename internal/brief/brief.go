@@ -167,6 +167,17 @@ type Brief struct {
 	// §4.4.1 that could not run. They reach the reader through Disclosures
 	// and are unexported for the reason skipped is.
 	halves []finding.HonestyDisclosure
+	// pullRequest is GitHub's answer about the pull request this run read
+	// its head from. It is unexported for the reason round is, and reaches
+	// the reader through PullRequest, whose state a closed or merged pull
+	// request is disclosed with.
+	pullRequest gh.PullRequest
+}
+
+// PullRequest is GitHub's answer about the pull request the brief was
+// assembled from, as that one read returned it.
+func (b *Brief) PullRequest() *gh.PullRequest {
+	return &b.pullRequest
 }
 
 // Disclosures collects §3.7.6's report as the disclosure contract §11.1 exempts
@@ -233,7 +244,7 @@ func Run(src *Sources) (*Brief, error) {
 
 // assemble carries out §3.7's six items and writes nothing.
 //
-//nolint:funlen // measured 2026-09-14 at 69 lines; refactor to clear, never raise the limit
+//nolint:funlen // measured 2026-09-14 at 70 lines; refactor to clear, never raise the limit
 func assemble(src *Sources) (*Brief, error) {
 	pr, err := src.GH.PullRequest(src.Owner, src.Repo, src.PR)
 	if err != nil {
@@ -309,6 +320,7 @@ func assemble(src *Sources) (*Brief, error) {
 		PR:             src.PR,
 		Round:          round.index,
 		round:          round,
+		pullRequest:    pr,
 		Head:           pr.Head,
 		MergeBase:      mergeBase,
 		Profile:        profileReport(&selection, src.Config.String("profile")),

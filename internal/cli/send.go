@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
@@ -48,6 +49,9 @@ type sending struct {
 	// journal is §9.1.1's record of the moves this run makes, the draft's
 	// discards read above included, published with the records they moved.
 	journal *finding.Journal
+	// warned is what the dry run told its reader about the pull request,
+	// said again immediately before the request and carried in the report.
+	warned *forewarning
 }
 
 // send performs §8.3's network write and everything §8.4, §9.1, §9.3.6 and
@@ -96,6 +100,12 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	owner, repo, pr := s.round.Owner, s.round.Repo, s.round.PR
 	if s.round.PostUnresolved {
 		return &UnresolvedPostError{Owner: owner, Repo: repo, PR: pr, Round: s.round.Round}
+	}
+	// A closed or merged pull request is said once more before the request,
+	// and before the writes that precede it, so a failure to say it leaves
+	// the round as it was; standard error keeps a JSON document whole.
+	if _, err := io.WriteString(s.warned.to, out.disclose("", "\n", s.warned.closure...)); err != nil {
+		return err
 	}
 	payload, err := writePosted(s.layout, owner, repo, pr, s.round.Round, s.review)
 	if err != nil {
@@ -151,7 +161,8 @@ func (s *sending) send(out *writer, confirmation gh.Confirmation) error {
 	return out.emit(&postResult{
 		Round: s.round.Round, Comments: commentedRecords(s.review, s.queued),
 		Payload: s.review, Discarded: discardedIDs(s.triage), Forced: s.forced, Withdrawn: s.withdrawn,
-		Warnings: s.warnings, Honesty: make([]string, 0), posting: posting{Posted: true, ConfirmGiven: true},
+		Warnings: s.warnings, Honesty: append(make([]string, 0, 1), s.warned.closure...),
+		posting: posting{Posted: true, ConfirmGiven: true},
 	})
 }
 

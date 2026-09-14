@@ -14,6 +14,7 @@ import (
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
@@ -240,7 +241,8 @@ func newStatusCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			round, err := briefedRound(layout, owner, repo, pr)
+			var opened gh.PullRequest
+			round, err := briefedRound(layout, owner, repo, pr, &opened)
 			if err != nil {
 				return err
 			}
@@ -248,6 +250,9 @@ func newStatusCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// A closed or merged pull request is said first, before the
+			// round is reported as though a review were still to come.
+			report.Honesty = append(closureDisclosure(owner, repo, pr, &opened), report.Honesty...)
 			return out.emit(report)
 		},
 	}
