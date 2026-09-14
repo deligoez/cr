@@ -85,11 +85,14 @@ func TestTheDriftReportChecksANoteClaimAgainstItsNote(t *testing.T) {
 }
 
 // A §4.1.8 set-aside resting on a note §3.6.6 retracts is reported by
-// `cr status` as needing re-evaluation and blocks completeness again.
+// `cr status` as needing re-evaluation, blocks completeness again, and is no
+// longer counted in §10.1.2's `set_aside`.
 //
 // Measured on release QA before the fix (D-S03-5): after `cr note --remove`,
 // `cr status` still counted the set-aside, listed no unstanding note, and its
-// completeness reasons no longer named the claim.
+// completeness reasons no longer named the claim. The count half survived that
+// fix (D-V1a-4): `set_aside: 1` and "(1 set aside)" beside a §10.2.3 reason
+// saying the same claim is not set aside.
 func TestASetAsideOnARetractedNoteBlocksCompletenessAgain(t *testing.T) {
 	statusHome(t)
 	blocking := func() retractionStatus {
@@ -100,10 +103,27 @@ func TestASetAsideOnARetractedNoteBlocksCompletenessAgain(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(printed), &report))
 		return report
 	}
+	terminal := func() (claims string, notes []string) {
+		t.Helper()
+		notes = make([]string, 0, 1)
+		for line := range strings.SplitSeq(throughATerminal(t, "status", fixturePR, "--repo", fixtureSlug, "--no-color"), "\n") {
+			switch {
+			case strings.HasPrefix(line, "claims: "):
+				claims = line
+			case strings.HasPrefix(line, "  "+fixtureIssue+"#n"):
+				notes = append(notes, line)
+			}
+		}
+		return claims, notes
+	}
 	standing := blocking()
 	require.Empty(t, standing.Unstanding, "the control: the note #c2 rests on stands")
-	assert.Contains(t, standing.Completeness.Reasons,
-		"§10.2.3: 1 claim(s) are mapped to no unit and not set aside: "+fixtureIssue+"#c3")
+	assert.Equal(t, 1, standing.Intent.SetAside, "#c2's note stands")
+	assert.Equal(t, []string{"§10.2.3: 1 claim(s) are mapped to no unit and not set aside: " + fixtureIssue + "#c3"},
+		intentReasons(standing.Completeness.Reasons), "no reason names #c2 while its note stands")
+	claimsLine, noteLines := terminal()
+	assert.Equal(t, "claims: 3 total, 1 mapped to a unit, 2 unimplemented (1 set aside)", claimsLine)
+	assert.Empty(t, noteLines)
 
 	_, err := runCLIPrinting(t, "note", "--remove", fixtureIssue+"#n1")
 	require.NoError(t, err)
@@ -113,17 +133,34 @@ func TestASetAsideOnARetractedNoteBlocksCompletenessAgain(t *testing.T) {
 		Note: fixtureIssue + "#n1", Standing: note.StandingRetracted,
 		Cells: []string{}, Records: []string{}, SetAsides: []string{fixtureIssue + "#c2"},
 	}}, retracted.Unstanding)
-	assert.Contains(t, retracted.Completeness.Reasons,
-		"§10.2.3: 2 claim(s) are mapped to no unit and not set aside: "+fixtureIssue+"#c2, "+fixtureIssue+"#c3")
+	assert.Equal(t, 0, retracted.Intent.SetAside, "a set-aside on a retracted note settles nothing")
+	assert.Equal(t, []string{"§10.2.3: 2 claim(s) are mapped to no unit and not set aside: " +
+		fixtureIssue + "#c2, " + fixtureIssue + "#c3"}, intentReasons(retracted.Completeness.Reasons))
 
-	printed := throughATerminal(t, "status", fixturePR, "--repo", fixtureSlug, "--no-color")
-	assert.Contains(t, printed, "  "+fixtureIssue+"#n1 retracted: 0 cell(s), 0 record(s), "+
-		"1 set-aside(s) need re-evaluation ("+fixtureIssue+"#c2)")
+	claimsLine, noteLines = terminal()
+	assert.Equal(t, "claims: 3 total, 1 mapped to a unit, 2 unimplemented (0 set aside)", claimsLine,
+		"the terminal counts what the document counts")
+	assert.Equal(t, []string{"  " + fixtureIssue + "#n1 retracted: 0 cell(s), 0 record(s), " +
+		"1 set-aside(s) need re-evaluation (" + fixtureIssue + "#c2)"}, noteLines)
+}
+
+// intentReasons is the §10.2.3 reasons among a completeness verdict's reasons.
+func intentReasons(reasons []string) []string {
+	picked := make([]string, 0, 1)
+	for _, reason := range reasons {
+		if strings.HasPrefix(reason, "§10.2.3: ") {
+			picked = append(picked, reason)
+		}
+	}
+	return picked
 }
 
 // retractionStatus is the part of `cr status`'s document the retraction test reads.
 type retractionStatus struct {
-	Unstanding   []unstandingNote `json:"unstanding_notes"`
+	Unstanding []unstandingNote `json:"unstanding_notes"`
+	Intent     struct {
+		SetAside int `json:"set_aside"`
+	} `json:"intent"`
 	Completeness struct {
 		Reasons []string `json:"reasons"`
 	} `json:"completeness"`
