@@ -10,6 +10,7 @@ package testadequacy
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/deligoez/cr/internal/axis"
@@ -103,6 +104,28 @@ func Attach(p *profile.Profile, refs References, hunks []git.Hunk) Attachment {
 	paths := testPaths(p, hunks)
 	symbols, unavailable := referenced(p, refs, paths)
 	return Attachment{Paths: paths, Symbols: symbols, Unavailable: unavailable}
+}
+
+// Unindexed is the §4.5.4 entry for the symbol half over the changed files
+// symbol.Unindexed found outside the head index, given the paths of the round's
+// units, and nothing when it found none or no unit is a test file.
+//
+// The symbols a test file references are read against the head index, so a
+// symbol declared in a file the index does not hold is never among them, and
+// an attachment reading "none" there is cr saying the tests reference nothing
+// it looked for. A round whose units hold no test file has nothing for this
+// half to read, so the files cost it nothing and no entry is owed.
+func Unindexed(p *profile.Profile, paths, files []string) []Unavailable {
+	out := make([]Unavailable, 0, 1)
+	if len(files) == 0 || !slices.ContainsFunc(paths, p.IsTestFile) {
+		return out
+	}
+	return append(out, Unavailable{Lens: SymbolLens, Reason: fmt.Sprintf(
+		"profile %q builds §4.3.1's symbol index over its match.globs, which cover none of %s, "+
+			"and those files declare symbols at the head, so a symbol the test files reference from them "+
+			"is not attached; add a glob covering them to the profile's match.globs",
+		p.ID, strings.Join(files, ", "),
+	)})
 }
 
 // PerUnit hands the round's attachment to every unit, which is the whole of

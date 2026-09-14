@@ -459,7 +459,7 @@ func lensesOf(
 	if err != nil {
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
-	halves, err := roundHalves(owner, repo, pr, p, round.Head, resolved)
+	halves, err := roundHalves(l, owner, repo, pr, p, round, resolved)
 	if err != nil {
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
@@ -488,23 +488,23 @@ func statusProfile(l state.Layout, id string) (*profile.Profile, error) {
 // symbol half of §4.4.1, each reported when it could not run.
 //
 // Both are computed the way `cr review` computes them — the same index over the
-// round's head, the same hunks, the same ranking — because §4.5.4's obligation
-// is about the round rather than about the command asking. A shortcut reading
-// only the profile would answer two of the reinvention half's three states and
-// report the third, an index that was asked for and did not arrive, as a lens
-// that ran.
+// round's head, the same hunks, the same ranking, the same unit files — because
+// §4.5.4's obligation is about the round rather than about the command asking.
+// A shortcut reading only the profile would answer two of the reinvention
+// half's three states and report the third, an index that was asked for and did
+// not arrive, as a lens that ran.
 func roundHalves(
-	owner, repo string, pr int, p *profile.Profile, head string, resolved config.Config,
+	l state.Layout, owner, repo string, pr int, p *profile.Profile, round *state.Meta, resolved config.Config,
 ) ([]finding.HonestyDisclosure, error) {
 	dir, err := repoDir()
 	if err != nil {
 		return nil, err
 	}
-	index, _, err := symbol.Head(dir, head, p)
+	index, _, err := symbol.Head(dir, round.Head, p)
 	if err != nil {
 		return nil, err
 	}
-	hunks, err := halfHunks(owner, repo, pr, head, index)
+	hunks, err := halfHunks(owner, repo, pr, round.Head, index)
 	if err != nil {
 		return nil, err
 	}
@@ -512,11 +512,17 @@ func roundHalves(
 		MinSimilarity: resolved.Float("reinvention.min_similarity"),
 		MaxCandidates: resolved.Int("reinvention.max_candidates"),
 	})
-	refs, err := testadequacy.HeadReferences(dir, head, p, index, hunks)
+	refs, err := testadequacy.HeadReferences(dir, round.Head, p, index, hunks)
 	if err != nil {
 		return nil, err
 	}
 	tests := testadequacy.Attach(p, refs, hunks)
+	paths, unindexed, err := unindexedFiles(l, owner, repo, pr, round, dir, index)
+	if err != nil {
+		return nil, err
+	}
+	candidates.MarkUnindexed(p, unindexed)
+	tests.Unavailable = append(tests.Unavailable, testadequacy.Unindexed(p, paths, unindexed)...)
 	out := make([]finding.HonestyDisclosure, 0,
 		len(candidates.Unavailable)+len(tests.Unavailable))
 	for _, entry := range candidates.Unavailable {
@@ -526,6 +532,24 @@ func roundHalves(
 		out = append(out, entry)
 	}
 	return out, nil
+}
+
+// unindexedFiles are the files of the round's units, and those of them
+// symbol.Unindexed finds declaring symbols outside the head index — read from
+// units.ndjson, the unit set `cr review` emits its prompts over.
+func unindexedFiles(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, dir string, index *symbol.Index,
+) (paths, unindexed []string, err error) {
+	units, err := state.ReadStamped[unit.Record](l, owner, repo, pr, state.FileUnits, round.Round)
+	if err != nil {
+		return nil, nil, err
+	}
+	paths = make([]string, 0, len(units))
+	for i := range units {
+		paths = append(paths, units[i].Path)
+	}
+	unindexed, err = symbol.Unindexed(dir, round.Head, index, paths)
+	return paths, unindexed, err
 }
 
 // halfHunks reads the round's diff for the two halves above, and reads nothing

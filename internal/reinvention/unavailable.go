@@ -2,6 +2,7 @@ package reinvention
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/symbol"
@@ -79,6 +80,29 @@ func unavailability(p *profile.Profile, index *symbol.Index) (Unavailable, bool)
 		)), true
 	}
 	return Unavailable{}, false
+}
+
+// Unindexed is the §4.5.4 entry for the reinvention half over the changed files
+// symbol.Unindexed found outside the head index, and nothing when it found
+// none.
+//
+// The index was built, so none of the four states above applies, and the lens
+// ran for every other unit — which is why the reason names the files rather
+// than the lens as a whole. What it names is what a reader of those units
+// would otherwise be told wrongly: an empty attachment there reads as a diff
+// that declares nothing, when the index simply holds nothing of theirs.
+func Unindexed(p *profile.Profile, files []string) []Unavailable {
+	out := make([]Unavailable, 0, 1)
+	if len(files) == 0 {
+		return out
+	}
+	return append(out, reinventionOut(fmt.Sprintf(
+		"profile %q builds §4.3.1's symbol index over its match.globs, which cover none of %s, "+
+			"and those files declare symbols at the head, so for their units nothing added is offered "+
+			"a candidate and nothing they declare is offered as one; "+
+			"add a glob covering them to the profile's match.globs",
+		p.ID, strings.Join(files, ", "),
+	)))
 }
 
 // reinventionOut is one §4.5.4 entry for the lens of §4.3.1.

@@ -37,9 +37,11 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/symbol"
+	"github.com/deligoez/cr/internal/testadequacy"
 	"github.com/deligoez/cr/internal/unit"
 )
 
@@ -155,6 +157,11 @@ type Brief struct {
 	// unexported for the reason round is: §3.7 names no such item, and
 	// `cr review` and `cr status` carry it typed.
 	skipped []coverage.SkippedRole
+	// halves are §4.5.4's entries for the lens halves of §4.3.1 and
+	// §4.4.1 over units whose files the head index was not built over. They
+	// reach the reader through Disclosures and are unexported for the
+	// reason skipped is.
+	halves []finding.HonestyDisclosure
 }
 
 // Disclosures collects §3.7.6's report as the disclosure contract §11.1 exempts
@@ -162,15 +169,16 @@ type Brief struct {
 // cannot forget a category.
 //
 // The order is §4.5.4's: the axes that did not run, then §2.4.4's report, which
-// names the situation and is the only place a brief reports the reinvention half
-// of §4.3.1, then the roles that do not look. An axis §2.4.4's report already
-// names as disabled is left out of the axis entries, because
-// activation.Unprofiled disabled it for that one cause and the reader would
-// otherwise be told it twice.
+// names the situation and is the place a brief reports the reinvention half of
+// §4.3.1 when no profile matched, then the lens halves over the units whose
+// files the head index was not built over, then the roles that do not look. An
+// axis §2.4.4's report already names as disabled is left out of the axis
+// entries, because activation.Unprofiled disabled it for that one cause and the
+// reader would otherwise be told it twice.
 func (b *Brief) Disclosures() []finding.HonestyDisclosure {
 	missing := b.Profile.Missing
 	out := make([]finding.HonestyDisclosure, 0,
-		len(b.Axes.Disabled)+len(b.Axes.Unavailable)+1+len(b.skipped))
+		len(b.Axes.Disabled)+len(b.Axes.Unavailable)+1+len(b.halves)+len(b.skipped))
 	for _, d := range b.Axes.Disabled {
 		if missing == nil || !slices.Contains(missing.Disabled, d.Axis) {
 			out = append(out, d)
@@ -182,6 +190,7 @@ func (b *Brief) Disclosures() []finding.HonestyDisclosure {
 	if missing != nil {
 		out = append(out, *missing)
 	}
+	out = append(out, b.halves...)
 	for _, s := range b.skipped {
 		out = append(out, s)
 	}
@@ -236,7 +245,7 @@ func Run(src *Sources) (*Brief, error) {
 
 // assemble carries out §3.7's six items and writes nothing.
 //
-//nolint:funlen // measured 2026-08-31 at 68 lines; refactor to clear, never raise the limit
+//nolint:funlen // measured 2026-09-14 at 69 lines; refactor to clear, never raise the limit
 func assemble(src *Sources) (*Brief, error) {
 	pr, err := src.GH.PullRequest(src.Owner, src.Repo, src.PR)
 	if err != nil {
@@ -261,7 +270,7 @@ func assemble(src *Sources) (*Brief, error) {
 	if err := selection.Err(); err != nil {
 		return nil, err
 	}
-	units, mergeBase, files, err := unitsOf(src, &selection.Profile, pr.Base, pr.Head)
+	units, mergeBase, files, halves, err := unitsOf(src, &selection.Profile, pr.Base, pr.Head)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +332,7 @@ func assemble(src *Sources) (*Brief, error) {
 		CandidateNotes: candidateNotes(threads, pr.Author, resolved.Key.Value, src.PR),
 		Axes:           axes,
 		ActiveRoles:    active,
+		halves:         halves,
 		skipped:        coverage.Skipped(axes, corpus, active, selection.Profile.ID),
 	}, nil
 }
@@ -335,32 +345,61 @@ func assemble(src *Sources) (*Brief, error) {
 //
 // The symbol index is §4.3.1's head index, the one `cr review` attaches
 // candidates from, so §3.4.4's symbol branch reads the same declarations the
-// reinvention lens does.
+// reinvention lens does. The halves it returns are the §4.5.4 entries for the
+// units whose files that index was not built over, which `cr review` and
+// `cr status` report from the same index and the same unit files.
 func unitsOf(
 	src *Sources, p *profile.Profile, base, head string,
-) ([]unit.Unit, string, unit.Files, error) {
+) ([]unit.Unit, string, unit.Files, []finding.HonestyDisclosure, error) {
 	diff, err := git.DiffAgainstMergeBase(src.RepoDir, base, head)
 	if err != nil {
-		return nil, "", unit.Files{}, err
+		return nil, "", unit.Files{}, nil, err
 	}
 	hunks, err := git.ParseHunks(diff.Patch)
 	if err != nil {
-		return nil, "", unit.Files{}, err
+		return nil, "", unit.Files{}, nil, err
 	}
 	files, err := unit.FilesOf(src.RepoDir, diff.MergeBase, head, src.Config.Strings("ignore.globs"))
 	if err != nil {
-		return nil, "", unit.Files{}, err
+		return nil, "", unit.Files{}, nil, err
 	}
 	index, err := headSymbols(src.RepoDir, head, p)
 	if err != nil {
-		return nil, "", unit.Files{}, err
+		return nil, "", unit.Files{}, nil, err
 	}
 	clusters := unit.Clusters(files.Clusterable(hunks), p, index, src.Config.Int("cluster.gap_lines"))
 	units, err := unit.Units(unit.Split(clusters, src.Config.Int("cluster.max_lines")))
 	if err != nil {
-		return nil, "", unit.Files{}, err
+		return nil, "", unit.Files{}, nil, err
 	}
-	return units, diff.MergeBase, files, nil
+	halves, err := unindexedHalves(src.RepoDir, head, p, index, units)
+	return units, diff.MergeBase, files, halves, err
+}
+
+// unindexedHalves are the §4.5.4 entries symbol.Unindexed's files owe both
+// halves, over the paths of the units just formed. The index arrives as
+// headSymbols handed it to unit.Clusters, and an interface holding no index
+// asserts to a nil one, which Unindexed answers with no file.
+func unindexedHalves(
+	dir, head string, p *profile.Profile, index unit.SymbolIndex, units []unit.Unit,
+) ([]finding.HonestyDisclosure, error) {
+	built, _ := index.(*symbol.Index)
+	paths := make([]string, 0, len(units))
+	for i := range units {
+		paths = append(paths, units[i].Path)
+	}
+	unindexed, err := symbol.Unindexed(dir, head, built, paths)
+	if err != nil {
+		return nil, err
+	}
+	halves := make([]finding.HonestyDisclosure, 0, 2)
+	for _, entry := range reinvention.Unindexed(p, unindexed) {
+		halves = append(halves, entry)
+	}
+	for _, entry := range testadequacy.Unindexed(p, paths, unindexed) {
+		halves = append(halves, entry)
+	}
+	return halves, nil
 }
 
 // headSymbols is the head index as unit.Clusters takes it: nil when the profile

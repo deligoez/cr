@@ -55,6 +55,38 @@ type Attachments struct {
 	// Unavailable holds the §4.5.4 entry for the reinvention half when it
 	// did not run, and nothing when it did.
 	Unavailable []Unavailable `json:"unavailable"`
+	// unindexed are the files MarkUnindexed named, whose units the
+	// attachment does not speak for.
+	unindexed map[string]bool
+}
+
+// MarkUnindexed adds Unindexed's entry for files to the attachments and
+// remembers the files, so Covers answers false for their units.
+//
+// It is a step after Attach rather than an argument to it because the files
+// come from reading the head, which Attach does not do; the entry and the
+// memory are one call so a caller cannot report the files and still let their
+// units read as covered.
+func (a *Attachments) MarkUnindexed(p *profile.Profile, files []string) {
+	if len(files) == 0 {
+		return
+	}
+	a.Unavailable = append(a.Unavailable, Unindexed(p, files)...)
+	a.unindexed = make(map[string]bool, len(files))
+	for _, file := range files {
+		a.unindexed[file] = true
+	}
+}
+
+// Covers reports whether the attachments speak for a unit of the file at path:
+// false when the half did not run at all, and false for a file MarkUnindexed
+// named. Only where it is true is an empty attachment the diff declaring
+// nothing.
+func (a *Attachments) Covers(path string) bool {
+	if a.unindexed != nil {
+		return !a.unindexed[path]
+	}
+	return len(a.Unavailable) == 0
 }
 
 // Attach reads §4.3.1 over one round's profile, index, and diff.

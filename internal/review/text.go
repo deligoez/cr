@@ -213,10 +213,12 @@ func (r *Round) correctness(p *page, id string) {
 // unit, or the reason the lens did not run.
 func (r *Round) candidates(p *page, u *Unit) {
 	p.section("Candidate pre-existing symbols (§4.3.1)")
-	if len(r.Candidates.Unavailable) > 0 {
-		for _, out := range r.Candidates.Unavailable {
-			p.line("Unavailable: %s", out.Disclosure())
-		}
+	for _, out := range r.Candidates.Unavailable {
+		p.line("Unavailable: %s", out.Disclosure())
+	}
+	// A unit the attachments do not speak for is told only why: what the
+	// index holds nothing of cannot be said to declare nothing.
+	if !r.Candidates.Covers(u.Path) {
 		return
 	}
 	added := r.addedIn(u)
@@ -300,7 +302,13 @@ func (r *Round) tests(p *page, at int) {
 	attached := &r.Tests[at]
 	p.section("Test files (§4.4.1)")
 	p.line("Changed or added by the pull request: %s.", listed(attached.Paths))
-	p.line("Symbols they reference: %s.", listed(attached.Symbols))
+	if len(attached.Unavailable) == 0 {
+		p.line("Symbols they reference: %s.", listed(attached.Symbols))
+	} else {
+		// The list is only what cr could read, and says so: the entries
+		// below name what it could not.
+		p.line("Symbols they reference, of those cr could read: %s.", listed(attached.Symbols))
+	}
 	for _, out := range attached.Unavailable {
 		p.line("Unavailable: %s", out.Disclosure())
 	}

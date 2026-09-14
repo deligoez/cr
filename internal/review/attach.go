@@ -32,6 +32,14 @@ func (r *Round) attach(
 		MinSimilarity: src.Config.Float("reinvention.min_similarity"),
 		MaxCandidates: src.Config.Int("reinvention.max_candidates"),
 	})
+	// A unit whose file declares symbols the index was not built over is
+	// one neither half can speak for, and both say so, naming the files.
+	paths := r.unitPaths()
+	unindexed, err := symbol.Unindexed(src.RepoDir, r.Head, index, paths)
+	if err != nil {
+		return nil, err
+	}
+	r.Candidates.MarkUnindexed(p, unindexed)
 	if err := r.detect(src, p, hunks); err != nil {
 		return nil, err
 	}
@@ -44,6 +52,7 @@ func (r *Round) attach(
 		return nil, err
 	}
 	tests := testadequacy.Attach(p, refs, hunks)
+	tests.Unavailable = append(tests.Unavailable, testadequacy.Unindexed(p, paths, unindexed)...)
 	r.Tests = testadequacy.PerUnit(r.clusters(), tests)
 
 	// The halves are handed back as disclosures rather than as finished
@@ -100,6 +109,15 @@ func (r *Round) detect(src *Sources, p *profile.Profile, hunks []git.Hunk) error
 	}
 	r.Hits = rule.Attach(formed, hits)
 	return nil
+}
+
+// unitPaths are the files of the round's units, in Units' order.
+func (r *Round) unitPaths() []string {
+	paths := make([]string, 0, len(r.Units))
+	for i := range r.Units {
+		paths = append(paths, r.Units[i].Path)
+	}
+	return paths
 }
 
 // clusters are the round's units in the shape §3.4.4 formed them, which is the
