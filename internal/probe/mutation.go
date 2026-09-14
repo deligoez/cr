@@ -1,5 +1,7 @@
 package probe
 
+import "strconv"
+
 // The results §5.3.4's ladder produces, beside ResultError which §5.1.7 already
 // declares.
 //
@@ -89,11 +91,18 @@ func Ladder(m Measured) Result {
 	return resultFailed
 }
 
-// Reason says why Ladder answered `error`, and is empty for every other rung.
+// Reason says why Ladder answered `error` or `inconclusive`, and is empty for
+// every other rung.
 //
 // An `error` establishes nothing, and the reader deciding what to do next
 // needs the rung that produced it: a stale patch, a drifted sandbox, a missing
-// runner and a crashing one are four different fixes.
+// runner and a crashing one are four different fixes. An `inconclusive`
+// establishes nothing either, and QA's D-V1b-2 found one from a runner that
+// exited 255 after a zero failed count indistinguishable from one whose output
+// carried no count at all.
+//
+// The cases are Ladder's, in Ladder's order, so the rung a reason names is the
+// rung that answered.
 func Reason(m Measured) string {
 	switch {
 	case !m.Applied:
@@ -105,8 +114,26 @@ func Reason(m Measured) string {
 		return "§5.3.4's third rung: " + notStarted(m.Detail)
 	case m.ExitCode < 0:
 		return "§5.3.4's third rung: " + exitedOnSignal(m.Detail)
+	case m.TestsRun != nil && *m.TestsRun == 0:
+		return ""
+	case m.TestsRun == nil || m.TestsFailed == nil:
+		return "§5.3.4's fifth rung: " + undetermined
+	case *m.TestsFailed == 0 && m.ExitCode != 0:
+		return "§5.3.4's sixth rung: " + exitedUnclean(m.ExitCode)
 	}
 	return ""
+}
+
+// undetermined words a run whose executed or failed count its output did not
+// determine.
+const undetermined = "the executed or failed count is undetermined, because no tests.count_pattern " +
+	"is configured or the run's output did not yield the counts through it"
+
+// exitedUnclean words a run that reported no failure and exited non-zero, with
+// the exit code it exited with.
+func exitedUnclean(code int) string {
+	return "the failed count is zero but the runner exited " + strconv.Itoa(code) +
+		", so the run has not said that nothing failed"
 }
 
 // notStarted words a runner that could not be started, with what the attempt

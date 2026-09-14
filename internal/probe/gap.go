@@ -85,8 +85,9 @@ func GapLadder(m GapMeasured) Result {
 	return resultFailed
 }
 
-// GapReason says why GapLadder answered `error`, and is empty for every other
-// rung, as Reason does for §5.3.4's ladder.
+// GapReason says why GapLadder answered `error` or `inconclusive`, and is empty
+// for every other rung, as Reason does for §5.3.4's ladder. Its cases are
+// GapLadder's, in GapLadder's order.
 func GapReason(m GapMeasured) string {
 	switch {
 	case m.TimedOut:
@@ -95,6 +96,12 @@ func GapReason(m GapMeasured) string {
 		return "§5.4.3's second rung: " + notStarted(m.Detail)
 	case m.ExitCode < 0:
 		return "§5.4.3's second rung: " + exitedOnSignal(m.Detail)
+	case m.TestsRun != nil && *m.TestsRun == 0:
+		return ""
+	case m.TestsRun == nil || m.TestsFailed == nil:
+		return "§5.4.3's fourth rung: " + undetermined
+	case *m.TestsFailed == 0 && m.ExitCode != 0:
+		return "§5.4.3's fifth rung: " + exitedUnclean(m.ExitCode)
 	}
 	return ""
 }

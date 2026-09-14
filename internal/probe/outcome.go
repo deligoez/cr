@@ -70,17 +70,17 @@ func (o Outcome) Result() Result { return o.result }
 // run.
 func (o Outcome) Voided() bool { return o.voided }
 
-// Reason is why the record carries `error`, given ladder, the ladder's own
-// reason from Reason or GapReason. A probe §5.1.7 voided carries what the
-// post-run check found instead, because its `error` is not the ladder's; any
-// other result carries none.
+// Reason is why the record carries `error` or `inconclusive`, given ladder, the
+// ladder's own reason from Reason or GapReason. A probe §5.1.7 voided carries
+// what the post-run check found instead, because its `error` is not the
+// ladder's; any other result carries none.
 func (o Outcome) Reason(ladder string) string {
 	switch {
 	case o.voided:
 		return "§5.1.7: the post-run cleanliness check failed, so the result is error whatever " +
 			"the ladder read, the probe grades no finding, and the sandbox is recreated before " +
 			"the next run: " + o.unclean
-	case o.result != ResultError:
+	case o.result != ResultError && o.result != resultInconclusive:
 		return ""
 	}
 	return ladder
