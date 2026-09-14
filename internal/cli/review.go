@@ -89,7 +89,9 @@ func newReviewCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if only != "" && !axis.Valid(only) {
+			// Changed rather than a non-empty value: `--axis ''` names no
+			// axis either, and reading it as no flag would emit every prompt.
+			if cmd.Flags().Changed("axis") && !axis.Valid(only) {
 				return &unknownAxisFlagError{Value: only}
 			}
 			src, err := reviewSources(owner, repo, pr)

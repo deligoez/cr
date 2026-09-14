@@ -53,6 +53,9 @@ type Round struct {
 	// counts a row against every active role, so §4.6.3's expected set is
 	// built from this rather than from Roles.
 	Active []string
+	// Places are the role ids the round's id blocks are laid out by, per
+	// blockPlaces: a role's index here is its row of blocks.
+	Places []string
 	// Units are the round's units, in §3.4.6's id order.
 	Units []Unit
 	// Claims are the claims recorded for the round.

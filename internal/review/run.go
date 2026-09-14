@@ -336,7 +336,7 @@ func roleIDs(roles []role.Role) []string {
 // roles, the claims, the mapping, the threads, the notes, and §4.1's items. It
 // returns the round's unit records, which the diff is matched against next.
 func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
-	active, err := activeRoles(src, meta.ActiveRoles)
+	active, places, err := activeRoles(src, meta.ActiveRoles)
 	if err != nil {
 		return nil, err
 	}
@@ -365,6 +365,7 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 	}
 	r.Notes = standingNotes(notes)
 	r.Active = roleIDs(active)
+	r.Places = places
 	r.Roles = onAxis(active, src.Axis)
 	// meta.json's stamp, not the pairs: an empty mapping holds no pair and
 	// is still a mapping this round recorded, per round 9's
@@ -410,19 +411,20 @@ func (r *Round) raise(
 }
 
 // activeRoles is §4.5.1's active set as `cr brief` settled it in meta.json,
-// resolved against §2.5.5's corpus and kept in corpus order.
-func activeRoles(src *Sources, active []string) ([]role.Role, error) {
+// resolved against §2.5.5's corpus and kept in corpus order, together with the
+// rows blockPlaces lays that corpus's id blocks out in.
+func activeRoles(src *Sources, active []string) (roles []role.Role, places []string, err error) {
 	corpus, err := role.Resolve(src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	roles := make([]role.Role, 0, len(active))
+	roles = make([]role.Role, 0, len(active))
 	for i := range corpus {
 		if slices.Contains(active, corpus[i].Role.ID) {
 			roles = append(roles, corpus[i].Role)
 		}
 	}
-	return roles, nil
+	return roles, blockPlaces(corpus), nil
 }
 
 // onAxis keeps the roles of one axis, and every role when the axis is empty.

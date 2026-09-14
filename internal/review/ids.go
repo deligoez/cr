@@ -1,9 +1,11 @@
 package review
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/role"
 )
 
 // idBlock is how many record ids one prompt's block holds.
@@ -64,18 +66,19 @@ func (r *Round) idBase() int {
 
 // ids is the block of the prompt for the role over the unit at index at.
 //
-// Its place is the prompt's place in the round's whole grid, §4.5.1's active set
-// in corpus order times every unit in id order, and never its place in this
-// invocation's emission: `--axis` and §4.6.5's second pass give a prompt the
-// block the full fan-out gives it, so no two prompts of the round share an id
+// Its place is the prompt's place in a grid of Round.Places times every unit in
+// id order, and never its place in this invocation's emission or in the active
+// set: `--axis` and §4.6.5's second pass give a prompt the block the full
+// fan-out gives it, and a re-brief that changes the active roles moves no block
+// an earlier emission gave out, so no two prompts of the round share an id
 // however the passes are run. Within the block the first id is past every id a
 // stored record already holds there, so a prompt emitted again after `cr record`
 // stored its role's records does not hand those ids out a second time.
 //
-// Round.Roles is always a subset of Round.Active, which is what makes the
-// role's index there its place.
+// Round.Roles is always drawn from the corpus Round.Places is built over, which
+// is what makes the role's index there its place.
 func (r *Round) ids(base int, roleID string, at int) IDs {
-	place := slices.Index(r.Active, roleID)*len(r.Units) + at
+	place := slices.Index(r.Places, roleID)*len(r.Units) + at
 	block := IDs{First: base + place*idBlock + 1}
 	block.Last = block.First + idBlock - 1
 	for i := range r.Held {
@@ -84,6 +87,30 @@ func (r *Round) ids(base int, roleID string, at int) IDs {
 		}
 	}
 	return block
+}
+
+// blockPlaces is the order a round's rows of id blocks are laid out in: every
+// role id cr ships, ascending, and then every other role id the corpus
+// resolved, ascending.
+//
+// It is neither the active set nor §2.5.5's corpus order, because a re-brief of
+// the same round can change both, and a block that moves after an emission gave
+// it out hands a later emission ids the earlier one's roles already wrote. The
+// active set changes whenever a role joins or leaves it; the corpus order puts
+// per-repository and global files before the built-ins, so a role file added
+// between two emissions would move every built-in role's row. A shipped id keeps
+// its row whichever layer resolves it, and a role file joining the corpus moves
+// only the other non-shipped rows whose ids sort after its own.
+func blockPlaces(corpus []role.Resolved) []string {
+	places := slices.Sorted(maps.Keys(role.Builtins()))
+	shipped := len(places)
+	for i := range corpus {
+		if !slices.Contains(places[:shipped], corpus[i].Role.ID) {
+			places = append(places, corpus[i].Role.ID)
+		}
+	}
+	slices.Sort(places[shipped:])
+	return places
 }
 
 // idBlockLine tells the role which ids its records take: the prompt's block, in
