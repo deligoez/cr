@@ -58,6 +58,11 @@ type postResult struct {
 	// holds as questions because the note their claim rests on no longer
 	// stands, as this run read the context store.
 	Withdrawn finding.Withdrawn `json:"forced_by_retraction"`
+	// Warnings are §8.2.3's, one per comment whose suggestion, as the
+	// payload carries it, is indented unlike the line it replaces. They
+	// are warnings and not refusals: the payload still carries the
+	// suggestion as written.
+	Warnings []string `json:"warnings"`
 	// posting is §12.6's field, which §8.5.1 requires of the dry run in as
 	// many words: a run that sent nothing reports `"posted": false`.
 	posting
@@ -103,7 +108,11 @@ func (r *postResult) Text(w *writer) string {
 	for _, comment := range r.Comments {
 		text.WriteString(comment.ID + ": " + string(comment.Kind) + "\n")
 	}
-	return text.String() + r.payload() + w.disclose("", "\n", r.Forced.Disclosure(), r.Withdrawn.Disclosure()) + r.line(w)
+	text.WriteString(r.payload())
+	for _, warning := range r.Warnings {
+		text.WriteString(warning + "\n")
+	}
+	return text.String() + w.disclose("", "\n", r.Forced.Disclosure(), r.Withdrawn.Disclosure()) + r.line(w)
 }
 
 // payload renders §8.5.1's full payload for a terminal: the review's own body,
@@ -291,7 +300,7 @@ func buildReview(
 	if err := validatePositions(owner, repo, pr, round, queued); err != nil {
 		return err
 	}
-	review, err := buildPayload(l, owner, repo, pr, round, queued, triage.Preserved)
+	review, warnings, err := warnedPayload(l, owner, repo, pr, round, queued, triage.Preserved)
 	if err != nil {
 		return err
 	}
@@ -301,7 +310,7 @@ func buildReview(
 		return out.emit(&postResult{
 			Round: round.Round, Comments: commentedRecords(review, queued),
 			Payload: review, Discarded: discardedIDs(&triage), Forced: forced, Withdrawn: held,
-			posting: posting{Posted: false, ConfirmGiven: false},
+			Warnings: warnings, posting: posting{Posted: false, ConfirmGiven: false},
 		})
 	}
 	// §8.5.2 and §8.5.3: the permission travels as a value minted from the
@@ -310,7 +319,7 @@ func buildReview(
 	// variable, a profile field or an alias could arrive through.
 	sender := &sending{
 		layout: l, round: round, review: review, records: records,
-		queued: queued, forced: forced, withdrawn: held, triage: &triage, journal: journal,
+		queued: queued, forced: forced, withdrawn: held, warnings: warnings, triage: &triage, journal: journal,
 	}
 	return sender.send(out, gh.Confirm(confirmed))
 }
@@ -550,6 +559,25 @@ func refuseOverCap(l state.Layout, owner, repo string, queued []*finding.Finding
 		return err
 	}
 	return finding.CommentCapFor(queued, settings.maxComments).Err()
+}
+
+// warnedPayload is buildPayload and §8.2.3's warnings over the suggestions
+// that payload carries, both read from the same preserved bodies: a fence the
+// reviewer re-indented in draft.md, after the last `cr draft` included, is
+// warned about here and still sent as written.
+func warnedPayload(
+	l state.Layout, owner, repo string, pr int, round *state.Meta,
+	queued []*finding.Finding, preserved map[string]string,
+) (*post.Review, []string, error) {
+	review, err := buildPayload(l, owner, repo, pr, round, queued, preserved)
+	if err != nil {
+		return nil, nil, err
+	}
+	warnings, err := indentationWarnings(owner, repo, pr, round, queued, preserved)
+	if err != nil {
+		return nil, nil, err
+	}
+	return review, warnings, nil
 }
 
 // buildPayload renders every queued record's §8.1.3 comment and assembles

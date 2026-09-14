@@ -37,11 +37,16 @@ func (w *IndentationWarning) String() string {
 		w.Record, w.Suggested, w.Replaced)
 }
 
-// WarnIndentation is §8.2.3 over one record, returning nil when there is
-// nothing to warn about.
+// WarnIndentation is §8.2.3 over one record's sent suggestion, returning nil
+// when there is nothing to warn about.
+//
+// sent is the replacement the record's comment will carry, which is the
+// record's stored suggestion only while the reviewer has left its block alone:
+// draft.SentSuggestion reads it out of the body that will be posted, so an edit
+// to the fence in draft.md is the suggestion compared.
 //
 // Nothing is warned about in three cases, and each is an absence rather than a
-// judgement. A record with no suggestion replaces nothing; a record §8.2.1
+// judgement. A comment carrying no suggestion replaces nothing; a record §8.2.1
 // refuses outright is the business of Validate, whose refusal says more than a
 // warning would; and a first replaced line cr cannot read is a line cr has no
 // indentation to compare against.
@@ -56,15 +61,15 @@ func (w *IndentationWarning) String() string {
 // alone, in those words, because that is what §8.2.3 names. A suggestion whose
 // later lines are indented differently is a suggestion about a block, and the
 // first line is where GitHub anchors the replacement.
-func WarnIndentation(record *finding.Finding, hunks []git.Hunk, texts []string) *IndentationWarning {
-	if record.Suggestion == "" || !Placeable(&record.Anchor, hunks) {
+func WarnIndentation(record *finding.Finding, sent string, hunks []git.Hunk, texts []string) *IndentationWarning {
+	if sent == "" || !Placeable(&record.Anchor, hunks) {
 		return nil
 	}
 	replaced, found := replacedLine(&record.Anchor, hunks, texts)
 	if !found {
 		return nil
 	}
-	suggested, _, _ := strings.Cut(record.Suggestion, "\n")
+	suggested, _, _ := strings.Cut(sent, "\n")
 	if indentOf(suggested) == indentOf(replaced) {
 		return nil
 	}

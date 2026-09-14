@@ -203,7 +203,7 @@ const machineGenerated = "Machine generated from the rule's fix. `cr` cannot est
 // the enforced disclosure, and it is generated at render and post time from the
 // same field this reads.
 func suggestion(record *finding.Finding) string {
-	block := "```suggestion\n" + record.Suggestion + "\n```"
+	block := suggestionFence + "\n" + record.Suggestion + "\n" + closingFence
 	if record.SuggestionOrigin != finding.OriginRule {
 		return block
 	}

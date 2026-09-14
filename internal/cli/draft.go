@@ -237,10 +237,11 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	// §8.2.3, over the records the draft is about to hold and before it is
-	// written, so the reviewer reads the warning beside the file it is
-	// about rather than after deciding what to do with it.
-	warnings, err := indentationWarnings(owner, repo, pr, round, queued)
+	// §8.2.3, over the suggestions the draft is about to hold — an edited
+	// fence §7.1.6 preserved included — and before it is written, so the
+	// reviewer reads the warning beside the file it is about rather than
+	// after deciding what to do with it.
+	warnings, err := indentationWarnings(owner, repo, pr, round, queued, triage.Preserved)
 	if err != nil {
 		return err
 	}

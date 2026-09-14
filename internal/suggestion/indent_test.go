@@ -39,7 +39,7 @@ func warnOn(t *testing.T, record *finding.Finding) *IndentationWarning {
 	t.Helper()
 	texts, err := git.HunkTexts(indentedDiff)
 	require.NoError(t, err)
-	return WarnIndentation(record, hunksOf(t, indentedDiff), texts)
+	return WarnIndentation(record, record.Suggestion, hunksOf(t, indentedDiff), texts)
 }
 
 // §8.2.3: a suggestion indented unlike the line it replaces is warned about,
@@ -61,6 +61,23 @@ func TestASuggestionIndentedUnlikeItsLineIsWarnedAbout(t *testing.T) {
 	assert.Contains(t, warning.String(), `"    $added = 3;"`)
 	assert.Contains(t, warning.String(), `"\t$added = 2;"`)
 	assert.Contains(t, warning.String(), "f1")
+}
+
+// §8.2.3 is asked of the suggestion that will be sent. A reviewer who re-indents
+// the fence in draft.md changes what reaches the author, so the sent text is the
+// one compared, and a stored suggestion that agrees with its line says nothing
+// about it.
+func TestTheSentSuggestionIsTheOneCompared(t *testing.T) {
+	record := replacing(10, 10, "\t$added = 3;")
+	texts, err := git.HunkTexts(indentedDiff)
+	require.NoError(t, err)
+
+	warning := WarnIndentation(record, "    $added = 3;\n    $second = 4;", hunksOf(t, indentedDiff), texts)
+
+	require.NotNil(t, warning)
+	assert.Equal(t, IndentationWarning{Record: "f1", Suggested: "    $added = 3;", Replaced: "\t$added = 2;"}, *warning)
+	assert.Nil(t, WarnIndentation(record, "", hunksOf(t, indentedDiff), texts),
+		"a body whose fence the reviewer removed sends no suggestion to compare")
 }
 
 // §8.2.3 over a context line: Validate admits every line of a hunk's head
@@ -136,5 +153,5 @@ func TestNothingIsWarnedAboutWhenThereIsNothingToCompare(t *testing.T) {
 func TestAHunkWithoutItsTextIsWarnedAboutNothing(t *testing.T) {
 	record := replacing(10, 10, "    $added = 3;")
 
-	assert.Nil(t, WarnIndentation(record, hunksOf(t, indentedDiff), nil))
+	assert.Nil(t, WarnIndentation(record, record.Suggestion, hunksOf(t, indentedDiff), nil))
 }
