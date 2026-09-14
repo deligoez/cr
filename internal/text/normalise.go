@@ -58,8 +58,8 @@ func (e *InvalidUTF8Error) Error() string {
 // of which a UTF-8 continuation byte can impersonate.
 func Normalise(in string) (string, error) {
 	// Step 1: decode as UTF-8; invalid input fails with exit code 1.
-	if offset := firstInvalidUTF8(in); offset >= 0 {
-		return "", &InvalidUTF8Error{Offset: offset, Byte: in[offset]}
+	if err := CheckUTF8(in); err != nil {
+		return "", err
 	}
 
 	// Step 2: replace CRLF and lone CR with LF. CRLF goes first, so a
@@ -117,6 +117,20 @@ func collapseRuns(line string) string {
 		inRun = false
 	}
 	return out.String()
+}
+
+// CheckUTF8 is §1.4 step 1 alone: nil when in decodes as UTF-8, and the
+// InvalidUTF8Error naming the first byte that does not otherwise.
+//
+// It is exported for the text cr stores without normalising. encoding/json
+// replaces an invalid byte with U+FFFD on both decode and encode, so text that
+// reaches a record or a note unchecked is stored as something nobody wrote, and
+// the refusal step 1 gives normalised text is the one that text gets too.
+func CheckUTF8(in string) error {
+	if offset := firstInvalidUTF8(in); offset >= 0 {
+		return &InvalidUTF8Error{Offset: offset, Byte: in[offset]}
+	}
+	return nil
 }
 
 // firstInvalidUTF8 returns the offset of the first byte that begins no UTF-8

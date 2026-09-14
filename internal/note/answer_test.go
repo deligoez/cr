@@ -1,6 +1,8 @@
 package note
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +47,7 @@ func briefed(t *testing.T, issueKey string) state.Layout {
 // scopes that record.
 func TestAnAnswerIsFiledUnderThePullRequestsIssueKey(t *testing.T) {
 	l := briefed(t, "CR-7")
+	holding(t, l, `{"id":"f3","state":"posted","head":"0f1e2d3","round":1}`)
 	at := time.Date(2026, 8, 30, 9, 15, 0, 0, time.UTC)
 
 	plain, err := Append(l, "CR-7", "the deadline moved", SourceChat, answerPR, at)
@@ -69,11 +72,10 @@ func TestAnAnswerIsFiledUnderThePullRequestsIssueKey(t *testing.T) {
 // Nothing that could not become a §3.6.2 answer reaches the store, and each
 // refusal names what the user has to do next.
 //
-// The record id is checked for §6.1's spelling and is deliberately not resolved
-// against findings.ndjson, so a well-spelled id nobody allocated is accepted:
-// §9.3.5 scopes those records to the current round while exempting this store
-// from the scoping, and an existence check would refuse a true answer arriving
-// after the next round opened.
+// The record id is checked for §6.1's spelling and then resolved against the
+// pull request's findings.ndjson, so a well-spelled id no record holds is
+// refused: a record id is a per-PR counter, and a later record taking the id
+// would inherit an answer nobody gave it.
 func TestAnAnswerIsRefusedWhenItHasNowhereToGo(t *testing.T) {
 	at := time.Now()
 
@@ -108,6 +110,7 @@ func TestAnAnswerIsRefusedWhenItHasNowhereToGo(t *testing.T) {
 
 	t.Run("an answer §3.6.1 would refuse as a note", func(t *testing.T) {
 		l := briefed(t, "CR-7")
+		holding(t, l, `{"id":"f3","state":"posted","head":"0f1e2d3","round":1}`)
 		for name, source := range map[string]Source{
 			"an unlisted source": Source("gossip"),
 			"an absent source":   "",
@@ -122,10 +125,37 @@ func TestAnAnswerIsRefusedWhenItHasNowhereToGo(t *testing.T) {
 		assert.NoFileExists(t, l.ContextFile("CR-7"))
 	})
 
-	t.Run("a well-spelled id nobody allocated", func(t *testing.T) {
+	t.Run("a well-spelled id no record holds", func(t *testing.T) {
 		l := briefed(t, "CR-7")
+		holding(t, l, `{"id":"f3","state":"posted","head":"0f1e2d3","round":1}`)
 		recorded, err := Answer(l, answerOwner, answerRepo, answerPR, "f9", "answered", SourceChat, at)
-		require.NoError(t, err, "§3.6.2 keeps the fact rather than resolving the reference")
-		assert.Equal(t, "f9", recorded.Record)
+		var unknown *UnknownRecordError
+		require.ErrorAs(t, err, &unknown)
+		assert.Equal(t, UnknownRecordError{Owner: answerOwner, Repo: answerRepo, PR: answerPR, ID: "f9"}, *unknown)
+		assert.Zero(t, recorded)
+		assert.NoFileExists(t, l.ContextFile("CR-7"))
 	})
+}
+
+// §3.6.2's record is looked up across rounds: an earlier round's record that
+// §9.3.4 moved to stale is still held, and the question it asked was asked.
+func TestAnAnswerMayNameARecordOfAnEarlierRound(t *testing.T) {
+	l := briefed(t, "CR-7")
+	holding(t, l,
+		`{"id":"f1","state":"stale","head":"0f1e2d3","round":1}`,
+		`{"id":"f2","state":"draft","head":"4a5b6c7","round":2}`)
+
+	at := time.Date(2026, 8, 30, 9, 15, 0, 0, time.UTC)
+	recorded, err := Answer(l, answerOwner, answerRepo, answerPR, "f1", "answered", SourceChat, at)
+	require.NoError(t, err)
+	assert.Equal(t, "f1", recorded.Record)
+	assert.Equal(t, []Note{recorded}, stored(t, l, "CR-7"))
+}
+
+// holding writes lines as the pull request's findings.ndjson, the records an
+// answer's id is resolved against.
+func holding(t *testing.T, l state.Layout, lines ...string) {
+	t.Helper()
+	path := l.PRFile(answerOwner, answerRepo, answerPR, state.FileFindings)
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600))
 }

@@ -1048,8 +1048,9 @@ func runOrder(t *testing.T, runs map[string][]string) []string {
 	// from that draft, since a round with nothing queued is refused before
 	// any payload is built. `cr cells record` goes after `cr map record`,
 	// because §4.6.5 refuses a correctness cell until the round's mapping
-	// is recorded.
-	deferred := []string{"cells record", "claims set-aside", "draft", "post"}
+	// is recorded. `cr answer` goes after `cr record`, because §3.6.2 files
+	// an answer against a record the pull request holds.
+	deferred := []string{"answer", "cells record", "claims set-aside", "draft", "post"}
 	for _, name := range append(slices.Clone(hoisted), deferred...) {
 		require.Contains(t, runs, name, "the ordered %s has no invocation to run", name)
 	}

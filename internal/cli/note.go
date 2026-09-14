@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -96,6 +100,9 @@ func newNoteCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := checkNoteKey(cmd, layout, args[0]); err != nil {
+				return err
+			}
 			recorded, err := note.Append(layout, args[0], args[1], parsed, pr, time.Now())
 			if err != nil {
 				return err
@@ -118,6 +125,30 @@ func newNoteCmd(out *writer) *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("remove", "pr")
 
 	return cmd
+}
+
+// checkNoteKey refuses an issue key the effective `intent.key_pattern` does not
+// match whole (§3.2), before anything reaches the store the key would name.
+//
+// The per-repository layer is consulted the way `cr config` consults it: through
+// repoOf when a repository is named or detected, and left out when detection
+// names none, because a note is keyed by issue and may be typed anywhere.
+func checkNoteKey(cmd *cobra.Command, l state.Layout, issueKey string) error {
+	sources := config.Sources{Environ: os.Environ(), GlobalConfig: l.Config()}
+	owner, name, err := repoOf(cmd)
+	var undetected *RepositoryDetectionError
+	switch {
+	case errors.As(err, &undetected):
+	case err != nil:
+		return err
+	default:
+		sources.RepoConfig = l.RepoConfig(owner, name)
+	}
+	resolved, err := config.Resolve(sources)
+	if err != nil {
+		return err
+	}
+	return intent.CheckKey(issueKey, resolved.String(intentKeyPattern))
 }
 
 // retracting reports whether this run is §11's `cr note --remove <note-id>`

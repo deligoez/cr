@@ -81,21 +81,16 @@ func (e *NoIssueKeyError) Error() string {
 // answer in a store no later round loads and lose the very fact §3.6.2 exists
 // to keep.
 //
-// Nothing here reads or writes the record itself. §3.6.2 forbids the answer to
-// change the record's state, and the way that is kept is that this path never
-// takes the exclusive per-PR lock that every write to §2.3's files goes
-// through, and never opens findings at all: the record id is checked for the
-// spelling §6.1 gives it and is not resolved.
+// Nothing here writes the record. §3.6.2 forbids the answer to change the
+// record's state, and the way that is kept is that this path never takes the
+// exclusive per-PR lock that every write to §2.3's files goes through.
 //
-// Not resolving it is deliberate. Reading the record file to prove the id names
-// something would tie an answer to the current round's records, which §9.3.5
-// scopes to that round while exempting this store from the scoping outright —
-// so an answer arriving after `cr brief` opened the next round would be refused
-// though the question was really asked and really answered. The risk taken
-// instead is a note referencing a record nobody wrote. That is provenance
-// pointing at nothing inside a record §3.6.6 already calls unverified hearsay,
-// and it costs nothing with the author, while refusing a true fact is the loss
-// §3.6.2 was written to prevent.
+// The record id is resolved, though, against every record the pull request
+// holds, lock-free per §2.3.2. §3.6.2's note references that record, and a
+// record id is a per-PR counter: an answer filed under an id nothing holds would
+// be inherited by whichever later record takes the id. The store is read across
+// rounds rather than scoped to the current one, because §9.3.4 keeps an earlier
+// round's record as `stale`, and a question asked in that round was still asked.
 func Answer(
 	l state.Layout, owner, repo string, pr int, recordID, text string, source Source, at time.Time,
 ) (Note, error) {
@@ -106,7 +101,43 @@ func Answer(
 	if err != nil {
 		return Note{}, err
 	}
+	if err := holdsRecord(l, owner, repo, pr, recordID); err != nil {
+		return Note{}, err
+	}
 	return appendNote(l, issueKey, &Note{Text: text, Source: source, PR: pr, Record: recordID}, at)
+}
+
+// UnknownRecordError reports a record id spelled the way §6.1 spells one that
+// no record the pull request holds carries. The invocation is well formed and
+// the state read without trouble; what fails is the answer, which §11.2 codes 1.
+type UnknownRecordError struct {
+	// Owner, Repo, and PR name the pull request whose records were read.
+	Owner string
+	Repo  string
+	PR    int
+	// ID is the record id that named nothing.
+	ID string
+}
+
+func (e *UnknownRecordError) Error() string {
+	return fmt.Sprintf(
+		"no record %s is stored for %s/%s#%d, in any round: §3.6.2 files an answer against a record the pull request holds",
+		e.ID, e.Owner, e.Repo, e.PR,
+	)
+}
+
+// holdsRecord refuses recordID unless a record of the pull request carries it.
+func holdsRecord(l state.Layout, owner, repo string, pr int, recordID string) error {
+	held, err := state.ReadRecords[finding.Finding](l, owner, repo, pr, state.FileFindings)
+	if err != nil {
+		return err
+	}
+	for i := range held {
+		if held[i].ID == recordID {
+			return nil
+		}
+	}
+	return &UnknownRecordError{Owner: owner, Repo: repo, PR: pr, ID: recordID}
 }
 
 // issueKeyOf reads the issue key one pull request resolved to. The read takes

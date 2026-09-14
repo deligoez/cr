@@ -261,6 +261,12 @@ var codes = []mapped{
 	// configured expression does too.
 	{is[*intent.KeyPatternError](), ExitFile,
 		"correct the expression the message names so it compiles"},
+	// `cr note` typed a key §3.2's pattern would never resolve, so the note
+	// would land in a store no round loads. The configuration and the store
+	// are fine; what is wrong is the key, §11.2's 1.
+	{is[*intent.KeyShapeError](), ExitValidation,
+		"name the issue key the way `intent.key_pattern` matches it, e.g. CR-1; " +
+			"`cr config --resolved` shows the pattern in force"},
 	// §3.2 leaves the key empty when none of its four sources yields one
 	// and has the run continue, so this is recorded state rather than an
 	// unusable file or a mistyped command line. What fails is the claim
@@ -531,6 +537,11 @@ var codes = []mapped{
 	// retraction, which §11.2 codes 1 alongside note.NoIssueKeyError.
 	{is[*note.UnknownNoteError](), ExitValidation,
 		"`cr context <ISSUE-KEY>` lists the notes and their ids"},
+	// §3.6.2's answer naming a record id the pull request's records do not
+	// hold. The state read without trouble and the id is spelled as §6.1
+	// spells one; what fails is the answer, §11.2's 1 beside the unknown note.
+	{is[*note.UnknownRecordError](), ExitValidation,
+		"answer a record the pull request holds, by the id `cr record` reported when it stored the record"},
 	// §4.1.8's set-aside naming a note §3.6.6 retracted. The note exists and
 	// the store read without trouble; what fails is a set-aside that could
 	// not settle the claim, which §11.2 codes 1 beside the unknown note.

@@ -68,6 +68,7 @@ func runAnswer(t *testing.T, args ...string) (printed string, err error) {
 // under whatever a second typing produced.
 func TestAnswerRecordsAgainstThePullRequestsIssueKey(t *testing.T) {
 	layout := briefedHome(t, "CR-7")
+	holdRecords(t, layout, answeredOwner, answeredRepo, answeredPRNum, answerable)
 
 	out, err := runAnswer(t,
 		answeredPR, "f3", "the retry is deliberate", "--source", "thread", "--repo", answeredSlug)
@@ -94,7 +95,8 @@ func TestAnswerRecordsAgainstThePullRequestsIssueKey(t *testing.T) {
 // §3.6.2 makes the record the thing this note is about, and §8.1.6 will
 // disclose the source in every posted body resting on it.
 func TestATerminalAnswerNamesTheIdTheRecordAndTheSource(t *testing.T) {
-	briefedHome(t, "CR-7")
+	layout := briefedHome(t, "CR-7")
+	holdRecords(t, layout, answeredOwner, answeredRepo, answeredPRNum, answerable)
 
 	out := throughATerminal(t,
 		"answer", answeredPR, "f3", "the retry is deliberate", "--source", "thread", "--repo", answeredSlug)
@@ -239,14 +241,16 @@ func answerSource(t *testing.T) []string {
 
 // stateWriters are the names that can reach a record's state: the constructor
 // of the exclusive per-PR lock, the three writers that are methods on it, and
-// the two §2.3 files a record's state and its history live in.
+// the §2.3 file a record's history lives in.
 //
 // They are searched for as text, which is what a file that never mentions one
 // cannot be doing anything with. Nothing here is reachable by another spelling:
 // the lock's fields are unexported, so its constructor is the only way to hold
 // one, and every write to §2.3's files goes through a method that demands it.
+// findings.ndjson is not among them: §3.6.2's answer names a record the pull
+// request holds, so the answer reads that file, lock-free, to resolve the id.
 var stateWriters = []string{
-	"LockPR", "WriteStamped", "WriteRecords", "WriteMeta", "FileFindings", "FileTransitions",
+	"LockPR", "WriteStamped", "WriteRecords", "WriteMeta", "FileTransitions",
 }
 
 // §3.6.2 forbids an answer to change the record's state, and the way that is
@@ -256,9 +260,8 @@ var stateWriters = []string{
 // is the reason it will keep holding. A run that happens not to write today
 // could start writing tomorrow with nothing failing; a path that cannot take
 // the per-PR lock cannot write any of §2.3's files whatever it later does. The
-// two record files are named as well, so even a read of them — the step towards
-// resolving the id that §9.3.5 argues against — has to be a deliberate change
-// here rather than something a call site does by existing.
+// transitions file is named as well, so even a read of it has to be a
+// deliberate change here rather than something a call site does by existing.
 func TestAnswerHasNoRouteToARecordsState(t *testing.T) {
 	root := moduleRoot(t)
 

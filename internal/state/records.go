@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/deligoez/cr/internal/text"
 )
 
 // Stamp is the head and round pair §2.3.3 requires on every record of the eight
@@ -227,6 +229,12 @@ func DecodeStamped[E any, T interface {
 }](file string, body []byte, check func(int, map[string]json.RawMessage, T) error) ([]T, error) {
 	records := make([]T, 0)
 	for _, line := range numberedRecords(body) {
+		// §1.4 step 1 before any decode: encoding/json reads an invalid
+		// byte as U+FFFD, so a check after it would pass the line and the
+		// record would be stored holding text the agent never wrote.
+		if err := text.CheckUTF8(string(line.text)); err != nil {
+			return nil, &MalformedLineError{File: file, Line: line.at, Err: err}
+		}
 		supplied, err := FoldedFields(line.text)
 		if repeated := (*RepeatedKeyError)(nil); errors.As(err, &repeated) {
 			return nil, &RepeatedKeyError{File: file, Line: line.at, Key: repeated.Key}

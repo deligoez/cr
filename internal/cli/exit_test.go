@@ -357,6 +357,7 @@ func TestACorruptContextStoreExitsWithTheFileCode(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			layout := briefedHome(t, "CR-7")
+			holdRecords(t, layout, answeredOwner, answeredRepo, answeredPRNum, answerable)
 			require.NoError(t, layout.EnsureContext("CR-7"))
 			store := layout.ContextFile("CR-7")
 			require.NoError(t, os.WriteFile(store,

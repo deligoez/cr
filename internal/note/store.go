@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // Append records one note against issueKey and returns the note it wrote
@@ -15,8 +16,8 @@ import (
 // The note answers no record. §3.6.2's answer is the one that does, and it
 // reaches the same store through appendNote below, so the two commands cannot
 // disagree about how a note is allocated, validated, or published.
-func Append(l state.Layout, issueKey, text string, source Source, pr int, at time.Time) (Note, error) {
-	return appendNote(l, issueKey, &Note{Text: text, Source: source, PR: pr}, at)
+func Append(l state.Layout, issueKey, fact string, source Source, pr int, at time.Time) (Note, error) {
+	return appendNote(l, issueKey, &Note{Text: fact, Source: source, PR: pr}, at)
 }
 
 // Retract marks one note as retracted and returns it as it now stands
@@ -123,6 +124,11 @@ func appendNote(l state.Layout, issueKey string, draft *Note, at time.Time) (Not
 	// this value in a posted body.
 	if _, err := ParseSource(string(draft.Source)); err != nil {
 		return Note{}, err
+	}
+	// §1.4 step 1: the store is JSON, and encoding/json would write an
+	// invalid byte as U+FFFD, keeping a fact nobody gave.
+	if err := text.CheckUTF8(draft.Text); err != nil {
+		return Note{}, fmt.Errorf("the note text: %w", err)
 	}
 	if strings.TrimSpace(draft.Text) == "" {
 		return Note{}, errors.New("the note is empty: pass the fact as text, in quotes")

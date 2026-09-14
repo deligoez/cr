@@ -15,6 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/text"
 )
 
 // malformedLineHint is the step exit.go's row gives a caller-supplied line
@@ -125,6 +126,8 @@ func TestAMalformedInputLineExitsWithTheValidationCode(t *testing.T) {
 			line string
 			// cause checks the decode's own error the refusal carries.
 			cause func(t *testing.T, err error)
+			// hint is the step the refusal's row gives.
+			hint string
 		}{
 			"not JSON": {
 				line: `{"id":`,
@@ -133,6 +136,7 @@ func TestAMalformedInputLineExitsWithTheValidationCode(t *testing.T) {
 					var syntax *json.SyntaxError
 					assert.ErrorAs(t, err, &syntax, "the line is cut off inside its object")
 				},
+				hint: malformedLineHint,
 			},
 			"a field of the wrong type": {
 				line: `{"` + cmd.typed + `":7}`,
@@ -143,6 +147,17 @@ func TestAMalformedInputLineExitsWithTheValidationCode(t *testing.T) {
 					assert.Equal(t, cmd.typed, mistyped.Field)
 					assert.Equal(t, "number", mistyped.Value)
 				},
+				hint: malformedLineHint,
+			},
+			// §1.4 step 1: encoding/json would decode the byte as U+FFFD
+			// and the record would be stored holding text nobody wrote.
+			"not UTF-8": {
+				line: `{"` + cmd.typed + `":"bad ` + "\xff" + ` byte"}`,
+				cause: func(t *testing.T, err error) {
+					t.Helper()
+					assert.Equal(t, &text.InvalidUTF8Error{Offset: len(cmd.typed) + 9, Byte: 0xff}, err)
+				},
+				hint: utf8Hint,
 			},
 		} {
 			t.Run(name+" over a line that is "+shape, func(t *testing.T) {
@@ -159,7 +174,7 @@ func TestAMalformedInputLineExitsWithTheValidationCode(t *testing.T) {
 				assert.Equal(t, 2, malformed.Line, "the blank line above it is counted")
 				tc.cause(t, malformed.Err)
 				assert.Equal(t, ExitValidation, exitCodeFor(err))
-				assert.Equal(t, malformedLineHint, hintFor(err))
+				assert.Equal(t, tc.hint, hintFor(err))
 				assert.Equal(t, before, heldBytes(t, written), "the refused file leaves the round as it found it")
 			})
 		}

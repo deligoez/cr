@@ -303,6 +303,10 @@ func readsNoRound(argv ...string) section93  { return section93{argv: argv, owed
 // saying they do.
 func TestAMovedHeadRefusesEveryWriterAndIsDisclosedToEveryReader(t *testing.T) {
 	layout, recorded, moved := aRoundTheHeadOutran(t)
+	// §3.6.2 resolves the record `cr answer` names, so the round holds f3.
+	holdRecords(t, layout, fixtureOwner, fixtureProject, fixturePRNumber,
+		`{"id":"f3","kind":"question","summary":"why is the retry unbounded?",`+
+			`"state":"posted","head":"`+recorded+`","round":1}`)
 	dir := t.TempDir()
 	for _, name := range []string{
 		"merged.ndjson", "claims.ndjson", "cells.ndjson", "mapping.ndjson",

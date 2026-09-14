@@ -52,6 +52,7 @@ func runContext(t *testing.T, args ...string) (printed string, err error) {
 // empty lists cannot pass for one.
 func TestContextPrintsEveryFieldTheStoreHolds(t *testing.T) {
 	layout := briefedHome(t, "CR-7")
+	holdRecords(t, layout, answeredOwner, answeredRepo, answeredPRNum, answerable)
 
 	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "9")
 	require.NoError(t, err)
@@ -94,7 +95,8 @@ func TestContextPrintsEveryFieldTheStoreHolds(t *testing.T) {
 // the fact came from, when it was recorded, and — on §3.6.2's answer alone —
 // the record it was given to.
 func TestATerminalContextNamesEachNotesProvenance(t *testing.T) {
-	briefedHome(t, "CR-7")
+	layout := briefedHome(t, "CR-7")
+	holdRecords(t, layout, answeredOwner, answeredRepo, answeredPRNum, answerable)
 
 	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "9")
 	require.NoError(t, err)
@@ -148,6 +150,7 @@ func TestANoteRecordedAgainstOnePullRequestLoadsForAnother(t *testing.T) {
 	require.NoError(t, layout.Init())
 	briefedPR(t, layout, 1, "CR-7")
 	briefedPR(t, layout, 2, "CR-7")
+	holdRecords(t, layout, answeredOwner, answeredRepo, 2, answerable)
 
 	_, err := runIn(t, "note", "CR-7", "the deadline moved to Friday", "--source", "chat", "--pr", "1")
 	require.NoError(t, err)
