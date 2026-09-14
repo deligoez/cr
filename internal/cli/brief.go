@@ -55,10 +55,10 @@ type briefResult struct {
 // newBriefResult renders §3.7's payload for printing, and with it §4.5.4's
 // report of every lens that did not run.
 //
-// The disclosures are asked of the payload rather than assembled here.
-// activation.Activation and profile.MissingProfile each own the sentence they
-// are reported in, and a wording built at the call site would be a second
-// answer that can disagree with the data beside it.
+// The disclosures are asked of the payload rather than assembled here. The
+// coverage.Lenses they come from is the one `cr review` and `cr status` report,
+// and a wording built at the call site would be a second answer that can
+// disagree with the data beside it.
 func newBriefResult(assembled *brief.Brief) *briefResult {
 	disclosed := assembled.Disclosures()
 	honesty := make([]string, 0, len(disclosed))

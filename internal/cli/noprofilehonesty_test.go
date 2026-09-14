@@ -18,6 +18,11 @@ const noProfileTestAxis = "axis test disabled, per §4.5.2: no profile matched t
 	"tests.cmd is declared for this axis to run; set `profile` in the per-repository config to name the " +
 	"profile this repository is"
 
+// noProfileNoIndex is the reason §2.4.4's repository reports both lens halves
+// with, per §4.3.1 and §4.5.4: there is no symbols.lang to build an index from.
+const noProfileNoIndex = "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+	"set `profile` in the per-repository config to name the profile this repository is"
+
 // A repository no profile matches still runs every axis that needs none, and all
 // three commands say which lenses did not run.
 //
@@ -48,16 +53,6 @@ func TestWithNoProfileEveryCommandRunsTheAxesThatNeedNoneAndSaysWhichDidNot(t *t
 	require.NoError(t, json.Unmarshal([]byte(printed), &briefed))
 	assert.Equal(t, []string{axis.Correctness, axis.Convention}, briefed.Axes.Active)
 	assert.Equal(t, []string{"convention", "correctness"}, briefed.ActiveRoles)
-	require.Len(t, briefed.Honesty, 4)
-	intentAxis := briefed.Honesty[0]
-	assert.Equal(t, []string{
-		intentAxis,
-		"no profile matched this repository, so cr disabled every axis that needs one rather than guessing: " +
-			"axis test disabled, per §4.5.2; lens convention/reinvention unavailable, per §4.3.1; " +
-			"set `profile` in the per-repository config to name the profile this repository is",
-		"role intent-coverage skipped, per §4.6.4: " + intentAxis,
-		"role test-adequacy skipped, per §4.6.4: " + noProfileTestAxis,
-	}, briefed.Honesty)
 
 	fannedOut, err := runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug)
 	require.NoError(t, err)
@@ -83,8 +78,18 @@ func TestWithNoProfileEveryCommandRunsTheAxesThatNeedNoneAndSaysWhichDidNot(t *t
 	assert.Equal(t, []string{"convention", "correctness"}, roles, "one prompt per running role on the one unit")
 
 	require.GreaterOrEqual(t, len(fanout.Honesty), 2)
+	intentAxis := fanout.Honesty[1]
 	assert.Equal(t, []string{noProfileTestAxis, intentAxis}, fanout.Honesty[:2],
 		"§4.5.4: `cr review` states the disabled and the unavailable axis first")
+	assert.Equal(t, []string{
+		noProfileTestAxis,
+		intentAxis,
+		"lens convention/reinvention unavailable, per §4.3.1: " + noProfileNoIndex,
+		"lens test/symbols unavailable, per §4.5.4: " + noProfileNoIndex,
+		"role intent-coverage skipped, per §4.6.4: " + intentAxis,
+		"role test-adequacy skipped, per §4.6.4: " + noProfileTestAxis,
+	}, briefed.Honesty, "`cr brief` states §4.5.4's report whole")
+	assert.Equal(t, fanout.Honesty, briefed.Honesty, "`cr brief` and `cr review` give one report")
 	at := slices.Index(status.Honesty, noProfileTestAxis)
 	require.GreaterOrEqual(t, at, 0, "`cr status` states the disabled axis")
 	require.LessOrEqual(t, at+len(fanout.Honesty), len(status.Honesty))

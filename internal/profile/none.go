@@ -1,10 +1,6 @@
 package profile
 
-import (
-	"strings"
-
-	"github.com/deligoez/cr/internal/axis"
-)
+import "github.com/deligoez/cr/internal/axis"
 
 // ReinventionLens names the half of the convention axis §4.3.1 builds out of a
 // symbol index. It is deliberately not an axis id: reporting it as one would
@@ -75,36 +71,4 @@ func Unmatched() MissingProfile {
 		Disabled:    []string{axis.Test},
 		Unavailable: []string{ReinventionLens},
 	}
-}
-
-// Disclosure is the §11.1 honesty disclosure of §2.4.4, and satisfies the
-// finding.HonestyDisclosure contract the writer that holds the `--quiet`
-// exemption will consume, so the report reaches the reader through the one
-// channel §11.1 exempts rather than through a message a flag can silence.
-//
-// A missing profile silently narrowing the review is the failure §2.4.4 and
-// §4.5.4 both name: the round would come back complete with two lenses that
-// never looked, and the author would read the silence as a clean result.
-//
-// The text is derived from the two fields, so what is printed and what a caller
-// reads as data cannot disagree. One reason per category is honest because a
-// missing profile is one cause: an entry that is out for some other reason
-// belongs in some other report.
-func (m MissingProfile) Disclosure() string {
-	// The `+` survives mutation, and is equivalent for a narrower reason
-	// than a capacity hint: a negative capacity panics, and Missing above
-	// is the only constructor, filling the two fields one for one. The
-	// concatenation in ReinventionLens above is reported NOT COVERED for
-	// an unrelated reason — it is a constant string expression, and the
-	// mutated form does not compile.
-	lenses := make([]string, 0, len(m.Disabled)+len(m.Unavailable))
-	for _, id := range m.Disabled {
-		lenses = append(lenses, "axis "+id+" disabled, per §4.5.2")
-	}
-	for _, name := range m.Unavailable {
-		lenses = append(lenses, "lens "+name+" unavailable, per §4.3.1")
-	}
-	return "no profile matched this repository, so cr disabled every axis that needs one rather than guessing: " +
-		strings.Join(lenses, "; ") +
-		"; set `profile` in the per-repository config to name the profile this repository is"
 }

@@ -13,9 +13,9 @@
 // So the reason is carried rather than re-derived. An axis leaves here as one of
 // Active, as a Disabled naming the item of §4.5 that switched it off, or as the
 // intent.Unavailable §4.5.3 already defines. Nothing here declares a second
-// unavailability shape: intent.Unavailable, testadequacy.Unavailable and
-// profile.MissingProfile all satisfy finding.HonestyDisclosure, and that
-// interface is already §4.5.4's union. A fourth struct with the same two fields
+// unavailability shape: intent.Unavailable and testadequacy.Unavailable both
+// satisfy finding.HonestyDisclosure, and that
+// interface is already §4.5.4's union. A third struct with the same two fields
 // would split the truth about an unavailable intent axis across two types that
 // can disagree.
 //

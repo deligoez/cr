@@ -16,7 +16,6 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
-	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -245,19 +244,25 @@ func TestNotesAreLoadedForTheResolvedKeyAndForNoKeyAtAll(t *testing.T) {
 
 		// The fixture repository carries no marker file, so §2.4.4
 		// applies as well: the test axis is off and the axes that need no
-		// profile still run. The report lists the unavailable intent axis,
-		// §2.4.4's situation, and then each role that does not look,
-		// reusing the axis sentence that decided it.
+		// profile still run. The report lists the disabled test axis, the
+		// unavailable intent axis, both lens halves with no index to read,
+		// and then each role that does not look, reusing the axis sentence
+		// that decided it.
 		assert.False(t, assembled.Profile.Selected)
 		require.NotNil(t, assembled.Profile.Missing)
 		assert.Equal(t, []string{axis.Correctness, axis.Convention}, assembled.Axes.Active)
 		assert.Equal(t, []string{"convention", "correctness"}, assembled.ActiveRoles)
 		intentOut := assembled.Axes.Unavailable[0].Disclosure()
+		testOut := assembled.Axes.Disabled[0].Disclosure()
+		noIndex := "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+			"set `profile` in the per-repository config to name the profile this repository is"
 		assert.Equal(t, []string{
+			testOut,
 			intentOut,
-			profile.Unmatched().Disclosure(),
+			"lens convention/reinvention unavailable, per §4.3.1: " + noIndex,
+			"lens test/symbols unavailable, per §4.5.4: " + noIndex,
 			"role intent-coverage skipped, per §4.6.4: " + intentOut,
-			"role test-adequacy skipped, per §4.6.4: " + assembled.Axes.Disabled[0].Disclosure(),
+			"role test-adequacy skipped, per §4.6.4: " + testOut,
 		}, rendered(assembled))
 	})
 }

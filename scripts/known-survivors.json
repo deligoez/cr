@@ -170,13 +170,6 @@
       "reason": "The same allocator in probe: `n > highest` against `n >= highest` assigns the value already held on equality. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/probe` stayed green."
     },
     {
-      "file": "profile/none.go",
-      "line": 92,
-      "column": 45,
-      "type": "ARITHMETIC_BASE",
-      "reason": "MissingProfile.Disclosure sizes its buffer `len(m.Disabled)+len(m.Unavailable)`, and `-` would panic `makeslice: cap out of range` the moment Unavailable were the longer of the two -- which is what it does in activation.Disclosures, where a test now stands. Here it cannot: Selection.Missing is the only constructor of a MissingProfile in the tree and returns either two empty slices or one entry in each, so the difference is 0 on every call cr can make. The equivalence is the constructor's rather than the arithmetic's; a second constructor, or a caller outside this package filling the exported fields unevenly, would make it observable. Verified by hand on 2026-09-12 -- applied `-`, `go test -count=1 ./internal/profile` stayed green."
-    },
-    {
       "file": "run/run.go",
       "line": 276,
       "column": 48,

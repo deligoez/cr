@@ -157,10 +157,9 @@ type Brief struct {
 	// unexported for the reason round is: §3.7 names no such item, and
 	// `cr review` and `cr status` carry it typed.
 	skipped []coverage.SkippedRole
-	// halves are §4.5.4's entries for the lens halves of §4.3.1 and
-	// §4.4.1 over units whose files the head index was not built over. They
-	// reach the reader through Disclosures and are unexported for the
-	// reason skipped is.
+	// halves are Halves' §4.5.4 entries for the lens halves of §4.3.1 and
+	// §4.4.1 that could not run. They reach the reader through Disclosures
+	// and are unexported for the reason skipped is.
 	halves []finding.HonestyDisclosure
 }
 
@@ -168,33 +167,13 @@ type Brief struct {
 // from `--quiet`, so the writer that holds the exemption is handed one slice and
 // cannot forget a category.
 //
-// The order is §4.5.4's: the axes that did not run, then §2.4.4's report, which
-// names the situation and is the place a brief reports the reinvention half of
-// §4.3.1 when no profile matched, then the lens halves over the units whose
-// files the head index was not built over, then the roles that do not look. An
-// axis §2.4.4's report already names as disabled is left out of the axis
-// entries, because activation.Unprofiled disabled it for that one cause and the
-// reader would otherwise be told it twice.
+// It is the coverage.Lenses coverage.RoundLenses builds for `cr review` and
+// `cr status` — the axes, then the halves, then the roles — so a brief names
+// every lens those two name for the same round, in the same order and the same
+// sentences. §2.4.4's situation is the payload's `profile.missing`, and every
+// entry it causes names it in its own reason.
 func (b *Brief) Disclosures() []finding.HonestyDisclosure {
-	missing := b.Profile.Missing
-	out := make([]finding.HonestyDisclosure, 0,
-		len(b.Axes.Disabled)+len(b.Axes.Unavailable)+1+len(b.halves)+len(b.skipped))
-	for _, d := range b.Axes.Disabled {
-		if missing == nil || !slices.Contains(missing.Disabled, d.Axis) {
-			out = append(out, d)
-		}
-	}
-	for _, u := range b.Axes.Unavailable {
-		out = append(out, u)
-	}
-	if missing != nil {
-		out = append(out, *missing)
-	}
-	out = append(out, b.halves...)
-	for _, s := range b.skipped {
-		out = append(out, s)
-	}
-	return out
+	return coverage.Lenses{Axes: b.Axes.Disclosures(), Halves: b.halves, Roles: b.skipped}.Disclosures()
 }
 
 // Sources are the inputs one orientation run reads.
@@ -345,9 +324,8 @@ func assemble(src *Sources) (*Brief, error) {
 //
 // The symbol index is §4.3.1's head index, the one `cr review` attaches
 // candidates from, so §3.4.4's symbol branch reads the same declarations the
-// reinvention lens does. The halves it returns are the §4.5.4 entries for the
-// units whose files that index was not built over, which `cr review` and
-// `cr status` report from the same index and the same unit files.
+// reinvention lens does. The halves it returns are Halves' over that index,
+// the diff's hunks and the units just formed.
 func unitsOf(
 	src *Sources, p *profile.Profile, base, head string,
 ) ([]unit.Unit, string, unit.Files, []finding.HonestyDisclosure, error) {
@@ -372,34 +350,58 @@ func unitsOf(
 	if err != nil {
 		return nil, "", unit.Files{}, nil, err
 	}
-	halves, err := unindexedHalves(src.RepoDir, head, p, index, units)
-	return units, diff.MergeBase, files, halves, err
-}
-
-// unindexedHalves are the §4.5.4 entries symbol.Unindexed's files owe both
-// halves, over the paths of the units just formed. The index arrives as
-// headSymbols handed it to unit.Clusters, and an interface holding no index
-// asserts to a nil one, which Unindexed answers with no file.
-func unindexedHalves(
-	dir, head string, p *profile.Profile, index unit.SymbolIndex, units []unit.Unit,
-) ([]finding.HonestyDisclosure, error) {
-	built, _ := index.(*symbol.Index)
 	paths := make([]string, 0, len(units))
 	for i := range units {
 		paths = append(paths, units[i].Path)
 	}
-	unindexed, err := symbol.Unindexed(dir, head, built, paths)
+	// The index arrives as headSymbols handed it to unit.Clusters, and an
+	// interface holding no index asserts to a nil one, which both halves
+	// answer with their own unavailability.
+	built, _ := index.(*symbol.Index)
+	halves, err := Halves(src.RepoDir, head, p, built, hunks, paths, reinvention.Ranking{
+		MinSimilarity: src.Config.Float("reinvention.min_similarity"),
+		MaxCandidates: src.Config.Int("reinvention.max_candidates"),
+	})
+	return units, diff.MergeBase, files, halves, err
+}
+
+// Halves is §4.5.4's third kind for one head: the reinvention half of §4.3.1
+// and the symbol half of §4.4.1, each reported when it could not run, over the
+// diff's hunks and the files of the round's units. index is nil when no symbol
+// index was built.
+//
+// It is the one computation `cr brief` and `cr status` report the halves from,
+// and it calls what `cr review`'s attachment calls, in the same way, so the
+// three commands name the same halves for one round. A shortcut reading only
+// the profile would answer two of the reinvention half's states and report an
+// index that was asked for and did not arrive as a lens that ran; one reading
+// only symbol.Unindexed is how a brief once left out the half a profile with
+// no symbols.lang cannot run.
+func Halves(
+	dir, head string, p *profile.Profile, index *symbol.Index, hunks []git.Hunk, paths []string,
+	ranking reinvention.Ranking,
+) ([]finding.HonestyDisclosure, error) {
+	candidates := reinvention.Attach(p, index, hunks, ranking)
+	refs, err := testadequacy.HeadReferences(dir, head, p, index, hunks)
 	if err != nil {
 		return nil, err
 	}
-	halves := make([]finding.HonestyDisclosure, 0, 2)
-	for _, entry := range reinvention.Unindexed(p, unindexed) {
-		halves = append(halves, entry)
+	tests := testadequacy.Attach(p, refs, hunks)
+	unindexed, err := symbol.Unindexed(dir, head, index, paths)
+	if err != nil {
+		return nil, err
 	}
-	for _, entry := range testadequacy.Unindexed(p, paths, unindexed) {
-		halves = append(halves, entry)
+	candidates.MarkUnindexed(p, unindexed)
+	tests.Unavailable = append(tests.Unavailable, testadequacy.Unindexed(p, paths, unindexed)...)
+	out := make([]finding.HonestyDisclosure, 0,
+		len(candidates.Unavailable)+len(tests.Unavailable))
+	for _, entry := range candidates.Unavailable {
+		out = append(out, entry)
 	}
-	return halves, nil
+	for _, entry := range tests.Unavailable {
+		out = append(out, entry)
+	}
+	return out, nil
 }
 
 // headSymbols is the head index as unit.Clusters takes it: nil when the profile

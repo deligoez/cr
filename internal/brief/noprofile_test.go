@@ -51,14 +51,16 @@ func TestARepositoryNoProfileMatchesRunsEveryAxisThatNeedsNone(t *testing.T) {
 	assert.Equal(t, assembled.ActiveRoles, recorded.ActiveRoles,
 		"meta.json carries the roles that run, so §4.5.6 accepts their cells")
 
-	// §2.4.4's report names the test axis and the reinvention half, so the
-	// axis entry for the test axis is not repeated before it; the one role
-	// that does not look is named after it with the axis sentence that
-	// decided it.
+	// §4.5.4's report as `cr review` and `cr status` give it: the test axis,
+	// both lens halves with no index to read, each naming §2.4.4's situation
+	// in its reason, and the one role that does not look, named with the axis
+	// sentence that decided it.
+	noIndex := "no profile matched this repository, so §4.3.1's symbol index cannot be built; " +
+		"set `profile` in the per-repository config to name the profile this repository is"
 	assert.Equal(t, []string{
-		"no profile matched this repository, so cr disabled every axis that needs one rather than guessing: " +
-			"axis test disabled, per §4.5.2; lens convention/reinvention unavailable, per §4.3.1; " +
-			"set `profile` in the per-repository config to name the profile this repository is",
+		testOff.Disclosure(),
+		"lens convention/reinvention unavailable, per §4.3.1: " + noIndex,
+		"lens test/symbols unavailable, per §4.5.4: " + noIndex,
 		"role test-adequacy skipped, per §4.6.4: " + testOff.Disclosure(),
 	}, rendered(assembled))
 	assert.Equal(t, profile.Unmatched(), *assembled.Profile.Missing)
