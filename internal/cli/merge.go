@@ -292,7 +292,7 @@ func mergeRecords(
 	if err != nil {
 		return nil, err
 	}
-	records, err := readPerRole(l, owner, repo, pr, &round.Meta, files, roundUnitIDs(formed))
+	records, err := readPerRole(l, owner, repo, pr, &round.Meta, files, formed)
 	if err != nil {
 		return nil, err
 	}
@@ -423,6 +423,11 @@ func (c *mergeCounts) lines() []string {
 // can never match, every record would grade `argued`, and "the highest grade"
 // would silently stop distinguishing anything.
 //
+// Every anchor is bound to the unit its record names, and a LEFT one to lines
+// the diff removed, by the check `cr record` makes, refuseForeignAnchors, so
+// an anchor that refusal would meet at `cr record` is refused here, naming the
+// line of the role's own file, before any output exists to hand on.
+//
 // The anchors are stamped here too, for the reason the citations are: §6.4.4
 // and §9.3.6 match on the anchor's content hash, and a waiver or posted-index
 // entry `cr record` wrote carries the hash of the lines at the head. A record
@@ -435,8 +440,9 @@ func (c *mergeCounts) lines() []string {
 // `duplicate_of` can name an id two records hold, and a refusal here comes
 // before the output file and summary.json are written.
 func readPerRole(
-	l state.Layout, owner, repo string, pr int, round *state.Meta, files, units []string,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, files []string, formed []roundUnit,
 ) ([]*finding.Finding, error) {
+	units := roundUnitIDs(formed)
 	records := make([]*finding.Finding, 0)
 	inputs := make([]idInput, 0, len(files))
 	for _, file := range files {
@@ -450,7 +456,7 @@ func readPerRole(
 		if err != nil {
 			return nil, err
 		}
-		if err := refuseUnremovedLeftAnchors(owner, repo, pr, round, file, body, read); err != nil {
+		if err := refuseForeignAnchors(owner, repo, pr, round, file, body, formed, read); err != nil {
 			return nil, err
 		}
 		if err := stampAnchors(owner, repo, pr, round, file, body, read); err != nil {

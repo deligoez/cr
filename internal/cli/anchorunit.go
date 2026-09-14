@@ -27,8 +27,13 @@ import (
 // head-side range, which is where §6.2.1 places a hunk's changed lines — and the
 // round's diff is read only when some record carries such an anchor.
 //
-// A LEFT anchor on lines no hunk removed is refused first, with its own reason,
-// the refusal `cr merge` makes through refuseUnremovedLeftAnchors.
+// A LEFT anchor on lines no hunk removed is refused first, with its own reason.
+//
+// `cr merge` and `cr record` both run it, over the units of the same round, so a
+// file `cr merge` wrote never meets at `cr record` an anchor refusal the merge
+// could have made: a range spanning two hunks of its unit, a range outside it,
+// and a LEFT anchor on a line the diff did not remove are refused at whichever
+// command reads the record first, in the same words.
 func refuseForeignAnchors(
 	owner, repo string, pr int, round *state.Meta, file string, body []byte,
 	formed []roundUnit, records []*finding.Finding,
@@ -46,36 +51,12 @@ func refuseForeignAnchors(
 			return &finding.RejectedRecordError{
 				File: file, Line: at[i], Field: "anchor",
 				Problem: fmt.Sprintf(
-					"%s %s:%d-%d does not lie inside unit %q, the unit this record names; "+
+					"of record %s is %s %s:%d-%d, which does not lie inside unit %q, the unit this record names; "+
 						"§6.2.1 measures a record's own unit by its anchor, so name the unit whose hunk holds it",
-					record.Anchor.Side, record.Anchor.Path, record.Anchor.StartLine, record.Anchor.Line, record.Unit,
+					record.ID, record.Anchor.Side, record.Anchor.Path, record.Anchor.StartLine, record.Anchor.Line,
+					record.Unit,
 				),
 			}
-		}
-	}
-	return nil
-}
-
-// refuseUnremovedLeftAnchors rejects a record whose LEFT anchor names a
-// merge-base line the round's diff did not remove.
-//
-// §9.2.1 has LEFT anchor a removed line and nothing else. A context line of a
-// hunk, or a line outside every hunk, is a line GitHub shows on the RIGHT if at
-// all, and a review comment sent to it on the LEFT is refused by the
-// review-creation call, which loses the whole round's review over one position.
-// `cr merge` and `cr record` both refuse it, naming the file's line, so no draft
-// and no payload ever carries one.
-func refuseUnremovedLeftAnchors(
-	owner, repo string, pr int, round *state.Meta, file string, body []byte, records []*finding.Finding,
-) error {
-	hunks, err := leftAnchorHunks(owner, repo, pr, round.Head, records)
-	if err != nil {
-		return err
-	}
-	at := state.RecordLines(body)
-	for i, record := range records {
-		if err := refuseUnremovedLeft(file, at[i], record, hunks); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -93,6 +74,11 @@ func leftAnchorHunks(owner, repo string, pr int, head string, records []*finding
 }
 
 // refuseUnremovedLeft is §9.2.1's refusal for one record on line of file.
+//
+// §9.2.1 has LEFT anchor a removed line and nothing else. A context line of a
+// hunk, or a line outside every hunk, is a line GitHub shows on the RIGHT if at
+// all, and a review comment sent to it on the LEFT is refused by the
+// review-creation call, which loses the whole round's review over one position.
 func refuseUnremovedLeft(file string, line int, record *finding.Finding, hunks []git.Hunk) error {
 	anchor := &record.Anchor
 	if anchor.Side != git.Left {

@@ -16,21 +16,15 @@ import (
 	"github.com/deligoez/cr/internal/state"
 )
 
-// mergedAnchor is the anchor the fixtures below share, so §6.4.1's key and
-// §7.4.1's key are both computable from the test rather than copied out of a
-// run.
-var mergedAnchor = map[string]any{
-	"path":         "internal/api/handler.go",
-	"side":         "RIGHT",
-	"start_line":   42,
-	"line":         44,
-	"content_hash": "0123456789abcdef",
-}
-
 // aRoleRecord is the §6.1 fields one role writes into its §4.6.2 output file.
 // The role is taken as an argument because §6.1.3 rejects a record whose `role`
 // is not the role whose file it arrived in, and that binding is half of what
 // `cr merge` exists to check.
+//
+// The anchor is aRecord's for the unit, so every record on one unit shares one
+// anchor, §6.4.1's key and §7.4.1's key are both computable from the test
+// rather than copied out of a run, and the anchor lies inside the unit the
+// record names, which `cr merge` refuses otherwise.
 func aRoleRecord(id, role, class, unit string) map[string]any {
 	return map[string]any{
 		"id":       id,
@@ -39,7 +33,7 @@ func aRoleRecord(id, role, class, unit string) map[string]any {
 		"class":    class,
 		"severity": "high",
 		"unit":     unit,
-		"anchor":   mergedAnchor,
+		"anchor":   aRecord(id, unit)["anchor"],
 		"summary":  "The error Decode returns is dropped.",
 		"evidence": "The call's second result is assigned to the blank identifier.",
 	}
