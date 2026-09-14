@@ -340,6 +340,11 @@ func assemble(src *Sources) (*Brief, error) {
 func unitsOf(
 	src *Sources, p *profile.Profile, base, head string,
 ) ([]unit.Unit, string, unit.Files, []finding.HonestyDisclosure, error) {
+	// A head never fetched into the checkout would fail the merge base
+	// below with git's own refusal; asked first, it fails as the fetch it is.
+	if err := git.RequireCommit(src.RepoDir, head); err != nil {
+		return nil, "", unit.Files{}, nil, err
+	}
 	diff, err := git.DiffAgainstMergeBase(src.RepoDir, base, head)
 	if err != nil {
 		return nil, "", unit.Files{}, nil, err

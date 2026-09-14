@@ -219,6 +219,12 @@ var codes = []mapped{
 	{is[*UnknownOutcomeError](), ExitState,
 		"run `cr post <pr> --reconcile`, which adopts the review the call created or clears " +
 			"post_unresolved for a retry; a second `cr post --confirm` is refused until then"},
+	// A head GitHub reports that the repository under review does not
+	// hold. git would refuse the next read of it, and §3.1.3 codes that
+	// 3, but the step is a fetch rather than reading git's refusal.
+	{is[*git.MissingCommitError](), ExitFile,
+		"run `git fetch` in the repository under review so it holds the commit the message names " +
+			"(`git fetch origin pull/<pr>/head` for a pull request from a fork), then run the command again"},
 	// §3.1.3 codes a non-zero exit from an external command 3 and surfaces
 	// its stderr. It fixes that for the tracker command, and git is one of
 	// the same three external tools, so it fails through the same mapping

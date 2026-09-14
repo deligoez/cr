@@ -66,7 +66,12 @@ type statusResult struct {
 	Coverage coverage.Rows `json:"coverage"`
 	// Files is §3.4.2's excluded count and §3.4.7's listing, derived
 	// again from the diff at the round's head by statusFiles.
-	Files unit.Files `json:"files"`
+	//
+	// It is absent from a round whose head has moved. The diff it is read
+	// from is at the recorded head, which a force-push can take out of the
+	// clone altogether, and a count of zero printed in its place would be a
+	// claim about files nobody looked at; the honesty channel says why.
+	Files *unit.Files `json:"files,omitempty"`
 	// Intent is §10.1.2.
 	Intent intentCoverage `json:"intent"`
 	// Axes is §10.1.3's first clause and two of §4.5.4's four kinds: the
@@ -135,7 +140,9 @@ func (r *statusResult) Text(w *writer) string {
 		strconv.Itoa(r.Coverage.Roles) + " active role(s), " +
 		strconv.Itoa(r.Coverage.Gaps) + " with gaps, " +
 		strconv.Itoa(r.Coverage.Oversized) + " oversized\n")
-	out.WriteString(filesLines(&r.Files, ""))
+	if r.Files != nil {
+		out.WriteString(filesLines(r.Files, ""))
+	}
 	out.WriteString("claims: " + strconv.Itoa(r.Intent.Claims) + " total, " +
 		strconv.Itoa(r.Intent.Mapped) + " mapped to a unit, " +
 		strconv.Itoa(len(r.Intent.Gaps)) + " unimplemented (" +
@@ -259,7 +266,7 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
-	axes, lenses, err := lensesOf(l, owner, repo, pr, &round.Meta)
+	axes, lenses, err := statusLenses(l, owner, repo, pr, round)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +283,7 @@ func statusOf(
 	if err != nil {
 		return nil, err
 	}
-	files, drift, err := statusFiles(l, owner, repo, pr, &round.Meta)
+	files, drift, err := statusFilesOf(l, owner, repo, pr, round)
 	if err != nil {
 		return nil, err
 	}
@@ -310,6 +317,50 @@ func statusOf(
 	}, nil
 }
 
+// statusLenses is lensesOf for `cr status`, which reports a round whose head
+// has moved rather than refusing it.
+//
+// lensesOf reads §4.3.1's and §4.4.1's halves out of the recorded head's tree,
+// and a force-push can leave a clone that never held that head: a fresh clone
+// after it, or one pruned since. §9.3.1 still owes both heads there, and
+// §9.3.2 has `cr brief` as the way forward, so a moved head reads nothing at the
+// recorded head and the halves are left out, which statusHonesty discloses.
+//
+// A head that has not moved is the pull request's current head, and every read
+// below is at it. Asking the clone for it first turns a head that was never
+// fetched into the fetch it is, rather than into git's refusal of whichever
+// read reached it first.
+func statusLenses(
+	l state.Layout, owner, repo string, pr int, round *state.Round,
+) (activation.Activation, coverage.Lenses, error) {
+	if round.Stale() {
+		return lensesWith(l, owner, repo, &round.Meta, noHalves)
+	}
+	dir, err := repoDir()
+	if err != nil {
+		return activation.Activation{}, coverage.Lenses{}, err
+	}
+	if err := git.RequireCommit(dir, round.Head); err != nil {
+		return activation.Activation{}, coverage.Lenses{}, err
+	}
+	return lensesOf(l, owner, repo, pr, &round.Meta)
+}
+
+// statusFilesOf is statusFiles for `cr status`, and nothing on a round whose
+// head has moved, for the reason statusLenses reads no halves there.
+func statusFilesOf(
+	l state.Layout, owner, repo string, pr int, round *state.Round,
+) (*unit.Files, []string, error) {
+	if round.Stale() {
+		return nil, nil, nil
+	}
+	files, drift, err := statusFiles(l, owner, repo, pr, &round.Meta)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &files, drift, nil
+}
+
 // statusHonesty is the disclosure channel §11.1 exempts from `--quiet`:
 // §9.3.1's comparison first, then §10.2's verdict together with every lens of
 // §4.5.4 that did not run, then §10.1.6's waiver and duplicate counts.
@@ -333,14 +384,33 @@ func statusHonesty(
 	verdict coverage.Completeness,
 ) ([]string, error) {
 	said := lenses.Verdict(verdict.Complete, verdict.Reason())
-	honesty := make([]string, 0, 3+len(said))
-	honesty = append(honesty, round.Disclosure())
+	moved := headReport(owner, repo, pr, round)
+	honesty := make([]string, 0, 2+len(moved)+len(said))
+	honesty = append(honesty, moved...)
 	honesty = append(honesty, said...)
 	waived, err := waiverDisclosure(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return nil, err
 	}
 	return append(honesty, waived, duplicateDisclosure(records)), nil
+}
+
+// headReport is §9.3.1's comparison as `cr status` reports it.
+//
+// On a moved head it names `cr brief`, the one way forward §9.3.2 leaves, the
+// way the refusal every writer meets does, and it says what the report left out
+// because it would have been read at a head the pull request has left.
+func headReport(owner, repo string, pr int, round *state.Round) []string {
+	if !round.Stale() {
+		return []string{round.Disclosure()}
+	}
+	return []string{
+		round.Disclosure() + "; run `cr brief " + strconv.Itoa(pr) + " --repo " + owner + "/" + repo +
+			"` to open the round the current head belongs to",
+		"§9.3.1: the reinvention half of §4.3.1, the symbol half of §4.4.1, and the file counts of " +
+			"§3.4.2 and §3.4.7 are not reported for round " + strconv.Itoa(round.Round) +
+			", because each is read at head " + round.Head + ", which is no longer the pull request's head",
+	}
 }
 
 // statusCoverage is §10.1.1's counts, as roundCoverage gives `cr draft`'s
@@ -495,6 +565,28 @@ func unsettledClaims(claims []string, mapped map[string]bool, gaps []mapping.Gap
 func lensesOf(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
 ) (activation.Activation, coverage.Lenses, error) {
+	return lensesWith(l, owner, repo, round,
+		func(p *profile.Profile, resolved config.Config) ([]finding.HonestyDisclosure, error) {
+			return roundHalves(l, owner, repo, pr, p, round, resolved)
+		})
+}
+
+// halvesOf supplies §4.5.4's third kind to lensesWith, from the round's profile
+// and the resolved configuration.
+type halvesOf func(p *profile.Profile, resolved config.Config) ([]finding.HonestyDisclosure, error)
+
+// noHalves is the halves of a round whose head has moved: none read, which
+// statusHonesty says in their place.
+func noHalves(*profile.Profile, config.Config) ([]finding.HonestyDisclosure, error) {
+	return nil, nil
+}
+
+// lensesWith is lensesOf with the halves supplied by the caller, so the one
+// derivation of the axes and the skipped roles serves a report that reads the
+// halves and one that cannot.
+func lensesWith(
+	l state.Layout, owner, repo string, round *state.Meta, halves halvesOf,
+) (activation.Activation, coverage.Lenses, error) {
 	resolved, err := config.Resolve(config.Sources{
 		Environ:      os.Environ(),
 		GlobalConfig: l.Config(),
@@ -511,12 +603,12 @@ func lensesOf(
 	if err != nil {
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
-	halves, err := roundHalves(l, owner, repo, pr, p, round, resolved)
+	derived, err := halves(p, resolved)
 	if err != nil {
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
 	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, resolved.String(intentKeyPattern))
-	return axes, coverage.RoundLenses(axes, halves, corpus, round.ActiveRoles, round.ProfileID), nil
+	return axes, coverage.RoundLenses(axes, derived, corpus, round.ActiveRoles, round.ProfileID), nil
 }
 
 // intentKeyPattern is §3.2's `intent.key_pattern`, by the key §2.7's table
