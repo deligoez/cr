@@ -6,6 +6,8 @@ import (
 	"runtime/debug"
 
 	"github.com/spf13/cobra"
+
+	"github.com/deligoez/cr/internal/config"
 )
 
 // version is the tag a release build injects via
@@ -27,6 +29,14 @@ func newRootCmd() *cobra.Command {
 		Version:       versionOf(version, debug.ReadBuildInfo),
 		Args:          cobra.NoArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			// §2.7 refuses a CR_ variable addressing a protected
+			// decision, and the refusal cannot wait for a command to
+			// resolve its configuration: `cr record` and `cr waivers
+			// list` resolve none, and accepted one in silence. So every
+			// command in the tree makes the check here, before its work.
+			if err := config.CheckEnviron(os.Environ()); err != nil {
+				return err
+			}
 			return out.settle(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {

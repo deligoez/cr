@@ -144,9 +144,18 @@ func TestNoChannelOverridesTheArguedForcing(t *testing.T) {
 			layout.RepoConfig(fixtureOwner, fixtureProject),
 			[]byte(`{"profile":"generic"}`), 0o600))
 
+		// A command that loads the profile refuses it, naming the file
+		// and the first such field (QA D-S05-5), rather than decoding the
+		// override into nothing.
+		err := runTree(t, "rules", "list", "--repo", fixtureSlug)
+		var protected *config.ProtectedError
+		require.ErrorAs(t, err, &protected)
+		assert.Equal(t, "argued", protected.Name)
+		assert.Equal(t, ExitFile, exitCodeFor(err))
+
 		block := draftedBlockFor(t, layout, aGradedRecord("f1"))
 		assert.Contains(t, block, `id="f1" kind="question"`,
-			"§6.3.3: §2.4's table has no such field, so the profile carries an override nothing reads")
+			"§6.3.3: the record still reaches the draft as a question")
 	})
 
 	t.Run("a role instruction", func(t *testing.T) {

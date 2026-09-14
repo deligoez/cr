@@ -32,6 +32,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/config"
 )
 
 // The defaults §2.4 gives the two numeric test fields.
@@ -202,6 +203,9 @@ func Parse(path string, data []byte) (Profile, error) {
 	if err := json.Unmarshal(data, &w); err != nil {
 		return Profile{}, decodeError(path, err)
 	}
+	if err := refuseProtectedFields(path, data); err != nil {
+		return Profile{}, err
+	}
 	if err := w.validate(path); err != nil {
 		return Profile{}, err
 	}
@@ -210,6 +214,51 @@ func Parse(path string, data []byte) (Profile, error) {
 		return Profile{}, err
 	}
 	return w.resolve(template), nil
+}
+
+// refuseProtectedFields refuses a field, at any depth, whose name addresses the
+// confirmation gate, the argued forcing or the question label. §6.3.3 names a
+// profile field among the channels that may not override the forcing, and
+// §2.4's table has no such field, so decoding it into nothing would leave its
+// author believing it took effect. The error is §2.7's *config.ProtectedError,
+// naming the field in dotted spelling, prefixed with the file.
+func refuseProtectedFields(path string, data []byte) error {
+	var document any
+	if err := json.Unmarshal(data, &document); err != nil {
+		return decodeError(path, err)
+	}
+	if err := protectedName("", document); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
+}
+
+// protectedName walks one decoded JSON value and checks every object key it
+// holds, in sorted order so a file carrying two such fields names the same one
+// on every run. An element of a list is named by its index.
+func protectedName(prefix string, value any) error {
+	switch node := value.(type) {
+	case map[string]any:
+		for _, key := range slices.Sorted(maps.Keys(node)) {
+			name := key
+			if prefix != "" {
+				name = prefix + "." + key
+			}
+			if err := config.CheckName(name); err != nil {
+				return err
+			}
+			if err := protectedName(name, node[key]); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for i, element := range node {
+			if err := protectedName(fmt.Sprintf("%s[%d]", prefix, i), element); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // decodeError turns a decoding failure into a MalformedError, keeping the field

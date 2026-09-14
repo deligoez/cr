@@ -209,6 +209,39 @@ func words(name string) []string {
 	return out
 }
 
+// CheckName rejects a field name, in dotted spelling, that addresses a
+// protected decision. §6.3.3 names a profile field alongside a setting and an
+// environment variable, so a file that is not a configuration layer is judged
+// by the same reading of its names as one that is.
+func CheckName(name string) error {
+	return checkProtected(name, name)
+}
+
+// CheckEnviron rejects the first CR_-prefixed variable, in sorted order, whose
+// name addresses a protected decision. It reads names only, so it is the check
+// every command can make before doing any work, whether or not that command
+// resolves the configuration at all.
+func CheckEnviron(environ []string) error {
+	names := make([]string, 0, len(environ))
+	for _, entry := range environ {
+		name, _, ok := strings.Cut(entry, "=")
+		// state.HomeEnv carries the state root, not a setting. It is
+		// CR_-prefixed but addresses no configuration key, so it passes
+		// through untouched.
+		if !ok || !strings.HasPrefix(name, EnvPrefix) || name == state.HomeEnv {
+			continue
+		}
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if err := checkProtected(name, strings.TrimPrefix(name, EnvPrefix)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Sources are the four layers a resolution reads above the built-in defaults.
 type Sources struct {
 	// Flags holds the settings a command's own flags supplied, keyed by
@@ -488,36 +521,22 @@ func envName(key string) string {
 // checked against the protected names first, so one is rejected even when it
 // addresses no setting cr knows — which is exactly the case §2.7 cares about.
 func fromEnv(environ []string) (map[string]any, error) {
+	if err := CheckEnviron(environ); err != nil {
+		return nil, err
+	}
 	keyOf := make(map[string]string, len(settings))
 	for _, s := range settings {
 		keyOf[envName(s.key)] = s.key
 	}
 
-	names := make([]string, 0, len(environ))
-	valueOf := make(map[string]string, len(environ))
+	overrides := make(map[string]any, len(environ))
 	for _, entry := range environ {
 		name, value, ok := strings.Cut(entry, "=")
-		if !ok || !strings.HasPrefix(name, EnvPrefix) {
+		if !ok {
 			continue
 		}
-		// state.HomeEnv carries the state root, not a setting. It is
-		// CR_-prefixed but addresses no configuration key, so it passes
-		// through untouched.
-		if name == state.HomeEnv {
-			continue
-		}
-		names = append(names, name)
-		valueOf[name] = value
-	}
-	slices.Sort(names)
-
-	overrides := make(map[string]any, len(names))
-	for _, name := range names {
-		if err := checkProtected(name, strings.TrimPrefix(name, EnvPrefix)); err != nil {
-			return nil, err
-		}
-		if key, ok := keyOf[name]; ok {
-			overrides[key] = valueOf[name]
+		if key, known := keyOf[name]; known {
+			overrides[key] = value
 		}
 	}
 	return overrides, nil
