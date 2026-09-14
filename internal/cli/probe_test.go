@@ -373,6 +373,26 @@ func (p *spawnedProbe) awaitOnDisk(t *testing.T, what string, reached func() boo
 	t.Logf("cr probe run reached the state on disk %s after it started", time.Since(p.started))
 }
 
+// runnerRecorded reports whether a runner cr started in the fixture's pull
+// request has recorded its process group in the runner lock, which is the
+// moment from which a SIGKILL of cr leaves a runner the next run can find.
+//
+// The probe's artefact reaching the sandbox is not that moment: cr writes the
+// mutation or the probe file, then takes the runner lock, starts the runner and
+// records its group. A kill landing in between leaves no runner, so the next
+// run discloses only the recreation. Measured: with a 1.5s sleep overlaid
+// before the lock is taken, both killed-probe tests waiting on the artefact
+// alone failed with one disclosure instead of two, and waiting on this as well
+// passed.
+func runnerRecorded(prepared state.Layout) bool {
+	body, err := os.ReadFile(prepared.RunnerLockFile(fixtureOwner, fixtureProject, fixturePRNumber))
+	if err != nil {
+		return false
+	}
+	group, err := strconv.Atoi(strings.TrimSpace(string(body)))
+	return err == nil && group > 1
+}
+
 // §5.3.3 and invariant 6: the mutation is reverted when the run fails.
 //
 // A failing mutation run is §5.3.4's last rung and §5.3.7's disproof, so it is
@@ -450,9 +470,9 @@ func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
 
 	probing := spawnProbe(t, prepared, fixture,
 		"--kind", "mutation", "--patch", patch)
-	probing.awaitOnDisk(t, "the probe never applied its mutation", func() bool {
+	probing.awaitOnDisk(t, "the probe never started its runner against the mutation", func() bool {
 		held, err := os.ReadFile(mutated)
-		return err == nil && string(held) == fixtureMutated
+		return err == nil && string(held) == fixtureMutated && runnerRecorded(prepared)
 	})
 	probing.kill(t)
 
@@ -972,9 +992,9 @@ func TestAKilledGapProbeLeavesAFileTheNextRunRecreates(t *testing.T) {
 
 	probing := spawnProbe(t, prepared, fixture,
 		"--kind", "gap", "--test", supplied, "--target", "app.go:3")
-	probing.awaitOnDisk(t, "the probe never placed its test file", func() bool {
+	probing.awaitOnDisk(t, "the probe never started its runner against its test file", func() bool {
 		held, err := os.ReadFile(placed)
-		return err == nil && string(held) == gapProbeTest
+		return err == nil && string(held) == gapProbeTest && runnerRecorded(prepared)
 	})
 	probing.kill(t)
 
