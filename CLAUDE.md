@@ -836,6 +836,44 @@ $CR claims record 1 --repo <owner>/<scratch> --intent-file issue.txt claims.ndjs
 The scratch PR is the regression fixture. When a bug is found in a real review,
 reproduce it there before fixing.
 
+**Serialise the full suite when several units run at once.** During the v0.2.0
+QA repairs, 2026-09-14, parallel units each ran the full `go test -race ./...`
+gate in the same minutes and saturated the box, so the gate was put behind one
+lock every unit takes first: `mkdir` of a lock directory, the holder's command
+written into it, a bounded wait (40 minutes), and a lock older than 45 minutes
+treated as abandoned. No load figure was recorded for the saturated runs, so
+this rule has no number yet. When it is next doubted, sample the fifteen-minute
+load average with and without the lock (the one-minute figure misleads, see
+above).
+
+Harness facts the 478-case QA pass against `deligoez/cr-qa` measured, kept
+because they hold for the next pass:
+
+1. **A `gh` shim cannot read the environment cr runs in.** `internal/gh/run.go`
+   starts gh with an allowlist, `PATH`, `HOME` and `TMPDIR` (and `SystemRoot`)
+   beside its pinned values, so a shim takes its settings (a rewritten head, the
+   review POST's answer) from files at absolute paths. For the same reason a
+   machine that authenticates gh only through `GH_TOKEN` has no credentials
+   under cr.
+2. **Fence the tracker on every command, not only where `--intent-file` might
+   be dropped.** The default `intent.cmd` is a real `jira`, and on this machine
+   `gh` and `jira` share `/opt/homebrew/bin`, so dropping that directory from
+   `PATH` to hide jira hides gh too. Put a fake `jira` first on `PATH`, build a
+   `PATH` directory of symlinks to the tools the run needs without jira, or set
+   `intent.cmd` to a stub.
+3. **A no-profile fixture needs files removed from the working tree.** Profile
+   selection stats the marker files at the repository root
+   (`internal/profile/select.go`), not in the head's tree, so delete
+   `composer.json` and `phpunit.xml` from a copy of the clone rather than
+   rewriting the head.
+4. **`script` needs `< /dev/null` from an agent's shell.** Measured 2026-09-14:
+   without it `script -q /dev/null cr --version` exits 1 with
+   `tcgetattr/ioctl: Operation not supported on socket`; with it cr runs under a
+   pseudo-terminal and the captured output starts with a literal `^D`.
+5. **`git --no-ext-diff diff` is not a command.** git exits with
+   `unknown option: --no-ext-diff`; the flag belongs to the subcommand, as
+   `git diff --no-ext-diff`.
+
 ### QA checklist
 
 | Area | What to verify |
