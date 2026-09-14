@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
@@ -55,7 +56,8 @@ func (p *page) block(info, text string) {
 // The sections follow §4.6.1's sentence: the role's instructions and focus,
 // the unit's hunks, the claims mapped to it, the candidate symbols of §4.3.1,
 // the rule hits of §4.3.6, the test files of §4.4.1, and the threads and notes
-// of §3.5.3 and §4.1.5. Each section says what cr located and stops there. The
+// of §3.5.3 and §4.1.5, with the outdated threads on the unit's file listed
+// apart. Each section says what cr located and stops there. The
 // prompt ends on §4.6.2's contract — where the role writes and what a record
 // may carry — so the instruction the agent acts on last is cr's and not the
 // role's.
@@ -79,6 +81,7 @@ func (r *Round) text(lens *role.Role, at int, output string, ids IDs) string {
 	r.hits(&p, lens, at)
 	r.tests(&p, at)
 	r.threads(&p, u)
+	r.outdated(&p, u)
 	r.notes(&p)
 	if lens.Axis == axis.Intent {
 		claimSchema(&p)
@@ -363,10 +366,47 @@ func (r *Round) threads(p *page, u *Unit) {
 		p.line("- %s at %s:%d-%d (%s), by %s, resolved %t:",
 			thread.ID, thread.Anchor.Path, thread.Anchor.StartLine, thread.Anchor.Line,
 			thread.Anchor.Side, thread.Comment.Author, thread.Resolved)
-		p.line("  %s", strings.TrimSpace(thread.Comment.Body))
-		for _, reply := range thread.Replies {
-			p.line("  - reply by %s: %s", reply.Author, strings.TrimSpace(reply.Body))
-		}
+		conversation(p, thread)
+	}
+}
+
+// outdated writes the human threads on the unit's file that GitHub reports
+// outdated, in a section of their own.
+//
+// §3.5.3 attaches a thread by where its anchor falls at the head, and an
+// outdated thread's anchor falls nowhere, so the section above never holds one.
+// Left at that, a push that changes the code a reviewer commented on removes
+// the comment from the prompts of exactly the unit the comment was about, and
+// §3.5.4's judgement is given nothing to judge. Every unit on the file gets the
+// list, because cr cannot say which of them now holds that code; each thread
+// is marked outdated and shows the lines it named in the diff it was written
+// against, never a current line.
+func (r *Round) outdated(p *page, u *Unit) {
+	p.section("Outdated human threads on " + u.Path + " (§3.5.1)")
+	listed := outdatedOn(u.Path, r.Threads)
+	if len(listed) == 0 {
+		p.line("No human thread on %s is outdated.", u.Path)
+		return
+	}
+	p.line("GitHub marks these threads outdated: a later push changed the code they were written on, so " +
+		"they name no current line and are not attached to any unit by position (§3.5.3). Each shows the " +
+		"lines it named in the diff it was written against, which need not be this unit's code. Whether one " +
+		"already covers a finding is your decision; when it does, the finding is recorded with suppressed_by " +
+		"naming the thread (§3.5.4).")
+	for i := range listed {
+		thread := &listed[i]
+		p.line("- %s, outdated, originally at %s:%d-%d (%s), by %s, resolved %t:",
+			thread.ID, thread.Anchor.Path, thread.Anchor.OriginalStartLine, thread.Anchor.OriginalLine,
+			thread.Anchor.Side, thread.Comment.Author, thread.Resolved)
+		conversation(p, thread)
+	}
+}
+
+// conversation writes a listed thread's opening comment and its replies.
+func conversation(p *page, thread *gh.Thread) {
+	p.line("  %s", strings.TrimSpace(thread.Comment.Body))
+	for _, reply := range thread.Replies {
+		p.line("  - reply by %s: %s", reply.Author, strings.TrimSpace(reply.Body))
 	}
 }
 

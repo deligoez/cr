@@ -45,6 +45,29 @@ func Threads(hunks []git.Hunk, threads []gh.Thread, proximity int) []gh.Thread {
 	return attached
 }
 
+// outdatedOn is the ingested human threads on one file that GitHub reports
+// outdated and that name no current line, in the order they were ingested.
+//
+// These are the human threads on the file that Threads leaves out for their
+// zero line, less any GitHub does not call outdated, and they are the ones a
+// push most needs to carry forward: the code they were written on is the code
+// the author has since changed. They are returned apart rather than attached,
+// because §3.5.3 attaches by where an anchor falls and an outdated anchor falls
+// nowhere at the current head; the line it names is in the diff it was written
+// against. An outdated thread GitHub still gives a current line is attached by
+// Threads and not listed here.
+func outdatedOn(path string, threads []gh.Thread) []gh.Thread {
+	listed := make([]gh.Thread, 0)
+	for i := range threads {
+		thread := &threads[i]
+		if thread.AuthorType == gh.AuthorHuman && thread.Outdated && thread.Anchor.Line == 0 &&
+			thread.Anchor.Path == path {
+			listed = append(listed, *thread)
+		}
+	}
+	return listed
+}
+
 // near reports whether an anchor's range lies within proximity lines of the
 // hunk's range on the anchor's side.
 func near(hunk *git.Hunk, anchor *gh.Anchor, proximity int) bool {
