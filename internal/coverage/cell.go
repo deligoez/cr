@@ -116,9 +116,9 @@ func (e *RejectedCellError) Error() string {
 	return fmt.Sprintf("%s line %d: %s %s", e.File, e.Line, e.Field, e.Problem)
 }
 
-// Decode reads the cells an agent hands `cr cells record`, holding every line
-// to §4.5.5's fields, to §4.5.6's rejection of an inactive role, and to the
-// authorship of the fields cr computes.
+// DecodeInRound reads the cells an agent hands `cr cells record`, holding every
+// line to §4.5.5's fields, to §4.5.6's rejection of an inactive role, to the
+// authorship of the fields cr computes, and to §4.6.5's round standing.
 //
 // active is the round's active roles of §4.5.1, each carrying the axis it sits
 // on. One argument answers both questions the decoder asks, and that is
@@ -128,23 +128,14 @@ func (e *RejectedCellError) Error() string {
 // separate list of test roles could be handed two lists that disagree.
 //
 // raised is the current round's records by the seat each was raised at, which
-// a `pass` or an `na` cell is held to; see consistent.
+// a `pass` or an `na` cell is held to; see consistent. unmapped is the round
+// when its remaining axes still wait for the intent pass, and nil when they do
+// not; see gated. notes is the context store a cell's `note_id` is held to;
+// see cited.
 //
 // The checks run inside the decode rather than after it because
 // state.DecodeStamped is the one place that counts lines, blank ones included,
 // and every refusal here has to name the line the user must open.
-//
-// It holds no cell to §4.6.5's round standing; DecodeInRound does.
-func Decode(
-	file string, body []byte, units []string, active []role.Role, raised Raised,
-) ([]*Cell, error) {
-	return DecodeInRound(file, body, units, active, raised, nil, nil)
-}
-
-// DecodeInRound is Decode, holding every cell to §4.6.5 as well: unmapped is
-// the round when its remaining axes still wait for the intent pass, and nil
-// when they do not; see gated. notes is the context store a cell's `note_id`
-// is held to; see cited.
 func DecodeInRound(
 	file string, body []byte, units []string, active []role.Role, raised Raised,
 	unmapped *Unmapped, notes *Notes,

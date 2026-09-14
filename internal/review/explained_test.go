@@ -35,10 +35,12 @@ func intentRoles() []role.Role {
 }
 
 // recorded is what `cr cells record` stores for one line an agent wrote: the
-// cell coverage.Decode accepted, with the round the writer stamps onto it.
+// cell coverage.DecodeInRound accepted, with the round the writer stamps onto
+// it.
 func recorded(t *testing.T, round int, line string) coverage.Cell {
 	t.Helper()
-	cells, err := coverage.Decode("cells.ndjson", []byte(line+"\n"), []string{"u1", "u2", "u3"}, intentRoles(), nil)
+	cells, err := coverage.DecodeInRound("cells.ndjson", []byte(line+"\n"), []string{"u1", "u2", "u3"},
+		intentRoles(), nil, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, cells, 1)
 	cells[0].Round = round

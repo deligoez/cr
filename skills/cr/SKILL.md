@@ -141,11 +141,20 @@ cr cells record 1 cells.ndjson
 
 A cell is `{"unit", "role", "result": "pass"|"finding"|"question"|"na"}`; an
 `na` cell also carries a `"reason"`, and a test-axis cell that is not `na` carries `"coverage": {"classification": "covered"|"partially-covered"|"uncovered", "test_paths": [...]}`.
+`test_paths` is required on every such cell, and it may be empty only beside
+`uncovered`: a `coverage` object without it, or with `[]` beside `covered` or
+`partially-covered`, is refused with exit 1.
 Do not supply `unit_hash`; cr writes it. A cell and the records of its role on
-its unit must agree, in whichever order they arrive: a `pass` cell where that
-role already holds records is refused with exit 1 ("this round holds record(s)
-f10, f11 from that role on that unit; … file the cell as finding or question"),
-and so is a record where that role filed `pass`.
+its unit must agree, in whichever order they arrive: a `pass` or `na` cell where
+that role already holds records is refused with exit 1 ("this round holds
+record(s) f10, f11 from that role on that unit; … file the cell as finding or
+question"), and so is a record where that role filed `pass` or `na`.
+
+Cells follow the fan-out's order. While the round's intent axis is active and
+no mapping is recorded, a cell for a role off the intent axis is refused with
+exit 4 ("… has no mapping; §4.6.5 refuses the remaining axes until the intent
+pass has recorded one"); record the intent pass's cells, then `cr map record`,
+then the other roles' cells.
 
 A claim with no implementation is not a finding (there is no code to anchor it
 to): it appears only in `cr status`. Take it out of scope with a note:
