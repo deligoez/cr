@@ -1,6 +1,9 @@
 package state
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // NotBriefedError reports per-PR state no `cr brief` has opened a round in.
 //
@@ -76,6 +79,12 @@ func (e *NotBriefedError) Unwrap() error { return e.Err }
 // The read takes no lock, per §2.3.2.
 func (l Layout) Briefed(owner, repo string, pr int, current CurrentHead) (Round, error) {
 	recorded, err := l.ReadMeta(owner, repo, pr)
+	var stem *ProfileIDError
+	if errors.As(err, &stem) {
+		// A round is recorded, and it names a profile no file of §2.2's
+		// profiles directory can be: a brief would not repair the file.
+		return Round{}, err
+	}
 	if err != nil {
 		return Round{}, &NotBriefedError{Owner: owner, Repo: repo, PR: pr, Err: err}
 	}

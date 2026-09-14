@@ -73,6 +73,15 @@ func decodeMeta(body []byte, path string) (Meta, error) {
 	if err := json.Unmarshal(body, &m); err != nil {
 		return Meta{}, FileFailure("read", path, UnusableHint, err)
 	}
+	// profile_id is joined into a profile's path before the profile is loaded
+	// and its tests.cmd run, so an id that leaves the profiles directory is
+	// refused here, where every reader of the round meets it first. The empty
+	// id is a directory no round has resolved a profile for.
+	if m.ProfileID != "" {
+		if err := profileStem(m.ProfileID); err != nil {
+			return Meta{}, FileFailure("use", path, UnusableHint, err)
+		}
+	}
 	m.ActiveRoles = roleList(m.ActiveRoles)
 	return m, nil
 }
