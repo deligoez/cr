@@ -12,6 +12,7 @@ import (
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/review"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -22,12 +23,39 @@ import (
 type noteResult struct {
 	// Note is the record as it was written to the store.
 	Note note.Note `json:"note"`
+	// Postdates are the runs of `cr review` over the current round of the
+	// pull request `--pr` names that emitted before this note and so did not
+	// carry it (field-feedback 1.5). It is empty when the repository is not
+	// named or detected, when that pull request has no round, or when its
+	// round resolved another issue key.
+	Postdates []review.Postdated `json:"postdates"`
+	// Honesty is §9.3.1's comparison of that round's head against the pull
+	// request's current one, owed because the report above reads the
+	// round's state, and empty when no round was read.
+	Honesty []string `json:"honesty"`
+	// repo names the pull request the hint reruns `cr review` for.
+	repo string
 }
 
 // Text names the id and the source. The text itself is what the user just
-// typed, so echoing it would confirm nothing they do not already have.
+// typed, so echoing it would confirm nothing they do not already have. Every
+// emitted pass the note postdates follows, with the command that emits it
+// again carrying the note.
 func (r *noteResult) Text(w *writer) string {
-	return "recorded " + w.accent(r.Note.ID) + " from " + string(r.Note.Source)
+	var out strings.Builder
+	out.WriteString("recorded " + w.accent(r.Note.ID) + " from " + string(r.Note.Source))
+	for _, pass := range r.Postdates {
+		axis := ""
+		if pass.Pass != review.PassAll {
+			axis = " --axis " + pass.Pass
+		}
+		fmt.Fprintf(&out, "\n%s postdates pass %s of round %d emitted at %s: %d prompt(s) for %s did not carry it; "+
+			"`cr review %d --repo %s%s` emits them again with it",
+			r.Note.ID, pass.Pass, pass.Round, pass.EmittedAt.Format(time.RFC3339), pass.Prompts,
+			strings.Join(pass.Roles, ", "), r.Note.PR, r.repo, axis)
+	}
+	out.WriteString(w.disclose("\n", "", r.Honesty...))
+	return out.String()
 }
 
 // retractResult is what `cr note --remove` has to report: the note as it now
@@ -113,14 +141,7 @@ func newNoteCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := checkNoteKey(cmd, layout, args[0]); err != nil {
-				return err
-			}
-			recorded, err := note.Append(layout, args[0], args[1], parsed, pr, time.Now())
-			if err != nil {
-				return err
-			}
-			return out.emit(&noteResult{Note: recorded})
+			return storeNote(cmd, out, layout, args, parsed, pr)
 		},
 	}
 	cmd.Flags().StringVar(&source, "source", "", "where the fact came from: "+sourceList())
@@ -139,6 +160,29 @@ func newNoteCmd(out *writer) *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("remove", "pr")
 
 	return cmd
+}
+
+// storeNote is the append row of `cr note`: the key checked against §3.2, the
+// round of `--pr` read, the note appended, and the passes it postdates reported.
+func storeNote(
+	cmd *cobra.Command, out *writer, l state.Layout, args []string, source note.Source, pr int,
+) error {
+	if err := checkNoteKey(cmd, l, args[0]); err != nil {
+		return err
+	}
+	noted, read, err := notedRoundOf(cmd, l, pr)
+	if err != nil {
+		return err
+	}
+	recorded, err := note.Append(l, args[0], args[1], source, pr, time.Now())
+	if err != nil {
+		return err
+	}
+	reported, err := postdatedPasses(l, &noted, read, &recorded)
+	if err != nil {
+		return err
+	}
+	return out.emit(reported)
 }
 
 // checkNoteKey refuses an issue key the effective `intent.key_pattern` does not
@@ -163,6 +207,65 @@ func checkNoteKey(cmd *cobra.Command, l state.Layout, issueKey string) error {
 		return err
 	}
 	return intent.CheckKey(issueKey, resolved.String(intentKeyPattern))
+}
+
+// notedRound is the round of the pull request `--pr` names, read before the note
+// is appended, and the repository it was found under.
+type notedRound struct {
+	round state.Round
+	repo  string
+}
+
+// notedRoundOf reads the round a note's report is about, and reports false when
+// there is none: no repository named or detected, found the way checkNoteKey
+// finds its configuration layer, or a pull request no round has been opened on.
+//
+// It goes through briefedRound, so §9.3.1's comparison is made before the note
+// is appended, and a head cr could not read refuses the command as it refuses
+// `cr answer`, with nothing stored.
+func notedRoundOf(cmd *cobra.Command, l state.Layout, pr int) (notedRound, bool, error) {
+	owner, name, err := repoOf(cmd)
+	var undetected *RepositoryDetectionError
+	switch {
+	case errors.As(err, &undetected):
+		return notedRound{}, false, nil
+	case err != nil:
+		return notedRound{}, false, err
+	}
+	round, err := briefedRound(l, owner, name, pr)
+	var unbriefed *state.NotBriefedError
+	if errors.As(err, &unbriefed) {
+		return notedRound{}, false, nil
+	}
+	if err != nil {
+		return notedRound{}, false, err
+	}
+	return notedRound{round: round, repo: owner + "/" + name}, true, nil
+}
+
+// postdatedPasses is the note together with every run of `cr review` over the
+// round that emitted before it (field-feedback 1.5), and §9.3.1's disclosure of
+// that round's head.
+//
+// No pass is reported when the round resolved another issue key: its prompts
+// carry that key's notes, not this one's.
+func postdatedPasses(l state.Layout, noted *notedRound, read bool, recorded *note.Note) (*noteResult, error) {
+	reported := &noteResult{Note: *recorded, Postdates: []review.Postdated{}, Honesty: []string{}}
+	if !read {
+		return reported, nil
+	}
+	reported.repo = noted.repo
+	reported.Honesty = append(reported.Honesty, noted.round.Disclosure())
+	if key, _ := note.SplitID(recorded.ID); noted.round.IssueKey != key {
+		return reported, nil
+	}
+	round := &noted.round.Meta
+	emitted, err := review.ReadEmissions(l, round.Owner, round.Repo, round.PR, round.Round)
+	if err != nil {
+		return nil, err
+	}
+	reported.Postdates = review.PassesBefore(emitted, recorded)
+	return reported, nil
 }
 
 // retracting reports whether this run is §11's `cr note --remove <note-id>`
