@@ -139,7 +139,8 @@ func TestAParsedProfileNamesTheReleaseThatShippedItsBytes(t *testing.T) {
 		want    []string
 	}{
 		"v0.2.1's bytes": {previous, []string{file + " is the laravel-pest profile cr v0.2.1 shipped, unedited, " +
-			"and the shipped profile has since changed sandbox.copy; cr init updates the file to it"}},
+			"and the shipped profile has since changed sandbox.copy; cr init updates the file to it, " +
+			"and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"}},
 		"the current bytes": {[]byte(laravelPest), []string{}},
 		"an edited file":    {edited, []string{}},
 	}
