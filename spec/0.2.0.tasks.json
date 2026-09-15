@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-15T02:13:52.258095Z",
+  "updated_at": "2026-09-15T19:40:39.864935Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 21,
+    "mapped_sections": 24,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -22,8 +22,6 @@
       "### 1.6 Comment economy",
       "## 2. Architecture",
       "### 2.1 Division of labour",
-      "### 2.2 State layout",
-      "### 2.4 Profiles",
       "### 2.5 Roles",
       "#### 2.6.1 Detection",
       "#### 2.6.2 Fixes",
@@ -42,7 +40,6 @@
       "### 4.5 Axis activation and honest reporting",
       "### 4.6 Review fan-out",
       "## 5. Probes",
-      "### 5.2 Test runs",
       "## 6. Findings",
       "### 6.3 The argued rule",
       "### 6.4 Dedup",
@@ -857,6 +854,94 @@
         "internal/cli/headabsent_test.go",
         "skills/cr/SKILL.md"
       ]
+    },
+    {
+      "id": "s1-laravel-pest-copies-env-testing",
+      "title": "Copy .env.testing into the laravel-pest sandbox",
+      "status": "open",
+      "tags": [
+        "v0.2.2",
+        "safety"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 20,
+      "acceptance": "- The shipped laravel-pest profile's `sandbox.copy` is `[\".env\", \".env.testing\", \"vendor\"]`, so a clone holding a gitignored `.env.testing` gets it in the sandbox and Laravel resolves the test database the way the developer's own run does.\n- Proven through `cr sandbox create` on a fixture clone: with `.env` and `.env.testing` both land in the sandbox; with only `.env` the absent entry is skipped with the existing notice and creation succeeds.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 5.1 Sandbox",
+        "### 2.4 Profiles"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "s2-init-updates-unedited-shipped-profiles",
+      "title": "Update unedited shipped profiles on cr init",
+      "status": "open",
+      "tags": [
+        "v0.2.2",
+        "safety"
+      ],
+      "depends_on": [
+        "s1-laravel-pest-copies-env-testing"
+      ],
+      "estimate_minutes": 60,
+      "acceptance": "- `cr init` rewrites a profile file under `~/.cr/profiles/` whose bytes equal a previously shipped version of that profile (v0.1.0, v0.2.0 or v0.2.1) with the current shipped bytes, leaves a file equal to the current version alone, and leaves any other file alone with a notice naming it; its output reports which files it updated.\n- The previous versions' bytes come from testdata extracted from each tag's builtin JSON (as `cr init` wrote them), not a hand-typed hash list, and a test fails when a tag carrying a builtin profile is not covered.\n- Proven through `cr init` in both directions: a byte-equal v0.2.1 file is rewritten and reported; the same file with one key edited is not touched and is named; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 2.4 Profiles",
+        "### 2.2 State layout"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "s3-stale-shipped-profile-notice",
+      "title": "Name a stale shipped profile when it loads",
+      "status": "open",
+      "tags": [
+        "v0.2.2",
+        "safety"
+      ],
+      "depends_on": [
+        "s2-init-updates-unedited-shipped-profiles"
+      ],
+      "estimate_minutes": 40,
+      "acceptance": "- Every command that loads a profile whose bytes equal a previously shipped version of it says so under `honesty`, naming the version and that `cr init` updates it (e.g. that the shipped profile changed `sandbox.copy`); a profile equal to the current shipped bytes, or edited, gets no line; no command writes a profile at load time.\n- Proven through `cr test` (or `cr brief`) with a byte-equal v0.2.1 file (line present) and an edited one (no line), sharing s2's version data; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 2.4 Profiles"
+      ],
+      "started_at": null,
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
+    },
+    {
+      "id": "s4-experiment-header-env-files",
+      "title": "Print an experiment header naming env files",
+      "status": "wip",
+      "tags": [
+        "v0.2.2",
+        "safety"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 75,
+      "acceptance": "- Before the runner starts, `cr test` and `cr probe run` print a header (standard error, so a JSON document on standard output stays whole) naming the runner argv, the sandbox path, the clone root's gitignored `.env*` files and which of them the sandbox holds, and every such file absent from the sandbox and not in `sandbox.copy`, with `sandbox.copy` named as the fix; for a probe whose §5.2.2 unfiltered baseline runs first, the header says the whole suite runs first as the baseline. `cr sandbox create` reports the same uncopied files under `honesty`. The clone's ignored files are listed through internal/git's runner; no file content is read.\n- Proven through the commands: a clone with gitignored `.env` and `.env.testing` both copied → header lists both, no missing line; a gitignored `.env.local` not in `sandbox.copy` → the line names it; the header appears on `cr test`, on a filtered probe, and on the implicit baseline with the baseline sentence; JSON output on standard output is unchanged.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 5.1 Sandbox",
+        "### 5.2 Test runs"
+      ],
+      "started_at": "2026-09-15T19:40:39.864935Z",
+      "duration_source": "claimed",
+      "closed_at": null,
+      "closed_reason": null,
+      "gate_passed_at": null,
+      "commit_sha": null
     }
   ]
 }
