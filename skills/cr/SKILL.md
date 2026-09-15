@@ -104,8 +104,22 @@ refuse the post, and whether to send it stays --confirm's"), and
 `cr post --confirm` prints it on standard error before the request. Tell the
 user before they confirm.
 
-Extract the claims from the issue text yourself — each a verbatim span — and
-record them. `claims record` re-reads the issue, so it takes `--intent-file` too:
+**cr reads the issue text and nothing it links to.** `cr brief` lists every URL
+the issue text carries under `honesty` ("the issue text links https://docs.google.com/…,
+which cr did not read: …"). A requirement stated only behind such a link is in
+no claim until you bring its text in: record the linked document's relevant
+text with `cr note CR-5 "<text>" --source other --pr 1` and draw a claim from
+that note (`"source": "note"`, `note_id`, and the note's body as `span`, per
+§3.3.2).
+
+The issue text is stored as read, with terminal control sequences (ANSI
+colour codes) removed and every U+00A0 no-break space turned into a plain
+space, from `--intent-file` and the tracker command alike; line breaks and
+padding are kept. Extract the claims from it yourself — each a verbatim span —
+and record them. **Copy each span from `cr brief`'s printed issue text, and stop
+it at a line wrap**: a span copied from the tracker's own output can carry a
+no-break space the stored text no longer has, and is refused with exit 1.
+`claims record` re-reads the issue, so it takes `--intent-file` too:
 
 ```bash
 cr claims record 1 claims.ndjson --intent-file issue.txt
@@ -121,6 +135,21 @@ cr claims record 1 claims.ndjson --intent-file issue.txt
 Each claim id appears once in the file; a repeated id is refused with exit 1
 naming both lines. Recording the claims again clears the round's mapping, so
 record the mapping again after it.
+
+`cr brief` and `cr status` list the issue paragraphs no claim span overlaps,
+under `issue_paragraphs` (a paragraph is a blank-line separated block; any
+overlap covers it). Nothing is ranked: read each listed paragraph and decide
+whether it states a requirement a claim should carry. `cr status` reads the text
+the round last stored (`"stored": false` when no command stored one for the
+round; run `cr brief` again).
+
+```json
+"issue_paragraphs": {"total": 4, "uncovered": [{"start_line": 6, "end_line": 7, "text": "…"}]}
+```
+
+A round recorded by an earlier release keeps working: its claims' `issue_hash`
+still matches the issue as the tracker printed it, so an unchanged issue reports
+no drift and a span holding a no-break space still occurs.
 
 ### 2. Review fan-out
 

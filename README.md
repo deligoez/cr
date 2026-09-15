@@ -59,7 +59,11 @@ passed with `--intent-file`. State lives under `~/.cr/` (`CR_HOME` overrides it)
 `cr` never writes inside the repository under review. Beside each round's
 `rounds/<n>/summary.json`, `rounds/<n>/intake.json` holds the record ids and
 §6.4.1 identities `cr merge` and `cr record` dropped, which the summary counts
-without naming.
+without naming. `issue.json` in the pull request's state directory holds the
+issue text the round last read, with terminal control sequences removed and
+no-break spaces turned into spaces; `cr status` lists the issue paragraphs no
+claim span overlaps from it, and `cr brief` lists every link the issue text
+carries under `honesty` as not read.
 
 The Claude Code skill that teaches an agent the loop ships in this repository at
 [`skills/cr/SKILL.md`](skills/cr/SKILL.md).
