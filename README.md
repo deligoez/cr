@@ -65,7 +65,7 @@ without naming. `issue.json` in the pull request's state directory holds the
 issue text the round last read, with terminal control sequences removed and
 no-break spaces turned into spaces; `cr status` lists the issue paragraphs no
 claim span overlaps from it, and `cr brief` lists every link the issue text
-carries under `honesty` as not read. `emissions.ndjson` beside it holds one line
+carries, a terminal hyperlink's target included, under `honesty` as not read. `emissions.ndjson` beside it holds one line
 per prompt `cr review` emitted, with the ids of the notes the prompt carried.
 
 The Claude Code skill that teaches an agent the loop ships in this repository at
