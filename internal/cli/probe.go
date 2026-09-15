@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -547,6 +548,9 @@ type probeSetup struct {
 	tests *suite
 	// stamp is §2.3.3's head and round, written onto every record.
 	stamp state.Stamp
+	// announce prints the experiment header for the probe's own argv, and
+	// for §5.2.2's unfiltered baseline argv when that runs first.
+	announce func(command, baseline []string) error
 	// capped is §5.6.4's budget as it stood before this run, kept so the
 	// run that fills it can say so. It is measured in prepareProbe, because
 	// the refusal has to land before anything is done in the sandbox, and
@@ -623,6 +627,9 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 			// stream either way.
 			profile: resolved, file: file, path: ready.Path, src: src,
 			log: out.informational(cmd.ErrOrStderr()),
+		},
+		announce: func(command, baseline []string) error {
+			return announceExperiment(cmd, out, src, ready.Path, command, baseline)
 		},
 		stamp:  state.Stamp{Head: round.Head, Round: round.Round},
 		capped: capped,
@@ -990,6 +997,19 @@ func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, 
 	stored, err := state.ReadRecords[run.Record](
 		setup.layout, request.owner, request.repo, request.pr, state.FileRuns)
 	if err != nil {
+		return nil, err
+	}
+	// The header goes out before the first run, and says so when §5.2.2's
+	// whole-suite baseline is that run: a filtered probe the operator
+	// expects to take seconds may start with the entire suite.
+	var baseline []string
+	if slices.Contains(probe.Missing(stored, setup.round.Head, probe.Required(request.kind, request.filter)),
+		probe.Spec{}) {
+		if baseline, err = setup.tests.profile.TestArgv(setup.tests.file, ""); err != nil {
+			return nil, err
+		}
+	}
+	if err := setup.announce(command, baseline); err != nil {
 		return nil, err
 	}
 	// unclean is what §5.1.6's check found after a baseline this run

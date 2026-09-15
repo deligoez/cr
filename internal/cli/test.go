@@ -186,9 +186,9 @@ func newTestCmd(out *writer) *cobra.Command {
 				Setup:       resolved.Sandbox.Setup,
 				ProfileFile: file,
 			}
-			ready, err := sandbox.Ensure(src, resolved.LeftoverGlob())
+			ready, err := ensureAnnounced(cmd, out, src, resolved.LeftoverGlob(), argv)
 			if err != nil {
-				return headNotFetched(cmd, owner, repo, pr, err)
+				return err
 			}
 			// Standard error, because §12.1 keeps stdout for the
 			// document below and a suite that prints nothing until
