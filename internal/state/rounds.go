@@ -27,6 +27,13 @@ const (
 	FileSummary  = "summary.json"
 )
 
+// FileIntake is `rounds/<n>/intake.json`: the key of every record `cr merge`'s
+// and `cr record`'s drops took out, which the round summary's intake counts are
+// made of. It sits beside the §2.3 table rather than in it, because §6.4.4
+// lets only the count of a dropped finding reach summary.json, and it is not
+// created with a round: a round no v0.2.1 intake has written has none.
+const FileIntake = "intake.json"
+
 // roundsDirName holds every round of one pull request.
 const roundsDirName = "rounds"
 
@@ -93,9 +100,10 @@ func checkRound(round int) error {
 }
 
 // checkRoundFile refuses a name the §2.3 table does not give a round, so the
-// table stays the only thing that decides what a round directory holds.
+// table and FileIntake stay the only things that decide what a round directory
+// holds.
 func checkRoundFile(name string) error {
-	if !slices.Contains(roundFiles, name) {
+	if !slices.Contains(roundFiles, name) && name != FileIntake {
 		return fmt.Errorf("%s: §2.3 gives a round no such artefact", name)
 	}
 	return nil
@@ -185,6 +193,10 @@ func UpdateRoundJSON[T any](k *Lock, round int, name string, apply func(*T)) err
 	// EnsureRound publishes the empty document when the round is new, so the
 	// read below always has something to decode.
 	if err := k.EnsureRound(round); err != nil {
+		return err
+	}
+	// EnsureRound does not create FileIntake, so its first writer does.
+	if err := k.createMissing(roundPath(round, name), []byte(emptyDocument)); err != nil {
 		return err
 	}
 	path := filepath.Join(k.dir, roundPath(round, name))
