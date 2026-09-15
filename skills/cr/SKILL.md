@@ -799,7 +799,12 @@ contract. Fields: `id` (kebab-case), `title`, `axis` (`intent`, `correctness`,
 `convention` or `test`), `instructions`, and optionally `focus` (questions
 appended to the prompt) and `profiles` (empty means all). `cr init --eject-roles`
 writes the four built-ins (`intent-coverage`, `correctness`, `convention`,
-`test-adequacy`) as editable files. More than one role may serve an axis.
+`test-adequacy`) as editable files. More than one role may serve an axis. An
+ejected file shadows the built-in and a second eject never rewrites it, so a
+role file ejected before v0.2.3 keeps the older instructions: its
+`test-adequacy` lacks the paragraphs on where a missing-test record goes, and
+its `correctness` lacks the one on a predicate's other occurrences. Delete the
+file and eject again to take them, or copy them into your edit.
 
 To add one, write the file:
 
