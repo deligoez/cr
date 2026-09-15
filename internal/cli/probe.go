@@ -549,8 +549,11 @@ type probeSetup struct {
 	// stamp is §2.3.3's head and round, written onto every record.
 	stamp state.Stamp
 	// announce prints the experiment header for the probe's own argv, and
-	// for §5.2.2's unfiltered baseline argv when that runs first.
-	announce func(command, baseline []string) error
+	// for §5.2.2's unfiltered baseline argv when that runs first, and
+	// returns its env-file sentences.
+	announce func(command, baseline []string) ([]string, error)
+	// uncopied are those sentences, kept for the document's honesty.
+	uncopied []string
 	// capped is §5.6.4's budget as it stood before this run, kept so the
 	// run that fills it can say so. It is measured in prepareProbe, because
 	// the refusal has to land before anything is done in the sandbox, and
@@ -628,8 +631,8 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 			profile: resolved, file: file, path: ready.Path, src: src,
 			log: out.informational(cmd.ErrOrStderr()),
 		},
-		announce: func(command, baseline []string) error {
-			return announceExperiment(cmd, out, src, ready.Path, command, baseline)
+		announce: func(command, baseline []string) ([]string, error) {
+			return announceExperiment(cmd, out, src, ready, command, baseline)
 		},
 		stamp:  state.Stamp{Head: round.Head, Round: round.Round},
 		capped: capped,
@@ -930,7 +933,8 @@ func reportProbe(
 		Run:         finished.runID,
 		Voided:      finished.unclean,
 		Warnings:    []string{warning},
-		Honesty:     append(probeDisclosures(setup, finished), setup.tests.profile.StaleDisclosures()...),
+		Honesty: append(append(probeDisclosures(setup, finished), setup.uncopied...),
+			setup.tests.profile.StaleDisclosures()...),
 	})
 }
 
@@ -1009,7 +1013,7 @@ func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, 
 			return nil, err
 		}
 	}
-	if err := setup.announce(command, baseline); err != nil {
+	if setup.uncopied, err = setup.announce(command, baseline); err != nil {
 		return nil, err
 	}
 	// unclean is what §5.1.6's check found after a baseline this run
