@@ -16,10 +16,10 @@ import (
 // partition is made per claim and one file of claims may carry both kinds, not
 // because any claim is ever checked against both.
 type SpanTexts struct {
-	// Issue is the issue text §3.1 read for this run, exactly as the
-	// tracker command or `--intent-file` produced it. It is the text
-	// §3.3.1's occurrence check searches, and the text §3.3's `issue_hash`
-	// is taken over.
+	// Issue is the issue text §3.1 read for this run, as Reading.Text holds
+	// it: what the tracker command or `--intent-file` produced, cleaned. It
+	// is the text §3.3.1's occurrence check searches, and the text §3.3's
+	// `issue_hash` is taken over.
 	Issue string
 	// Notes is every note the §3.6 store holds for the issue key.
 	//
@@ -29,6 +29,9 @@ type SpanTexts struct {
 	// narrowed by round or by pull request would report a note somebody
 	// recorded as one that does not exist and refuse a claim resting on it.
 	Notes []note.Note
+	// asRead is Reading's: the bytes before Clean, empty when Clean changed
+	// nothing. Only §3.3.3's report over claims already recorded reads it.
+	asRead string
 }
 
 // spanSource is the one text one claim's span is checked against, together
@@ -124,7 +127,7 @@ func spanIsBody(body, span string) (bool, error) {
 // erasing it — and its consequence is §3.6.6's report, not this one.
 func (s SpanTexts) stillHolds(claim *Claim) (bool, error) {
 	if claim.Source != ClaimFromNote {
-		return SpanOccursIn(s.Issue, claim.Span), nil
+		return s.issueHolds(claim.Span), nil
 	}
 	named, held := note.Find(s.Notes, claim.NoteID)
 	if !held {
@@ -133,9 +136,29 @@ func (s SpanTexts) stillHolds(claim *Claim) (bool, error) {
 	return spanSource{text: named.Text, whole: true}.holds(claim.Span)
 }
 
+// issueHolds is §3.3.3's occurrence question for a span drawn from the issue
+// text, asked of a claim that may have been recorded before Clean existed.
+//
+// It holds when the span occurs in the text exactly as the source produced
+// it, which is the whole of the question as cr asked it before cleaning, or
+// when the span, cleaned the same way, occurs in the cleaned text. A span
+// recorded since occurs verbatim in the cleaned text and Clean leaves it as it
+// is, so for it the second reading is §3.3.1's own. A span recorded earlier
+// may hold a U+00A0 the cleaned text no longer has, and cleaning both sides
+// is what keeps it from reading as gone; Clean maps characters one for one
+// and removes only escape sequences, so the cleaned span can occur only where
+// the text reads the same once both are cleaned.
+func (s SpanTexts) issueHolds(span string) bool {
+	asRead := s.asRead
+	if asRead == "" {
+		asRead = s.Issue
+	}
+	return SpanOccursIn(asRead, span) || SpanOccursIn(s.Issue, Clean(span))
+}
+
 // span holds one claim to §3.3.1's occurrence rule or to §3.3.2's, whichever
 // its `source` selects, and to exactly one of them.
-func (c claimChecker) span(line int, claim *Claim) error {
+func (c *claimChecker) span(line int, claim *Claim) error {
 	against, err := c.against(line, claim)
 	if err != nil {
 		return err
@@ -179,7 +202,7 @@ func (c claimChecker) span(line int, claim *Claim) error {
 // draft` and `cr post` read the retraction as it stands when they run; a
 // rejection here would move that decision to extraction time, where §3.6.6 does
 // not put it.
-func (c claimChecker) against(line int, claim *Claim) (spanSource, error) {
+func (c *claimChecker) against(line int, claim *Claim) (spanSource, error) {
 	if claim.Source != ClaimFromNote {
 		return spanSource{text: c.spans.Issue, name: "the issue text"}, nil
 	}

@@ -70,7 +70,7 @@ func TestTheKeyIsSubstitutedIntoEveryElementThatCarriesIt(t *testing.T) {
 		"CR-1; rm -rf /",
 		"--jql=key = CR-1; rm -rf /",
 		"--plain",
-	}, strings.Split(strings.TrimSuffix(out, "\n"), "\n"))
+	}, strings.Split(strings.TrimSuffix(out.Text, "\n"), "\n"))
 }
 
 // §3.1.1 describes an argv array carrying a {key} placeholder, and an
@@ -250,7 +250,7 @@ func TestAnIntentFileBypassesTheTrackerCommandEntirely(t *testing.T) {
 	}, "CR-1")
 
 	require.NoError(t, err)
-	assert.Equal(t, issue, text)
+	assert.Equal(t, issue, text.Text)
 	assert.NoFileExists(t, ran,
 		"§3.1.4 bypasses the command; it does not run it and discard the output")
 }
@@ -284,7 +284,7 @@ func TestAnIntentFileNeedsNoTrackerCommandThatCouldEverRun(t *testing.T) {
 			text, err := Read(Source{File: path, Cmd: argv}, "CR-2")
 
 			require.NoError(t, err)
-			assert.Equal(t, issue, text)
+			assert.Equal(t, issue, text.Text)
 		})
 	}
 }

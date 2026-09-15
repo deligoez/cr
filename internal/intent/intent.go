@@ -63,6 +63,18 @@ type Intent struct {
 	// see in the branch name and a pattern that does not match its shape
 	// look identical from the outside, and the pattern is the half cr knows.
 	Pattern string `json:"pattern"`
+	// read is the Reading Text came from, nil when no text was read. It is
+	// held by pointer so an Intent, passed by value across cr, stays small.
+	read *Reading
+}
+
+// Reading is the read this intent's text came from, which is what the §3.3
+// checks over it take.
+func (i Intent) Reading() Reading {
+	if i.read == nil {
+		return Reading{Text: i.Text}
+	}
+	return *i.read
 }
 
 // Unavailability returns §4.5.4's entry for the intent axis, and true, when
@@ -136,7 +148,7 @@ func Resolve(sources KeySources, pattern string, source Source) (Intent, error) 
 	if key.Origin == KeyAbsent {
 		return Intent{Pattern: pattern}, nil
 	}
-	text, err := Read(source, key.Value)
+	reading, err := Read(source, key.Value)
 	var refused *CommandError
 	if errors.As(err, &refused) {
 		refused.Resolved = true
@@ -144,5 +156,5 @@ func Resolve(sources KeySources, pattern string, source Source) (Intent, error) 
 	if err != nil {
 		return Intent{}, err
 	}
-	return Intent{Key: key, Text: text, Pattern: pattern}, nil
+	return Intent{Key: key, Text: reading.Text, Pattern: pattern, read: &reading}, nil
 }

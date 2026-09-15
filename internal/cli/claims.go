@@ -305,7 +305,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			issueText, err := intent.Read(source, recorded.IssueKey)
+			reading, err := intent.Read(source, recorded.IssueKey)
 			if err != nil {
 				return err
 			}
@@ -326,7 +326,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 				return err
 			}
 			claims, err := intent.DecodeClaims(args[1], body, recorded.IssueKey,
-				intent.SpanTexts{Issue: issueText, Notes: notes})
+				reading.Spans(notes))
 			if err != nil {
 				return err
 			}
@@ -335,7 +335,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			// no claim reaches claims.ndjson without them and no
 			// hash is computed over a file that was going to be
 			// refused.
-			if err := intent.ComputeClaimHashes(claims, issueText); err != nil {
+			if err := intent.ComputeClaimHashes(claims, reading.Text); err != nil {
 				return err
 			}
 			held, err := layout.LockPR(owner, repo, pr)

@@ -121,7 +121,7 @@ type claimChecker struct {
 // two earlier ones are still deciding whether the claim may have. A claim with
 // no source has no rule to be checked under, and one whose `note_id` is
 // missing or does not belong names no note to be checked against.
-func (c claimChecker) check(line int, supplied map[string]json.RawMessage, claim *Claim) error {
+func (c *claimChecker) check(line int, supplied map[string]json.RawMessage, claim *Claim) error {
 	if err := c.computed(line, supplied); err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (c claimChecker) check(line int, supplied map[string]json.RawMessage, claim
 //
 // supplied is keyed as state.FoldedFields keys it, so `"Span_Hash"` is found
 // here under `span_hash`: encoding/json binds both spellings to the one field.
-func (c claimChecker) computed(line int, supplied map[string]json.RawMessage) error {
+func (c *claimChecker) computed(line int, supplied map[string]json.RawMessage) error {
 	for _, field := range claimFields {
 		if field.Requirement != Computed {
 			continue
@@ -194,7 +194,7 @@ func (c claimChecker) computed(line int, supplied map[string]json.RawMessage) er
 // claim against the issue text and never against the note, so the field would
 // name a provenance nothing checked, and §8.1.6 would disclose it to the reader
 // on the strength of the agent's word alone.
-func (c claimChecker) noteID(line int, supplied map[string]json.RawMessage, claim *Claim) error {
+func (c *claimChecker) noteID(line int, supplied map[string]json.RawMessage, claim *Claim) error {
 	held := written(supplied["note_id"])
 	switch {
 	case claim.Source == ClaimFromNote && !held:

@@ -27,6 +27,8 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+
+	"github.com/deligoez/cr/internal/note"
 )
 
 // Placeholder marks where the issue key goes.
@@ -226,18 +228,59 @@ type Source struct {
 	Cmd []string
 }
 
+// Reading is one read of the issue text.
+type Reading struct {
+	// Text is the issue text cr stores, prints, and checks a span against:
+	// what the source produced, with Clean applied.
+	Text string
+	// asRead is what the source produced before Clean, and empty when Clean
+	// changed nothing. It is kept for one purpose, DetectDrift's: a claim
+	// recorded before Clean existed carries an `issue_hash` taken over these
+	// bytes, and an unchanged issue must not read as drifted because cr began
+	// cleaning it.
+	asRead string
+}
+
+// Spans pairs this reading with the context store, as §3.3 checks claims
+// against the two.
+func (r Reading) Spans(notes []note.Note) SpanTexts {
+	return SpanTexts{Issue: r.Text, Notes: notes, asRead: r.asRead}
+}
+
+// read wraps the bytes one source produced as a Reading.
+func read(raw string) Reading {
+	cleaned := Clean(raw)
+	if cleaned == raw {
+		return Reading{Text: raw}
+	}
+	return Reading{Text: cleaned, asRead: raw}
+}
+
 // Read returns the issue text for one issue key from whichever of §3.1's two
 // sources applies, the file first.
 //
 // The key reaches only the command. A file is the issue text already, which is
 // what makes §3.1.4 a bypass rather than a cache.
-func Read(source Source, key string) (string, error) {
+//
+// Both sources are cleaned alike. They are interchangeable sources for one
+// value, so a file holding what the tracker command printed must yield the
+// text the command would have, or the choice of source would be visible in
+// every span and every hash downstream.
+func Read(source Source, key string) (Reading, error) {
 	if source.File != "" {
-		return readFile(source.File)
+		raw, err := readFile(source.File)
+		if err != nil {
+			return Reading{}, err
+		}
+		return read(raw), nil
 	}
 	expanded, err := expand(source.Cmd, key)
 	if err != nil {
-		return "", err
+		return Reading{}, err
 	}
-	return run(expanded)
+	raw, err := run(expanded)
+	if err != nil {
+		return Reading{}, err
+	}
+	return read(raw), nil
 }

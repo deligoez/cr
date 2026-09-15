@@ -3,6 +3,7 @@ package intent
 import (
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/deligoez/cr/internal/text"
 )
@@ -34,10 +35,16 @@ type ClaimDrift struct {
 }
 
 // Drifted reports whether the issue text has moved since this claim was
-// extracted. It is derived rather than stored, so a report cannot say one
-// thing here and another in the two hashes it was derived from.
-func (d ClaimDrift) Drifted(current string) bool {
-	return d.ExtractedHash != current
+// extracted: whether its stored hash is none of the hashes the issue text as
+// it now reads goes by. It is derived rather than stored, so a report cannot
+// say one thing here and another in the hashes it was derived from.
+//
+// There are two such hashes when Clean changed the text: the cleaned text's,
+// which every claim recorded since carries, and the hash of the bytes as the
+// source produced them, which a claim recorded before cleaning existed
+// carries for the same unchanged issue.
+func (d ClaimDrift) Drifted(current ...string) bool {
+	return !slices.Contains(current, d.ExtractedHash)
 }
 
 // Drift is §3.3.3's comparison for one round: the issue text as it now reads,
@@ -98,6 +105,14 @@ func DetectDrift(claims iter.Seq[Claim], spans SpanTexts) (Drift, error) {
 	if err != nil {
 		return Drift{}, fmt.Errorf("hashing the issue text: %w", err)
 	}
+	known := []string{current}
+	if spans.asRead != "" {
+		asRead, err := text.NormalisedHash(spans.asRead)
+		if err != nil {
+			return Drift{}, fmt.Errorf("hashing the issue text: %w", err)
+		}
+		known = append(known, asRead)
+	}
 	drift := Drift{Hash: current, Claims: make([]ClaimDrift, 0)}
 	for claim := range claims {
 		occurs, err := spans.stillHolds(&claim)
@@ -109,7 +124,7 @@ func DetectDrift(claims iter.Seq[Claim], spans SpanTexts) (Drift, error) {
 			ExtractedHash: claim.IssueHash,
 			SpanOccurs:    occurs,
 		}
-		drift.Drifted = drift.Drifted || reported.Drifted(current)
+		drift.Drifted = drift.Drifted || reported.Drifted(known...)
 		drift.Claims = append(drift.Claims, reported)
 	}
 	return drift, nil

@@ -307,8 +307,7 @@ func assemble(src *Sources) (*Brief, error) {
 	// from the store is checked against instead. It reports and never
 	// re-extracts, which is a property of intent.DetectDrift's signature
 	// rather than a rule remembered here.
-	drift, err := intent.DetectDrift(slices.Values(claims),
-		intent.SpanTexts{Issue: resolved.Text, Notes: notes})
+	drift, err := intent.DetectDrift(slices.Values(claims), resolved.Reading().Spans(notes))
 	if err != nil {
 		return nil, err
 	}
