@@ -74,6 +74,25 @@ type Profile struct {
 	Rules []json.RawMessage `json:"rules"`
 	// Symbols hints the reinvention search of §4.3.
 	Symbols Symbols `json:"symbols"`
+
+	// stale is the sentence naming the loaded file as an earlier release's
+	// shipped profile, and empty for every other file. It is unexported
+	// because it is not a row of §2.4's table: it is what cr found out about
+	// the file, not what the file says.
+	stale string
+}
+
+// StaleDisclosures are the honesty sentences a command that loaded this
+// profile owes its reader: one when the file it was read from is, byte for
+// byte, a profile an earlier release shipped, naming that release, what the
+// shipped profile has changed since, and that `cr init` updates it. A file
+// equal to this build's profile, or one somebody edited, gets none, and
+// nothing is ever written back: loading a profile only reads it.
+func (p *Profile) StaleDisclosures() []string {
+	if p.stale == "" {
+		return []string{}
+	}
+	return []string{p.stale}
 }
 
 // Match is the selection block. Both fields are required, so a profile always
@@ -213,7 +232,9 @@ func Parse(path string, data []byte) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
-	return w.resolve(template), nil
+	resolved := w.resolve(template)
+	resolved.stale = staleNotice(path, data)
+	return resolved, nil
 }
 
 // refuseProtectedFields refuses a field, at any depth, whose name addresses the

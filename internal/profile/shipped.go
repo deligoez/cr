@@ -3,8 +3,14 @@ package profile
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
+	"fmt"
+	"maps"
 	"path"
+	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 )
 
 // shippedReleases are the releases whose profile files cr carries, oldest
@@ -58,4 +64,69 @@ func StandingOf(id string, content []byte) Standing {
 		}
 	}
 	return standing
+}
+
+// staleNotice is the honesty sentence for the profile file at file when its
+// content is an earlier release's shipped profile, and empty for every other
+// file: one equal to this build's profile, one somebody edited, and one under an
+// id cr never shipped.
+//
+// It names what the shipped profile changed since, by the dotted field paths
+// whose values differ, because the reader's question is whether the difference
+// matters to this run: laravel-pest's `sandbox.copy` gaining `.env.testing` is
+// the difference between a suite reaching the test database and one reaching
+// the developer's own.
+func staleNotice(file string, content []byte) string {
+	id := strings.TrimSuffix(filepath.Base(file), fileExt)
+	standing := StandingOf(id, content)
+	if !standing.Stale() {
+		return ""
+	}
+	since := "has changed since"
+	if changed := changedFields(content, []byte(Builtins()[id])); len(changed) > 0 {
+		since = "has since changed " + strings.Join(changed, ", ")
+	}
+	return fmt.Sprintf("%s is the %s profile cr %s shipped, unedited, and the shipped profile %s; "+
+		"cr init updates the file to it", file, id, standing.Release, since)
+}
+
+// changedFields names, in dotted spelling and sorted, every field whose value
+// differs between two profile documents. An object is descended into and
+// anything else is compared whole, so a list that gained an entry is named once
+// as the list. A document that does not decode names nothing.
+func changedFields(before, after []byte) []string {
+	var was, is any
+	if json.Unmarshal(before, &was) != nil || json.Unmarshal(after, &is) != nil {
+		return nil
+	}
+	changed := make([]string, 0)
+	compareField("", was, is, &changed)
+	slices.Sort(changed)
+	return changed
+}
+
+// compareField appends to changed the dotted path of every leaf under name
+// whose value differs between was and is.
+func compareField(name string, was, is any, changed *[]string) {
+	wasObject, wasIsObject := was.(map[string]any)
+	isObject, isIsObject := is.(map[string]any)
+	if !wasIsObject || !isIsObject {
+		if !reflect.DeepEqual(was, is) {
+			*changed = append(*changed, name)
+		}
+		return
+	}
+	keys := slices.Collect(maps.Keys(wasObject))
+	for key := range isObject {
+		if _, both := wasObject[key]; !both {
+			keys = append(keys, key)
+		}
+	}
+	for _, key := range keys {
+		field := key
+		if name != "" {
+			field = name + "." + key
+		}
+		compareField(field, wasObject[key], isObject[key], changed)
+	}
 }

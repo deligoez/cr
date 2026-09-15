@@ -45,10 +45,15 @@ func TestProfileCarriesExactlyTheSpecFields(t *testing.T) {
 
 // fieldPaths returns the dotted json names of every leaf field, descending into
 // nested structs only. A map or a slice is a leaf: it is one row of the table,
-// whatever it holds.
+// whatever it holds. An unexported field is skipped: no file can set it and no
+// document prints it, so it is what cr learned about a file rather than a row
+// the file carries.
 func fieldPaths(t reflect.Type, prefix string) []string {
 	paths := make([]string, 0, t.NumField())
 	for field := range t.Fields() {
+		if !field.IsExported() {
+			continue
+		}
 		name := field.Tag.Get("json")
 		if prefix != "" {
 			name = prefix + "." + name
