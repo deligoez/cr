@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,4 +176,124 @@ func TestAHeadTheCloneNeverFetchedIsAFetch(t *testing.T) {
 	assert.Equal(t, said, err.Error())
 	assert.Equal(t, ExitFile, exitCodeFor(err))
 	assert.Equal(t, fetchHint, hintFor(err))
+}
+
+// gitHint is the step a git failure of any other kind is met with.
+const gitHint = "the git command the message names failed; run it yourself to see what it reports"
+
+// headAbsentCommands are the four commands headNotFetched classifies for, each
+// with an argv that reaches a git read of the pull request's head and base on
+// threeUnitHome's drafted round. `cr review` names the intent pass, which is the
+// one a round without a mapping may emit.
+func headAbsentCommands(t *testing.T) map[string][]string {
+	t.Helper()
+	return map[string][]string{
+		"brief": {"brief", fixturePR, "--repo", fixtureSlug,
+			"--issue", fixtureIssue, "--intent-file", briefIssue(t)},
+		"status": {"status", fixturePR, "--repo", fixtureSlug},
+		"review": {"review", fixturePR, "--repo", fixtureSlug, "--axis", "intent"},
+		"post":   {"post", fixturePR, "--repo", fixtureSlug},
+	}
+}
+
+// draftedCloneLacking is threeUnitHome's round with one queued record drafted,
+// read from a no-local clone of its repository that lacks one commit GitHub
+// reports: the pull request's head, or a base that moved after the clone was
+// made. It returns the clone and the commit it lacks.
+func draftedCloneLacking(t *testing.T, lacking string) (clone, missing string) {
+	t.Helper()
+	unitDrafted(t, onUnit("u1", "money.go", "RIGHT", 12, 12))
+	full, err := repoDir()
+	require.NoError(t, err)
+	head := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch))
+	branch := "main"
+	missing = head
+	if lacking == "base" {
+		branch = fixtureHeadBranch
+		tree := strings.TrimSpace(mustGit(t, full, "rev-parse", "main^{tree}"))
+		missing = strings.TrimSpace(mustGit(t, full, "commit-tree", "-p", "main", "-m", "the base moved on", tree))
+		mustGit(t, full, "update-ref", "refs/heads/main", missing)
+		t.Setenv("PATH", ghShim(t, t.TempDir(), head, missing)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	clone = filepath.Join(t.TempDir(), "clone")
+	mustGit(t, t.TempDir(), "clone", "--quiet", "--no-local", "--single-branch", "--branch", branch, full, clone)
+	_, err = gitIn(t, clone, "cat-file", "-e", missing+"^{commit}")
+	require.Error(t, err, "the fixture is only worth anything if the clone lacks the commit")
+
+	restore := repoDir
+	repoDir = func() (string, error) { return clone, nil }
+	t.Cleanup(func() { repoDir = restore })
+	return clone, missing
+}
+
+// One predicate for four commands: `cr review` and `cr post` on a clone that
+// lacks the pull request's head, or its base, give the same missing commit, code
+// and `git fetch` hint as `cr brief` and `cr status`, rather than git's refusal
+// of a merge base with a hint to run git by hand.
+func TestEveryCommandReadingTheHeadGivesTheFetchHint(t *testing.T) {
+	for _, lacking := range []string{"head", "base"} {
+		for name := range headAbsentCommands(t) {
+			t.Run(lacking+"/"+name, func(t *testing.T) {
+				clone, absent := draftedCloneLacking(t, lacking)
+
+				_, err := runCLIPrinting(t, headAbsentCommands(t)[name]...)
+				var missing *git.MissingCommitError
+				require.ErrorAs(t, err, &missing)
+				assert.Equal(t, git.MissingCommitError{Dir: clone, Commit: absent}, *missing)
+				assert.Equal(t, "the repository at "+clone+" does not hold commit "+absent, err.Error())
+				assert.Equal(t, ExitFile, exitCodeFor(err))
+				assert.Equal(t, fetchHint, hintFor(err))
+			})
+		}
+	}
+}
+
+// The same four commands name a `--repo` no remote of the clone points at, in
+// the hint of the missing commit they now classify alike.
+func TestEveryCommandReadingTheHeadNamesARepoNoRemotePointsAt(t *testing.T) {
+	hint := "`--repo` names octocat/hello, and no remote of the repository under review points at it " +
+		"(origin points at someone/elsewhere), so a `git fetch` from its remotes may not bring the commit " +
+		"the message names; check that `--repo` names the pull request's repository; if it does, fetch " +
+		"the commit from it with `git fetch https://github.com/octocat/hello pull/7/head` and run the " +
+		"command again, or run the command in a clone of octocat/hello"
+	for name := range headAbsentCommands(t) {
+		t.Run(name, func(t *testing.T) {
+			clone, absent := draftedCloneLacking(t, "head")
+			mustGit(t, clone, "remote", "set-url", "origin", "git@github.com:someone/elsewhere.git")
+
+			_, err := runCLIPrinting(t, headAbsentCommands(t)[name]...)
+			var mismatch *RemoteMismatchError
+			require.ErrorAs(t, err, &mismatch)
+			assert.Equal(t, "the repository at "+clone+" does not hold commit "+absent, err.Error())
+			assert.Equal(t, ExitFile, exitCodeFor(err))
+			assert.Equal(t, hint, hintFor(err))
+		})
+	}
+}
+
+// The other direction: a git failure while the clone holds both the head and
+// the base is not a fetch. The head commit's tree is taken out of the object
+// store, so every read of the head's content fails, and each of the four
+// commands keeps git's own error and hint.
+func TestAGitFailureOfAnotherKindKeepsItsOwnHint(t *testing.T) {
+	for name := range headAbsentCommands(t) {
+		t.Run(name, func(t *testing.T) {
+			unitDrafted(t, onUnit("u1", "money.go", "RIGHT", 12, 12))
+			full, err := repoDir()
+			require.NoError(t, err)
+			tree := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch+"^{tree}"))
+			require.NoError(t, os.Remove(filepath.Join(full, ".git", "objects", tree[:2], tree[2:])))
+			mustGit(t, full, "cat-file", "-e", fixtureHeadBranch+"^{commit}")
+			mustGit(t, full, "cat-file", "-e", "main^{commit}")
+
+			_, err = runCLIPrinting(t, headAbsentCommands(t)[name]...)
+			var failed *git.CommandError
+			require.ErrorAs(t, err, &failed)
+			var missing *git.MissingCommitError
+			assert.False(t, errors.As(err, &missing), "the clone holds both commits")
+			assert.Equal(t, failed.Error(), err.Error())
+			assert.Equal(t, ExitFile, exitCodeFor(err))
+			assert.Equal(t, gitHint, hintFor(err))
+		})
+	}
 }
