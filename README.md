@@ -102,7 +102,7 @@ already have posted.
 | `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
-| `cr merge <files...> -o <out> --pr <n>` | Merge and deduplicate per-role findings |
+| `cr merge <files...> -o <out> --pr <n>` | Merge and deduplicate per-role findings; list record pairs a shared citation or a citation inside the other's anchor joins, dropping none |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
 | `cr test <pr> [--filter <f>]` | Run the profile's test command inside the sandbox |
