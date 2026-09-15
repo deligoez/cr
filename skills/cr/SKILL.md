@@ -441,6 +441,32 @@ The draft holds one block per record under a marker line, e.g.
 then the body you edit, then for a probed record a cr-owned evidence region (the
 probe's kind, target, filter, result, input and output tail).
 
+**Rewrite every kept body in `render.lang`.** Records are stored in English
+(§6.1.1), and cr renders each body from the record's `summary` and `evidence`
+without translating or composing a word (§8.1.2). Before handing the draft over,
+rewrite the body of each block you keep in the language `render.lang` names
+(default `tr`); the question label cr adds is already in it, and a body left in
+English posts in English. A `kind="question"` body must ask, with a `?`.
+
+The draft opens with a header comment that is never posted: counts by kind,
+severity and grade, the coverage state, the comment count against
+`post.max_comments`, and a line saying when a discard's waiver is written. Two
+more lines appear only when they have a record to name:
+
+```text
+questions without "?": 1, which `cr post` refuses (§8.1.5): f1
+long bodies: 1 over 1200 characters: f7
+```
+
+Each question named there is also a `warnings` entry of `cr draft`'s output:
+
+```text
+record f1: its kind=question body holds no "?" character, and §8.1.5 has `cr post` refuse it; rewrite the body in draft.md into the question it asks
+```
+
+Neither line refuses anything. A long body posts as written; shorten it while
+rewriting it.
+
 ### 6. Human read
 
 **cr cannot tell whether a human read the draft.** Nothing it can observe
