@@ -71,6 +71,7 @@ func newBriefResult(assembled *brief.Brief) *briefResult {
 	for _, entry := range disclosed {
 		honesty = append(honesty, entry.Disclosure())
 	}
+	honesty = append(honesty, assembled.StaleProfile()...)
 	return &briefResult{Brief: assembled, Honesty: honesty, closed: len(closure)}
 }
 

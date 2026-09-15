@@ -930,7 +930,7 @@ func reportProbe(
 		Run:         finished.runID,
 		Voided:      finished.unclean,
 		Warnings:    []string{warning},
-		Honesty:     probeDisclosures(setup, finished),
+		Honesty:     append(probeDisclosures(setup, finished), setup.tests.profile.StaleDisclosures()...),
 	})
 }
 

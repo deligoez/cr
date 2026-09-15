@@ -332,7 +332,7 @@ func statusOf(
 		Probes:       probesOf(probes, records),
 		Unstanding:   unstanding,
 		Completeness: verdict,
-		Honesty:      append(disclosed, drift...),
+		Honesty:      append(append(disclosed, drift...), staleProfile(l.Profile(round.ProfileID))...),
 	}, nil
 }
 

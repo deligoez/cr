@@ -276,7 +276,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				TimedOut:     timedOut,
 				Contaminated: contaminated,
 				Warnings:     []string{probe.CollisionWarning()},
-				Honesty:      recreationNotice(ready),
+				Honesty:      append(recreationNotice(ready), resolved.StaleDisclosures()...),
 			})
 		},
 	}

@@ -140,7 +140,7 @@ func detectRound(
 	hits := rule.Evaluate(matchers, rule.Reviewed(hunks, units))
 	return &rulesCheckResult{
 		Round: round.Round, Head: round.Head, Hits: hits, Units: rule.Attach(units, hits),
-		Honesty: []string{round.Disclosure()},
+		Honesty: append([]string{round.Disclosure()}, staleProfile(l.Profile(round.ProfileID))...),
 	}, nil
 }
 

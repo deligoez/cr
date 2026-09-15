@@ -245,7 +245,7 @@ func Run(src *Sources) (*Fanout, error) {
 	}
 	return &Fanout{
 		Round: r.Round, Head: r.Head, Prompts: Emit(r),
-		Honesty:  sentences(lenses),
+		Honesty:  append(sentences(lenses), p.StaleDisclosures()...),
 		Expected: coverage.Expect(unitIDs(r.Units), r.Active), Skipped: lenses.Roles,
 	}, nil
 }

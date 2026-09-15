@@ -327,7 +327,9 @@ func newRecordCmd(out *writer) *cobra.Command {
 			if err := recordRetiredCounts(layout, &round.Meta, forced, &dropped, time.Now()); err != nil {
 				return err
 			}
-			return out.emit(newRecordResult(records, found, &dropped))
+			recorded := newRecordResult(records, found, &dropped)
+			recorded.Honesty = append(recorded.Honesty, staleProfile(layout.Profile(round.ProfileID))...)
+			return out.emit(recorded)
 		},
 	}
 }

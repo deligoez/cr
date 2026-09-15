@@ -217,7 +217,11 @@ func newPostCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
-			warned := &forewarning{closure: closureDisclosure(owner, repo, pr, &opened), to: cmd.ErrOrStderr()}
+			warned := &forewarning{
+				closure: closureDisclosure(owner, repo, pr, &opened),
+				profile: staleProfile(layout.Profile(round.ProfileID)),
+				to:      cmd.ErrOrStderr(),
+			}
 			return headNotFetched(cmd, owner, repo, pr,
 				buildReview(out, layout, owner, repo, pr, &round.Meta, confirmed, warned))
 		},
@@ -484,6 +488,9 @@ func refusePostedRound(l state.Layout, round *state.Meta, records []*finding.Fin
 type forewarning struct {
 	// closure is closureDisclosure's, and empty for an open pull request.
 	closure []string
+	// profile is staleProfile's sentence for the round's profile file, and
+	// empty unless that file is an earlier release's shipped profile.
+	profile []string
 	// to is where a confirmed send prints it before the request: standard
 	// error, which a JSON document on standard output leaves readable.
 	to io.Writer
@@ -491,10 +498,12 @@ type forewarning struct {
 
 // disclosures is what a `cr post` run that sends nothing tells its reader
 // before the payload: the pull request's closure, then §8.4.4's
-// `post_unresolved` when the round carries it. It is empty and never nil.
+// `post_unresolved` when the round carries it, then a stale shipped profile.
+// It is empty and never nil.
 func (f *forewarning) disclosures(round *state.Meta) []string {
-	said := append(make([]string, 0, 2), f.closure...)
-	return append(said, unresolvedDisclosure(round)...)
+	said := append(make([]string, 0, 3), f.closure...)
+	said = append(said, unresolvedDisclosure(round)...)
+	return append(said, f.profile...)
 }
 
 // discardedIDs are the ids of the records this run's draft discards, in the

@@ -205,7 +205,8 @@ func effectiveRules(l state.Layout, owner, repo string) (*effective, int, error)
 	corpus = rule.ForProfile(corpus, selection.Profile.ID)
 	result := &rulesListResult{
 		Repo: owner + "/" + repo, Profile: selection.Profile.ID,
-		Rules: listedRules(corpus), OutOfProfile: outOfProfile, Honesty: make([]string, 0, 1),
+		Rules: listedRules(corpus), OutOfProfile: outOfProfile,
+		Honesty: append(make([]string, 0, 2), selection.Profile.StaleDisclosures()...),
 	}
 	if !selection.Selected {
 		result.Honesty = append(result.Honesty, "no profile matched this checkout (§2.4.4), "+

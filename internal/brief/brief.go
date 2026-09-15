@@ -172,6 +172,16 @@ type Brief struct {
 	// the reader through PullRequest, whose state a closed or merged pull
 	// request is disclosed with.
 	pullRequest gh.PullRequest
+	// staleProfile is the selected profile's StaleDisclosures, taken from the
+	// value this run loaded. It is unexported for the reason halves is, and
+	// reaches the reader through StaleProfile.
+	staleProfile []string
+}
+
+// StaleProfile names the selected profile's file when it is, byte for byte, a
+// profile an earlier release shipped, and is empty for every other file.
+func (b *Brief) StaleProfile() []string {
+	return b.staleProfile
 }
 
 // PullRequest is GitHub's answer about the pull request the brief was
@@ -336,6 +346,7 @@ func assemble(src *Sources) (*Brief, error) {
 		ActiveRoles:    active,
 		halves:         halves,
 		skipped:        coverage.Skipped(axes, corpus, active, selection.Profile.ID),
+		staleProfile:   selection.Profile.StaleDisclosures(),
 	}, nil
 }
 

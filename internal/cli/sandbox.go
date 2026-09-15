@@ -158,7 +158,7 @@ func emitCreated(out *writer, src *sandbox.Sources, created *sandbox.Result) err
 		Copied:  created.Copied,
 		Absent:  created.Absent,
 		Setup:   created.Setup,
-		Honesty: env.Disclosures(),
+		Honesty: append(env.Disclosures(), staleProfile(src.ProfileFile)...),
 	})
 }
 
