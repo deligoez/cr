@@ -233,6 +233,18 @@ names a probe is recorded after `cr probe run` has written that probe.
 }
 ```
 
+`cr merge`'s report also lists `possible_duplicates`: pairs of merged records
+that dedup did not group but that a location joins, each naming both record ids
+and its links — `shared-citation` (both cite one path and line) or
+`cites-anchor` (one cites a line inside the other's RIGHT anchor range). A record
+already suppressed as a duplicate is in no pair. The listing drops and changes
+nothing, and the merged file does not carry it. A pair can still be two defects:
+show it to the human at triage, who decides whether to keep both comments.
+
+```json
+{"possible_duplicates": [{"records": ["f12", "f39"], "links": ["shared-citation", "cites-anchor"]}]}
+```
+
 A record the agent writes:
 
 ```json
