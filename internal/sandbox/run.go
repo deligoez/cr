@@ -156,7 +156,46 @@ func (e *InterruptedError) Error() string {
 		"and nothing was recorded for the run", e.Signal)
 }
 
+// BeforeRunnerRelease, when set, is called with the sandbox between the start
+// of a held runner and its release. Only tests set it: it is where a kill of cr
+// inside that window is placed.
+var BeforeRunnerRelease func(dir string)
+
+// heldRunner is the name cr's own binary is started under to hold a test runner
+// until the runner's process group is recorded, as state.RunnerHold describes,
+// and heldRunnerAbandoned the status such a process exits with when it runs
+// nothing.
+const (
+	heldRunner          = "cr-held-runner"
+	heldRunnerAbandoned = 125
+)
+
+// init makes a process started under heldRunner the runner it holds, before
+// any other work of cr's begins.
+//
+// It is an init rather than a line of main so that every binary that starts a
+// runner through this package serves the hold: cr, and the test binaries that
+// start one without being cr. os.Args[1] is the program exec.Command resolved in
+// cr and the rest is the runner's argv as cr would have started it, so exec
+// replaces the process with exactly the runner an unheld start ran — in the
+// same directory, process group and environment, with the runner lock at the
+// same descriptor.
+func init() {
+	if len(os.Args) < 3 || os.Args[0] != heldRunner {
+		return
+	}
+	if state.AwaitRunnerRelease() {
+		state.ReportRunnerExecFailure(syscall.Exec(os.Args[1], os.Args[2:], os.Environ()))
+	}
+	os.Exit(heldRunnerAbandoned)
+}
+
 // RunExit is Run, reporting the signal a run exited on beside its status.
+//
+// A runner started with a runner lock is held: cr starts its own binary in the
+// runner's place, records the group, and only then lets it become the runner.
+// A cr killed in between leaves a process that exits running nothing, rather
+// than a runner whose group no later run can find.
 func RunExit(
 	argv []string, dir string, log io.Writer, timeout time.Duration, runner *state.RunnerLock,
 ) (Exit, error) {
@@ -166,8 +205,10 @@ func RunExit(
 	cmd.Stdout = log
 	cmd.Stderr = log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if runner != nil {
-		cmd.ExtraFiles = []*os.File{runner.Inherited()}
+	program := cmd.Path
+	hold, err := holdRunner(cmd, runner)
+	if err != nil {
+		return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
 	}
 	// Installed before the start, so no moment exists at which a runner
 	// is alive and a stop request would end cr without reaching it.
@@ -175,15 +216,17 @@ func RunExit(
 	signal.Notify(stopping, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(stopping)
 	if err := cmd.Start(); err != nil {
+		if hold != nil {
+			hold.Abandon()
+		}
 		return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
 	}
 	// Read before the waiting goroutine exists, so the pid the kill uses is
 	// never read beside a concurrent Wait.
 	group := cmd.Process.Pid
-	if runner != nil {
-		if err := runner.Started(group); err != nil {
-			_ = syscall.Kill(-group, syscall.SIGKILL)
-			return Exit{}, errors.Join(err, cmd.Wait())
+	if hold != nil {
+		if err := releaseRunner(cmd, hold, runner, dir, program); err != nil {
+			return Exit{}, err
 		}
 	}
 	finished := make(chan error, 1)
@@ -223,6 +266,62 @@ func RunExit(
 		<-finished
 		return Exit{Code: -1}, &InterruptedError{Signal: received.String()}
 	}
+}
+
+// holdRunner turns cmd into the start of a held runner: cr's own binary under
+// heldRunner, given the program cmd would have run and the runner's argv, with
+// the runner lock and the hold's pipes as its descriptors from 3. Without a
+// runner lock there is no group to record, and cmd is left to start the runner
+// itself.
+//
+// A program exec.Command could not resolve is refused here with the error Start
+// would have returned, because the held process would otherwise be started for
+// a runner that cannot run.
+func holdRunner(cmd *exec.Cmd, runner *state.RunnerLock) (*state.RunnerHold, error) {
+	if runner == nil {
+		return nil, nil
+	}
+	if cmd.Err != nil {
+		return nil, cmd.Err
+	}
+	self, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	hold, err := runner.Hold()
+	if err != nil {
+		return nil, err
+	}
+	cmd.Args = append([]string{heldRunner, cmd.Path}, cmd.Args...)
+	cmd.Path = self
+	cmd.ExtraFiles = hold.Inherited()
+	return hold, nil
+}
+
+// releaseRunner records the process group of a started held runner and then
+// releases it, returning a RunError when exec could not replace the held
+// process with program.
+//
+// A record that fails abandons the hold, so the held process exits running
+// nothing; the group is killed as well, for a process that has read the release
+// some other way.
+func releaseRunner(cmd *exec.Cmd, hold *state.RunnerHold, runner *state.RunnerLock, dir, program string) error {
+	hold.Started()
+	if BeforeRunnerRelease != nil {
+		BeforeRunnerRelease(dir)
+	}
+	group := cmd.Process.Pid
+	if err := runner.Started(group); err != nil {
+		hold.Abandon()
+		_ = syscall.Kill(-group, syscall.SIGKILL)
+		return errors.Join(err, cmd.Wait())
+	}
+	if err := hold.Release(program); err != nil {
+		_ = syscall.Kill(-group, syscall.SIGKILL)
+		_ = cmd.Wait()
+		return &RunError{Args: slices.Clone(cmd.Args[2:]), Err: err}
+	}
+	return nil
 }
 
 // StoppedRunner is a runner an earlier cr run left alive in the sandbox, which
