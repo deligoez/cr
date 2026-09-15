@@ -744,7 +744,10 @@ A profile is mechanical, language-specific configuration. Required: `id`,
 (required with `tests.cmd`), `tests.filter_flag`, `tests.timeout_seconds`,
 `tests.output_tail_bytes`, `tests.count_pattern` and `tests.failed_pattern` (one
 capture group each), `tests.probe_path_template`, `rules`, `symbols.lang`. cr
-ships `laravel-pest` and `generic`.
+ships `laravel-pest` and `generic`. `laravel-pest` copies `.env`, `.env.testing`
+and `vendor` into the sandbox: Laravel runs tests under `APP_ENV=testing`, and
+without `.env.testing` it reads `.env`, so a suite would reach the database the
+developer's own `.env` names.
 
 ```json
 {
