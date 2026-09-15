@@ -169,11 +169,13 @@ var lowLevelPackages = map[string]bool{
 // is put in nor a signal to that group can be spelled without `syscall`.
 //
 // The exemption is by name rather than by file, so the guard keeps saying what
-// it said before. Every identifier below controls a process and addresses no
+// it said before. Every identifier below controls a process and writes no
 // path, and anything else out of `syscall` — Open, Unlink, Mkdir, Rename —
 // fails this test in the file that is exempt exactly as it would anywhere
 // else. What is widened is not "this file may reach the filesystem" but "these
-// three names are not the filesystem".
+// names are not the filesystem". Exec names a path only as the program to run:
+// it is how the process cr starts in a runner's place becomes that runner once
+// the runner's group is recorded.
 var processControlFile = filepath.Join("internal", "sandbox", "run.go")
 
 var processControl = map[string]bool{
@@ -181,6 +183,7 @@ var processControl = map[string]bool{
 	"Kill":        true,
 	"SIGKILL":     true,
 	"SIGTERM":     true,
+	"Exec":        true,
 }
 
 // syscallUse reports the syscall identifier an expression names, if it names
