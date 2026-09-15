@@ -27,11 +27,15 @@ var testAdequacyPlacement = []string{
 }
 
 // correctnessOccurrences is the correctness lens's instruction to look for a
-// predicate's other occurrences (field-feedback 3.1).
+// predicate's other occurrences and to keep them out of the citations
+// (field-feedback 3.1).
 const correctnessOccurrences = "When a finding rests on a predicate, a condition or a rule that appears in more " +
-	"than one place, search the head for its other occurrences, cite each one you find, and say in the evidence " +
-	"which occurrences you checked. A fix made where the record points and missed where it does not leaves the " +
-	"same defect standing."
+	"than one place, search the head for its other occurrences, because a fix made where the record points and " +
+	"missed where it does not leaves the same defect standing. Name the other occurrences in the evidence and " +
+	"say which you checked; they are not citations, because they show where the rule appears, not that it is " +
+	"wrong. A citation is a location a reader can open to see the premise of the defect — the definition the " +
+	"code violates, the caller that passes the value it mishandles, the constant or enum it disagrees with — " +
+	"never another copy of the same code."
 
 // The emitted prompt carries each instruction as a whole line on the cells of
 // the role that owns it — the production unit u1 and the test file's unit u2

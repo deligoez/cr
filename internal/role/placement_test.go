@@ -32,12 +32,19 @@ var testAdequacyPlacement = []string{
 }
 
 // correctnessOccurrences is field-feedback 3.1: a fix needed the same status
-// predicate changed in a third place that no record named.
+// predicate changed in a third place that no record named. The occurrences go
+// in the evidence and never in the citations, because on the correctness axis
+// a resolved citation outside the unit moves a record into the assertion
+// register, and another copy of the code shows where a rule lives, not that it
+// is wrong.
 var correctnessOccurrences = []string{
 	"When a finding rests on a predicate, a condition or a rule that appears in more than one place, search " +
-		"the head for its other occurrences, cite each one you find, and say in the evidence which occurrences " +
-		"you checked. A fix made where the record points and missed where it does not leaves the same defect " +
-		"standing.",
+		"the head for its other occurrences, because a fix made where the record points and missed where it " +
+		"does not leaves the same defect standing. Name the other occurrences in the evidence and say which you " +
+		"checked; they are not citations, because they show where the rule appears, not that it is wrong. A " +
+		"citation is a location a reader can open to see the premise of the defect — the definition the code " +
+		"violates, the caller that passes the value it mishandles, the constant or enum it disagrees with — " +
+		"never another copy of the same code.",
 }
 
 // Each paragraph is a whole line of its own role's instructions and of no
