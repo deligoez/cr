@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -145,6 +146,49 @@ func withoutRegion(text string, region ownedRegion) string {
 		rest := strings.TrimPrefix(text[start+length+len(region.close):], regionSeparator)
 		text = text[:start] + rest
 	}
+}
+
+// OwnedSpan is where one complete cr-owned region of §8.1.3 sits in a comment
+// read back out of a draft, as byte offsets: Start at its opening marker, End
+// just past its closing one.
+type OwnedSpan struct {
+	// Start is the offset of the region's opening marker.
+	Start int
+	// End is the offset just past the region's closing marker.
+	End int
+	// BeneathBody reports the §8.1.7 evidence region, the one §8.1.3's
+	// sequence places beneath the agent body rather than above it.
+	BeneathBody bool
+}
+
+// OwnedSpans are the complete cr-owned regions of a comment, in the order the
+// comment holds them, found exactly as AgentRegion finds the ones it discards:
+// by each region's own pair, the opening marker and the first closing marker
+// after it. A marker without its partner is not a region and has no span.
+//
+// It is the reading `cr triage` edits by. §7.2.4 has `--body-file` replace a
+// block's agent region the way the reviewer would, which leaves every owned
+// region where it stands, so what is replaced is the text between them.
+func OwnedSpans(comment string) []OwnedSpan {
+	spans := make([]OwnedSpan, 0, len(ownedRegions))
+	for _, region := range ownedRegions {
+		for from := 0; ; {
+			start := strings.Index(comment[from:], region.open)
+			if start < 0 {
+				break
+			}
+			start += from
+			length := strings.Index(comment[start:], region.close)
+			if length < 0 {
+				break
+			}
+			end := start + length + len(region.close)
+			spans = append(spans, OwnedSpan{Start: start, End: end, BeneathBody: region == evidenceRegion})
+			from = end
+		}
+	}
+	slices.SortFunc(spans, func(a, b OwnedSpan) int { return a.Start - b.Start })
+	return spans
 }
 
 // BodyError refuses an agent region that §8.1 does not let reach the author.
