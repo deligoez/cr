@@ -3,6 +3,7 @@ package brief
 import (
 	"errors"
 	"io/fs"
+	"path/filepath"
 
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/state"
@@ -119,6 +120,12 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 	if assembled.round.opened() && recorded.ClaimsRecorded() {
 		claimsRound, claimsHead = assembled.Round, assembled.Head
 	}
+	// Absolute, so a command naming it later works from any directory; a
+	// working directory that cannot be read leaves the path as it was given.
+	intentFile := src.Intent.File
+	if absolute, err := filepath.Abs(intentFile); intentFile != "" && err == nil {
+		intentFile = absolute
+	}
 	return &state.Meta{
 		Owner:          src.Owner,
 		Repo:           src.Repo,
@@ -133,6 +140,7 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 		MappingHead:    recorded.MappingHead,
 		ClaimsRound:    claimsRound,
 		ClaimsHead:     claimsHead,
+		IntentFile:     intentFile,
 	}, nil
 }
 
