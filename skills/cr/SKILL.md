@@ -212,6 +212,16 @@ that role already holds records is refused with exit 1 ("this round holds
 record(s) f10, f11 from that role on that unit; … file the cell as finding or
 question"), and so is a record where that role filed `pass` or `na`.
 
+On the test axis, adequacy is judged at the code under test (§4.4.1). A record
+saying a production line has no test is raised from the cell of the unit
+holding that line, anchored on the line, which must lie in the diff and inside
+that unit (§6.1.3), and cites the test file; §4.4.2 keeps it a question until a
+probe supports it, and a probe supports it only when its target lies inside the
+anchor (§6.2.2). The cell of a test file's unit judges the test itself (it
+asserts nothing, tests the mock, duplicates another test) and files `pass`,
+`question`, or a finding about that test. A production line outside the diff
+has no unit, so it is no record (§1.6.1, §4.1.3).
+
 Cells follow the fan-out's order. While the round's intent axis is active and
 no mapping is recorded, a cell for a role off the intent axis is refused with
 exit 4 ("… has no mapping; §4.6.5 refuses the remaining axes until the intent
@@ -358,7 +368,10 @@ pass, `honesty` names that baseline run and its failed count ("probe p1
 establishes no gap: its baseline run r1 did not pass per §5.2.5 (tests_failed
 3), …"), because such a probe supports no finding. Reference a probe from a
 record with `"probe": "p1"`; it supports that record only when its target lies
-inside the record's RIGHT anchor range. `cr sandbox destroy 1` removes the
+inside the record's RIGHT anchor range (§6.2.2). A mutation of production code
+therefore never supports a record anchored on a test file: a record saying a
+production line has no test is anchored on that line, from its own unit's cell
+(see the test axis under step 2). `cr sandbox destroy 1` removes the
 worktree. `cr test` and `cr probe run` share one lock per repository root and
 profile, from any subdirectory, and exit 4 when `probe.lock_timeout_seconds`
 passes while another run holds it. The lock is held under the state root and
