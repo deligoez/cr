@@ -75,7 +75,8 @@ func TestTheTestCommandNamesAProfileAnEarlierReleaseShipped(t *testing.T) {
 
 		require.Len(t, honesty, 2, "§5.1.6's recreation notice, then the profile's")
 		assert.Equal(t, file+" is the laravel-pest profile cr v0.2.1 shipped, unedited, "+
-			"and the shipped profile has since changed sandbox.copy; cr init updates the file to it", honesty[1])
+			"and the shipped profile has since changed sandbox.copy; cr init updates the file to it, "+
+			"and the next cr test or cr probe run then recreates a sandbox lacking a file it copies", honesty[1])
 	})
 
 	t.Run("the same file with one key edited", func(t *testing.T) {
