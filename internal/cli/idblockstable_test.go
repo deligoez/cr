@@ -105,7 +105,7 @@ func TestAnEmptyAxisIsAUsageErrorNamingTheAxes(t *testing.T) {
 		var unknown *unknownAxisFlagError
 		require.ErrorAsf(t, err, &unknown, "%q", args)
 		assert.Equal(t, ExitUsage, exitCodeFor(err))
-		assert.Equal(t, `--axis "" is not an axis id; v0.2 has exactly intent, correctness, convention, test, per §1.5`,
+		assert.Equal(t, `--axis "" is not an axis id; v0.3 has exactly intent, correctness, convention, test, per §1.5`,
 			err.Error())
 		assert.Empty(t, printed, "no prompt is emitted")
 	}
