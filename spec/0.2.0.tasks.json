@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-14T22:44:05.025349Z",
+  "updated_at": "2026-09-15T02:13:52.258095Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 20,
+    "mapped_sections": 21,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -23,7 +23,6 @@
       "## 2. Architecture",
       "### 2.1 Division of labour",
       "### 2.2 State layout",
-      "### 2.3 Per-PR state",
       "### 2.4 Profiles",
       "### 2.5 Roles",
       "#### 2.6.1 Detection",
@@ -356,7 +355,7 @@
     {
       "id": "h1-set-aside-counts-standing-notes",
       "title": "Count only set-asides whose note stands",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -367,16 +366,27 @@
         "### 10.1 Coverage report",
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T22:44:55.781549Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:19:04.699057Z",
+      "closed_reason": "- cr status now counts in intent.set_aside only gap entries whose set_aside_note names a note that still stands: intentCoverageOf and unsettledClaims both call the new setAsideStands (internal/cli/status.go), so the count and the §10.2.3 blocking set share one predicate, while statusnotes.go already lists a retracted note's set-asides under unstanding_notes; the D-V1a-4 repro rerun with /tmp/cr-dev/cr-h1-set-aside-counts-standing-notes on a scratch repository printed set_aside 1 before cr note --remove and set_aside 0, unstanding_notes set_asides [\"CR-1#c2\"] and \"§10.2.3: 2 claim(s) are mapped to no unit and not set aside: CR-1#c2, CR-1#c3\" after it.\n- Standing direction: TestASetAsideOnARetractedNoteBlocksCompletenessAgain (internal/cli/noteclaimsretraction_test.go) drives cr status and asserts set_aside 1 and the exact §10.2.3 reason list naming only #c3, with no reason naming #c2; run against the pre-fix status.go it stayed green here, as it should.\n- Retracted direction: the same test, after cr note --remove, asserts set_aside 0, the whole unstanding_notes entry with SetAsides [#c2], and the exact §10.2.3 reason naming #c2 and #c3; against the pre-fix status.go it went red on set_aside (1 for 0).\n- JSON and terminal agree: the test reads the terminal claims line whole through a pseudo-terminal, \"(1 set aside)\" while the note stands and \"(0 set aside)\" after the retraction, beside the whole §3.6.6 note line; the pre-fix terminal printed \"(1 set aside)\" after the retraction and the test went red on it.\n- go test -race -count=1 ./... passed through the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes with deadcode ./... at 11 lines, and Go 1.27.1 gofmt -l internal cmd prints nothing.\n",
+      "gate_passed_at": "2026-09-14T23:19:04.699057Z",
+      "commit_sha": "76f16ae",
+      "commit_shas": [
+        "76f16ae",
+        "bc6f889",
+        "4774bde"
+      ],
+      "commit_files": [
+        "internal/cli/noteclaimsretraction_test.go",
+        "internal/cli/status.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "h2-summary-intake-per-record",
       "title": "Count summary intake once per record",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -386,16 +396,30 @@
       "source_sections": [
         "### 10.3 Round summary"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T23:04:10.206119Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:38:31.068562Z",
+      "closed_reason": "- The intake counts cr record and cr merge accumulate in rounds/\u003cn\u003e/summary.json are now keyed by record: each share of the intake (merge_intake, and every record_intake entry) keeps waived_keys and posted_keys beside its drop reports, droppedKeys in internal/cli/intake.go gives each dropped record's intakeKey (its id, or the §6.4.1 dedup identity for a record without one, proven by TestARecordWithoutAnIDIsCountedByItsDedupIdentity), and intakeTotals counts raised, waived.dropped and already_posted.dropped as the union of those keys with the stored and merged ids, so QA D-V1a-5's one waived finding given to both commands in either order and repeatedly is counted once.\n- TestOneDroppedFindingGivenToRecordAndMergeIsCountedOnce in internal/cli/intakeperrecord_test.go drives cr record then cr merge, and cr merge then cr record, twice each over one role file, for a waived and for an already-posted finding beside three stored records, asserting raised 4 and the whole waived and already_posted sections with dropped 1 after every run; it was red at HEAD with raised 5 and dropped 2, and a fresh binary on copies of the QA rec-21 home printed raised 4 and waived dropped 1 after each command in both orders.\n- TestTwoDistinctDroppedFindingsAreCountedTwice gives f3 to cr record and f5 to cr merge, in both orders and for both drops, and asserts raised 5 with dropped 2 and the whole sections.\n- The gate lock's go test -race -count=1 over every package passed, golangci-lint reported 0 issues, scripts/deadcode.sh passed, go1.27.1 gofmt listed nothing, deadcode stayed at 11 lines, and every production change was killed by an overlay mutant of intake.go, merge.go or recorddrops.go.\n",
+      "gate_passed_at": "2026-09-14T23:38:31.068562Z",
+      "commit_sha": "695e27e",
+      "commit_shas": [
+        "695e27e",
+        "176d97e",
+        "ed98af6"
+      ],
+      "commit_files": [
+        "internal/cli/intake.go",
+        "internal/cli/intakeperrecord_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/record.go",
+        "internal/cli/recorddrops.go",
+        "internal/cli/summary_test.go"
+      ]
     },
     {
       "id": "h3-marker-unit-refusal-clause",
       "title": "Give the marker unit refusal its own clause",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -405,16 +429,28 @@
       "source_sections": [
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T23:10:44.853515Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:31:45.66318Z",
+      "closed_reason": "- A marker moved outside its record's unit keeps the problem text `cr record` shares but ends \"so keep the comment within its unit or delete the block\", and no longer tells the reviewer to name a unit (D-V5-2): finding.ForeignAnchorError carries Reason, the shared text refuseAnchor builds in internal/cli/anchorunit.go, and (*markerEdit).rejected in internal/draft/edits.go ends it with the marker's own clause; the hint in exit.go is unchanged.\n- cr record's and cr merge's own refusal still ends \"so name the unit whose hunk holds it\", asserted whole against cr record in both marker tests and unchanged in mergeanchors_test.go; with the marker clause overlaid onto cr record's refusal both tests went red on that assertion.\n- TestAMarkerMovedIntoAnotherUnitIsRefused drives cr record, cr draft, cr post and cr post --confirm with whole-value assertions on cr record's Problem, the marker's MarkerEditError and the full error string, TestAMarkerEditIsHeldToTheAnchorRulesOfRecord does the same through cr record and cr draft, both went red on every unit-leaving case with edits.go overlaid at HEAD (the D-V5-2 repro), and skills/cr/SKILL.md quotes the new refusal text.\n- go test -race -count=1 of internal/draft, internal/finding and internal/cli passed, as did the full race suite through the gate lock, golangci-lint (0 issues), scripts/deadcode.sh, and Go 1.27.1 gofmt -l, with deadcode at 11 lines.\n",
+      "gate_passed_at": "2026-09-14T23:31:45.66318Z",
+      "commit_sha": "a97bd03",
+      "commit_shas": [
+        "a97bd03"
+      ],
+      "commit_files": [
+        "internal/cli/anchorunit.go",
+        "internal/cli/draftanchorrules_test.go",
+        "internal/cli/markerunit_test.go",
+        "internal/draft/edits.go",
+        "internal/finding/validate.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "h4-inconclusive-probe-reason",
       "title": "Name why a probe is inconclusive",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -426,16 +462,37 @@
         "### 5.4 Gap probe",
         "### 5.5 Probe record"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T22:45:00.667725Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:15:51.878908Z",
+      "closed_reason": "- A mutation or gap probe answered inconclusive on a zero failed count and a non-zero exit now carries a reason naming the rung and the exit code in the shape reason has on error, \"§5.3.4's sixth rung: the failed count is zero but the runner exited 255, so the run has not said that nothing failed\" and §5.4.3's fifth rung for gap: probe.Reason and probe.GapReason follow their ladders' cases in order, Outcome.Reason passes the ladder's reason through for inconclusive as well as error, and cr record's probes[] quotes it as \"the probe recorded why it is inconclusive\" (D-V1b-2 replayed with a fresh binary on run-V1b printed that reason for both kinds, and the exit-0 rerun printed no reason key)\n- The undetermined-count rung names itself too, \"§5.3.4's fifth rung\" and \"§5.4.3's fourth rung: the executed or failed count is undetermined, because no tests.count_pattern is configured or the run's output did not yield the counts through it\", proven through cr probe run by TestAnUndeterminedCountNamesItsRung for both kinds with output carrying no count\n- TestAZeroFailedCountCountsOnlyOnACleanExit drives cr probe run for exit 255 and exit 1 on both kinds and asserts the whole reason in the command document and in the stored probe record, its exit-0 controls record no-test-failed and passed with no reason key in either, TestRecordExplainsWhatAMutationProbeSupports drives cr record over an inconclusive probe, and six overlay mutants (the Outcome guard back to error only, each ladder's exit-code case inverted, each undetermined case emptied, the record wording back to error) each turned the matching test red\n- skills/cr/SKILL.md now says a probe recorded as error or inconclusive carries a reason naming the rung and what it read, and that every other result carries none\n- go test -race -count=1 of internal/probe and internal/cli passes, golangci-lint reports 0 issues, the Go 1.27.1 gofmt lists nothing and deadcode stays at 11 lines\n",
+      "gate_passed_at": "2026-09-14T23:15:51.878908Z",
+      "commit_sha": "4c68075",
+      "commit_shas": [
+        "4c68075",
+        "87b117c",
+        "2f144b6",
+        "d4eda6c",
+        "7e221e9",
+        "1f8f041",
+        "132fa13"
+      ],
+      "commit_files": [
+        "internal/cli/cleanexit_test.go",
+        "internal/cli/gapsupport.go",
+        "internal/cli/probe.go",
+        "internal/cli/probeerrors_test.go",
+        "internal/probe/gap.go",
+        "internal/probe/mutation.go",
+        "internal/probe/outcome.go",
+        "internal/probe/record.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "h5-repo-remote-mismatch-hint",
       "title": "Name a --repo that differs from the remote",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -445,16 +502,31 @@
       "source_sections": [
         "### 3.2 Issue key resolution"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T23:34:01.010917Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T00:18:21.437019Z",
+      "closed_reason": "- When `--repo` names a repository no GitHub remote of the clone points at and the clone lacks the pull request's head, `cr brief` and `cr status` keep the missing commit's message and exit 3 but carry a hint naming both repositories and `git fetch https://github.com/\u003cowner\u003e/\u003crepo\u003e pull/\u003cpr\u003e/head`: withRemoteMismatch in internal/cli/remotemismatch.go reads the remotes through git.Remotes (internal/git's runner), compares owner/repo from githubSlug (ssh shorthand, ssh://, https, with or without .git) with letter case folded, and wraps the error as RemoteMismatchError, whose own row sits above MissingCommitError's in internal/cli/exit.go and whose Hint hintFor prints (D-V1a-1 re-measured at HEAD with a gh shim and origin git@github.com:deligoez/cr-qa.git gave exit 3 with the `git fetch origin` hint; the fresh binary prints \"`--repo` names tarfin-labs/event-machine, and no remote of the repository under review points at it (origin points at deligoez/cr-qa)…\").\n- Nothing is refused for the mismatch alone: withRemoteMismatch decorates only an error that already carries a *git.MissingCommitError, so a clone that holds the commits never meets it (dogfood: a fork origin git@github.com:someone/event-machine.git with the head present, `cr brief 158 --repo tarfin-labs/event-machine` exited 0).\n- internal/cli/remotemismatch_test.go drives `cr brief` (and `cr status` after a recorded round): TestARepoNoRemotePointsAtIsNamedInTheFetchHint asserts the whole hint, exit 3 and the unchanged message with a mismatching origin beside a gitlab.com mirror, TestARemotePointingAtTheRepoInAnySpellingKeepsTheFetchHint keeps the exact `git fetch` hint for seven spellings including a fork origin beside an upstream remote, and TestAForkCloneHoldingTheHeadBriefsTheUpstreamRepo opens round 1 at the head from a fork-remote clone; overlay mutants each went red: the EqualFold match disabled (all seven spellings), a case-sensitive match (letter case), the brief and the status call sites removed, the hintFor exception removed (mismatch test), and the no-GitHub-remote guard removed (TestAHeadTheCloneNeverFetchedIsAFetch).\n- go test -race -count=1 ./... passed through the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes, `deadcode ./...` stays at 11 lines and Go 1.27.1 gofmt -l internal cmd prints nothing; skills/cr/SKILL.md names the hint under Repository detection.\n",
+      "gate_passed_at": "2026-09-15T00:18:21.437019Z",
+      "commit_sha": "d971595",
+      "commit_shas": [
+        "d971595",
+        "bf66b7d",
+        "7b6783f",
+        "63ac0bf"
+      ],
+      "commit_files": [
+        "internal/cli/brief.go",
+        "internal/cli/exit.go",
+        "internal/cli/remotemismatch.go",
+        "internal/cli/remotemismatch_test.go",
+        "internal/cli/status.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "h6-context-refuses-off-pattern-key",
       "title": "Refuse an off-pattern key in cr context",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -464,16 +536,26 @@
       "source_sections": [
         "### 3.6 Context store"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T22:45:00.747126Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:09:41.514081Z",
+      "closed_reason": "- cr context now calls checkNoteKey (internal/cli/context.go), the check cr note runs, before reading the store, so a key intent.key_pattern does not match whole is refused with cr note's KeyShapeError, message and hint; the code is 1, the code exit.go's shared row gives cr note and the one the V1a QA measured for cr note, not 2 as the acceptance wrote, because sharing the check shares its row and 2 would renumber cr note too (repro D-V1a-3 re-measured at HEAD: cr context cr-1 exit 0 listing CR-1#n1, now exit 1 naming the pattern).\n- TestContextRefusesAKeyThePatternDoesNotMatchWhole in internal/cli/context_test.go drives cr context in both directions: CR-7 prints the whole contextResult equal to the stored notes, while cr-7, CR-7#n1, xCR-7 and \"CR-7 \" each exit 1 with the whole error naming \"[A-Z][A-Z0-9]+-[0-9]+\", the hint and no output; an overlay restoring the unchecked RunE turned every refusal subtest red while the on-pattern one stayed green.\n- The same test writes a store the v0.1 way under cr-1 holding cr-1#n1: cr context cr-1 is refused, and cr note --remove cr-1#n1 still retracts the note, its RetractedAt set in the stored line.\n- go test -race -count=1 ./... passes through the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes, Go 1.27.1 gofmt -l prints nothing and deadcode ./... stays at 11 lines.\n",
+      "gate_passed_at": "2026-09-14T23:09:41.514081Z",
+      "commit_sha": "c8f1337",
+      "commit_shas": [
+        "c8f1337"
+      ],
+      "commit_files": [
+        "internal/cli/context.go",
+        "internal/cli/context_test.go",
+        "internal/cli/exit.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "h7-head-not-fetched-hint-shared",
       "title": "Share the unfetched-head hint across commands",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -483,16 +565,32 @@
       "source_sections": [
         "### 9.3 A changed head"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-15T00:19:59.119635Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T00:46:43.617353Z",
+      "closed_reason": "- headNotFetched in internal/cli/headabsent.go is the one predicate that classifies a git failure as the pull request's head or base being absent from the clone: it takes a git.CommandError, asks git.RequireCommit for the head and then the base GitHub reports, returns that commit's git.MissingCommitError when one is absent, and passes every result through withRemoteMismatch, and cr brief, cr status, cr review and cr post all return their failure through it, while the up-front RequireCommit calls in internal/brief unitsOf and cli statusLenses are removed so no second path gives the hint.\n- TestEveryCommandReadingTheHeadGivesTheFetchHint drives all four commands on a drafted round from a clone lacking the head and from one lacking a base that moved after the clone, asserting the whole MissingCommitError, message, exit 3 and fetch hint; cr review and cr post measured at HEAD before the change exited 3 with git's merge-base refusal and the run-git-yourself hint, TestAHeadTheCloneNeverFetchedIsAFetch and the remote-mismatch tests for brief and status pass unchanged, TestEveryCommandReadingTheHeadNamesARepoNoRemotePointsAt gives all four the both-repositories hint, and TestAGitFailureOfAnotherKindKeepsItsOwnHint removes the head's tree from a clone holding both commits and asserts each command keeps git's CommandError and hint.\n- Overlay mutants of headabsent.go prove both directions: no classification turns all eight fetch subtests and the existing brief and status tests red, classifying every git failure as missing turns the other-kind test and the base cases red, and checking only the head turns the four base cases red.\n- The full race suite ran green with -count=1 under the gate lock, golangci-lint reports nothing in the edited packages, Go 1.27.1 gofmt prints nothing, and a fresh build dogfooded on an early clone gave exit 3 with the git fetch hint for review, post, status and brief.\n",
+      "gate_passed_at": "2026-09-15T00:46:43.617353Z",
+      "commit_sha": "cafe5a9",
+      "commit_shas": [
+        "cafe5a9",
+        "9679376",
+        "cd38d9d"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/brief.go",
+        "internal/cli/headabsent.go",
+        "internal/cli/headabsent_test.go",
+        "internal/cli/post.go",
+        "internal/cli/review.go",
+        "internal/cli/status.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "h8-rulefix-over-units",
       "title": "Build rule fixes only from unit lines",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -502,16 +600,27 @@
       "source_sections": [
         "### 2.6 Rules"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T22:45:08.36619Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:03:14.912169Z",
+      "closed_reason": "- suggestRuleFixes in internal/cli/rulefix.go now reads the round's units with roundUnitsOf and evaluates the fixing matchers over rule.Reviewed(hunks, units), the same scope detectRound in internal/cli/rulescheck.go gives detection, and hands those hunks to suggestOneFix as well.\n- TestARuleFixIsBuiltOnlyFromHitsInFilesThatFormedAUnit in internal/cli/rulefixunits_test.go drives cr rules check and cr record on a checkout where lib.go forms the one unit, and the record citing lib.go:4 stores the whole suggestion return fmt.Errorf(\"one\") with suggestion_origin rule and an origin rule citation; a go test -overlay mutant narrowing the scope to no unit turns that half red.\n- In the same test the record citing gen.go:4, a file that formed no unit, stores no suggestion, no suggestion_origin and an origin agent citation; the test was red at HEAD with return fmt.Errorf(\"generated\") attached, an overlay mutant restoring the whole-diff evaluation turns this half red, and a dogfood with a linguist-generated gen.go showed the HEAD binary storing that generated suggestion on f2 and the fixed binary storing none.\n- go test -race -count=1 of internal/cli and internal/rule passes, golangci-lint reports 0 issues, the Go 1.27.1 gofmt lists nothing and deadcode stays at 11 lines.\n",
+      "gate_passed_at": "2026-09-14T23:03:14.912169Z",
+      "commit_sha": "46e908e",
+      "commit_shas": [
+        "46e908e",
+        "ee3405a",
+        "a0d993a"
+      ],
+      "commit_files": [
+        "internal/cli/rulefix.go",
+        "internal/cli/rulefixunits_test.go",
+        "spec/0.2.0-release-notes.md"
+      ]
     },
     {
       "id": "h9-probe-lock-per-clone",
       "title": "Serialise probes per clone across state roots",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -521,16 +630,30 @@
       "source_sections": [
         "### 5.6 Isolation and budget"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T23:19:20.274376Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T00:11:37.020212Z",
+      "closed_reason": "- cr test and cr probe run now take a second flock beside the CR_HOME one: LockProbe in internal/state/probelock.go takes the state-root lock first and then cr-probe-\u003chash\u003e.lock under os.TempDir, whose name is text.NormalisedHash over the cleaned clone path and the profile id rendered as hex with a slash between (so no half leads it out of the directory and the lock under the state root and this one agree on /a/../a/b), both waits share the one probe.lock_timeout_seconds deadline, a refusal on the second releases the first, Unlock releases clone then home\n- Nothing is written in the repository under review: both lock files live under the state root and os.TempDir, and internal/cli/norepowrite_test.go, which drives cr test and cr probe run against the checkout, stays green in the race suite\n- TestARunUnderAnotherStateRootWaitsForTheClonesProbeLock in internal/cli/probelockclone_test.go drives cr test and cr probe run with the clone's lock held through a second CR_HOME layout and asserts the whole ProbeLockedError {root, qa, 1s}, a wait of at least 1s, exit 4 and no new runner recap, then that a run on another clone under that root proceeds and the released lock lets the same run proceed, while four state tests (TestProbeRunsSerialisePerCloneAcrossStateRoots, TestTheClonesProbeLockIsTakenAfterTheStateRootsLock, TestReleasingTheProbeLockReleasesItForEveryStateRoot, TestTheClonesProbeLockFileStaysInTheTemporaryDirectory) pin order, release and naming, and six overlay mutants (clone lock under the state root, key ignoring the path, reversed order, first lock kept on refusal, clone lock never released, path not cleaned) each turn a named test red; a fresh binary on a scratch repository with two CR_HOME roots printed exit 4 \"another cr run holds the probe lock for \u003crepo\u003e under profile generic: waited 1s\" after 1s where the HEAD binary ran both suites overlapping\n- spec/0.2.0-release-notes.md's per-CR_HOME known limitation and the probe-lock sentence in skills/cr/SKILL.md now state the scope, per user on macOS where the temporary directory is the per-user $TMPDIR and per machine on Linux where it is /tmp, with runs seeing different TMPDIR values not serialising, and go test -race -count=1 of the whole tree passed through the gate lock\n",
+      "gate_passed_at": "2026-09-15T00:11:37.020212Z",
+      "commit_sha": "2c76861",
+      "commit_shas": [
+        "2c76861",
+        "6844ca3"
+      ],
+      "commit_files": [
+        "internal/cli/noghbinary_test.go",
+        "internal/cli/probelockclone_test.go",
+        "internal/state/lockfailure_test.go",
+        "internal/state/probelock.go",
+        "internal/state/probelock_test.go",
+        "skills/cr/SKILL.md",
+        "spec/0.2.0-release-notes.md"
+      ]
     },
     {
       "id": "h10-runner-start-window-closed",
       "title": "Close the SIGKILL window at runner start",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -543,16 +666,31 @@
         "### 5.1 Sandbox",
         "### 5.3 Mutation probe"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-15T00:13:37.04436Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T00:56:18.879066Z",
+      "closed_reason": "- A test runner started with a runner lock is now held on a pipe until its process group is recorded: sandbox.RunExit starts cr's own binary under argv[0] cr-held-runner with the resolved program and the runner's argv, an init in internal/sandbox/run.go waits on fd 4 (state.AwaitRunnerRelease) and only on a released byte calls syscall.Exec of that program with the same argv and environment, while a cr killed before RunnerLock.Started and RunnerHold.Release closes the pipe so the held process reads EOF and exits 125 having run nothing; exec failures come back over a close-on-exec fd 5 as the same fork/exec PathError Start gave (internal/state/runnerhold.go).\n- Option 1 was chosen over the recorded-intent fallback because it closes the window instead of reporting it and needs no shell: it is an init rather than a cobra command, so the command tree is unchanged, and the only pinned test it touches is TestOnlyTheStatePackageWritesToTheFilesystem, whose processControl list in internal/cli/norepowrite_test.go now names Exec beside Kill, since exec writes no path.\n- A measurement through a go test overlay running the same python probe as tests.cmd under HEAD's run.go and under this one printed byte-identical argv (including an empty and a spaced argument), cwd, environment hash, descriptor table (0 chr, 1 and 2 fifo, 3 the runner lock), blocked signals, ignored signals, RLIMIT_NOFILE, group leadership and umask, and identical errors for a missing program and a PATH lookup failure.\n- TestACrKilledBeforeItsRunnerIsReleasedLeavesNoRunner in internal/cli/runnerhold_test.go spawns cr probe run --kind mutation with sandbox.BeforeRunnerRelease set only in the test binary to SIGKILL cr between the start and the release of the mutation run, then asserts cr died on SIGKILL with the mutation on disk, no process holds the runner lock, the runner's mutation-only pid file never appeared, every run the runner script observed read the head source, no group was recorded and no probe stored.\n- The same test then runs cr test and asserts its honesty is exactly the one recreation notice for app.go with no stopped-runner notice, the sandbox holds the head's app.go and so no mutation, and the ordinary path appended one run record with exit_code 0, tests_run 4 and tests_failed 0.\n- Overlay mutants turned it red: the held process treating EOF as a release, and a release sent before the hook and the group record, each left a process holding the runner lock after 15s; a held process that reports no exec failure turned TestAProbeWhoseRunnerCouldNotStartRecordsWhy red.\n- The known limitation about a SIGKILL between the runner's start and the record of its group is removed from spec/0.2.0-release-notes.md, and skills/cr/SKILL.md carried no text about it.\n- go test -race -count=1 of the edited packages and of the whole tree through the gate lock passed, golangci-lint run reports 0 issues, scripts/deadcode.sh passes, deadcode ./... stays at 11 lines and Go 1.27.1 gofmt lists nothing.\n",
+      "gate_passed_at": "2026-09-15T00:56:18.879066Z",
+      "commit_sha": "7ffcbe4",
+      "commit_shas": [
+        "7ffcbe4",
+        "73a5812",
+        "cbec530",
+        "e7a0fd8",
+        "0e4f7c7"
+      ],
+      "commit_files": [
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/runnerhold_test.go",
+        "internal/sandbox/run.go",
+        "internal/state/runnerhold.go",
+        "spec/0.2.0-release-notes.md"
+      ]
     },
     {
       "id": "h11-pin-left-edit-in-mixed-hunk",
       "title": "Pin a LEFT side edit in a mixed hunk",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.1"
       ],
@@ -563,11 +701,162 @@
         "### 9.2 Anchors",
         "### 7.2 Triage verbs"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-14T23:20:04.446858Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-14T23:48:58.263715Z",
+      "closed_reason": "- TestALeftEditOntoRemovedLinesOfAMixedHunkIsAccepted in internal/cli/leftmixedhunk_test.go briefs a real one-hunk diff (`@@ -7,9 +7,9 @@`, head lines 10 and 11 added, base lines 11 and 12 removed) that `cr brief` forms into one RIGHT unit u1, records a question on RIGHT 10, edits its marker to side LEFT lines 11-12, and asserts that `cr draft` accepts it, stores u1 LEFT 11-12 with the §9.2 hash of base lines 11 and 12, and regenerates a marker that says LEFT, per §9.2.1.\n- The dry run of `cr post` then carries the comment as path mixed.go, start_line 11, start_side LEFT, line 12, side LEFT, the merge-base numbers, which head lines 11 and 12 do not hold.\n- The anchors-on-changed-lines check agrees: refuseAnchor accepts the anchor, and the same LEFT 11-12 record given to `cr record` is stored in u1, so nothing stopped the unit.\n- Overlay mutants prove each assertion bites: refusing a LEFT anchor on a RIGHT unit in anchorunit.go turns both subtests red at the edited draft and at cr record, a payload side forced to RIGHT in post/review.go fails the payload assertion, and a marker side forced to RIGHT in draft/marker.go fails the regenerated-marker assertion.\n- skills/cr/SKILL.md now states in one sentence, beside the id-block paragraph, that cr refuses a new record whose id lies outside its prompt's block only once `cr review` has emitted the round's prompts for that record's unit, which is what refuseDeparted's FannedOut check does.\n- The full `go test -race -count=1` over every package passed through the gate lock, golangci-lint reports 0 issues, scripts/deadcode.sh passes with `deadcode` at 11 lines, and the Go 1.27.1 gofmt lists nothing.\n",
+      "gate_passed_at": "2026-09-14T23:48:58.263715Z",
+      "commit_sha": "146aa1d",
+      "commit_shas": [
+        "146aa1d",
+        "cb3ae9c"
+      ],
+      "commit_files": [
+        "internal/cli/leftmixedhunk_test.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "h12-status-gap-line-retracted-set-aside",
+      "title": "Mark a retracted set-aside on the gap line",
+      "status": "done",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [
+        "h1-set-aside-counts-standing-notes"
+      ],
+      "estimate_minutes": 25,
+      "acceptance": "- In a terminal, `cr status`'s gap line for a claim whose set-aside note was retracted no longer reads as set aside: it names the note as retracted, consistent with the `(0 set aside)` count and the notes-no-longer-standing section; a claim whose note stands still reads `(set aside by \u003cnote\u003e)`.\n- Proven through `cr status` in a pseudo-terminal in both directions with whole-line assertions; JSON output is unchanged; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 10.1 Coverage report"
+      ],
+      "started_at": "2026-09-14T23:51:02.854081Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T00:22:18.410032Z",
+      "closed_reason": "- In a terminal, cr status's gap line for a claim whose set-aside note no longer stands now reads \"CR-1#c2 (set-aside note CR-1#n1 retracted)\", beside \"(0 set aside)\" and the \"CR-1#n1 retracted: ... (CR-1#c2)\" note line: intentCoverageOf keeps, beside each gap entry, the note's standing when setAsideStands says it does not stand, in an unexported field, and gapNote renders it (internal/cli/status.go); a fresh /tmp/cr-dev/cr-h12-status-gap-line-retracted-set-aside run in a pseudo-terminal on h1's retracted scratch round printed exactly that line.\n- A claim whose note stands still reads \"(set aside by \u003cnote\u003e)\": gapNote keeps that wording when no fallen standing is held, and a mutant that records a standing note's standing too printed \"(set-aside note CR-7#n1 stands)\" and turned the test red.\n- TestASetAsideOnARetractedNoteBlocksCompletenessAgain drives cr status through a pseudo-terminal and asserts the whole gap lines in both directions, [\"  CR-7#c2 (set aside by CR-7#n1)\", \"  CR-7#c3\"] before cr note --remove and [\"  CR-7#c2 (set-aside note CR-7#n1 retracted)\", \"  CR-7#c3\"] after it; against the pre-fix status.go it went red on the retracted gap line only.\n- JSON output is unchanged: the same test asserts the document's intent object still has exactly the keys claims, gaps, mapped, set_aside and still stores the stamp CR-7#c2/CR-7#n1, and the existing whole-value intentCoverage assertions in claimsrerecord_test.go and emptyclaims_test.go pass.\n- go test -race -count=1 of the whole tree at e1dfa7f passed through the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes with deadcode at 11 lines, and Go 1.27.1 gofmt -l internal cmd prints nothing.\n",
+      "gate_passed_at": "2026-09-15T00:22:18.410032Z",
+      "commit_sha": "e606e50",
+      "commit_shas": [
+        "e606e50",
+        "b4fcfc8",
+        "e1dfa7f"
+      ],
+      "commit_files": [
+        "internal/cli/noteclaimsretraction_test.go",
+        "internal/cli/status.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "h13-intake-keys-sidecar",
+      "title": "Move intake keys out of the round summary",
+      "status": "done",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [
+        "h2-summary-intake-per-record"
+      ],
+      "estimate_minutes": 60,
+      "acceptance": "- The per-share intake keys h2 added (`waived_keys`, `posted_keys`) live in a sidecar `rounds/\u003cn\u003e/intake.json`, written by `cr merge` and `cr record` under the §2.3.1 per-PR lock before `summary.json`; `summary.json` holds counts only, per §6.4.4, and its merge/record shares are derived from the sidecar while `cr draft` and `cr post` keep writing their own shares; each key records whether it is a record id or the §6.4.1 identity.\n- Proven through the commands: the h2 repro still gives `raised` 4 and `dropped` 1 in both orders, and `summary.json` contains no record id; a round whose summary.json is in v0.2.0 shape with no sidecar yields exactly v0.2.0's counts after a v0.2.1 merge, never 0; a sidecar with no summary.json does not panic.\n- Nothing colleague-facing reads the sidecar (no reference under internal/render or internal/post); README's state layout and the release notes name the file; go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 10.3 Round summary",
+        "### 2.3 Per-PR state"
+      ],
+      "started_at": "2026-09-14T23:43:00.113383Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T00:25:42.581311Z",
+      "closed_reason": "- The dropped records' intake keys now live in rounds/\u003cn\u003e/intake.json (state.FileIntake, accepted by the round writers and created by its first writer): writeMergeIntake in internal/cli/merge.go and writeRecordIntake in internal/cli/record.go write their merge_intake and record_intake keys there through state.UpdateRoundSection under the caller's per-PR lock, before writeSummary touches summary.json.\n- summary.json's merge_intake and record_intake shares are back to exactly v0.2.0's shape with no waived_keys or posted_keys (summary_test.go's strict shapes), readIntake in internal/cli/intake.go reads both files and intakeTotals counts each share by the keys intake.json holds for it, and cr draft and cr post are untouched.\n- Each key is {\"kind\":\"record_id\",\"id\":...} or {\"kind\":\"identity\",\"identity\":{path,side,line,class}}, asserted whole through the commands for record_id and in TestARecordWithoutAnIDIsCountedByItsDedupIdentity for identity.\n- TestOneDroppedFindingGivenToRecordAndMergeIsCountedOnce still drives cr record and cr merge twice in both orders for a waived and an already-posted finding with raised 4 and dropped 1 after every run, and now asserts the whole intake.json and that no summary.json section names f1 to f4, except forced_records (section 6.3.1's list), which names the stored forced ids and never f3.\n- TestARoundWithoutIntakeKeysKeepsTheCountsV020Gave removes intake.json after the first command and gets raised 5 and waived dropped 2 in both orders, the numbers QA D-V1a-5 measured; a dogfood with /tmp/cr-dev/cr-h13-intake-keys-sidecar on copies of the QA r21 home printed raised 5 waived dropped 2 after cr merge and after cr record exactly as a build of the v0.2.0 tag did on the same home, then raised 4 dropped 1 after every later command once both shares carried keys.\n- TestAnIntakeFileWithoutASummaryIsCountedByItsKeys (both orders) and TestAnIntakeEntryWithoutASummaryEntryIsCountedByItsKeys delete summary.json and the next command exits 0 with raised 4 dropped 1 and raised 5 dropped 1; overlay mutants ignoring a keyless share, keeping its drops out of raised, skipping sidecar-only entries, collapsing the identity member, dropping either sidecar write, and not creating intake.json each turned a test red.\n- git grep for intake.json and FileIntake under internal/render and internal/post is empty, and TestNothingColleagueFacingReadsTheIntakeKeys pins it.\n- README.md names rounds/\u003cn\u003e/intake.json beside summary.json; spec/0.2.0-release-notes.md has no v0.2.1 heading yet, so the orchestrator adds the file's name there.\n- The gate lock's go test -race -count=1 over every package passed, golangci-lint reported 0 issues, scripts/deadcode.sh passed, go1.27.1 gofmt listed nothing, and deadcode stayed at 11 lines.\n- Out of scope: summary.json still carries record ids that predate h2 and are not intake keys, merge_intake.records (the merge output's kept ids, v0.2.0 shape) and forced_records (section 6.3.1).\n",
+      "gate_passed_at": "2026-09-15T00:25:42.581311Z",
+      "commit_sha": "b40c8a0",
+      "commit_shas": [
+        "b40c8a0",
+        "0a988ba",
+        "fcad2e7"
+      ],
+      "commit_files": [
+        "README.md",
+        "internal/cli/intake.go",
+        "internal/cli/intakeperrecord_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/record.go",
+        "internal/cli/recorddrops.go",
+        "internal/cli/summary_test.go",
+        "internal/state/rounds.go"
+      ]
+    },
+    {
+      "id": "h14-head-not-fetched-every-reader",
+      "title": "Give every head reader the fetch hint",
+      "status": "done",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [
+        "h7-head-not-fetched-hint-shared",
+        "h10-runner-start-window-closed"
+      ],
+      "estimate_minutes": 45,
+      "acceptance": "- Every other command that reads the head or merge base from the clone returns its git failures through h7's `headNotFetched` classifier: at least `cr draft` (a moved marker re-anchored against a tree), `cr record`, `cr merge`, `cr sandbox create`, `cr test` and `cr probe run`; each gains the `git fetch` hint with exit code 3 on a head or base the clone lacks, and keeps git's own hint for a git failure of another kind.\n- A test enumerates the command tree and fails when a command that reads the clone's head is not routed through the classifier, naming the command, with any command exempt listed with its reason; each routed command is proven in both directions.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 9.3 A changed head",
+        "### 5.1 Sandbox"
+      ],
+      "started_at": "2026-09-15T00:58:33.006426Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T01:38:23.607167Z",
+      "closed_reason": "- Measured at HEAD first, over a clone lacking the head: cr draft with a moved marker, cr record, cr merge, cr sandbox create, cr test, cr probe run and also cr rules check each exited 3 with git's own `ls-tree`/`worktree add`/`merge-base` refusal, while every other command read no revision; all seven now return their git failures through headNotFetched (internal/cli/draft.go produceDraft, record.go acceptRecords and suggestRuleFixes joined at one call, merge.go mergeRecords, sandbox.go sandbox.Create, test.go sandbox.Ensure, probe.go both probe kinds joined at one call, rulescheck.go detectRound).\n- Each routed command gives git.MissingCommitError, exit 3 and the `git fetch` hint on a head the clone lacks, and on a moved base wherever its read reaches the merge base (a LEFT anchor for record, merge and draft, the diff for rules check), while a git failure with both commits present keeps git's CommandError and hint; a fresh /tmp/cr-dev/cr-h14-head-not-fetched-every-reader run of `cr sandbox create 7` and `cr rules check 7` in a scratch clone lacking the head printed \"the repository at .../early does not hold commit e277deb5…\" with the fetch hint and exit 3.\n- headRuns in internal/cli/headabsent_test.go classifies every command of the built tree (leafCommands) as routed, with the commits its read reaches, or exempt with its reason, and TestEveryCommandIsClassifiedAsAHeadReaderOrExempt fails naming any unclassified command (an overlay mutant dropping the stats row printed \"cr stats is in the command tree and not in headRuns\") and runs every exempt command over a clone lacking the head, failing when one meets a git read (a mutant flipping record to exempt went red).\n- TestEveryCommandReadingTheHeadGivesTheFetchHint, TestEveryCommandReadingTheHeadNamesARepoNoRemotePointsAt and TestAGitFailureOfAnotherKindKeepsItsOwnHint drive all eleven routed commands in both directions with whole-value assertions: seven overlay mutants removing each new routing each turned exactly that command's subtests red, and a classifier mutant claiming every commit missing turned all eleven other-kind subtests red.\n- go test -race -count=1 over the whole tree passed through the gate lock (30 packages ok), with golangci-lint run at 0 issues, scripts/deadcode.sh green, Go 1.27.1 gofmt -l printing nothing and deadcode at 11 lines.\n",
+      "gate_passed_at": "2026-09-15T01:38:23.607167Z",
+      "commit_sha": "a4fff92",
+      "commit_shas": [
+        "a4fff92",
+        "4db733c"
+      ],
+      "commit_files": [
+        "internal/cli/draft.go",
+        "internal/cli/headabsent.go",
+        "internal/cli/headabsent_test.go",
+        "internal/cli/merge.go",
+        "internal/cli/probe.go",
+        "internal/cli/record.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/test.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "h15-fetch-hint-only-commits-read",
+      "title": "Check only the commits a command reads",
+      "status": "done",
+      "tags": [
+        "v0.2.1"
+      ],
+      "depends_on": [
+        "h14-head-not-fetched-every-reader"
+      ],
+      "estimate_minutes": 30,
+      "acceptance": "- `headNotFetched` checks only the commits the failing command's git read reaches: a command that never reads the merge base (`cr sandbox create`, `cr test`, `cr probe run`) turns a git failure into the fetch hint only when the head is missing, never because the base is, and keeps git's own hint otherwise; the commits each command reaches come from the same table the command-tree guard test uses, not a second list.\n- Proven in both directions: with only the base missing and an unrelated git failure, the sandbox commands keep git's own hint; with the head missing they still give the fetch hint; `cr rules check` and the other base readers still name a missing base.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 9.3 A changed head"
+      ],
+      "started_at": "2026-09-15T01:41:02.17488Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T02:13:52.237778Z",
+      "closed_reason": "- headNotFetched now asks the clone only for the commits the failing command's git read reaches: headNotFetched looks the failing command up by its command path in headReads (internal/cli/headabsent.go) and absentCommit asks for those commits alone, so sandbox create, test and probe run, whose rows name the head alone, give the fetch hint only for a missing head and keep git's own hint otherwise.\n- The commits each command reaches come from one table: headReads names head and base for brief, status, review, post, draft, record, merge and rules check and the head alone for sandbox create, test and probe run, and TestEveryCommandIsClassifiedAsAHeadReaderOrExempt and TestEveryCommandReadingTheHeadGivesTheFetchHint read it in place of the test's former lacks field, failing for a row the command tree lacks or a routed command without a row.\n- With only the base missing and an unrelated git failure (a moved base's commit and the head's tree removed from the object store), TestAGitFailureBesideAMovedBaseIsAFetchOnlyForItsReaders drives sandbox create, test and probe run and asserts git's own CommandError message, exit 3 and git hint; the overlay mutant restoring the old check-both absentCommit turns those three subtests red.\n- With the head missing, TestEveryCommandReadingTheHeadGivesTheFetchHint still gives MissingCommitError for the head, exit 3 and the fetch hint on all eleven routed commands; a mutant looking commands up by cmd.Name turns head/sandbox_create, head/probe_run and rules_check red, and TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails shows the three head-only commands succeed over a clone lacking the base.\n- In the same moved-base fixture rules check and the seven other base readers give MissingCommitError{Dir, Commit: base}, its message, exit 3 and the fetch hint, and the base subtests of TestEveryCommandReadingTheHeadGivesTheFetchHint still pass; a mutant dropping the base from rules check's row fails the head-only pin in TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails.\n- go test -race -count=1 of internal/cli and of the whole tree passes through the gate lock, golangci-lint run reports 0 issues, scripts/deadcode.sh passes with deadcode at 11 lines, and Go 1.26 and 1.27.1 gofmt -l print nothing.\n",
+      "gate_passed_at": "2026-09-15T02:13:52.237778Z",
+      "commit_sha": "dc9eb2d",
+      "commit_shas": [
+        "dc9eb2d",
+        "cf790c6",
+        "f84b80a"
+      ],
+      "commit_files": [
+        "internal/cli/headabsent.go",
+        "internal/cli/headabsent_test.go",
+        "skills/cr/SKILL.md"
+      ]
     }
   ]
 }
