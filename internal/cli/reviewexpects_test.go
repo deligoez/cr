@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,8 @@ import (
 )
 
 // expectsTwoCells is a fan-out whose round owes two cells, one per role, for
-// the single unit its prompts were emitted over.
+// the single unit its prompts were emitted over. The convention cell is one
+// coverage.ndjson already holds.
 func expectsTwoCells() *reviewResult {
 	return &reviewResult{Fanout: &review.Fanout{
 		Round: 2, Head: "abc123",
@@ -21,9 +23,9 @@ func expectsTwoCells() *reviewResult {
 			{Role: "correctness", Axis: "correctness", Unit: "u1", Text: "# Correctness on u1\n"},
 		},
 		Honesty: []string{},
-		Expected: []coverage.Expected{
-			{Unit: "u1", Role: "correctness"},
-			{Unit: "u1", Role: "convention"},
+		Expected: []review.ExpectedCell{
+			{Expected: coverage.Expected{Unit: "u1", Role: "correctness"}},
+			{Expected: coverage.Expected{Unit: "u1", Role: "convention"}, Recorded: true},
 		},
 	}}
 }
@@ -36,25 +38,26 @@ func expectsTwoCells() *reviewResult {
 // §10.2.2 is checked against it once the roles return. The two renderings are
 // asserted together so a reader at a terminal and a caller reading the JSON
 // cannot be told different things about what the round is waiting for —
-// convention is in both, although no prompt below was emitted for it.
+// convention is in both, although no prompt below was emitted for it, and both
+// say it is already recorded (field-feedback 1.6).
 func TestAReviewReportsTheCellsItExpectsToBeFilled(t *testing.T) {
 	var printed bytes.Buffer
 	require.NoError(t, (&writer{out: &printed, mode: ModeText}).emit(expectsTwoCells()))
 
 	text := printed.String()
 	assert.Contains(t, text, "expects 2 cell(s) for §10.2.2")
-	assert.Contains(t, text, "\n  u1 correctness\n")
-	assert.Contains(t, text, "\n  u1 convention\n")
+	assert.Contains(t, strings.Split(text, "\n"), "  u1 correctness")
+	assert.Contains(t, strings.Split(text, "\n"), "  u1 convention (recorded)")
 
 	var piped bytes.Buffer
 	require.NoError(t, (&writer{out: &piped, mode: ModeJSON}).emit(expectsTwoCells()))
 
 	var payload struct {
-		Expected []coverage.Expected `json:"expected_cells"`
+		Expected []map[string]any `json:"expected_cells"`
 	}
 	require.NoError(t, json.Unmarshal(piped.Bytes(), &payload))
-	assert.Equal(t, []coverage.Expected{
-		{Unit: "u1", Role: "correctness"},
-		{Unit: "u1", Role: "convention"},
+	assert.Equal(t, []map[string]any{
+		{"unit": "u1", "role": "correctness"},
+		{"unit": "u1", "role": "convention", "recorded": true},
 	}, payload.Expected)
 }

@@ -31,7 +31,7 @@ func unitsOfRound(t *testing.T, src *Sources) []unit.Unit {
 // The verdict is `pass` because §10.2.2 counts a cell's existence and not what
 // it says; what is under test is whether the reported set is the set that
 // closes every row.
-func filling(expected []coverage.Expected, units []unit.Unit, round int, head string) []coverage.Cell {
+func filling(expected []ExpectedCell, units []unit.Unit, round int, head string) []coverage.Cell {
 	hashes := make(map[string]string, len(units))
 	for i := range units {
 		hashes[units[i].ID] = units[i].Hash

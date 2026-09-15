@@ -41,11 +41,15 @@ func (r *reviewResult) Text(w *writer) string {
 	// roles return.
 	fmt.Fprintf(&out, "\n%s %d cell(s) for §10.2.2\n", w.accent("expects"), len(r.Expected))
 	for _, cell := range r.Expected {
-		fmt.Fprintf(&out, "  %s %s\n", cell.Unit, cell.Role)
+		fmt.Fprintf(&out, "  %s %s%s\n", cell.Unit, cell.Role, recordedMark[cell.Recorded])
 	}
 	out.WriteString(w.disclose("\n", "\n", r.Honesty...))
 	return strings.TrimRight(out.String(), "\n")
 }
+
+// recordedMark is what follows an expected cell coverage.ndjson already holds
+// for the round and head, and nothing for one it does not.
+var recordedMark = map[bool]string{true: " (recorded)", false: ""}
 
 // unknownAxisFlagError reports an `--axis` naming no axis of §1.5.
 //
@@ -70,7 +74,8 @@ func (e *unknownAxisFlagError) Error() string {
 // nothing is sent anywhere. It reads the round `cr brief` recorded, the
 // repository it was run from, and the pull request's base. It writes nothing
 // inside the repository under review (§2.2); in the state tree it writes the
-// fan-out directories and §2.6.1.6's ledger entries for the hits it attaches.
+// fan-out directories, §2.6.1.6's ledger entries for the hits it attaches, and
+// one emissions.ndjson line per prompt.
 //
 // `--axis` narrows the fan-out to one axis's roles, which is the control §4.6.5's
 // two passes are run through.

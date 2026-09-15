@@ -3,6 +3,7 @@ package review
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/deligoez/cr/internal/activation"
 	"github.com/deligoez/cr/internal/axis"
@@ -26,8 +27,9 @@ import (
 // brief.Sources gives: the GitHub client is injectable and the repository is a
 // directory, so §4.6 can be exercised against a real repository with no token
 // and no network. `cr review` emits prompts, and the state it reads was written
-// by the commands that own it; what it writes is the fan-out directories and
-// §2.6.1.6's ledger entries for the hits it found.
+// by the commands that own it; what it writes is the fan-out directories,
+// §2.6.1.6's ledger entries for the hits it found, and one
+// state.FileEmissions line per prompt.
 type Sources struct {
 	// Layout resolves §2.2's paths and holds the per-PR state.
 	Layout state.Layout
@@ -46,6 +48,9 @@ type Sources struct {
 	// Axis narrows the fan-out to the roles of one axis, and is empty for
 	// every axis.
 	Axis string
+	// Clock stamps the emissions state.FileEmissions records, and is nil
+	// for the wall clock.
+	Clock func() time.Time
 }
 
 // currentHead is §9.3.1's current head, read through the client already on
@@ -102,7 +107,31 @@ type Fanout struct {
 	// §10.2.2 can be checked once the roles return. It is the round's
 	// whole demand and not this invocation's: `--axis` narrows Prompts and
 	// leaves this alone.
-	Expected []coverage.Expected `json:"expected_cells"`
+	Expected []ExpectedCell `json:"expected_cells"`
+}
+
+// ExpectedCell is one cell of §4.6.3's set, and whether coverage.ndjson already
+// holds it for the round and head (field-feedback 1.6).
+//
+// Recorded changes nothing about what is emitted: §4.6.1 still emits a prompt
+// for every active role and unit. It tells the caller which of those prompts
+// would only judge a cell a second time.
+type ExpectedCell struct {
+	coverage.Expected
+	Recorded bool `json:"recorded,omitempty"`
+}
+
+// expectedCells marks every cell of the set the round's cells already hold at
+// its head.
+func expectedCells(set []coverage.Expected, cells []coverage.Cell, head string) []ExpectedCell {
+	marked := make([]ExpectedCell, 0, len(set))
+	for _, cell := range set {
+		recorded := slices.ContainsFunc(cells, func(held coverage.Cell) bool {
+			return held.Unit == cell.Unit && held.Role == cell.Role && held.Head == head
+		})
+		marked = append(marked, ExpectedCell{Expected: cell, Recorded: recorded})
+	}
+	return marked
 }
 
 // StaleUnitError reports a unit units.ndjson recorded that the diff at the
@@ -251,10 +280,20 @@ func Run(src *Sources) (*Fanout, error) {
 	if err != nil {
 		return nil, err
 	}
+	cells, err := state.ReadStamped[coverage.Cell](
+		src.Layout, src.Owner, src.Repo, src.PR, state.FileCoverage, r.Round)
+	if err != nil {
+		return nil, err
+	}
+	prompts := Emit(r)
+	if err := r.recordEmissions(src, prompts); err != nil {
+		return nil, err
+	}
 	return &Fanout{
-		Round: r.Round, Head: r.Head, Prompts: Emit(r),
+		Round: r.Round, Head: r.Head, Prompts: prompts,
 		Honesty:  append(sentences(lenses), p.StaleDisclosures()...),
-		Expected: coverage.Expect(unitIDs(r.Units), r.Active), Skipped: lenses.Roles,
+		Expected: expectedCells(coverage.Expect(unitIDs(r.Units), r.Active), cells, r.Head),
+		Skipped:  lenses.Roles,
 	}, nil
 }
 
@@ -572,10 +611,10 @@ func belongs(u *unit.Unit, hunk *git.Hunk) bool {
 // fanOut gives every unit the directory §4.6.2's output files sit in, and
 // creates those directories under the pull request's lock (§2.3.1).
 //
-// Directories are all `cr review` writes, and nothing it writes is a file: the
-// records are the roles' to write, and §4.6.3 has `cr review` write nothing to
-// findings.ndjson. They sit under the state root per §2.2, so a role told where
-// to write is never told to write inside the repository under review.
+// Nothing it writes into them is a file: the records are the roles' to write,
+// and §4.6.3 has `cr review` write nothing to findings.ndjson. They sit under
+// the state root per §2.2, so a role told where to write is never told to write
+// inside the repository under review.
 func (r *Round) fanOut(src *Sources) error {
 	ids := make([]string, 0, len(r.Units))
 	for i := range r.Units {
