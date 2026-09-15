@@ -86,7 +86,7 @@ func (r *Round) text(lens *role.Role, at int, output string, ids IDs) string {
 	if lens.Axis == axis.Intent {
 		claimSchema(&p)
 	}
-	contract(&p, lens, output, r.Round, ids)
+	contract(&p, lens, output, r.Contract, r.Round, ids)
 	return p.String()
 }
 

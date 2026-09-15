@@ -29,15 +29,19 @@ var claimWords = map[intent.Requirement]string{
 }
 
 // contract writes §4.6.2's part of the prompt: the NDJSON path the role writes
-// to, §6.1's record schema, and the fields §6.1.4 forbids the agent to write.
+// to with the record ids it may write, the fields §6.1.4 forbids the agent to
+// write, and the round's contract file, which holds §6.1's record schema.
 //
-// Every list here is read out of the tables the decoders refuse by —
-// finding.Fields, finding.CitationFields, finding.Reserved — rather than
+// The schema is in the file rather than in every prompt because it is the same
+// text for every prompt of the round, and a round's prompts are many. What a
+// prompt keeps is what differs per prompt — the path and the ids — and the
+// fence, which is the part a role must not miss.
+//
+// Every list here is read out of the tables the decoders refuse by, rather than
 // written out, so the prompt cannot tell a role it may write a field `cr merge`
-// will reject, or forbid one it accepts. cr owns this contract and a role only
-// supplies persona and focus (§2.5), which is why none of it comes from the
-// role's instructions.
-func contract(p *page, lens *role.Role, output string, round int, ids IDs) {
+// will reject. cr owns this contract and a role only supplies persona and focus
+// (§2.5), which is why none of it comes from the role's instructions.
+func contract(p *page, lens *role.Role, output, contractFile string, round int, ids IDs) {
 	p.section("Output (§4.6.2)")
 	p.line("Write this role's records for this unit, one JSON object per line, to:")
 	p.line("")
@@ -49,6 +53,40 @@ func contract(p *page, lens *role.Role, output string, round int, ids IDs) {
 	p.line("")
 	idBlockLine(p, round, ids)
 	p.line("")
+	p.line("A record's fields, the values each takes, and a citation's fields are §6.1's record schema, " +
+		"in the round's contract file; read it before writing a record:")
+	p.line("")
+	p.line("    %s", contractFile)
+	p.line("")
+	// §6.1.1 is a MUST cr cannot check, since reading a language is a
+	// judgement and cr forms none; the prompt is the one place every role
+	// is certain to read it.
+	p.line("%s", englishLine)
+	p.line("")
+	forbiddenLine(p)
+}
+
+// englishLine states §6.1.1 to the one writing a record.
+const englishLine = "Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
+	"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1)."
+
+// forbiddenLine states §6.1.4's fence: every field an agent's line may not carry.
+func forbiddenLine(p *page) {
+	p.line("You may not write %s. cr computes or stamps them, and a record arriving with one is "+
+		"rejected with exit code 1 (§6.1.4, §2.3.3).", strings.Join(forbidden(), ", "))
+}
+
+// Contract is the text of `rounds/<n>/contract.md` (§4.6.2): §6.1's record
+// schema, read out of the tables the decoders refuse by — finding.Fields,
+// finding.CitationFields, finding.Reserved — so the file cannot tell a role it
+// may write a field `cr merge` will reject, or forbid one it accepts.
+func Contract(round int) string {
+	var p page
+	p.line("# Record contract for round %d (§4.6.2)", round)
+	p.line("")
+	p.line("Every prompt of round %d names this file. A role writes its records to the path its prompt "+
+		"names, one JSON object per line, with the ids its prompt names.", round)
+	p.section("Record schema (§6.1)")
 	p.line("A record carries §6.1's fields:")
 	reserved := finding.Reserved()
 	for _, field := range finding.Fields() {
@@ -62,23 +100,19 @@ func contract(p *page, lens *role.Role, output string, round int, ids IDs) {
 		p.line("- %s: %s", field.Name, word)
 	}
 	p.line("")
-	domains(p)
+	domains(&p)
 	p.line("")
 	p.line("Each entry of citations carries:")
 	for _, field := range finding.CitationFields() {
 		p.line("- %s: %s", field.Name, findingWords[field.Requirement])
 	}
 	p.line("")
-	// §6.1.1 is a MUST cr cannot check, since reading a language is a
-	// judgement and cr forms none; the prompt is the only place it can be
-	// stated to the one writing the record.
-	p.line("Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
-		"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1).")
+	p.line("%s", englishLine)
 	p.line("A kind=question record's posted body must contain \"?\" (§8.1.5); that body is composed at draft " +
 		"time, where a question body that does not ask is rewritten into one before `cr post` accepts it.")
 	p.line("")
-	p.line("You may not write %s. cr computes or stamps them, and a record arriving with one is "+
-		"rejected with exit code 1 (§6.1.4, §2.3.3).", strings.Join(forbidden(), ", "))
+	forbiddenLine(&p)
+	return p.String()
 }
 
 // forbidden is every field an agent's line may not carry: §6.1.4's fence, a

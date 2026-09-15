@@ -34,6 +34,12 @@ const (
 // created with a round: a round no v0.2.1 intake has written has none.
 const FileIntake = "intake.json"
 
+// FileContract is `rounds/<n>/contract.md`: the record schema of §6.1 that
+// `cr review` writes and every prompt of round n names (§4.6.2). Like
+// FileIntake it is not created with a round, since a round no `cr review` has
+// emitted for has none.
+const FileContract = "contract.md"
+
 // roundsDirName holds every round of one pull request.
 const roundsDirName = "rounds"
 
@@ -100,10 +106,10 @@ func checkRound(round int) error {
 }
 
 // checkRoundFile refuses a name the §2.3 table does not give a round, so the
-// table and FileIntake stay the only things that decide what a round directory
-// holds.
+// table, FileIntake and FileContract stay the only things that decide what a
+// round directory holds.
 func checkRoundFile(name string) error {
-	if !slices.Contains(roundFiles, name) && name != FileIntake {
+	if !slices.Contains(roundFiles, name) && name != FileIntake && name != FileContract {
 		return fmt.Errorf("%s: §2.3 gives a round no such artefact", name)
 	}
 	return nil

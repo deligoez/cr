@@ -138,8 +138,8 @@ func narrowing(cmd *cobra.Command, units []string, shard string) ([]string, *rev
 // nothing is sent anywhere. It reads the round `cr brief` recorded, the
 // repository it was run from, and the pull request's base. It writes nothing
 // inside the repository under review (§2.2); in the state tree it writes the
-// fan-out directories, §2.6.1.6's ledger entries for the hits it attaches, and
-// one emissions.ndjson line per prompt.
+// fan-out directories, the round's contract file, §2.6.1.6's ledger entries
+// for the hits it attaches, and one emissions.ndjson line per prompt.
 //
 // `--axis` narrows the fan-out to one axis's roles, which is the control §4.6.5's
 // two passes are run through; `--units` and `--shard` narrow it to units, and

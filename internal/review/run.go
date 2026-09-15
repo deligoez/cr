@@ -649,17 +649,25 @@ func belongs(u *unit.Unit, hunk *git.Hunk) bool {
 // and §4.6.3 has `cr review` write nothing to findings.ndjson. They sit under
 // the state root per §2.2, so a role told where to write is never told to write
 // inside the repository under review.
+//
+// Under the same lock it writes §4.6.2's contract file, the record schema every
+// prompt of the round names, so no prompt names a file that is not there.
 func (r *Round) fanOut(src *Sources) error {
 	ids := make([]string, 0, len(r.Units))
 	for i := range r.Units {
 		r.Units[i].FanOut = src.Layout.FanOutDir(src.Owner, src.Repo, src.PR, r.Round, r.Units[i].ID)
 		ids = append(ids, r.Units[i].ID)
 	}
+	r.Contract = src.Layout.RoundFile(src.Owner, src.Repo, src.PR, r.Round, state.FileContract)
 	held, err := src.Layout.LockPR(src.Owner, src.Repo, src.PR)
 	if err != nil {
 		return err
 	}
-	if err := held.EnsureFanOut(r.Round, ids); err != nil {
+	err = held.EnsureFanOut(r.Round, ids)
+	if err == nil {
+		err = held.WriteRound(r.Round, state.FileContract, []byte(Contract(r.Round)))
+	}
+	if err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.
 		_ = held.Unlock()
