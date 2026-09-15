@@ -184,9 +184,10 @@ func TestAHeadTheCloneNeverFetchedIsAFetch(t *testing.T) {
 const gitHint = "the git command the message names failed; run it yourself to see what it reports"
 
 // headRun is how one command in the tree meets the head and the merge base of
-// the repository under review: the invocation that reaches its git read, the
-// round that read needs, and which commits' absence it reaches. A command that
-// reads neither commit carries the reason instead.
+// the repository under review: the invocation that reaches its git read and the
+// round that read needs. Which commits' absence that read reaches is the
+// command's row in headReads, the table headNotFetched asks from. A command
+// that reads neither commit carries the reason instead.
 type headRun struct {
 	// argv is the command line, `--repo` included.
 	argv []string
@@ -196,9 +197,6 @@ type headRun struct {
 	// prepare readies what the run needs beyond the drafted round, given the
 	// state root and the round's draft.md, and is nil when it needs nothing.
 	prepare func(t *testing.T, layout state.Layout, drafted string)
-	// lacks names each commit, "head" or "base", whose absence from the clone
-	// argv's git reads reach. It is empty for an exempt command.
-	lacks []string
 	// exempt is why the command reads neither the head nor the merge base
 	// from the clone, and is empty for a command routed through
 	// headNotFetched.
@@ -206,16 +204,13 @@ type headRun struct {
 }
 
 // headRuns classifies every command in the tree, keyed as the command is
-// typed. A routed command's argv reaches a git read of the head, and of the
-// merge base where lacks says so, on draftedCloneLacking's round; an exempt
-// command's argv is run over a clone lacking the head to hold the exemption to
-// what the command does.
+// typed. A routed command's argv reaches a git read of each commit headReads
+// names for it on draftedCloneLacking's round; an exempt command's argv is run
+// over a clone lacking the head to hold the exemption to what the command does.
 //
 // The records a LEFT anchor carries are what take `cr record`, `cr merge` and
 // `cr draft` to the merge base: §6.1.2 reads a LEFT anchor at it, and a RIGHT
-// one at the head alone. The sandbox is checked out at the head and nothing
-// else, so `cr sandbox create`, `cr test` and `cr probe run` reach the head
-// only.
+// one at the head alone.
 func headRuns(t *testing.T) map[string]headRun {
 	t.Helper()
 	dir := t.TempDir()
@@ -234,27 +229,25 @@ func headRuns(t *testing.T) map[string]headRun {
 	empty := file("empty.ndjson", "")
 	patch := file("mutation.patch", "--- a/money.go\n+++ b/money.go\n@@ -12 +12 @@\n-// money added a\n+// money mutated a\n")
 	issue := briefIssue(t)
-	both := []string{"head", "base"}
-	head := []string{"head"}
-	routed := func(lacks []string, argv ...string) headRun {
-		return headRun{argv: append(argv, "--repo", fixtureSlug), lacks: lacks}
+	routed := func(argv ...string) headRun {
+		return headRun{argv: append(argv, "--repo", fixtureSlug)}
 	}
 	exempt := func(why string, argv ...string) headRun {
 		return headRun{argv: argv, exempt: why}
 	}
 
 	runs := map[string]headRun{
-		"brief":  routed(both, "brief", fixturePR, "--issue", fixtureIssue, "--intent-file", issue),
-		"status": routed(both, "status", fixturePR),
+		"brief":  routed("brief", fixturePR, "--issue", fixtureIssue, "--intent-file", issue),
+		"status": routed("status", fixturePR),
 		// The intent pass is the one a round without a mapping may emit.
-		"review":         routed(both, "review", fixturePR, "--axis", "intent"),
-		"post":           routed(both, "post", fixturePR),
-		"record":         routed(both, "record", fixturePR, merged),
-		"merge":          routed(both, "merge", perRole, "-o", filepath.Join(dir, "merged-out.ndjson"), "--pr", fixturePR),
-		"rules check":    routed(both, "rules", "check", fixturePR),
-		"sandbox create": routed(head, "sandbox", "create", fixturePR),
-		"test":           routed(head, "test", fixturePR),
-		"probe run":      routed(head, "probe", "run", fixturePR, "--kind", "mutation", "--patch", patch),
+		"review":         routed("review", fixturePR, "--axis", "intent"),
+		"post":           routed("post", fixturePR),
+		"record":         routed("record", fixturePR, merged),
+		"merge":          routed("merge", perRole, "-o", filepath.Join(dir, "merged-out.ndjson"), "--pr", fixturePR),
+		"rules check":    routed("rules", "check", fixturePR),
+		"sandbox create": routed("sandbox", "create", fixturePR),
+		"test":           routed("test", fixturePR),
+		"probe run":      routed("probe", "run", fixturePR, "--kind", "mutation", "--patch", patch),
 
 		"init":   exempt("writes the state root and the shipped profiles, and reads no repository", "init"),
 		"config": exempt("prints the configuration layers, and reads the clone for its remotes alone", "config", "--repo", fixtureSlug),
@@ -285,7 +278,7 @@ func headRuns(t *testing.T) map[string]headRun {
 
 	// §6.1.2 reads a LEFT anchor at the merge base: `cr record` and `cr
 	// merge` are handed one, and `cr draft` meets one moved by its marker.
-	draft := routed(both, "draft", fixturePR)
+	draft := routed("draft", fixturePR)
 	draft.drafted = onUnit("u2", "order.go", "LEFT", 11, 12)
 	draft.prepare = func(t *testing.T, _ state.Layout, drafted string) {
 		t.Helper()
@@ -356,7 +349,7 @@ func draftedCloneLacking(t *testing.T, lacking string, run *headRun) (clone, mis
 	head := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch))
 	branch := "main"
 	missing = head
-	if lacking == "base" {
+	if lacking == readsBase {
 		branch = fixtureHeadBranch
 		tree := strings.TrimSpace(mustGit(t, full, "rev-parse", "main^{tree}"))
 		missing = strings.TrimSpace(mustGit(t, full, "commit-tree", "-p", "main", "-m", "the base moved on", tree))
@@ -375,8 +368,9 @@ func draftedCloneLacking(t *testing.T, lacking string, run *headRun) (clone, mis
 }
 
 // Every command in the tree is classified: routed through headNotFetched with
-// the commits its read reaches, or exempt with the reason it reads neither. A
-// command added later fails here by name until it is given one of the two.
+// the commits its read reaches named in headReads, or exempt with the reason it
+// reads neither. A command added later fails here by name until it is given one
+// of the two.
 //
 // An exemption is held to what the command does: each exempt command runs over
 // a clone lacking the head, and a git failure there is a read the exemption
@@ -389,17 +383,27 @@ func TestEveryCommandIsClassifiedAsAHeadReaderOrExempt(t *testing.T) {
 		run, classified := runs[name]
 		if !classified {
 			t.Errorf("cr %s is in the command tree and not in headRuns: route its git failures through "+
-				"headNotFetched and name the commits its read reaches, or exempt it with the reason it reads "+
-				"neither the head nor the merge base", name)
+				"headNotFetched and name the commits its read reaches in headReads, or exempt it with the "+
+				"reason it reads neither the head nor the merge base", name)
 			continue
 		}
-		if (run.exempt == "") == (len(run.lacks) == 0) {
-			t.Errorf("cr %s names both the commits its read reaches and a reason it is exempt, or neither", name)
+		if (run.exempt == "") == (len(headReads[name]) == 0) {
+			t.Errorf("cr %s has both a row in headReads and a reason it is exempt, or neither", name)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(runs)) {
 		if !slices.Contains(tree, name) {
 			t.Errorf("headRuns classifies cr %s, which the command tree does not have", name)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(headReads)) {
+		if !slices.Contains(tree, name) {
+			t.Errorf("headReads names the reads of cr %s, which the command tree does not have", name)
+		}
+		if reads := headReads[name]; !slices.Equal(reads, []string{readsHead}) &&
+			!slices.Equal(reads, []string{readsHead, readsBase}) {
+			t.Errorf("headReads names %q for cr %s: every read of the merge base is taken with the head, "+
+				"so a row is the head alone or the head and then the base", reads, name)
 		}
 	}
 
@@ -424,7 +428,7 @@ func TestEveryCommandIsClassifiedAsAHeadReaderOrExempt(t *testing.T) {
 // to run git by hand.
 func TestEveryCommandReadingTheHeadGivesTheFetchHint(t *testing.T) {
 	for _, name := range routedHeadRuns(t) {
-		for _, lacking := range headRuns(t)[name].lacks {
+		for _, lacking := range headReads[name] {
 			t.Run(lacking+"/"+name, func(t *testing.T) {
 				run := headRuns(t)[name]
 				clone, absent := draftedCloneLacking(t, lacking, &run)
