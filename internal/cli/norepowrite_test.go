@@ -933,7 +933,11 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 		// findings whose state §9.1 moved — and §2.2 puts both under
 		// the state root. runOrder puts it after `cr record`, so it
 		// queues and renders the record that run stored.
-		"draft":      {"draft", fixturePR, "--repo", fixtureSlug},
+		"draft": {"draft", fixturePR, "--repo", fixtureSlug},
+		// `cr triage` rewrites the round's draft.md under the state root
+		// and reads nothing else. runOrder puts it after `cr draft`, so
+		// the block it names is one that run rendered.
+		"triage":     {"triage", fixturePR, "f1", "keep", "--repo", fixtureSlug},
 		"map record": {"map", "record", fixturePR, pairs, "--repo", fixtureSlug},
 		// `cr merge` reads the §4.6.2 fan-out output files, whose names
 		// bind their records to one role, so its input is named
@@ -1053,8 +1057,10 @@ func runOrder(t *testing.T, runs map[string][]string) []string {
 	// any payload is built. `cr cells record` goes after `cr map record`,
 	// because §4.6.5 refuses a correctness cell until the round's mapping
 	// is recorded. `cr answer` goes after `cr record`, because §3.6.2 files
-	// an answer against a record the pull request holds.
-	deferred := []string{"answer", "cells record", "claims set-aside", "draft", "post"}
+	// an answer against a record the pull request holds. `cr triage` goes
+	// between `cr draft` and `cr post`, because §7.2.4 edits a block the
+	// draft rendered and `cr post` reads the draft it leaves.
+	deferred := []string{"answer", "cells record", "claims set-aside", "draft", "triage", "post"}
 	for _, name := range append(slices.Clone(hoisted), deferred...) {
 		require.Contains(t, runs, name, "the ordered %s has no invocation to run", name)
 	}
