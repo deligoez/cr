@@ -122,6 +122,14 @@ type Record struct {
 	// untouched code. §5.2.6 reads it as the fence around a baseline:
 	// only a run carrying no `probe` may serve as one.
 	Probe string `json:"probe,omitempty"`
+	// Sandbox is the generation of the sandbox the run measured, as its
+	// post-setup baseline names it (internal/sandbox). §5.5 has a baseline
+	// measure "the same tests on unmutated, un-probed code", and §5.1.6
+	// recreates a sandbox that no longer holds that code or the files
+	// §5.1.2 copies beside it, so §5.2.6 resolves a baseline only among the
+	// runs of the sandbox a probe runs in. §5.2.4's list has no slot for
+	// it, for the reason it has none for Contaminated.
+	Sandbox string `json:"sandbox,omitempty"`
 }
 
 // author says who writes one field of the run record. There are two, and the
@@ -169,6 +177,7 @@ var fields = []field{
 	{Name: "output_tail", Author: measured},
 	{Name: "passed", Author: measured},
 	{Name: "probe", Author: measured},
+	{Name: "sandbox", Author: measured},
 }
 
 // The check runs at package initialisation, so a Record that has drifted from

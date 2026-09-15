@@ -263,6 +263,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				TestsFailed:  failed,
 				OutputTail:   tail.String(),
 				Contaminated: contaminated != "",
+				Sandbox:      ready.Generation,
 			})
 			if err != nil {
 				return err

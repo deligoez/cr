@@ -104,6 +104,25 @@ func Missing(stored []run.Record, head string, required []Spec) []Spec {
 	return missing
 }
 
+// OfSandbox returns the runs of stored measured in the sandbox generation
+// named, in file order, for Missing and Ensure to resolve baselines among.
+//
+// A run of an earlier generation measured a sandbox §5.1.6 has since rebuilt,
+// because its tracked files, its copied files or its head no longer stood, so
+// it is not a run of "the same tests on unmutated, un-probed code" (§5.5) as the
+// sandbox a probe now runs in, and §5.2.6 performs the baseline again. A run
+// record written before generations were recorded names none, and
+// sandbox.Ensure admits no sandbox without one, so it matches nothing.
+func OfSandbox(stored []run.Record, generation string) []run.Record {
+	measured := make([]run.Record, 0, len(stored))
+	for i := range stored {
+		if stored[i].Sandbox == generation {
+			measured = append(measured, stored[i])
+		}
+	}
+	return measured
+}
+
 // stands reports whether one run record is a baseline answering this spec.
 //
 // It is the one candidate predicate: Missing asks whether §5.2.2's "once per
