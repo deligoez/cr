@@ -148,9 +148,9 @@ func TestAMutationProbeAppliesRunsRevertsAndRecords(t *testing.T) {
 	// here rather than the runner being silenced. Two recaps, because
 	// §5.2.6 performs the baseline before the probe.
 	const recap = "Tests:  4 passed\n"
-	shown := throughAPipe(t,
+	shown := afterHeader(t, throughAPipe(t,
 		"probe", "run", fixturePR, "--repo", fixtureSlug,
-		"--kind", "mutation", "--patch", patch)
+		"--kind", "mutation", "--patch", patch))
 	require.True(t, strings.HasPrefix(shown, recap+recap),
 		"§5.2.6: the baseline runs before the probe, and both reach the reader: %q", shown)
 
@@ -486,7 +486,7 @@ func TestAKilledProbeLeavesASandboxTheNextRunRecreates(t *testing.T) {
 	// check is §5.1.6's and belongs to every run: whichever command comes
 	// next has to rebuild the sandbox before it measures anything.
 	var reported map[string]any
-	shown := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	shown := afterHeader(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))
 	require.NoError(t, json.Unmarshal(
 		[]byte(strings.TrimPrefix(shown, "Tests:  4 passed\n")), &reported))
 
@@ -613,7 +613,7 @@ func TestAProbeWhoseSandboxFailedItsCheckIsVoidedAndForcesRecreation(t *testing.
 	// §5.1.7's third consequence, read off the next invocation rather than
 	// off a flag: the sandbox is rebuilt before anything else runs.
 	var reported map[string]any
-	next := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	next := afterHeader(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))
 	require.NoError(t, json.Unmarshal(
 		[]byte(strings.TrimPrefix(next, "Tests:  4 passed\n")), &reported))
 	honesty, ok := reported["honesty"].([]any)

@@ -102,7 +102,7 @@ func TestAVoidedProbeNamesWhatTheCheckFoundHereAndInTheNextRecreation(t *testing
 	assert.Equal(t, reason, probes[0]["reason"])
 
 	var reported map[string]any
-	next := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	next := afterHeader(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(next, "Tests:  4 passed\n")), &reported))
 	assert.Equal(t, []any{
 		"sandbox " + sandboxPath + " recreated, per §5.1.6: §5.1.7 forced its recreation: " +

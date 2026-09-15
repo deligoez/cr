@@ -57,8 +57,8 @@ func TestTheTestCommandRunsTheProfileRunnerInTheSandbox(t *testing.T) {
 	t.Cleanup(func() { repoDir = restore })
 
 	var printed map[string]any
-	require.NoError(t, json.Unmarshal([]byte(throughAPipe(t,
-		"test", fixturePR, "--repo", fixtureSlug, "--filter", "retries twice")), &printed))
+	require.NoError(t, json.Unmarshal([]byte(afterHeader(t, throughAPipe(t,
+		"test", fixturePR, "--repo", fixtureSlug, "--filter", "retries twice"))), &printed))
 
 	sandboxPath := prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber)
 	assert.Equal(t, sandboxPath, printed["sandbox"])
@@ -128,7 +128,7 @@ func TestTheTestCommandStoresARunRecordForEveryRun(t *testing.T) {
 		// produced, ahead of the document §12.1 keeps stdout for, so
 		// the two are separated here rather than the runner being
 		// silenced: what is stored has to be what was shown.
-		shown := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+		shown := afterHeader(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))
 		require.True(t, strings.HasPrefix(shown, printed),
 			"run %d: the runner's output reaches the reader as it is produced", i+1)
 
@@ -198,8 +198,8 @@ func TestTheTestCommandWarnsThatTheProbeLockCoversOnlyItsOwnRuns(t *testing.T) {
 	t.Cleanup(func() { repoDir = restore })
 
 	var reported map[string]any
-	require.NoError(t, json.Unmarshal([]byte(throughAPipe(t,
-		"test", fixturePR, "--repo", fixtureSlug)), &reported))
+	require.NoError(t, json.Unmarshal([]byte(afterHeader(t, throughAPipe(t,
+		"test", fixturePR, "--repo", fixtureSlug))), &reported))
 
 	warnings, ok := reported["warnings"].([]any)
 	require.True(t, ok, "§5.6.3's warning is a field on the payload")
@@ -351,7 +351,7 @@ func TestARunThatExceedsTheProfilesTimeoutIsRecordedAsATimeout(t *testing.T) {
 
 	var reported map[string]any
 	require.NoError(t, json.Unmarshal(
-		[]byte(throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)), &reported))
+		[]byte(afterHeader(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))), &reported))
 	assert.Equal(t, true, reported["timed_out"],
 		"§5.2.3: the reader is told the run was killed, not left to read exit -1")
 
@@ -426,7 +426,7 @@ func TestATestRunItsSandboxContaminatedIsNoBaseline(t *testing.T) {
 	repoDir = func() (string, error) { return fixture, nil }
 	t.Cleanup(func() { repoDir = restore })
 
-	shown := throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug)
+	shown := afterHeader(t, throughAPipe(t, "test", fixturePR, "--repo", fixtureSlug))
 	var reported map[string]any
 	require.NoError(t, json.Unmarshal(
 		[]byte(strings.TrimPrefix(shown, "Tests:  4 passed\n")), &reported))
