@@ -149,6 +149,12 @@ func TestTheTestCommandStoresARunRecordForEveryRun(t *testing.T) {
 	require.True(t, ok, "§5.2.4 stores the duration")
 	assert.GreaterOrEqual(t, duration, float64(0))
 	delete(stored, "duration_ms")
+	baseline, err := os.ReadFile(prepared.PRFile(
+		fixtureOwner, fixtureProject, fixturePRNumber, state.FileSandboxBaseline))
+	require.NoError(t, err)
+	var sandboxBaseline map[string]any
+	require.NoError(t, json.Unmarshal(baseline, &sandboxBaseline))
+	require.NotEmpty(t, sandboxBaseline["generation"], "the sandbox's post-setup baseline names its generation")
 	assert.Equal(t, map[string]any{
 		"id":           "r1",
 		"head":         head,
@@ -158,8 +164,10 @@ func TestTheTestCommandStoresARunRecordForEveryRun(t *testing.T) {
 		"contaminated": false,
 		"output_tail":  printed[len(printed)-16:],
 		"passed":       false,
+		"sandbox":      sandboxBaseline["generation"],
 	}, stored,
-		"§5.2.4: no filter was given, no count is derivable, and the run was not a probe's")
+		"§5.2.4: no filter was given, no count is derivable, and the run was not a probe's; "+
+			"the run is stamped with the sandbox it measured")
 }
 
 // §5.6.3: cr warns that an unrelated local test run can still collide, because
