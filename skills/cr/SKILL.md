@@ -179,9 +179,17 @@ cr review 1 --axis intent
 ```
 
 An `expected_cells` entry carries `"recorded": true` when `coverage.ndjson`
-already holds that cell for the round and head; an entry without it is still
-owed. `cr review` still emits a prompt for every active role and unit, recorded
-or not.
+already holds that cell for the round and head, and `"stale_by_note": true` when
+a standing note on that cell's unit was recorded after the cell's latest prompt
+and that prompt did not carry it. An entry with neither mark is owed.
+
+**`cr review` emits a prompt only for a cell that is not `recorded`, or one that
+is `stale_by_note`.** That is the default: a second run of the same round emits
+what is still open and nothing else, so re-running it after recording some cells
+costs nothing and hands you exactly the prompts left. `--all` emits every prompt
+of the round, recorded or not — use it when you want a cell judged again. The
+whole `expected_cells` set is reported either way, because §10.2.2 is checked
+against the round's cells and not against this run's prompts.
 
 Record the intent pass's cells and the claim-to-unit mapping it produced
 (`{"claim": "CR-5#c1", "unit": "u1"}` per line), then emit the rest:
@@ -192,14 +200,10 @@ cr map record 1 pairs.ndjson
 cr review 1 > fanout.json
 ```
 
-That fan-out emits the intent prompts again beside the other axes. Run only the
-prompts whose `expected_cells` entry for the same unit and role is not
-`recorded`; a prompt for a recorded cell would judge the cell a second time:
-
-```bash
-jq '[.expected_cells[] | select(.recorded != true) | .unit + "/" + .role] as $open
-  | [.prompts[] | select((.unit + "/" + .role) as $k | $open | index($k))]' fanout.json
-```
+That fan-out emits the intent prompts again beside the other axes — one per unit
+the mapping maps to no claim, which the default narrowing never withholds —
+together with a prompt for every cell of the other axes that is still open. Run
+every prompt it gives you; no filtering of your own is needed.
 
 Batch the prompts into sub-agents rather than spawning one per prompt: a large
 pull request emits hundreds (106 units times 4 roles is 424). Batching is safe,
@@ -212,6 +216,24 @@ units, 4 roles, prompts of 13,500 to 15,000 characters): 8 sub-agents ran the
 40 each, in 17m12s. Measure your own prompts with `jq '[.prompts[].prompt |
 length]' fanout.json`, and give a sub-agent fewer prompts when it runs out of
 context before its last one.
+
+`--units <ids>` and `--shard <k>/<n>` cut one round's fan-out into runs you can
+take one at a time, which is what keeps a large pull request inside one context.
+`--units u3,u7` emits only those units' prompts, and an id that is no unit of the
+current round is refused with exit 1 naming the round's units. `--shard 2/5`
+emits the second of five contiguous parts of the round's units, in ascending
+numeric order of id, so five runs of `--shard k/5` cover the round exactly once;
+`--units` and `--shard` together, or a `k` outside 1..`n`, is exit 2.
+
+```bash
+for k in 1 2 3 4 5; do cr review 1 --shard $k/5 > shard-$k.json; done
+```
+
+Every prompt of the round names one file, `~/.cr/state/<owner>/<repo>/pr-<n>/rounds/<round>/contract.md`,
+which holds §6.1's record schema: every field with whether cr computes it, the
+values `kind`, `severity`, `class`, `suggestion_origin` and the anchor take, and
+the fields the agent may not write. Read it once per round; the prompts carry
+the output path, the id block and the fence, and no longer repeat the schema.
 
 Each prompt's findings go, one JSON record per line, to the `output` path the
 prompt names, and nothing else. Each record takes

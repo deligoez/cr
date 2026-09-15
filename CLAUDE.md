@@ -429,7 +429,7 @@ source of truth; this table is a map, not a promise.
 |---------|---------|
 | `cr init [--eject-roles]` | Create the `~/.cr` tree and write the default profiles; `--eject-roles` also writes the built-in roles as editable files |
 | `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
-| `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths |
+| `cr review <pr> [--axis <id>] [--units <ids> \| --shard <k/n>] [--all]` | Emit per-role, per-unit prompts and output paths, narrowed to the cells still open unless `--all` |
 | `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |

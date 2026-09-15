@@ -112,7 +112,7 @@ already have posted.
 | `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
 | `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
-| `cr review <pr> [--axis <id>]` | Emit per-role, per-unit prompts and output paths |
+| `cr review <pr> [--axis <id>] [--units <ids>\| --shard <k/n>] [--all]` | Emit per-role, per-unit prompts and output paths, by default only for a cell the round does not hold or a note has outdated; write the round's record contract |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
 | `cr merge <files...> -o <out> --pr <n>` | Merge and deduplicate per-role findings; list record pairs a shared citation or a citation inside the other's anchor joins, dropping none |
