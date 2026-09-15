@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/probe"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // §5.1.7 end to end: the post-run cleanliness check runs before the probe
@@ -57,4 +59,17 @@ func TestAProbeWhoseSandboxFailedItsCheckIsRecordedErrorAndForcesRecreation(t *t
 		"the forcing is what recreated it, and the notice names what the probe left behind")
 	assert.NoFileExists(t, artefact, "the rebuilt sandbox is a fresh checkout")
 	assert.NoFileExists(t, sentinel, "and the recreation really happened")
+}
+
+// §12.3: the baseline a forcing writes records no removed entry, and says so
+// as [] rather than null.
+func TestAForcedBaselineRecordsSetupRemovedAsAnEmptyList(t *testing.T) {
+	src, _, _ := sandboxed(t)
+	require.NoError(t, ForceRecreation(src, "probe p1 was voided after its run"))
+
+	body, err := os.ReadFile(src.Layout.PRFile(fixtureOwner, fixtureRepo, fixturePR, state.FileSandboxBaseline))
+	require.NoError(t, err)
+	var document map[string]any
+	require.NoError(t, json.Unmarshal(body, &document))
+	assert.Equal(t, []any{}, document["setup_removed"])
 }
