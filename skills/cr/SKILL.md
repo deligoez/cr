@@ -299,9 +299,37 @@ names a probe is recorded after `cr probe run` has written that probe.
   "duplicates": 0, "suppressed": 0, "probes": [],
   "waived": {"dropped": 0, "waivers": []},
   "already_posted": {"dropped": 0, "posted": []},
-  "honesty": []
+  "honesty": [],
+  "notes_after_prompts": {"count": 1, "records": [{"record": "f1", "notes": ["CR-5#n4"]}], "unattributed": []}
 }
 ```
+
+A note recorded after `cr review` emitted a prompt never reaches that prompt.
+Every `cr review` writes one line per prompt to `emissions.ndjson` in the pull
+request's state directory (round, head, pass, role, unit, time, and the note ids
+the prompt carried), and four commands report from it; none refuses anything.
+
+- `cr note ... --pr 1` (with the repository named or detected) lists under
+  `postdates` every `cr review` run of that pull request's round that emitted
+  before the note, with its pass, roles and prompt count; a terminal names the
+  `cr review` command that emits them again carrying the note. It also puts the
+  §9.3.1 head comparison in `honesty`, so it reads the pull request's head
+  through `gh`.
+- `cr record` lists under `notes_after_prompts` the records it stored whose
+  prompt a standing note on their claim or unit postdates, with those note ids.
+  A record's prompt is the latest emission of its role and unit before the
+  record was stored. A note drawn into a claim is on that claim alone, a note
+  answering a record (`cr answer`) is on that record's unit alone, and a note
+  with neither is on every prompt it postdates. `unattributed` names records no
+  emission precedes (a round emitted by an older cr), for which it cannot tell.
+- `cr status` reports the same `notes_after_prompts` over the round's records.
+- `cr draft` names those records and notes in the draft header
+  (`notes after prompts: …`), never inside a block, since a block's regions are
+  what posts.
+
+When one is reported, emit the prompt again (`cr review`) and rerun it before
+recording, or read the note against the record at triage: a question the note
+already answers must not reach the author.
 
 `cr merge`'s report also lists `possible_duplicates`: pairs of merged records
 that dedup did not group but that a location joins, each naming both record ids
@@ -858,7 +886,10 @@ with that key. Sources are `chat`, `jira`, `thread`, `meeting`, `other`.
 whole (`cr-5`, `CR-5#n2`) with exit 1 naming the pattern, so read and write the
 key the way the pattern spells it.
 A note names the pull request it came from, so `cr note` without `--pr` is refused
-with exit 2. `cr note --remove CR-5#n2` retracts one (the id is the only
+with exit 2. With the repository named or detected and that pull request briefed,
+`cr note` reads the round before storing the note, so a head `gh` cannot read
+refuses it with nothing stored, and its output lists the `postdates` described
+under Merge and record. `cr note --remove CR-5#n2` retracts one (the id is the only
 argument) and prints it with `"standing": "retracted"`; an id the store does not
 hold is refused with exit 1. `cr status` reports any cell or record citing a
 retracted note as needing re-evaluation. A record resting on a claim drawn from a
