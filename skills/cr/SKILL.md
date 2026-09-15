@@ -294,10 +294,11 @@ Only a mutation probe's `no-test-failed` over a passing baseline establishes a
 missing test. Both `no-test-failed` and a gap probe's `passed` need the run to
 exit 0: a zero failed count from a runner that exited non-zero is
 `inconclusive`. A gap probe whose runner exited on a signal is `error`, as one
-that never started is. A probe recorded as `error` or `inconclusive` carries a
-`reason` naming the rung that answered and what it read — the exit code for a
-zero failed count on a non-zero exit, an undetermined count otherwise — and
-every other result carries none. A
+that never started is. A probe recorded as `error` carries a `reason` naming
+what failed (a patch that did not apply, a runner that exited on a signal), and
+one recorded as `inconclusive` names its rung and what it read — the exit code
+for a zero failed count on a non-zero exit, an undetermined count otherwise.
+Every other result carries none. A
 gap probe's `failed` supports a finding only when its baseline passed and the record's `claim` is mapped to its unit; `passed` shows the
 behaviour is present and supports no `probed` grade. Reference a probe from a
 record with `"probe": "p1"`; it supports that record only when its target lies

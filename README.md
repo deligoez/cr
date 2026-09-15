@@ -2,9 +2,10 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.2.0.** The release implements the contract in
-> [`spec/0.2.0.md`](spec/0.2.0.md); its notes, including the upgrade notes
-> for v0.1 state, are in
+> **Status: v0.2.1.** The release implements the contract in
+> [`spec/0.2.0.md`](spec/0.2.0.md); its notes are in
+> [`spec/0.2.1-release-notes.md`](spec/0.2.1-release-notes.md), and the upgrade
+> notes for v0.1 state in
 > [`spec/0.2.0-release-notes.md`](spec/0.2.0-release-notes.md).
 
 `cr` reviews a pull request someone else wrote. It reads the intent from your
