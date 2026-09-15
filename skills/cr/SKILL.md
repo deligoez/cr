@@ -315,6 +315,20 @@ values do not serialise. A Ctrl+C or SIGTERM
 while the runner runs kills the runner's process group, records nothing and
 exits 4; run the command again.
 
+Before the runner starts, `cr test` and `cr probe run` print an experiment
+header on standard error, so a piped JSON document stays whole and `--quiet`
+does not remove it: the runner argv, the sandbox path, the clone root's
+gitignored `.env*` files and which of them the sandbox holds, one `not copied`
+line per such file the sandbox lacks and `sandbox.copy` does not name, and,
+when a probe's unfiltered §5.2.2 baseline has not run at this head yet, a
+`baseline` line saying the whole suite runs first. Read the header before the
+run finishes. A `not copied` line means the suite runs without that file and
+may read another environment (a Laravel suite missing `.env.testing` reads
+`.env`, which can point at a development database): stop the run, add the file
+to the profile's `sandbox.copy`, `cr sandbox destroy` and create again. A
+filtered probe with a `baseline` line runs the entire suite before the filtered
+run. `cr sandbox create` reports the same uncopied files under `honesty`.
+
 ### 5. Draft
 
 ```bash
