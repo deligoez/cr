@@ -74,8 +74,9 @@ type draftResult struct {
 	// draft they are about to triage rather than from `cr post`'s refusal.
 	Comments summaryCap `json:"comments"`
 	// Warnings are §8.2.3's, one per suggestion indented unlike the line it
-	// replaces. They are warnings and not refusals: the reviewer is shown
-	// both lines and decides, and a block left in place posts as written.
+	// replaces, then §8.1.5's, one per question whose body holds no "?".
+	// They are warnings and not refusals: the reviewer is shown what cr
+	// found and decides; only the second kind is refused later, by `cr post`.
 	Warnings []string `json:"warnings"`
 }
 
@@ -247,18 +248,12 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	// §8.2.3, over the suggestions the draft is about to hold — an edited
-	// fence §7.1.6 preserved included — and before it is written, so the
-	// reviewer reads the warning beside the file it is about rather than
-	// after deciding what to do with it.
-	warnings, err := indentationWarnings(owner, repo, pr, round, queued, triage.Preserved)
+	// §8.2.3 and §8.1.5, over the bodies the draft is about to hold, before
+	// it is written, for the reason draftBodyWarnings gives.
+	warnings, err := draftBodyWarnings(owner, repo, pr, round, queued, triage.Preserved)
 	if err != nil {
 		return err
 	}
-	// §8.1.5 over the same bodies, warned about here and refused only by
-	// `cr post`: a question §6.3.1 forced holds statement prose until the
-	// agent rewrites it in the draft this run is about to write.
-	warnings = append(warnings, draft.QuestionWarnings(queued, triage.Preserved)...)
 	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
 		return err
 	}
@@ -289,6 +284,26 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		Comments:   summary.comments,
 		Warnings:   warnings,
 	})
+}
+
+// draftBodyWarnings are the warnings `cr draft` reports over the records it is
+// about to write: §8.2.3's, one per suggestion indented unlike the line it
+// replaces, then §8.1.5's, one per question whose body holds no "?".
+//
+// Both are read off the bodies the draft will hold — an edited fence or body
+// §7.1.6 preserved included — and before it is written, so the reviewer reads
+// each warning beside the file it is about rather than after deciding what to
+// do with it. The second is warned about here and refused only by `cr post`:
+// a question §6.3.1 forced holds statement prose until the agent rewrites it
+// in the draft.
+func draftBodyWarnings(
+	owner, repo string, pr int, round *state.Meta, queued []*finding.Finding, preserved map[string]string,
+) ([]string, error) {
+	warnings, err := indentationWarnings(owner, repo, pr, round, queued, preserved)
+	if err != nil {
+		return nil, err
+	}
+	return append(warnings, draft.QuestionWarnings(queued, preserved)...), nil
 }
 
 // drafted is one rendering of the round, as §7.1 has it reach disk: draft.md,
