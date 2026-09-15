@@ -125,7 +125,11 @@ record the mapping again after it.
 ### 2. Review fan-out
 
 The intent pass runs first; the other axes are refused until its mapping is
-recorded.
+recorded. The intent pass carries the round's claims, so it is refused with
+exit 4 until `cr claims record` has run for the round ("… has recorded no
+claims, so the intent pass cannot carry them …"): record them first, as an empty
+file when the issue yields none. Claims a moved head carried into a new round
+count as recorded, and a round whose intent axis is unavailable is not refused.
 
 ```bash
 cr review 1 --axis intent
