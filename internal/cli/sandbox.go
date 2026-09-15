@@ -33,6 +33,11 @@ type sandboxCreateResult struct {
 	Absent []string `json:"absent"`
 	// Setup are the `sandbox.setup` commands §5.1.3 ran, in order.
 	Setup []string `json:"setup"`
+	// Honesty names every gitignored `.env*` file at the clone root that
+	// the sandbox does not hold and `sandbox.copy` does not name, with the
+	// field that copies it: a suite run without one reads some other
+	// environment, and nothing else in the output would say so.
+	Honesty []string `json:"honesty"`
 }
 
 // Text names the worktree and the revision in it, and then what was done
@@ -44,6 +49,7 @@ func (r *sandboxCreateResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "  copied %s\n", listed(r.Copied))
 	fmt.Fprintf(&out, "  absent %s\n", listed(r.Absent))
 	fmt.Fprintf(&out, "  setup  %s", listed(r.Setup))
+	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
 
@@ -118,7 +124,7 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			created, err := sandbox.Create(&sandbox.Sources{
+			src := &sandbox.Sources{
 				Layout:      layout,
 				Owner:       owner,
 				Repo:        repo,
@@ -128,19 +134,32 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 				Copy:        steps.Copy,
 				Setup:       steps.Setup,
 				ProfileFile: file,
-			})
+			}
+			created, err := sandbox.Create(src)
 			if err != nil {
 				return headNotFetched(cmd, owner, repo, pr, err)
 			}
-			return out.emit(&sandboxCreateResult{
-				Path:   created.Path,
-				Head:   created.Head,
-				Copied: created.Copied,
-				Absent: created.Absent,
-				Setup:  created.Setup,
-			})
+			return emitCreated(out, src, created)
 		},
 	}
+}
+
+// emitCreated reports a creation, with every gitignored `.env*` file at the
+// clone root the new sandbox does not hold and `sandbox.copy` does not name
+// under honesty.
+func emitCreated(out *writer, src *sandbox.Sources, created *sandbox.Result) error {
+	env, err := sandbox.CompareEnvFiles(src, created.Path)
+	if err != nil {
+		return err
+	}
+	return out.emit(&sandboxCreateResult{
+		Path:    created.Path,
+		Head:    created.Head,
+		Copied:  created.Copied,
+		Absent:  created.Absent,
+		Setup:   created.Setup,
+		Honesty: env.Disclosures(),
+	})
 }
 
 // sandboxDestroyResult is what `cr sandbox destroy` reports: which worktree is
