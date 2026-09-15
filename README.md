@@ -65,7 +65,8 @@ without naming. `issue.json` in the pull request's state directory holds the
 issue text the round last read, with terminal control sequences removed and
 no-break spaces turned into spaces; `cr status` lists the issue paragraphs no
 claim span overlaps from it, and `cr brief` lists every link the issue text
-carries under `honesty` as not read.
+carries under `honesty` as not read. `emissions.ndjson` beside it holds one line
+per prompt `cr review` emitted, with the ids of the notes the prompt carried.
 
 The Claude Code skill that teaches an agent the loop ships in this repository at
 [`skills/cr/SKILL.md`](skills/cr/SKILL.md).
@@ -90,7 +91,13 @@ cr post 1 --confirm                               # the only network write
 ```
 
 A record that names a probe is recorded after the probe runs; `cr record` may
-run again in the round. If `cr post --confirm` exits 4 because the call's
+run again in the round. `cr review`'s `expected_cells` marks a cell already
+recorded with `"recorded": true`, so after `cr map record` only the prompts of
+unrecorded cells need running, several to a sub-agent. A note recorded after
+the prompts were emitted is reported, never refused: `cr note` names the passes
+it postdates, `cr record` and `cr status` name the records written from a prompt
+older than a note on their claim or unit, and `cr draft` names them in the draft
+header. If `cr post --confirm` exits 4 because the call's
 outcome is unknown (a 5xx, a timeout, a dropped connection), run
 `cr post 1 --reconcile` before anything else: until it adopts the review or
 clears the flag, `cr status` and a `cr post` dry run report it, and
