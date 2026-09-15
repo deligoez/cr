@@ -106,6 +106,42 @@ func TestBriefCleansTheIssueTextAndDisclosesItsLinks(t *testing.T) {
 		"the terminal says it once, under the issue text")
 }
 
+// v0.2.3 QA D-T1-1 through `cr brief`: a link carried only as a terminal
+// hyperlink's target is disclosed as not read, and a plain link the text also
+// wraps in one is disclosed once; the stored and printed text and the claims'
+// issue_hash stay the cleaned text's. A text whose escapes carry no link adds
+// no sentence.
+func TestBriefDisclosesTheTargetsOfTerminalHyperlinks(t *testing.T) {
+	_, _, _ = rerecordHome(t)
+	control := briefWith(t, rerecordIssue)
+	const hidden = "https://docs.test/spec"
+	raw := fixtureIssue + ": orders over 50 TL ship free.\n" +
+		"See \x1b]8;;" + hidden + "\x1b\\the spec\x1b]8;;\x1b\\ and \x1b]8;;" + ingestLink + "\x1b\\" + ingestLink + "\x1b]8;;\x1b\\.\n"
+	cleaned := fixtureIssue + ": orders over 50 TL ship free.\nSee the spec and " + ingestLink + ".\n"
+
+	briefed := briefWith(t, raw)
+	assert.Equal(t, cleaned, briefed.Issue.Text)
+	assert.Equal(t, append(append([]string{}, control.Honesty...),
+		intent.LinkDisclosure(hidden), intent.LinkDisclosure(ingestLink)), briefed.Honesty)
+
+	claims := writeOutside(t, "claims.ndjson",
+		`{"id":"`+fixtureIssue+`#c1","text":"Free shipping over 50 TL.","source":"description","span":"orders over 50 TL ship free"}`+"\n")
+	out, err := runCLIPrinting(t, "claims", "record", fixturePR, claims, "--repo", fixtureSlug,
+		"--intent-file", writeOutside(t, "issue.txt", raw))
+	require.NoError(t, err)
+	var recorded struct {
+		Recorded []intent.Claim `json:"recorded"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &recorded))
+	cleanedHash, err := text.NormalisedHash(cleaned)
+	require.NoError(t, err)
+	require.Len(t, recorded.Recorded, 1)
+	assert.Equal(t, cleanedHash, recorded.Recorded[0].IssueHash)
+
+	unlinked := briefWith(t, "\x1b]0;"+fixtureIssue+"\x07"+rerecordIssue+"\x1b[2mView on Jira\x1b[0m\n")
+	assert.Equal(t, control.Honesty, unlinked.Honesty)
+}
+
 // Field feedback 1.2 through `cr claims record`: a span is checked verbatim
 // against the cleaned text, so the span as `cr brief` printed it is recorded
 // and one copied with the U+00A0 is refused with exit code 1; the claim's
