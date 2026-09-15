@@ -138,8 +138,13 @@ The reported counts match stored state: records cited 24 and argued 18 (31 quest
 - **Suggestions declined as proposed, with the alternative taken** (each would raise the cost of a wrong
   assertion or make cr form a judgement):
   - 2.3, a probe supporting a record through its citations: declined, because §6.2's anchor-range rule is
-    what stops one mutation from grading records elsewhere. Instead the skill tells test-adequacy to anchor
-    on the production line under test when that line is in the diff; otherwise the record stays a question.
+    what stops one mutation from grading records elsewhere; no restricted form keeps "one experiment, one
+    location, one assertion" except the rule as written. **Corrected after verification** (the first
+    alternative, anchoring on the production line, is impossible from a test-file unit under §6.1.3): per
+    §4.4.1 test adequacy is a property of the code under test, so the test-adequacy role raises "production
+    line X has no test" from the production unit's cell, anchored on X and citing the test file (§4.4.2 keeps
+    it argued until a probe); the test-file unit's cell judges the test itself. The role instructions and the
+    skill say so; a production line outside the diff has no unit and is not a record (§1.6.1, §4.1.3).
   - 2.5, normalising classes at record time: declined (cr would decide what a text means). Instead a role
     file may declare a class vocabulary, prompts print it, and `cr record` reports classes outside it.
   - 2.8, a posted body assembled by cr from `summary`: declined (§8.1.2: the agent composes every body).
@@ -149,7 +154,9 @@ The reported counts match stored state: records cited 24 and argued 18 (31 quest
   - 2.11, moving the `wrong` waiver to post time: declined (§7.1.6 fixes the moment, and "this is false"
     does not depend on posting). Instead the draft header says `wrong` writes a repository-wide waiver when
     the draft regenerates.
-  - 2.6: `cr record` warns about a question without "?" and never refuses; the rule is stated in the
-    prompt's output contract.
+  - 2.6: **corrected after verification** — not at `cr record`, where §6.3.1's forcing produces statement
+    prose as questions by design (17 of 31 stored questions lack "?"), but at `cr draft`: a warning over
+    rendered question bodies lacking "?", naming record ids, with the count in the draft header; `cr post`
+    keeps the refusal; the rule is stated in the prompt's output contract.
 - **QA.** No test or probe runs against tarfin-labs/backend again; v0.3.0 QA uses a local Laravel-shaped
   fixture, and the backend repository is read only.
