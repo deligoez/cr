@@ -307,8 +307,8 @@ var codes = []mapped{
 	// below.
 	{is[*intent.RejectedClaimError](), ExitValidation,
 		"correct the field the message names on the line it names, then record the file again"},
-	// §3.3 closes the `source` row at four values, and a claim naming a
-	// fifth is refused while its line is being decoded rather than after.
+	// §3.3 closes the `source` row at five values, and a claim naming a
+	// sixth is refused while its line is being decoded rather than after.
 	// It is the same file and the same fault as the rejection above, so it
 	// takes the same code; without this row a claim file with one mistyped
 	// source would report 2, telling the user to retype a correct command
