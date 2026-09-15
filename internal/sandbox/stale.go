@@ -37,10 +37,25 @@ const (
 // checkout are compared by the checkout's presence alone: a sandbox the setup
 // itself makes different would otherwise be rebuilt, and its setup run again,
 // before every run, while a sandbox that lost a file the checkout holds is
-// rebuilt with it. The bytes are compared in memory and never kept.
+// rebuilt with it. The entries it records as removed by the setup are asked
+// only to stay absent from the sandbox: a setup that deletes a copied file
+// would otherwise rebuild the sandbox before every run, while a sandbox that
+// holds one again no longer stands as the setup left it. The bytes are
+// compared in memory and never kept.
 func stale(src *Sources, recorded *Baseline) (string, error) {
 	path := src.Layout.Sandbox(src.Owner, src.Repo, src.PR)
 	for _, rel := range src.Copy {
+		if slices.Contains(recorded.SetupRemoved, rel) {
+			regained, err := leftStanding(filepath.Join(path, rel))
+			if err != nil {
+				return "", err
+			}
+			if regained == "" {
+				continue
+			}
+			return fmt.Sprintf("%s names %s, which sandbox.setup removed from the sandbox and the sandbox holds again",
+				src.copyField(), rel), nil
+		}
 		found, err := copyStanding(filepath.Join(src.RepoDir, rel), filepath.Join(path, rel))
 		if err != nil {
 			return "", err
@@ -75,19 +90,25 @@ func (src *Sources) copyField() string {
 // setupChanged returns the `sandbox.copy` entries a newly prepared sandbox
 // holds apart from the checkout's — rewritten or created by §5.1.3's setup,
 // or held by the worktree alone — which stale then compares by the checkout's
-// presence only.
-func (src *Sources) setupChanged(path string, entries []string) ([]string, error) {
-	changed := make([]string, 0, len(entries))
+// presence only, and apart from them the entries the checkout holds and the
+// sandbox does not, removed by the setup, which stale asks only to stay
+// absent.
+func (src *Sources) setupChanged(path string, entries []string) (changed, removed []string, err error) {
+	changed, removed = make([]string, 0, len(entries)), make([]string, 0, len(entries))
 	for _, rel := range entries {
-		found, err := copyStanding(filepath.Join(src.RepoDir, rel), filepath.Join(path, rel))
-		if err != nil {
-			return nil, err
+		var found string
+		if found, err = copyStanding(filepath.Join(src.RepoDir, rel), filepath.Join(path, rel)); err != nil {
+			return nil, nil, err
+		}
+		if found == copyAbsent {
+			removed = append(removed, rel)
+			continue
 		}
 		if found != "" {
 			changed = append(changed, rel)
 		}
 	}
-	return changed, nil
+	return changed, removed, nil
 }
 
 // copyStanding compares one `sandbox.copy` entry in the checkout with the
