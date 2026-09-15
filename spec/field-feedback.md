@@ -160,3 +160,27 @@ The reported counts match stored state: records cited 24 and argued 18 (31 quest
     keeps the refusal; the rule is stated in the prompt's output contract.
 - **QA.** No test or probe runs against tarfin-labs/backend again; v0.3.0 QA uses a local Laravel-shaped
   fixture, and the backend repository is read only.
+- **Placement conditions from the second review.** 1.5's `emissions.ndjson` carries `head` and `round`, is
+  written under the per-PR lock, and gets a §2.3 table row in 0.3.0 together with `intake.json`. 2.4's
+  possible-duplicate pairs live in `cr merge`'s report, never as a field on a merged record (§6.5.1, §6.1.4).
+  2.2's refusal leaves an unavailable intent axis (`prompts:[]`, exit 0) alone and counts claims carried into
+  a new round (§9.3.4) as recorded.
+- **Process.** From v0.2.3 releases are built without tp; this file's disposition tables are the record of
+  what was decided and why, and each commit names the item it closes.
+
+### Batch 3 (2026-09-15, outcome after the author acted on the 20 kept comments; nothing posted)
+
+Reported by the field-trial session: the author fixed the pull request locally in 20 commits. Of the 20
+kept comments, 7 were real production defects now fixed (f12101 and f13901 on one root cause, f13301,
+f13401, f2801, f13201, f13101, f16401 with f5901); 9 were real test gaps closed with new tests, each checked
+by applying the agent's proposed mutation before and after the fix (9 of 9 caught after, none before, so the
+argued test-adequacy questions blocked from probing were correct 9 of 9); 2 questions were answered by
+existing documented decisions (f29501, f23601); 1 was left open (f1901, a bidirectional @see convention the
+author is reconsidering). Precision of the kept comments as reported: 19 of 20 actionable; of the 42 raw
+records, 2 were wrong (both intent, 2.9).
+
+| # | Observation | Verification | Triage |
+|---|-------------|--------------|--------|
+| 3.1 | The fix for f12101/f13901 needed the same status predicate changed in a third place (`CalculatePerformanceTicketsAction::completedChannelOneSaleBy()`) that no record named: a finding about a shared predicate should ask where else it appears. | Not verifiable by cr's session without judging the backend code; the fix commits exist on the branch (20 commits after `073b6f4e`). | Candidate for the correctness role's instructions (non-normative, v0.2.3): when a finding rests on a predicate or rule used in several places, search for its other occurrences and cite them. |
+| 3.2 | Six of 42 raw records complained of one-way @see links; the author paused the convention. Suggestion: cr should not ship a built-in role or rule flagging missing @see backlinks; a repository that wants it registers a mechanical rule with `detect`. | cr ships no such role or rule: `git grep -i '@see\|backlink'` over `internal/role`, `internal/rule` and `skills` finds nothing, so the records came from the convention role judging the repository's own conventions. The five class names are 2.5. | Already satisfied; no change. |
+| 3.3 | The author's counts: 20 fix commits; module test directories green (266, 75, 16, 31 tests); hand verification of the 3 production findings about 10 minutes. | The 20 commits on `deligoez/hotfix/WB-3155-araba-kampanyalari` after the reviewed head are present; test results were not re-run (no tests run against the backend repository). | Recorded as reported. |
