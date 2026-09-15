@@ -17,7 +17,19 @@ import (
 	"github.com/deligoez/cr/internal/review"
 )
 
-// promptValues reads the closed set a prompt names on the line that starts with
+// contractOf reads the record contract the prompt names (§4.6.2), which is
+// where §6.1's schema is since 0.3.0.
+func contractOf(t *testing.T, prompt *review.Prompt) string {
+	t.Helper()
+	_, named, found := strings.Cut(prompt.Text, "read it before writing a record:\n\n    ")
+	require.Truef(t, found, "%s on %s names its contract file", prompt.Role, prompt.Unit)
+	path, _, _ := strings.Cut(named, "\n")
+	body, err := os.ReadFile(path)
+	require.NoError(t, err, "the file the prompt names is written")
+	return string(body)
+}
+
+// promptValues reads the closed set a text names on the line that starts with
 // lead and goes on " one of ...", unquoted and in the order it is written.
 func promptValues(t *testing.T, text, lead string) []string {
 	t.Helper()
@@ -64,24 +76,25 @@ func TestRecordsWrittenFromWhatCrReviewStatesPassCrMerge(t *testing.T) {
 	written := 0
 	for _, prompt := range fanout.Prompts {
 		text := prompt.Text
+		schema := contractOf(t, &prompt)
 		id, numbered := finding.IDSuffix(prompt.FirstID)
 		require.True(t, numbered, "the prompt names the first id of its block")
 		id--
-		kinds := promptValues(t, text, "- kind:")
-		severities := promptValues(t, text, "- severity:")
-		sides := promptValues(t, text, "  - side: required;")
+		kinds := promptValues(t, schema, "- kind:")
+		severities := promptValues(t, schema, "- severity:")
+		sides := promptValues(t, schema, "  - side: required;")
 		assert.Equal(t, spelled(finding.Kinds()), kinds)
 		assert.Equal(t, spelled(finding.Severities()), severities)
-		assert.Equal(t, spelled(finding.Origins()), promptValues(t, text, "- suggestion_origin:"))
+		assert.Equal(t, spelled(finding.Origins()), promptValues(t, schema, "- suggestion_origin:"))
 		assert.Equal(t, spelled(git.Sides()), sides)
 		for _, field := range finding.AnchorFields() {
-			assert.Contains(t, text, "\n  - "+field.Name+": ", "the prompt names the anchor's %s", field.Name)
+			assert.Contains(t, schema, "\n  - "+field.Name+": ", "the contract names the anchor's %s", field.Name)
 		}
 
 		_, unitLine, found := strings.Cut(text, "\n## Unit "+prompt.Unit+" (§3.4)\n\n")
 		require.True(t, found)
 		path, _, _ := strings.Cut(unitLine, ",")
-		_, startLine, found := strings.Cut(text, "\n  - start_line: required; ")
+		_, startLine, found := strings.Cut(schema, "\n  - start_line: required; ")
 		require.True(t, found)
 		var first int
 		_, err := fmt.Sscanf(startLine, "an integer, %d or greater", &first)

@@ -76,53 +76,52 @@ func anchorKeys() []string {
 // §4.6.2's schema carries §6.1's value domains, not only the field names: every
 // value the decoder accepts for kind, severity, suggestion_origin and the
 // anchor's side, class's form, the id's spelling, and every key of §9.2's
-// anchor object with its Required column (audit round 14's list-25-2).
+// anchor object with its Required column (audit round 14's list-25-2). Since
+// 0.3.0 the schema is the round's contract file rather than every prompt.
 //
 // The expected sets are the decoder's own exports and the anchor struct's
-// tags, so a value the validator comes to accept that the prompt does not
+// tags, so a value the validator comes to accept that the contract does not
 // name, or the reverse, fails here.
-func TestEveryPromptStatesTheValuesARecordIsHeldTo(t *testing.T) {
-	prompts := Emit(handRound())
-	require.NotEmpty(t, prompts)
-	for _, prompt := range prompts {
-		assert.Equal(t, asStrings(finding.Kinds()), statedValues(t, prompt.Text, "- kind:"))
-		assert.Equal(t, asStrings(finding.Severities()), statedValues(t, prompt.Text, "- severity:"))
-		assert.Equal(t, asStrings(finding.Origins()), statedValues(t, prompt.Text, "- suggestion_origin:"))
-		assert.Equal(t, asStrings(git.Sides()), statedValues(t, prompt.Text, "  - side: required;"))
-		assert.Contains(t, prompt.Text, "\n- class: kebab-case, matching [a-z0-9-]+\n")
-		assert.Contains(t, prompt.Text, "\n- id: f<n>, numbered from one\n")
+func TestTheContractStatesTheValuesARecordIsHeldTo(t *testing.T) {
+	text := Contract(1)
+	assert.Equal(t, asStrings(finding.Kinds()), statedValues(t, text, "- kind:"))
+	assert.Equal(t, asStrings(finding.Severities()), statedValues(t, text, "- severity:"))
+	assert.Equal(t, asStrings(finding.Origins()), statedValues(t, text, "- suggestion_origin:"))
+	assert.Equal(t, asStrings(git.Sides()), statedValues(t, text, "  - side: required;"))
+	assert.Contains(t, text, "\n- class: kebab-case, matching [a-z0-9-]+\n")
+	assert.Contains(t, text, "\n- id: f<n>, numbered from one\n")
 
-		anchor := statedAnchor(t, prompt.Text)
-		keys := make([]string, 0, len(anchor))
-		for _, key := range anchorKeys() {
-			if _, named := anchor[key]; named {
-				keys = append(keys, key)
-			}
+	anchor := statedAnchor(t, text)
+	keys := make([]string, 0, len(anchor))
+	for _, key := range anchorKeys() {
+		if _, named := anchor[key]; named {
+			keys = append(keys, key)
 		}
-		assert.Equal(t, anchorKeys(), keys, "every key an anchor decodes is named")
-		assert.Len(t, anchor, len(anchorKeys()), "and no key it does not")
-		assert.Equal(t, map[string]string{
-			"path": "required", "side": "required", "start_line": "required", "line": "required",
-			"content_hash": "optional", "context_before": "optional", "context_after": "optional",
-		}, anchor)
-		assert.Contains(t, prompt.Text, "\n  - start_line: required; an integer, 1 or greater, the first line of the range\n")
-		assert.Contains(t, prompt.Text, "\n  - context_before: optional; up to 3 lines above the range, "+
-			"which cr records from the same tree\n")
 	}
+	assert.Equal(t, anchorKeys(), keys, "every key an anchor decodes is named")
+	assert.Len(t, anchor, len(anchorKeys()), "and no key it does not")
+	assert.Equal(t, map[string]string{
+		"path": "required", "side": "required", "start_line": "required", "line": "required",
+		"content_hash": "optional", "context_before": "optional", "context_after": "optional",
+	}, anchor)
+	assert.Contains(t, text, "\n  - start_line: required; an integer, 1 or greater, the first line of the range\n")
+	assert.Contains(t, text, "\n  - context_before: optional; up to 3 lines above the range, "+
+		"which cr records from the same tree\n")
 }
 
-// A line written from nothing but what a prompt states — every kind, every
-// severity and every side it names, on the unit and under the role the prompt
-// is for — is one the decoder `cr merge` reads a role's file through accepts.
-func TestALineWrittenFromThePromptsStatedValuesDecodes(t *testing.T) {
+// A line written from nothing but what the contract states — every kind, every
+// severity and every side it names — on the unit and under the role a prompt
+// is for, is one the decoder `cr merge` reads a role's file through accepts.
+func TestALineWrittenFromTheContractsStatedValuesDecodes(t *testing.T) {
 	r := handRound()
 	units := []string{r.Units[0].ID, r.Units[1].ID}
+	text := Contract(r.Round)
 	for _, prompt := range Emit(r) {
 		var body strings.Builder
 		n := 0
-		for _, kind := range statedValues(t, prompt.Text, "- kind:") {
-			for _, severity := range statedValues(t, prompt.Text, "- severity:") {
-				for _, side := range statedValues(t, prompt.Text, "  - side: required;") {
+		for _, kind := range statedValues(t, text, "- kind:") {
+			for _, severity := range statedValues(t, text, "- severity:") {
+				for _, side := range statedValues(t, text, "  - side: required;") {
 					n++
 					body.WriteString(`{"id":"f` + strconv.Itoa(n) + `","kind":` + strconv.Quote(kind) +
 						`,"role":` + strconv.Quote(prompt.Role) + `,"class":"unchecked-error","severity":` +

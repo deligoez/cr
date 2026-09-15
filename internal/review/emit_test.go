@@ -45,6 +45,7 @@ func handRound() *Round {
 		Hits:       []rule.Attachment{{Unit: "u1", Hits: []rule.Hit{}}, {Unit: "u2", Hits: []rule.Hit{}}},
 		Tests:      []testadequacy.Attachment{empty, empty},
 		Unmapped:   []UnmappedUnit{{Unit: "u2", Kind: finding.KindQuestion}},
+		Contract:   "/state/pr-7/rounds/1/contract.md",
 	}
 }
 
@@ -218,36 +219,58 @@ func TestAHunkFenceIsExactlyTheLengthBlockPromises(t *testing.T) {
 	}
 }
 
-// Every prompt names the NDJSON path its role writes to, and states §6.1's
-// record schema together with the fields §6.1.4 forbids the agent to write
-// (§4.6.2); an intent prompt also states §3.3's claim record.
+// forbiddenSentence is §6.1.4's fence as the prompt and the contract file state it.
+const forbiddenSentence = "You may not write axis, grade, state, disposition, duplicate_of, thread_id, span_hash, " +
+	"issue_hash, a citation's content_hash, a citation's origin, round, head. cr computes or stamps them, " +
+	"and a record arriving with one is rejected with exit code 1 (§6.1.4, §2.3.3).\n"
+
+// englishSentence is §6.1.1's rule as a whole line.
+const englishSentence = "Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
+	"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1).\n"
+
+// schemaRows are rows of §6.1's schema as the contract file lists them.
+var schemaRows = []string{
+	"\n- id: required\n", "\n- kind: required\n", "\n- axis: computed by cr\n", "\n- claim: optional\n",
+	"\n- grade: computed by cr\n", "\n- round: stamped by cr\n", "\n- origin: computed by cr\n",
+	"\n- disposition: optional, and §6.1.4 reserves it to cr\n", "\n- suppressed_by: optional\n",
+}
+
+// §4.6.2 in 0.3.0: every prompt ends on its output section, which names the
+// NDJSON path the role writes to with the record ids it may write, names the
+// round's contract file, states §6.1.1's language rule and §6.1.4's fence, and
+// no longer carries §6.1's schema, which is the contract file's; an intent
+// prompt also states §3.3's claim record.
 //
-// The path is asserted against cr merge's own reading of it. finding.RoleForFile
-// is what binds a merged file's records to a role (§6.1.3), so a prompt naming a
-// path whose base name bound some other role — or none — would have the role's
-// records refused or misattributed on the way in.
-func TestEveryPromptNamesItsOutputAndStatesTheRecordContract(t *testing.T) {
-	for _, prompt := range Emit(handRound()) {
+// The section is compared whole, and the path is asserted against cr merge's
+// own reading of it. finding.RoleForFile is what binds a merged file's records
+// to a role (§6.1.3), so a prompt naming a path whose base name bound some
+// other role — or none — would have the role's records refused or misattributed.
+func TestEveryPromptNamesItsOutputAndTheContractFile(t *testing.T) {
+	r := handRound()
+	for _, prompt := range Emit(r) {
 		assert.Equal(t, "/state/pr-7/fanout/1/"+prompt.Unit+"/review-"+prompt.Role+".ndjson", prompt.Output)
 		bound, ok := finding.RoleForFile(prompt.Output)
 		assert.True(t, ok)
 		assert.Equal(t, prompt.Role, bound, "cr merge attributes the file to the role that wrote it")
 
-		assert.Contains(t, prompt.Text, "\n    "+prompt.Output+"\n")
-		for _, row := range []string{
-			"- id: required", "- kind: required", "- axis: computed by cr", "- claim: optional",
-			"- grade: computed by cr\n", "- round: stamped by cr", "- origin: computed by cr",
-			"- disposition: optional, and §6.1.4 reserves it to cr", "- suppressed_by: optional\n",
-		} {
-			assert.Contains(t, prompt.Text, row)
+		_, section, found := strings.Cut(prompt.Text, "\n## Output (§4.6.2)\n\n")
+		require.True(t, found, "%s on %s", prompt.Role, prompt.Unit)
+		assert.Equal(t, "Write this role's records for this unit, one JSON object per line, to:\n\n"+
+			"    "+prompt.Output+"\n\n"+
+			"The file's name binds every record in it to role "+prompt.Role+": cr merge attributes a record to "+
+			"the role whose file it arrived in and rejects one naming another (§6.1.3). With nothing to "+
+			"raise, write nothing.\n\n"+
+			"Give the records you write here the ids "+prompt.FirstID+" through "+prompt.LastID+", in order from "+
+			prompt.FirstID+". No other prompt of round 1 is given any of them, and none is held by a stored "+
+			"record. An id outside them may be another prompt's, and cr merge refuses an id two records carry, "+
+			"with exit code 1 (§6.1).\n\n"+
+			"A record's fields, the values each takes, and a citation's fields are §6.1's record schema, in the "+
+			"round's contract file; read it before writing a record:\n\n"+
+			"    /state/pr-7/rounds/1/contract.md\n\n"+
+			englishSentence+"\n"+forbiddenSentence, section, "%s on %s", prompt.Role, prompt.Unit)
+		for _, row := range schemaRows {
+			assert.NotContains(t, section, row, "§6.1's schema is the contract file's, not the prompt's")
 		}
-		assert.Contains(t, prompt.Text, "You may not write axis, grade, state, disposition, duplicate_of, "+
-			"thread_id, span_hash, issue_hash, a citation's content_hash, a citation's origin, round, head.")
-		// §6.1.1's language rule is a whole line of the contract, so a
-		// prompt stating it only in passing, or not at all, fails here.
-		assert.Contains(t, prompt.Text, "\nWrite summary and evidence in English (§6.1.1), whatever language "+
-			"the issue, the threads or the code comments are in; reader-facing prose is produced from them "+
-			"at draft time (§8.1).\n")
 
 		claims := strings.Contains(prompt.Text, "## Claim record (§3.3)")
 		assert.Equal(t, prompt.Axis == axis.Intent, claims, "%s on %s", prompt.Role, prompt.Unit)
@@ -256,6 +279,21 @@ func TestEveryPromptNamesItsOutputAndStatesTheRecordContract(t *testing.T) {
 			assert.Contains(t, prompt.Text, "source is one of description, acceptance, comment, note")
 		}
 	}
+}
+
+// The contract file carries §6.1's schema: every row, §6.1.1's language rule and
+// §6.1.4's fence, each as a whole line, under a heading naming its round.
+func TestTheContractFileCarriesTheRecordSchema(t *testing.T) {
+	text := Contract(3)
+	assert.True(t, strings.HasPrefix(text, "# Record contract for round 3 (§4.6.2)\n\n"+
+		"Every prompt of round 3 names this file. A role writes its records to the path its prompt names, "+
+		"one JSON object per line, with the ids its prompt names.\n\n## Record schema (§6.1)\n\n"+
+		"A record carries §6.1's fields:\n- id: required\n"), text)
+	for _, row := range schemaRows {
+		assert.Contains(t, text, row)
+	}
+	assert.Contains(t, text, "\n"+englishSentence)
+	assert.True(t, strings.HasSuffix(text, "\n\n"+forbiddenSentence), text)
 }
 
 // §2.6.1.4's standards without a detector reach the prompt of their axis's
