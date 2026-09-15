@@ -951,6 +951,10 @@ func reportProbe(
 // A probe §5.1.7 voided says so too, naming what the post-run check found. Its
 // `error` is not the ladder's, and a reader told only `error` cannot tell a
 // suite that writes into tracked files from a runner that broke.
+//
+// So does a probe whose result would have counted but for its baseline (field
+// feedback 1.7): on a suite that already fails, `establishes` reads `nothing`
+// beside a `no-test-failed`, and nothing else in the document says why.
 func probeDisclosures(setup *probeSetup, finished *finishedProbe) []string {
 	disclosed := recreationNotice(setup.ready)
 	if finished.outcome.Voided() {
@@ -958,10 +962,41 @@ func probeDisclosures(setup *probeSetup, finished *finishedProbe) []string {
 			"probe %s voided, per §5.1.7: %s; its result is error, it grades no finding, "+
 				"and the sandbox is recreated before the next run", finished.probeID, finished.unclean))
 	}
+	if unfounded := unpassedBaseline(finished); unfounded != "" {
+		disclosed = append(disclosed, unfounded)
+	}
 	if spent := setup.capped.Ran(); spent.Reached() {
 		disclosed = append(disclosed, spent.Disclosure())
 	}
 	return disclosed
+}
+
+// unpassedBaseline is the disclosure of a probe whose result is the one its
+// kind's section reads — §5.3.5's `no-test-failed`, §5.4.4's `failed` — over a
+// baseline that did not pass per §5.2.5, naming that baseline and its failed
+// count, and empty for every other probe. Every other result establishes the
+// same whatever the baseline, so naming the baseline there would blame it for
+// nothing.
+func unpassedBaseline(finished *finishedProbe) string {
+	baseline := finished.performed.baseline
+	if baseline.Passed() {
+		return ""
+	}
+	failed := "no tests_failed was derivable"
+	if count, counted := baseline.Failed(); counted {
+		failed = fmt.Sprintf("tests_failed %d", count)
+	}
+	switch {
+	case probe.Proven(finished.record):
+		return fmt.Sprintf("probe %s establishes no gap: its baseline run %s did not pass per §5.2.5 (%s), "+
+			"and §5.3.5 lets no-test-failed prove a gap only over a baseline that passed",
+			finished.probeID, baseline.ID(), failed)
+	case probe.Reproduces(finished.record):
+		return fmt.Sprintf("probe %s supports no finding: its baseline run %s did not pass per §5.2.5 (%s), "+
+			"and §5.4.4 lets a failed gap probe support a finding only over a baseline that passed",
+			finished.probeID, baseline.ID(), failed)
+	}
+	return ""
 }
 
 // performedProbe is everything the locked half of a probe produced.
