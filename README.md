@@ -86,6 +86,7 @@ cr record 1 merged.ndjson
 cr sandbox create 1
 cr probe run 1 --kind mutation --patch mutation.diff
 cr draft 1                                        # edit the draft it names
+cr triage 1 f14 soften --body-file question.md    # or let cr make that edit
 cr post 1                                         # validate and print the payload
 cr post 1 --confirm                               # the only network write
 ```
@@ -121,6 +122,7 @@ already have posted.
 | `cr test <pr> [--filter <f>]` | Run the profile's test command inside the sandbox |
 | `cr probe run <pr> --kind mutation\|gap ...` | Execute and record a probe (`--patch`, `--test`, `--target`, `--filter`) |
 | `cr draft <pr>` | Render the editable draft and read back its triage |
+| `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <path>\|-]` | Apply one triage verb to the draft, as the hand edit would |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review; resolve an unknown outcome |
 | `cr answer <pr> <record-id> <text> [--source <s>]` | Store the answer to a posted question as a note |
 | `cr note <ISSUE-KEY> <text> --pr <n> [--source <s>]` | Store an out-of-band fact |
