@@ -188,14 +188,22 @@ type ClaimsRequiredError struct {
 	Owner string
 	Repo  string
 	PR    int
+	// IntentFile is the `--intent-file` the round was briefed from, empty
+	// when it ran the tracker command, so the command named reads the same
+	// issue text.
+	IntentFile string
 }
 
 func (e *ClaimsRequiredError) Error() string {
+	intentFile := ""
+	if e.IntentFile != "" {
+		intentFile = " --intent-file " + e.IntentFile
+	}
 	return fmt.Sprintf(
 		"round %d at head %s has recorded no claims, so the intent pass cannot carry them; §4.6.5's "+
-			"first pass emits the units and the claims: run `cr claims record %d --repo %s/%s <file.ndjson>`, "+
+			"first pass emits the units and the claims: run `cr claims record %d --repo %s/%s%s <file.ndjson>`, "+
 			"with an empty file when the issue yields no claim, and run this again",
-		e.Round, e.Head, e.PR, e.Owner, e.Repo)
+		e.Round, e.Head, e.PR, e.Owner, e.Repo, intentFile)
 }
 
 // Run gathers one round's attachments and emits §4.6.1's prompts over them.
@@ -290,7 +298,9 @@ func refuseWithoutClaims(src *Sources, r *Round, axes activation.Activation, met
 	if pass.ClaimsHeld() {
 		return nil
 	}
-	return &ClaimsRequiredError{Round: r.Round, Head: r.Head, Owner: src.Owner, Repo: src.Repo, PR: src.PR}
+	return &ClaimsRequiredError{
+		Round: r.Round, Head: r.Head, Owner: src.Owner, Repo: src.Repo, PR: src.PR, IntentFile: meta.IntentFile,
+	}
 }
 
 // refuseWithoutMapping is §4.6.5's last sentence: the remaining axes are refused

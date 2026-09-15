@@ -50,6 +50,11 @@ type Meta struct {
 	// does, so the recording is stamped here for the reason the mapping is.
 	ClaimsRound int    `json:"claims_round"`
 	ClaimsHead  string `json:"claims_head"`
+	// IntentFile is the `--intent-file` the last `cr brief` read the issue
+	// from, made absolute, and absent when it ran the tracker command. A
+	// refusal that names `cr claims record` names the flag with it, since
+	// that command reads the issue again and runs the tracker without it.
+	IntentFile string `json:"intent_file,omitempty"`
 }
 
 // ClaimsRecorded reports whether meta.json's claims stamp names the round and
