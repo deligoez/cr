@@ -440,6 +440,7 @@ source of truth; this table is a map, not a promise.
 | `cr test <pr> [--filter]` | Run the suite inside the sandbox |
 | `cr probe run <pr> --kind <kind> ...` | Execute and record a mutation or gap probe |
 | `cr draft <pr>` | Render the editable draft |
+| `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <f>\|-]` | Apply one triage verb to the draft, as the hand edit would (§7.2.4) |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the round's one review; settle an unknown outcome |
 | `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
 | `cr note <ISSUE-KEY> <text> --pr <n>` / `--remove <id>` | Store or retract an out-of-band fact |
