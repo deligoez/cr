@@ -43,6 +43,12 @@ type mergeResult struct {
 	AlreadyPosted finding.PostedDrops `json:"already_posted"`
 	// Overlaps is §6.4.3's overlap summary over the groups §6.4.1 formed.
 	Overlaps finding.Overlaps `json:"overlaps"`
+	// PossibleDuplicates are the pairs of merged records a shared citation,
+	// or a citation inside the other's anchor, joins. They are listed here
+	// and never on a record line: §6.5.1 lets the output file carry no
+	// computed field but `duplicate_of`, and §6.1.4 would refuse one at
+	// `cr record`. Nothing is dropped for being listed.
+	PossibleDuplicates []finding.PossibleDuplicate `json:"possible_duplicates"`
 	// Counts is §6.5.1's four breakdowns over the records the file holds.
 	Counts mergeCounts `json:"counts"`
 	// Honesty carries the three counts above as the sentences §11.1
@@ -51,14 +57,22 @@ type mergeResult struct {
 }
 
 // Text names the file and how many records reached it, then §6.5.1's four
-// breakdowns, then the three disclosures. The records themselves are in the
-// file the line names, so printing them into a terminal would repeat what the
-// caller can already read.
+// breakdowns, then the possible duplicate pairs, then the three disclosures.
+// The records themselves are in the file the line names, so printing them into
+// a terminal would repeat what the caller can already read.
 func (r *mergeResult) Text(w *writer) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "merged %s record(s) into %s", w.accent(strconv.Itoa(r.Merged)), r.Output)
 	for _, line := range r.Counts.lines() {
 		fmt.Fprintf(&out, "\n%s", line)
+	}
+	fmt.Fprintf(&out, "\npossible duplicate pairs: %d", len(r.PossibleDuplicates))
+	for _, pair := range r.PossibleDuplicates {
+		links := make([]string, 0, len(pair.Links))
+		for _, link := range pair.Links {
+			links = append(links, string(link))
+		}
+		fmt.Fprintf(&out, "\n  %s: %s", strings.Join(pair.Records, " and "), strings.Join(links, ", "))
 	}
 	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
@@ -78,7 +92,7 @@ func newMergeResult(output string, merged *mergeOutcome) *mergeResult {
 	return &mergeResult{
 		Output: output, Merged: len(merged.records),
 		Waived: merged.waived, AlreadyPosted: merged.posted, Overlaps: merged.overlaps,
-		Counts: merged.counts, Honesty: honesty,
+		PossibleDuplicates: merged.possible, Counts: merged.counts, Honesty: honesty,
 	}
 }
 
@@ -283,7 +297,10 @@ type mergeOutcome struct {
 	waivedKeys []intakeKey
 	postedKeys []intakeKey
 	overlaps   finding.Overlaps
-	counts     mergeCounts
+	// possible is field-feedback 2.4's listing over the records that reach
+	// the output file, read after §6.4.3's marks.
+	possible []finding.PossibleDuplicate
+	counts   mergeCounts
 }
 
 // mergeRecords reads every per-role file and applies §6.5.1's four passes in
@@ -337,7 +354,10 @@ func mergeRecords(
 		return nil, err
 	}
 	// §6.4.1 and §6.4.2, and the `duplicate_of` §6.5.1 lets this command
-	// write. The state §6.4.3 names is `cr record`'s to stamp.
+	// write. The state §6.4.3 names is `cr record`'s to stamp. The possible
+	// duplicates are read after the marks, because a record the marks
+	// suppressed is left out of every pair.
+	overlaps := finding.MarkDuplicates(kept, role.Order(corpus))
 	return &mergeOutcome{
 		records:    kept,
 		raised:     len(records),
@@ -345,7 +365,8 @@ func mergeRecords(
 		posted:     posted,
 		waivedKeys: droppedKeys(records, unwaived),
 		postedKeys: droppedKeys(unwaived, kept),
-		overlaps:   finding.MarkDuplicates(kept, role.Order(corpus)),
+		overlaps:   overlaps,
+		possible:   finding.PossibleDuplicates(kept),
 		// §6.5.1's four breakdowns, over the records that reach the
 		// output file and after every pass that could remove one.
 		counts: mergeCountsOf(corpus, kept),
