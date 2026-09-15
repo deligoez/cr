@@ -49,10 +49,13 @@ func TestTheShippedLaravelPestProfileFillsEveryFieldItNeeds(t *testing.T) {
 		assert.True(t, enabled, "axes must enable %s", id)
 	}
 
-	// A git worktree carries tracked files only, so the two a Laravel suite
-	// cannot boot without are copied, and composer reconciles the copied
-	// vendor with the lock file at the head under review.
-	assert.Equal(t, []string{".env", "vendor"}, p.Sandbox.Copy)
+	// A git worktree carries tracked files only, so the untracked files a
+	// Laravel suite reads are copied, and composer reconciles the copied
+	// vendor with the lock file at the head under review. `.env.testing` is
+	// among them because Laravel boots its tests under APP_ENV=testing and,
+	// when that file is absent, falls back to `.env` — the developer's own
+	// application database (spec/field-feedback.md, 2.1).
+	assert.Equal(t, []string{".env", ".env.testing", "vendor"}, p.Sandbox.Copy)
 	require.Len(t, p.Sandbox.Setup, 1)
 	assert.Contains(t, p.Sandbox.Setup[0], "composer install")
 

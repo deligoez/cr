@@ -18,7 +18,7 @@
     "test": true
   },
   "sandbox": {
-    "copy": [".env", "vendor"],
+    "copy": [".env", ".env.testing", "vendor"],
     "setup": ["composer install --no-interaction --prefer-dist --no-progress"]
   },
   "tests": {
