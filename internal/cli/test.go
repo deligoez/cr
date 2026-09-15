@@ -186,7 +186,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				Setup:       resolved.Sandbox.Setup,
 				ProfileFile: file,
 			}
-			ready, err := ensureAnnounced(cmd, out, src, resolved.LeftoverGlob(), argv)
+			ready, uncopied, err := ensureAnnounced(cmd, out, src, resolved.LeftoverGlob(), argv)
 			if err != nil {
 				return err
 			}
@@ -276,7 +276,8 @@ func newTestCmd(out *writer) *cobra.Command {
 				TimedOut:     timedOut,
 				Contaminated: contaminated,
 				Warnings:     []string{probe.CollisionWarning()},
-				Honesty:      append(recreationNotice(ready), resolved.StaleDisclosures()...),
+				Honesty: append(append(recreationNotice(ready), uncopied...),
+					resolved.StaleDisclosures()...),
 			})
 		},
 	}

@@ -23,6 +23,9 @@ type experimentHeader struct {
 	command []string
 	// sandbox is the worktree it runs in.
 	sandbox string
+	// recreated is §5.1.6's recreation of that worktree before this run,
+	// and nil when the check admitted it as it stood.
+	recreated *sandbox.Recreated
 	// env is the clone root's gitignored `.env*` files beside the sandbox.
 	env *sandbox.EnvFiles
 	// baseline is §5.2.2's unfiltered argv when that baseline runs first,
@@ -35,9 +38,14 @@ func (h *experimentHeader) lines() []string {
 	lines := []string{
 		"experiment " + strings.Join(h.command, " "),
 		"  sandbox    " + h.sandbox,
-		"  env files  " + listed(h.env.Ignored) + " gitignored at the clone root",
-		"  in sandbox " + listed(h.env.Held),
 	}
+	if h.recreated != nil {
+		lines = append(lines, "  recreated  per §5.1.6: "+h.recreated.Reason)
+	}
+	lines = append(lines,
+		"  env files  "+listed(h.env.Ignored)+" gitignored at the clone root",
+		"  in sandbox "+listed(h.env.Held),
+	)
 	for _, sentence := range h.env.Disclosures() {
 		lines = append(lines, "  not copied "+sentence)
 	}
@@ -54,29 +62,36 @@ func (h *experimentHeader) announce(out *writer, stderr io.Writer) error {
 	return err
 }
 
-// announceExperiment compares the sandbox at path with src's clone and prints
-// the header for a run of command, and of baseline first when it is not nil.
+// announceExperiment compares the sandbox ready admitted with src's clone and
+// prints the header for a run of command, and of baseline first when it is not
+// nil. It returns the header's env-file sentences, which the command's document
+// carries under honesty too, so a caller that keeps only standard output is
+// told what the header said.
 func announceExperiment(
-	cmd *cobra.Command, out *writer, src *sandbox.Sources, path string, command, baseline []string,
-) error {
-	env, err := sandbox.CompareEnvFiles(src, path)
+	cmd *cobra.Command, out *writer, src *sandbox.Sources, ready *sandbox.Ready, command, baseline []string,
+) ([]string, error) {
+	env, err := sandbox.CompareEnvFiles(src, ready.Path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	header := &experimentHeader{command: command, sandbox: path, env: env, baseline: baseline}
-	return header.announce(out, cmd.ErrOrStderr())
+	header := &experimentHeader{
+		command: command, sandbox: ready.Path, recreated: ready.Recreated, env: env, baseline: baseline,
+	}
+	return env.Disclosures(), header.announce(out, cmd.ErrOrStderr())
 }
 
 // ensureAnnounced is `cr test`'s §5.1.6 check, which rebuilds a sandbox that
 // fails it, followed by the header for a run of command in the sandbox it
-// admitted. A probe announces later, once §5.6.1's lock says which baselines
-// the head still lacks.
+// admitted, and returns that sandbox with the header's env-file sentences. A
+// probe announces later, once §5.6.1's lock says which baselines the head still
+// lacks.
 func ensureAnnounced(
 	cmd *cobra.Command, out *writer, src *sandbox.Sources, glob string, command []string,
-) (*sandbox.Ready, error) {
+) (*sandbox.Ready, []string, error) {
 	ready, err := sandbox.Ensure(src, glob)
 	if err != nil {
-		return nil, headNotFetched(cmd, src.Owner, src.Repo, src.PR, err)
+		return nil, nil, headNotFetched(cmd, src.Owner, src.Repo, src.PR, err)
 	}
-	return ready, announceExperiment(cmd, out, src, ready.Path, command, nil)
+	uncopied, err := announceExperiment(cmd, out, src, ready, command, nil)
+	return ready, uncopied, err
 }
