@@ -351,7 +351,7 @@ var gitReads = map[string]string{
 	"cat-file":   "§6.2.3's read of the cited line as the head holds it, and §4.3.1's read of a source file to index",
 	"worktree":   "§5.1.1's sandbox worktree, the one write §2.2 permits",
 	"rev-parse":  "§5.1.6's check that the sandbox HEAD is still the round's head, and §5.6.1's repository root the probe lock is named after",
-	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked",
+	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked, and the clone root's gitignored `.env*` names the experiment header lists",
 	"check-attr": "§3.4.7's question of whether the head declares a file generated",
 	"remote":     "§11.1's repository detection, which reads `git remote -v` and nothing else",
 }
