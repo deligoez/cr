@@ -124,3 +124,53 @@ func TestStandingOfTellsCurrentStaleAndEditedApart(t *testing.T) {
 		})
 	}
 }
+
+// A parsed profile carries the sentence for a file an earlier release shipped,
+// and nothing for the current profile or an edited one. The sentence names the
+// file it was parsed as, because that is the file `cr init` updates.
+func TestAParsedProfileNamesTheReleaseThatShippedItsBytes(t *testing.T) {
+	previous, err := shipped.ReadFile("builtin/shipped/v0.2.1/laravel-pest.json")
+	require.NoError(t, err)
+	edited := bytes.Replace(previous, []byte(`"lang": "php"`), []byte(`"lang": "hack"`), 1)
+	const file = "/home/dev/.cr/profiles/laravel-pest.json"
+
+	cases := map[string]struct {
+		content []byte
+		want    []string
+	}{
+		"v0.2.1's bytes": {previous, []string{file + " is the laravel-pest profile cr v0.2.1 shipped, unedited, " +
+			"and the shipped profile has since changed sandbox.copy; cr init updates the file to it"}},
+		"the current bytes": {[]byte(laravelPest), []string{}},
+		"an edited file":    {edited, []string{}},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			p, err := Parse(file, tc.content)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, p.StaleDisclosures())
+		})
+	}
+}
+
+// changedFields descends into objects and compares everything else whole, so
+// a key on one side only is named, a nested change is named by its dotted path,
+// and a list is named once however many of its entries moved.
+func TestChangedFieldsNamesEveryDifferingFieldByItsDottedPath(t *testing.T) {
+	cases := map[string]struct {
+		before, after string
+		want          []string
+	}{
+		"nothing differs":         {`{"a": {"b": [1, 2]}}`, `{"a":{"b":[1,2]}}`, []string{}},
+		"a list gained an entry":  {`{"s": {"copy": ["x"]}}`, `{"s": {"copy": ["x", "y"]}}`, []string{"s.copy"}},
+		"a key on one side only":  {`{"a": 1}`, `{"a": 1, "b": {"c": 2}}`, []string{"b"}},
+		"a key removed":           {`{"a": 1, "z": 2}`, `{"a": 1}`, []string{"z"}},
+		"several, sorted":         {`{"t": {"cmd": ["a"]}, "a": 1}`, `{"t": {"cmd": ["b"]}, "a": 2}`, []string{"a", "t.cmd"}},
+		"an object became a list": {`{"a": {"b": 1}}`, `{"a": [1]}`, []string{"a"}},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, changedFields([]byte(tc.before), []byte(tc.after)))
+		})
+	}
+	assert.Nil(t, changedFields([]byte(`{`), []byte(`{}`)), "a document that does not decode names nothing")
+}
