@@ -78,8 +78,23 @@ func TestNoCommandAcceptsABodyArgumentOrABodyField(t *testing.T) {
 	flags := everyFlagInTheTree(root)
 	require.NotEmpty(t, flags, "a walk that found no flag proves nothing")
 	for _, name := range flags {
+		// §7.2.4's `cr triage --body-file` is the one exemption: it
+		// writes the content into draft.md as the matching hand edit
+		// does, so the body still reaches cr through the draft.
+		if name == triageBodyFlag {
+			continue
+		}
 		assert.NotContainsf(t, strings.ToLower(name), bodyWord,
 			"§8.1.2: --%s would be a second channel for a body", name)
+	}
+	triage, _, err := root.Find([]string{"triage"})
+	require.NoError(t, err)
+	require.NotNil(t, triage.Flag(triageBodyFlag), "the exemption names a flag the tree has")
+	for _, other := range root.Commands() {
+		if other != triage {
+			assert.NotContainsf(t, everyFlagInTheTree(other), triageBodyFlag,
+				"§8.1.2: --%s is exempt on `cr triage` alone", triageBodyFlag)
+		}
 	}
 
 	uses := everyUseInTheTree(root)
