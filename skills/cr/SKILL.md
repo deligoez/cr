@@ -868,12 +868,16 @@ current or edited file:
 ```json
 {
   "honesty": [
-    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed sandbox.copy; cr init updates the file to it"
+    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed sandbox.copy; cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"
   ]
 }
 ```
 
 Run `cr init` when you see it; no command rewrites a profile while loading it.
+A sandbox created under the old profile is not left behind: the next `cr test`
+or `cr probe run` finds it lacking a file the updated `sandbox.copy` names and
+the checkout holds, such as `.env.testing`, recreates it before the runner
+starts, and names the file in the header's `recreated` line.
 
 ```json
 {
