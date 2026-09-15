@@ -255,6 +255,10 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
+	// §8.1.5 over the same bodies, warned about here and refused only by
+	// `cr post`: a question §6.3.1 forced holds statement prose until the
+	// agent rewrites it in the draft this run is about to write.
+	warnings = append(warnings, draft.QuestionWarnings(queued, triage.Preserved)...)
 	if err := waiveDiscards(l, owner, repo, pr, triage.discarded()); err != nil {
 		return err
 	}
