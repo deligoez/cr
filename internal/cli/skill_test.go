@@ -23,9 +23,9 @@ import (
 // makes it a global override on every command rather than part of one.
 func specCommands(t *testing.T) []string {
 	t.Helper()
-	spec := string(repoFile(t, "spec/0.1.0.md"))
+	spec := string(repoFile(t, "spec/0.3.0.md"))
 	start := strings.Index(spec, "\n## 11. ")
-	require.GreaterOrEqual(t, start, 0, "spec/0.1.0.md has no §11 heading")
+	require.GreaterOrEqual(t, start, 0, "spec/0.3.0.md has no §11 heading")
 	end := strings.Index(spec[start:], "\n### 11.1 ")
 	require.Positive(t, end, "§11's command table has no §11.1 after it")
 
