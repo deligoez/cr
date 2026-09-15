@@ -184,7 +184,9 @@ cr claims set-aside 1 CR-5#c1 --note CR-5#n1
 
 A set-aside holds only while its note stands. After `cr note --remove` of that
 note, `cr status` leaves the claim out of `intent.set_aside`, lists it under
-`unstanding_notes`, and names it again in the §10.2.3 completeness reason.
+`unstanding_notes`, and names it again in the §10.2.3 completeness reason. In a
+terminal its gap line reads `CR-5#c1 (set-aside note CR-5#n1 retracted)` rather
+than `(set aside by CR-5#n1)`.
 
 ### 3. Merge and record
 
