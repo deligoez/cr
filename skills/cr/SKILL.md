@@ -744,9 +744,12 @@ citation is rendered verbatim for the human to judge.
 
 When a finding rests on a predicate, condition or rule that appears in more
 than one place, the built-in `correctness` role asks you to search the head for
-its other occurrences, cite each one found, and say in `evidence` which
-occurrences you checked: a fix made only where the record points leaves the
-others standing.
+its other occurrences and name them in `evidence`, saying which you checked: a
+fix made only where the record points leaves the others standing. They are not
+citations, since another copy of the code shows where the rule appears, not that
+it is wrong. A citation is a location that shows the premise of the defect: the
+definition the code violates, the caller that passes the value it mishandles,
+the constant or enum it disagrees with.
 
 ## Comment economy
 
