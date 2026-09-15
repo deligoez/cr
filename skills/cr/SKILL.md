@@ -722,6 +722,12 @@ it points at the code the record is already about. A `cited` grade means only th
 a human-checkable location was supplied, not that it supports the summary; every
 citation is rendered verbatim for the human to judge.
 
+When a finding rests on a predicate, condition or rule that appears in more
+than one place, the built-in `correctness` role asks you to search the head for
+its other occurrences, cite each one found, and say in `evidence` which
+occurrences you checked: a fix made only where the record points leaves the
+others standing.
+
 ## Comment economy
 
 A review comment spends the reviewer's standing with the author, so volume is a
