@@ -99,6 +99,39 @@ func TestTheIntentPassRefusesARoundWithNoClaimsRecorded(t *testing.T) {
 		"the recorded claims are what the first pass carries")
 }
 
+// v0.2.2 QA D-S22-3 from the other side: a round `cr brief` last read through
+// the tracker command is refused naming `cr claims record` without
+// `--intent-file`, since running it that way reads the same tracker. A brief
+// given a relative file afterwards has the refusal name it absolute.
+func TestTheIntentPassRefusalNamesTheIntentFileTheLastBriefRead(t *testing.T) {
+	_, issue, _ := rerecordHome(t)
+	tracker := filepath.Join(t.TempDir(), "tracker")
+	require.NoError(t, os.WriteFile(tracker, []byte("#!/bin/sh\ncat "+issue+"\n"), 0o700))
+	t.Setenv("CR_INTENT_CMD", `["`+tracker+`","issue","view","{key}"]`)
+	refusal := func(intentFile string) string {
+		t.Helper()
+		_, err := runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug, "--axis", axis.Intent)
+		var required *review.ClaimsRequiredError
+		require.ErrorAs(t, err, &required)
+		return "round 1 at head " + required.Head + " has recorded no claims, so the intent pass cannot carry them; " +
+			"§4.6.5's first pass emits the units and the claims: run `cr claims record " + fixturePR + " --repo " +
+			fixtureSlug + intentFile + " <file.ndjson>`, with an empty file when the issue yields no claim, " +
+			"and run this again"
+	}
+
+	_, err := runCLIPrinting(t, "brief", fixturePR, "--repo", fixtureSlug, "--issue", fixtureIssue)
+	require.NoError(t, err)
+	_, err = runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug, "--axis", axis.Intent)
+	assert.Equal(t, refusal(""), err.Error(), "a tracker brief names no --intent-file")
+
+	t.Chdir(filepath.Dir(issue))
+	_, err = runCLIPrinting(t, "brief", fixturePR, "--repo", fixtureSlug, "--issue", fixtureIssue,
+		"--intent-file", filepath.Base(issue))
+	require.NoError(t, err)
+	_, err = runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug, "--axis", axis.Intent)
+	assert.Equal(t, refusal(" --intent-file "+issue), err.Error(), "a relative file is named absolute")
+}
+
 // claimsStampRemoved takes meta.json's claims stamp off the round, which is a
 // round whose claims were stored before the stamp existed, or none at all.
 func claimsStampRemoved(t *testing.T, layout state.Layout) {
