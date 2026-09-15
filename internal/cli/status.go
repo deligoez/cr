@@ -56,6 +56,10 @@ type intentCoverage struct {
 	// checking whether their set-asides survived a re-recorded mapping has
 	// one number to look at rather than a diff of two runs.
 	SetAside int `json:"set_aside"`
+	// fallen is, beside each of Gaps, the standing of its §4.1.8 note when
+	// that note no longer stands, and empty otherwise. It is unexported, so
+	// the document keeps its shape: `unstanding_notes` says the same there.
+	fallen []note.Standing
 }
 
 // statusResult is §10.1's coverage report for one round.
@@ -152,7 +156,7 @@ func (r *statusResult) Text(w *writer) string {
 		strconv.Itoa(len(r.Intent.Gaps)) + " unimplemented (" +
 		strconv.Itoa(r.Intent.SetAside) + " set aside)\n")
 	for i := range r.Intent.Gaps {
-		out.WriteString("  " + r.Intent.Gaps[i].Claim + gapNote(&r.Intent.Gaps[i]) + "\n")
+		out.WriteString("  " + r.Intent.Gaps[i].Claim + gapNote(&r.Intent.Gaps[i], r.Intent.fallen[i]) + "\n")
 	}
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
 	out.WriteString(r.recordLines())
@@ -198,9 +202,16 @@ func (r *statusResult) noteLines() string {
 // gapNote names the §4.1.8 note a gap entry was set aside by, and nothing at
 // all when it carries none: §4.1.3 writes the field on every entry, so an empty
 // one is a claim nobody has judged rather than a set-aside without a note.
-func gapNote(gap *mapping.Gap) string {
+//
+// fell is the standing of that note when it no longer stands, and then the
+// entry is not called set aside: §10.1.2's count and §10.2.3 leave it out, and
+// the line names the note with its standing as §3.6.6's report does.
+func gapNote(gap *mapping.Gap, fell note.Standing) string {
 	if gap.SetAsideNote == "" {
 		return ""
+	}
+	if fell != "" {
+		return " (set-aside note " + gap.SetAsideNote + " " + string(fell) + ")"
 	}
 	return " (set aside by " + gap.SetAsideNote + ")"
 }
@@ -497,11 +508,16 @@ func intentCoverageOf(
 		}
 	}
 	report := intentCoverage{Claims: len(claims), Gaps: make([]mapping.Gap, 0, len(stored))}
+	report.fallen = make([]note.Standing, 0, len(stored))
 	for i := range stored {
 		report.Gaps = append(report.Gaps, stored[i])
+		fell := note.Standing("")
 		if setAsideStands(&stored[i], notes) {
 			report.SetAside++
+		} else if stored[i].SetAsideNote != "" {
+			fell = note.StandingOf(notes, stored[i].SetAsideNote)
 		}
+		report.fallen = append(report.fallen, fell)
 	}
 	mapped := mappedSet(pairs, round)
 	report.Mapped = mappedClaims(claims, mapped)
