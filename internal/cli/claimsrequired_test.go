@@ -74,12 +74,12 @@ func TestTheIntentPassRefusesARoundWithNoClaimsRecorded(t *testing.T) {
 	var required *review.ClaimsRequiredError
 	require.ErrorAs(t, err, &required)
 	assert.Equal(t, review.ClaimsRequiredError{
-		Round: 1, Head: meta.Head, Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		Round: 1, Head: meta.Head, Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber, IntentFile: issue,
 	}, *required)
 	assert.Equal(t, "round 1 at head "+meta.Head+" has recorded no claims, so the intent pass cannot carry them; "+
 		"§4.6.5's first pass emits the units and the claims: run `cr claims record "+fixturePR+" --repo "+
-		fixtureSlug+" <file.ndjson>`, with an empty file when the issue yields no claim, and run this again",
-		err.Error())
+		fixtureSlug+" --intent-file "+issue+" <file.ndjson>`, with an empty file when the issue yields no claim, "+
+		"and run this again", err.Error(), "v0.2.2 QA D-S22-3: the round was briefed from a file")
 	assert.Equal(t, ExitState, exitCodeFor(err))
 	assert.Equal(t, "record the round's claims with `cr claims record <pr> <file.ndjson>` first, "+
 		"an empty file when the issue yields none", hintFor(err))
