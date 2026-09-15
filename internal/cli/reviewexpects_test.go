@@ -11,6 +11,7 @@ import (
 
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/review"
+	"github.com/deligoez/cr/internal/state"
 )
 
 // expectsTwoCells is a fan-out whose round owes two cells, one per role, for
@@ -60,4 +61,39 @@ func TestAReviewReportsTheCellsItExpectsToBeFilled(t *testing.T) {
 		{"unit": "u1", "role": "correctness"},
 		{"unit": "u1", "role": "convention", "recorded": true},
 	}, payload.Expected)
+}
+
+// `cr review` marks the expected cells coverage.ndjson holds for the round and
+// head, and only those, and still emits every prompt (field-feedback 1.6).
+//
+// statusHome files a pass cell on u1 from every active role and none on u2, so
+// the three u1 entries are marked and the three u2 entries are not; with the
+// cells taken away, no entry is marked and the prompts are the same six.
+func TestAReviewMarksTheExpectedCellsTheRoundHasRecorded(t *testing.T) {
+	statusHome(t)
+
+	withCells := fanoutOf(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileCoverage, []byte{}))
+	require.NoError(t, held.Unlock())
+	withoutCells := fanoutOf(t)
+
+	expected := func(recordedUnit string) []review.ExpectedCell {
+		cells := make([]review.ExpectedCell, 0, 6)
+		for _, unitID := range []string{"u1", "u2"} {
+			for _, role := range []string{"convention", "correctness", "intent-coverage"} {
+				cells = append(cells, review.ExpectedCell{
+					Expected: coverage.Expected{Unit: unitID, Role: role}, Recorded: unitID == recordedUnit,
+				})
+			}
+		}
+		return cells
+	}
+	assert.Equal(t, expected("u1"), withCells.Expected)
+	assert.Equal(t, expected(""), withoutCells.Expected)
+	assert.Len(t, withCells.Prompts, 6, "§4.6.1: a recorded cell's prompt is still emitted")
+	assert.Len(t, withoutCells.Prompts, 6)
 }
