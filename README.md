@@ -55,7 +55,10 @@ go install github.com/deligoez/cr/cmd/cr@latest  # or Go
 (`cr` does not pass `GH_TOKEN` to it), and a tracker command
 (`intent.cmd`, default `jira issue view {key} --plain`) unless the issue text is
 passed with `--intent-file`. State lives under `~/.cr/` (`CR_HOME` overrides it);
-`cr` never writes inside the repository under review.
+`cr` never writes inside the repository under review. Beside each round's
+`rounds/<n>/summary.json`, `rounds/<n>/intake.json` holds the record ids and
+§6.4.1 identities `cr merge` and `cr record` dropped, which the summary counts
+without naming.
 
 The Claude Code skill that teaches an agent the loop ships in this repository at
 [`skills/cr/SKILL.md`](skills/cr/SKILL.md).
