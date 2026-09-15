@@ -187,3 +187,180 @@ func TestAHeaderNamesACopiedFileTheSandboxStillLacks(t *testing.T) {
 		"env .env\n"+recapLine, stderr)
 	assert.Equal(t, []any{sentence}, honestyList(t, stdout))
 }
+
+// rewritingFixture is envFixture's clone holding a gitignored `.env`, with a
+// profile copying it and a §5.1.3 setup that appends to the sandbox's copy,
+// the way `php artisan key:generate` does, and a sandbox already created.
+func rewritingFixture(t *testing.T) (sandboxPath, runner, profileFile string) {
+	t.Helper()
+	_, sandboxPath, runner, profileFile = envFixture(t, []string{".env"}, ".env")
+	rewrite := filepath.Join(t.TempDir(), "rewrite.sh")
+	require.NoError(t, os.WriteFile(rewrite, []byte("#!/bin/sh\necho 'APP_KEY=generated' >> .env\n"), 0o700))
+	rewriteProfile(t, profileFile, runner, []string{".env"}, []string{rewrite})
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	return sandboxPath, runner, profileFile
+}
+
+// v0.2.2 QA D-S22b-2: a copied file the setup rewrote is compared by the
+// checkout's presence, not skipped. Deleted from the sandbox, it makes the
+// sandbox stale: `cr test` recreates it, the setup rewrites the file again, and
+// the next run recreates nothing. A clone edit to that file is still not
+// detected, which is the limitation the exemption keeps.
+func TestATestRunRecreatesASandboxThatLostAFileSetupRewrote(t *testing.T) {
+	sandboxPath, runner, profileFile := rewritingFixture(t)
+	require.NoError(t, os.Remove(filepath.Join(sandboxPath, ".env")))
+
+	reason := "sandbox.copy in " + profileFile + " names .env, which the checkout " +
+		checkout(t) + " holds and the sandbox does not"
+	unchanged := "experiment " + runner + "\n" +
+		"  sandbox    " + sandboxPath + "\n" +
+		"  env files  .env gitignored at the clone root\n" +
+		"  in sandbox .env\n" +
+		"env .env\n" + recapLine
+	stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, "experiment "+runner+"\n"+
+		"  sandbox    "+sandboxPath+"\n"+
+		"  recreated  per §5.1.6: "+reason+"\n"+
+		"  env files  .env gitignored at the clone root\n"+
+		"  in sandbox .env\n"+
+		"env .env\n"+recapLine, stderr)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: " + reason}, honestyList(t, stdout))
+	rewritten, err := os.ReadFile(filepath.Join(sandboxPath, ".env"))
+	require.NoError(t, err)
+	assert.Equal(t, "SECRET=never-read\nAPP_KEY=generated\n", string(rewritten), "the setup ran again on the new copy")
+
+	stdout, stderr = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, unchanged, stderr, "the recreated sandbox holds the file, so nothing is recreated")
+	assert.Equal(t, []any{}, honestyList(t, stdout))
+
+	require.NoError(t, os.WriteFile(filepath.Join(checkout(t), ".env"), []byte("SECRET=changed-in-clone\n"), 0o600))
+	stdout, stderr = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, unchanged, stderr, "a clone edit to a file the setup rewrote is not detected")
+	assert.Equal(t, []any{}, honestyList(t, stdout))
+	kept, err := os.ReadFile(filepath.Join(sandboxPath, ".env"))
+	require.NoError(t, err)
+	assert.Equal(t, "SECRET=never-read\nAPP_KEY=generated\n", string(kept))
+
+	require.NoError(t, os.Remove(filepath.Join(checkout(t), ".env")))
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{}, honestyList(t, stdout), "nor is its removal from the clone")
+	assert.FileExists(t, filepath.Join(sandboxPath, ".env"))
+}
+
+// D-S22b-2 through `cr probe run`: the sandbox that lost the rewritten file is
+// recreated before §5.2.6's baselines, and a `cr test` after it recreates
+// nothing.
+func TestAProbeRunRecreatesASandboxThatLostAFileSetupRewrote(t *testing.T) {
+	sandboxPath, runner, profileFile := rewritingFixture(t)
+	require.NoError(t, os.Remove(filepath.Join(sandboxPath, ".env")))
+
+	reason := "sandbox.copy in " + profileFile + " names .env, which the checkout " +
+		checkout(t) + " holds and the sandbox does not"
+	stdout, stderr := streams(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", writePatch(t, fixtureDiff), "--filter", "retries")
+	assert.Equal(t, "experiment "+runner+" --only retries\n"+
+		"  sandbox    "+sandboxPath+"\n"+
+		"  recreated  per §5.1.6: "+reason+"\n"+
+		"  env files  .env gitignored at the clone root\n"+
+		"  in sandbox .env\n"+
+		"  baseline   the whole suite runs first as the §5.2.2 baseline: "+runner+"\n"+
+		strings.Repeat("env .env\n"+recapLine, 3), stderr)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: " + reason}, honestyList(t, stdout))
+
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{}, honestyList(t, stdout))
+}
+
+// v0.2.2 QA D-S22b-1: `.env.testing` moved out of the clone after the sandbox
+// copied it. The sandbox holding a named entry the checkout no longer holds is
+// stale; the recreation leaves it absent from both, the runner reads `.env`,
+// and the next run recreates nothing.
+func TestATestRunRecreatesASandboxHoldingACopiedFileTheCheckoutLost(t *testing.T) {
+	_, sandboxPath, runner, profileFile := envFixture(t, []string{".env", ".env.testing"}, ".env", ".env.testing")
+	rewriteProfile(t, profileFile, runner, []string{".env", ".env.testing"}, []string{})
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	require.FileExists(t, filepath.Join(sandboxPath, ".env.testing"))
+	require.NoError(t, os.Remove(filepath.Join(checkout(t), ".env.testing")))
+
+	reason := "sandbox.copy in " + profileFile + " names .env.testing, which the sandbox holds and the checkout " +
+		checkout(t) + " does not"
+	stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, "experiment "+runner+"\n"+
+		"  sandbox    "+sandboxPath+"\n"+
+		"  recreated  per §5.1.6: "+reason+"\n"+
+		"  env files  .env gitignored at the clone root\n"+
+		"  in sandbox .env\n"+
+		"env .env\n"+recapLine, stderr)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: " + reason}, honestyList(t, stdout))
+	assert.NoFileExists(t, filepath.Join(sandboxPath, ".env.testing"))
+
+	stdout, stderr = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, "experiment "+runner+"\n"+
+		"  sandbox    "+sandboxPath+"\n"+
+		"  env files  .env gitignored at the clone root\n"+
+		"  in sandbox .env\n"+
+		"env .env\n"+recapLine, stderr, "an entry absent from both is not recreated again")
+	assert.Equal(t, []any{}, honestyList(t, stdout))
+}
+
+// An entry neither the clone nor the sandbox holds is ignored, including one
+// `sandbox.copy` came to name after the sandbox's baseline was recorded.
+func TestAnEntryAbsentFromBothNeverRecreatesTheSandbox(t *testing.T) {
+	_, sandboxPath, runner, profileFile := envFixture(t, []string{".env"}, ".env")
+	rewriteProfile(t, profileFile, runner, []string{".env"}, []string{})
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	rewriteProfile(t, profileFile, runner, []string{".env", ".env.testing"}, []string{})
+
+	for range 2 {
+		stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+		assert.Equal(t, "experiment "+runner+"\n"+
+			"  sandbox    "+sandboxPath+"\n"+
+			"  env files  .env gitignored at the clone root\n"+
+			"  in sandbox .env\n"+
+			"env .env\n"+recapLine, stderr)
+		assert.Equal(t, []any{}, honestyList(t, stdout))
+	}
+}
+
+// A directory follows the same presence rule the other way: `vendor` removed
+// from the clone after the sandbox copied it makes the sandbox stale once.
+func TestATestRunRecreatesASandboxHoldingADirectoryTheCheckoutLost(t *testing.T) {
+	_, sandboxPath, runner, profileFile := envFixture(t, []string{".env"}, ".env", "vendor")
+	dir := checkout(t)
+	require.NoError(t, os.Remove(filepath.Join(dir, "vendor")))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor", "autoload.php"), []byte("one\n"), 0o600))
+	rewriteProfile(t, profileFile, runner, []string{".env", "vendor"}, []string{})
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	require.DirExists(t, filepath.Join(sandboxPath, "vendor"))
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "vendor")))
+
+	stdout, _ := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: sandbox.copy in " + profileFile +
+		" names vendor, which the sandbox holds and the checkout " + dir + " does not"}, honestyList(t, stdout))
+	assert.NoDirExists(t, filepath.Join(sandboxPath, "vendor"))
+
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{}, honestyList(t, stdout))
+}
+
+// A named entry the clone lacks and §5.1.3's setup creates is recorded with
+// the post-setup baseline, so the sandbox holding it is not recreated before
+// every run.
+func TestASandboxWhoseSetupCreatesACopiedFileIsNotRecreated(t *testing.T) {
+	_, sandboxPath, runner, profileFile := envFixture(t, []string{".env"}, ".env")
+	create := filepath.Join(t.TempDir(), "create.sh")
+	require.NoError(t, os.WriteFile(create, []byte("#!/bin/sh\necho 'DB=testing' > .env.testing\n"), 0o700))
+	rewriteProfile(t, profileFile, runner, []string{".env", ".env.testing"}, []string{create})
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+
+	for range 2 {
+		stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+		assert.Equal(t, "experiment "+runner+"\n"+
+			"  sandbox    "+sandboxPath+"\n"+
+			"  env files  .env gitignored at the clone root\n"+
+			"  in sandbox .env\n"+
+			"env .env.testing\n"+recapLine, stderr)
+		assert.Equal(t, []any{}, honestyList(t, stdout))
+	}
+}

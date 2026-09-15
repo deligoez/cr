@@ -48,10 +48,12 @@ type Baseline struct {
 	// baseline Create recorded. A file carrying it describes no sandbox:
 	// §5.1.6 reads it as one to recreate, and names this as the reason.
 	Forced string `json:"forced,omitempty"`
-	// SetupChanged are the `sandbox.copy` entries §5.1.3's setup left
-	// different from the checkout's, by name only. The copied-file check
-	// before a run skips them, so a setup that rewrites a copied file does
-	// not rebuild the sandbox before every run.
+	// SetupChanged are the `sandbox.copy` entries the newly prepared
+	// sandbox held apart from the checkout's, by name only: rewritten or
+	// created by §5.1.3's setup, or held by the worktree alone. The
+	// copied-file check before a run compares them by the checkout's
+	// presence only, so a setup that rewrites a copied file does not
+	// rebuild the sandbox before every run.
 	SetupChanged []string `json:"setup_changed,omitempty"`
 	// Generation names the sandbox this baseline was taken of: the moment
 	// Create recorded it. A recreation records a new one, so a run stamped
@@ -99,12 +101,12 @@ func decodeBaseline(body []byte, file string) (*Baseline, error) {
 // The write takes the pull request's exclusive advisory lock, because §2.3.1
 // admits no exception: the baseline is per-PR state and is written like the
 // rest of it.
-func (src *Sources) recordBaseline(path string, copied []string) (string, error) {
+func (src *Sources) recordBaseline(path string, entries []string) (string, error) {
 	recorded, err := SnapshotBaseline(path, src.Head)
 	if err != nil {
 		return "", err
 	}
-	if recorded.SetupChanged, err = src.setupChanged(path, copied); err != nil {
+	if recorded.SetupChanged, err = src.setupChanged(path, entries); err != nil {
 		return "", err
 	}
 	recorded.Generation = time.Now().UTC().Format(time.RFC3339Nano)
