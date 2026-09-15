@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -64,15 +65,17 @@ func TestAReviewReportsTheCellsItExpectsToBeFilled(t *testing.T) {
 }
 
 // `cr review` marks the expected cells coverage.ndjson holds for the round and
-// head, and only those, and still emits every prompt (field-feedback 1.6).
+// head, and only those, and §4.6.1 withholds exactly those prompts unless
+// `--all` is given (field-feedback 1.6).
 //
 // statusHome files a pass cell on u1 from every active role and none on u2, so
 // the three u1 entries are marked and the three u2 entries are not; with the
-// cells taken away, no entry is marked and the prompts are the same six.
+// cells taken away, no entry is marked and every prompt is emitted.
 func TestAReviewMarksTheExpectedCellsTheRoundHasRecorded(t *testing.T) {
 	statusHome(t)
 
 	withCells := fanoutOf(t)
+	everyCell := fanoutOf(t, "--all")
 	layout, err := state.Default()
 	require.NoError(t, err)
 	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
@@ -94,6 +97,19 @@ func TestAReviewMarksTheExpectedCellsTheRoundHasRecorded(t *testing.T) {
 	}
 	assert.Equal(t, expected("u1"), withCells.Expected)
 	assert.Equal(t, expected(""), withoutCells.Expected)
-	assert.Len(t, withCells.Prompts, 6, "§4.6.1: a recorded cell's prompt is still emitted")
-	assert.Len(t, withoutCells.Prompts, 6)
+	assert.Equal(t, []string{"u2", "u2", "u2"}, promptUnits(withCells.Prompts),
+		"§4.6.1: the prompts of the three recorded cells are withheld")
+	assert.Equal(t, []string{"u1", "u1", "u1", "u2", "u2", "u2"}, promptUnits(everyCell.Prompts),
+		"§4.6.1: --all emits them")
+	assert.Equal(t, []string{"u1", "u1", "u1", "u2", "u2", "u2"}, promptUnits(withoutCells.Prompts))
+}
+
+// promptUnits is the unit of every prompt emitted, sorted.
+func promptUnits(prompts []review.Prompt) []string {
+	units := make([]string, 0, len(prompts))
+	for i := range prompts {
+		units = append(units, prompts[i].Unit)
+	}
+	slices.Sort(units)
+	return units
 }

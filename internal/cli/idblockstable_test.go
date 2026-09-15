@@ -55,19 +55,23 @@ func promptsOf(fan *review.Fanout, roleID string) []review.Prompt {
 // built-in role moves that role to the front of §2.5.5's corpus, and a role
 // leaves the set. Every prompt keeps the run the first emission gave it, and the
 // records written from the first emission merge beside the joining role's.
+//
+// Every emission here is `--all`: the fixture's round holds a cell for every
+// role on u1, and §4.6.1's default narrowing would leave those prompts out of
+// each run, which is not what this test is about.
 func TestAReBriefThatChangesTheActiveRolesKeepsEveryIDBlockAnEarlierEmissionGave(t *testing.T) {
 	statusHome(t)
 	layout, err := state.Default()
 	require.NoError(t, err)
 
-	first := fanoutOf(t)
+	first := fanoutOf(t, "--all")
 	require.Len(t, first.Prompts, 6, "three active roles over two units")
 	firstRuns := runsOf(t, &first)
 
 	writeRoleFile(t, layout.RolesDir(), "money-safety")
 	writeRoleFile(t, layout.RepoRolesDir(fixtureOwner, fixtureProject), "correctness")
 	reBrief(t, layout, "money-safety", "convention", "correctness", "intent-coverage")
-	joined := fanoutOf(t)
+	joined := fanoutOf(t, "--all")
 	require.Len(t, joined.Prompts, 8, "four active roles over two units")
 	joinedRuns := runsOf(t, &joined)
 	for key, run := range firstRuns {
@@ -76,7 +80,7 @@ func TestAReBriefThatChangesTheActiveRolesKeepsEveryIDBlockAnEarlierEmissionGave
 	assertNoTwoRunsOverlap(t, joinedRuns)
 
 	reBrief(t, layout, "money-safety", "correctness", "intent-coverage")
-	left := fanoutOf(t)
+	left := fanoutOf(t, "--all")
 	require.Len(t, left.Prompts, 6, "convention left the active set")
 	for key, run := range runsOf(t, &left) {
 		assert.Equalf(t, joinedRuns[key], run, "%s keeps its run when another role leaves", key)

@@ -108,13 +108,14 @@ func TestTheExpectedSetIsTheWholeRoundsEvenOnAnAxisPass(t *testing.T) {
 }
 
 // An expected cell coverage.ndjson already holds for the round at its head
-// carries `recorded: true`, and every other cell carries nothing, while every
-// prompt is still emitted (field-feedback 1.6, §4.6.1).
+// carries `recorded: true`, and every other cell carries nothing; §4.6.1's
+// default narrowing withholds that one cell's prompt, and `--all` emits it.
 //
 // Three cells are stored: one of this round at its head, one of this round at
 // another head, and one of the round before at this head. Only the first is
-// the round's and head's, so only its entry is marked.
-func TestAnExpectedCellTheRoundAlreadyRecordedIsMarkedAndStillPrompted(t *testing.T) {
+// the round's and head's, so only its entry is marked and only its prompt is
+// withheld.
+func TestAnExpectedCellTheRoundAlreadyRecordedIsMarkedAndWithheld(t *testing.T) {
 	src := briefed(t)
 	before, err := Run(src)
 	require.NoError(t, err)
@@ -142,5 +143,32 @@ func TestAnExpectedCellTheRoundAlreadyRecordedIsMarkedAndStillPrompted(t *testin
 		marked = append(marked, entry)
 	}
 	assert.Equal(t, marked, after.Expected)
-	assert.Len(t, after.Prompts, len(before.Prompts), "§4.6.1: a recorded cell's prompt is still emitted")
+	assert.Equal(t, withoutPrompt(cellsOf(before.Prompts), "correctness/u1"), cellsOf(after.Prompts),
+		"§4.6.1: only the held cell's prompt is withheld")
+
+	src.All = true
+	all, err := Run(src)
+	require.NoError(t, err)
+	assert.Equal(t, cellsOf(before.Prompts), cellsOf(all.Prompts), "§4.6.1: --all emits every prompt")
+	assert.Equal(t, marked, all.Expected, "--all changes no mark")
+}
+
+// cellsOf is each prompt's role and unit, in emission order.
+func cellsOf(prompts []Prompt) []string {
+	at := make([]string, 0, len(prompts))
+	for i := range prompts {
+		at = append(at, prompts[i].Role+"/"+prompts[i].Unit)
+	}
+	return at
+}
+
+// withoutPrompt is cells with the one named left out.
+func withoutPrompt(cells []string, left string) []string {
+	kept := make([]string, 0, len(cells))
+	for _, cell := range cells {
+		if cell != left {
+			kept = append(kept, cell)
+		}
+	}
+	return kept
 }
