@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,6 +69,62 @@ func TestInitWritesTheShippedProfiles(t *testing.T) {
 	onDisk, err := os.ReadFile(edited)
 	require.NoError(t, err)
 	assert.Equal(t, `{"id": "laravel-pest"}`, string(onDisk))
+}
+
+// A profile file byte-equal to an earlier release's shipped profile carries no
+// edit, so `cr init` replaces it with this release's and says which file it
+// updated; the same file with one value edited is the user's, so it is left
+// byte for byte and named. The earlier bytes are the ones extracted from the
+// v0.2.1 tag, not a copy typed here.
+func TestInitUpdatesOnlyAProfileNobodyEdited(t *testing.T) {
+	previous, err := os.ReadFile(filepath.Join("..", "profile", "builtin", "shipped", "v0.2.1", "laravel-pest.json"))
+	require.NoError(t, err)
+	shipped := profile.Builtins()["laravel-pest"]
+	require.NotEqual(t, shipped, string(previous), "the fixture is only a test while v0.2.1's profile differs")
+
+	initialised := func(t *testing.T, onDisk []byte) (printed map[string]any, file string) {
+		t.Helper()
+		root := crHome(t)
+		file = filepath.Join(root, "profiles", "laravel-pest.json")
+		require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o700))
+		require.NoError(t, os.WriteFile(file, onDisk, 0o600))
+		require.NoError(t, json.Unmarshal([]byte(throughAPipe(t, "init")), &printed))
+		return printed, file
+	}
+
+	t.Run("a byte-equal v0.2.1 file", func(t *testing.T) {
+		printed, file := initialised(t, previous)
+
+		assert.Equal(t, []any{file}, printed["updated"])
+		assert.Equal(t, []any{}, printed["honesty"])
+		after, err := os.ReadFile(file)
+		require.NoError(t, err)
+		assert.Equal(t, shipped, string(after))
+	})
+
+	t.Run("the same file with one key edited", func(t *testing.T) {
+		edited := bytes.Replace(previous, []byte(`"lang": "php"`), []byte(`"lang": "hack"`), 1)
+		require.NotEqual(t, previous, edited)
+		printed, file := initialised(t, edited)
+
+		assert.Equal(t, []any{}, printed["updated"])
+		assert.Equal(t, []any{file + " matches no version of the laravel-pest profile cr has shipped, " +
+			"so cr init left it as it is; the shipped profile may have changed since, " +
+			"and cr init with CR_HOME set to an empty directory writes it for comparison"}, printed["honesty"])
+		after, err := os.ReadFile(file)
+		require.NoError(t, err)
+		assert.Equal(t, edited, after)
+	})
+
+	t.Run("a file already at this release", func(t *testing.T) {
+		printed, file := initialised(t, []byte(shipped))
+
+		assert.Equal(t, []any{}, printed["updated"])
+		assert.Equal(t, []any{}, printed["honesty"])
+		after, err := os.ReadFile(file)
+		require.NoError(t, err)
+		assert.Equal(t, shipped, string(after))
+	})
 }
 
 // runInit runs `cr init` with the given flags through the real command tree,
