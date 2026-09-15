@@ -87,7 +87,8 @@ func staleNotice(file string, content []byte) string {
 		since = "has since changed " + strings.Join(changed, ", ")
 	}
 	return fmt.Sprintf("%s is the %s profile cr %s shipped, unedited, and the shipped profile %s; "+
-		"cr init updates the file to it", file, id, standing.Release, since)
+		"cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox "+
+		"lacking a file it copies", file, id, standing.Release, since)
 }
 
 // changedFields names, in dotted spelling and sorted, every field whose value
