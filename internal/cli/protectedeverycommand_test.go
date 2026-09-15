@@ -46,6 +46,11 @@ func argsFromUse(cmd *cobra.Command) []string {
 			args = append(args, "7")
 		case strings.HasPrefix(word, "<"):
 			args = append(args, "x")
+		// A positional §11 spells as its alternatives, such as §7.2.4's
+		// verb, takes the first of them.
+		case strings.Contains(word, "|"):
+			first, _, _ := strings.Cut(word, "|")
+			args = append(args, first)
 		}
 	}
 	return args
