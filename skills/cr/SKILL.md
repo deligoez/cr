@@ -323,7 +323,11 @@ one recorded as `inconclusive` names its rung and what it read — the exit code
 for a zero failed count on a non-zero exit, an undetermined count otherwise.
 Every other result carries none. A
 gap probe's `failed` supports a finding only when its baseline passed and the record's `claim` is mapped to its unit; `passed` shows the
-behaviour is present and supports no `probed` grade. Reference a probe from a
+behaviour is present and supports no `probed` grade. When a mutation probe's
+`no-test-failed` or a gap probe's `failed` rests on a baseline that did not
+pass, `honesty` names that baseline run and its failed count ("probe p1
+establishes no gap: its baseline run r1 did not pass per §5.2.5 (tests_failed
+3), …"), because such a probe supports no finding. Reference a probe from a
 record with `"probe": "p1"`; it supports that record only when its target lies
 inside the record's RIGHT anchor range. `cr sandbox destroy 1` removes the
 worktree. `cr test` and `cr probe run` share one lock per repository root and
