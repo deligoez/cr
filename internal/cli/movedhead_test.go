@@ -230,13 +230,18 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// nothing else, so §9.3.1's report is owed. Without `--pr` it reads
 		// only §2.2's repository-wide file, no round, and owes nothing.
 		"waivers list": disclosesTheMove("waivers", "list", "--pr", fixturePR),
+		// `cr note` stores into the context store, which is not per-PR
+		// state, and with a repository named it reads the round of `--pr`
+		// to say which emitted prompts the note postdates
+		// (field-feedback 1.5). That read is per-PR state, so §9.3.1's
+		// report is owed, as it is for `cr answer`.
+		"note": disclosesTheMove("note", fixtureIssue, "a fact", "--source", "chat", "--pr", fixturePR),
 
 		// §9.3.2's way forward, and the commands that read no round at
 		// all.
 		"brief":           opensTheRound("brief", fixturePR, "--issue", fixtureIssue, "--intent-file", file("issue.txt")),
 		"init":            readsNoRound("init"),
 		"config":          readsNoRound("config"),
-		"note":            readsNoRound("note", fixtureIssue, "a fact", "--source", "chat", "--pr", fixturePR),
 		"context":         readsNoRound("context", fixtureIssue),
 		"sandbox destroy": readsNoRound("sandbox", "destroy", fixturePR),
 		// `cr rules suggest` is repository-scoped: §2.6.3.1 scans
