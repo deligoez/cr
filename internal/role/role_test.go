@@ -16,7 +16,7 @@ import (
 // specFields is the §2.5 field table, in its own order. It is written out here
 // rather than taken from the package, because a guard that read the value it
 // judges would pass whatever the package happened to say.
-var specFields = []string{"id", "title", "axis", "instructions", "focus", "profiles"}
+var specFields = []string{"id", "title", "axis", "instructions", "focus", "profiles", "classes"}
 
 // write puts content at a role path with the given stem and returns it.
 func write(t *testing.T, stem, content string) string {
