@@ -43,6 +43,19 @@ trust, so cr trades recall for precision and turns weak findings into questions 
   sections as intent, and count findings, questions and misses — and whether the misses are cross-cutting
   (see 5).
 
+### 1a. Test environment safety (first in v0.3)
+
+A field trial ran the sandbox's tests against a developer's application database: the sandbox lacked the
+clone's gitignored `.env.testing` (spec/field-feedback.md, 2.1). v0.2.2 copies it, reports every gitignored
+env file the sandbox did not receive, and prints an experiment header before each run. What needs spec text:
+
+- a baseline scoped to the probe's filter instead of §5.2.2's whole-suite run, so a filtered probe no longer
+  runs the whole suite as a side effect;
+- profile fields naming which env files must exist in the sandbox (`sandbox.require`) and which do not
+  matter, and a refusal to run when a required file is absent — a refusal without them would force users to
+  copy unrelated secrets or disable the check;
+- §5.1.2 stating that `cr` reports every gitignored root file it did not copy.
+
 ### 2. Isolation for untrusted code
 
 Probes run the pull request's `tests.cmd` on the reviewer's machine in a git worktree, with the reviewer's
