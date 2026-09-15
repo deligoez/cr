@@ -352,6 +352,10 @@ func renderDraft(
 	if err != nil {
 		return drafted{}, err
 	}
+	// field-feedback 1.5, in the header of the file the reviewer triages.
+	if file, err = withPromptNotes(l, round, queued, file); err != nil {
+		return drafted{}, err
+	}
 	return drafted{file: file, rendered: rendered}, nil
 }
 

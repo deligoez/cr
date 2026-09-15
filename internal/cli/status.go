@@ -22,6 +22,7 @@ import (
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
+	"github.com/deligoez/cr/internal/review"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/symbol"
@@ -116,6 +117,11 @@ type statusResult struct {
 	// never suppress, and a report that quietly widened that list would be
 	// making a claim about §11.1 rather than about the round.
 	Unstanding []unstandingNote `json:"unstanding_notes"`
+	// NotesAfterPrompts counts the round's records whose prompt a standing
+	// note on their claim or unit postdates, and names them
+	// (field-feedback 1.5). It is beside Unstanding, and out of Honesty, for
+	// the reason Unstanding is.
+	NotesAfterPrompts review.NotesAfterPrompts `json:"notes_after_prompts"`
 	// Completeness is §10.2's verdict and, when it is false, every
 	// condition that did not hold.
 	//
@@ -184,6 +190,7 @@ func (r *statusResult) Text(w *writer) string {
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
 	out.WriteString(r.recordLines())
 	out.WriteString(r.noteLines())
+	out.WriteString(notesAfterLines("", "\n", r.NotesAfterPrompts))
 	out.WriteString(w.disclose("", "\n", r.Honesty...))
 	return strings.TrimRight(out.String(), "\n")
 }
@@ -288,6 +295,9 @@ func newStatusCmd(out *writer) *cobra.Command {
 				return headNotFetched(cmd, owner, repo, pr, err)
 			}
 			if report.Paragraphs, err = statusParagraphsOf(layout, owner, repo, pr, round.Round); err != nil {
+				return err
+			}
+			if report.NotesAfterPrompts, err = roundNotesAfter(layout, &round.Meta); err != nil {
 				return err
 			}
 			// A closed or merged pull request is said first, before the

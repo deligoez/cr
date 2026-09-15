@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/review"
 	"github.com/deligoez/cr/internal/rule"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
@@ -52,6 +53,11 @@ type recordResult struct {
 	// supporting a finding, rendered as the sentences §11.1 exempts from
 	// `--quiet`.
 	Honesty []string `json:"honesty"`
+	// NotesAfterPrompts are the records this run stored whose prompt a
+	// standing note on their claim or unit postdates (field-feedback 1.5).
+	// It is reported and never refused: whether the note settles what the
+	// record raised is not cr's to say.
+	NotesAfterPrompts review.NotesAfterPrompts `json:"notes_after_prompts"`
 }
 
 // Text names how many records were stored and the states §9.1 brought them into,
@@ -72,6 +78,7 @@ func (r *recordResult) Text(w *writer) string {
 			answered.Record, w.accent(answered.Probe), supported[answered.Supports],
 			answered.Result, answered.Reason)
 	}
+	out.WriteString(notesAfterLines("\n", "", r.NotesAfterPrompts))
 	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
@@ -329,9 +336,30 @@ func newRecordCmd(out *writer) *cobra.Command {
 			}
 			recorded := newRecordResult(records, found, &dropped)
 			recorded.Honesty = append(recorded.Honesty, staleProfile(layout.Profile(round.ProfileID))...)
+			if recorded.NotesAfterPrompts, err = recordNotesAfter(layout, &round.Meta, records); err != nil {
+				return err
+			}
 			return out.emit(recorded)
 		},
 	}
+}
+
+// recordNotesAfter is field-feedback 1.5's report narrowed to the records this
+// run stored. It is computed over the round's stored records, after the write,
+// so a note answering a record an earlier run stored still ties that note to
+// its unit.
+func recordNotesAfter(
+	l state.Layout, round *state.Meta, records []*finding.Finding,
+) (review.NotesAfterPrompts, error) {
+	report, err := roundNotesAfter(l, round)
+	if err != nil {
+		return review.NotesAfterPrompts{}, err
+	}
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.ID)
+	}
+	return report.Only(ids), nil
 }
 
 // recordRetiredCounts is `cr record`'s share of §10.3's round summary: the
