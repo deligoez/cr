@@ -199,7 +199,11 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// §6.5.1's own spelling of the invocation.
 		"merge": refusesTheWrite("merge", file("review-correctness.ndjson"),
 			"-o", file("merged-out.ndjson"), "--pr", fixturePR),
-		"draft":          refusesTheWrite("draft", fixturePR),
+		"draft": refusesTheWrite("draft", fixturePR),
+		// §7.2.4's edit writes the round's draft.md, per-PR state, and
+		// §9.3.2 exempts only `cr post --reconcile`. The record need not
+		// have a block: the round is read before the draft is.
+		"triage":         refusesTheWrite("triage", fixturePR, "f1", "keep"),
 		"post":           refusesTheWrite("post", fixturePR),
 		"review":         refusesTheWrite("review", fixturePR),
 		"sandbox create": refusesTheWrite("sandbox", "create", fixturePR),
