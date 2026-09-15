@@ -330,9 +330,15 @@ names a probe is recorded after `cr probe run` has written that probe.
   "waived": {"dropped": 0, "waivers": []},
   "already_posted": {"dropped": 0, "posted": []},
   "honesty": [],
-  "notes_after_prompts": {"count": 1, "records": [{"record": "f1", "notes": ["CR-5#n4"]}], "unattributed": []}
+  "notes_after_prompts": {"count": 1, "records": [{"record": "f1", "notes": ["CR-5#n4"]}], "unattributed": []},
+  "classes_outside": [{"record": "f2", "role": "test-adequacy", "class": "missing-case"}]
 }
 ```
+
+`classes_outside` names every record this run stored whose role declares a
+`classes` vocabulary and whose `class` is not in it. It is a report and never a
+refusal: the record is stored, and the vocabulary is the project's own guidance
+to its roles. No built-in role declares one.
 
 A note recorded after `cr review` emitted a prompt never reaches that prompt.
 Every `cr review` writes one line per prompt to `emissions.ndjson` in the pull
@@ -954,7 +960,10 @@ All three are JSON data files, never prompt code, and each file's stem is its
 A role is a lens on one axis: persona and focus, while cr owns the output
 contract. Fields: `id` (kebab-case), `title`, `axis` (`intent`, `correctness`,
 `convention` or `test`), `instructions`, and optionally `focus` (questions
-appended to the prompt) and `profiles` (empty means all). `cr init --eject-roles`
+appended to the prompt), `profiles` (empty means all) and `classes` (a class
+vocabulary printed in the role's prompts; `cr record` reports a record of the
+role classed outside it under `classes_outside` and stores it all the same).
+`cr init --eject-roles`
 writes the four built-ins (`intent-coverage`, `correctness`, `convention`,
 `test-adequacy`) as editable files. More than one role may serve an axis. An
 ejected file shadows the built-in and a second eject never rewrites it, so a
