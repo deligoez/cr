@@ -27,6 +27,11 @@ type Baseline struct {
 	id string
 	// passed is §5.2.5's verdict on that record, as it was written.
 	passed bool
+	// failed is the record's `tests_failed`, and counted whether §5.2.4
+	// found it derivable, so a baseline that did not pass can be named with
+	// the count it failed on.
+	failed  int
+	counted bool
 }
 
 // ID is the run record id §5.5's `baseline` column carries.
@@ -44,6 +49,20 @@ func (b Baseline) ID() string { return b.id }
 // ever, resolve none of them, and leave the ladder with nothing to consult.
 func (b Baseline) Passed() bool { return b.passed }
 
+// Failed is the resolved record's `tests_failed`, and false when §5.2.4 found
+// no failed count derivable. It is read for the report of a baseline that did
+// not pass, and never for a verdict: Passed is §5.2.5's, whole.
+func (b Baseline) Failed() (int, bool) { return b.failed, b.counted }
+
+// baselineOf is the Baseline one admitted run record stands as.
+func baselineOf(candidate *run.Record) Baseline {
+	resolved := Baseline{id: candidate.ID, passed: candidate.Passed}
+	if candidate.TestsFailed != nil {
+		resolved.failed, resolved.counted = *candidate.TestsFailed, true
+	}
+	return resolved
+}
+
 // Resolve returns the run record standing as this baseline at head, and reports
 // whether one is there.
 //
@@ -55,7 +74,7 @@ func (b Baseline) Passed() bool { return b.passed }
 func (s Spec) Resolve(stored []run.Record, head string) (Baseline, bool) {
 	for i := len(stored) - 1; i >= 0; i-- {
 		if candidate := &stored[i]; s.stands(candidate, head) {
-			return Baseline{id: candidate.ID, passed: candidate.Passed}, true
+			return baselineOf(candidate), true
 		}
 	}
 	return Baseline{}, false
@@ -82,7 +101,7 @@ func (r *Record) ResolveBaseline(stored []run.Record) (Baseline, bool) {
 	for i := range stored {
 		if candidate := &stored[i]; candidate.ID == r.Baseline &&
 			spec.stands(candidate, r.Head) {
-			return Baseline{id: candidate.ID, passed: candidate.Passed}, true
+			return baselineOf(candidate), true
 		}
 	}
 	return Baseline{}, false
