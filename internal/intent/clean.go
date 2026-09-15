@@ -24,10 +24,19 @@ import (
 // two stray bytes into a valid character and let a text through that §1.4
 // would have refused.
 func Clean(raw string) string {
+	return clean(raw, false)
+}
+
+// clean is Clean, and with spellTargets set it also writes each OSC 8
+// hyperlink's target, between two spaces, where the sequence stood. That form
+// is never stored or printed: it is the text Reading.Links scans, because a
+// terminal hyperlink's visible text need not carry its URL, and a link Clean
+// removed with its escape is still a link the issue carries.
+func clean(raw string, spellTargets bool) string {
 	if text.CheckUTF8(raw) != nil {
 		return raw
 	}
-	return strings.ReplaceAll(stripControlSequences(raw), " ", " ")
+	return strings.ReplaceAll(stripControlSequences(raw, spellTargets), " ", " ")
 }
 
 // The bytes the control sequences stripControlSequences removes are built of.
@@ -50,7 +59,7 @@ const (
 // appears, and a line feed never belongs to one, so no removal joins two
 // lines. Every ESC is removed, which is what makes Clean idempotent: its output
 // holds no byte a second pass could act on.
-func stripControlSequences(s string) string {
+func stripControlSequences(s string, spellTargets bool) string {
 	if strings.IndexByte(s, escape) < 0 {
 		return s
 	}
@@ -62,9 +71,23 @@ func stripControlSequences(s string) string {
 			i++
 			continue
 		}
-		i = sequenceEnd(s, i)
+		end := sequenceEnd(s, i)
+		if target, ok := hyperlinkTarget(s[i:end]); spellTargets && ok {
+			out.WriteString(" " + target + " ")
+		}
+		i = end
 	}
 	return out.String()
+}
+
+// hyperlinkTarget returns the URI of an OSC 8 hyperlink sequence — ESC ] 8 ;
+// params ; URI, then its terminator — and false for every other sequence. The
+// sequence that closes a hyperlink carries an empty URI.
+func hyperlinkTarget(sequence string) (string, bool) {
+	body, isHyperlink := strings.CutPrefix(sequence, string([]byte{escape, oscIntroducer})+"8;")
+	_, target, _ := strings.Cut(body, ";")
+	target = strings.TrimSuffix(strings.TrimSuffix(target, string(rune(bell))), string([]byte{escape, stringTerminal}))
+	return target, isHyperlink
 }
 
 // sequenceEnd returns the index just past the escape sequence starting at the

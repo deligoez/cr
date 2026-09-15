@@ -180,6 +180,17 @@ type Brief struct {
 	// value this run loaded. It is unexported for the reason halves is, and
 	// reaches the reader through StaleProfile.
 	staleProfile []string
+	// issueLinks are the links the issue text carries, per Reading.Links:
+	// taken from the read itself, because a terminal hyperlink's target is
+	// gone from the cleaned Issue.Text. It is unexported for the reason
+	// halves is, and reaches the reader through IssueLinks.
+	issueLinks []string
+}
+
+// IssueLinks is every link the issue text this run read carries, each once, in
+// the order each first appears.
+func (b *Brief) IssueLinks() []string {
+	return b.issueLinks
 }
 
 // StaleProfile names the selected profile's file when it is, byte for byte, a
@@ -351,6 +362,7 @@ func assemble(src *Sources) (*Brief, error) {
 		halves:         halves,
 		skipped:        coverage.Skipped(axes, corpus, active, selection.Profile.ID),
 		staleProfile:   selection.Profile.StaleDisclosures(),
+		issueLinks:     resolved.Reading().Links(),
 	}, nil
 }
 
