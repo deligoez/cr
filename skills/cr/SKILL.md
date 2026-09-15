@@ -45,8 +45,10 @@ several remotes, a non-GitHub remote, or an owner or name that is `.` or `..`
 
 `--repo` need not match the clone's remote: a fork's clone briefs the upstream
 pull request as long as it holds the pull request's commits. When the clone
-lacks its head or its base, `cr brief`, `cr status`, `cr review` and `cr post`
-exit 3 naming the missing commit, with a hint to `git fetch`; when
+lacks its head or its base, every command that reads them from the clone —
+`cr brief`, `cr status`, `cr review`, `cr post`, `cr draft`, `cr record`,
+`cr merge`, `cr rules check`, `cr sandbox create`, `cr test` and `cr probe run` —
+exits 3 naming the missing commit, with a hint to `git fetch`; when
 `--repo` also names a repository no GitHub remote of the clone points at, the
 hint names both repositories and gives
 `git fetch https://github.com/<owner>/<repo> pull/<pr>/head` instead.
