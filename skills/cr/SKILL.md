@@ -23,10 +23,17 @@ cr init
 
 ```json
 {
-  "root": "/Users/you/.cr"
+  "root": "/Users/you/.cr",
+  "updated": ["/Users/you/.cr/profiles/laravel-pest.json"],
+  "honesty": []
 }
 ```
 
+`cr init` writes each shipped profile that is absent, and rewrites a profile
+file only when its bytes equal a profile an earlier release shipped (v0.1.0,
+v0.2.0 or v0.2.1): such a file carries no edit, and `updated` names it. A file
+that matches no shipped version is left as it is and named under `honesty`, so
+re-run `cr init` after an upgrade and compare any file it names by hand.
 `cr init --eject-roles` also writes the built-in roles as editable files. State
 lives only under `~/.cr/` (override with `CR_HOME`); cr never writes inside the
 repository under review.
