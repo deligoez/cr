@@ -78,8 +78,9 @@ func newBriefResult(assembled *brief.Brief) *briefResult {
 	honesty = append(honesty, assembled.StaleProfile()...)
 	// Every link in the issue text, as linked and not read: §3.1 reads the
 	// issue text alone, so a requirement stated only behind one reaches no
-	// claim, and nothing else would say so.
-	links := intent.Links(assembled.Issue.Text)
+	// claim, and nothing else would say so. A terminal hyperlink's target is
+	// one of them though cleaning took it out of the text.
+	links := assembled.IssueLinks()
 	for _, link := range links {
 		honesty = append(honesty, intent.LinkDisclosure(link))
 	}

@@ -247,6 +247,17 @@ func (r Reading) Spans(notes []note.Note) SpanTexts {
 	return SpanTexts{Issue: r.Text, Notes: notes, asRead: r.asRead}
 }
 
+// Links is Links over this reading: every URL Text carries, and the target of
+// every terminal hyperlink Clean removed on the way to Text, in the order each
+// first appears in what the source produced, each once.
+func (r Reading) Links() []string {
+	raw := r.asRead
+	if raw == "" {
+		raw = r.Text
+	}
+	return Links(clean(raw, true))
+}
+
 // read wraps the bytes one source produced as a Reading.
 func read(raw string) Reading {
 	cleaned := Clean(raw)
