@@ -106,7 +106,8 @@ user before they confirm.
 
 **cr reads the issue text and nothing it links to.** `cr brief` lists every URL
 the issue text carries under `honesty` ("the issue text links https://docs.google.com/…,
-which cr did not read: …"). A requirement stated only behind such a link is in
+which cr did not read: …"), the target of a terminal hyperlink included even
+when its visible text shows no URL. A requirement stated only behind such a link is in
 no claim until you bring its text in: record the linked document's relevant
 text with `cr note CR-5 "<text>" --source other --pr 1` and draw a claim from
 that note (`"source": "note"`, `note_id`, and the note's body as `span`, per
