@@ -43,10 +43,22 @@ graded all five intent records `cited` because their citations lay outside the u
 The test: an addition to output, state or the skill is a patch; a new intent source, a flag in §11's
 table, a prompt-content rule or a baseline rule needs spec text and belongs to v0.3.
 
-Claims in this proposal that are not yet checked, and must be before any task is written: that §4.6.5
-requires the full claim list in every first-pass prompt; that a computed record field for 1.5 fits §6.1's
-schema without normative text (a new field in a record table may itself be spec surface); that the
-transport cleanup in 1.2 cannot move a span; and the two measurements named in 1.2 and 1.4.
+Claims in this proposal that were checked before any task is written (2026-09-15, read-only, on the
+stored #6233 run and the backend repository; scripts in the verification scratch directory `fbv2/`):
+
+| Claim | Verdict | Evidence and consequence |
+|-------|---------|--------------------------|
+| §4.6.5 requires the full claim list in every first-pass prompt | True, with a caveat | §4.6.5: the first pass "MUST emit prompts carrying the units and the claims but no mapping"; with no mapping the only way to carry them is the whole list (`internal/review/text.go:135-137,162-174`). "Carrying" does not say "printed inline", so a shared file is a reading to decide in v0.3. |
+| A computed record field for 1.5 needs no normative text | False | No MUST fixes a record's key set, but `finding_test.go` pins `finding.Fields()` to §6.1's table, §6.1.4's refusal list is built from that table (`fields.go:120-132`), and §4.6.2 prints the schema from it into every prompt: a field without a row either is refused under no clause or can be written by an agent. The patch uses a separate state file (`emissions.ndjson`) with "notes newer than the prompt" computed when read, as `note.Standing` is, which avoids §6.1 and §6.1.4. |
+| Transport cleanup in 1.2 cannot move a span | Partly | No span matches anywhere new (substring test, no stored position; occurrence counts unchanged for all 25 claims on #6233). But the issue hash changes (`3eb14e94…` to `fb4dd119…`), so `drift.go:112` reports every claim of an existing round as drifted, and a stored span holding an NBSP (c15) stops occurring. The patch must map stored spans the same way or scope the cleanup to new rounds, and say whether `--intent-file` text is cleaned too. |
+| M1: `jira --plain` wrap width | Measured | The stored #6233 issue text is word-wrapped at 118 columns with space padding (129 of 138 lines exactly 118), 3 NBSPs, 14 ANSI sequences all in the two footer lines. A piped run on 2026-09-03 also gave 118; whether it follows `COLUMNS` is unmeasured. Recorded spans stop at wraps. cr keeps no copy of the issue text in state; the run's `brief.json` holds it. |
+| M2: rename threshold on #6233 | Measured | Base `999e6dcf`, head `073b6f4e`: at 50% 11 renames / 3 deletions / 53 additions; 40% 13/1/51; 30% 14/0/50; 20% as 30%. The three extra pairs are real moves (same file name into the new module). 30% removes 3 LEFT units (12 cells); the other RIGHT units under the moved module belong to pairs git already makes at 50%, so most of the reported ~40 cells do not depend on the threshold. |
+
+Found while verifying, not reported: on #6233 all 106 first-pass intent prompts say "The round recorded no
+claim". `cr review --axis intent` ran at 20:35:02 and `cr claims record` at 20:36:57, so the first pass was
+emitted before the claims existed and cr neither refused nor warned. The intent agents mapped 57 pairs, so
+they reached the claims some other way; whether §4.6.5's "carrying the claims" makes this a refusal is to
+be decided. Trust-relevant: an intent pass run from those prompts alone judges no claim.
 
 | # | Patch (v0.2.x) | Spec (v0.3) |
 |---|----------------|-------------|
@@ -54,6 +66,6 @@ transport cleanup in 1.2 cannot move a span; and the two measurements named in 1
 | 1.2 | At ingestion, strip terminal control sequences and map U+00A0 to U+0020 before storing; match verbatim on the stored text, keep line breaks significant (joining wrapped lines could let a span straddle two items); the skill says to copy spans from `cr brief`'s printed issue text. Release note: `issue_hash` changes once for affected issues. Measure first whether `jira --plain` wraps to a width when piped; if so, pin the width in the command's environment. | Only if the default tracker command changes (§3.1.2). |
 | 1.3 | The skill says to batch k prompts per sub-agent (ids are per prompt, so batching is safe) and gives a size guide. The claim list in every first-pass prompt is §4.6.5, not a defect. | Moving the §6.1 schema out of each prompt (§4.6.2); `--units` or `--shard`. |
 | 1.4 | Measure the rename similarity threshold on #6233's file set (50/40/30%) and pick the lowest that pairs the moves without pairing unrelated files; §3.4 does not fix the threshold. No `na` defaults (§4.5.6); the skill says a moved, unchanged unit is a `pass` cell. | — |
-| 1.5 | Report, never refuse. `cr review` writes one line per emission (round, head, pass, unit, role, time, the note ids carried) to a new `emissions.ndjson`; `cr note` says which emitted passes it postdates; `cr record` stamps each record with the notes newer than its prompt as a computed field and reports the count; `cr draft` renders a cr-owned line naming those notes in the block; `cr status` counts them. | — |
+| 1.5 | Report, never refuse. `cr review` writes one line per emission (round, head, pass, unit, role, time, the note ids carried) to a new `emissions.ndjson`; `cr note` says which emitted passes it postdates; `cr record` reports how many records came from a prompt older than a note on their claim or unit (computed from the file, not stored as a record field; see the checks above); `cr draft` renders a cr-owned line naming those notes in the block (to check: §7.1 fixes what a block carries); `cr status` counts them. | — |
 | 1.6 | `expected_cells` entries carry `recorded: true`; the skill's sequence says which prompts to run after `cr map record`. | Omitting recorded prompts, or a flag for it (§4.6.1, §11). |
 | 1.7 | When a probe establishes nothing because its baseline failed, `honesty` says so and names the baseline and its failed count; the skill says the first probe at a head runs the whole suite once. | A baseline scoped to the probe's filter (§5.2.2, §5.5), which evaluates §5.2.5 over the same tests the probe speaks about; a profile field for a test path (§2.4). |
