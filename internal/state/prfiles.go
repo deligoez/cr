@@ -45,6 +45,14 @@ const (
 	// pull request no sandbox has been prepared for, which is what
 	// §5.1.6's check has to be able to tell.
 	FileSandboxBaseline = "sandbox-baseline.json"
+	// FileIssueText is the issue text the round last read, cleaned, with the
+	// round and head it was read at: `cr brief` and `cr claims record` write
+	// it, and `cr status` reads the paragraphs no claim span covers out of it
+	// without running the tracker command. It sits beside the §2.3 table
+	// rather than in it for the reason FileSandboxBaseline does, and is not
+	// created with the directory: a round no v0.2.3 command has read the
+	// issue for has none.
+	FileIssueText = "issue.json"
 )
 
 // prFiles is the §2.3 table in table order.

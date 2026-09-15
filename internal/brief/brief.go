@@ -117,6 +117,10 @@ type Brief struct {
 	// drift comparison against the issue text as it now reads.
 	Claims []intent.Claim `json:"claims"`
 	Drift  intent.Drift   `json:"drift"`
+	// Paragraphs are the issue text's paragraphs and the ones no span of
+	// those claims overlaps, per intent.UncoveredParagraphs. It is empty
+	// when no key resolved and there is no text to split.
+	Paragraphs intent.Paragraphs `json:"issue_paragraphs"`
 	// §3.7.4: the units of §3.4, with their paths, hunk ranges, and hashes.
 	Units []unit.Unit `json:"units"`
 	// Files is what §3.4 formed no unit from: the count §3.4.2 excluded
@@ -336,6 +340,7 @@ func assemble(src *Sources) (*Brief, error) {
 		Issue:          issueReport(resolved),
 		Claims:         claims,
 		Drift:          drift,
+		Paragraphs:     intent.UncoveredParagraphs(resolved.Text, slices.Values(claims)),
 		Units:          units,
 		Files:          files,
 		Threads:        threads,

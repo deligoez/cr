@@ -342,7 +342,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dropped, err := storeClaims(layout, held, &recorded.Meta, claims)
+			dropped, err := storeClaims(layout, held, &recorded.Meta, claims, reading.Text)
 			if err != nil {
 				// The lock is released on the way out of every
 				// branch, and the write's own failure is what
@@ -392,8 +392,11 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 // mapping.Gaps over no claim raises no entry, so every stamp the round recorded
 // is one this run lost. They are read under the same hold, so no set-aside can
 // land between the read and the clear and vanish unreported.
+//
+// The issue text the claims were checked against is stored beside them, so
+// `cr status` reports the paragraphs no span covers against that text.
 func storeClaims(
-	l state.Layout, k *state.Lock, round *state.Meta, claims []*intent.Claim,
+	l state.Layout, k *state.Lock, round *state.Meta, claims []*intent.Claim, issue string,
 ) ([]mapping.DroppedSetAside, error) {
 	at := state.Stamp{Head: round.Head, Round: round.Round}
 	recorded, err := state.ReadStamped[mapping.Gap](
@@ -412,6 +415,9 @@ func storeClaims(
 		return nil, err
 	}
 	if err := state.ClearStamped(k, state.FileIntentGaps, at.Round); err != nil {
+		return nil, err
+	}
+	if err := intent.StoreIssueText(k, at, issue); err != nil {
 		return nil, err
 	}
 	return dropped, k.StampClaims(at.Round, at.Head)

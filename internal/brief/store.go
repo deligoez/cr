@@ -5,6 +5,7 @@ import (
 	"io/fs"
 
 	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
 )
@@ -72,6 +73,15 @@ func write(src *Sources, held *state.Lock, assembled *Brief) error {
 	}
 	if err := gh.WriteThreads(held, assembled.Threads); err != nil {
 		return err
+	}
+	// The issue text this brief read, for `cr status`'s paragraph report. A
+	// run that resolved no key read no text, and refuseRekey has already
+	// refused one that would drop a recorded key, so there is nothing
+	// earlier to replace.
+	if assembled.Issue.Key != "" {
+		if err := intent.StoreIssueText(held, stamp, assembled.Issue.Text); err != nil {
+			return err
+		}
 	}
 	meta, err := metaOf(src, assembled)
 	if err != nil {

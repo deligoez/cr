@@ -170,6 +170,27 @@ func (r *briefResult) claims(w *writer, out *strings.Builder) {
 		id := r.Drift.Claims[i].ID
 		fmt.Fprintf(out, "  %s  span %s\n", id, spanState(r.Drift.Claims[i].SpanOccurs, sources[id]))
 	}
+	if r.Issue.Key != "" {
+		out.WriteString(paragraphLines(&r.Paragraphs, "  "))
+	}
+}
+
+// paragraphLines renders the issue text's paragraphs no claim span overlaps:
+// the count, then each one with its line range and its text. The text is
+// printed whole, because a paragraph is listed so that a claim can be drawn
+// from it, and a claim is drawn from a verbatim span.
+func paragraphLines(paragraphs *intent.Paragraphs, indent string) string {
+	var out strings.Builder
+	fmt.Fprintf(&out, "%sissue paragraphs: %d total, %d overlapped by no claim span\n",
+		indent, paragraphs.Total, len(paragraphs.Uncovered))
+	for i := range paragraphs.Uncovered {
+		uncovered := &paragraphs.Uncovered[i]
+		fmt.Fprintf(&out, "%s  lines %d-%d\n", indent, uncovered.StartLine, uncovered.EndLine)
+		for line := range strings.SplitSeq(uncovered.Text, "\n") {
+			fmt.Fprintf(&out, "%s    | %s\n", indent, line)
+		}
+	}
+	return out.String()
 }
 
 // spanState words §3.3.3's per-claim answer, naming the text the span was

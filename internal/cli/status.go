@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/probe"
@@ -62,6 +63,19 @@ type intentCoverage struct {
 	fallen []note.Standing
 }
 
+// issueParagraphs is intent.UncoveredParagraphs over the issue text stored for
+// the round, and whether there was one to split.
+//
+// Stored is a field of its own because the two absences read alike otherwise:
+// a round whose issue text nobody stored reports no paragraph uncovered, and a
+// reader shown an empty list would take every paragraph for covered.
+type issueParagraphs struct {
+	// Stored is whether `cr brief` or `cr claims record` stored the issue
+	// text for this round.
+	Stored bool `json:"stored"`
+	intent.Paragraphs
+}
+
 // statusResult is §10.1's coverage report for one round.
 //
 // It answers §10.1.1 through §10.1.6, §3.6.6's report of what the round rests
@@ -82,6 +96,9 @@ type statusResult struct {
 	Files *unit.Files `json:"files,omitempty"`
 	// Intent is §10.1.2.
 	Intent intentCoverage `json:"intent"`
+	// Paragraphs are the paragraphs of the issue text the round last read
+	// that no span of the round's claims overlaps.
+	Paragraphs issueParagraphs `json:"issue_paragraphs"`
 	// Axes is §10.1.3's first clause and two of §4.5.4's four kinds: the
 	// active axes, the disabled ones, and the unavailable ones.
 	Axes activation.Activation `json:"axes"`
@@ -157,6 +174,12 @@ func (r *statusResult) Text(w *writer) string {
 		strconv.Itoa(r.Intent.SetAside) + " set aside)\n")
 	for i := range r.Intent.Gaps {
 		out.WriteString("  " + r.Intent.Gaps[i].Claim + gapNote(&r.Intent.Gaps[i], r.Intent.fallen[i]) + "\n")
+	}
+	if r.Paragraphs.Stored {
+		out.WriteString(paragraphLines(&r.Paragraphs.Paragraphs, ""))
+	} else {
+		out.WriteString("issue paragraphs: no issue text stored for round " + strconv.Itoa(r.Round) +
+			"; `cr brief` and `cr claims record` store the text they read\n")
 	}
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
 	out.WriteString(r.recordLines())
@@ -264,6 +287,9 @@ func newStatusCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return headNotFetched(cmd, owner, repo, pr, err)
 			}
+			if report.Paragraphs, err = statusParagraphsOf(layout, owner, repo, pr, round.Round); err != nil {
+				return err
+			}
 			// A closed or merged pull request is said first, before the
 			// round is reported as though a review were still to come.
 			report.Honesty = append(closureDisclosure(owner, repo, pr, &opened), report.Honesty...)
@@ -334,6 +360,20 @@ func statusOf(
 		Completeness: verdict,
 		Honesty:      append(append(disclosed, drift...), staleProfile(l.Profile(round.ProfileID))...),
 	}, nil
+}
+
+// statusParagraphsOf splits the issue text stored for the round and reports the
+// paragraphs no span of the round's claims overlaps.
+func statusParagraphsOf(l state.Layout, owner, repo string, pr, round int) (issueParagraphs, error) {
+	issue, stored, err := intent.StoredIssueText(l, owner, repo, pr, round)
+	if err != nil || !stored {
+		return issueParagraphs{Paragraphs: intent.Paragraphs{Uncovered: []intent.Paragraph{}}}, err
+	}
+	claims, err := state.ReadStamped[intent.Claim](l, owner, repo, pr, state.FileClaims, round)
+	if err != nil {
+		return issueParagraphs{}, err
+	}
+	return issueParagraphs{Stored: true, Paragraphs: intent.UncoveredParagraphs(issue, slices.Values(claims))}, nil
 }
 
 // statusLenses is lensesOf for `cr status`, which reports a round whose head
