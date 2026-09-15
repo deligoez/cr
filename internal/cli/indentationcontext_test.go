@@ -52,5 +52,10 @@ func TestADraftWarnsAboutASuggestionReindentingAContextLine(t *testing.T) {
 		"record f1: the suggestion's first line and the line it replaces are indented differently, " +
 			"and §8.2.3 has cr infer nothing about indentation. Leave the block in place to post it " +
 			"as written, or edit it.\n  suggestion: \"\\tpackage lib\"\n  replaces:   \"package lib\"",
+		// The record carries no citation, so `cr record` stored it as an
+		// `argued` question over statement prose, and field-feedback 2.6's
+		// warning follows §8.2.3's.
+		"record f1: its kind=question body holds no \"?\" character, and §8.1.5 has `cr post` refuse it; " +
+			"rewrite the body in draft.md into the question it asks",
 	}, drafted.Warnings)
 }
