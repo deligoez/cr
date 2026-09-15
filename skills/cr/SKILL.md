@@ -933,9 +933,18 @@ writes the four built-ins (`intent-coverage`, `correctness`, `convention`,
 `test-adequacy`) as editable files. More than one role may serve an axis. An
 ejected file shadows the built-in and a second eject never rewrites it, so a
 role file ejected before v0.2.3 keeps the older instructions: its
-`test-adequacy` lacks the paragraphs on where a missing-test record goes, and
-its `correctness` lacks the one on a predicate's other occurrences. Delete the
-file and eject again to take them, or copy them into your edit.
+`test-adequacy` lacks the three paragraphs on where a missing-test record goes,
+and its `correctness` lacks the paragraph on a predicate's other occurrences
+and keeps the earlier closing paragraph, which does not yet say that another
+copy of the same code carries no assertion. Delete the file and eject again to
+take them, or eject into a scratch home and carry every difference into your
+edit:
+
+```bash
+CR_HOME=/tmp/cr-roles cr init --eject-roles
+diff <(jq -r .instructions ~/.cr/roles/correctness.json) \
+     <(jq -r .instructions /tmp/cr-roles/roles/correctness.json)
+```
 
 To add one, write the file:
 
