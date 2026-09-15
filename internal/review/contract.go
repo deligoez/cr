@@ -74,6 +74,8 @@ func contract(p *page, lens *role.Role, output string, round int, ids IDs) {
 	// stated to the one writing the record.
 	p.line("Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
 		"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1).")
+	p.line("A kind=question record's posted body must contain \"?\" (§8.1.5); that body is composed at draft " +
+		"time, where a question body that does not ask is rewritten into one before `cr post` accepts it.")
 	p.line("")
 	p.line("You may not write %s. cr computes or stamps them, and a record arriving with one is "+
 		"rejected with exit code 1 (§6.1.4, §2.3.3).", strings.Join(forbidden(), ", "))
