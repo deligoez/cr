@@ -57,8 +57,8 @@ func absentDir(t *testing.T) string {
 // corpusIDs reports the corpus as its role ids, in corpus order.
 func corpusIDs(roles []Resolved) []string {
 	out := make([]string, 0, len(roles))
-	for _, r := range roles {
-		out = append(out, r.Role.ID)
+	for i := range roles {
+		out = append(out, roles[i].Role.ID)
 	}
 	return out
 }
@@ -68,9 +68,9 @@ func corpusIDs(roles []Resolved) []string {
 // exactly one entry and a caller can assert that rather than assume it.
 func entriesFor(roles []Resolved, id string) []Resolved {
 	out := make([]Resolved, 0, 1)
-	for _, r := range roles {
-		if r.Role.ID == id {
-			out = append(out, r)
+	for i := range roles {
+		if roles[i].Role.ID == id {
+			out = append(out, roles[i])
 		}
 	}
 	return out
@@ -189,8 +189,8 @@ func TestCorpusOrderIsLayerThenAscendingRoleID(t *testing.T) {
 // order.
 func layersOf(roles []Resolved) []Layer {
 	out := make([]Layer, 0, len(roles))
-	for _, r := range roles {
-		out = append(out, r.Layer)
+	for i := range roles {
+		out = append(out, roles[i].Layer)
 	}
 	return out
 }

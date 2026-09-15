@@ -405,8 +405,8 @@ type mergeCounts struct {
 // reported nothing and a round in which it never ran.
 func mergeCountsOf(corpus []role.Resolved, records []*finding.Finding) mergeCounts {
 	roles := make([]string, 0, len(corpus))
-	for _, resolved := range corpus {
-		roles = append(roles, resolved.Role.ID)
+	for i := range corpus {
+		roles = append(roles, corpus[i].Role.ID)
 	}
 	filed := make([]string, 0, len(records))
 	axes := make([]string, 0, len(records))

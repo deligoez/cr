@@ -105,8 +105,8 @@ func Resolve(repoRolesDir, globalRolesDir string) ([]Resolved, error) {
 // at the code.
 func Order(corpus []Resolved) func(a, b string) int {
 	rank := make(map[string]int, len(corpus))
-	for at, resolved := range corpus {
-		rank[resolved.Role.ID] = at
+	for at := range corpus {
+		rank[corpus[at].Role.ID] = at
 	}
 	// One past the last resolved role, so an unresolved id sits behind the
 	// whole corpus and beside the other unresolved ones.
@@ -151,12 +151,12 @@ type corpus struct {
 // the shadowed file out of the corpus rather than demoting it, so there is no
 // second entry to place.
 func (c *corpus) add(layer Layer, roles []Role) {
-	for _, r := range roles {
-		if _, shadowed := c.taken[r.ID]; shadowed {
+	for i := range roles {
+		if _, shadowed := c.taken[roles[i].ID]; shadowed {
 			continue
 		}
-		c.taken[r.ID] = struct{}{}
-		c.roles = append(c.roles, Resolved{Role: r, Layer: layer})
+		c.taken[roles[i].ID] = struct{}{}
+		c.roles = append(c.roles, Resolved{Role: roles[i], Layer: layer})
 	}
 }
 
