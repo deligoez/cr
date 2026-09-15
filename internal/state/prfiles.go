@@ -53,6 +53,14 @@ const (
 	// created with the directory: a round no v0.2.3 command has read the
 	// issue for has none.
 	FileIssueText = "issue.json"
+	// FileEmissions is one line per prompt `cr review` emitted: the round and
+	// head, the pass, the role and unit, the moment, and the ids of the notes
+	// the prompt carried. `cr note`, `cr record`, `cr status` and `cr draft`
+	// read it to say which prompts a note postdates. It sits beside the §2.3
+	// table rather than in it for the reason FileIssueText does, and is not
+	// created with the directory: a round no v0.2.3 `cr review` has emitted
+	// for has none.
+	FileEmissions = "emissions.ndjson"
 )
 
 // prFiles is the §2.3 table in table order.
