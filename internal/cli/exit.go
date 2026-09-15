@@ -468,6 +468,13 @@ var codes = []mapped{
 	// §11.2 codes 4 beside the stale unit above.
 	{is[*review.MappingRequiredError](), ExitState,
 		"run the intent pass and record its mapping with `cr map record` first"},
+	// The intent pass itself, asked of a round with no claims recorded:
+	// §4.6.5's first pass carries the claims, and there are none to carry.
+	// The command line is right; what refuses is where the round stands, so
+	// it takes the 4 the refusal above gets, and names the command that
+	// records the claims.
+	{is[*review.ClaimsRequiredError](), ExitState,
+		"record the round's claims with `cr claims record <pr> <file.ndjson>` first, an empty file when the issue yields none"},
 	// The same refusal reached from `cr cells record`: a cell for a role off
 	// the intent axis, in a round with no mapping, was filled without the
 	// prompt §4.6.5 withholds. The file is well formed; what refuses is where
