@@ -1,0 +1,13 @@
+{
+  "id": "generic",
+  "match": {
+    "files": [],
+    "globs": ["**/*"]
+  },
+  "axes": {
+    "intent": true,
+    "correctness": true,
+    "convention": true,
+    "test": true
+  }
+}
