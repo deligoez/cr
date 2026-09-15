@@ -461,6 +461,11 @@ var codes = []mapped{
 	// codes 4 beside the moved head above.
 	{is[*brief.KeyRewriteError](), ExitState,
 		"pass the issue key the round recorded, which the message names"},
+	// §4.6.1: `--units` names an id that is not a unit of the current round.
+	// The ids are checked against units.ndjson, which is data rather than
+	// the shape of the command line, and §4.6.1 codes the rejection 1.
+	{is[*review.UnknownUnitError](), ExitValidation,
+		"name only units of the current round, which `cr brief <pr>` lists, or use --shard <k>/<n>"},
 	// §4.6.5 runs the fan-out in two passes and refuses the remaining axes
 	// until the first has produced a mapping. The command line is right and
 	// nothing it named is malformed; what refuses is that the round has not

@@ -51,6 +51,14 @@ type Sources struct {
 	// Clock stamps the emissions state.FileEmissions records, and is nil
 	// for the wall clock.
 	Clock func() time.Time
+	// All is `--all`: §4.6.1's default narrowing is not applied.
+	All bool
+	// Units is `--units`, and nil when it was not given. Every id must be a
+	// unit of the current round (§4.6.1).
+	Units []string
+	// Shard is `--shard`, and nil when it was not given. The command line
+	// refuses giving it together with Units.
+	Shard *Shard
 }
 
 // currentHead is §9.3.1's current head, read through the client already on
@@ -105,31 +113,34 @@ type Fanout struct {
 	Skipped []coverage.SkippedRole `json:"skipped_roles"`
 	// Expected is §4.6.3's set of cells the round is waiting for, so
 	// §10.2.2 can be checked once the roles return. It is the round's
-	// whole demand and not this invocation's: `--axis` narrows Prompts and
-	// leaves this alone.
+	// whole demand and not this invocation's: `--axis`, `--units`,
+	// `--shard` and §4.6.1's default narrowing narrow Prompts and leave
+	// this alone.
 	Expected []ExpectedCell `json:"expected_cells"`
 }
 
-// ExpectedCell is one cell of §4.6.3's set, and whether coverage.ndjson already
-// holds it for the round and head (field-feedback 1.6).
+// ExpectedCell is one cell of §4.6.3's set, whether the round holds it at its
+// head, and whether §4.6.1's note condition holds for it.
 //
-// Recorded changes nothing about what is emitted: §4.6.1 still emits a prompt
-// for every active role and unit. It tells the caller which of those prompts
-// would only judge a cell a second time.
+// The two together are §4.6.1's default narrowing as data: a cell is emitted
+// without `--all` when it is not Recorded, or when it is StaleByNote.
 type ExpectedCell struct {
 	coverage.Expected
-	Recorded bool `json:"recorded,omitempty"`
+	Recorded    bool `json:"recorded,omitempty"`
+	StaleByNote bool `json:"stale_by_note,omitempty"`
 }
 
-// expectedCells marks every cell of the set the round's cells already hold at
-// its head.
-func expectedCells(set []coverage.Expected, cells []coverage.Cell, head string) []ExpectedCell {
+// expectedCells marks every cell of the set the round already holds at its
+// head, and every cell whose latest emission a standing note on its unit
+// postdates.
+func (r *Round) expectedCells(set []coverage.Expected) []ExpectedCell {
 	marked := make([]ExpectedCell, 0, len(set))
 	for _, cell := range set {
-		recorded := slices.ContainsFunc(cells, func(held coverage.Cell) bool {
-			return held.Unit == cell.Unit && held.Role == cell.Role && held.Head == head
+		marked = append(marked, ExpectedCell{
+			Expected:    cell,
+			Recorded:    r.holds(cell.Role, cell.Unit),
+			StaleByNote: r.staleByNote(cell.Role, cell.Unit),
 		})
-		marked = append(marked, ExpectedCell{Expected: cell, Recorded: recorded})
 	}
 	return marked
 }
@@ -253,9 +264,15 @@ func Run(src *Sources) (*Fanout, error) {
 		return nil, err
 	}
 	meta := round.Meta
-	r := &Round{Round: meta.Round, Head: meta.Head, Proximity: src.Config.Int("threads.proximity_lines")}
+	r := &Round{
+		Round: meta.Round, Head: meta.Head, PR: src.PR, All: src.All,
+		Proximity: src.Config.Int("threads.proximity_lines"),
+	}
 	records, err := r.read(src, &meta)
 	if err != nil {
+		return nil, err
+	}
+	if r.Picked, err = src.pickUnits(r.Round, recordIDs(records)); err != nil {
 		return nil, err
 	}
 	p, axes, err := gate(src, r, &meta)
@@ -280,9 +297,7 @@ func Run(src *Sources) (*Fanout, error) {
 	if err != nil {
 		return nil, err
 	}
-	cells, err := state.ReadStamped[coverage.Cell](
-		src.Layout, src.Owner, src.Repo, src.PR, state.FileCoverage, r.Round)
-	if err != nil {
+	if err := r.readNarrowing(src); err != nil {
 		return nil, err
 	}
 	prompts := Emit(r)
@@ -292,9 +307,32 @@ func Run(src *Sources) (*Fanout, error) {
 	return &Fanout{
 		Round: r.Round, Head: r.Head, Prompts: prompts,
 		Honesty:  append(sentences(lenses), p.StaleDisclosures()...),
-		Expected: expectedCells(coverage.Expect(unitIDs(r.Units), r.Active), cells, r.Head),
+		Expected: r.expectedCells(coverage.Expect(unitIDs(r.Units), r.Active)),
 		Skipped:  lenses.Roles,
 	}, nil
+}
+
+// readNarrowing reads what §4.6.1's default narrowing and §4.6.3's marks are
+// decided from: the round's cells and its emission lines. It takes no lock,
+// per §2.3.2, and runs before this invocation appends its own lines.
+func (r *Round) readNarrowing(src *Sources) error {
+	var err error
+	if r.Cells, err = state.ReadStamped[coverage.Cell](
+		src.Layout, src.Owner, src.Repo, src.PR, state.FileCoverage, r.Round); err != nil {
+		return err
+	}
+	r.Emitted, err = ReadEmissions(src.Layout, src.Owner, src.Repo, src.PR, r.Round)
+	return err
+}
+
+// recordIDs is the ids of the round's unit records, in the order they were
+// read.
+func recordIDs(records []unit.Record) []string {
+	ids := make([]string, 0, len(records))
+	for i := range records {
+		ids = append(ids, records[i].ID)
+	}
+	return ids
 }
 
 // gate loads the round's profile, re-derives the axis activation every §4.5.4
@@ -500,12 +538,8 @@ func (r *Round) raise(
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]string, 0, len(records))
-	for i := range records {
-		ids = append(ids, records[i].ID)
-	}
 	return Raise(&IntentRound{
-		Round: r.Round, Units: ids, Pairs: r.Pairs, Notes: notes, Cells: cells,
+		Round: r.Round, Units: recordIDs(records), Pairs: r.Pairs, Notes: notes, Cells: cells,
 		IntentRoles: roleIDs(intentRoles),
 	}), nil
 }

@@ -3,6 +3,7 @@ package review
 import (
 	"path/filepath"
 
+	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
@@ -105,6 +106,22 @@ type Round struct {
 	// Held is findings.ndjson whole, across rounds: the ids a record
 	// already holds, which no prompt's block hands out again (§6.1).
 	Held []finding.Finding
+	// PR is the pull request, which a note answering a record names.
+	PR int
+	// Picked are the unit ids `--units` or `--shard` narrowed the prompts
+	// to, and nil when the invocation named neither (§4.6.1).
+	Picked []string
+	// All is `--all`: every prompt is emitted, held cells included.
+	All bool
+	// Cells are the coverage cells the round holds, which §4.6.1's default
+	// narrowing and §4.6.3's `recorded` read.
+	Cells []coverage.Cell
+	// Emitted are the round's lines of state.FileEmissions, which §4.6.1's
+	// note condition reads.
+	Emitted []Emission
+	// Contract is the path of the round's contract file, which every
+	// prompt names (§4.6.2).
+	Contract string
 }
 
 // Prompt is one prompt §4.6.1 emits: one active role over one unit.
@@ -134,7 +151,8 @@ type Prompt struct {
 }
 
 // Emit is §4.6.1: for every active role and every unit, one prompt, role by
-// role in corpus order and unit by unit in id order within each.
+// role in corpus order and unit by unit in id order within each, narrowed per
+// Round.emits.
 //
 // It forms no judgement, and its inputs are why it cannot. Every attachment was
 // located by the package that owns it — candidates ranked by §4.3.2's formula,
@@ -148,7 +166,7 @@ func Emit(r *Round) []Prompt {
 	for i := range r.Roles {
 		lens := &r.Roles[i]
 		for at := range r.Units {
-			if !r.emits(r.Units[at].ID) {
+			if !r.emits(lens.ID, r.Units[at].ID) {
 				continue
 			}
 			output := filepath.Join(r.Units[at].FanOut, finding.FanOutFile(lens.ID))
@@ -166,16 +184,4 @@ func Emit(r *Round) []Prompt {
 		}
 	}
 	return prompts
-}
-
-// emits reports whether the unit gets a prompt on this invocation.
-//
-// Every unit does, except on §4.6.5's second intent pass, which re-emits one
-// prompt per unit the round's mapping maps to zero claims. Which units those
-// are is mapping.ClaimsOf's answer rather than Round.Unmapped's: §4.1.5 leaves
-// an item unraised once a note explains the unit, and that unit is still one
-// the mapping maps to nothing — dropping it here would take away the prompt
-// carrying the note the agent is meant to weigh.
-func (r *Round) emits(id string) bool {
-	return !r.SecondPass || len(mapping.ClaimsOf(r.Pairs, r.Round, id)) == 0
 }

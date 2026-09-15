@@ -10,6 +10,7 @@ import (
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -243,13 +244,9 @@ func NotesAfter(in *PromptNotes) NotesAfterPrompts {
 			report.Unattributed = append(report.Unattributed, record.ID)
 			continue
 		}
-		missed := make([]string, 0)
-		for i := range standing {
-			if standing[i].RecordedAt.After(prompt.EmittedAt) &&
-				!slices.Contains(prompt.Notes, standing[i].ID) && in.on(&standing[i], record) {
-				missed = append(missed, standing[i].ID)
-			}
-		}
+		missed := missedNotes(prompt, standing, func(recorded *note.Note) bool {
+			return linkOf(recorded, in.Claims, in.Records, in.PR).onRecord(record)
+		})
 		if len(missed) > 0 {
 			report.Records = append(report.Records, RecordBeforeNotes{Record: record.ID, Notes: missed})
 		}
@@ -262,11 +259,23 @@ func NotesAfter(in *PromptNotes) NotesAfterPrompts {
 // its role and unit precedes it.
 func (in *PromptNotes) promptOf(record *finding.Finding) *Emission {
 	stored, dated := in.RecordedAt[record.ID]
+	return latestEmission(in.Emissions, record.Stamp, record.Role, record.Unit, func(line *Emission) bool {
+		return !dated || !line.EmittedAt.After(stored)
+	})
+}
+
+// latestEmission is the latest line of emitted for one role and unit at the
+// stamp's round and head that within admits, and nil when there is none.
+//
+// It is the one reading of "the latest line" both of its callers need: a
+// record's prompt, bounded by when the record was stored, and §4.6.1's latest
+// line of a cell, bounded by nothing.
+func latestEmission(emitted []Emission, stamp state.Stamp, roleID, unitID string, within func(*Emission) bool) *Emission {
 	var latest *Emission
-	for i := range in.Emissions {
-		line := &in.Emissions[i]
-		if line.Role != record.Role || line.Unit != record.Unit || line.Round != record.Round ||
-			line.Head != record.Head || (dated && line.EmittedAt.After(stored)) {
+	for i := range emitted {
+		line := &emitted[i]
+		if line.Role != roleID || line.Unit != unitID || line.Round != stamp.Round ||
+			line.Head != stamp.Head || !within(line) {
 			continue
 		}
 		if latest == nil || line.EmittedAt.After(latest.EmittedAt) {
@@ -276,24 +285,76 @@ func (in *PromptNotes) promptOf(record *finding.Finding) *Emission {
 	return latest
 }
 
-// on reports whether the note is on the record's claim or unit, by the links
-// NotesAfter names.
-func (in *PromptNotes) on(recorded *note.Note, record *finding.Finding) bool {
-	drawn := make([]string, 0)
-	for i := range in.Claims {
-		if in.Claims[i].Source == intent.ClaimFromNote && in.Claims[i].NoteID == recorded.ID {
-			drawn = append(drawn, in.Claims[i].ID)
+// missedNotes is the ids of the standing notes recorded after the line was
+// emitted that the line does not carry and that on places on what the line
+// was emitted for, in the order standing holds them.
+func missedNotes(line *Emission, standing []note.Note, on func(*note.Note) bool) []string {
+	missed := make([]string, 0)
+	for i := range standing {
+		if standing[i].RecordedAt.After(line.EmittedAt) &&
+			!slices.Contains(line.Notes, standing[i].ID) && on(&standing[i]) {
+			missed = append(missed, standing[i].ID)
 		}
 	}
-	if len(drawn) > 0 {
-		return slices.Contains(drawn, record.Claim)
-	}
-	if recorded.Record != "" && recorded.PR == in.PR {
-		for _, answered := range in.Records {
-			if answered.ID == recorded.Record {
-				return answered.Unit == record.Unit
-			}
+	return missed
+}
+
+// noteLink is where a note sits by the links it has as stored: the claims of
+// the round drawn from it (§3.3.2), or failing any, the record of the round it
+// answers (§3.6.2). A note with neither is on everything.
+type noteLink struct {
+	// claims are the ids of the round's claims drawn from the note.
+	claims []string
+	// answered is the round's record the note answers, nil when a claim
+	// was drawn from the note or it answers no record of the round.
+	answered *finding.Finding
+}
+
+// linkOf reads a note's links out of the round's claims and records. A note
+// answering a record is read together with its pull request, because §11
+// scopes a record id to one.
+func linkOf(recorded *note.Note, claims []intent.Claim, records []*finding.Finding, pr int) noteLink {
+	link := noteLink{claims: make([]string, 0)}
+	for i := range claims {
+		if claims[i].Source == intent.ClaimFromNote && claims[i].NoteID == recorded.ID {
+			link.claims = append(link.claims, claims[i].ID)
 		}
+	}
+	if len(link.claims) > 0 || recorded.Record == "" || recorded.PR != pr {
+		return link
+	}
+	for _, answered := range records {
+		if answered.ID == recorded.Record {
+			link.answered = answered
+			return link
+		}
+	}
+	return link
+}
+
+// onRecord reports whether the note is on the record's claim or unit.
+func (l noteLink) onRecord(record *finding.Finding) bool {
+	if len(l.claims) > 0 {
+		return slices.Contains(l.claims, record.Claim)
+	}
+	if l.answered != nil {
+		return l.answered.Unit == record.Unit
+	}
+	return true
+}
+
+// onUnit reports whether the note is on the unit, per §4.6.1: a note a claim
+// was drawn from is on the units the round's mapping maps that claim to, a
+// note answering a record is on that record's unit, and every other note is on
+// every unit.
+func (l noteLink) onUnit(unitID string, pairs []mapping.Pair, round int) bool {
+	if len(l.claims) > 0 {
+		return slices.ContainsFunc(mapping.ClaimsOf(pairs, round, unitID), func(claim string) bool {
+			return slices.Contains(l.claims, claim)
+		})
+	}
+	if l.answered != nil {
+		return l.answered.Unit == unitID
 	}
 	return true
 }
