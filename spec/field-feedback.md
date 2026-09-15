@@ -112,6 +112,24 @@ spec-driven audits of the branch, and attributes them to the cell bookkeeping fo
 | 2.11 | A `wrong` disposition becomes a repository-wide waiver when `cr draft` runs, before any post (needs a decision). | Say so in the draft header, or apply dispositions at post or an explicit apply step. |
 | 2.12 | Worked well: id blocks kept 16 parallel writers collision-free; cells guaranteed 424 of 424; no argued record escaped as a finding; dry-run validation and commit pinning were clean; waiver scopes match how reviewers think. | — |
 
+### Verification of batch 2 (2026-09-15, read-only over spec/0.2.0.md, HEAD, the stored #6233 state and the backend repository at `073b6f4e`)
+
+The reported counts match stored state: records cited 24 and argued 18 (31 questions, 11 findings); draft
+20 queued, 20 not-here, 2 wrong, 20 pull-request waivers; 12 of 19 probes supportable, 10 chosen, none run;
+20 comments on the dry run, `posted.json` empty.
+
+| # | Verdict | Tag holds | Evidence |
+|---|---------|-----------|----------|
+| 2.3 | Confirmed; follows §6.2.2 | FRICTION | `internal/probe/span.go:33-41`: support needs the target inside the record's anchor on the RIGHT side. All 7 unsupportable probes sit on records anchored in `tests/…` units (f40601, f40001 ×2, f40101, f41901, f39701, f40501), each targeting production code that is also one of the record's citations. No role instruction says where to anchor. **The approved alternative does not work as worded:** §6.1.3 requires the anchor to lie inside the record's own unit, so a record raised from a test-file unit cannot anchor on the production line; it can reach `probed` only if raised from the production unit's cell. |
+| 2.4 | Confirmed; by design (§6.4.1) | UNHELPFUL, as triage cost only | Dedup keys on path, side, line and class (`internal/finding/dedup.go:57-64`). Each pair's records are in different files; f35101/f40001 share a class, contrary to the report. Links: f12101/f13901 share two citations and one cites the other's anchor line; f35101/f40001 share a citation and each cites a line inside the other's anchor; f38401/f40601 and f34702/f40501 each cite a line inside the other's anchor. In three pairs both records' probes targeted the same line. The human deleted one of each pair, so none would have posted twice. |
+| 2.5 | Confirmed; by design (§6.1, §7.3.3) | UNHELPFUL, indirect | 42 records carry 36 distinct classes (`summary.json` `new_classes` 36); six @see-link records use five names. §6.1 requires only kebab-case; §2.6.3.1 groups harvest candidates by class; no builtin role declares classes. |
+| 2.6 | By design (§8.1.5, applied at post) | FRICTION, mild | Enforced when post bodies are built (`internal/draft/post.go:29-33,43`); the output contract never mentions "?". **A warning at record time would misfire:** §6.3.1 forces argued records to questions at record time with English statement prose, and 17 of the 31 stored questions have no "?" in summary or evidence. A warning at `cr draft` does not clash. |
+| 2.7 | Not reproduced as stated; by design (§6.1.1, §8.1.2) | Does not hold against cr | Every prompt says to write summary and evidence in English and that reader-facing prose is produced at draft time (`internal/review/contract.go:75`). The agent rewrites bodies in `render.lang` inside draft.md; the skill's Draft section never says so (`skills/cr/SKILL.md:506-507` only defines the setting). A skill gap. |
+| 2.8 | Partly; by design (§8.1.2) | UNHELPFUL for the first draft only | `rendered.json` bodies equal summary, a blank line and evidence, byte for byte; no length rule exists. Initial bodies: 440 minimum, 858 median, 1,646 maximum; 15 of 42 in 900–1,500, 3 above. The posted body is the agent's rewrite. |
+| 2.9 | f30901 agent-side; f24601 agent-side, catchable mechanically | WRONG holds | f30901: the branch adds three changelog files; `…is-active-gate.md:7` at the head declares the move into `shouldQueue()`; the record cites only another file, and record f16401 (kept) is anchored on that same line. Absence of text is a judgement cr cannot make. f24601: no claim span covers the two counting windows the issue text states; §3.3 checks that spans occur, never that the issue is covered, so a coverage report is text arithmetic. |
+| 2.10 | Confirmed; by design (§7.2) | FRICTION | No triage command exists; §7.2: "Triage happens by editing the file." |
+| 2.11 | Confirmed; by design (§7.1.6) | The undisclosed part holds | The repository waivers were written at 22:45:34.2678, the draft files a millisecond later, with `posted.json` empty. The draft header (`internal/draft/header.go:66-79`) does not mention waivers, and `skills/cr/SKILL.md:513` suggests they are written at post. |
+
 ### Decisions (2026-09-15, the user with the second reviewing session)
 
 - **Releases.** v0.2.2 ships the test-environment safety fix first (2.1). v0.3.0 takes every other verified
