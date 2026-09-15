@@ -173,19 +173,47 @@ cr review 1 --axis intent
   "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "first_id": "f1", "last_id": "f100", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
   "honesty": [],
   "skipped_roles": [],
-  "expected_cells": [{"unit": "u1", "role": "convention"}, …]
+  "expected_cells": [{"unit": "u1", "role": "convention"}, {"unit": "u1", "role": "intent-coverage", "recorded": true}, …]
 }
 ```
 
-Record the claim-to-unit mapping the intent pass produced (`{"claim": "CR-5#c1", "unit": "u1"}` per line), then emit the rest:
+An `expected_cells` entry carries `"recorded": true` when `coverage.ndjson`
+already holds that cell for the round and head; an entry without it is still
+owed. `cr review` still emits a prompt for every active role and unit, recorded
+or not.
+
+Record the intent pass's cells and the claim-to-unit mapping it produced
+(`{"claim": "CR-5#c1", "unit": "u1"}` per line), then emit the rest:
 
 ```bash
+cr cells record 1 intent-cells.ndjson
 cr map record 1 pairs.ndjson
-cr review 1
+cr review 1 > fanout.json
 ```
 
-Spawn one sub-agent per prompt. Each writes its findings, one JSON record per
-line, to the `output` path the prompt names, and nothing else. Each record takes
+That fan-out emits the intent prompts again beside the other axes. Run only the
+prompts whose `expected_cells` entry for the same unit and role is not
+`recorded`; a prompt for a recorded cell would judge the cell a second time:
+
+```bash
+jq '[.expected_cells[] | select(.recorded != true) | .unit + "/" + .role] as $open
+  | [.prompts[] | select((.unit + "/" + .role) as $k | $open | index($k))]' fanout.json
+```
+
+Batch the prompts into sub-agents rather than spawning one per prompt: a large
+pull request emits hundreds (106 units times 4 roles is 424). Batching is safe,
+because every prompt names its own `output` path and its own id block, so
+several prompts run by one sub-agent write the same files, with the same ids, as
+they would run apart. Give each sub-agent the prompts whole and tell it to run
+them one after another. As a size guide, measured on one field trial (106
+units, 4 roles, prompts of 13,500 to 15,000 characters): 8 sub-agents ran the
+106 intent prompts, about 13 each, in 4m20s, and 8 more ran the other 318, about
+40 each, in 17m12s. Measure your own prompts with `jq '[.prompts[].prompt |
+length]' fanout.json`, and give a sub-agent fewer prompts when it runs out of
+context before its last one.
+
+Each prompt's findings go, one JSON record per line, to the `output` path the
+prompt names, and nothing else. Each record takes
 its `id` from the prompt's own block, `first_id` through `last_id` in order: no
 other prompt of the round is given those ids, so parallel roles never write the
 same one and `cr merge` accepts their files together. cr refuses a new record
