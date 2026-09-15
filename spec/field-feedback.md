@@ -37,3 +37,23 @@ graded all five intent records `cited` because their citations lay outside the u
 | 1.5 | Confirmed | Yes: a question a note already settles can reach the author | Measured: a note recorded after `cr review --axis intent` is absent from the emitted prompts and present on re-emission. No notes or claims hash exists; `cr note` prints no hint; `cr record` reads no notes; the draft uses notes only for provenance; §3.6.6 reacts only to a retraction. Comparing a note's time with a prompt's emission is mechanical, so a stamp does not make cr form an opinion. |
 | 1.6 | Confirmed; matches §4.6.1 as written | Friction, with a small trust risk: a second, conflicting judgement for a recorded cell | Measured: with every intent cell recorded, `cr review` emitted the intent prompts again; `expected_cells` lists every cell and nothing marks recorded ones (`internal/review/run.go:375-380`, `internal/review/emit.go:179-181`). The skill's own sequence (`cr map record`, then `cr review`) leads into it. Id blocks prevent an id collision, not the duplicate judgement. |
 | 1.7 | By design, and worse than reported | Friction; on a suite with one failing test, no probe can establish a missing test | `internal/profile/builtin/laravel-pest.json:25-27` has no path; `cr test` has only `--filter` (`internal/cli/test.go:283`). §5.2.2 requires an unfiltered baseline once per head, and `probe.Required` runs it before any probe (`internal/probe/baseline.go:79-85`), so a filtered probe still runs the whole suite first; §5.2.5 counts a baseline as passed only with zero failures. |
+
+### Proposed disposition of batch 1 (settled with a second reviewing session; not yet the user's decision)
+
+The test: an addition to output, state or the skill is a patch; a new intent source, a flag in §11's
+table, a prompt-content rule or a baseline rule needs spec text and belongs to v0.3.
+
+Claims in this proposal that are not yet checked, and must be before any task is written: that §4.6.5
+requires the full claim list in every first-pass prompt; that a computed record field for 1.5 fits §6.1's
+schema without normative text (a new field in a record table may itself be spec surface); that the
+transport cleanup in 1.2 cannot move a span; and the two measurements named in 1.2 and 1.4.
+
+| # | Patch (v0.2.x) | Spec (v0.3) |
+|---|----------------|-------------|
+| 1.1 | `cr brief` lists every URL in the issue text under `honesty` as linked and not read; the skill names today's workaround, a note-sourced claim (§3.3.2) from `cr note --source other`. | `intent.extra_sources` or a repeatable `--intent-file`; a §3.1 clause on linked documents. |
+| 1.2 | At ingestion, strip terminal control sequences and map U+00A0 to U+0020 before storing; match verbatim on the stored text, keep line breaks significant (joining wrapped lines could let a span straddle two items); the skill says to copy spans from `cr brief`'s printed issue text. Release note: `issue_hash` changes once for affected issues. Measure first whether `jira --plain` wraps to a width when piped; if so, pin the width in the command's environment. | Only if the default tracker command changes (§3.1.2). |
+| 1.3 | The skill says to batch k prompts per sub-agent (ids are per prompt, so batching is safe) and gives a size guide. The claim list in every first-pass prompt is §4.6.5, not a defect. | Moving the §6.1 schema out of each prompt (§4.6.2); `--units` or `--shard`. |
+| 1.4 | Measure the rename similarity threshold on #6233's file set (50/40/30%) and pick the lowest that pairs the moves without pairing unrelated files; §3.4 does not fix the threshold. No `na` defaults (§4.5.6); the skill says a moved, unchanged unit is a `pass` cell. | — |
+| 1.5 | Report, never refuse. `cr review` writes one line per emission (round, head, pass, unit, role, time, the note ids carried) to a new `emissions.ndjson`; `cr note` says which emitted passes it postdates; `cr record` stamps each record with the notes newer than its prompt as a computed field and reports the count; `cr draft` renders a cr-owned line naming those notes in the block; `cr status` counts them. | — |
+| 1.6 | `expected_cells` entries carry `recorded: true`; the skill's sequence says which prompts to run after `cr map record`. | Omitting recorded prompts, or a flag for it (§4.6.1, §11). |
+| 1.7 | When a probe establishes nothing because its baseline failed, `honesty` says so and names the baseline and its failed count; the skill says the first probe at a head runs the whole suite once. | A baseline scoped to the probe's filter (§5.2.2, §5.5), which evaluates §5.2.5 over the same tests the probe speaks about; a profile field for a test path (§2.4). |
