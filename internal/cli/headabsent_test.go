@@ -285,6 +285,15 @@ func headRuns(t *testing.T) map[string]headRun {
 		editF1Marker(t, drafted, `start_line="11" line="12"`, `start_line="12" line="12"`)
 	}
 	runs["draft"] = draft
+	// §4.6.5's first intent pass carries the claims, so the round records
+	// them, as an empty set, before the pass reaches its git read.
+	intentPass := runs["review"]
+	intentPass.prepare = func(t *testing.T, _ state.Layout, _ string) {
+		t.Helper()
+		_, err := runCLIPrinting(t, "claims", "record", fixturePR, empty, "--intent-file", issue, "--repo", fixtureSlug)
+		require.NoError(t, err)
+	}
+	runs["review"] = intentPass
 	// §5.2.1 runs the profile's test command, so the round names a profile
 	// that has one; the run fails before it would start.
 	for _, name := range []string{"test", "probe run"} {

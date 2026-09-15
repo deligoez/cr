@@ -93,6 +93,9 @@ func TestADeletionOnlyUnitReportsTheMergeBaseLinesItRemoves(t *testing.T) {
 		{"u2", "lib.go", git.Left, []unit.Range{{Start: 7, End: 8}}, []unit.Range{{Start: 6, End: 6}}},
 	}, got)
 
+	issue := filepath.Join(t.TempDir(), "issue.txt")
+	require.NoError(t, os.WriteFile(issue, []byte(fixtureIssue+": drop the panics.\n"), 0o600))
+	recordClaimsFile(t, issue)
 	said := map[string]string{}
 	for _, prompt := range fanOut(t, "--axis", axis.Intent).Prompts {
 		said[prompt.Unit] = prompt.Text

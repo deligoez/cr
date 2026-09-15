@@ -161,6 +161,7 @@ func TestThreadsWithNoCurrentLineAreListedQuotedInThePromptsOfItsFilesUnitsOnly(
 	require.ElementsMatch(t, []string{"lib.go", "other.go"}, []string{paths["u1"], paths["u2"]},
 		"the fixture is only worth anything with a unit on each file")
 
+	recordClaimsFile(t, intentFile)
 	prompts := fanOut(t, "--axis", axis.Intent).Prompts
 	require.Len(t, prompts, len(briefed.Units), "one intent prompt per unit")
 	quoted := "Each comment is quoted inside a fence exactly as its author wrote it; " +
