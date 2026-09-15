@@ -111,3 +111,27 @@ spec-driven audits of the branch, and attributes them to the cell bookkeeping fo
 | 2.10 | Triage by hand-editing a 62k-character draft: deleting 20 blocks and replacing 20 bodies needed line arithmetic, and one range overshot (FRICTION, corruption risk). | `cr triage <pr> <id>` with `not-here`, `wrong`, `soften` or `--body-file f`. |
 | 2.11 | A `wrong` disposition becomes a repository-wide waiver when `cr draft` runs, before any post (needs a decision). | Say so in the draft header, or apply dispositions at post or an explicit apply step. |
 | 2.12 | Worked well: id blocks kept 16 parallel writers collision-free; cells guaranteed 424 of 424; no argued record escaped as a finding; dry-run validation and commit pinning were clean; waiver scopes match how reviewers think. | — |
+
+### Decisions (2026-09-15, the user with the second reviewing session)
+
+- **Releases.** v0.2.2 ships the test-environment safety fix first (2.1). v0.3.0 takes every other verified
+  item, including those that need spec text; the re-review half of the loop moves to v0.4. The v0.2.1
+  GitHub release page is not edited; the warning goes in the v0.2.2 notes and README.
+- **Suggestions declined as proposed, with the alternative taken** (each would raise the cost of a wrong
+  assertion or make cr form a judgement):
+  - 2.3, a probe supporting a record through its citations: declined, because §6.2's anchor-range rule is
+    what stops one mutation from grading records elsewhere. Instead the skill tells test-adequacy to anchor
+    on the production line under test when that line is in the diff; otherwise the record stays a question.
+  - 2.5, normalising classes at record time: declined (cr would decide what a text means). Instead a role
+    file may declare a class vocabulary, prompts print it, and `cr record` reports classes outside it.
+  - 2.8, a posted body assembled by cr from `summary`: declined (§8.1.2: the agent composes every body).
+    Instead the draft header reports bodies above a length.
+  - 2.9, flagging issue sentences with dates or amounts: declined (which sentence matters is a judgement).
+    Instead brief and status list issue paragraphs no claim span covers, without ranking them.
+  - 2.11, moving the `wrong` waiver to post time: declined (§7.1.6 fixes the moment, and "this is false"
+    does not depend on posting). Instead the draft header says `wrong` writes a repository-wide waiver when
+    the draft regenerates.
+  - 2.6: `cr record` warns about a question without "?" and never refuses; the rule is stated in the
+    prompt's output contract.
+- **QA.** No test or probe runs against tarfin-labs/backend again; v0.3.0 QA uses a local Laravel-shaped
+  fixture, and the backend repository is read only.
