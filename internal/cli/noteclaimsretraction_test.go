@@ -3,8 +3,10 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -92,7 +94,8 @@ func TestTheDriftReportChecksANoteClaimAgainstItsNote(t *testing.T) {
 // `cr status` still counted the set-aside, listed no unstanding note, and its
 // completeness reasons no longer named the claim. The count half survived that
 // fix (D-V1a-4): `set_aside: 1` and "(1 set aside)" beside a §10.2.3 reason
-// saying the same claim is not set aside.
+// saying the same claim is not set aside. The gap line survived the count fix:
+// it still read "(set aside by <note>)" beside "(0 set aside)".
 func TestASetAsideOnARetractedNoteBlocksCompletenessAgain(t *testing.T) {
 	statusHome(t)
 	blocking := func() retractionStatus {
@@ -101,28 +104,38 @@ func TestASetAsideOnARetractedNoteBlocksCompletenessAgain(t *testing.T) {
 		require.NoError(t, err)
 		var report retractionStatus
 		require.NoError(t, json.Unmarshal([]byte(printed), &report))
+		var document struct {
+			Intent map[string]json.RawMessage `json:"intent"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(printed), &document))
+		report.intentKeys = slices.Sorted(maps.Keys(document.Intent))
 		return report
 	}
-	terminal := func() (claims string, notes []string) {
+	terminal := func() (claims string, gaps, notes []string) {
 		t.Helper()
+		gaps = make([]string, 0, 2)
 		notes = make([]string, 0, 1)
 		for line := range strings.SplitSeq(throughATerminal(t, "status", fixturePR, "--repo", fixtureSlug, "--no-color"), "\n") {
 			switch {
 			case strings.HasPrefix(line, "claims: "):
 				claims = line
+			case strings.HasPrefix(line, "  "+fixtureIssue+"#c"):
+				gaps = append(gaps, line)
 			case strings.HasPrefix(line, "  "+fixtureIssue+"#n"):
 				notes = append(notes, line)
 			}
 		}
-		return claims, notes
+		return claims, gaps, notes
 	}
 	standing := blocking()
 	require.Empty(t, standing.Unstanding, "the control: the note #c2 rests on stands")
 	assert.Equal(t, 1, standing.Intent.SetAside, "#c2's note stands")
 	assert.Equal(t, []string{"§10.2.3: 1 claim(s) are mapped to no unit and not set aside: " + fixtureIssue + "#c3"},
 		intentReasons(standing.Completeness.Reasons), "no reason names #c2 while its note stands")
-	claimsLine, noteLines := terminal()
+	claimsLine, gapLines, noteLines := terminal()
 	assert.Equal(t, "claims: 3 total, 1 mapped to a unit, 2 unimplemented (1 set aside)", claimsLine)
+	assert.Equal(t, []string{"  " + fixtureIssue + "#c2 (set aside by " + fixtureIssue + "#n1)", "  " + fixtureIssue + "#c3"},
+		gapLines, "a set-aside whose note stands reads as set aside")
 	assert.Empty(t, noteLines)
 
 	_, err := runCLIPrinting(t, "note", "--remove", fixtureIssue+"#n1")
@@ -136,10 +149,16 @@ func TestASetAsideOnARetractedNoteBlocksCompletenessAgain(t *testing.T) {
 	assert.Equal(t, 0, retracted.Intent.SetAside, "a set-aside on a retracted note settles nothing")
 	assert.Equal(t, []string{"§10.2.3: 2 claim(s) are mapped to no unit and not set aside: " +
 		fixtureIssue + "#c2, " + fixtureIssue + "#c3"}, intentReasons(retracted.Completeness.Reasons))
+	assert.Equal(t, []string{fixtureIssue + "#c2/" + fixtureIssue + "#n1", fixtureIssue + "#c3/"},
+		retracted.Intent.stamps(), "the document keeps the stamp as §4.1.3 stored it")
+	assert.Equal(t, []string{"claims", "gaps", "mapped", "set_aside"}, retracted.intentKeys,
+		"the terminal's wording adds nothing to the document")
 
-	claimsLine, noteLines = terminal()
+	claimsLine, gapLines, noteLines = terminal()
 	assert.Equal(t, "claims: 3 total, 1 mapped to a unit, 2 unimplemented (0 set aside)", claimsLine,
 		"the terminal counts what the document counts")
+	assert.Equal(t, []string{"  " + fixtureIssue + "#c2 (set-aside note " + fixtureIssue + "#n1 retracted)", "  " + fixtureIssue + "#c3"},
+		gapLines, "the gap line says what the count and the note report say")
 	assert.Equal(t, []string{"  " + fixtureIssue + "#n1 retracted: 0 cell(s), 0 record(s), " +
 		"1 set-aside(s) need re-evaluation (" + fixtureIssue + "#c2)"}, noteLines)
 }
@@ -157,13 +176,28 @@ func intentReasons(reasons []string) []string {
 
 // retractionStatus is the part of `cr status`'s document the retraction test reads.
 type retractionStatus struct {
-	Unstanding []unstandingNote `json:"unstanding_notes"`
-	Intent     struct {
-		SetAside int `json:"set_aside"`
-	} `json:"intent"`
+	Unstanding   []unstandingNote `json:"unstanding_notes"`
+	Intent       retractionIntent `json:"intent"`
 	Completeness struct {
 		Reasons []string `json:"reasons"`
 	} `json:"completeness"`
+	// intentKeys is every key of the document's `intent` object, sorted.
+	intentKeys []string
+}
+
+// retractionIntent is the part of §10.1.2's `intent` the retraction test reads.
+type retractionIntent struct {
+	SetAside int           `json:"set_aside"`
+	Gaps     []mapping.Gap `json:"gaps"`
+}
+
+// stamps is each gap entry as `<claim>/<set_aside_note>`, in document order.
+func (r *retractionIntent) stamps() []string {
+	stamps := make([]string, 0, len(r.Gaps))
+	for i := range r.Gaps {
+		stamps = append(stamps, r.Gaps[i].Claim+"/"+r.Gaps[i].SetAsideNote)
+	}
+	return stamps
 }
 
 // `cr claims set-aside` refuses a note §3.6.6 has already retracted, with exit
