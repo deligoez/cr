@@ -461,7 +461,10 @@ the sandbox was built). Directories are compared by presence only, and an entry
 neither holds is not compared. A file the profile's own `sandbox.setup` rewrote
 or created is compared only for being there when the checkout holds it: a
 sandbox that lost one is recreated, and the setup runs again, but a clone edit
-to such a file, or its removal from the clone, is not detected.
+to such a file, or its removal from the clone, is not detected. A file the
+setup removed is compared only for staying absent: the sandbox lacking it
+recreates nothing, and a sandbox holding it again is recreated, so the setup
+removes it again.
 Contents are compared in memory and never printed or stored. The header then
 goes to standard error, so a piped JSON document stays whole and `--quiet` does
 not remove it: the runner argv, the sandbox path, a `recreated` line naming the
@@ -474,11 +477,12 @@ run finishes. A `not copied` line means the suite runs without that file and
 may read another environment (a Laravel suite missing `.env.testing` reads
 `.env`, which can point at a development database): stop the run. When the line
 says `sandbox.copy` does not name the file, add it to the profile's
-`sandbox.copy`. When the line says `sandbox.copy` names it, the sandbox could
-not be rebuilt with it: either cr ran from a directory below the clone root
-(copies are taken from the directory cr runs in), so run cr from the clone
-root, or the recreation itself left the file out, so fix what removes it and
-run `cr sandbox destroy <pr>`. Then run again. A filtered
+`sandbox.copy`. When the line says `sandbox.copy` names it, either cr ran from
+a directory below the clone root (copies are taken from the directory cr runs
+in), so run cr from the clone root, or the profile's `sandbox.setup` removed
+it, which recreates nothing, even once the profile changes, because the
+sandbox stands as its setup left it, so fix what removes it and run
+`cr sandbox destroy <pr>`. Then run again. A filtered
 probe with a `baseline` line runs the entire suite before the filtered run. The
 `not copied` sentences are under the document's `honesty` too, beside the
 recreation notice, and `cr sandbox create` reports them the same way.
