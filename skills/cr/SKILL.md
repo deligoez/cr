@@ -244,6 +244,13 @@ that role already holds records is refused with exit 1 ("this round holds
 record(s) f10, f11 from that role on that unit; … file the cell as finding or
 question"), and so is a record where that role filed `pass` or `na`.
 
+A file moved with too much of it changed for git to pair the two paths (under
+50% similarity, as a small file whose namespace line changed) arrives as two
+units: a `LEFT` unit on the old path and a `RIGHT` unit on the new one. When the
+move changes no behaviour, a role with nothing to raise on either unit files a
+`pass` cell on each (a test-axis cell still carries its `coverage`); cr fills
+no cell for you, so leaving them out is a coverage gap.
+
 On the test axis, adequacy is judged at the code under test (§4.4.1). A record
 saying a production line has no test is raised from the cell of the unit
 holding that line, anchored on the line, which must lie in the diff and inside
