@@ -496,3 +496,74 @@ func TestAGitFailureOfAnotherKindKeepsItsOwnHint(t *testing.T) {
 		})
 	}
 }
+
+// A command headReads gives the head alone reads nothing a moved base fails:
+// over a clone that holds the head and lacks the base GitHub reports,
+// `cr sandbox create`, `cr test` and `cr probe run` each succeed, so the table
+// leaves out no read of the merge base. Those three are the only such rows, so
+// a base reader whose row lost the base fails here rather than being held to
+// the head alone by every test that reads the table.
+func TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails(t *testing.T) {
+	var headOnly []string
+	for _, name := range routedHeadRuns(t) {
+		if !slices.Contains(headReads[name], readsBase) {
+			headOnly = append(headOnly, name)
+		}
+	}
+	require.Equal(t, []string{"probe run", "sandbox create", "test"}, headOnly)
+	for _, name := range headOnly {
+		t.Run(name, func(t *testing.T) {
+			run := headRuns(t)[name]
+			draftedCloneLacking(t, readsBase, &run)
+
+			_, err := runCLIPrinting(t, run.argv...)
+			assert.NoError(t, err, "cr %s reads the head alone, and failed over a clone lacking the base", name)
+		})
+	}
+}
+
+// A git failure of another kind, while the clone holds the head and lacks a
+// base that moved, is a fetch of the base only for a command that reads the
+// merge base. The head commit's tree is taken out of the object store, so every
+// read of the head's content fails: `cr rules check` and every other command
+// reading the merge base names the base, code 3 and the `git fetch` hint, and
+// `cr sandbox create`, `cr test` and `cr probe run`, which read the head alone,
+// keep git's own error and hint.
+func TestAGitFailureBesideAMovedBaseIsAFetchOnlyForItsReaders(t *testing.T) {
+	for _, name := range routedHeadRuns(t) {
+		t.Run(name, func(t *testing.T) {
+			run := headRuns(t)[name]
+			draftedFor(t, &run)
+			full, err := repoDir()
+			require.NoError(t, err)
+			head := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch))
+			tree := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch+"^{tree}"))
+			base := strings.TrimSpace(mustGit(t, full, "commit-tree", "-p", "main", "-m", "the base moved on",
+				strings.TrimSpace(mustGit(t, full, "rev-parse", "main^{tree}"))))
+			for _, object := range []string{tree, base} {
+				require.NoError(t, os.Remove(filepath.Join(full, ".git", "objects", object[:2], object[2:])))
+			}
+			t.Setenv("PATH", ghShim(t, t.TempDir(), head, base)+string(os.PathListSeparator)+os.Getenv("PATH"))
+			mustGit(t, full, "cat-file", "-e", head+"^{commit}")
+			_, err = gitIn(t, full, "cat-file", "-e", base+"^{commit}")
+			require.Error(t, err, "the fixture is only worth anything if the clone lacks the base")
+
+			_, err = runCLIPrinting(t, run.argv...)
+			var missing *git.MissingCommitError
+			if slices.Contains(headReads[name], readsBase) {
+				require.ErrorAs(t, err, &missing)
+				assert.Equal(t, git.MissingCommitError{Dir: full, Commit: base}, *missing)
+				assert.Equal(t, "the repository at "+full+" does not hold commit "+base, err.Error())
+				assert.Equal(t, ExitFile, exitCodeFor(err))
+				assert.Equal(t, fetchHint, hintFor(err))
+				return
+			}
+			var failed *git.CommandError
+			require.ErrorAs(t, err, &failed)
+			assert.False(t, errors.As(err, &missing), "cr %s does not read the base", name)
+			assert.Equal(t, failed.Error(), err.Error())
+			assert.Equal(t, ExitFile, exitCodeFor(err))
+			assert.Equal(t, gitHint, hintFor(err))
+		})
+	}
+}
