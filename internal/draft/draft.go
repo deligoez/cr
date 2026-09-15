@@ -105,11 +105,7 @@ func block(
 func commentOf(
 	record *finding.Finding, lang render.Lang, sources *Provenances, preserved map[string]string,
 ) (render.Comment, error) {
-	agent, kept := preserved[record.ID]
-	if !kept {
-		agent = body(record)
-	}
-	comment := render.Comment{Body: agent}
+	comment := render.Comment{Body: agentRegion(record, preserved)}
 	if err := render.ValidateBody(record.ID, comment.Body); err != nil {
 		return render.Comment{}, err
 	}
@@ -136,6 +132,16 @@ func commentOf(
 	}
 	comment.Label = label
 	return comment, nil
+}
+
+// agentRegion is the body a record's block carries: the one §7.1.6 kept from
+// the draft being regenerated when there is one, and the one cr renders from
+// the record otherwise.
+func agentRegion(record *finding.Finding, preserved map[string]string) string {
+	if kept, found := preserved[record.ID]; found {
+		return kept
+	}
+	return body(record)
 }
 
 // body is the free-form Markdown region of §7.1.2, which the user may rewrite
