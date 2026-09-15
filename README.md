@@ -35,8 +35,10 @@ problems it is built to solve.
   and a disabled or unavailable axis is reported with its reason.
 - **You are still the reviewer.** `cr` writes a draft; you edit it. Deleting a
   block discards it for this pull request; marking it `disposition="wrong"`
-  discards it repository-wide and counts against its class. A waiver holds while
-  the anchored lines and the context lines around them are unchanged. Nothing
+  discards it repository-wide and counts against its class. The next `cr draft`
+  writes that waiver, before anything is posted, and the draft's header says so.
+  A waiver holds while the anchored lines and the context lines around them are
+  unchanged. Nothing
   reaches GitHub without `cr post --confirm`, all comments go in one review
   pinned to the round's head (`commit_id`), and a round posts at most one. A
   closed or merged pull request is disclosed before you confirm, never refused. Comment bodies follow `render.lang` (default `tr`); the
