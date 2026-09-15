@@ -55,6 +55,10 @@ type briefResult struct {
 	// the pull request is closed or merged: the terminal prints those
 	// beside the pull request's identity rather than among the axes.
 	closed int
+	// links is how many of Honesty's sentences, at its end, name a link
+	// the issue text carries and cr did not read: the terminal prints
+	// those under the issue text rather than among the axes.
+	links int
 }
 
 // newBriefResult renders §3.7's payload for printing, and with it §4.5.4's
@@ -72,7 +76,14 @@ func newBriefResult(assembled *brief.Brief) *briefResult {
 		honesty = append(honesty, entry.Disclosure())
 	}
 	honesty = append(honesty, assembled.StaleProfile()...)
-	return &briefResult{Brief: assembled, Honesty: honesty, closed: len(closure)}
+	// Every link in the issue text, as linked and not read: §3.1 reads the
+	// issue text alone, so a requirement stated only behind one reaches no
+	// claim, and nothing else would say so.
+	links := intent.Links(assembled.Issue.Text)
+	for _, link := range links {
+		honesty = append(honesty, intent.LinkDisclosure(link))
+	}
+	return &briefResult{Brief: assembled, Honesty: honesty, closed: len(closure), links: len(links)}
 }
 
 // Text renders §3.7's six items in the order §3.7 numbers them.
@@ -130,6 +141,7 @@ func (r *briefResult) issue(w *writer, out *strings.Builder) {
 	for line := range strings.SplitSeq(strings.TrimRight(r.Issue.Text, "\n"), "\n") {
 		fmt.Fprintf(out, "  | %s\n", line)
 	}
+	out.WriteString(w.disclose("  ", "\n", r.Honesty[len(r.Honesty)-r.links:]...))
 }
 
 // claims is §3.7.3: the claims of §3.3, and whether the issue text has drifted
@@ -266,8 +278,8 @@ func resolvedState(resolved bool) string {
 // been told the count and not the fact.
 func (r *briefResult) axes(w *writer, out *strings.Builder) {
 	fmt.Fprintf(out, "\n%s active: %s\n", w.accent("axes"), listed(r.Axes.Active))
-	out.WriteString(w.disclose("  ", "\n", r.Honesty[r.closed:]...))
-	if len(r.Honesty) == r.closed {
+	out.WriteString(w.disclose("  ", "\n", r.Honesty[r.closed:len(r.Honesty)-r.links]...))
+	if len(r.Honesty)-r.links == r.closed {
 		fmt.Fprintf(out, "  every axis of §1.5 ran; nothing was disabled or unavailable\n")
 	}
 	// §4.5.1's role half, settled by the same two facts and read by §4.5.6
