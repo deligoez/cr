@@ -106,3 +106,41 @@ func TestTheExpectedSetIsTheWholeRoundsEvenOnAnAxisPass(t *testing.T) {
 		"u2/convention", "u2/correctness", "u2/intent-coverage", "u2/test-adequacy",
 	}, at, "§4.6.3: every active role over every unit, whatever this pass emitted")
 }
+
+// An expected cell coverage.ndjson already holds for the round at its head
+// carries `recorded: true`, and every other cell carries nothing, while every
+// prompt is still emitted (field-feedback 1.6, §4.6.1).
+//
+// Three cells are stored: one of this round at its head, one of this round at
+// another head, and one of the round before at this head. Only the first is
+// the round's and head's, so only its entry is marked.
+func TestAnExpectedCellTheRoundAlreadyRecordedIsMarkedAndStillPrompted(t *testing.T) {
+	src := briefed(t)
+	before, err := Run(src)
+	require.NoError(t, err)
+
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	cell := func(unitID, role string) []*coverage.Cell {
+		return []*coverage.Cell{{Unit: unitID, Role: role, Result: coverage.ResultPass, UnitHash: "h"}}
+	}
+	require.NoError(t, state.AppendStamped(held, state.FileCoverage,
+		state.Stamp{Head: before.Head, Round: before.Round}, cell("u1", "correctness")))
+	require.NoError(t, state.AppendStamped(held, state.FileCoverage,
+		state.Stamp{Head: "0000000000000000000000000000000000000000", Round: before.Round}, cell("u2", "convention")))
+	require.NoError(t, state.AppendStamped(held, state.FileCoverage,
+		state.Stamp{Head: before.Head, Round: before.Round - 1}, cell("u2", "correctness")))
+	require.NoError(t, held.Unlock())
+
+	after, err := Run(src)
+	require.NoError(t, err)
+
+	marked := make([]ExpectedCell, 0, len(before.Expected))
+	for _, entry := range before.Expected {
+		assert.False(t, entry.Recorded, "nothing was recorded before the cells were stored")
+		entry.Recorded = entry.Unit == "u1" && entry.Role == "correctness"
+		marked = append(marked, entry)
+	}
+	assert.Equal(t, marked, after.Expected)
+	assert.Len(t, after.Prompts, len(before.Prompts), "§4.6.1: a recorded cell's prompt is still emitted")
+}
