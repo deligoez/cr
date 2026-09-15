@@ -184,3 +184,29 @@ records, 2 were wrong (both intent, 2.9).
 | 3.1 | The fix for f12101/f13901 needed the same status predicate changed in a third place (`CalculatePerformanceTicketsAction::completedChannelOneSaleBy()`) that no record named: a finding about a shared predicate should ask where else it appears. | Not verifiable by cr's session without judging the backend code; the fix commits exist on the branch (20 commits after `073b6f4e`). | Candidate for the correctness role's instructions (non-normative, v0.2.3): when a finding rests on a predicate or rule used in several places, search for its other occurrences and cite them. |
 | 3.2 | Six of 42 raw records complained of one-way @see links; the author paused the convention. Suggestion: cr should not ship a built-in role or rule flagging missing @see backlinks; a repository that wants it registers a mechanical rule with `detect`. | cr ships no such role or rule: `git grep -i '@see\|backlink'` over `internal/role`, `internal/rule` and `skills` finds nothing, so the records came from the convention role judging the repository's own conventions. The five class names are 2.5. | Already satisfied; no change. |
 | 3.3 | The author's counts: 20 fix commits; module test directories green (266, 75, 16, 31 tests); hand verification of the 3 production findings about 10 minutes. | The 20 commits on `deligoez/hotfix/WB-3155-araba-kampanyalari` after the reviewed head are present; test results were not re-run (no tests run against the backend repository). | Recorded as reported. |
+
+### Measurement: the 3.1 correctness instruction (2026-09-16)
+
+The first 3.1 wording (commit 85d1aba) told the correctness role to cite a shared predicate's other
+occurrences. On the correctness axis a resolved citation outside the unit grades a record `cited` (§6.2),
+and no mechanical check tells a premise citation from a copy of the same code, so that wording would have
+moved reading-only findings into the assertion register. The sharpened wording (7fce22e) names the other
+occurrences in the evidence and defines a citation as a location showing the defect's premise; the role's
+closing paragraph was reworded to match. Six correctness prompts of #6233 (u16, u18, u26, u29, u34, u59), one
+run each, under the pre-85d1aba and the sharpened text:
+
+| | Pre-85d1aba text | Sharpened text |
+|---|---|---|
+| Records | 5 (u29 none) | 5 (u59 none) |
+| Graded `cited` (a premise citation outside the unit) | 5 of 5 | 5 of 5 |
+| Citations that are copies of the same code | 3 | 0 |
+| Kind chosen `finding` | 1 of 5 | 4 of 5 |
+| Real defects per batch 3 | status bypass (u16, u34), NULL type (u26), changelog (u59), u18 unverified | status bypass (u16, u34), the third occurrence the field trial missed (u18), NULL type (u26), export failure (u29) |
+
+The grade did not move and copy citations disappeared. The shift in the agent's chosen kind stays inside a
+register cr already permits, every finding in the sample is a real defect, and with six units and one run each
+it is within noise; this sample cannot show the risky direction, a wrong finding carrying a premise citation.
+The instrument for that is §7.3's triage statistics over real rounds. Baseline recorded before 7fce22e, from
+`~/.cr/repos/tarfin-labs/backend/triage.ndjson` (the field trial, one round): correctness 7 raised, 0
+`discarded-wrong`, 1 `discarded-not-here`; across all axes 42 raised, 2 `discarded-wrong` (both intent). A rise
+in correctness `discarded-wrong` after 7fce22e is the signal to revisit the wording.
