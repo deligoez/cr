@@ -72,6 +72,14 @@ type IntentPass struct {
 	Mapped bool
 }
 
+// ClaimsHeld reports whether the round's claims count as recorded: the round
+// holds a claim, or the claims stamp says a set, possibly empty, was recorded.
+// A round holding claims and no stamp is state written before the stamp
+// existed, and its claims were recorded all the same.
+func (p IntentPass) ClaimsHeld() bool {
+	return p.Claims > 0 || p.ClaimsRecorded
+}
+
 // UnstandingCell is one cell citing a note §3.6.6 no longer lets stand.
 type UnstandingCell struct {
 	// Seat is the cell's `(unit, role)`, as `unit/role`.
@@ -184,7 +192,7 @@ func intentReason(c *Conditions) string {
 	if c.Intent == nil {
 		return ""
 	}
-	noClaims := c.Intent.Claims == 0 && !c.Intent.ClaimsRecorded
+	noClaims := !c.Intent.ClaimsHeld()
 	switch {
 	case noClaims && !c.Intent.Mapped:
 		return "§10.2.5: the intent axis is active and this round has recorded neither its claims " +
