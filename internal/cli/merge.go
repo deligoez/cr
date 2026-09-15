@@ -231,7 +231,8 @@ func writeMergeCounts(
 	if err != nil {
 		return err
 	}
-	if err := writeMergeIntake(held, l, owner, repo, pr, round, newMergeIntake(merged), digest); err != nil {
+	intake, keys := newMergeIntake(merged)
+	if err := writeMergeIntake(held, l, owner, repo, pr, round, intake, keys, digest); err != nil {
 		// The lock is released on the way out of every branch, and the
 		// write's own failure is what the caller is told about.
 		_ = held.Unlock()
@@ -240,19 +241,24 @@ func writeMergeCounts(
 	return held.Unlock()
 }
 
-// writeMergeIntake is writeMergeCounts under the lock: the merge's own share and
-// digest, and then ownerIntake's counts over that share, the shares `cr record`
-// kept, and the round's stored records, read again under the lock.
+// writeMergeIntake is writeMergeCounts under the lock: the merge's keys into
+// intake.json first, then its own share and digest into the summary, and then
+// ownerIntake's counts over that share, the shares `cr record` kept, and the
+// round's stored records, read again under the lock.
 func writeMergeIntake(
-	held *state.Lock, l state.Layout, owner, repo string, pr, round int, intake *mergeIntake, digest string,
+	held *state.Lock, l state.Layout, owner, repo string, pr, round int, intake *mergeIntake, keys intakeKeys,
+	digest string,
 ) error {
+	if err := state.UpdateRoundSection(held, round, state.FileIntake, summaryMergeIntake, keys); err != nil {
+		return err
+	}
 	if err := writeSummary(held, round, ownerMerge, []summaryCount{
 		{key: summaryMergeIntake, value: intake},
 		{key: summaryMergedHash, value: digest},
 	}); err != nil {
 		return err
 	}
-	_, recorded, _, err := readIntake(l, owner, repo, pr, round)
+	in, err := readIntake(l, owner, repo, pr, round)
 	if err != nil {
 		return err
 	}
@@ -260,7 +266,7 @@ func writeMergeIntake(
 	if err != nil {
 		return err
 	}
-	return writeIntakeCounts(held, round, intake, recorded, digest, stored)
+	return writeIntakeCounts(held, round, in, stored)
 }
 
 // mergeOutcome is what §6.5.1's four passes left: the records that reach the
@@ -274,8 +280,8 @@ type mergeOutcome struct {
 	posted finding.PostedDrops
 	// waivedKeys and postedKeys are the intake keys of the records each
 	// drop took out, which the round summary counts them by.
-	waivedKeys []string
-	postedKeys []string
+	waivedKeys []intakeKey
+	postedKeys []intakeKey
 	overlaps   finding.Overlaps
 	counts     mergeCounts
 }

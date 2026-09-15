@@ -110,18 +110,14 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 			return strictly[struct {
 				Records       []string `json:"records"`
 				Waived        drops    `json:"waived"`
-				WaivedKeys    []string `json:"waived_keys"`
 				AlreadyPosted posted   `json:"already_posted"`
-				PostedKeys    []string `json:"posted_keys"`
 			}](raw)
 		},
 		"record_intake": func(raw json.RawMessage) error {
 			return strictly[map[string]struct {
-				Merged        bool     `json:"merged"`
-				Waived        drops    `json:"waived"`
-				WaivedKeys    []string `json:"waived_keys"`
-				AlreadyPosted posted   `json:"already_posted"`
-				PostedKeys    []string `json:"posted_keys"`
+				Merged        bool   `json:"merged"`
+				Waived        drops  `json:"waived"`
+				AlreadyPosted posted `json:"already_posted"`
 			}](raw)
 		},
 		"new_classes":    func(raw json.RawMessage) error { return strictly[[]string](raw) },

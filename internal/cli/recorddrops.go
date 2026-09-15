@@ -13,8 +13,8 @@ type recordDrops struct {
 	posted finding.PostedDrops
 	// waivedKeys and postedKeys are the intake keys of the records each
 	// drop took out, which the round summary counts them by.
-	waivedKeys []string
-	postedKeys []string
+	waivedKeys []intakeKey
+	postedKeys []intakeKey
 	// input is §1.4's normalised hash of the file the drops were taken out
 	// of, which keys `cr record`'s share of the round summary's intake.
 	input string

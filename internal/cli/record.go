@@ -395,9 +395,9 @@ func recordRetiredCounts(
 	return held.Unlock()
 }
 
-// writeRecordIntake writes ownerRecord's section, counts and this run's share
-// of the intake together, under the caller's lock, and then ownerIntake's counts
-// over both shares, read again under that lock.
+// writeRecordIntake writes this run's keys into intake.json, then ownerRecord's
+// section, counts and this run's share of the intake together, under the
+// caller's lock, and then ownerIntake's counts over both shares.
 //
 // The share is marked merged when the input is the output the round summary
 // names as `cr merge`'s last, which is the answer sourceOf gives.
@@ -405,19 +405,25 @@ func writeRecordIntake(
 	held *state.Lock, l state.Layout, round *state.Meta, stored []*finding.Finding, dropped *recordDrops,
 	counts []summaryCount,
 ) error {
-	merge, recorded, mergedHash, err := readIntake(l, round.Owner, round.Repo, round.PR, round.Round)
+	in, err := readIntake(l, round.Owner, round.Repo, round.PR, round.Round)
 	if err != nil {
 		return err
 	}
-	recorded[dropped.input] = recordIntake{Merged: dropped.input == mergedHash, intakeDrops: intakeDrops{
-		Waived: dropped.waived, WaivedKeys: dropped.waivedKeys,
-		AlreadyPosted: dropped.posted, PostedKeys: dropped.postedKeys,
-	}}
-	counts = append(counts, summaryCount{key: summaryRecordIntake, value: recorded})
+	in.recordKeys[dropped.input] = intakeKeys{WaivedKeys: dropped.waivedKeys, PostedKeys: dropped.postedKeys}
+	if err := state.UpdateRoundSection(
+		held, round.Round, state.FileIntake, summaryRecordIntake, in.recordKeys,
+	); err != nil {
+		return err
+	}
+	in.recorded[dropped.input] = recordIntake{
+		Merged:      dropped.input == in.mergedHash,
+		intakeDrops: intakeDrops{Waived: dropped.waived, AlreadyPosted: dropped.posted},
+	}
+	counts = append(counts, summaryCount{key: summaryRecordIntake, value: in.recorded})
 	if err := writeSummary(held, round.Round, ownerRecord, counts); err != nil {
 		return err
 	}
-	return writeIntakeCounts(held, round.Round, &merge, recorded, mergedHash, stored)
+	return writeIntakeCounts(held, round.Round, in, stored)
 }
 
 // acceptRecords reads the file the agent handed the command and settles
