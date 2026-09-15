@@ -772,7 +772,19 @@ capture group each), `tests.probe_path_template`, `rules`, `symbols.lang`. cr
 ships `laravel-pest` and `generic`. `laravel-pest` copies `.env`, `.env.testing`
 and `vendor` into the sandbox: Laravel runs tests under `APP_ENV=testing`, and
 without `.env.testing` it reads `.env`, so a suite would reach the database the
-developer's own `.env` names.
+developer's own `.env` names. A command that loads a profile file byte-equal to
+one an earlier release shipped says so under `honesty`, and nothing for a
+current or edited file:
+
+```json
+{
+  "honesty": [
+    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed sandbox.copy; cr init updates the file to it"
+  ]
+}
+```
+
+Run `cr init` when you see it; no command rewrites a profile while loading it.
 
 ```json
 {
