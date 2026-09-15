@@ -111,23 +111,24 @@ func documentKeys(t *testing.T, stdout string) []string {
 const recapLine = "Tests:  4 passed\n"
 
 // Both gitignored env files copied: `cr test` names the runner, the sandbox,
-// both files and that the sandbox holds both, says nothing is missing, and
-// leaves the document on standard output as it was.
+// the recreation that built it, both files and that the sandbox holds both,
+// says nothing is missing, and leaves the document on standard output as it
+// was.
 func TestTheTestHeaderListsTheCopiedEnvFiles(t *testing.T) {
 	_, sandboxPath, runner, _ := envFixture(t, []string{".env", ".env.testing"}, ".env", ".env.testing")
 
 	stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
 
-	header := "experiment " + runner + "\n" +
-		"  sandbox    " + sandboxPath + "\n" +
-		"  env files  .env, .env.testing gitignored at the clone root\n" +
+	opening := "experiment " + runner + "\n" +
+		"  sandbox    " + sandboxPath + "\n"
+	envLines := "  env files  .env, .env.testing gitignored at the clone root\n" +
 		"  in sandbox .env, .env.testing\n"
-	assert.Equal(t, header+recapLine, stderr)
+	assert.Equal(t, opening+"  recreated  per §5.1.6: there is no sandbox at that path\n"+envLines+recapLine, stderr)
 	assert.Equal(t, []string{"command", "exit_code", "honesty", "run", "sandbox", "timed_out", "warnings"},
 		documentKeys(t, stdout))
 
 	_, quiet := streams(t, "test", fixturePR, "--repo", fixtureSlug, "--quiet")
-	assert.Equal(t, header, quiet, "§11.1: --quiet takes the runner's echo and leaves the header")
+	assert.Equal(t, opening+envLines, quiet, "§11.1: --quiet takes the runner's echo and leaves the header")
 }
 
 // A gitignored `.env.local` no `sandbox.copy` entry names: the header says the
@@ -140,24 +141,31 @@ func TestTheProbeHeaderNamesTheUncopiedFileAndTheImplicitBaseline(t *testing.T) 
 	patch := writePatch(t, fixtureDiff)
 	probing := []string{"probe", "run", fixturePR, "--repo", fixtureSlug,
 		"--kind", "mutation", "--patch", patch, "--filter", "retries"}
-	header := "experiment " + runner + " --only retries\n" +
-		"  sandbox    " + sandboxPath + "\n" +
-		"  env files  .env, .env.local, .env.testing gitignored at the clone root\n" +
-		"  in sandbox .env, .env.testing\n" +
-		"  not copied .env.local is gitignored at the clone root " + root +
+	uncopied := ".env.local is gitignored at the clone root " + root +
 		" and absent from the sandbox, so the suite runs without it; add it to sandbox.copy in " +
-		profileFile + " to copy it in\n"
+		profileFile + " to copy it in"
+	opening := "experiment " + runner + " --only retries\n" +
+		"  sandbox    " + sandboxPath + "\n"
+	envLines := "  env files  .env, .env.local, .env.testing gitignored at the clone root\n" +
+		"  in sandbox .env, .env.testing\n" +
+		"  not copied " + uncopied + "\n"
 
 	stdout, stderr := streams(t, probing...)
-	assert.Equal(t, header+
+	assert.Equal(t, opening+"  recreated  per §5.1.6: there is no sandbox at that path\n"+envLines+
 		"  baseline   the whole suite runs first as the §5.2.2 baseline: "+runner+"\n"+
 		recapLine+recapLine+recapLine, stderr,
 		"§5.2.2: the unfiltered baseline, the filtered one, then the probe")
 	assert.Equal(t, []string{"baseline", "command", "establishes", "filter", "honesty", "kind",
 		"probe", "result", "run", "sandbox", "target", "warnings"}, documentKeys(t, stdout))
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: there is no sandbox at that path",
+		uncopied}, honestyList(t, stdout), "the document carries the header's uncopied file too")
 
-	_, again := streams(t, probing...)
-	assert.Equal(t, header+recapLine, again, "both baselines stand at the head, so only the probe runs")
+	stdout, again := streams(t, probing...)
+	assert.Equal(t, opening+envLines+recapLine, again, "both baselines stand at the head, so only the probe runs")
+	assert.Equal(t, []any{uncopied}, honestyList(t, stdout))
+
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{uncopied}, honestyList(t, stdout), "`cr test`'s document carries it as well")
 }
 
 // `cr sandbox create` reports the same uncopied file under honesty, and an
