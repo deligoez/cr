@@ -171,6 +171,33 @@ func (e *MappingRequiredError) Error() string {
 		e.Round, e.Head, scope, e.PR, e.Owner, e.Repo, e.PR, e.Owner, e.Repo)
 }
 
+// ClaimsRequiredError reports that §4.6.5's first intent pass cannot be emitted:
+// the pass carries the round's claims, and no `cr claims record` has stored any
+// for the round and head.
+//
+// §11.2 codes it 4 for the reason MappingRequiredError is coded 4: what refuses
+// is where the round stands, and it is undone by recording the claims rather
+// than by retyping. A first pass emitted anyway tells every intent prompt that
+// the round holds no claim, which is a different statement from "nobody has
+// recorded them yet" and one the mapping it produces would be built on.
+type ClaimsRequiredError struct {
+	// Round and Head are the round that holds no claims recording.
+	Round int
+	Head  string
+	// Owner, Repo, and PR name the pull request, so the hint is runnable.
+	Owner string
+	Repo  string
+	PR    int
+}
+
+func (e *ClaimsRequiredError) Error() string {
+	return fmt.Sprintf(
+		"round %d at head %s has recorded no claims, so the intent pass cannot carry them; §4.6.5's "+
+			"first pass emits the units and the claims: run `cr claims record %d --repo %s/%s <file.ndjson>`, "+
+			"with an empty file when the issue yields no claim, and run this again",
+		e.Round, e.Head, e.PR, e.Owner, e.Repo)
+}
+
 // Run gathers one round's attachments and emits §4.6.1's prompts over them.
 //
 // The round is the one `cr brief` recorded, read through state.Layout.Briefed,
@@ -239,7 +266,31 @@ func gate(src *Sources, r *Round, meta *state.Meta) (*profile.Profile, activatio
 	}
 	axes := activation.OfRound(
 		p, meta.ProfileID, meta.IssueKey, src.Config.String("intent.key_pattern"))
+	if err := refuseWithoutClaims(src, r, axes, meta); err != nil {
+		return nil, activation.Activation{}, err
+	}
 	return p, axes, refuseWithoutMapping(src, r, axes)
+}
+
+// refuseWithoutClaims is §4.6.5's first pass asked of a round with nothing to
+// carry: `cr review --axis intent` before a mapping exists MUST emit prompts
+// carrying the claims, and a round no `cr claims record` has stored claims for
+// has none to give it.
+//
+// Whether claims are recorded is coverage.IntentPass.ClaimsHeld, the predicate
+// §10.2.5's completeness reason is decided by, so `cr status` and this refusal
+// cannot disagree about a round: an empty claims file recorded counts, through
+// meta.json's stamp. The re-emission once a mapping is stored, and a round whose
+// intent axis is not active (§4.6.6), pass as refuseWithoutMapping lets them.
+func refuseWithoutClaims(src *Sources, r *Round, axes activation.Activation, meta *state.Meta) error {
+	if src.Axis != axis.Intent || r.Mapped || !slices.Contains(axes.Active, axis.Intent) {
+		return nil
+	}
+	pass := coverage.IntentPass{Claims: len(r.Claims), ClaimsRecorded: meta.ClaimsRecorded()}
+	if pass.ClaimsHeld() {
+		return nil
+	}
+	return &ClaimsRequiredError{Round: r.Round, Head: r.Head, Owner: src.Owner, Repo: src.Repo, PR: src.PR}
 }
 
 // refuseWithoutMapping is §4.6.5's last sentence: the remaining axes are refused
