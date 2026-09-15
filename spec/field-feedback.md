@@ -2,7 +2,9 @@
 
 Observations from running a released cr against a real pull request, recorded as they arrive so each can
 become a task, a roadmap item, or a documented decision. An entry states what was observed and by whom;
-a suggestion is the reporter's, and the triage line is cr's. Nothing here is normative.
+a suggestion is the reporter's, and the triage line is cr's. Nothing here is normative, and no entry is
+taken as true on arrival: each is verified against the code, the spec and a measurement before it becomes
+work, and its triage records the verdict and the evidence.
 
 ## FT-1 · tarfin-labs/backend#6233 (WB-3155), cr v0.2.1, laravel-pest profile
 
@@ -11,15 +13,27 @@ Shape: 81 files, ~9.8k added lines, a module move; 106 units, 4 roles, 25 claims
 
 ### Batch 1 (2026-09-15, after the intent pass and the first record)
 
-| # | Observation | Reporter's suggestion | Triage |
-|---|-------------|-----------------------|--------|
-| 1.1 | The issue links a Google Docs spec; cr read only the tracker text, and `honesty` says nothing about the link. A rule living only in the linked document can never become a claim. A local tp spec for the same key existed and was reachable only through `cr note`, with nothing prompting it. | `cr brief` lists URLs found in the issue text in `honesty`; a repeatable `--intent-file` or `intent.extra_sources`; `candidate_notes` surfaces a local spec file matching the issue key. | open |
-| 1.2 | `jira issue view --plain` wraps at terminal width, pads with trailing spaces and appends ANSI footer lines; spans across a wrap are unwritable, and one span failed on a U+00A0 in the source. | Normalise whitespace, NBSP and ANSI both when storing the issue text and when matching a span, and hash the normalised form; or fetch the raw description. | open |
-| 1.3 | 106 units × 4 roles = 424 prompts of 13.5–15k chars each. One sub-agent per prompt, as the skill says, is not feasible; the reporter batched 8 agents × ~13 units. The full issue text is repeated in every prompt (~40% of the bytes). | Document batching as the normal mode; `cr review --shard k/n` or `--units`; a brief-time warning above a units × roles threshold; one shared context file referenced by path. | open |
-| 1.4 | A module move produced 6 LEFT units for deleted originals and separate RIGHT units for the destinations, ~40 cells spent confirming "moved, unchanged", although git reports the renames. | Rename-aware units: pair a rename's sides, review only the content delta, default cells to `na` when the delta is imports or namespace only. | open |
-| 1.5 | Notes recorded after `cr review --axis intent` emitted its prompts never reach those prompts; an intent record then asked the question note n4 settles, and `cr record` accepted it silently. | Stamp prompts with a notes/claims hash; `cr record` or `cr status` reports records from a prompt whose hash is stale; `cr note` hints that emitted prompts are out of date. | open |
-| 1.6 | `cr review` after the mapping re-emits all 424 prompts, including the 106 intent prompts whose cells are recorded; re-running the intent pass by mistake is easy. | Emit only unrecorded (unit, role) cells, or mark prompts `already_covered`. | open |
-| 1.7 | The laravel-pest `tests.cmd` has no path, so `cr test` without `--filter` runs the whole suite; on this monolith that is tens of minutes and against the team's rule. `--filter` is name-only. | Positional test paths (`cr test --path …`, `tests.path_args`); confirm or warn with the discovered test count when neither filter nor path is given. | open |
+| # | Observation | Reporter's suggestion |
+|---|-------------|-----------------------|
+| 1.1 | The issue links a Google Docs spec; cr read only the tracker text, and `honesty` says nothing about the link. A local tp spec for the same key was reachable only through `cr note`. | `cr brief` lists URLs in the issue text in `honesty`; a repeatable `--intent-file` or `intent.extra_sources`; `candidate_notes` surfaces a local spec file. |
+| 1.2 | `jira issue view --plain` wraps, pads and appends ANSI footer lines; spans across a wrap are unwritable, and one span failed on a U+00A0. | Normalise whitespace, NBSP and ANSI when storing and matching; or fetch the raw description. |
+| 1.3 | 106 units × 4 roles = 424 prompts of 13.5–15k chars; one sub-agent per prompt is not feasible; the full issue text repeats in every prompt (~40%). | Document batching; `cr review --shard k/n` or `--units`; a size warning; one shared context file. |
+| 1.4 | A module move produced LEFT units for the originals and RIGHT units for the destinations, ~40 cells confirming "moved, unchanged". | Rename-aware units; review only the delta; default cells to `na`. |
+| 1.5 | Notes recorded after the intent prompts were emitted never reached them; an intent record asked what note n4 settles, and `cr record` accepted it silently. | Stamp prompts with a notes/claims hash and report stale records; `cr note` hints emitted prompts are out of date. |
+| 1.6 | `cr review` after the mapping re-emits all 424 prompts, including the recorded intent cells. | Emit only unrecorded cells, or mark prompts `already_covered`. |
+| 1.7 | The laravel-pest `tests.cmd` has no path, so `cr test` without `--filter` runs the whole suite, against the team's rule; `--filter` is name-only. | Test path arguments; confirm or warn when neither filter nor path is given. |
 
-Worked well: per-(role, unit) id blocks kept eight parallel writers collision-free; `cr record` graded all
-five intent records `cited` because their citations lay outside the unit, as intended.
+Worked well, as reported: per-(role, unit) id blocks kept eight parallel writers collision-free; `cr record`
+graded all five intent records `cited` because their citations lay outside the unit.
+
+### Verification of batch 1 (2026-09-15, v0.2.1, scratch fixture with a gh shim and `--intent-file`)
+
+| # | Verdict | Trust-relevant | Evidence |
+|---|---------|----------------|----------|
+| 1.1 | Confirmed; by design today | Yes: a rule only behind a link can never become a claim, and nothing says so | `internal/intent/run.go:234-243` reads only `--intent-file` or `intent.cmd`, with no link scan; a fixture issue with a `docs.google.com` URL left `honesty` silent; `candidate_notes` (§3.5.5) offers only the author's thread replies. No spec clause covers linked documents or extra sources. |
+| 1.2 | Partly | Mostly friction; a claim the agent cannot record tends to be dropped or reworded | `internal/intent/claimspan.go:92-94` is a plain substring test by design (§3.3, "verbatim substring"); §1.4 normalisation feeds only `span_hash` and `issue_hash` and collapses only space and tab. Measured: two spaces against NBSP+space, exit 1; the exact bytes, exit 0; one space across a hard wrap, exit 1; exact padding and newline, exit 0. ANSI escapes are stored in the issue text. "Unwritable" is overstated: the exact bytes match. Not measured: whether jira's wrap follows terminal width and so moves `issue_hash`. |
+| 1.3 | Partly; cause misattributed | Friction | The issue text is in no prompt. A 6,307-byte fixture intent prompt was 48% cr's output contract (the §6.1 schema); on the first intent pass every prompt lists all claims (`internal/review/text.go:162-174`), the likely repeated bulk. `cr review` has only `--axis` (`internal/cli/review.go:109`). `skills/cr/SKILL.md:144` says to spawn one sub-agent per prompt, while §4.6.1 does not forbid batching agents, so the instruction is the defect. |
+| 1.4 | Partly | Friction | Rename detection is on (50% similarity, rename limit 1000; `internal/git/diff.go:32`, `internal/git/run.go:73`). Measured: a pure move forms no unit; a larger file with a namespace change forms one RIGHT unit; a 4-line file with namespace and `use` changed falls under 50% and forms a LEFT and a RIGHT unit. The reported pairs arise when git does not pair the files, likely small PHP files. §4.5.6 forbids cr from inventing a cell. |
+| 1.5 | Confirmed | Yes: a question a note already settles can reach the author | Measured: a note recorded after `cr review --axis intent` is absent from the emitted prompts and present on re-emission. No notes or claims hash exists; `cr note` prints no hint; `cr record` reads no notes; the draft uses notes only for provenance; §3.6.6 reacts only to a retraction. Comparing a note's time with a prompt's emission is mechanical, so a stamp does not make cr form an opinion. |
+| 1.6 | Confirmed; matches §4.6.1 as written | Friction, with a small trust risk: a second, conflicting judgement for a recorded cell | Measured: with every intent cell recorded, `cr review` emitted the intent prompts again; `expected_cells` lists every cell and nothing marks recorded ones (`internal/review/run.go:375-380`, `internal/review/emit.go:179-181`). The skill's own sequence (`cr map record`, then `cr review`) leads into it. Id blocks prevent an id collision, not the duplicate judgement. |
+| 1.7 | By design, and worse than reported | Friction; on a suite with one failing test, no probe can establish a missing test | `internal/profile/builtin/laravel-pest.json:25-27` has no path; `cr test` has only `--filter` (`internal/cli/test.go:283`). §5.2.2 requires an unfiltered baseline once per head, and `probe.Required` runs it before any probe (`internal/probe/baseline.go:79-85`), so a filtered probe still runs the whole suite first; §5.2.5 counts a baseline as passed only with zero failures. |
