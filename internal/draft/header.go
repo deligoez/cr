@@ -47,9 +47,9 @@ func File(
 		return "", err
 	}
 	if blocks == "" {
-		return header(queued, facts), nil
+		return header(queued, preserved, facts), nil
 	}
-	return header(queued, facts) + "\n" + blocks, nil
+	return header(queued, preserved, facts) + "\n" + blocks, nil
 }
 
 // header is §7.1.4's summary header: counts, the coverage state, and the
@@ -61,9 +61,13 @@ func File(
 // construction rather than two that happen to agree — and the header names the
 // excess in the words the block will use.
 //
+// The waiver line and bodyLines follow: when §7.2's discards write their
+// waivers, and the bodies the draft holds that `cr post` will refuse or that
+// run long.
+//
 // It is English for the reason §6.1.1's summary is: the header is cr's report
 // to the reviewer and the agent, never text the author reads.
-func header(queued []*finding.Finding, facts HeaderFacts) string {
+func header(queued []*finding.Finding, preserved map[string]string, facts HeaderFacts) string {
 	lines := []string{
 		headerOpen,
 		"Not posted. cr regenerates this header on every `cr draft`.",
@@ -73,9 +77,10 @@ func header(queued []*finding.Finding, facts HeaderFacts) string {
 		"grade: " + tally(queued, grades, func(r *finding.Finding) string { return string(r.Grade) }),
 		"coverage: " + coverageLine(facts.Coverage),
 		"comments: " + finding.CommentCapFor(queued, facts.MaxComments).Disclosure(),
-		headerClose,
+		waiverLine,
 	}
-	return strings.Join(lines, "\n") + "\n"
+	lines = append(lines, bodyLines(queued, preserved)...)
+	return strings.Join(append(lines, headerClose), "\n") + "\n"
 }
 
 // The §6.1 vocabularies the header counts by, each in the order §6.1 gives
