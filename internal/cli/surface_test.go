@@ -91,6 +91,8 @@ var specSurface = []surfaceRow{
 		"filter": "§5.2.2",
 	}},
 	{path: []string{"draft"}, use: "draft <pr>"},
+	{path: []string{"triage"}, use: "triage <pr> <record-id> not-here|wrong|soften|keep",
+		spec: []string{"body-file"}},
 	{path: []string{"post"}, use: "post <pr>", spec: []string{"confirm", "reconcile"}},
 	{path: []string{"answer"}, use: "answer <pr> <record-id> <text>", added: map[string]string{
 		// §3.6.1 requires a source on every entry in the context store,
@@ -234,7 +236,14 @@ func TestAStubStillValidatesItsArguments(t *testing.T) {
 	for _, row := range specSurface {
 		// The shape is counted off §11's own row, so a command that takes
 		// no positional argument has nothing here to get wrong.
+		// A word of alternatives, such as §7.2.4's verb, is one
+		// positional too.
 		positional := strings.Count(row.use, "<")
+		for _, word := range strings.Fields(row.use) {
+			if strings.Contains(word, "|") {
+				positional++
+			}
+		}
 		if positional == 0 {
 			continue
 		}
