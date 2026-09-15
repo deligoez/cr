@@ -272,6 +272,8 @@ func headRuns(t *testing.T) map[string]headRun {
 			"waivers", "list", "--repo", fixtureSlug, "--pr", fixturePR),
 		"waivers remove": exempt("rewrites a waiver file under the state root",
 			"waivers", "remove", "wp1", "--repo", fixtureSlug, "--pr", fixturePR),
+		"triage": exempt("edits the round's draft.md under the state root, and reads no revision",
+			"triage", fixturePR, "f1", "keep", "--repo", fixtureSlug),
 		"sandbox destroy": exempt("removes the worktree and its registration by path, and checks out no revision",
 			"sandbox", "destroy", fixturePR, "--repo", fixtureSlug),
 	}
