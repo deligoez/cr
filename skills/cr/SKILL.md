@@ -500,6 +500,13 @@ of `cr draft` applies the triage and renders the draft again.
 | delete the block entirely, marker included | discarded `not-here`; a **pull-request-scoped** waiver |
 | set `disposition="wrong"` in the marker | discarded as a false positive, body or not; a **repository-wide** waiver that counts against the class |
 
+**A discard's waiver is written by the next `cr draft`, not at post.** That run
+reads the deleted block or the `wrong` marker and writes the waiver before
+anything is posted, and a repository-wide `wrong` waiver then suppresses the
+finding on later pull requests too. With no `cr draft` in between,
+`cr post --confirm` writes it. Remove one written by mistake with
+`cr waivers remove <id>`.
+
 **`wrong` and `not-here` are different decisions.** `not-here` means the finding
 is true but not worth a comment on this pull request, the ordinary volume
 decision, and never counts against the class. `wrong` means the finding is false;
@@ -639,8 +646,9 @@ language of the comment bodies and their question labels.
 `cr post` on the round is refused with exit 4 ("this round is posted and takes
 no second review"); the next review belongs to the next round, after the head
 moves. A draft that discards every queued record posts nothing: `cr post
---confirm` makes no network call, stores the discards and their waivers, and
-exits 0 reporting `"posted": false` and the ids under `"discarded"`. A round
+--confirm` makes no network call, stores the discards, writes the waivers of any
+discard no `cr draft` has read yet (the next `cr draft` writes them otherwise),
+and exits 0 reporting `"posted": false` and the ids under `"discarded"`. A round
 with nothing queued at all is refused with exit 4.
 
 `cr post` recomputes every grade after it reads the draft, so a record whose
