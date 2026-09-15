@@ -55,6 +55,13 @@ type Baseline struct {
 	// presence only, so a setup that rewrites a copied file does not
 	// rebuild the sandbox before every run.
 	SetupChanged []string `json:"setup_changed,omitempty"`
+	// SetupRemoved are the `sandbox.copy` entries the checkout held and
+	// the newly prepared sandbox did not, removed by §5.1.3's setup. The
+	// copied-file check before a run asks only that the sandbox still
+	// lacks them, so a setup that deletes a copied file does not rebuild
+	// the sandbox before every run. A baseline an earlier cr recorded
+	// carries none.
+	SetupRemoved []string `json:"setup_removed"`
 	// Generation names the sandbox this baseline was taken of: the moment
 	// Create recorded it. A recreation records a new one, so a run stamped
 	// with an earlier generation measured a sandbox that no longer exists,
@@ -78,6 +85,7 @@ func encodeBaseline(b *Baseline) ([]byte, error) {
 	out := *b
 	// §12.3: an empty collection serialises as [], never as null.
 	out.Paths = append(make([]string, 0, len(b.Paths)), b.Paths...)
+	out.SetupRemoved = append(make([]string, 0, len(b.SetupRemoved)), b.SetupRemoved...)
 	body, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode %s: %w", state.FileSandboxBaseline, err)
@@ -106,7 +114,7 @@ func (src *Sources) recordBaseline(path string, entries []string) (string, error
 	if err != nil {
 		return "", err
 	}
-	if recorded.SetupChanged, err = src.setupChanged(path, entries); err != nil {
+	if recorded.SetupChanged, recorded.SetupRemoved, err = src.setupChanged(path, entries); err != nil {
 		return "", err
 	}
 	recorded.Generation = time.Now().UTC().Format(time.RFC3339Nano)
