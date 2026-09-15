@@ -101,6 +101,17 @@ func persona(p *page, lens *role.Role) {
 	for _, question := range lens.Focus {
 		p.line("- %s", question)
 	}
+	// §4.6.1 carries a declared vocabulary; a role declaring none has no
+	// section, since §6.1's class form is all it is held to.
+	if len(lens.Classes) == 0 {
+		return
+	}
+	p.section("Classes (§2.5)")
+	p.line("The role's class vocabulary. `cr record` reports a record of this role whose class is not " +
+		"one of these, and does not reject it (§2.5.6):")
+	for _, class := range lens.Classes {
+		p.line("- %s", class)
+	}
 }
 
 // hunks writes the unit's record and every hunk's text.

@@ -9,7 +9,7 @@
 // A role file is project-owned and hand-edited, so it is untrusted input, and
 // the fault worth defending against is a role that tries to redefine what cr
 // emits. The defence is structural, in two layers. The struct below carries
-// exactly the six rows of §2.5's table and is held to it by a guard test, so
+// exactly the seven rows of §2.5's table and is held to it by a guard test, so
 // there is nowhere to put an output path, a record schema, or a field cr writes
 // itself. Every top-level key outside that table is then refused by name rather
 // than ignored, because a silently dropped `output_path` leaves its author
@@ -50,7 +50,7 @@ var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 // fields is the §2.5 table's top-level key set, in the table's own order. It is
 // both the allowlist and the message a rejected key is answered with, so the
 // two cannot drift apart.
-var fields = []string{"id", "title", "axis", "instructions", "focus", "profiles"}
+var fields = []string{"id", "title", "axis", "instructions", "focus", "profiles", "classes"}
 
 // Role is one §2.5 role: every row of the table, with each absent list
 // normalised to an empty one so a role never serialises a slice as null.
@@ -73,6 +73,11 @@ type Role struct {
 	// Profiles names the profiles this role applies to. Empty means all,
 	// which §4.5.1 reads when it decides whether the role is active.
 	Profiles []string `json:"profiles"`
+	// Classes is the role's class vocabulary (§2.5), printed in its prompts
+	// per §4.6.1. `cr record` reports a record of the role whose class is not
+	// in it and never rejects one for that (§2.5.6), so it is a vocabulary
+	// and not a fence. Empty means the role declares none.
+	Classes []string `json:"classes"`
 }
 
 // MalformedError reports a role file cr cannot use. It carries the file so the
@@ -129,6 +134,7 @@ func Parse(path string, data []byte) (Role, error) {
 	}
 	r.Focus = list(r.Focus)
 	r.Profiles = list(r.Profiles)
+	r.Classes = list(r.Classes)
 	return r, nil
 }
 
