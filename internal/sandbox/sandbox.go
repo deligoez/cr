@@ -95,6 +95,8 @@ type Result struct {
 	// Setup are the `sandbox.setup` commands that ran, in the order they
 	// ran in.
 	Setup []string
+	// Generation is the post-setup baseline's name for this sandbox.
+	Generation string
 }
 
 // Create makes the sandbox worktree of §5.1.1, fills it with §5.1.2's copied
@@ -182,9 +184,11 @@ func (src *Sources) prepare(path string) (*Result, error) {
 	// "After §5.1.2 and §5.1.3 complete", which is here: every copy is in
 	// and every setup command has run, so what the sandbox now holds is
 	// the state every later cleanliness check is measured against.
-	if err := src.recordBaseline(path, created.Copied); err != nil {
+	generation, err := src.recordBaseline(path, created.Copied)
+	if err != nil {
 		return nil, err
 	}
+	created.Generation = generation
 	return created, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/state"
@@ -52,6 +53,11 @@ type Baseline struct {
 	// before a run skips them, so a setup that rewrites a copied file does
 	// not rebuild the sandbox before every run.
 	SetupChanged []string `json:"setup_changed,omitempty"`
+	// Generation names the sandbox this baseline was taken of: the moment
+	// Create recorded it. A recreation records a new one, so a run stamped
+	// with an earlier generation measured a sandbox that no longer exists,
+	// and §5.2.6 does not resolve it as a baseline.
+	Generation string `json:"generation,omitempty"`
 }
 
 // SnapshotBaseline reads the tracked-file state of the sandbox at path and
@@ -93,19 +99,20 @@ func decodeBaseline(body []byte, file string) (*Baseline, error) {
 // The write takes the pull request's exclusive advisory lock, because §2.3.1
 // admits no exception: the baseline is per-PR state and is written like the
 // rest of it.
-func (src *Sources) recordBaseline(path string, copied []string) error {
+func (src *Sources) recordBaseline(path string, copied []string) (string, error) {
 	recorded, err := SnapshotBaseline(path, src.Head)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if recorded.SetupChanged, err = src.setupChanged(path, copied); err != nil {
-		return err
+		return "", err
 	}
+	recorded.Generation = time.Now().UTC().Format(time.RFC3339Nano)
 	body, err := encodeBaseline(recorded)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return src.underLock(func(held *state.Lock) error {
+	return recorded.Generation, src.underLock(func(held *state.Lock) error {
 		return held.Write(state.FileSandboxBaseline, body)
 	})
 }

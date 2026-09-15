@@ -46,6 +46,9 @@ type Ready struct {
 	// and this check killed, and is nil when there was none. A caller that
 	// finds one reports it too.
 	Stopped *StoppedRunner
+	// Generation names the sandbox the check admitted, as its post-setup
+	// baseline records it. Every run in it is stamped with it.
+	Generation string
 }
 
 // Ensure returns a sandbox fit to run in, rebuilding the one on disk when it is
@@ -84,14 +87,22 @@ func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 		if reason, err = stale(src, recorded); err != nil {
 			return nil, err
 		}
+		// A baseline an earlier cr recorded names no generation, so no
+		// run could be tied to the sandbox it describes.
+		if reason == "" && recorded.Generation == "" {
+			reason = "its post-setup baseline names no sandbox generation, so no run can be tied to it"
+		}
+		if reason == "" {
+			return &Ready{Path: path, Generation: recorded.Generation, Stopped: stopped}, nil
+		}
 	}
-	if reason == "" {
-		return &Ready{Path: path, Stopped: stopped}, nil
-	}
-	if err := recreate(src, path); err != nil {
+	generation, err := recreate(src, path)
+	if err != nil {
 		return nil, err
 	}
-	return &Ready{Path: path, Recreated: &Recreated{Path: path, Reason: reason}, Stopped: stopped}, nil
+	return &Ready{
+		Path: path, Generation: generation, Recreated: &Recreated{Path: path, Reason: reason}, Stopped: stopped,
+	}, nil
 }
 
 // Unclean reports why the pull request's sandbox cannot be run in, and the
@@ -248,12 +259,15 @@ func leftoverArtefacts(path, leftoverGlob string) ([]string, error) {
 // a sandbox that is there — it does not delete a checkout it did not just make,
 // and this is the one place that decision is taken deliberately rather than
 // inherited.
-func recreate(src *Sources, path string) error {
+func recreate(src *Sources, path string) (string, error) {
 	if _, err := removeSandbox(src, path); err != nil {
-		return err
+		return "", err
 	}
-	_, err := Create(src)
-	return err
+	created, err := Create(src)
+	if err != nil {
+		return "", err
+	}
+	return created.Generation, nil
 }
 
 // ReadBaseline reads §5.1.6's post-setup baseline, and reports a pull request
