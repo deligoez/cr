@@ -30,6 +30,10 @@ type EnvFiles struct {
 	// Uncopied are those of Ignored the sandbox root does not hold and
 	// `sandbox.copy` does not name.
 	Uncopied []string
+	// Missing are those of Ignored the sandbox root does not hold although
+	// `sandbox.copy` names them: a sandbox the copied-file check before a
+	// run could not rebuild with them.
+	Missing []string
 	// ProfileFile is the profile whose `sandbox.copy` would copy them.
 	ProfileFile string
 }
@@ -52,6 +56,7 @@ func CompareEnvFiles(src *Sources, path string) (*EnvFiles, error) {
 	compared := &EnvFiles{
 		Root: root, Ignored: ignored, ProfileFile: src.ProfileFile,
 		Held: make([]string, 0, len(ignored)), Uncopied: make([]string, 0, len(ignored)),
+		Missing: make([]string, 0, len(ignored)),
 	}
 	for _, name := range ignored {
 		switch _, err := os.Lstat(filepath.Join(path, name)); {
@@ -61,13 +66,15 @@ func CompareEnvFiles(src *Sources, path string) (*EnvFiles, error) {
 			return nil, fmt.Errorf("cannot inspect %s: %w", filepath.Join(path, name), err)
 		case !slices.ContainsFunc(src.Copy, func(entry string) bool { return filepath.Clean(entry) == name }):
 			compared.Uncopied = append(compared.Uncopied, name)
+		default:
+			compared.Missing = append(compared.Missing, name)
 		}
 	}
 	return compared, nil
 }
 
 // Disclosures names every uncopied file, one sentence each, with the field
-// that copies it.
+// that copies it, and then every missing one.
 //
 // A round no profile matched has no file to name, and the sentence then names
 // the field alone.
@@ -76,11 +83,16 @@ func (e *EnvFiles) Disclosures() []string {
 	if e.ProfileFile != "" {
 		field += " in " + e.ProfileFile
 	}
-	sentences := make([]string, 0, len(e.Uncopied))
+	sentences := make([]string, 0, len(e.Uncopied)+len(e.Missing))
 	for _, name := range e.Uncopied {
 		sentences = append(sentences, fmt.Sprintf(
 			"%s is gitignored at the clone root %s and absent from the sandbox, so the suite runs without it; "+
 				"add it to %s to copy it in", name, e.Root, field))
+	}
+	for _, name := range e.Missing {
+		sentences = append(sentences, fmt.Sprintf(
+			"%s is gitignored at the clone root %s and %s names it, but the sandbox does not hold it, "+
+				"so the suite runs without it", name, e.Root, field))
 	}
 	return sentences
 }

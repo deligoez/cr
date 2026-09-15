@@ -72,6 +72,19 @@ func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A sandbox clean against its baseline can still lack a file §5.1.2
+	// copies, or hold an older copy of one. The check runs here and not in
+	// Unclean, because §5.1.7's post-run check reads Unclean and a run does
+	// not make a copied file stale.
+	if reason == "" {
+		recorded, err := ReadBaseline(src.Layout, src.Owner, src.Repo, src.PR)
+		if err != nil {
+			return nil, err
+		}
+		if reason, err = stale(src, recorded); err != nil {
+			return nil, err
+		}
+	}
 	if reason == "" {
 		return &Ready{Path: path, Stopped: stopped}, nil
 	}

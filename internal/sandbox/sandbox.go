@@ -182,7 +182,7 @@ func (src *Sources) prepare(path string) (*Result, error) {
 	// "After §5.1.2 and §5.1.3 complete", which is here: every copy is in
 	// and every setup command has run, so what the sandbox now holds is
 	// the state every later cleanliness check is measured against.
-	if err := src.recordBaseline(path); err != nil {
+	if err := src.recordBaseline(path, created.Copied); err != nil {
 		return nil, err
 	}
 	return created, nil

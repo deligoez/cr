@@ -47,6 +47,11 @@ type Baseline struct {
 	// baseline Create recorded. A file carrying it describes no sandbox:
 	// §5.1.6 reads it as one to recreate, and names this as the reason.
 	Forced string `json:"forced,omitempty"`
+	// SetupChanged are the `sandbox.copy` entries §5.1.3's setup left
+	// different from the checkout's, by name only. The copied-file check
+	// before a run skips them, so a setup that rewrites a copied file does
+	// not rebuild the sandbox before every run.
+	SetupChanged []string `json:"setup_changed,omitempty"`
 }
 
 // SnapshotBaseline reads the tracked-file state of the sandbox at path and
@@ -88,9 +93,12 @@ func decodeBaseline(body []byte, file string) (*Baseline, error) {
 // The write takes the pull request's exclusive advisory lock, because §2.3.1
 // admits no exception: the baseline is per-PR state and is written like the
 // rest of it.
-func (src *Sources) recordBaseline(path string) error {
+func (src *Sources) recordBaseline(path string, copied []string) error {
 	recorded, err := SnapshotBaseline(path, src.Head)
 	if err != nil {
+		return err
+	}
+	if recorded.SetupChanged, err = src.setupChanged(path, copied); err != nil {
 		return err
 	}
 	body, err := encodeBaseline(recorded)
