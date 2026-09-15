@@ -130,7 +130,7 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 				ProfileFile: file,
 			})
 			if err != nil {
-				return err
+				return headNotFetched(cmd, owner, repo, pr, err)
 			}
 			return out.emit(&sandboxCreateResult{
 				Path:   created.Path,

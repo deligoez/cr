@@ -10,8 +10,11 @@ import (
 
 // headNotFetched is the one predicate that classifies a command's git failure
 // as the pull request's head or base not being present in the repository under
-// review. `cr brief`, `cr status`, `cr review` and `cr post` return every
-// failure through it, so the four give the same `git fetch` step with code 3.
+// review. Every command that reads the clone's head or merge base returns its
+// git failures through it — `cr brief`, `cr status`, `cr review`, `cr post`,
+// `cr draft`, `cr record`, `cr merge`, `cr rules check`, `cr sandbox create`,
+// `cr test` and `cr probe run` — so each gives the same `git fetch` step with
+// code 3. TestEveryCommandIsClassifiedAsAHeadReaderOrExempt holds the list.
 //
 // It asks after the failure rather than before the first read, so a run whose
 // reads succeed is not changed by it. A *git.CommandError is classified by

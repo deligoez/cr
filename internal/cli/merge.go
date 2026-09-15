@@ -153,7 +153,7 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 	}
 	merged, err := mergeRecords(layout, owner, repo, pr, &round, files)
 	if err != nil {
-		return err
+		return headNotFetched(cmd, owner, repo, pr, err)
 	}
 	body, err := finding.MergedRecords(merged.records)
 	if err != nil {

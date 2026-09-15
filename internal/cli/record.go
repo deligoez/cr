@@ -307,15 +307,16 @@ func newRecordCmd(out *writer) *cobra.Command {
 			journal := finding.NewJournal(finding.ActorRecord, round.Head, time.Now())
 			records, found, dropped, forced, err := acceptRecords(
 				layout, owner, repo, pr, &round.Meta, args[1], journal)
-			if err != nil {
-				return err
-			}
 			// §2.6.2, between the acceptance and the write: a
 			// record confirming a rule's hit is where a `fix`
 			// block's suggestion is generated, and §2.6.2.2 has
 			// §8.2 refuse an unplaceable one before drafting.
-			if err := suggestRuleFixes(layout, owner, repo, pr, &round.Meta, records); err != nil {
-				return err
+			if err == nil {
+				err = suggestRuleFixes(layout, owner, repo, pr, &round.Meta, records)
+			}
+			// Both read the round's head and merge base from the clone.
+			if err != nil {
+				return headNotFetched(cmd, owner, repo, pr, err)
 			}
 			if err := appendRecords(layout, owner, repo, pr, &round.Meta, records, journal); err != nil {
 				return err

@@ -344,20 +344,26 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 				owner: owner, repo: repo, pr: pr,
 				filter: filter, target: target,
 			}
+			var ran error
 			switch probe.Kind(kind) {
 			case probe.Mutation:
 				if err := mutationInput(request, patchFile, testFile, target); err != nil {
 					return err
 				}
-				return runMutationProbe(cmd, out, request)
+				ran = runMutationProbe(cmd, out, request)
 			case probe.Gap:
 				if err := gapInput(request, patchFile, testFile, target); err != nil {
 					return err
 				}
-				return runGapProbe(cmd, out, request)
+				ran = runGapProbe(cmd, out, request)
+			default:
+				return fmt.Errorf(
+					"--kind %q: §5.5 names two kinds of probe, mutation (§5.3) and gap (§5.4)", kind)
 			}
-			return fmt.Errorf(
-				"--kind %q: §5.5 names two kinds of probe, mutation (§5.3) and gap (§5.4)", kind)
+			// Both kinds read the round's head from the clone, to build the
+			// sandbox and to place the probe, so a head the clone lacks is
+			// the fetch it is.
+			return headNotFetched(cmd, owner, repo, pr, ran)
 		},
 	}
 	cmd.Flags().StringVar(&kind, "kind", "",

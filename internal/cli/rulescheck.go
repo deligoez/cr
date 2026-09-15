@@ -97,7 +97,7 @@ func newRulesCheckCmd(out *writer) *cobra.Command {
 			}
 			checked, err := detectRound(layout, owner, repo, pr, &round)
 			if err != nil {
-				return err
+				return headNotFetched(cmd, owner, repo, pr, err)
 			}
 			// §2.6.1.6: every hit reaches the repository's ledger,
 			// keyed so a second run of the same round overwrites

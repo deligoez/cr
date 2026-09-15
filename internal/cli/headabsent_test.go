@@ -3,8 +3,10 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -181,28 +183,174 @@ func TestAHeadTheCloneNeverFetchedIsAFetch(t *testing.T) {
 // gitHint is the step a git failure of any other kind is met with.
 const gitHint = "the git command the message names failed; run it yourself to see what it reports"
 
-// headAbsentCommands are the four commands headNotFetched classifies for, each
-// with an argv that reaches a git read of the pull request's head and base on
-// threeUnitHome's drafted round. `cr review` names the intent pass, which is the
-// one a round without a mapping may emit.
-func headAbsentCommands(t *testing.T) map[string][]string {
+// headRun is how one command in the tree meets the head and the merge base of
+// the repository under review: the invocation that reaches its git read, the
+// round that read needs, and which commits' absence it reaches. A command that
+// reads neither commit carries the reason instead.
+type headRun struct {
+	// argv is the command line, `--repo` included.
+	argv []string
+	// drafted is the record the round is recorded and drafted with, and nil
+	// for a queued question on u1's added line 12 of money.go.
+	drafted map[string]any
+	// prepare readies what the run needs beyond the drafted round, given the
+	// state root and the round's draft.md, and is nil when it needs nothing.
+	prepare func(t *testing.T, layout state.Layout, drafted string)
+	// lacks names each commit, "head" or "base", whose absence from the clone
+	// argv's git reads reach. It is empty for an exempt command.
+	lacks []string
+	// exempt is why the command reads neither the head nor the merge base
+	// from the clone, and is empty for a command routed through
+	// headNotFetched.
+	exempt string
+}
+
+// headRuns classifies every command in the tree, keyed as the command is
+// typed. A routed command's argv reaches a git read of the head, and of the
+// merge base where lacks says so, on draftedCloneLacking's round; an exempt
+// command's argv is run over a clone lacking the head to hold the exemption to
+// what the command does.
+//
+// The records a LEFT anchor carries are what take `cr record`, `cr merge` and
+// `cr draft` to the merge base: §6.1.2 reads a LEFT anchor at it, and a RIGHT
+// one at the head alone. The sandbox is checked out at the head and nothing
+// else, so `cr sandbox create`, `cr test` and `cr probe run` reach the head
+// only.
+func headRuns(t *testing.T) map[string]headRun {
 	t.Helper()
-	return map[string][]string{
-		"brief": {"brief", fixturePR, "--repo", fixtureSlug,
-			"--issue", fixtureIssue, "--intent-file", briefIssue(t)},
-		"status": {"status", fixturePR, "--repo", fixtureSlug},
-		"review": {"review", fixturePR, "--repo", fixtureSlug, "--axis", "intent"},
-		"post":   {"post", fixturePR, "--repo", fixtureSlug},
+	dir := t.TempDir()
+	file := func(name, body string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+		return path
+	}
+	left := onUnit("u2", "order.go", "LEFT", 11, 12)
+	left["id"] = "f2"
+	line, err := json.Marshal(left)
+	require.NoError(t, err)
+	merged := file("merged.ndjson", string(line)+"\n")
+	perRole := file("review-correctness.ndjson", string(line)+"\n")
+	empty := file("empty.ndjson", "")
+	patch := file("mutation.patch", "--- a/money.go\n+++ b/money.go\n@@ -12 +12 @@\n-// money added a\n+// money mutated a\n")
+	issue := briefIssue(t)
+	both := []string{"head", "base"}
+	head := []string{"head"}
+	routed := func(lacks []string, argv ...string) headRun {
+		return headRun{argv: append(argv, "--repo", fixtureSlug), lacks: lacks}
+	}
+	exempt := func(why string, argv ...string) headRun {
+		return headRun{argv: argv, exempt: why}
+	}
+
+	runs := map[string]headRun{
+		"brief":  routed(both, "brief", fixturePR, "--issue", fixtureIssue, "--intent-file", issue),
+		"status": routed(both, "status", fixturePR),
+		// The intent pass is the one a round without a mapping may emit.
+		"review":         routed(both, "review", fixturePR, "--axis", "intent"),
+		"post":           routed(both, "post", fixturePR),
+		"record":         routed(both, "record", fixturePR, merged),
+		"merge":          routed(both, "merge", perRole, "-o", filepath.Join(dir, "merged-out.ndjson"), "--pr", fixturePR),
+		"rules check":    routed(both, "rules", "check", fixturePR),
+		"sandbox create": routed(head, "sandbox", "create", fixturePR),
+		"test":           routed(head, "test", fixturePR),
+		"probe run":      routed(head, "probe", "run", fixturePR, "--kind", "mutation", "--patch", patch),
+
+		"init":   exempt("writes the state root and the shipped profiles, and reads no repository", "init"),
+		"config": exempt("prints the configuration layers, and reads the clone for its remotes alone", "config", "--repo", fixtureSlug),
+		"note": exempt("stores a fact in the context store under the state root", "note", fixtureIssue, "a fact",
+			"--source", "chat", "--pr", fixturePR, "--repo", fixtureSlug),
+		"context": exempt("prints the context store under the state root", "context", fixtureIssue),
+		"answer": exempt("files a note against a record the round holds, and reads no revision",
+			"answer", fixturePR, "f1", "the retry is deliberate", "--source", "chat", "--repo", fixtureSlug),
+		"claims record": exempt("validates claims against the issue text, and reads no revision",
+			"claims", "record", fixturePR, empty, "--intent-file", issue, "--repo", fixtureSlug),
+		"claims set-aside": exempt("stamps intent-gaps.ndjson from the context store, and reads no revision",
+			"claims", "set-aside", fixturePR, fixtureIssue+"#c1", "--note", fixtureIssue+"#n1", "--repo", fixtureSlug),
+		"cells record": exempt("validates cells against the round's units under the state root, and reads no revision",
+			"cells", "record", fixturePR, empty, "--repo", fixtureSlug),
+		"map record": exempt("validates the mapping against the round's units under the state root, and reads no revision",
+			"map", "record", fixturePR, empty, "--repo", fixtureSlug),
+		"stats": exempt("counts the repository's triage.ndjson under the state root", "stats", "--repo", fixtureSlug),
+		"rules list": exempt("reads the rule corpus and ledger, and stats marker files in the checkout rather than a revision",
+			"rules", "list", "--dead", "--repo", fixtureSlug),
+		"rules suggest": exempt("scans posted comments under the state root", "rules", "suggest", "--repo", fixtureSlug),
+		"waivers list": exempt("reads the waiver files under the state root",
+			"waivers", "list", "--repo", fixtureSlug, "--pr", fixturePR),
+		"waivers remove": exempt("rewrites a waiver file under the state root",
+			"waivers", "remove", "wp1", "--repo", fixtureSlug, "--pr", fixturePR),
+		"sandbox destroy": exempt("removes the worktree and its registration by path, and checks out no revision",
+			"sandbox", "destroy", fixturePR, "--repo", fixtureSlug),
+	}
+
+	// §6.1.2 reads a LEFT anchor at the merge base: `cr record` and `cr
+	// merge` are handed one, and `cr draft` meets one moved by its marker.
+	draft := routed(both, "draft", fixturePR)
+	draft.drafted = onUnit("u2", "order.go", "LEFT", 11, 12)
+	draft.prepare = func(t *testing.T, _ state.Layout, drafted string) {
+		t.Helper()
+		editF1Marker(t, drafted, `start_line="11" line="12"`, `start_line="12" line="12"`)
+	}
+	runs["draft"] = draft
+	// §5.2.1 runs the profile's test command, so the round names a profile
+	// that has one; the run fails before it would start.
+	for _, name := range []string{"test", "probe run"} {
+		run := runs[name]
+		run.prepare = testProfiled
+		runs[name] = run
+	}
+	return runs
+}
+
+// testProfiled has the round name a profile whose tests.cmd is set.
+func testProfiled(t *testing.T, layout state.Layout, _ string) {
+	t.Helper()
+	require.NoError(t, layout.EnsureProfile("qa", `{"id":"qa","match":{"files":[],"globs":[]},`+
+		`"axes":{"test":true},"tests":{"cmd":["/usr/bin/true"],"globs":["*_test.go"]}}`))
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	meta.ProfileID = "qa"
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Unlock())
+}
+
+// routedHeadRuns are headRuns' commands routed through headNotFetched, in a
+// fixed order.
+func routedHeadRuns(t *testing.T) []string {
+	t.Helper()
+	runs := headRuns(t)
+	var names []string
+	for _, name := range slices.Sorted(maps.Keys(runs)) {
+		if runs[name].exempt == "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// draftedFor is threeUnitHome with run's record recorded and drafted, and run
+// prepared.
+func draftedFor(t *testing.T, run *headRun) {
+	t.Helper()
+	record := run.drafted
+	if record == nil {
+		record = onUnit("u1", "money.go", "RIGHT", 12, 12)
+	}
+	layout, drafted := unitDrafted(t, record)
+	if run.prepare != nil {
+		run.prepare(t, layout, drafted)
 	}
 }
 
-// draftedCloneLacking is threeUnitHome's round with one queued record drafted,
-// read from a no-local clone of its repository that lacks one commit GitHub
-// reports: the pull request's head, or a base that moved after the clone was
-// made. It returns the clone and the commit it lacks.
-func draftedCloneLacking(t *testing.T, lacking string) (clone, missing string) {
+// draftedCloneLacking is draftedFor's round, read from a no-local clone of its
+// repository that lacks one commit GitHub reports: the pull request's head, or
+// a base that moved after the clone was made. It returns the clone and the
+// commit it lacks.
+func draftedCloneLacking(t *testing.T, lacking string, run *headRun) (clone, missing string) {
 	t.Helper()
-	unitDrafted(t, onUnit("u1", "money.go", "RIGHT", 12, 12))
+	draftedFor(t, run)
 	full, err := repoDir()
 	require.NoError(t, err)
 	head := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch))
@@ -226,17 +374,62 @@ func draftedCloneLacking(t *testing.T, lacking string) (clone, missing string) {
 	return clone, missing
 }
 
-// One predicate for four commands: `cr review` and `cr post` on a clone that
-// lacks the pull request's head, or its base, give the same missing commit, code
-// and `git fetch` hint as `cr brief` and `cr status`, rather than git's refusal
-// of a merge base with a hint to run git by hand.
-func TestEveryCommandReadingTheHeadGivesTheFetchHint(t *testing.T) {
-	for _, lacking := range []string{"head", "base"} {
-		for name := range headAbsentCommands(t) {
-			t.Run(lacking+"/"+name, func(t *testing.T) {
-				clone, absent := draftedCloneLacking(t, lacking)
+// Every command in the tree is classified: routed through headNotFetched with
+// the commits its read reaches, or exempt with the reason it reads neither. A
+// command added later fails here by name until it is given one of the two.
+//
+// An exemption is held to what the command does: each exempt command runs over
+// a clone lacking the head, and a git failure there is a read the exemption
+// denies. Every read of the merge base is taken with the head, so a clone
+// lacking the head fails a read of either commit.
+func TestEveryCommandIsClassifiedAsAHeadReaderOrExempt(t *testing.T) {
+	runs := headRuns(t)
+	tree := leafCommands(t)
+	for _, name := range tree {
+		run, classified := runs[name]
+		if !classified {
+			t.Errorf("cr %s is in the command tree and not in headRuns: route its git failures through "+
+				"headNotFetched and name the commits its read reaches, or exempt it with the reason it reads "+
+				"neither the head nor the merge base", name)
+			continue
+		}
+		if (run.exempt == "") == (len(run.lacks) == 0) {
+			t.Errorf("cr %s names both the commits its read reaches and a reason it is exempt, or neither", name)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(runs)) {
+		if !slices.Contains(tree, name) {
+			t.Errorf("headRuns classifies cr %s, which the command tree does not have", name)
+		}
+	}
 
-				_, err := runCLIPrinting(t, headAbsentCommands(t)[name]...)
+	draftedCloneLacking(t, "head", &headRun{})
+	for _, name := range slices.Sorted(maps.Keys(runs)) {
+		if runs[name].exempt == "" {
+			continue
+		}
+		_, err := runCLIPrinting(t, runs[name].argv...)
+		var failed *git.CommandError
+		var missing *git.MissingCommitError
+		assert.False(t, errors.As(err, &failed) || errors.As(err, &missing),
+			"cr %s is exempt because it %s, and a git read failed over a clone lacking the head: %v",
+			name, runs[name].exempt, err)
+	}
+}
+
+// One predicate for every command reading the clone's head: each routed
+// command, on a clone that lacks the pull request's head, or the base where its
+// read reaches the merge base, gives the missing commit, code 3 and the `git
+// fetch` hint, rather than git's refusal of a tree or a merge base with a hint
+// to run git by hand.
+func TestEveryCommandReadingTheHeadGivesTheFetchHint(t *testing.T) {
+	for _, name := range routedHeadRuns(t) {
+		for _, lacking := range headRuns(t)[name].lacks {
+			t.Run(lacking+"/"+name, func(t *testing.T) {
+				run := headRuns(t)[name]
+				clone, absent := draftedCloneLacking(t, lacking, &run)
+
+				_, err := runCLIPrinting(t, run.argv...)
 				var missing *git.MissingCommitError
 				require.ErrorAs(t, err, &missing)
 				assert.Equal(t, git.MissingCommitError{Dir: clone, Commit: absent}, *missing)
@@ -248,20 +441,21 @@ func TestEveryCommandReadingTheHeadGivesTheFetchHint(t *testing.T) {
 	}
 }
 
-// The same four commands name a `--repo` no remote of the clone points at, in
-// the hint of the missing commit they now classify alike.
+// The same commands name a `--repo` no remote of the clone points at, in the
+// hint of the missing commit they now classify alike.
 func TestEveryCommandReadingTheHeadNamesARepoNoRemotePointsAt(t *testing.T) {
 	hint := "`--repo` names octocat/hello, and no remote of the repository under review points at it " +
 		"(origin points at someone/elsewhere), so a `git fetch` from its remotes may not bring the commit " +
 		"the message names; check that `--repo` names the pull request's repository; if it does, fetch " +
 		"the commit from it with `git fetch https://github.com/octocat/hello pull/7/head` and run the " +
 		"command again, or run the command in a clone of octocat/hello"
-	for name := range headAbsentCommands(t) {
+	for _, name := range routedHeadRuns(t) {
 		t.Run(name, func(t *testing.T) {
-			clone, absent := draftedCloneLacking(t, "head")
+			run := headRuns(t)[name]
+			clone, absent := draftedCloneLacking(t, "head", &run)
 			mustGit(t, clone, "remote", "set-url", "origin", "git@github.com:someone/elsewhere.git")
 
-			_, err := runCLIPrinting(t, headAbsentCommands(t)[name]...)
+			_, err := runCLIPrinting(t, run.argv...)
 			var mismatch *RemoteMismatchError
 			require.ErrorAs(t, err, &mismatch)
 			assert.Equal(t, "the repository at "+clone+" does not hold commit "+absent, err.Error())
@@ -273,12 +467,13 @@ func TestEveryCommandReadingTheHeadNamesARepoNoRemotePointsAt(t *testing.T) {
 
 // The other direction: a git failure while the clone holds both the head and
 // the base is not a fetch. The head commit's tree is taken out of the object
-// store, so every read of the head's content fails, and each of the four
-// commands keeps git's own error and hint.
+// store, so every read of the head's content fails, and each routed command
+// keeps git's own error and hint.
 func TestAGitFailureOfAnotherKindKeepsItsOwnHint(t *testing.T) {
-	for name := range headAbsentCommands(t) {
+	for _, name := range routedHeadRuns(t) {
 		t.Run(name, func(t *testing.T) {
-			unitDrafted(t, onUnit("u1", "money.go", "RIGHT", 12, 12))
+			run := headRuns(t)[name]
+			draftedFor(t, &run)
 			full, err := repoDir()
 			require.NoError(t, err)
 			tree := strings.TrimSpace(mustGit(t, full, "rev-parse", fixtureHeadBranch+"^{tree}"))
@@ -286,7 +481,7 @@ func TestAGitFailureOfAnotherKindKeepsItsOwnHint(t *testing.T) {
 			mustGit(t, full, "cat-file", "-e", fixtureHeadBranch+"^{commit}")
 			mustGit(t, full, "cat-file", "-e", "main^{commit}")
 
-			_, err = runCLIPrinting(t, headAbsentCommands(t)[name]...)
+			_, err = runCLIPrinting(t, run.argv...)
 			var failed *git.CommandError
 			require.ErrorAs(t, err, &failed)
 			var missing *git.MissingCommitError

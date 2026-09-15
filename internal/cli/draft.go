@@ -154,7 +154,7 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err := round.RefuseStale(); err != nil {
 				return err
 			}
-			return produceDraft(out, layout, owner, repo, pr, &round.Meta)
+			return headNotFetched(cmd, owner, repo, pr, produceDraft(out, layout, owner, repo, pr, &round.Meta))
 		},
 	}
 }
