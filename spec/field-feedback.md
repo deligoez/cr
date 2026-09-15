@@ -76,4 +76,38 @@ be decided. Trust-relevant: an intent pass run from those prompts alone judges n
 |---|-------------|--------------|------------|
 | 2.1 | **Data safety.** The laravel-pest sandbox ran the test suite against the developer's local application database (`tarfin`, a local copy of production data) instead of the test database. A mutation `cr probe run --filter …` with no prior baseline ran the unfiltered suite there for ten minutes before it was killed; a filtered `cr test` failed 3 of 25 tests that pass 250/250 in the clone, on real rows ("208 is identical to 2"). Rows were rolled back only because the repository's `TestCase` uses `DatabaseTransactions`; a `RefreshDatabase` repository would have run `migrate:fresh` on the development database. | Confirmed on the mechanism: `internal/profile/builtin/laravel-pest.json:21` copies only `.env` and `vendor`; the repository's `.env.testing` exists and is gitignored (`.gitignore:10`), so the git-worktree sandbox lacks it; `phpunit.xml:35-36` sets `APP_ENV=testing` and `DB_CONNECTION=testing`; `config/database.php:70-74`'s `testing` connection reads `env('DB_DATABASE', 'tarfin-testing')`. The value `.env` supplies was not read by cr's session (it holds secrets); the reporter measured it, and the failing counts corroborate it. The unfiltered baseline is §5.2.2 as written (batch 1, 1.7). | Critical: an experiment that is not isolated and can mutate real data. |
 | 2.2 | The first-pass intent prompts were emitted before `cr claims record`, so all 106 said "The round recorded no claim"; cr neither refused nor warned. | Confirmed (batch 1 checks); the reporter's agents read the claims from their own brief, so no cell was judged claimless on this run. | High: without a side channel a whole axis is judged against no claims. |
-| 2.3 | Two cross-unit duplicates of one real bug (f12101, f13901) were not merged, because dedup groups by anchored line. | Not yet verified; repro requested. | To assess. |
+| 2.3 | Two cross-unit duplicates of one real bug (f12101, f13901) were not merged, because dedup groups by anchored line. | Superseded by 2.4 of the full batch below. | See 2.4. |
+
+### Batch 2 (2026-09-15, merge, record, probes, draft, dry-run post; nothing posted)
+
+The reporter tags each item WRONG (a false comment would have gone out), UNHELPFUL (true, but noise or
+unreadable) or FRICTION (operator cost only). All items are unverified until the verification section
+below says otherwise.
+
+Counts as reported: 106 units (6 LEFT), 25 claims, 7 notes; intent 106 cells (95 pass, 6 na, 5 question),
+57 pairs, 19 of 25 claims mapped (c19–c22 frontend outside the repository; c24, c25 draw-time rules with no
+code); rest 318 cells and 37 records; 42 records graded cited 24, argued 18; forced to question at draft 0
+(every argued record was already a question); dropped by waiver 0, by dedup 0; 19 probes proposed, 12 with a
+target inside the record's anchor, 10 chosen, 0 run (blocked by 2.1); draft 42 queued, 20 kept with every
+body rewritten, 20 discarded not-here, 2 marked wrong; dry-run post 20 comments, event COMMENT, commit
+`073b6f4e40`, no refusal. Wall clock: intent fan-out 8 agents, 1.09M tokens, 4m20s; rest fan-out 8 agents,
+1.95M tokens, 17m12s; merge and record 3s; sandbox create 26s; filtered baseline 60s; draft 1s; dry-run
+post under 1s; the reporter's own orchestration and triage about 40 minutes.
+
+The reporter credits three real production defects to cr, verified by hand in the code (f12101 a
+cancellation after the freeze changes eligibility; f13301 a job without `$timeout` killed at 300s drops the
+next rounds; f13401 an export that answers 202 and fails silently in the queue), none caught by earlier
+spec-driven audits of the branch, and attributes them to the cell bookkeeping forcing a look at every unit.
+
+| # | Observation (reporter's tag) | Reporter's suggestion |
+|---|------------------------------|-----------------------|
+| 2.3 | Probe support needs the anchor on the mutated line: 7 of 19 probes support nothing because test-adequacy anchors on the test while the mutation targets production code (FRICTION; real findings stay unproven). | Tell test-adequacy to anchor on the production line under test, or let a probe support a record when its target equals one of the record's citations. |
+| 2.4 | Cross-unit duplicates escape dedup: four pairs (f12101/f13901, f35101/f40001, f38401/f40601, f34702/f40501) with different classes and anchors but the same root cause or shared citations (UNHELPFUL: four duplicate comments). | Flag possible duplicates that share a citation or name each other's anchor, listed in `cr merge` output for the human, not dropped. |
+| 2.5 | 36 new classes for 42 records; six records on one issue used five class names, so a `wrong` demotes a class nobody reuses and `cr rules suggest` never reaches `harvest_min` (UNHELPFUL, indirect). | A per-axis class vocabulary in the role file, or normalisation at record time. |
+| 2.6 | Question bodies without "?" pass `cr record` and `cr draft` and are refused only at `cr post` (FRICTION; safe). | Refuse or warn at record time; state the rule in every prompt's output contract. |
+| 2.7 | Labels render in Turkish per `render.lang`, bodies stay English; no prompt names the language to write in (UNHELPFUL). | The prompt states `render.lang` for summary and evidence. |
+| 2.8 | Bodies are the agent's evidence prose verbatim, typically 900–1,500 characters (UNHELPFUL). | Post `summary` and keep `evidence` in the draft or a collapsed block; or warn above a length. |
+| 2.9 | Two wrong intent records and one settled: f30901 says the changelog does not declare a gate that `changelogs/unreleased/deligoez/hotfix/WB-3155-kampanya-ureticilerine-is-active-gate.md:7` declares (the agent read one of three changelog files); f24601 says no claim states the counting windows, which the issue text does (claim extraction skipped them); f27201 asks what note n4 settles (batch 1, 1.5) (WRONG ×2 if posted). | List issue sentences with dates or amounts that no claim spans ("unclaimed spans") in brief or status. |
+| 2.10 | Triage by hand-editing a 62k-character draft: deleting 20 blocks and replacing 20 bodies needed line arithmetic, and one range overshot (FRICTION, corruption risk). | `cr triage <pr> <id>` with `not-here`, `wrong`, `soften` or `--body-file f`. |
+| 2.11 | A `wrong` disposition becomes a repository-wide waiver when `cr draft` runs, before any post (needs a decision). | Say so in the draft header, or apply dispositions at post or an explicit apply step. |
+| 2.12 | Worked well: id blocks kept 16 parallel writers collision-free; cells guaranteed 424 of 424; no argued record escaped as a finding; dry-run validation and commit pinning were clean; waiver scopes match how reviewers think. | — |
