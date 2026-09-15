@@ -592,8 +592,9 @@ Edit the body into a question in the draft; `cr draft 1` then reports it under
 
 #### Triage verbs
 
-Triage is editing `draft.md`. `cr draft` and `cr post` read the file back; a run
-of `cr draft` applies the triage and renders the draft again.
+Triage is editing `draft.md`, by hand or through `cr triage`, with the same
+effect. `cr draft` and `cr post` read the file back; a run of `cr draft` applies
+the triage and renders the draft again.
 
 | In `draft.md` you… | Effect |
 |---|---|
@@ -602,6 +603,41 @@ of `cr draft` applies the triage and renders the draft again.
 | change `kind="finding"` to `kind="question"` | softened, recorded as a triage event |
 | delete the block entirely, marker included | discarded `not-here`; a **pull-request-scoped** waiver |
 | set `disposition="wrong"` in the marker | discarded as a false positive, body or not; a **repository-wide** waiver that counts against the class |
+
+**On a large draft, prefer `cr triage` to line arithmetic.** It finds the block
+by record id and makes exactly the hand edit its verb names, under the per-PR
+lock, so no line number or byte offset has to be computed and a second edit
+cannot interleave with a `cr draft`:
+
+| `cr triage <pr> <record-id> …` | The hand edit it makes |
+|---|---|
+| `not-here` | deletes the block, from its marker line up to the next marker |
+| `wrong` | sets `disposition="wrong"` in the marker |
+| `soften` | changes `kind="finding"` to `kind="question"` |
+| `keep` | changes no marker field |
+| `soften\|keep --body-file <path>` | also replaces the agent body with the file's content (`-` reads standard input), leaving the label, provenance and evidence regions where they stand |
+
+```bash
+cr triage 1 f14 soften --body-file - <<'EOF'
+Is the error Decode returns dropped on purpose?
+EOF
+```
+
+```json
+{
+  "id": "f14",
+  "verb": "soften",
+  "body_replaced": true,
+  "path": "~/.cr/state/acme/shop/pr-1/rounds/1/draft.md"
+}
+```
+
+It only edits the file: the discard, the waiver, the triage event and the body
+checks happen at the next `cr draft` or `cr post`, exactly as for a hand edit. It
+refuses, leaving the draft untouched, a record id with no block in the draft
+(never rendered, or already deleted) and `soften` on a block already reading
+`kind="question"` with exit 1, and `--body-file` beside `not-here` or `wrong`
+with exit 2. A moved head refuses it with exit 4, as it refuses `cr draft`.
 
 **A discard's waiver is written by the next `cr draft`, not at post.** That run
 reads the deleted block or the `wrong` marker and writes the waiver before
