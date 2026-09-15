@@ -2,7 +2,7 @@
   "version": 1,
   "spec": "spec/0.2.0.md",
   "created_at": "2026-09-14T18:34:51.533307Z",
-  "updated_at": "2026-09-15T19:40:39.864935Z",
+  "updated_at": "2026-09-15T20:46:13.064394Z",
   "workflow": {
     "quality_gate": "go test -race ./... \u0026\u0026 golangci-lint run \u0026\u0026 ./scripts/deadcode.sh",
     "review_clean_rounds": 1,
@@ -10,7 +10,7 @@
   },
   "coverage": {
     "total_sections": 72,
-    "mapped_sections": 24,
+    "mapped_sections": 26,
     "context_only": [
       "# cr v0.2.0 — Reviewer Loop",
       "## 1. Scope",
@@ -28,7 +28,6 @@
       "#### 2.6.3 Harvesting",
       "## 3. Inputs",
       "### 3.1 Intent source",
-      "### 3.3 Claim extraction",
       "### 3.4 Diff ingestion and unit clustering",
       "### 3.5 Existing threads",
       "### 3.7 Orientation",
@@ -38,7 +37,6 @@
       "### 4.3 Convention and reinvention",
       "### 4.4 Test adequacy",
       "### 4.5 Axis activation and honest reporting",
-      "### 4.6 Review fan-out",
       "## 5. Probes",
       "## 6. Findings",
       "### 6.3 The argued rule",
@@ -858,7 +856,7 @@
     {
       "id": "s1-laravel-pest-copies-env-testing",
       "title": "Copy .env.testing into the laravel-pest sandbox",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.2",
         "safety"
@@ -870,16 +868,28 @@
         "### 5.1 Sandbox",
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-15T19:40:45.872219Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T20:05:52.593494Z",
+      "closed_reason": "- internal/profile/builtin/laravel-pest.json now ships sandbox.copy as [\".env\", \".env.testing\", \"vendor\"], and TestTheShippedLaravelPestProfileFillsEveryFieldItNeeds in internal/profile/builtin_test.go pins that whole list, so a clone holding a gitignored .env.testing gets it in the sandbox and Laravel under APP_ENV=testing reads it instead of falling back to .env\n- TestTheLaravelPestSandboxCarriesTheTestingEnvironmentFile in internal/cli/laravelpestenv_test.go runs cr init and then cr sandbox create on a fixture clone with the shipped profile (composer shimmed on PATH): with both files the payload's copied is [\".env\", \".env.testing\"], absent is [\"vendor\"], and both files land byte-equal in the sandbox; overlaying the v0.2.1 profile bytes through go test -overlay turns this subtest red\n- With only .env in the clone the same test reads copied [\".env\"] and absent [\".env.testing\", \"vendor\"] from the existing absent notice, the command exits 0 and the sandbox holds no .env.testing; the v0.2.1 overlay turns this subtest red too\n- go test -race -count=1 over internal/profile, internal/cli and internal/brief passes, and the full gate passes at this close\n",
+      "gate_passed_at": "2026-09-15T20:05:52.593494Z",
+      "commit_sha": "03a910d",
+      "commit_shas": [
+        "03a910d",
+        "25bdbb4",
+        "7b8fc49"
+      ],
+      "commit_files": [
+        "internal/cli/laravelpestenv_test.go",
+        "internal/profile/builtin/laravel-pest.json",
+        "internal/profile/builtin_test.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "s2-init-updates-unedited-shipped-profiles",
       "title": "Update unedited shipped profiles on cr init",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.2",
         "safety"
@@ -893,16 +903,41 @@
         "### 2.4 Profiles",
         "### 2.2 State layout"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-15T20:05:58.575749Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T20:27:58.091368Z",
+      "closed_reason": "- cr init now writes each shipped profile through state.Layout.RefreshProfile (internal/state/profiles.go, under locks/profiles.lock, publishing by rename), which creates an absent file, rewrites a file whose bytes profile.StandingOf (internal/profile/shipped.go) finds equal to the v0.1.0, v0.2.0 or v0.2.1 shipped profile with the current bytes, leaves a file equal to the current profile alone, and leaves any other file alone with an honesty sentence naming its path (refreshProfiles in internal/cli/init.go)\n- The cr init payload carries updated, listing every profile file it rewrote, beside root and honesty, and the terminal rendering prints one updated line per file; dogfooded by running a v0.2.1 binary built from git archive and then this build under a scratch CR_HOME, which printed updated with profiles/laravel-pest.json, wrote the .env.testing copy list, and printed updated [] on a second run\n- The earlier bytes live in internal/profile/builtin/shipped/\u003ctag\u003e/\u003cid\u003e.json, each verified equal to git rev-parse \u003ctag\u003e:internal/profile/builtin/\u003cid\u003e.json by git hash-object, since every release's cr init wrote the embedded string verbatim through touchFile; TestTheEmbeddedReleasesAreExactlyThePinnedOnes pins the release list to the embedded directories, and TestEveryReleaseTagCarryingABuiltinProfileIsCovered fails when a v* tag reachable from HEAD carries a builtin profile that is neither embedded byte-equal under its tag nor the current profile (it skips only in a clone without tags, where the pinned list stays checked); overlaying wrong bytes on one embedded file or dropping v0.2.1 from the list turns them red\n- TestInitUpdatesOnlyAProfileNobodyEdited in internal/cli/init_test.go runs cr init through a pipe over a byte-equal v0.2.1 laravel-pest.json read from the extracted testdata and asserts updated is exactly that path, honesty is [] and the file now equals the shipped profile; a mutant whose Stale always answers false turns this subtest red\n- The same test with \"lang\": \"php\" edited to \"hack\" asserts updated is [], honesty is exactly the one sentence naming the file, and the bytes are unchanged, and a third subtest proves a file already at this release gets neither; a mutant that names every kept file turns that subtest red\n- go test -race -count=1 of internal/profile and internal/state passes, internal/cli passes except TestThreadsWithNoCurrentLineAreListedQuotedInThePromptsOfItsFilesUnitsOnly, which fails on the uncommitted intent-pass refusal another unit is writing in internal/review/run.go, and the full gate passes at this close\n",
+      "gate_passed_at": "2026-09-15T20:27:58.091368Z",
+      "commit_sha": "91c2a6d",
+      "commit_shas": [
+        "91c2a6d",
+        "4b62e75",
+        "508d104",
+        "c865d44",
+        "ec2ac29",
+        "16f3ea0",
+        "9937f1f"
+      ],
+      "commit_files": [
+        "README.md",
+        "internal/cli/init.go",
+        "internal/cli/init_test.go",
+        "internal/profile/builtin/shipped/v0.1.0/generic.json",
+        "internal/profile/builtin/shipped/v0.1.0/laravel-pest.json",
+        "internal/profile/builtin/shipped/v0.2.0/generic.json",
+        "internal/profile/builtin/shipped/v0.2.0/laravel-pest.json",
+        "internal/profile/builtin/shipped/v0.2.1/generic.json",
+        "internal/profile/builtin/shipped/v0.2.1/laravel-pest.json",
+        "internal/profile/shipped.go",
+        "internal/profile/shipped_test.go",
+        "internal/state/profiles.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "s3-stale-shipped-profile-notice",
       "title": "Name a stale shipped profile when it loads",
-      "status": "open",
+      "status": "done",
       "tags": [
         "v0.2.2",
         "safety"
@@ -915,16 +950,44 @@
       "source_sections": [
         "### 2.4 Profiles"
       ],
-      "started_at": null,
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "started_at": "2026-09-15T20:28:23.719395Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T20:46:13.036587Z",
+      "closed_reason": "- profile.Parse now compares the bytes it loads with s2's embedded shipped versions (staleNotice in internal/profile/shipped.go), and a stale file's Profile.StaleDisclosures() is one sentence naming the file, the release (v0.2.1) and that cr init updates the file; cr brief (Brief.StaleProfile), review (review.Run), status, post (forewarning), record, rules list and rules dead (effectiveRules), rules check (detectRound), sandbox create (emitCreated), test and probe run append it to honesty, as git grep of StaleDisclosures/staleProfile in non-test code lists, and rules list printed it in a dogfood over a tree a real v0.2.1 binary initialised, then printed honesty [] after cr init\n- The sentence also names what the shipped profile changed since, as dotted field paths from changedFields (\"has since changed sandbox.copy\" for laravel-pest), pinned whole by TestAParsedProfileNamesTheReleaseThatShippedItsBytes and TestChangedFieldsNamesEveryDifferingFieldByItsDottedPath in internal/profile/shipped_test.go\n- A profile equal to the current shipped bytes, or edited, gets no line: StandingOf's Current wins and an edited file matches no release, pinned by the same parse test and TestStandingOfTellsCurrentStaleAndEditedApart\n- No command writes a profile at load time: the notice is computed in Parse from bytes already read, staleProfile only calls profile.Load, and the cr test test asserts the profile file's bytes are unchanged after the run in both directions\n- TestTheTestCommandNamesAProfileAnEarlierReleaseShipped in internal/cli/staleprofile_test.go runs cr test (composer and pest shimmed) with the v0.2.1 laravel-pest.json read from s2's extracted testdata and asserts honesty is the recreation notice then exactly that sentence, and with \"lang\" edited asserts honesty is the recreation notice alone; overlaying HEAD's unwired internal/cli/test.go turns the first subtest red\n- go test -race -count=1 of internal/profile, internal/brief, internal/review and internal/cli passes; golangci-lint reports 0 issues, deadcode ./... prints 11 lines and Go 1.27.1 gofmt -l prints nothing\n",
+      "gate_passed_at": "2026-09-15T20:46:13.036587Z",
+      "commit_sha": "d3be0c0",
+      "commit_shas": [
+        "d3be0c0",
+        "3563f71",
+        "b088b8f",
+        "e13269b",
+        "0f0b310"
+      ],
+      "commit_files": [
+        "internal/brief/brief.go",
+        "internal/cli/brief.go",
+        "internal/cli/post.go",
+        "internal/cli/probe.go",
+        "internal/cli/record.go",
+        "internal/cli/rules.go",
+        "internal/cli/rulescheck.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/staleprofile.go",
+        "internal/cli/staleprofile_test.go",
+        "internal/cli/status.go",
+        "internal/cli/test.go",
+        "internal/profile/profile.go",
+        "internal/profile/profile_test.go",
+        "internal/profile/shipped.go",
+        "internal/profile/shipped_test.go",
+        "internal/review/run.go",
+        "skills/cr/SKILL.md"
+      ]
     },
     {
       "id": "s4-experiment-header-env-files",
       "title": "Print an experiment header naming env files",
-      "status": "wip",
+      "status": "done",
       "tags": [
         "v0.2.2",
         "safety"
@@ -938,10 +1001,74 @@
       ],
       "started_at": "2026-09-15T19:40:39.864935Z",
       "duration_source": "claimed",
-      "closed_at": null,
-      "closed_reason": null,
-      "gate_passed_at": null,
-      "commit_sha": null
+      "closed_at": "2026-09-15T20:36:04.760899Z",
+      "closed_reason": "- cr test (ensureAnnounced, right after sandbox.Ensure) and cr probe run (probeBaselines, under the probe lock, before the first baseline) print an experiment header to standard error through writer.disclose, before the runner starts, naming the runner argv, the sandbox path, the clone root's gitignored .env* files, which of them the sandbox holds, and one not copied line per file absent from the sandbox and not in sandbox.copy that names sandbox.copy in the profile file as the fix\n- The header adds a baseline line saying the whole suite runs first as the §5.2.2 baseline, with its argv, whenever probe.Missing still lacks the unfiltered baseline at the head\n- cr sandbox create carries the same not copied sentences under a new honesty field (sandbox.EnvFiles.Disclosures through emitCreated), printed in text through writer.disclose\n- The clone's ignored files are listed by git.IgnoredEnvFiles, which runs ls-files --others --ignored --exclude-standard --directory with the pathspec :(glob).env* through internal/git's run, measured at 6ms on a Laravel clone with vendor and node_modules\n- No file content is read: the clone side is names from git and the sandbox side is one os.Lstat per name in sandbox.CompareEnvFiles\n- TestTheTestHeaderListsTheCopiedEnvFiles drives cr test with gitignored .env and .env.testing both copied and asserts the whole stderr equals the header listing both with no not copied line followed by the runner recap, and under --quiet equals the header alone\n- TestTheProbeHeaderNamesTheUncopiedFileAndTheImplicitBaseline and TestTheSandboxCreationDisclosesUncopiedEnvFiles assert the whole not copied sentence naming .env.local, sandbox.copy and the profile file, on the probe's stderr and in sandbox create's honesty, and an empty honesty when everything was copied\n- The header is asserted on cr test, on a filtered mutation probe whose implicit baselines run first with the baseline line, and on the second filtered probe without it; five overlay mutants (copy-list check inverted, baseline condition inverted, cr test announce removed, honesty set to the held list, header written to stdout) each turn a new test red\n- Standard output stays one JSON document whose key set is asserted whole for cr test and cr probe run, and existing tests that read the combined pipe now strip the header through afterHeader\n- go test -race -count=1 ./... through the gate lock passes, golangci-lint reports 0 issues, scripts/deadcode.sh passes with deadcode ./... at 11 lines, and go1.27.1 gofmt -l prints nothing\n",
+      "gate_passed_at": "2026-09-15T20:36:04.760899Z",
+      "commit_sha": "b16f74d",
+      "commit_shas": [
+        "b16f74d",
+        "766494f",
+        "3dbe0d0",
+        "317be27",
+        "575df73",
+        "f82dfeb",
+        "559f229",
+        "291d421"
+      ],
+      "commit_files": [
+        "internal/cli/experiment.go",
+        "internal/cli/experiment_test.go",
+        "internal/cli/norepowrite_test.go",
+        "internal/cli/probe.go",
+        "internal/cli/probe_test.go",
+        "internal/cli/probeerrors_test.go",
+        "internal/cli/sandbox.go",
+        "internal/cli/test.go",
+        "internal/cli/test_test.go",
+        "internal/git/ignored.go",
+        "internal/sandbox/envfiles.go",
+        "skills/cr/SKILL.md"
+      ]
+    },
+    {
+      "id": "s5-intent-pass-refused-before-claims",
+      "title": "Refuse the intent pass before claims are recorded",
+      "status": "done",
+      "tags": [
+        "v0.2.2",
+        "safety"
+      ],
+      "depends_on": [],
+      "estimate_minutes": 45,
+      "acceptance": "- `cr review \u003cpr\u003e --axis intent` (the first pass, before a mapping exists) refuses with exit code 4 when `cr claims record` has not run for the current round and head, naming `cr claims record` in the hint, because §4.6.5's first-pass prompts must carry the claims; a claims file recorded empty counts as recorded, and an unavailable intent axis (§4.5.3) is unaffected.\n- Proven through `cr review` in both directions: before `cr claims record` → exit 4 and no prompt written; after it (including an empty claims file) → the prompts carry the claims; the post-mapping re-emission is unchanged; skills/cr/SKILL.md's sequence records claims before the intent pass.\n- go test -race -count=1 of the edited packages passes.",
+      "source_sections": [
+        "### 4.6 Review fan-out",
+        "### 3.3 Claim extraction"
+      ],
+      "started_at": "2026-09-15T20:04:31.68937Z",
+      "duration_source": "claimed",
+      "closed_at": "2026-09-15T20:40:20.836333Z",
+      "closed_reason": "- `cr review \u003cpr\u003e --axis intent` on a round with no mapping now refuses with review.ClaimsRequiredError when no claims are recorded for the current round and head (internal/review/run.go refuseWithoutClaims, called from gate before any fan-out directory is written), coded 4 by a new row in internal/cli/exit.go whose hint names `cr claims record \u003cpr\u003e \u003cfile.ndjson\u003e`; this implements §4.6.5's existing precondition, since first-pass prompts carrying the claims cannot be emitted without recorded claims, mirroring §4.6.5's own exit-4 refusal of the other axes before a mapping exists, and it is not a new MUST.\n- Whether claims are recorded is coverage.IntentPass.ClaimsHeld, the one predicate §10.2.5's intentReason now also uses, so an empty claims file recorded counts through meta.json's claims stamp and a round holding claims without a stamp counts too; the refusal applies only while the intent axis is active, so an unavailable intent axis (§4.5.3) still exits 0 with no prompts, as TestAKeylessPullRequestRaisesNoUnmappedUnitAndNoIntentGap asserts.\n- Proven through `cr review` in internal/cli/claimsrequired_test.go: before `cr claims record` the command exits 4 with the whole ClaimsRequiredError value, message and hint asserted and no fan-out directory written, while an unscoped `cr review` still gets MappingRequiredError.\n- After an empty claims file every intent prompt's claims section is the whole first-pass text ending \"The round recorded no claim.\", and after two claims it lists both; claims carried into a moved head's round 2 by §9.3.4 (non-empty and empty) are not refused and are carried in the prompts.\n- The post-mapping re-emission is unchanged: TestTheIntentReEmissionIsNotRefusedForClaims emits the unit mapped to zero claims with the claims stamp removed.\n- Every clause was shown to kill a mutant through go test -overlay (drop the refusal, drop r.Mapped, drop the active-axis check, drop the axis check, each half of ClaimsHeld, and the exit row), and existing tests that ran the intent pass without claims (headabsent review route, leftunit, outdatedthreads) now record claims first.\n- skills/cr/SKILL.md's sequence already records claims in step 1 before the step 2 intent pass, and now states the exit-4 refusal, the empty-file case, carried claims and the unavailable axis.\n- go test -race -count=1 over every package passed through the gate lock (30 packages ok), golangci-lint reports 0 issues, scripts/deadcode.sh passes with deadcode at 11 lines, and Go 1.27.1 gofmt lists nothing.\n",
+      "gate_passed_at": "2026-09-15T20:40:20.836333Z",
+      "commit_sha": "48a7561",
+      "commit_shas": [
+        "48a7561",
+        "307e560",
+        "3bc4286",
+        "ef158ca",
+        "a7301b0",
+        "8adde6c"
+      ],
+      "commit_files": [
+        "internal/cli/claimsrequired_test.go",
+        "internal/cli/exit.go",
+        "internal/cli/headabsent_test.go",
+        "internal/cli/leftunit_test.go",
+        "internal/cli/outdatedthreads_test.go",
+        "internal/coverage/completeness.go",
+        "internal/review/run.go",
+        "skills/cr/SKILL.md"
+      ]
     }
   ]
 }
