@@ -387,19 +387,36 @@ values do not serialise. A Ctrl+C or SIGTERM
 while the runner runs kills the runner's process group, records nothing and
 exits 4; run the command again.
 
-Before the runner starts, `cr test` and `cr probe run` print an experiment
-header on standard error, so a piped JSON document stays whole and `--quiet`
-does not remove it: the runner argv, the sandbox path, the clone root's
-gitignored `.env*` files and which of them the sandbox holds, one `not copied`
-line per such file the sandbox lacks and `sandbox.copy` does not name, and,
-when a probe's unfiltered §5.2.2 baseline has not run at this head yet, a
+Before the runner starts, `cr test` and `cr probe run` check the sandbox and,
+when it no longer stands, recreate it: besides §5.1.6's checks, a file or
+directory `sandbox.copy` names that the checkout holds and the sandbox lacks
+makes it stale, and so does a copied regular file whose bytes differ from the
+checkout's (edited in the clone after the sandbox was built). Directories are
+compared by presence only, an entry the checkout lacks is not compared, and a
+copied file the profile's own `sandbox.setup` rewrote is not compared either.
+Contents are compared in memory and never printed or stored. The header then
+goes to standard error, so a piped JSON document stays whole and `--quiet` does
+not remove it: the runner argv, the sandbox path, a `recreated` line naming the
+cause when the sandbox was rebuilt for this run, the clone root's gitignored
+`.env*` files and which of them the sandbox holds, one `not copied` line per
+such file the sandbox lacks (whether or not `sandbox.copy` names it), and, when
+a probe's unfiltered §5.2.2 baseline has not run in this sandbox yet, a
 `baseline` line saying the whole suite runs first. Read the header before the
 run finishes. A `not copied` line means the suite runs without that file and
 may read another environment (a Laravel suite missing `.env.testing` reads
 `.env`, which can point at a development database): stop the run, add the file
-to the profile's `sandbox.copy`, `cr sandbox destroy` and create again. A
-filtered probe with a `baseline` line runs the entire suite before the filtered
-run. `cr sandbox create` reports the same uncopied files under `honesty`.
+to the profile's `sandbox.copy` when the line says it does not name it, or run
+cr from the clone root when the line says `sandbox.copy` names it (copies are
+taken from the directory cr runs in), and run again. A filtered
+probe with a `baseline` line runs the entire suite before the filtered run. The
+`not copied` sentences are under the document's `honesty` too, beside the
+recreation notice, and `cr sandbox create` reports them the same way.
+
+Every run record carries `sandbox`, the generation of the sandbox it measured,
+and a probe resolves its baselines only among the runs of the sandbox it runs
+in: after a recreation the next probe performs §5.2.2's baselines again rather
+than reusing ones measured before it. A sandbox created by an earlier cr names
+no generation and is recreated once, with that reason.
 
 ### 5. Draft
 
