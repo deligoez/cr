@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/state"
 )
 
 // envReporter is a runner that says which env file a Laravel suite would read,
@@ -353,6 +355,7 @@ func TestASandboxWhoseSetupCreatesACopiedFileIsNotRecreated(t *testing.T) {
 	require.NoError(t, os.WriteFile(create, []byte("#!/bin/sh\necho 'DB=testing' > .env.testing\n"), 0o700))
 	rewriteProfile(t, profileFile, runner, []string{".env", ".env.testing"}, []string{create})
 	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{}, baselineDocument(t)["setup_removed"], "the setup removed nothing, and says so as []")
 
 	for range 2 {
 		stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
@@ -363,4 +366,162 @@ func TestASandboxWhoseSetupCreatesACopiedFileIsNotRecreated(t *testing.T) {
 			"env .env.testing\n"+recapLine, stderr)
 		assert.Equal(t, []any{}, honestyList(t, stdout))
 	}
+}
+
+// removingFixture is envFixture's clone holding gitignored `.env` and
+// `.env.testing`, with a profile copying both and a §5.1.3 setup that deletes
+// the sandbox's `.env.testing` and appends a line to a log outside it, and a
+// sandbox already created. It returns the clone root, the sandbox path, the
+// runner, the profile file and the log.
+func removingFixture(t *testing.T) (root, sandboxPath, runner, profileFile, log string) {
+	t.Helper()
+	root, sandboxPath, runner, profileFile = envFixture(t, []string{".env", ".env.testing"}, ".env", ".env.testing")
+	scratch := t.TempDir()
+	log = filepath.Join(scratch, "setup.log")
+	remove := filepath.Join(scratch, "remove.sh")
+	require.NoError(t, os.WriteFile(remove, []byte("#!/bin/sh\nrm -f .env.testing\necho ran >> "+log+"\n"), 0o700))
+	rewriteProfile(t, profileFile, runner, []string{".env", ".env.testing"}, []string{remove})
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	return root, sandboxPath, runner, profileFile, log
+}
+
+// baselineDocument decodes the sandbox's post-setup baseline file.
+func baselineDocument(t *testing.T) map[string]any {
+	t.Helper()
+	body, err := os.ReadFile(state.New(crHomeOf(t)).PRFile(
+		fixtureOwner, fixtureProject, fixturePRNumber, state.FileSandboxBaseline))
+	require.NoError(t, err)
+	var recorded map[string]any
+	require.NoError(t, json.Unmarshal(body, &recorded))
+	return recorded
+}
+
+// setupRuns reads how many times the removingFixture setup ran.
+func setupRuns(t *testing.T, log string) int {
+	t.Helper()
+	body, err := os.ReadFile(log)
+	require.NoError(t, err)
+	return strings.Count(string(body), "ran\n")
+}
+
+// v0.2.2 QA D-S22c-1: a setup that deletes a copied file the checkout holds
+// leaves the sandbox as it stands. `cr test` and `cr probe run` recreate
+// nothing, the setup does not run again, the sandbox keeps one generation, and
+// a second probe reuses the first one's baseline. The header still says the
+// suite runs without the file.
+func TestASandboxWhoseSetupRemovesACopiedFileIsNotRecreated(t *testing.T) {
+	root, sandboxPath, runner, profileFile, log := removingFixture(t)
+	recorded := baselineDocument(t)
+	assert.Equal(t, []any{".env.testing"}, recorded["setup_removed"])
+	assert.NotContains(t, recorded, "setup_changed", "a removed entry is not recorded as a changed one")
+	generation := sandboxGeneration(t)
+
+	sentence := removedSentence(root, profileFile)
+	header := "  sandbox    " + sandboxPath + "\n" +
+		"  env files  .env, .env.testing gitignored at the clone root\n" +
+		"  in sandbox .env\n" +
+		"  not copied " + sentence + "\n"
+	for range 2 {
+		stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+		assert.Equal(t, "experiment "+runner+"\n"+header+"env .env\n"+recapLine, stderr)
+		assert.Equal(t, []any{sentence}, honestyList(t, stdout))
+	}
+
+	probing := []string{"probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", writePatch(t, fixtureDiff), "--filter", "retries"}
+	stdout, stderr := streams(t, probing...)
+	var first map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &first))
+	assert.Equal(t, "experiment "+runner+" --only retries\n"+header+strings.Repeat("env .env\n"+recapLine, 2), stderr,
+		"the unfiltered baseline is a cr test run of this sandbox: the filtered one, then the probe")
+	assert.Equal(t, []any{"r3", "r4"}, []any{first["baseline"], first["run"]})
+	stdout, stderr = streams(t, probing...)
+	var second map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &second))
+	assert.Equal(t, "experiment "+runner+" --only retries\n"+header+"env .env\n"+recapLine, stderr,
+		"the second probe performs no baseline")
+	assert.Equal(t, []any{"r3", "r5"}, []any{second["baseline"], second["run"]},
+		"the second probe reuses the first one's baseline")
+	assert.Equal(t, []any{sentence}, honestyList(t, stdout))
+
+	assert.Equal(t, generation, sandboxGeneration(t), "the sandbox keeps its generation")
+	assert.Equal(t, 1, setupRuns(t, log), "the setup ran only when the sandbox was created")
+	assert.NoFileExists(t, filepath.Join(sandboxPath, ".env.testing"))
+}
+
+// A sandbox that holds again a file its setup removed no longer stands as the
+// setup left it: `cr test` recreates it once, naming that, the setup removes
+// the file again, and the next run recreates nothing.
+func TestATestRunRecreatesASandboxThatHoldsAgainAFileSetupRemoved(t *testing.T) {
+	root, sandboxPath, _, profileFile, log := removingFixture(t)
+	generation := sandboxGeneration(t)
+	require.NoError(t, os.WriteFile(filepath.Join(sandboxPath, ".env.testing"), []byte("SECRET=never-read\n"), 0o600))
+
+	stdout, _ := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: sandbox.copy in " + profileFile +
+		" names .env.testing, which sandbox.setup removed from the sandbox and the sandbox holds again",
+		removedSentence(root, profileFile)}, honestyList(t, stdout))
+	assert.NoFileExists(t, filepath.Join(sandboxPath, ".env.testing"))
+	assert.Equal(t, 2, setupRuns(t, log), "the recreation ran the setup again")
+	recreated := sandboxGeneration(t)
+	assert.NotEqual(t, generation, recreated)
+
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{removedSentence(root, profileFile)}, honestyList(t, stdout))
+	assert.Equal(t, recreated, sandboxGeneration(t), "the recreated sandbox stands")
+	assert.Equal(t, 2, setupRuns(t, log))
+}
+
+// A post-setup baseline recorded before `setup_removed` existed lists the
+// removed file among `setup_changed`. It makes the sandbox stale once, as
+// before, and the recreation records the new field, so the run after it
+// recreates nothing.
+func TestABaselineWithoutSetupRemovedIsRecreatedOnce(t *testing.T) {
+	root, sandboxPath, _, profileFile, log := removingFixture(t)
+	file := state.New(crHomeOf(t)).PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileSandboxBaseline)
+	recorded := baselineDocument(t)
+	delete(recorded, "setup_removed")
+	recorded["setup_changed"] = []any{".env.testing"}
+	legacy, err := json.Marshal(recorded)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, legacy, 0o600))
+
+	stdout, _ := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: sandbox.copy in " + profileFile +
+		" names .env.testing, which the checkout " + checkout(t) + " holds and the sandbox does not",
+		removedSentence(root, profileFile)}, honestyList(t, stdout))
+	assert.Equal(t, []any{".env.testing"}, baselineDocument(t)["setup_removed"])
+	generation := sandboxGeneration(t)
+
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{removedSentence(root, profileFile)}, honestyList(t, stdout))
+	assert.Equal(t, generation, sandboxGeneration(t))
+	assert.Equal(t, 2, setupRuns(t, log))
+}
+
+// The remedy the skill names for a `not copied` line a setup causes: a profile
+// whose setup no longer removes the file changes nothing by itself, since the
+// sandbox still stands as its setup left it, and `cr sandbox destroy` followed
+// by a run builds one that holds the file.
+func TestASetupRemovedFileReturnsOnlyAfterTheSandboxIsDestroyed(t *testing.T) {
+	root, sandboxPath, runner, profileFile, _ := removingFixture(t)
+	rewriteProfile(t, profileFile, runner, []string{".env", ".env.testing"}, []string{})
+
+	stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, "env .env\n"+recapLine, afterHeader(t, stderr))
+	assert.Equal(t, []any{removedSentence(root, profileFile)}, honestyList(t, stdout))
+
+	streams(t, "sandbox", "destroy", fixturePR, "--repo", fixtureSlug)
+	stdout, stderr = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, "env .env.testing\n"+recapLine, afterHeader(t, stderr))
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: there is no sandbox at that path"},
+		honestyList(t, stdout), "no not-copied sentence")
+	assert.FileExists(t, filepath.Join(sandboxPath, ".env.testing"))
+}
+
+// removedSentence is the `not copied` sentence for the `.env.testing` the
+// removingFixture setup deletes.
+func removedSentence(root, profileFile string) string {
+	return ".env.testing is gitignored at the clone root " + root + " and sandbox.copy in " + profileFile +
+		" names it, but the sandbox does not hold it, so the suite runs without it"
 }
