@@ -58,6 +58,10 @@ type recordResult struct {
 	// It is reported and never refused: whether the note settles what the
 	// record raised is not cr's to say.
 	NotesAfterPrompts review.NotesAfterPrompts `json:"notes_after_prompts"`
+	// ClassesOutside are §2.5.6's records: those this run stored whose role
+	// declares `classes` and whose class is not in them. Reported, never
+	// refused. It is empty, and never nil, when there is none.
+	ClassesOutside []classOutside `json:"classes_outside"`
 }
 
 // Text names how many records were stored and the states §9.1 brought them into,
@@ -79,6 +83,7 @@ func (r *recordResult) Text(w *writer) string {
 			answered.Result, answered.Reason)
 	}
 	out.WriteString(notesAfterLines("\n", "", r.NotesAfterPrompts))
+	out.WriteString(classesOutsideLines("\n", r.ClassesOutside))
 	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
 }
@@ -144,6 +149,7 @@ func newRecordResult(records []*finding.Finding, found *gapEvidence, dropped *re
 	return &recordResult{
 		Recorded: records, Duplicates: duplicates, Suppressed: suppressed,
 		Probes: found.support, Waived: dropped.waived, AlreadyPosted: dropped.posted, Honesty: honesty,
+		ClassesOutside: []classOutside{},
 	}
 }
 
@@ -337,6 +343,9 @@ func newRecordCmd(out *writer) *cobra.Command {
 			recorded := newRecordResult(records, found, &dropped)
 			recorded.Honesty = append(recorded.Honesty, staleProfile(layout.Profile(round.ProfileID))...)
 			if recorded.NotesAfterPrompts, err = recordNotesAfter(layout, &round.Meta, records); err != nil {
+				return err
+			}
+			if recorded.ClassesOutside, err = classesOutside(layout, owner, repo, records); err != nil {
 				return err
 			}
 			return out.emit(recorded)
