@@ -262,7 +262,7 @@ func newStatusCmd(out *writer) *cobra.Command {
 			}
 			report, err := statusOf(layout, owner, repo, pr, &round)
 			if err != nil {
-				return withRemoteMismatch(cmd, owner, repo, pr, err)
+				return headNotFetched(cmd, owner, repo, pr, err)
 			}
 			// A closed or merged pull request is said first, before the
 			// round is reported as though a review were still to come.
@@ -346,21 +346,13 @@ func statusOf(
 // recorded head and the halves are left out, which statusHonesty discloses.
 //
 // A head that has not moved is the pull request's current head, and every read
-// below is at it. Asking the clone for it first turns a head that was never
-// fetched into the fetch it is, rather than into git's refusal of whichever
-// read reached it first.
+// below is at it; a head that was never fetched fails the first of them, and
+// headNotFetched turns that refusal into the fetch it is.
 func statusLenses(
 	l state.Layout, owner, repo string, pr int, round *state.Round,
 ) (activation.Activation, coverage.Lenses, error) {
 	if round.Stale() {
 		return lensesWith(l, owner, repo, &round.Meta, noHalves)
-	}
-	dir, err := repoDir()
-	if err != nil {
-		return activation.Activation{}, coverage.Lenses{}, err
-	}
-	if err := git.RequireCommit(dir, round.Head); err != nil {
-		return activation.Activation{}, coverage.Lenses{}, err
 	}
 	return lensesOf(l, owner, repo, pr, &round.Meta)
 }

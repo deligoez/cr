@@ -218,7 +218,8 @@ func newPostCmd(out *writer) *cobra.Command {
 				return err
 			}
 			warned := &forewarning{closure: closureDisclosure(owner, repo, pr, &opened), to: cmd.ErrOrStderr()}
-			return buildReview(out, layout, owner, repo, pr, &round.Meta, confirmed, warned)
+			return headNotFetched(cmd, owner, repo, pr,
+				buildReview(out, layout, owner, repo, pr, &round.Meta, confirmed, warned))
 		},
 	}
 	cmd.Flags().Bool("confirm", false, "perform the network write (§8.5.2)")

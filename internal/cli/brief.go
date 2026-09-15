@@ -343,7 +343,7 @@ func newBriefCmd(out *writer) *cobra.Command {
 				Intent:    source,
 			})
 			if err != nil {
-				return withRemoteMismatch(cmd, owner, repo, pr, unsettledBrief(err))
+				return headNotFetched(cmd, owner, repo, pr, unsettledBrief(err))
 			}
 			return out.emit(newBriefResult(assembled))
 		},

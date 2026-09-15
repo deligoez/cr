@@ -101,7 +101,7 @@ func newReviewCmd(out *writer) *cobra.Command {
 			src.Axis = only
 			fan, err := review.Run(src)
 			if err != nil {
-				return err
+				return headNotFetched(cmd, owner, repo, pr, err)
 			}
 			return out.emit(&reviewResult{Fanout: fan})
 		},
