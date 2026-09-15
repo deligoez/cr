@@ -214,6 +214,8 @@ type suite struct {
 	// src names the pull request whose runner lock every run takes, so a
 	// later run finds a runner cr did not outlive (§5.3.3).
 	src *sandbox.Sources
+	// generation names the sandbox at path, and is stamped on every run.
+	generation string
 }
 
 // measuredRun is one execution of the suite, before §5.1.6's post-run check and
@@ -291,6 +293,7 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 		TestsRun:    executed,
 		TestsFailed: failed,
 		OutputTail:  tail.String(),
+		Sandbox:     s.generation,
 	}
 	if unstarted {
 		// A runner that never started returned no status, and the zero
@@ -628,7 +631,7 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 			// §11.1: the live echo is informational and `--quiet`
 			// takes it; the tail and the counter in run() see the
 			// stream either way.
-			profile: resolved, file: file, path: ready.Path, src: src,
+			profile: resolved, file: file, path: ready.Path, src: src, generation: ready.Generation,
 			log: out.informational(cmd.ErrOrStderr()),
 		},
 		announce: func(command, baseline []string) ([]string, error) {
@@ -1038,6 +1041,8 @@ func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, 
 	if err != nil {
 		return nil, err
 	}
+	// Only the runs of the sandbox this probe runs in can be its baselines.
+	stored = probe.OfSandbox(stored, setup.ready.Generation)
 	// The header goes out before the first run, and says so when §5.2.2's
 	// whole-suite baseline is that run: a filtered probe the operator
 	// expects to take seconds may start with the entire suite.
