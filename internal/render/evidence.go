@@ -65,10 +65,13 @@ func CitedEvidence(record string, citations []finding.Citation) (string, error) 
 // grade rests on this probe.
 //
 // It is template substitution and nothing else. §8.1.7 names what the region
-// carries for a probe — `kind`, `target`, `filter`, `result` and `output_tail`
-// — and each is written out as the record holds it, under §5.5's own field
-// name, so the author checks the comment against the state cr wrote rather than
-// against a phrasing cr chose.
+// carries for a probe — `kind`, `target`, `filter`, `paths`, `result` and
+// `output_tail` — and each is written out as the record holds it, under §5.5's
+// own field name, so the author checks the comment against the state cr wrote
+// rather than against a phrasing cr chose. `paths` is a list and takes a row
+// each, rather than one row holding a separator cr invented: a path may carry
+// any character a file name may, and a reader of a joined row could not tell
+// which of them belonged to cr.
 //
 // Round 9's unverifiable-evidence-region adds §5.5's `input`, for both kinds:
 // the patch or the test file cr actually executed. Without it an inert mutation
@@ -85,15 +88,16 @@ func CitedEvidence(record string, citations []finding.Citation) (string, error) 
 // cr checked.
 //
 // Nothing is composed, concluded or summarised here, and that is §5.3.6's
-// requirement as much as §8.1.7's. A filtered run proves the gap only for the
-// tests it selected, and cr cannot establish that a filter selects the tests
-// which would have caught the mutation — so the region says which filter ran
-// and stops.
+// requirement as much as §8.1.7's. A filtered or path-narrowed run proves the
+// gap only for the tests it selected, and cr cannot establish that a filter or
+// its paths select the tests which would have caught the mutation — so the
+// region says which filter and which paths ran and stops.
 //
-// The filter row is absent when the run carried no filter, as §5.5 makes the
-// column optional and the record omits it. A row carrying an invented value
-// standing for "no filter" would put a phrase cr composed into the one region
-// that exists to be checked.
+// The filter row is absent when the run carried no filter, and there are no
+// path rows when it carried no path, as §5.5 makes both columns optional and
+// the record omits them. A row carrying an invented value standing for "no
+// filter" would put a phrase cr composed into the one region that exists to be
+// checked.
 //
 // The input and the output tail are text cr did not write, and AgentRegion
 // ends the region at the first closing marker it meets. So a region that would
@@ -105,6 +109,9 @@ func ProbeEvidence(record string, p *probe.Record, maxInput int) (string, error)
 	fmt.Fprintf(&out, "target: %s\n", p.Target)
 	if p.Filter != "" {
 		fmt.Fprintf(&out, "filter: %s\n", p.Filter)
+	}
+	for _, path := range p.Paths {
+		fmt.Fprintf(&out, "paths: %s\n", path)
 	}
 	fmt.Fprintf(&out, "result: %s\n", p.Result)
 	if p.Kind == probe.Gap {
