@@ -36,9 +36,14 @@ func crHomeOf(t *testing.T) string {
 }
 
 // A baseline measured in a sandbox §5.1.6 has since rebuilt is not the
-// baseline of a probe in the rebuilt one: the second probe performs both of
-// §5.2.2's baselines again, and its `baseline` names the new filtered run
-// rather than the passing one recorded before the recreation.
+// baseline of a probe in the rebuilt one: the second probe performs §5.2.2's
+// baseline again, and its `baseline` names the new run rather than the passing
+// one recorded before the recreation.
+//
+// §5.2.6's sentence is the one under test — "when no matching run exists at the
+// current head and sandbox generation, cr MUST perform and record it before the
+// probe" — and the head never moves here, so the generation is the only thing
+// that could have made the stored run inadmissible.
 func TestABaselineFromAnEarlierSandboxIsNotReusedAfterARecreation(t *testing.T) {
 	_, sandboxPath, runner, _ := envFixture(t, []string{".env"}, ".env")
 	probing := []string{"probe", "run", fixturePR, "--repo", fixtureSlug,
@@ -47,19 +52,19 @@ func TestABaselineFromAnEarlierSandboxIsNotReusedAfterARecreation(t *testing.T) 
 	stdout, _ := streams(t, probing...)
 	var first map[string]any
 	require.NoError(t, json.Unmarshal([]byte(stdout), &first))
-	require.Equal(t, "r2", first["baseline"], "the control: the first probe performed r1 and r2, and ran as r3")
+	require.Equal(t, "r1", first["baseline"], "the control: the first probe performed r1 and ran as r2")
 	before := sandboxGeneration(t)
 
 	require.NoError(t, os.WriteFile(filepath.Join(checkout(t), ".env"), []byte("SECRET=changed-now\n"), 0o600))
 	stdout, stderr := streams(t, probing...)
 	var second map[string]any
 	require.NoError(t, json.Unmarshal([]byte(stdout), &second))
-	assert.Equal(t, "r5", second["baseline"], "§5.2.6 performed the baselines again, as r4 and r5")
-	assert.Equal(t, "r6", second["run"])
-	assert.Equal(t, 3, strings.Count(afterHeader(t, stderr), recapLine),
-		"the unfiltered baseline, the filtered one, then the probe")
+	assert.Equal(t, "r3", second["baseline"], "§5.2.6 performed the baseline again, as r3")
+	assert.Equal(t, "r4", second["run"])
+	assert.Equal(t, 2, strings.Count(afterHeader(t, stderr), recapLine),
+		"§5.2.2's one baseline, then the probe")
 	assert.Contains(t, strings.Split(stderr, "\n"),
-		"  baseline   the whole suite runs first as the §5.2.2 baseline: "+runner)
+		"  baseline   §5.2.2's baseline is not on file and runs first: "+runner+" --only retries")
 	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: sandbox.copy in " +
 		state.New(crHomeOf(t)).Profile("qa") + " names .env, and the checkout " + checkout(t) +
 		" holds a copy that differs from the sandbox's"}, honestyList(t, stdout))
@@ -71,8 +76,8 @@ func TestABaselineFromAnEarlierSandboxIsNotReusedAfterARecreation(t *testing.T) 
 		stamped[record["id"].(string)] = record["sandbox"]
 	}
 	assert.Equal(t, map[string]any{
-		"r1": before, "r2": before, "r3": before,
-		"r4": after, "r5": after, "r6": after,
+		"r1": before, "r2": before,
+		"r3": after, "r4": after,
 	}, stamped, "every run is stamped with the sandbox it measured")
 }
 
