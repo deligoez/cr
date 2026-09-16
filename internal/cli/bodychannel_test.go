@@ -56,8 +56,15 @@ func jsonNames(t reflect.Type) []string {
 	return names
 }
 
-// §8.1.2: editing `draft.md` is the only input path for reader-facing prose,
-// and cr accepts a body through no other channel.
+// §8.1.2: a body reaches the draft through a hand edit of `draft.md` or
+// through `cr triage --body-file` per §7.2.4, which writes it there, and cr
+// accepts one through no other channel.
+//
+// The section names the two, so this guard admits exactly those two and walks
+// the tree for anything else. `--body-file` is held to §7.2.4's own command
+// below: a second command declaring it would be the third channel §8.1.2
+// refuses, and the flag is not exempted by its spelling but by the command it
+// sits on.
 //
 // A channel is anything a caller can hand cr, so each is walked rather than
 // sampled. The command line is two of them — a flag and a positional — and the
@@ -78,9 +85,8 @@ func TestNoCommandAcceptsABodyArgumentOrABodyField(t *testing.T) {
 	flags := everyFlagInTheTree(root)
 	require.NotEmpty(t, flags, "a walk that found no flag proves nothing")
 	for _, name := range flags {
-		// §7.2.4's `cr triage --body-file` is the one exemption: it
-		// writes the content into draft.md as the matching hand edit
-		// does, so the body still reaches cr through the draft.
+		// §8.1.2 names `cr triage --body-file` as a way a body reaches
+		// the draft, so it is the one flag the walk admits.
 		if name == triageBodyFlag {
 			continue
 		}
@@ -89,11 +95,12 @@ func TestNoCommandAcceptsABodyArgumentOrABodyField(t *testing.T) {
 	}
 	triage, _, err := root.Find([]string{"triage"})
 	require.NoError(t, err)
-	require.NotNil(t, triage.Flag(triageBodyFlag), "the exemption names a flag the tree has")
+	require.NotNil(t, triage.Flag(triageBodyFlag),
+		"§8.1.2 names `cr triage --body-file`, and the tree has no such flag")
 	for _, other := range root.Commands() {
 		if other != triage {
 			assert.NotContainsf(t, everyFlagInTheTree(other), triageBodyFlag,
-				"§8.1.2: --%s is exempt on `cr triage` alone", triageBodyFlag)
+				"§8.1.2 admits --%s on `cr triage`, and this is a third channel", triageBodyFlag)
 		}
 	}
 
