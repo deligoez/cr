@@ -98,7 +98,7 @@ type Detect struct {
 	// Pattern is the regular expression, in Go regexp syntax.
 	Pattern string `json:"pattern"`
 	// Mode is how the pattern is applied; §2.6.1.2 admits only `regex` in
-	// v0.2.
+	// v0.3.
 	Mode string `json:"mode"`
 }
 

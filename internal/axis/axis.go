@@ -54,7 +54,7 @@ type InvalidError struct {
 
 func (e *InvalidError) Error() string {
 	return fmt.Sprintf(
-		"%s: %s is %q, which is not an axis id; v0.2 has exactly %s",
+		"%s: %s is %q, which is not an axis id; v0.3 has exactly %s",
 		e.File, e.Field, e.Value, strings.Join(IDs(), ", "),
 	)
 }

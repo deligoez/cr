@@ -150,7 +150,7 @@ func (e *UnknownStateError) Error() string {
 		names = append(names, known.name)
 	}
 	return fmt.Sprintf(
-		"%q is not a record state; v0.2 has exactly %s, and §1.3.6 puts verifying, resolving, and withdrawing in v0.3",
+		"%q is not a record state; v0.3 has exactly %s, and §1.3.6 puts verifying, resolving, and withdrawing in v0.4",
 		e.Value, strings.Join(names, ", "),
 	)
 }

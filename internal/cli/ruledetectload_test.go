@@ -34,7 +34,7 @@ func malformedDetectRules() []malformedDetectRule {
 		{
 			name: "detect.mode glob", mode: "glob", pattern: `DB::raw`, field: "detect.mode",
 			problem: func(id, _ string) string {
-				return fmt.Sprintf("of rule %q is %q, and §2.6.1.2 admits only %q in v0.2", id, "glob", rule.ModeRegex)
+				return fmt.Sprintf("of rule %q is %q, and §2.6.1.2 admits only %q in v0.3", id, "glob", rule.ModeRegex)
 			},
 		},
 		{

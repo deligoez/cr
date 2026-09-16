@@ -180,7 +180,7 @@ type Citation struct {
 // reviewer's standing with the author, so volume is a cost in itself,
 // independent of correctness — and an unanchored comment costs the most for
 // the least, because the author has to work out what it is about before they
-// can judge whether it is right. So v0.2 has one comment channel and this
+// can judge whether it is right. So v0.3 has one comment channel and this
 // field is it: an item cr cannot point at is reported by `cr status` (§10.1.2)
 // and never posted (§1.6.1).
 //

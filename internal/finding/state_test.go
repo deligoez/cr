@@ -42,8 +42,8 @@ func mustMarshal(t *testing.T, record *Finding) []byte {
 
 // The vocabulary is the whole of §9, so the exact set is the assertion rather
 // than the presence of each. §9's opening paragraph ends a record's life at
-// posting and §1.3.6 puts verifying, resolving, and withdrawing in v0.3, so an
-// eighth state is not an addition — it is v0.2 half-implemented, with §9.1's
+// posting and §1.3.6 puts verifying, resolving, and withdrawing in v0.4, so an
+// eighth state is not an addition — it is v0.3 half-implemented, with §9.1's
 // transition table silent about how a record reaches it and §9.1.2 silent about
 // whether it is open. A missing one is worse: nothing would name what a record
 // suppressed by §3.5.4 or abandoned by §9.3.4 has become.

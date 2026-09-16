@@ -164,7 +164,7 @@ func TestASecondBlockForOneRecordStopsTheIngest(t *testing.T) {
 //
 // One refusal answers two obligations. It keeps a deleted block from being
 // resurrected by pasting it back, since a discarded record is no longer among
-// the queued; and it is §7.2.3's own, which gives v0.2 no manual-comment
+// the queued; and it is §7.2.3's own, which gives v0.3 no manual-comment
 // channel because a hand-written block carries no role, axis or grade cr
 // computed.
 func TestABlockOutsideTheQueuedRecordsAborts(t *testing.T) {

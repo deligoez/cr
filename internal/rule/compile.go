@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-// ModeRegex is the only value §2.6.1.2 admits for `detect.mode` in v0.2.
+// ModeRegex is the only value §2.6.1.2 admits for `detect.mode` in v0.3.
 //
 // It is a stated value rather than a defaulted row. §2.6's table gives `axis`,
 // `severity` and `kind` a default in the table itself, and gives `detect.mode`
@@ -90,7 +90,7 @@ func (r *Resolved) compile() (*regexp.Regexp, error) {
 			File:  r.Path,
 			Field: "detect.mode",
 			Problem: fmt.Sprintf(
-				"of rule %q is %q, and §2.6.1.2 admits only %q in v0.2",
+				"of rule %q is %q, and §2.6.1.2 admits only %q in v0.3",
 				r.Rule.ID, r.Rule.Detect.Mode, ModeRegex,
 			),
 		}
