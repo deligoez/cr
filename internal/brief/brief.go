@@ -180,6 +180,16 @@ type Brief struct {
 	// value this run loaded. It is unexported for the reason halves is, and
 	// reaches the reader through StaleProfile.
 	staleProfile []string
+	// staleRoles is §2.5.2's report over the corpus this run resolved: a
+	// sentence per ejected role file that is, byte for byte, a role an
+	// earlier release shipped and not this build's. It is unexported for
+	// the reason staleProfile is, and reaches the reader through StaleRoles.
+	//
+	// `cr brief` owes it like every other command that loads the corpus:
+	// §3.7.6 prints the roles this round's fan-out will use, and a reader
+	// told which roles look is not told that one of them looks through an
+	// earlier release's framing.
+	staleRoles []string
 	// issueLinks are the links the issue text carries, per Reading.Links:
 	// taken from the read itself, because a terminal hyperlink's target is
 	// gone from the cleaned Issue.Text. It is unexported for the reason
@@ -197,6 +207,13 @@ func (b *Brief) IssueLinks() []string {
 // profile an earlier release shipped, and is empty for every other file.
 func (b *Brief) StaleProfile() []string {
 	return b.staleProfile
+}
+
+// StaleRoles names every ejected role file of the resolved corpus that is,
+// byte for byte, a role an earlier release shipped and not this build's, per
+// §2.5.2.
+func (b *Brief) StaleRoles() []string {
+	return b.staleRoles
 }
 
 // PullRequest is GitHub's answer about the pull request the brief was
@@ -362,6 +379,7 @@ func assemble(src *Sources) (*Brief, error) {
 		halves:         halves,
 		skipped:        coverage.Skipped(axes, corpus, active, selection.Profile.ID),
 		staleProfile:   selection.Profile.StaleDisclosures(),
+		staleRoles:     role.StaleDisclosures(corpus),
 		issueLinks:     resolved.Reading().Links(),
 	}, nil
 }

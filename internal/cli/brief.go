@@ -76,6 +76,10 @@ func newBriefResult(assembled *brief.Brief) *briefResult {
 		honesty = append(honesty, entry.Disclosure())
 	}
 	honesty = append(honesty, assembled.StaleProfile()...)
+	// §2.5.2's report over the corpus this brief resolved, beside §2.4.6's
+	// over the profile: both are files an earlier release shipped that
+	// `cr init` would replace, and §11.1 exempts both from `--quiet`.
+	honesty = append(honesty, assembled.StaleRoles()...)
 	// Every link in the issue text, as linked and not read: §3.1 reads the
 	// issue text alone, so a requirement stated only behind one reaches no
 	// claim, and nothing else would say so. A terminal hyperlink's target is
