@@ -229,31 +229,38 @@ func TestTheTestCommandWarnsThatTheProbeLockCoversOnlyItsOwnRuns(t *testing.T) {
 	assert.Contains(t, printed.String(), "§5.6.3")
 }
 
-// The terminal rendering says what the run was narrowed to, and says "none"
-// when it was not narrowed at all.
+// The terminal rendering says what the run was narrowed to — the filter and
+// the paths — and says "none" for either when it was not narrowed that way.
 //
-// An unfiltered run is the baseline §5.2.2 records once per head, and §5.3.6
-// turns on which tests a filtered run selected — so the difference between the
-// whole suite and a subset is the difference between a result that can support
-// a `probed` grade and one that cannot. Printed as a blank it reads as a value
-// the command failed to fill in, which is the one reading that is wrong in both
-// directions. gremlins found this: the branch was rendered by no test at all.
+// An unnarrowed run measures the whole suite, which §5.2.2 makes the baseline
+// of an unnarrowed probe, and §5.3.6 turns on which tests a narrowed run
+// selected — so the difference between the whole suite and a subset is the
+// difference between a result that can support a `probed` grade and one that
+// cannot. Printed as a blank it reads as a value the command failed to fill in,
+// which is the one reading that is wrong in both directions. gremlins found
+// this: the branch was rendered by no test at all.
 func TestTheTestRenderingNamesTheFilterOrSaysThereWasNone(t *testing.T) {
-	render := func(t *testing.T, filter string) string {
+	render := func(t *testing.T, filter string, paths []string) string {
 		t.Helper()
 		var printed bytes.Buffer
 		out := &writer{out: &printed, mode: ModeText}
 		require.NoError(t, out.emit(&testRunResult{
 			Run: "r1", Sandbox: "/tmp/sandbox", Command: []string{"pest"},
-			Filter: filter, Warnings: []string{}, Honesty: []string{},
+			Filter: filter, Paths: paths, Warnings: []string{}, Honesty: []string{},
 		}))
 		return printed.String()
 	}
 
-	assert.Contains(t, render(t, ""), "filter  none",
+	assert.Contains(t, render(t, "", nil), "filter  none",
 		"an absent filter reads as an answer rather than as a blank")
-	assert.Contains(t, render(t, "retries twice"), "filter  retries twice")
-	assert.NotContains(t, render(t, "retries twice"), "none")
+	assert.Contains(t, render(t, "", nil), "paths   none",
+		"and so does an absent path")
+	assert.Contains(t, render(t, "retries twice", nil), "filter  retries twice")
+	assert.Contains(t, render(t, "", []string{"tests/Unit", "tests/Feature"}),
+		"paths   tests/Unit, tests/Feature",
+		"§5.2.1 keeps the paths in the order they were given")
+	assert.NotContains(t, render(t, "retries twice", []string{"tests/Unit"}), "none",
+		"a run narrowed both ways reports neither as absent")
 }
 
 // §5.2.1's extraction through the command: the counts are summed over every
