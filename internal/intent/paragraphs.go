@@ -30,8 +30,12 @@ type Paragraphs struct {
 // ones no claim's span overlaps.
 //
 // It is text arithmetic and nothing more. A paragraph is a maximal run of lines
-// that are not blank, where a line is split at LF and is blank when it holds
-// nothing but SPACE, TAB and CR — the lines §1.4's steps 2 and 3 empty. A
+// that are neither blank nor a separator line of §3.1.5, where a line is split
+// at LF and is blank when it holds nothing but SPACE, TAB and CR — the lines
+// §1.4's steps 2 and 3 empty. §3.3.4 excludes the separator lines, and a
+// separator breaks a run as a blank line does: it is cr's own line rather than
+// a line of any source's text, so a paragraph that ran through one would be a
+// paragraph no single claim could ever cover per §3.3.1. A
 // paragraph is covered when some occurrence of some claim's span overlaps one
 // of its bytes, however little of it that is. Nothing is ranked, and no
 // paragraph is called more important than another: which of them states a
@@ -97,7 +101,7 @@ func paragraphsOf(issue string) []block {
 	for number, line := range strings.Split(issue, "\n") {
 		end := offset + len(line)
 		switch {
-		case strings.Trim(line, " \t\r") == "":
+		case strings.Trim(line, " \t\r") == "" || IsSeparator(line):
 			open = false
 		case open:
 			last := &blocks[len(blocks)-1]
