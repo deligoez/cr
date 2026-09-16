@@ -54,22 +54,25 @@ type surfaceRow struct {
 var specSurface = []surfaceRow{
 	{path: []string{"init"}, use: "init", spec: []string{"eject-roles"}},
 	{path: []string{"config"}, use: "config", spec: []string{"resolved"}},
-	{path: []string{"brief"}, use: "brief <pr>", added: map[string]string{
-		// §3.1.4 lets a file stand in for the tracker command, and
-		// CLAUDE.md's own QA recipe runs `cr brief` that way. §11 names
-		// flags on other rows and omits these two, so following §11
-		// here would leave the bypass unreachable on the one command
-		// that opens a round.
-		"intent-file": "§3.1.4",
-		"issue":       "§3.2",
-	}},
+	{path: []string{"brief"}, use: "brief <pr>", spec: []string{"intent-extra"},
+		added: map[string]string{
+			// §3.1.4 lets a file stand in for the tracker command, and
+			// CLAUDE.md's own QA recipe runs `cr brief` that way. §11 names
+			// flags on other rows and omits these two, so following §11
+			// here would leave the bypass unreachable on the one command
+			// that opens a round.
+			"intent-file": "§3.1.4",
+			"issue":       "§3.2",
+		}},
 	{path: []string{"review"}, use: "review <pr>", spec: []string{"axis", "units", "shard", "all"}},
-	{path: []string{"claims", "record"}, use: "record <pr> <file>", added: map[string]string{
-		// §3.3 re-reads the issue text to check every claim's span, so
-		// the bypass §3.1.4 gives `cr brief` is needed here too and is
-		// not inherited from the brief that opened the round.
-		"intent-file": "§3.1.4",
-	}},
+	{path: []string{"claims", "record"}, use: "record <pr> <file>",
+		spec: []string{"intent-extra"},
+		added: map[string]string{
+			// §3.3 re-reads the issue text to check every claim's span, so
+			// the bypass §3.1.4 gives `cr brief` is needed here too and is
+			// not inherited from the brief that opened the round.
+			"intent-file": "§3.1.4",
+		}},
 	{path: []string{"claims", "set-aside"}, use: "set-aside <pr> <claim-id>",
 		spec: []string{"note"}},
 	{path: []string{"merge"}, use: "merge <files...>",

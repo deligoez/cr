@@ -275,9 +275,10 @@ var codes = []mapped{
 	// §3.1.4's file stands in for the tracker command, so a file cr cannot
 	// read fails the way the command it replaced would have: §11.2's code 3
 	// covers the file and the external command in one row, and the run
-	// reaches no issue text either way.
+	// reaches no issue text either way. §3.1.5's extra intent files take the
+	// same row, and the message names which flag gave the path.
 	{is[*intent.FileError](), ExitFile,
-		"check that the path `--intent-file` names exists and is readable"},
+		"check that the path the message names exists and is readable"},
 	// §3.2 makes intent.key_pattern overridable without saying what an
 	// uncompilable override does. §2.6.1.2 already fixed it for cr's other
 	// configured regex — abort with exit code 3, naming what it came from —

@@ -441,11 +441,13 @@ func TestClaimsRecordRefusesAPullRequestWithNoIssueKey(t *testing.T) {
 //
 // §3.1.4 says `--intent-file` bypasses the command, and "bypass" is stronger
 // than "prefer": a run given a file must work with no tracker configured and no
-// tracker installed, so configuration is not read at all on that path. Reading
-// it first and using the file only where it disagreed would keep the promise by
-// accident and break it the first time a malformed config made config.Resolve
-// refuse — which is why the flag is answered before the resolution rather than
-// after it, and why this asserts an empty Cmd rather than merely a set File.
+// tracker installed, so `intent.cmd` is never resolved, expanded, or started on
+// that path — which is why this asserts an empty Cmd rather than merely a set
+// File.
+//
+// §3.1.5's extra intent files are read either way, because they come from
+// `intent.extra_files` as well as from `--intent-extra` and the section makes
+// no exception for a run reading its first part from a file.
 //
 // With no file the source is `intent.cmd` as §2.7 resolves it, which for a
 // freshly initialised state root is §3.1.2's default.
@@ -453,12 +455,12 @@ func TestTheIntentFileBypassesTheTrackerCommandRatherThanOutrankingIt(t *testing
 	layout := state.New(crHome(t))
 	require.NoError(t, layout.Init())
 
-	named, err := intentSource(layout, claimsOwner, claimsRepo, "/tmp/issue.txt")
+	named, err := intentSource(layout, claimsOwner, claimsRepo, "/tmp/issue.txt", nil)
 	require.NoError(t, err)
-	assert.Equal(t, intent.Source{File: "/tmp/issue.txt"}, named,
-		"§3.1.4: the file is the whole source, and intent.cmd is never resolved")
+	assert.Equal(t, intent.Source{File: "/tmp/issue.txt", Extra: []string{}}, named,
+		"§3.1.4: the file is the whole first part, and intent.cmd is never resolved")
 
-	configured, err := intentSource(layout, claimsOwner, claimsRepo, "")
+	configured, err := intentSource(layout, claimsOwner, claimsRepo, "", nil)
 	require.NoError(t, err)
 	assert.Empty(t, configured.File)
 	assert.Equal(t, []string{"jira", "issue", "view", intent.Placeholder, "--plain"},

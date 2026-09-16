@@ -330,6 +330,7 @@ func listed(ids []string) string {
 // package would put half of §3.7 in a file that also parses flags.
 func newBriefCmd(out *writer) *cobra.Command {
 	var issue, intentFile string
+	var intentExtra []string
 
 	cmd := &cobra.Command{
 		Use:   "brief " + prPlaceholder,
@@ -362,7 +363,7 @@ func newBriefCmd(out *writer) *cobra.Command {
 			}
 			// §3.1.4's file bypasses the tracker command rather than
 			// outranking it, which intentSource is where cr settles.
-			source, err := intentSource(layout, owner, repo, intentFile)
+			source, err := intentSource(layout, owner, repo, intentFile, intentExtra)
 			if err != nil {
 				return err
 			}
@@ -385,8 +386,7 @@ func newBriefCmd(out *writer) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&issue, "issue", "",
 		"the issue key, which §3.2 consults before the branch, title, and body")
-	cmd.Flags().StringVar(&intentFile, "intent-file", "",
-		"read the issue text from this file instead of running the tracker command")
+	intentFlags(cmd, &intentFile, &intentExtra)
 
 	return cmd
 }

@@ -261,6 +261,7 @@ func stampSetAside(l state.Layout, round *state.Round, claim, noteID string) err
 //nolint:funlen // measured 2026-08-31 at 69 lines; refactor to clear, never raise the limit
 func newClaimsRecordCmd(out *writer) *cobra.Command {
 	var intentFile string
+	var intentExtra []string
 
 	cmd := &cobra.Command{
 		Use:   "record " + prPlaceholder + " <file>",
@@ -301,7 +302,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			if recorded.IssueKey == "" {
 				return &intent.NoIssueKeyError{Owner: owner, Repo: repo, PR: pr}
 			}
-			source, err := intentSource(layout, owner, repo, intentFile)
+			source, err := intentSource(layout, owner, repo, intentFile, intentExtra)
 			if err != nil {
 				return err
 			}
@@ -358,8 +359,7 @@ func newClaimsRecordCmd(out *writer) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&intentFile, "intent-file", "",
-		"read the issue text from this file instead of running the tracker command")
+	intentFlags(cmd, &intentFile, &intentExtra)
 
 	return cmd
 }
@@ -423,19 +423,38 @@ func storeClaims(
 	return dropped, k.StampClaims(at.Round, at.Head)
 }
 
-// intentSource is §3.1's choice of where one run's issue text comes from,
-// resolved for a command that has a `--intent-file` flag.
+// intentFlags registers §3.1.4's bypass and §3.1.5's repeatable extra intent
+// file on one command.
 //
-// The flag is answered without reading configuration at all, which is what
-// §3.1.4 asks for: the file bypasses the command, so a run given one must work
-// with no tracker configured and no tracker installed. Resolving `intent.cmd`
-// first and using the file only if it were absent would keep the promise by
-// accident, and would break it the first time a malformed `intent.cmd` made
-// config.Resolve refuse.
-func intentSource(l state.Layout, owner, repo, file string) (intent.Source, error) {
-	if file != "" {
-		return intent.Source{File: file}, nil
-	}
+// The two commands that read the issue text register them through one function
+// so they cannot drift: §3.3 checks a span against the text §3.1 read, and a
+// flag `cr brief` accepts and `cr claims record` does not is a round whose
+// claims are checked against a different text from the one the agent was shown.
+func intentFlags(cmd *cobra.Command, file *string, extra *[]string) {
+	cmd.Flags().StringVar(file, "intent-file", "",
+		"read the issue text from this file instead of running the tracker command")
+	cmd.Flags().StringArrayVar(extra, "intent-extra", nil,
+		"append this file's text to the issue text under a §3.1.5 separator line; "+
+			"repeatable, and appended before `intent.extra_files`' own paths")
+}
+
+// intentSource is §3.1's choice of where one run's issue text comes from,
+// resolved for a command that has `--intent-file` and `--intent-extra` flags.
+//
+// `--intent-file` is answered without `intent.cmd` being read, expanded,
+// validated, or started, which is what §3.1.4 asks for: the file bypasses the
+// command, so a run given one works with no tracker configured and no tracker
+// installed. Resolving the command first and using the file only if it were
+// absent would keep the promise by accident, and would break it the first time
+// a malformed `intent.cmd` made a run fail before the file was read.
+//
+// The configuration is resolved either way, because §3.1.5's extra intent
+// files come from `intent.extra_files` as well as from the flag and the
+// section makes no exception for a run reading its first part from a file. A
+// configuration cr cannot resolve at all still fails the run — §2.7 refuses
+// such a layer for every command, `cr brief` included, and honouring half of a
+// file cr could not read would be the more surprising of the two.
+func intentSource(l state.Layout, owner, repo, file string, extra []string) (intent.Source, error) {
 	resolved, err := config.Resolve(config.Sources{
 		Environ:      os.Environ(),
 		GlobalConfig: l.Config(),
@@ -444,5 +463,9 @@ func intentSource(l state.Layout, owner, repo, file string) (intent.Source, erro
 	if err != nil {
 		return intent.Source{}, err
 	}
-	return intent.Source{Cmd: resolved.Strings("intent.cmd")}, nil
+	extras := intent.ExtraFiles(extra, resolved.Strings("intent.extra_files"))
+	if file != "" {
+		return intent.Source{File: file, Extra: extras}, nil
+	}
+	return intent.Source{Cmd: resolved.Strings("intent.cmd"), Extra: extras}, nil
 }
