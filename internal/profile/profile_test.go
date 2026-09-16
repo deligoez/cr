@@ -24,6 +24,7 @@ var specFields = []string{
 	"tests.cmd",
 	"tests.globs",
 	"tests.filter_flag",
+	"tests.paths_arg",
 	"tests.timeout_seconds",
 	"tests.output_tail_bytes",
 	"tests.count_pattern",
@@ -107,6 +108,7 @@ func TestParseAppliesTheDocumentedDefaults(t *testing.T) {
 	assert.Equal(t, []string{}, p.Sandbox.Setup)
 	assert.Equal(t, []string{}, p.Tests.Cmd)
 	assert.Equal(t, []string{}, p.Tests.Globs)
+	assert.Equal(t, []string{}, p.Tests.PathsArg)
 	assert.NotNil(t, p.Rules)
 	assert.Empty(t, p.Rules)
 	// The remaining optional fields stay unset: §2.4 gives them no default.
@@ -129,6 +131,7 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 			"cmd": ["./vendor/bin/pest"],
 			"globs": ["tests/**/*Test.php"],
 			"filter_flag": "--filter",
+			"paths_arg": ["--test-directory={path}"],
 			"timeout_seconds": 120,
 			"output_tail_bytes": 8192,
 			"count_pattern": "(\\d+) (?:passed|failed)",
@@ -147,6 +150,7 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 	assert.Equal(t, []string{"./vendor/bin/pest"}, p.Tests.Cmd)
 	assert.Equal(t, []string{"tests/**/*Test.php"}, p.Tests.Globs)
 	assert.Equal(t, "--filter", p.Tests.FilterFlag)
+	assert.Equal(t, []string{"--test-directory={path}"}, p.Tests.PathsArg)
 	assert.Equal(t, 120, p.Tests.TimeoutSeconds)
 	assert.Equal(t, 8192, p.Tests.OutputTailBytes)
 	assert.Equal(t, `(\d+) (?:passed|failed)`, p.Tests.CountPattern)
