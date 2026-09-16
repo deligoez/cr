@@ -222,18 +222,31 @@ whole `expected_cells` set is reported either way, because §10.2.2 is checked
 against the round's cells and not against this run's prompts.
 
 Record the intent pass's cells and the claim-to-unit mapping it produced
-(`{"claim": "CR-5#c1", "unit": "u1"}` per line), then emit the rest:
+(`{"claim": "CR-5#c1", "unit": "u1"}` per line), then run the intent pass a
+second time and emit the rest:
 
 ```bash
 cr cells record 1 intent-cells.ndjson
 cr map record 1 pairs.ndjson
-cr review 1 > fanout.json
+cr review 1 --axis intent > unmapped.json   # §4.6.5's re-emission
+cr review 1 > fanout.json                   # the other three axes
 ```
 
-That fan-out emits the intent prompts again beside the other axes — one per unit
-the mapping maps to no claim, which the default narrowing never withholds —
-together with a prompt for every cell of the other axes that is still open. Run
-every prompt it gives you; no filtering of your own is needed.
+**The second `--axis intent` run is the one that carries the unmapped-unit
+prompt, and the bare fan-out does not stand in for it.** §4.6.5 attaches the
+re-emission to `--axis intent`: it emits one prompt per unit the mapping maps to
+no claim — §4.1.2's unmapped-unit question and §4.1.5's note check, both
+unknowable on the first pass — and §4.6.1's default narrowing does not apply to
+it, so it re-emits although the intent cells are already recorded. `cr review 1`
+on its own emits no intent prompt once those cells are in. Measured on a
+two-unit pull request with `u2` mapped to no claim: the bare run gave
+`convention/u1, convention/u2, correctness/u1, correctness/u2,
+test-adequacy/u1, test-adequacy/u2`, and `cr review 1 --axis intent` gave
+`intent-coverage/u2`, on that run and on every repeat. Skip it and `cr status`
+still reports the intent cells filled — the first pass filled them — while the
+one hole the re-emission exists to close is never looked at.
+
+Run every prompt both runs give you; no filtering of your own is needed.
 
 Batch the prompts into sub-agents rather than spawning one per prompt: a large
 pull request emits hundreds (106 units times 4 roles is 424). Batching is safe,
