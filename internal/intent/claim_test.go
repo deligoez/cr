@@ -19,6 +19,7 @@ var specClaimFields = []ClaimField{
 	{Name: "source", Requirement: Required},
 	{Name: "span", Requirement: Required},
 	{Name: "note_id", Requirement: Optional},
+	{Name: "file", Requirement: Optional},
 	{Name: "span_hash", Requirement: Computed},
 	{Name: "issue_hash", Requirement: Computed},
 	{Name: "head", Requirement: Stamped},

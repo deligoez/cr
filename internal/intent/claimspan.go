@@ -2,6 +2,7 @@ package intent
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/deligoez/cr/internal/note"
@@ -10,16 +11,18 @@ import (
 
 // SpanTexts are the texts §3.3 validates a claim's span against.
 //
-// There are two, and §3.3 partitions the four sources of its table between
-// them: the issue text of §3.1 for `description`, `acceptance` and `comment`,
-// and the note the claim names for `note`. They travel together because the
-// partition is made per claim and one file of claims may carry both kinds, not
-// because any claim is ever checked against both.
+// §3.3 partitions the five sources of its table between them: the text before
+// §3.1.5's first separator line for `description`, `acceptance` and `comment`,
+// the note the claim names for `note`, and the named extra intent file's part
+// for `file`. They travel together because the partition is made per claim and
+// one file of claims may carry every kind, not because any claim is ever
+// checked against more than one.
 type SpanTexts struct {
 	// Issue is the issue text §3.1 read for this run, as Reading.Text holds
-	// it: what the tracker command or `--intent-file` produced, cleaned. It
-	// is the text §3.3.1's occurrence check searches, and the text §3.3's
-	// `issue_hash` is taken over.
+	// it: what the tracker command or `--intent-file` produced, cleaned,
+	// with §3.1.5's extra intent files appended under their separator
+	// lines. Parts splits it into the parts §3.3.1 holds a span to, and
+	// §3.3's `issue_hash` is taken over the whole of it.
 	Issue string
 	// Notes is every note the §3.6 store holds for the issue key.
 	//
@@ -176,14 +179,60 @@ func (c *claimChecker) span(line int, claim *Claim) error {
 	return nil
 }
 
+// base is the part §3.3.1 checks a claim not drawn from a note or an extra
+// intent file against: the text before the first separator line of §3.1.5,
+// which is the whole issue text when the round read no extra intent file.
+//
+// It is named for a rejection too, and a round whose issue text holds one part
+// is told so in as many words: there is no separator line, so calling its text
+// something narrower would send the reader looking for a boundary that is not
+// there.
+func base(parts []Part) (part, name string) {
+	if len(parts) > 1 {
+		return parts[0].Text, "the issue text before the first §3.1.5 separator line"
+	}
+	return parts[0].Text, "the issue text"
+}
+
+// unknownExtraFile is what §3.3.1 says of a `source: file` claim naming a file
+// this round did not read: the claim rests on a text nothing checked it
+// against, so it is refused rather than searched for elsewhere.
+func unknownExtraFile(named string, parts []Part) string {
+	held := make([]string, 0, len(parts))
+	for i := 1; i < len(parts); i++ {
+		held = append(held, strconv.Quote(parts[i].File))
+	}
+	if len(held) == 0 {
+		return fmt.Sprintf(
+			"names %q, and this round read no extra intent file; §3.1.5 reads one for every "+
+				"`--intent-extra <path>` and every `intent.extra_files` entry, and §3.3.1 checks a "+
+				"claim drawn from one against that file's text alone",
+			named)
+	}
+	return fmt.Sprintf(
+		"names %q, which is not an extra intent file of this round; §3.1.5 read %s, "+
+			"and §3.3.1 checks a claim drawn from one against that file's text alone",
+		named, strings.Join(held, ", "))
+}
+
+// extra returns the region of the issue text the extra intent file at path
+// occupies, and false when this round's issue text holds no such part.
+func extra(parts []Part, path string) (string, bool) {
+	for i := 1; i < len(parts); i++ {
+		if parts[i].File == path {
+			return parts[i].Text, true
+		}
+	}
+	return "", false
+}
+
 // against returns the one text §3.3 checks this claim's span in.
 //
-// The branch is `source` is `note` or it is not, which is the partition §3.3.1
-// itself writes — "for a claim whose `source` is not `note`" — rather than a
-// four-way switch over the table's values. That makes it total by
-// construction: every source that exists and every source that could be added
-// falls on one side or the other, so there is no claim this function can leave
-// without a text and none it can hand two.
+// The branch is §3.3.1's own: `note` takes the named note, `file` takes the
+// named extra intent file's part, and every other source — the three the
+// tracker's own text yields, and any the table might add — takes the text
+// before the first separator line. That makes it total by construction: there
+// is no claim this function can leave without a text and none it can hand two.
 //
 // A `note_id` naming a note the store does not hold is refused here rather than
 // searched for in the issue text. §3.3.2 validates such a claim against the
@@ -203,19 +252,32 @@ func (c *claimChecker) span(line int, claim *Claim) error {
 // rejection here would move that decision to extraction time, where §3.6.6 does
 // not put it.
 func (c *claimChecker) against(line int, claim *Claim) (spanSource, error) {
-	if claim.Source != ClaimFromNote {
-		return spanSource{text: c.spans.Issue, name: "the issue text"}, nil
-	}
-	named, held := note.Find(c.spans.Notes, claim.NoteID)
-	if !held {
-		return spanSource{}, &RejectedClaimError{
-			File: c.file, Line: line, Field: "note_id",
-			Problem: fmt.Sprintf(
-				"names %q, and the context store for %s holds no such note; "+
-					"§3.3.2 validates this claim against that note and against nothing else",
-				claim.NoteID, c.issueKey,
-			),
+	switch claim.Source {
+	case ClaimFromNote:
+		named, held := note.Find(c.spans.Notes, claim.NoteID)
+		if !held {
+			return spanSource{}, &RejectedClaimError{
+				File: c.file, Line: line, Field: "note_id",
+				Problem: fmt.Sprintf(
+					"names %q, and the context store for %s holds no such note; "+
+						"§3.3.2 validates this claim against that note and against nothing else",
+					claim.NoteID, c.issueKey,
+				),
+			}
 		}
+		return spanSource{text: named.Text, name: "note " + named.ID, whole: true}, nil
+	case ClaimFromFile:
+		parts := Parts(c.spans.Issue)
+		part, held := extra(parts, claim.File)
+		if !held {
+			return spanSource{}, &RejectedClaimError{
+				File: c.file, Line: line, Field: "file",
+				Problem: unknownExtraFile(claim.File, parts),
+			}
+		}
+		return spanSource{text: part, name: "the extra intent file " + claim.File}, nil
+	default:
+		part, name := base(Parts(c.spans.Issue))
+		return spanSource{text: part, name: name}, nil
 	}
-	return spanSource{text: named.Text, name: "note " + named.ID, whole: true}, nil
 }

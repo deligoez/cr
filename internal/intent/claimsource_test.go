@@ -9,14 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// §3.3's `source` row closes the set at four, and the four are what §3.3.1 and
-// §3.3.2 partition: three of them are validated against the issue text and the
-// fourth against a note. A fifth would be a claim neither rule checks, so the
+// §3.3's `source` row closes the set at five, and the five are what §3.3.1
+// partitions: three of them are validated against the text before §3.1.5's
+// first separator line, the fourth against a note, and the fifth against the
+// extra intent file it names. A sixth would be a claim no rule checks, so the
 // vocabulary is asserted as a whole — the set, its order, and the refusal of
 // anything outside it — rather than one value at a time.
-func TestTheFourClaimSourcesAreTheOnesTheSpecWrites(t *testing.T) {
+func TestTheFiveClaimSourcesAreTheOnesTheSpecWrites(t *testing.T) {
 	assert.Equal(t,
-		[]ClaimSource{ClaimFromDescription, ClaimFromAcceptance, ClaimFromComment, ClaimFromNote},
+		[]ClaimSource{
+			ClaimFromDescription, ClaimFromAcceptance, ClaimFromComment,
+			ClaimFromNote, ClaimFromFile,
+		},
 		ClaimSources())
 
 	for _, known := range ClaimSources() {
@@ -30,8 +34,8 @@ func TestTheFourClaimSourcesAreTheOnesTheSpecWrites(t *testing.T) {
 		var unknown *UnknownClaimSourceError
 		require.ErrorAs(t, err, &unknown, "%q names no source of §3.3", name)
 		assert.Equal(t, name, unknown.Value, "the refusal shows what was rejected")
-		assert.Contains(t, err.Error(), "description, acceptance, comment, note",
-			"and names the four the user may choose from")
+		assert.Contains(t, err.Error(), "description, acceptance, comment, note, file",
+			"and names the five the user may choose from")
 	}
 
 	widened := ClaimSources()

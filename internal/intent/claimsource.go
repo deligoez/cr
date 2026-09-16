@@ -15,23 +15,24 @@ import (
 // anywhere in the tree, because an untyped constant is assignable to it — so
 // the vocabulary would be a convention rather than a fence. A struct whose only
 // field is unexported can be built nowhere outside this file, so a source that
-// is not one of the four below is unrepresentable, and adding one is an edit
+// is not one of the five below is unrepresentable, and adding one is an edit
 // here.
 //
-// The fence earns more than tidiness. §3.3.1 and §3.3.2 send a claim to one of
-// two validators on the strength of this field — the issue text for three of
-// the four sources, the named note for the fourth — so a fifth source would be
-// a claim neither rule checks. §3.3.2 also makes it the provenance §8.1.6
-// discloses to the reader, and §3.3 draws the note-sourced claim's weaker
-// standing from nothing else.
+// The fence earns more than tidiness. §3.3.1 sends a claim to one of three
+// validators on the strength of this field — the text before the first
+// separator line for three of the five sources, the named note for the fourth,
+// the named extra intent file for the fifth — so a sixth source would be a
+// claim no rule checks. §3.3.2 also makes it the provenance §8.1.6 discloses to
+// the reader, and §3.3 draws the note-sourced claim's weaker standing from
+// nothing else.
 //
-// The cost is that the four are `var` rather than `const`, since Go has no
+// The cost is that the five are `var` rather than `const`, since Go has no
 // constant of struct type. Reassigning one is not widening the vocabulary — it
 // is sabotage that breaks every test at once — and the hole it leaves is much
 // smaller than the one it closes.
 type ClaimSource struct{ name string }
 
-// The four sources of §3.3's table, in the order the row names them. They are
+// The five sources of §3.3's table, in the order the row names them. They are
 // spelled ClaimFrom* rather than ClaimSource*, so they read the way KeyFromFlag
 // and its siblings already do in this package.
 var (
@@ -46,6 +47,12 @@ var (
 	// validated against that note rather than the issue text, and rests on
 	// unverified hearsay that §8.1.6 must disclose.
 	ClaimFromNote = ClaimSource{"note"}
+	// ClaimFromFile is an extra intent file of §3.1.5. Such a claim
+	// carries a `file`, has its span validated against that file's part of
+	// the issue text rather than against the tracker's own, and rests on a
+	// document the tracker never named, which §8.1.6 discloses as it
+	// discloses a note's.
+	ClaimFromFile = ClaimSource{"file"}
 )
 
 // claimSources is §3.3's set in the order the row writes it. It is the whole
@@ -55,6 +62,7 @@ var claimSources = []ClaimSource{
 	ClaimFromAcceptance,
 	ClaimFromComment,
 	ClaimFromNote,
+	ClaimFromFile,
 }
 
 // String returns the source's name, which is what it goes by on the wire and in
@@ -63,7 +71,7 @@ func (s ClaimSource) String() string {
 	return s.name
 }
 
-// ClaimSources returns §3.3's four in row order. The result is a copy, so a
+// ClaimSources returns §3.3's five in row order. The result is a copy, so a
 // caller can neither widen the set nor reorder it.
 func ClaimSources() []ClaimSource {
 	return append(make([]ClaimSource, 0, len(claimSources)), claimSources...)

@@ -56,6 +56,7 @@ var claimFields = []ClaimField{
 	{Name: "source", Requirement: Required},
 	{Name: "span", Requirement: Required},
 	{Name: "note_id", Requirement: Optional},
+	{Name: "file", Requirement: Optional},
 	{Name: "span_hash", Requirement: Computed},
 	{Name: "issue_hash", Requirement: Computed},
 	{Name: "head", Requirement: Stamped},
@@ -101,6 +102,11 @@ type Claim struct {
 	// is ClaimFromNote, and a claim drawn out of the issue text carries no
 	// note to name.
 	NoteID string `json:"note_id,omitempty"`
+	// File is the extra intent file of §3.1.5 the claim came from, as the
+	// separator line above its text names it. §3.3 requires it when Source
+	// is ClaimFromFile, and a claim drawn from the tracker's own text or
+	// from a note carries no file to name.
+	File string `json:"file,omitempty"`
 	// SpanHash is the normalised hash of Span, written by cr. omitempty
 	// because a claim that has not been through ComputeClaimHashes has no
 	// hash, and the key is left off rather than written empty.

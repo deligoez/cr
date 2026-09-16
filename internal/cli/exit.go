@@ -315,7 +315,7 @@ var codes = []mapped{
 	// source would report 2, telling the user to retype a correct command
 	// line.
 	{is[*intent.UnknownClaimSourceError](), ExitValidation,
-		"§3.3 closes `source` at four values; correct that claim's source in the file"},
+		"§3.3 closes `source` at five values; correct that claim's source in the file"},
 	// §6.1 rejects a class that is not kebab-case. Like a supplied computed
 	// field, the fault is the agent's data inside a file that was read and
 	// parsed without trouble, which §11.2 codes 1 rather than the 3 an

@@ -145,7 +145,42 @@ func (c *claimChecker) check(line int, supplied map[string]json.RawMessage, clai
 	if err := c.noteID(line, supplied, claim); err != nil {
 		return err
 	}
+	if err := c.extraFile(line, supplied, claim); err != nil {
+		return err
+	}
 	return c.span(line, claim)
+}
+
+// extraFile holds one claim to §3.3's second conditional row: `file` is required
+// when `source` is `file`, and belongs on nothing else.
+//
+// It is noteID's rule for the other conditional pairing, and both directions
+// are checked for the same reasons. A file-sourced claim with no `file` names
+// no part of the issue text: §3.3.1 has nothing to check its span against, so
+// the claim would be checked against nothing at all, and §8.1.6's disclosure
+// would have no document to name while the claim entered coverage looking like
+// a tracker claim. A `file` on a claim drawn from the tracker's own text or
+// from a note is the same fault from the other side: that claim is checked
+// against another text entirely, so the field would name a provenance nothing
+// checked and §8.1.6 would disclose it on the agent's word alone.
+func (c *claimChecker) extraFile(line int, supplied map[string]json.RawMessage, claim *Claim) error {
+	held := written(supplied["file"])
+	switch {
+	case claim.Source == ClaimFromFile && !held:
+		return &RejectedClaimError{
+			File: c.file, Line: line, Field: "file",
+			Problem: fmt.Sprintf("is required by §3.3 when source is %s", ClaimFromFile),
+		}
+	case claim.Source != ClaimFromFile && held:
+		return &RejectedClaimError{
+			File: c.file, Line: line, Field: "file",
+			Problem: fmt.Sprintf(
+				"names an extra intent file, and §3.3 draws a claim sourced from %s out of another text",
+				claim.Source,
+			),
+		}
+	}
+	return nil
 }
 
 // computed holds one line to §3.3's two computed rows: cr writes `span_hash`
