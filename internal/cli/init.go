@@ -13,16 +13,16 @@ import (
 )
 
 // initResult is what `cr init` has to report: the state tree it prepared, and
-// what it did to the profiles already in it.
+// what it did to the profiles and ejected roles already in it.
 type initResult struct {
 	// Root is ~/.cr, the directory spec/0.1.0.md §2.2 lays out.
 	Root string `json:"root"`
-	// Updated are the profile files that held an earlier release's shipped
-	// profile, byte for byte, and now hold this release's.
+	// Updated are the profile and role files that held an earlier release's
+	// shipped bytes and now hold this release's (§2.4.6, §2.5.2).
 	Updated []string `json:"updated"`
-	// Honesty names each shipped profile's file that matches no shipped
-	// version and was therefore left as it was, while the shipped profile
-	// may have changed under it.
+	// Honesty names each shipped profile's file, and each ejected role
+	// file, that matches no shipped version and was therefore left as it
+	// was, while the shipped file may have changed under it.
 	Honesty []string `json:"honesty"`
 }
 
@@ -42,15 +42,19 @@ func (r initResult) Text(w *writer) string {
 // newInitCmd creates the state tree of spec/0.1.0.md §2.2, writes the profiles
 // §2.4.5 ships, and under `--eject-roles` writes the roles §2.5.1 ships.
 // Running it again on an existing tree changes no edited profile or role; it
-// updates only a profile file still holding an earlier release's shipped bytes,
-// as refreshProfiles says.
+// updates only a profile or ejected role file still holding an earlier
+// release's shipped bytes, as refreshProfiles and refreshRoles say.
 //
-// The roles are written only when the flag asks for them. §2.5.4 resolves a
+// The roles are *written* only when the flag asks for them. §2.5.4 resolves a
 // role per-repository, then globally, then from the built-in layer, so a tree
 // with no roles directory of its own is not a tree missing its roles: the
 // defaults are in the binary and every review reads them there. Ejecting is how
 // a user takes one over, which is why §2.5.2 gives it a flag rather than making
-// it what `cr init` always does.
+// it what `cr init` always does. Updating one that is already ejected is the
+// other half of §2.5.2 and carries no flag, for the reason §2.4.6 gives a
+// profile: a file equal to an earlier release's built-in holds no edit, so
+// bringing it up to date loses nothing and is the only way a repair to a
+// shipped role reaches the user who ejected it before the repair.
 func newInitCmd(out *writer) *cobra.Command {
 	var ejectRoles bool
 	cmd := &cobra.Command{
@@ -69,14 +73,8 @@ func newInitCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if ejectRoles {
-				// Sorted for the reason the profiles are.
-				roles := role.Builtins()
-				for _, id := range slices.Sorted(maps.Keys(roles)) {
-					if err := layout.EnsureRole(id, roles[id]); err != nil {
-						return err
-					}
-				}
+			if err := refreshRoles(layout, ejectRoles, &profiles); err != nil {
+				return err
 			}
 			profiles.Root = layout.Root()
 			return out.emit(profiles)
@@ -123,4 +121,43 @@ func refreshProfiles(l state.Layout) (initResult, error) {
 		}
 	}
 	return result, nil
+}
+
+// refreshRoles carries out §2.5.2 over the roles directory, appending what it
+// did to result.
+//
+// It ejects a role file only when eject asks for it, and brings up to date each
+// ejected file still holding an earlier release's built-in byte for byte. Any
+// other file is the user's and stays as it is; it is named, because the shipped
+// role may have changed while that copy did not, and a role's `instructions`
+// reach every prompt §4.6.1 emits for it.
+//
+// A role that is not ejected at all contributes nothing in either list. §2.5.4
+// resolves it from the binary, so there is no file to update and nothing about
+// it a reader has to act on — and a line per built-in role on a tree that never
+// ejected any would be noise on the command every user runs first.
+func refreshRoles(l state.Layout, eject bool, result *initResult) error {
+	roles := role.Builtins()
+	// Sorted, so a failure part-way through leaves the same roles behind on
+	// every run.
+	for _, id := range slices.Sorted(maps.Keys(roles)) {
+		var standing role.Standing
+		outcome, err := l.RefreshRole(id, roles[id], eject, func(onDisk []byte) bool {
+			standing = role.StandingOf(id, onDisk)
+			return standing.Stale()
+		})
+		if err != nil {
+			return err
+		}
+		switch {
+		case outcome == state.RoleReplaced:
+			result.Updated = append(result.Updated, l.Role(id))
+		case outcome == state.RoleKept && !standing.Current:
+			result.Honesty = append(result.Honesty, fmt.Sprintf(
+				"%s matches no version of the %s role cr has shipped, so cr init left it as it is; "+
+					"the shipped role may have changed since, and cr init --eject-roles with CR_HOME set to an empty directory writes it for comparison",
+				l.Role(id), id))
+		}
+	}
+	return nil
 }
