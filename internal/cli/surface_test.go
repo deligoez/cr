@@ -83,15 +83,16 @@ var specSurface = []surfaceRow{
 	{path: []string{"cells", "record"}, use: "record <pr> <file>"},
 	{path: []string{"sandbox", "create"}, use: "create <pr>"},
 	{path: []string{"sandbox", "destroy"}, use: "destroy <pr>"},
-	{path: []string{"test"}, use: "test <pr>", spec: []string{"filter"}},
+	{path: []string{"test"}, use: "test <pr>", spec: []string{"filter", "path"}},
 	{path: []string{"probe", "run"}, use: "run <pr>", spec: []string{"kind"}, added: map[string]string{
 		// §11's row ends in `...`, and these are what it stands for:
 		// §5.3.1's patch, §5.4.2's test file and §5.5's target, plus
-		// the filter §5.2.2 scopes a run by.
+		// the filter and the paths §5.2.2 scopes a run by.
 		"patch":  "§5.3.1",
 		"test":   "§5.4.2",
 		"target": "§5.5",
 		"filter": "§5.2.2",
+		"path":   "§5.2.2",
 	}},
 	{path: []string{"draft"}, use: "draft <pr>"},
 	{path: []string{"triage"}, use: "triage <pr> <record-id> not-here|wrong|soften|keep",
