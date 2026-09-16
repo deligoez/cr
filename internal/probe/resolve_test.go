@@ -10,46 +10,57 @@ import (
 	"github.com/deligoez/cr/internal/run"
 )
 
-// §5.2.6: when no matching run exists at the current head, cr performs and
-// records the baseline before the probe.
+// §5.2.6: when no matching run exists at the current head and sandbox
+// generation, cr performs and records the baseline before the probe.
 //
-// The order of what gets performed is asserted as well as the count, because
-// §5.2.2 requires the unfiltered run of every probe and the filtered one only
-// additionally — a mutation probe that performed its filtered run alone would
-// have measured its own narrow slice and learned nothing about the failures the
-// rest of the suite was already carrying.
+// What gets performed is asserted and not only how many, because §5.2.2 makes
+// the baseline "a run on unmutated, un-probed code of the tests the probe
+// runs": a mutation probe that performed the whole suite instead would have
+// measured a population no rung reads, and a gap probe that performed its own
+// filter would have selected a file that is not there yet.
 func TestAnAbsentBaselineIsPerformedBeforeTheProbe(t *testing.T) {
 	const head = "0a1b2c3"
 	const filter = "handles an empty cart"
+	paths := []string{"tests/Feature"}
 
 	for _, tc := range []struct {
 		name      string
 		kind      Kind
+		paths     []string
 		performed []Spec
-		resolved  string
 	}{
 		{
-			name:      "a filtered mutation probe performs both and points at the filtered run",
+			name:      "a filtered mutation probe performs the run its filter selects",
 			kind:      Mutation,
-			performed: []Spec{{}, {Filter: filter}},
-			resolved:  "r2",
+			performed: []Spec{{Filter: filter}},
 		},
 		{
-			name:      "a filtered gap probe performs the unfiltered run and points at it",
+			name:      "a filtered and pathed mutation probe performs the run both select",
+			kind:      Mutation,
+			paths:     paths,
+			performed: []Spec{{Filter: filter, Paths: paths}},
+		},
+		{
+			name:      "a filtered gap probe performs the whole suite",
 			kind:      Gap,
 			performed: []Spec{{}},
-			resolved:  "r1",
+		},
+		{
+			name:      "a filtered and pathed gap probe performs its paths unfiltered",
+			kind:      Gap,
+			paths:     paths,
+			performed: []Spec{{Paths: paths}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var performed []Spec
-			resolved, err := Ensure(nil, head, tc.kind, filter,
+			resolved, err := Ensure(nil, head, tc.kind, filter, tc.paths,
 				recordingPerformer(head, &performed))
 			require.NoError(t, err)
 			assert.Equal(t, tc.performed, performed,
-				"§5.2.2: the unfiltered run first, the filtered one additionally")
-			assert.Equal(t, tc.resolved, resolved.ID(),
-				"§5.5: the baseline column names the run for this kind")
+				"§5.2.2: the baseline measures the tests the probe runs")
+			assert.Equal(t, "r1", resolved.ID(),
+				"§5.5: the baseline column names the one run performed for this kind")
 			assert.True(t, resolved.Passed(),
 				"§5.2.5's verdict travels out of the record that was chosen")
 		})
@@ -61,7 +72,7 @@ func TestAnAbsentBaselineIsPerformedBeforeTheProbe(t *testing.T) {
 func recordingPerformer(head string, into *[]Spec) Performer {
 	return func(spec Spec) (run.Record, error) {
 		*into = append(*into, spec)
-		performed := baselineRun(head, spec.Filter)
+		performed := baselineRun(head, spec.Filter, spec.Paths)
 		performed.ID = "r" + strconv.Itoa(len(*into))
 		performed.Passed = true
 		return performed, nil
@@ -77,15 +88,15 @@ func recordingPerformer(head string, into *[]Spec) Performer {
 func TestTwoBaselineCandidatesResolveToTheMostRecent(t *testing.T) {
 	const head = "0a1b2c3"
 
-	superseded := baselineRun(head, "")
+	superseded := baselineRun(head, "", nil)
 	superseded.ID = "r1"
 	superseded.Passed = false
-	newest := baselineRun(head, "")
+	newest := baselineRun(head, "", nil)
 	newest.ID = "r4"
 	newest.Passed = true
 
 	resolved, err := Ensure(
-		[]run.Record{superseded, newest}, head, Gap, "", neverPerformed(t))
+		[]run.Record{superseded, newest}, head, Gap, "", nil, neverPerformed(t))
 	require.NoError(t, err)
 	assert.Equal(t, "r4", resolved.ID(), "§5.2.6: the most recent match is used")
 	assert.True(t, resolved.Passed(), "the verdict is the chosen record's own")
@@ -117,10 +128,10 @@ func TestAProbesOwnRunNeverBecomesTheNextProbesBaseline(t *testing.T) {
 	// Ids well clear of the one recordingPerformer allocates, so the
 	// assertion below names the run that was performed and not a record
 	// that merely shares its id.
-	mutated := baselineRun(head, "", probed)
+	mutated := baselineRun(head, "", nil, probed)
 	mutated.ID = "r7"
 	mutated.Passed = true
-	atAnEarlierHead := baselineRun("9f8e7d6", "")
+	atAnEarlierHead := baselineRun("9f8e7d6", "", nil)
 	atAnEarlierHead.ID = "r8"
 	atAnEarlierHead.Passed = true
 
@@ -139,7 +150,7 @@ func TestAProbesOwnRunNeverBecomesTheNextProbesBaseline(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var performed []Spec
-			resolved, err := Ensure(tc.stored, head, Gap, "",
+			resolved, err := Ensure(tc.stored, head, Gap, "", nil,
 				recordingPerformer(head, &performed))
 			require.NoError(t, err)
 			assert.Equal(t, []Spec{{}}, performed,
@@ -150,8 +161,8 @@ func TestAProbesOwnRunNeverBecomesTheNextProbesBaseline(t *testing.T) {
 	}
 
 	t.Run("a performed run that is itself inadmissible resolves to nothing", func(t *testing.T) {
-		_, err := Ensure(nil, head, Gap, "", func(Spec) (run.Record, error) {
-			return baselineRun(head, "", probed), nil
+		_, err := Ensure(nil, head, Gap, "", nil, func(Spec) (run.Record, error) {
+			return baselineRun(head, "", nil, probed), nil
 		})
 		require.Error(t, err,
 			"a probe graded against a baseline that does not stand is the "+
