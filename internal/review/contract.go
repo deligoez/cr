@@ -181,4 +181,13 @@ func claimSchema(p *page) {
 	p.line("")
 	p.line("source is one of %s; a claim drawn from a note names it in note_id and its span is "+
 		"the note's body (§3.3.2).", strings.Join(sources, ", "))
+	// The separator line is intent.Separator's, not a copy written out
+	// here: §3.3.1 holds a span to one part of the issue text, and a
+	// prompt showing a line other than the one cr writes would have a role
+	// draw spans across a boundary it could not see.
+	p.line("A claim drawn from an extra intent file carries source %s and names that file in file, "+
+		"as the path was given to --intent-extra or intent.extra_files; the line `%s` above the file's "+
+		"text names the same path. Its span must lie wholly inside that file's part of the issue text, "+
+		"and no span may contain or cross such a line (§3.1.5, §3.3.1).",
+		strconv.Quote(intent.ClaimFromFile.String()), intent.Separator("<path>"))
 }
