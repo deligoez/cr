@@ -65,7 +65,11 @@ without naming. `issue.json` in the pull request's state directory holds the
 issue text the round last read, with terminal control sequences removed and
 no-break spaces turned into spaces; `cr status` lists the issue paragraphs no
 claim span overlaps from it, and `cr brief` lists every link the issue text
-carries, a terminal hyperlink's target included, under `honesty` as not read. `emissions.ndjson` beside it holds one line
+carries, a terminal hyperlink's target included, under `honesty` as not read.
+`--intent-extra <path>`, repeatable on `cr brief` and `cr claims record`, and
+`intent.extra_files` append a document the tracker does not hold to that issue
+text under a `--- cr intent file: <path> ---` separator line, and a claim drawn
+from one carries `"source": "file"` with the path. `emissions.ndjson` beside it holds one line
 per prompt `cr review` emitted, with the ids of the notes the prompt carried.
 
 The Claude Code skill that teaches an agent the loop ships in this repository at
@@ -110,8 +114,8 @@ already have posted.
 | Command | Purpose |
 |---------|---------|
 | `cr init [--eject-roles]` | Create the `~/.cr` tree and write the default profiles, updating a profile file still byte-equal to an earlier release's and naming any edited one; `--eject-roles` also writes the built-in roles as editable files |
-| `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
-| `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
+| `cr brief <pr> [--issue <key>] [--intent-file <path>] [--intent-extra <path>]...` | Orientation payload; opens a new round when the head moved |
+| `cr claims record <pr> <file> [--intent-file <path>] [--intent-extra <path>]...` | Store the claims extracted from the issue |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
 | `cr review <pr> [--axis <id>] [--units <ids>\| --shard <k/n>] [--all]` | Emit per-role, per-unit prompts and output paths, by default only for a cell the round does not hold or a note has outdated; write the round's record contract |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
