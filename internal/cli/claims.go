@@ -433,9 +433,13 @@ func storeClaims(
 func intentFlags(cmd *cobra.Command, file *string, extra *[]string) {
 	cmd.Flags().StringVar(file, "intent-file", "",
 		"read the issue text from this file instead of running the tracker command")
+	// The back-quoted word names the flag's placeholder in the help, which
+	// cobra takes from the usage string: a dogfood run showed
+	// `--intent-extra intent.extra_files` when the setting was the quoted
+	// word, which reads as the value to pass.
 	cmd.Flags().StringArrayVar(extra, "intent-extra", nil,
-		"append this file's text to the issue text under a §3.1.5 separator line; "+
-			"repeatable, and appended before `intent.extra_files`' own paths")
+		"append this `path`'s text to the issue text under a §3.1.5 separator line; "+
+			"repeatable, and appended before the intent.extra_files paths")
 }
 
 // intentSource is §3.1's choice of where one run's issue text comes from,
