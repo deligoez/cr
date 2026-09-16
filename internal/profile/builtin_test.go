@@ -67,6 +67,31 @@ func TestTheShippedLaravelPestProfileFillsEveryFieldItNeeds(t *testing.T) {
 	assert.Equal(t, "php", p.Symbols.Lang)
 }
 
+// §2.4.5: "v0.3 MUST ship two profiles: laravel-pest and generic, each with an
+// empty sandbox.require."
+//
+// Empty rather than absent is the whole point, and the two are the same fact
+// here: §2.4 normalises an absent list to an empty one, so neither shipped file
+// states the field and both resolve carrying none. What §5.1.8 then refuses is
+// nothing, which is the only honest default — cr ships no opinion about which
+// file a stranger's suite cannot run without, and an entry guessed at here
+// would refuse every run in a repository that never needed it.
+//
+// A profile that resolved this field as nil rather than as an empty list would
+// pass §5.1.8 the same way and serialise as null, which §12.3 refuses, so the
+// assertion is on the value and not on its length.
+func TestBothShippedProfilesRequireNoSandboxPath(t *testing.T) {
+	for id, content := range Builtins() {
+		t.Run(id, func(t *testing.T) {
+			p, err := Parse(id+fileExt, []byte(content))
+			require.NoError(t, err)
+			assert.Equal(t, []string{}, p.Sandbox.Require,
+				"§2.4.5: the shipped profiles require no sandbox path")
+		})
+	}
+	assert.Len(t, Builtins(), 2, "§2.4.5: v0.3 ships laravel-pest and generic")
+}
+
 // §5.4.2 places a gap probe's test at tests.probe_path_template and then runs
 // the suite, so a template the runner does not collect turns every gap probe
 // into a run of the untouched suite — a green result that proves nothing and
