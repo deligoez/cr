@@ -55,6 +55,25 @@ func TestARunRecordCarriesExactlyTheFieldsSection524Names(t *testing.T) {
 	}, written)
 }
 
+// §5.2.4 stores `paths` "when any were given", and §5.2.2 keys a baseline by
+// them: a run of the whole suite and a run narrowed to a directory measured
+// different populations, so the two must be told apart by the file. A row
+// holding an empty list would read as "narrowed to nothing", which is the one
+// thing an unnarrowed run is not, so an unnarrowed run stores no row at all and
+// reads back as none.
+func TestARunNarrowedToNoPathStoresNoPathsRow(t *testing.T) {
+	line, err := json.Marshal(&Record{ID: "r1"})
+	require.NoError(t, err)
+
+	var written map[string]any
+	require.NoError(t, json.Unmarshal(line, &written))
+	assert.NotContains(t, written, "paths")
+
+	var back Record
+	require.NoError(t, json.Unmarshal(line, &back))
+	assert.Nil(t, back.Paths, "an absent row reads back as no paths, not as an empty population")
+}
+
 // The other half of the same fence: who writes each of those fields. §5.2.4's
 // record is produced entirely by cr, so every row is measured except the two
 // §2.3.3 stamps — and the absence of a third author is what says no agent
