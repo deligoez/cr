@@ -30,21 +30,23 @@ const aPatch = "--- a/src/Order.php\n+++ b/src/Order.php\n@@ -34 +34 @@\n" +
 	"-        return $this->subtotal + $this->shipping;\n" +
 	"+        return $this->subtotal;\n"
 
-// §5.3.6 and §8.1.7: the filter the run was narrowed to reaches the evidence
-// region, and the region says nothing else.
+// §5.3.6 and §8.1.7: the filter and the paths the run was narrowed to reach the
+// evidence region, and the region says nothing else.
 //
-// The assertion is on the whole region rather than on the filter row alone, and
-// that is the second half of §5.3.6. A filtered run proves the gap only for the
-// tests it selected; cr cannot establish that a filter selects the tests which
-// would have caught the mutation, so it must not say so. Any sentence added
-// beside these rows — what the run showed of the suite, or §5.3.5's guarantee
-// restated wider than the empty selection it catches — breaks this test, which
-// is the only way "does not claim it" can be checked at all.
+// The assertion is on the whole region rather than on those rows alone, and
+// that is the second half of §5.3.6. A filtered or path-narrowed run proves the
+// gap only for the tests it selected; cr cannot establish that a filter or its
+// paths select the tests which would have caught the mutation, so it must not
+// say so. Any sentence added beside these rows — what the run showed of the
+// suite, or §5.3.5's guarantee restated wider than the empty selection it
+// catches — breaks this test, which is the only way "does not claim it" can be
+// checked at all.
 func TestTheFilterReachesTheEvidenceRegionAndNothingIsClaimedBesideIt(t *testing.T) {
 	region := probeRegion(t, &probe.Record{
 		Kind:       probe.Mutation,
 		Target:     "src/Order.php:34",
 		Filter:     "charges shipping",
+		Paths:      []string{"tests/Feature", "tests/Unit/OrderTest.php"},
 		Result:     "no-test-failed",
 		Input:      aPatch,
 		OutputTail: "  Tests:  1 passed (1 assertions)\n",
@@ -55,6 +57,8 @@ func TestTheFilterReachesTheEvidenceRegionAndNothingIsClaimedBesideIt(t *testing
 		"kind: mutation",
 		"target: src/Order.php:34",
 		"filter: charges shipping",
+		"paths: tests/Feature",
+		"paths: tests/Unit/OrderTest.php",
 		"result: no-test-failed",
 		"input:",
 		"```",
@@ -66,7 +70,26 @@ func TestTheFilterReachesTheEvidenceRegionAndNothingIsClaimedBesideIt(t *testing
 		"```",
 		"<!-- cr:/evidence -->",
 	}, "\n"), region,
-		"§8.1.7: the region carries the probe's kind, target, filter, result, input and output_tail")
+		"§8.1.7: the region carries the probe's kind, target, filter, paths, result, input and output_tail")
+}
+
+// §5.3.6: a path is carried, not paraphrased, and each takes a row of its own.
+//
+// One row per path rather than one joined row is what keeps the region
+// checkable: a path may hold a comma, a space or a backtick as legitimately as
+// a filter may, and a reader of a joined row could not tell which of those
+// characters cr put there. The order is the order they were given, because that
+// is the order the runner received them in and the author re-runs.
+func TestEveryPathReachesTheEvidenceRegionOnARowOfItsOwn(t *testing.T) {
+	region := probeRegion(t, &probe.Record{
+		Kind:   probe.Gap,
+		Target: "src/Order.php:34",
+		Paths:  []string{"tests/Feature, and more", "tests/`Unit`"},
+		Result: "failed",
+	})
+
+	assert.Contains(t, region, "paths: tests/Feature, and more\npaths: tests/`Unit`\n",
+		"§5.3.6: every path, in the order given, verbatim")
 }
 
 // §5.3.6: the filter is carried, not paraphrased.
@@ -116,6 +139,8 @@ func TestAnUnfilteredRunCarriesNoFilterRow(t *testing.T) {
 
 	assert.NotContains(t, region, "filter",
 		"§5.5: the column is absent when the whole suite ran")
+	assert.NotContains(t, region, "paths",
+		"§5.5: and so is the paths column when no path narrowed the run")
 	assert.Equal(t, strings.Join([]string{
 		"<!-- cr:evidence -->",
 		"kind: mutation",
