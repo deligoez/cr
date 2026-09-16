@@ -10,8 +10,9 @@ import (
 //
 // The triggers are §8.1.6's three, restated mechanically by round 9's
 // provenance-trigger-ambiguity: the record carries `suggestion_origin: rule`;
-// it rests on a claim with `source: note`; or any stored citation carries
-// `origin: rule`, whatever else qualifies the record for `cited`. Round 12's
+// it rests on a claim with `source: note` or `source: file`; or any stored
+// citation carries `origin: rule`, whatever else qualifies the record for
+// `cited`. Round 12's
 // provenance-trigger-undecidable settles the composition: when triggers
 // coincide, every applicable trigger's content is emitted, in §8.1.6's order.
 type Provenance struct {
@@ -26,6 +27,18 @@ type Provenance struct {
 	Note         string
 	NoteSource   string
 	NoteStanding NoteStanding
+	// FileClaim is the second trigger's other half: the id of the claim
+	// with `source: file` the record rests on, and IntentFile the extra
+	// intent file of §3.1.5 it was drawn from, as the separator line above
+	// its text names it.
+	//
+	// It is a pair of its own rather than Claim reused, because the two
+	// disclosures name different things — a note and its §3.6.3 source, a
+	// document nobody recorded through cr — and a single field would leave
+	// the region deciding which it holds from whether another field is
+	// empty. A claim carries one source, so at most one pair is set.
+	FileClaim  string
+	IntentFile string
 	// Rule is the third: the rule id a stored citation's `origin: rule`
 	// was matched against, and Rationale that rule's `rationale` per §2.6
 	// item 4. draft refuses a rule-origin record whose rationale the corpus
@@ -60,6 +73,10 @@ func ProvenanceRegion(record string, p *Provenance) (string, error) {
 	if p.Claim != "" {
 		lines = append(lines, "claim: "+p.Claim+" (source: note)", noteLine(p))
 	}
+	if p.FileClaim != "" {
+		lines = append(lines,
+			"claim: "+p.FileClaim+" (source: file)", "intent file: "+p.IntentFile)
+	}
 	if p.Rule != "" {
 		lines = append(lines, "rule: "+p.Rule)
 		if p.Rationale != "" {
@@ -73,7 +90,8 @@ func ProvenanceRegion(record string, p *Provenance) (string, error) {
 	if strings.Contains(content, Reserved) {
 		return "", &BodyError{Record: record, Problem: fmt.Sprintf(
 			"would carry %q in its §8.1.6 provenance region, which §8.1.3 reserves for "+
-				"cr's own delimiters; edit the rule's rationale", Reserved)}
+				"cr's own delimiters; edit the rule's rationale, or the path of the "+
+				"extra intent file the region names", Reserved)}
 	}
 	return provenanceRegion.wrap(content), nil
 }
