@@ -40,6 +40,15 @@ type cellsRecordResult struct {
 	// so it is reported: it is the difference between a run that replaced
 	// four cells and one that replaced a file.
 	Round int `json:"round"`
+	// Honesty carries §2.4.6's stale shipped profile and §2.5.2's stale
+	// ejected roles. Both clauses bind every command that loads the file,
+	// and this one loads both: activeRoles resolves §2.5.5's corpus to
+	// route each cell's `coverage` object onto an axis, and awaitingMapping
+	// loads the round's profile to decide whether §4.6.5 holds the intent
+	// pass. Neither is a judgement about the cells, which is why it took a
+	// sweep of the load sites rather than a reading of this command to
+	// notice it was owed.
+	Honesty []string `json:"honesty"`
 }
 
 // Text names how many cells were stored and the round they stand in. The cells
@@ -47,7 +56,8 @@ type cellsRecordResult struct {
 // would repeat what the caller has.
 func (r *cellsRecordResult) Text(w *writer) string {
 	return "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
-		" cell(s) in round " + strconv.Itoa(r.Round)
+		" cell(s) in round " + strconv.Itoa(r.Round) +
+		w.disclose("\n", "", r.Honesty...)
 }
 
 // newCellsCmd groups the coverage-cell commands of §11. It runs nothing itself,
@@ -147,7 +157,11 @@ func newCellsRecordCmd(out *writer) *cobra.Command {
 			if err := held.Unlock(); err != nil {
 				return err
 			}
-			return out.emit(&cellsRecordResult{Recorded: cells, Round: round.Round})
+			honesty := append(make([]string, 0, 2), staleProfile(layout.Profile(round.ProfileID))...)
+			return out.emit(&cellsRecordResult{
+				Recorded: cells, Round: round.Round,
+				Honesty: append(honesty, staleRoles(layout, owner, repo)...),
+			})
 		},
 	}
 }
