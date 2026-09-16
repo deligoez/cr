@@ -272,12 +272,27 @@ func TestEveryPromptNamesItsOutputAndTheContractFile(t *testing.T) {
 			assert.NotContains(t, section, row, "§6.1's schema is the contract file's, not the prompt's")
 		}
 
-		claims := strings.Contains(prompt.Text, "## Claim record (§3.3)")
+		_, record, claims := strings.Cut(prompt.Text, "\n## Claim record (§3.3)\n\n")
 		assert.Equal(t, prompt.Axis == axis.Intent, claims, "%s on %s", prompt.Role, prompt.Unit)
-		if claims {
-			assert.Contains(t, prompt.Text, "- span_hash: computed by cr")
-			assert.Contains(t, prompt.Text, "source is one of description, acceptance, comment, note")
+		if !claims {
+			continue
 		}
+		body, _, _ := strings.Cut(record, "\n## ")
+		assert.Contains(t, body, "- span_hash: computed by cr\n")
+		assert.Contains(t, body, "- file: optional\n")
+		// §3.3's sources and §3.3.1's fence on a `source: file` claim's
+		// span, asserted as the two whole lines a role reads: a role
+		// told which sources exist and not how a file claim is formed
+		// would draw a span across §3.1.5's separator line.
+		_, sources, found := strings.Cut(body, "\n\nsource is one of ")
+		require.Truef(t, found, "%s on %s names §3.3's sources", prompt.Role, prompt.Unit)
+		assert.Equal(t, `description, acceptance, comment, note, file; a claim drawn from a note names it in `+
+			"note_id and its span is the note's body (§3.3.2).\n"+
+			`A claim drawn from an extra intent file carries source "file" and names that file in file, `+
+			"as the path was given to --intent-extra or intent.extra_files; the line "+
+			"`--- cr intent file: <path> ---` above the file's text names the same path. Its span must lie "+
+			"wholly inside that file's part of the issue text, and no span may contain or cross such a "+
+			"line (§3.1.5, §3.3.1).\n", sources, "%s on %s", prompt.Role, prompt.Unit)
 	}
 }
 
