@@ -34,7 +34,7 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 	t.Run("no filter runs the whole suite", func(t *testing.T) {
 		p := argvProfile(runner, "--filter")
 
-		argv, err := p.TestArgv(file, "")
+		argv, err := p.TestArgv(file, "", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t, runner, argv)
@@ -43,7 +43,7 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 	t.Run("a filter is appended as the flag and the expression", func(t *testing.T) {
 		p := argvProfile(runner, "--filter")
 
-		argv, err := p.TestArgv(file, "retries the request twice")
+		argv, err := p.TestArgv(file, "retries the request twice", nil)
 
 		require.NoError(t, err)
 		assert.Equal(t,
@@ -53,7 +53,7 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 	t.Run("the profile's own argv is left alone", func(t *testing.T) {
 		p := argvProfile(runner, "--filter")
 
-		_, err := p.TestArgv(file, "one")
+		_, err := p.TestArgv(file, "one", nil)
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"./vendor/bin/pest"}, p.Tests.Cmd,
@@ -63,7 +63,7 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 	t.Run("a filter with no flag to carry it is refused", func(t *testing.T) {
 		p := argvProfile(runner, "")
 
-		argv, err := p.TestArgv(file, "retries the request twice")
+		argv, err := p.TestArgv(file, "retries the request twice", nil)
 
 		assert.Nil(t, argv)
 		var unavailable *UnavailableError
@@ -75,7 +75,7 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 	t.Run("no test command at all is refused", func(t *testing.T) {
 		p := argvProfile(nil, "--filter")
 
-		argv, err := p.TestArgv(file, "")
+		argv, err := p.TestArgv(file, "", nil)
 
 		assert.Nil(t, argv)
 		var unavailable *UnavailableError
@@ -87,7 +87,7 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 	t.Run("no profile at all names no file", func(t *testing.T) {
 		p := argvProfile(nil, "")
 
-		_, err := p.TestArgv("", "")
+		_, err := p.TestArgv("", "", nil)
 
 		var unavailable *UnavailableError
 		require.ErrorAs(t, err, &unavailable)
