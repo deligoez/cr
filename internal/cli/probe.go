@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -897,7 +898,49 @@ func gapPlacement(setup *probeSetup, request *probeRequest, reserved string) (st
 		request.owner, request.repo, request.pr, placement); err != nil {
 		return "", err
 	}
+	if err := underProbeDirectory(request.paths, placement); err != nil {
+		return "", err
+	}
 	return placement, nil
+}
+
+// underProbeDirectory is §5.4.2's other abort: when `--path` is given, at least
+// one of them must lie under the directory the placement sits in.
+//
+// It is the condition that keeps the two halves of a gap probe comparable.
+// §5.4.2 narrows the probe's own run to the file cr placed, and §5.2.2 has its
+// baseline measure the `--path` values instead — so paths that reach none of
+// the directory the probe file goes in produce a baseline of one population and
+// a probe run of another, and the comparison §5.4.3's ladder makes between them
+// would be a comparison of two different suites.
+//
+// "Under" includes the directory itself, which is the ordinary invocation: a
+// reviewer narrowing a Laravel gap probe writes `--path tests/Feature`, the
+// directory `tests/Feature/cr_probe_<probe-id>Test.php` sits in. A template
+// whose path has no directory of its own puts every path under it, since
+// §5.2.1 already holds each one inside the sandbox.
+//
+// The refusal is a malformed invocation and takes §11.2's 2: the command line
+// named a set of paths that cannot answer the question it also asked.
+func underProbeDirectory(paths []string, placement string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	dir := filepath.Dir(filepath.FromSlash(placement))
+	if dir == "." {
+		return nil
+	}
+	for _, path := range paths {
+		cleaned := filepath.Clean(path)
+		if cleaned == dir || strings.HasPrefix(cleaned, dir+string(filepath.Separator)) {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"no --path lies under %s, which is where tests.probe_path_template puts this probe's "+
+			"test file (%s): §5.4.2 runs the probe over the file it placed and §5.2.2 measures its "+
+			"baseline over the --path values, so paths that reach none of that directory compare "+
+			"two different populations", dir, placement)
 }
 
 // finishedProbe is what a probe's locked half hands to its report: the stored
