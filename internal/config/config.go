@@ -55,6 +55,12 @@ var settings = []setting{
 	{"cluster.max_lines", 80},
 	{"ignore.globs", []string{}},
 	{"intent.cmd", []string{"jira", "issue", "view", "{key}", "--plain"}},
+	// §3.1.5's second source of extra intent files, beside the repeatable
+	// `--intent-extra`: the paths every round of every pull request in this
+	// layer's scope appends to the issue text. It defaults to no path, so a
+	// project that configures none reads the issue text §3.1.1 through
+	// §3.1.4 produced and nothing else.
+	{"intent.extra_files", []string{}},
 	{"intent.key_pattern", `[A-Z][A-Z0-9]+-[0-9]+`},
 	{"post.max_comments", 20},
 	// The cap on the probe input §8.1.7's evidence region carries, which
