@@ -22,9 +22,9 @@ import (
 // refused prints nothing at all.
 func requireFixture(
 	t *testing.T, copied, required []string,
-) (prepared state.Layout, sandboxPath, runner, profileFile string) {
+) (prepared state.Layout, sandboxPath, profileFile string) {
 	t.Helper()
-	_, sandboxPath, runner, profileFile = envFixture(t, copied, ".env", ".env.testing")
+	_, sandboxPath, runner, profileFile := envFixture(t, copied, ".env", ".env.testing")
 	encodedCopy, err := json.Marshal(copied)
 	require.NoError(t, err)
 	encodedRequire, err := json.Marshal(required)
@@ -35,7 +35,7 @@ func requireFixture(
 		`"tests":{"cmd":["`+runner+`"],"globs":["*_test.txt"],"filter_flag":"--only",`+
 		`"count_pattern":"Tests:  ([0-9]+) (?:failed|passed)","failed_pattern":"Tests:  ([0-9]+) failed"}}`), 0o600))
 	require.NoError(t, os.WriteFile(runner, []byte(envReporter), 0o700))
-	return state.New(crHomeOf(t)), sandboxPath, runner, profileFile
+	return state.New(crHomeOf(t)), sandboxPath, profileFile
 }
 
 // §5.1.8: "After §5.1.6's check and before any run, `cr test` and `cr probe run`
@@ -57,7 +57,7 @@ func TestBothRunningCommandsRefuseASandboxMissingARequiredPath(t *testing.T) {
 			"--kind", "mutation"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			prepared, sandboxPath, _, profileFile := requireFixture(t,
+			prepared, sandboxPath, profileFile := requireFixture(t,
 				[]string{".env"}, []string{".env.testing"})
 			if name == "cr probe run" {
 				args = append(args, "--patch", writePatch(t, fixtureDiff))
@@ -85,7 +85,7 @@ func TestBothRunningCommandsRefuseASandboxMissingARequiredPath(t *testing.T) {
 // assertion here and fail nothing, and the fact worth pinning is that the
 // admitted run is the one that reads `.env.testing`.
 func TestARequiredPathTheSandboxHoldsAdmitsTheRun(t *testing.T) {
-	prepared, sandboxPath, _, _ := requireFixture(t,
+	prepared, sandboxPath, _ := requireFixture(t,
 		[]string{".env", ".env.testing"}, []string{".env.testing"})
 
 	stdout, stderr := streams(t, "test", fixturePR, "--repo", fixtureSlug)
@@ -109,7 +109,7 @@ func TestARequiredPathOutsideTheRepositoryIsMalformed(t *testing.T) {
 		"an empty entry":    "",
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, _, profileFile := requireFixture(t, []string{".env"}, []string{entry})
+			_, _, profileFile := requireFixture(t, []string{".env"}, []string{entry})
 
 			err := runCLI(t, "test", fixturePR, "--repo", fixtureSlug)
 
