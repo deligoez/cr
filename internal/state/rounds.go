@@ -51,10 +51,18 @@ const emptyDocument = "{}\n"
 // roundFiles is the rounds/<n>/ part of the §2.3 table, in table order.
 var roundFiles = []string{FileDraft, FileRendered, FilePosted, FileSummary}
 
-// RoundFiles returns the per-round artefact names in table order. The result is
-// a copy, so a caller can neither widen the set nor reorder it.
+// RoundFiles returns the per-round artefact names EnsureRound publishes with
+// the round, in table order. The result is a copy, so a caller can neither
+// widen the set nor reorder it.
 func RoundFiles() []string {
 	return append(make([]string, 0, len(roundFiles)), roundFiles...)
+}
+
+// RoundNamed returns every name §2.3's table gives a file under rounds/<n>/,
+// in table order: RoundFiles, then the two created on demand. It is what
+// checkRoundFile admits, and therefore what a round's directory may hold.
+func RoundNamed() []string {
+	return append(RoundFiles(), FileIntake, FileContract)
 }
 
 // roundDir is one round's directory relative to the pull request's state

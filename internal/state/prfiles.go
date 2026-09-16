@@ -6,6 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 // The files of the §2.3 table that sit directly in a pull request's state
@@ -63,11 +66,57 @@ const (
 	FileEmissions = "emissions.ndjson"
 )
 
-// prFiles is the §2.3 table in table order.
+// prFiles is the part of the §2.3 table createFiles publishes with the
+// directory, in table order.
 var prFiles = []string{
 	FileMeta, FileClaims, FileUnits, FileMapping, FilePostedIndex,
 	FileIntentGaps, FileRuns, FileThreads, FileFindings, FileProbes,
 	FileCoverage, FileTransitions, FileWaivers,
+}
+
+// prNamed is every name §2.3's table gives a file sitting directly in a pull
+// request's state directory: prFiles, then the three rows created on demand,
+// in table order.
+//
+// The rows of the same table under rounds/<n>/ are not here; roundFiles,
+// FileIntake and FileContract are theirs, and checkPRFile sends a round path to
+// checkRoundFile.
+var prNamed = append(slices.Clone(prFiles), FileEmissions, FileIssueText, FileSandboxBaseline)
+
+// PRNamed returns those names in table order. The result is a copy, so a caller
+// can neither widen the set nor reorder it.
+func PRNamed() []string {
+	return slices.Clone(prNamed)
+}
+
+// checkPRFile refuses a name §2.3's table does not give a pull request's state
+// directory.
+//
+// Write is the one door to that directory — §2.3.1 puts every write behind the
+// lock, and the lock is what owns Write — so this is where "cr writes nothing
+// §2.3 omits" stops being a property a test observed over one populated tree
+// and becomes one no call site can break. It is checkRoundFile's counterpart,
+// and for the same reason: the table, and nothing else, decides what a pull
+// request's state directory holds.
+//
+// A round's artefact arrives as the rounds/<n>/<name> path roundPath composes,
+// and is judged by the round's own half of the table. Nothing else nests, so
+// any other path with a separator in it is refused here.
+func checkPRFile(name string) error {
+	if slices.Contains(prNamed, name) {
+		return nil
+	}
+	if parts := strings.Split(filepath.ToSlash(name), "/"); len(parts) == 3 && parts[0] == roundsDirName {
+		round, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return fmt.Errorf("%s: §2.3 numbers a round's directory, and %q is not a number", name, parts[1])
+		}
+		if err := checkRound(round); err != nil {
+			return err
+		}
+		return checkRoundFile(parts[2])
+	}
+	return fmt.Errorf("%s: §2.3 gives a pull request's state directory no such file", name)
 }
 
 // prFileWriter names the command that fills each file of the §2.3 table, so a

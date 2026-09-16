@@ -52,9 +52,23 @@ const lockHint = "cr locks through a file under the state root's locks directory
 	"check that the path the message names is a regular file cr can open for writing"
 
 // Write publishes one file of the locked pull request's state.
+//
+// The name is then checked against §2.3's table, so the table is what decides
+// which files a pull request's state directory holds rather than which call
+// sites somebody remembered. Remove is deliberately not fenced the same way:
+// it creates nothing, and a removal of a name the table does not give is
+// already a removal of a file that is not there.
+//
+// Containment is judged first, and the order is the message rather than the
+// outcome — both refuse. A name climbing into a sibling pull request's state
+// is answered with the error that says so, instead of being reported as a file
+// §2.3 does not name, which would send the reader to the wrong table.
 func (k *Lock) Write(name string, data []byte) error {
 	path := filepath.Join(k.dir, name)
 	if err := contain(k.dir, path); err != nil {
+		return err
+	}
+	if err := checkPRFile(name); err != nil {
 		return err
 	}
 	return writeAtomic(path, data)
