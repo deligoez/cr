@@ -220,6 +220,7 @@ func newPostCmd(out *writer) *cobra.Command {
 			warned := &forewarning{
 				closure: closureDisclosure(owner, repo, pr, &opened),
 				profile: staleProfile(layout.Profile(round.ProfileID)),
+				roles:   staleRoles(layout, owner, repo),
 				to:      cmd.ErrOrStderr(),
 			}
 			return headNotFetched(cmd, owner, repo, pr,
@@ -491,6 +492,11 @@ type forewarning struct {
 	// profile is staleProfile's sentence for the round's profile file, and
 	// empty unless that file is an earlier release's shipped profile.
 	profile []string
+	// roles are staleRoles' sentences for the corpus §2.5.4 resolved, and
+	// empty unless an ejected role file is an earlier release's shipped
+	// role. §2.5.2 owes the report on every command that loads one, and
+	// `cr post` renders every queued record through the role that wrote it.
+	roles []string
 	// to is where a confirmed send prints it before the request: standard
 	// error, which a JSON document on standard output leaves readable.
 	to io.Writer
@@ -498,12 +504,13 @@ type forewarning struct {
 
 // disclosures is what a `cr post` run that sends nothing tells its reader
 // before the payload: the pull request's closure, then §8.4.4's
-// `post_unresolved` when the round carries it, then a stale shipped profile.
-// It is empty and never nil.
+// `post_unresolved` when the round carries it, then a stale shipped profile,
+// then §2.5.2's stale ejected roles. It is empty and never nil.
 func (f *forewarning) disclosures(round *state.Meta) []string {
 	said := append(make([]string, 0, 3), f.closure...)
 	said = append(said, unresolvedDisclosure(round)...)
-	return append(said, f.profile...)
+	said = append(said, f.profile...)
+	return append(said, f.roles...)
 }
 
 // discardedIDs are the ids of the records this run's draft discards, in the
