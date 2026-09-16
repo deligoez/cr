@@ -83,12 +83,16 @@ func (r *mergeResult) Text(w *writer) string {
 // The disclosures are asked of the types that own them rather than assembled
 // here, as `cr record` asks its own: a wording built at the call site cannot
 // come to disagree with the data beside it.
-func newMergeResult(output string, merged *mergeOutcome) *mergeResult {
+// §2.5.2's stale ejected roles are the caller's, because the corpus is
+// resolved where the records are graded and a sentence about a file on disk is
+// not a pass of the merge.
+func newMergeResult(output string, merged *mergeOutcome, roles []string) *mergeResult {
 	disclosures := []finding.HonestyDisclosure{merged.waived, merged.posted, merged.overlaps}
-	honesty := make([]string, 0, len(disclosures))
+	honesty := make([]string, 0, len(disclosures)+len(roles))
 	for _, disclosed := range disclosures {
 		honesty = append(honesty, disclosed.Disclosure())
 	}
+	honesty = append(honesty, roles...)
 	return &mergeResult{
 		Output: output, Merged: len(merged.records),
 		Waived: merged.waived, AlreadyPosted: merged.posted, Overlaps: merged.overlaps,
@@ -187,7 +191,7 @@ func runMerge(cmd *cobra.Command, out *writer, files []string) error {
 	if err := writeMergeCounts(layout, owner, repo, pr, round.Round, merged, body); err != nil {
 		return err
 	}
-	return out.emit(newMergeResult(output, merged))
+	return out.emit(newMergeResult(output, merged, staleRoles(layout, owner, repo)))
 }
 
 // summaryAlreadyPosted is §9.3.6's drop count, by the key
