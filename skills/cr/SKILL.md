@@ -698,7 +698,7 @@ cannot interleave with a `cr draft`:
 | `soften\|keep --body-file <path>` | also replaces the agent body with the file's content (`-` reads standard input), leaving the label, provenance and evidence regions where they stand |
 
 ```bash
-cr triage 1 f14 soften --body-file - <<'EOF'
+cr triage 1 f14 keep --body-file - <<'EOF'
 Is the error Decode returns dropped on purpose?
 EOF
 ```
@@ -706,18 +706,29 @@ EOF
 ```json
 {
   "id": "f14",
-  "verb": "soften",
+  "verb": "keep",
   "body_replaced": true,
   "path": "~/.cr/state/acme/shop/pr-1/rounds/1/draft.md"
 }
 ```
 
-It only edits the file: the discard, the waiver, the triage event and the body
-checks happen at the next `cr draft` or `cr post`, exactly as for a hand edit. It
-refuses, leaving the draft untouched, a record id with no block in the draft
-(never rendered, or already deleted) and `soften` on a block already reading
-`kind="question"` with exit 1, and `--body-file` beside `not-here` or `wrong`
-with exit 2. A moved head refuses it with exit 4, as it refuses `cr draft`.
+**`keep --body-file`, not `soften --body-file`, is the verb for rewording a
+body.** §6.3.1 already made every `argued` record a question, and §7.2.4's
+`soften` exits 1 on a block that reads `kind="question"` — so in an ordinary
+round, before any probe or citation lands, `soften` refuses on every record and
+`keep` is the one that carries the new body. Reach for `soften` only on a block
+whose marker still reads `kind="finding"`.
+
+It only edits the file: the discard, the waiver and the triage event happen at
+the next `cr draft` or `cr post`, exactly as for a hand edit. The one check it
+makes itself is §8.1.3's, on `--body-file`'s content: a body carrying the
+`<!-- cr:` sequence — a bare one, or a well-formed
+`<!-- cr:label -->`…`<!-- cr:/label -->` pair — is refused with exit 1 naming
+the record, before draft.md is touched. It also refuses, leaving the draft
+untouched, a record id with no block in the draft (never rendered, or already
+deleted) and `soften` on a block already reading `kind="question"` with exit 1,
+and `--body-file` beside `not-here` or `wrong` with exit 2. A moved head refuses
+it with exit 4, as it refuses `cr draft`.
 
 **A discard's waiver is written by the next `cr draft`, not at post.** That run
 reads the deleted block or the `wrong` marker and writes the waiver before
