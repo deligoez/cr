@@ -72,7 +72,7 @@ func TestAVoidedProbeNeitherProvesNorDisprovesTheGap(t *testing.T) {
 func resolvedBaseline(t *testing.T, passed bool) Baseline {
 	t.Helper()
 	const head = "0a1b2c3"
-	record := baselineRun(head, "")
+	record := baselineRun(head, "", nil)
 	record.ID = "r1"
 	record.Passed = passed
 	baseline, resolved := Spec{}.Resolve([]run.Record{record}, head)

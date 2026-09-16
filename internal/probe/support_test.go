@@ -268,7 +268,7 @@ func gapRecord(result Result) *Record {
 // supportBaseline is the run record gapRecord's `baseline` column names, with
 // §5.2.5's verdict already true so the fence is what the tests vary.
 func supportBaseline(mark ...func(*run.Record)) run.Record {
-	record := baselineRun(supportHead, "")
+	record := baselineRun(supportHead, "", nil)
 	record.Passed = true
 	for _, apply := range mark {
 		apply(&record)
