@@ -12,7 +12,9 @@ the author pushes, and resolving threads". Spec review cut the re-review half ou
 roadmap then placed it in v0.2. v0.2.0 (2026-09-14) became a repair release instead: a 478-case QA pass
 against real pull requests found defects fourteen audit rounds had passed, and the user chose to ship those
 repairs and the spec changes they forced as v0.2.0. The conversation half therefore moved to v0.3, and
-every later theme in VISION.md's table moved with it.
+every later theme in VISION.md's table moved with it. v0.3.0 (2026-09-16) then went the same way: the
+first field trial on a real pull request, and the test-environment incident it exposed, took v0.2.2,
+v0.2.3 and v0.3.0 between them, so the conversation half moved again — to v0.4.
 
 The lesson that reorders this list: **what cr has not been run against, it has not been shown to do.** The
 largest open question is not a missing feature but an unmeasured bet, so measurement comes before breadth.
@@ -23,14 +25,19 @@ largest open question is not a missing feature but an unmeasured bet, so measure
 |---------|-------------------|
 | v0.1.0 | One-head reviewer loop: intent, four axes, probes, draft, human triage, one posted review |
 | v0.2.0 | The loop repaired against real pull requests; marker `side`, context-window waiver keys, `commit_id`-pinned reviews, exit-code-aware probe ladders, closed/merged disclosure |
-| v0.2.1 | Known low defects and two limitations of v0.2.0 (per-clone probe lock, runner start window), no contract change — in progress |
+| v0.2.1 | Known low defects and two limitations of v0.2.0 (per-clone probe lock, runner start window), no contract change |
+| v0.2.2 | Test-environment safety after a field trial ran the sandbox against a developer's application database: `.env.testing` copied, every gitignored env file the sandbox lacks reported, an experiment header before every run, a stale sandbox rebuilt |
+| v0.2.3 | What the field trial's operator asked for, within the v0.2 contract: notes that postdate a prompt reported, recorded cells marked, duplicate candidates listed, issue text cleaned and its links and uncovered paragraphs disclosed |
+| v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 
 ## Next
 
 ### 1. Measure the bet (before anything else)
 
-cr has only reviewed scratch pull requests on `deligoez/cr-qa`. Its central claim — a wrong comment costs
-trust, so cr trades recall for precision and turns weak findings into questions — has no measurement.
+cr has reviewed scratch pull requests on `deligoez/cr-qa` and one real pull request, in the field trial
+recorded in `spec/field-feedback.md`. That trial measured the operator's experience, not the bet: cr's
+central claim — a wrong comment costs trust, so cr trades recall for precision and turns weak findings
+into questions — still has no measurement.
 
 - **Real use.** Review real pull requests with cr, posting only what the reviewer would have posted anyway,
   and record per round: comments kept, softened, deleted, marked `wrong`; author replies; wall clock and
@@ -43,19 +50,6 @@ trust, so cr trades recall for precision and turns weak findings into questions 
   sections as intent, and count findings, questions and misses — and whether the misses are cross-cutting
   (see 5).
 
-### 1a. Test environment safety (first in v0.3)
-
-A field trial ran the sandbox's tests against a developer's application database: the sandbox lacked the
-clone's gitignored `.env.testing` (spec/field-feedback.md, 2.1). v0.2.2 copies it, reports every gitignored
-env file the sandbox did not receive, and prints an experiment header before each run. What needs spec text:
-
-- a baseline scoped to the probe's filter instead of §5.2.2's whole-suite run, so a filtered probe no longer
-  runs the whole suite as a side effect;
-- profile fields naming which env files must exist in the sandbox (`sandbox.require`) and which do not
-  matter, and a refusal to run when a required file is absent — a refusal without them would force users to
-  copy unrelated secrets or disable the check;
-- §5.1.2 stating that `cr` reports every gitignored root file it did not copy.
-
 ### 2. Isolation for untrusted code
 
 Probes run the pull request's `tests.cmd` on the reviewer's machine in a git worktree, with the reviewer's
@@ -63,7 +57,7 @@ permissions. That is acceptable for a colleague's pull request and not for an ou
 cr is pointed at code from outside the team: a container or equivalent sandbox for test runs, no network by
 default, and an explicit profile opt-in for anything else.
 
-### 3. The conversation (v0.3)
+### 3. The conversation (v0.4)
 
 The re-review half the first spec promised:
 
@@ -92,7 +86,8 @@ tree state no hunk touches (a README listing every command) gets a tree-level ch
 
 ### 6. Operator cost
 
-A round is about ten commands orchestrated by the skill. Once the round's cost is measured (1):
+A round is about ten commands orchestrated by the skill. v0.3.0's narrowed fan-out, shards and `cr triage`
+took the repeated work out of a second pass; what is left, once the round's cost is measured (1):
 
 - a single driver for the mechanical steps, leaving the agent only the judgement steps;
 - prompt size budgets for large pull requests (248 prompts measured 2.3 MB), and an honest report of what
@@ -101,12 +96,13 @@ A round is about ten commands orchestrated by the skill. Once the round's cost i
 ### 7. Team use
 
 State, waivers and triage statistics live in one reviewer's `~/.cr`. A team cannot share "this class is
-wrong" or a context note. VISION.md's v0.4 theme — write context supplements back to the tracker, share the
-context store — belongs here, together with shared repository-wide waivers.
+wrong" or a context note. VISION.md's original team theme — write context supplements back to the tracker,
+share the context store — belongs here, together with shared repository-wide waivers.
 
 ### 8. Author side
 
-VISION.md's v0.3 theme: on the user's own pull requests, ingest incoming review comments as a work list.
+VISION.md's original author-side theme: on the user's own pull requests, ingest incoming review comments as
+a work list.
 Sequenced after the reviewer side has been measured, because it is a second product.
 
 ## Questions to settle by measurement
