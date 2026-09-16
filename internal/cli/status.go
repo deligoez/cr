@@ -368,7 +368,8 @@ func statusOf(
 		Probes:       probesOf(probes, records),
 		Unstanding:   unstanding,
 		Completeness: verdict,
-		Honesty:      append(append(disclosed, drift...), staleProfile(l.Profile(round.ProfileID))...),
+		Honesty: append(append(append(disclosed, drift...),
+			staleProfile(l.Profile(round.ProfileID))...), staleRoles(l, owner, repo)...),
 	}, nil
 }
 
