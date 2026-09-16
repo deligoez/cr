@@ -119,22 +119,36 @@ func (e *MalformedCommandError) Error() string {
 	return fmt.Sprintf("intent.cmd %v: %s", e.Args, e.Reason)
 }
 
-// FileError reports an `--intent-file` that could not be read.
+// FileError reports an intent file that could not be read.
 //
 // §3.1.4 replaces the tracker command with a file, and a file cr cannot read
 // leaves the run without issue text exactly as a refusing command does. §11.2
 // codes both 3: it is not a validation failure, because cr never saw the
 // contents to validate, and not a usage error, because the path may be
 // perfectly well formed and simply absent.
+//
+// §3.1.5's extra intent files are read through the same type rather than
+// through one of their own. The fault is identical — a path the user named and
+// cr could not read — and so is the code; what differs is the flag to correct,
+// which Flag carries so the message names the one the user typed.
 type FileError struct {
-	// Path is the path as `--intent-file` gave it.
+	// Path is the path as the flag or the configuration gave it.
 	Path string
+	// Flag is the flag the path came from, `--intent-file` when it is
+	// empty. `intent.extra_files` supplies paths too, and a path from it
+	// is reported against `--intent-extra`: the two are one list per
+	// §3.1.5, and the flag is what the reader can act on immediately.
+	Flag string
 	// Err is the failure the filesystem reported.
 	Err error
 }
 
 func (e *FileError) Error() string {
-	return fmt.Sprintf("--intent-file %s: %v", e.Path, e.Err)
+	flag := e.Flag
+	if flag == "" {
+		flag = "--intent-file"
+	}
+	return fmt.Sprintf("%s %s: %v", flag, e.Path, e.Err)
 }
 
 // Unwrap exposes the filesystem failure, so a caller can tell a path that is
@@ -201,13 +215,17 @@ func run(argv []string) (string, error) {
 // anything done to one and not the other would make the choice of source
 // visible downstream; §1.4's normalisation and §3.3's issue_hash run later,
 // over whichever source produced the text.
-func readFile(path string) (string, error) {
+func readFile(path, flag string) (string, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
-		return "", &FileError{Path: path, Err: err}
+		return "", &FileError{Path: path, Flag: flag, Err: err}
 	}
 	return string(text), nil
 }
+
+// ExtraFlag is the flag §3.1.5 names an extra intent file with, carried on the
+// failure to read one so the message names what the user can correct.
+const ExtraFlag = "--intent-extra"
 
 // Source is where one run's issue text comes from.
 //
@@ -226,18 +244,29 @@ type Source struct {
 	File string
 	// Cmd is `intent.cmd` as configured, read only when File is empty.
 	Cmd []string
+	// Extra is §3.1.5's extra intent files, in the order their texts are
+	// appended: the `--intent-extra` paths, then the `intent.extra_files`
+	// paths, each path once, as intent.ExtraFiles orders them.
+	//
+	// It is read whichever of the two sources above produced the first
+	// part. §3.1.4 bypasses the tracker command and nothing else, so a
+	// run reading its issue text from a file reads the same extra files a
+	// run reading it from the tracker does, and a claim drawn from one is
+	// checked against the same text either way.
+	Extra []string
 }
 
 // Reading is one read of the issue text.
 type Reading struct {
 	// Text is the issue text cr stores, prints, and checks a span against:
-	// what the source produced, with Clean applied.
+	// what the source produced, with Clean applied, and §3.1.5's extra
+	// intent files appended to it under their separator lines.
 	Text string
-	// asRead is what the source produced before Clean, and empty when Clean
-	// changed nothing. It is kept for one purpose, DetectDrift's: a claim
-	// recorded before Clean existed carries an `issue_hash` taken over these
-	// bytes, and an unchanged issue must not read as drifted because cr began
-	// cleaning it.
+	// asRead is what the sources produced before Clean, joined the same
+	// way, and empty when Clean changed nothing. It is kept for one
+	// purpose, DetectDrift's: a claim recorded before Clean existed
+	// carries an `issue_hash` taken over these bytes, and an unchanged
+	// issue must not read as drifted because cr began cleaning it.
 	asRead string
 }
 
@@ -249,7 +278,12 @@ func (r Reading) Spans(notes []note.Note) SpanTexts {
 
 // Links is Links over this reading: every URL Text carries, and the target of
 // every terminal hyperlink Clean removed on the way to Text, in the order each
-// first appears in what the source produced, each once.
+// first appears in what the sources produced, each once.
+//
+// The extra intent files of §3.1.5 are scanned with the tracker's text,
+// because §3.1.7's reason for the report does not distinguish them: cr read
+// the text it was given and not what any of it links to, whichever part the
+// link sits in.
 func (r Reading) Links() []string {
 	raw := r.asRead
 	if raw == "" {
@@ -258,17 +292,46 @@ func (r Reading) Links() []string {
 	return Links(clean(raw, true))
 }
 
-// read wraps the bytes one source produced as a Reading.
-func read(raw string) Reading {
-	cleaned := Clean(raw)
-	if cleaned == raw {
-		return Reading{Text: raw}
+// read wraps the bytes the sources produced as a Reading: the base text, then
+// §3.1.5's extra intent files in the order they were read, each carrying the
+// path as it was given.
+//
+// Each part is cleaned on its own and the separator lines are written from the
+// paths as given, so §3.1.6's cleanup reaches every source of §3.1.1 through
+// §3.1.5 and reaches nothing cr itself wrote.
+func read(raw string, extras ...Part) Reading {
+	cleanedExtras := make([]Part, 0, len(extras))
+	for _, extra := range extras {
+		cleanedExtras = append(cleanedExtras, Part{File: extra.File, Text: Clean(extra.Text)})
 	}
-	return Reading{Text: cleaned, asRead: raw}
+	cleaned, joined := join(Clean(raw), cleanedExtras), join(raw, extras)
+	if cleaned == joined {
+		return Reading{Text: cleaned}
+	}
+	return Reading{Text: cleaned, asRead: joined}
 }
 
-// Read returns the issue text for one issue key from whichever of §3.1's two
-// sources applies, the file first.
+// readExtras reads §3.1.5's extra intent files, in the order they were given.
+//
+// A file that cannot be read fails the run rather than being skipped: a part
+// silently missing from the issue text is a part no claim can be drawn from
+// and one every recorded claim of it reads as drifted, and neither says that a
+// path was wrong.
+func readExtras(paths []string) ([]Part, error) {
+	extras := make([]Part, 0, len(paths))
+	for _, path := range paths {
+		body, err := readFile(path, ExtraFlag)
+		if err != nil {
+			return nil, err
+		}
+		extras = append(extras, Part{File: path, Text: body})
+	}
+	return extras, nil
+}
+
+// Read returns the issue text for one issue key: whichever of §3.1's two
+// sources applies for the first part, the file first, followed by §3.1.5's
+// extra intent files.
 //
 // The key reaches only the command. A file is the issue text already, which is
 // what makes §3.1.4 a bypass rather than a cache.
@@ -277,21 +340,31 @@ func read(raw string) Reading {
 // value, so a file holding what the tracker command printed must yield the
 // text the command would have, or the choice of source would be visible in
 // every span and every hash downstream.
+//
+// The first part is read before any extra file, and every extra file before
+// anything is joined, so a run that fails reads no issue text at all rather
+// than a truncated one.
 func Read(source Source, key string) (Reading, error) {
+	raw, err := firstPart(source, key)
+	if err != nil {
+		return Reading{}, err
+	}
+	extras, err := readExtras(source.Extra)
+	if err != nil {
+		return Reading{}, err
+	}
+	return read(raw, extras...), nil
+}
+
+// firstPart is the text of §3.1.1 through §3.1.4: the file `--intent-file`
+// named, or what the tracker command printed.
+func firstPart(source Source, key string) (string, error) {
 	if source.File != "" {
-		raw, err := readFile(source.File)
-		if err != nil {
-			return Reading{}, err
-		}
-		return read(raw), nil
+		return readFile(source.File, "")
 	}
 	expanded, err := expand(source.Cmd, key)
 	if err != nil {
-		return Reading{}, err
+		return "", err
 	}
-	raw, err := run(expanded)
-	if err != nil {
-		return Reading{}, err
-	}
-	return read(raw), nil
+	return run(expanded)
 }
