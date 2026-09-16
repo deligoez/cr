@@ -12,6 +12,7 @@ import (
 
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/run"
 	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
@@ -127,6 +128,99 @@ func listedOrNone(value string) string {
 	return value
 }
 
+// testTarget is what one `cr test` invocation resolved before anything ran:
+// where the run happens, what it runs, and the round it is recorded against.
+//
+// It is a type rather than eight return values because every field of it is
+// read by the run that follows, and because holding the resolution apart is
+// what keeps newTestCmd inside the complexity the gate allows.
+type testTarget struct {
+	layout state.Layout
+	owner  string
+	repo   string
+	pr     int
+	// round is the round `cr brief` opened, whose head the sandbox is
+	// checked out at and whose stamp every record takes.
+	round state.Round
+	// resolved and file are the round's profile and the file it came out
+	// of, so a refusal can name what to open.
+	resolved profile.Profile
+	file     string
+	// argv is the runner as §5.2.1 narrows it, filter and paths included.
+	argv []string
+	// src is §5.1's sandbox, as §5.1.6's check and §5.1.8's refusal read it.
+	src *sandbox.Sources
+}
+
+// resolveTestTarget reads the round, its profile and the argv §5.2.1 runs, in
+// the order the sections put them: the command line first, then the round,
+// then the profile the round recorded.
+//
+// The profile is the round's resolved one, for the reason `cr sandbox create`
+// reads the same field: §3.7 makes `cr brief` its one writer, and a command
+// that re-selected one could run a suite the roles of this round were never
+// briefed against.
+func resolveTestTarget(
+	cmd *cobra.Command, args []string, filter string, paths []string,
+) (*testTarget, error) {
+	pr, err := parsePR(args[0])
+	if err != nil {
+		return nil, err
+	}
+	// §5.2.1's three conditions on a `--path`, asked before any state is
+	// read: a malformed invocation is §11.2's 2, and a run refused for its
+	// command line must have built no sandbox and executed nothing.
+	if err := run.CheckPaths(paths); err != nil {
+		return nil, err
+	}
+	owner, repo, err := repoOf(cmd)
+	if err != nil {
+		return nil, err
+	}
+	layout, err := state.Default()
+	if err != nil {
+		return nil, err
+	}
+	round, err := briefedRound(layout, owner, repo, pr)
+	if err != nil {
+		return nil, err
+	}
+	// §9.3.2: this command writes the round's run record and builds the
+	// sandbox at the round's head when §5.1.6 finds none, so a head that
+	// moved under the round refuses before anything runs.
+	if err := round.RefuseStale(); err != nil {
+		return nil, err
+	}
+	dir, err := repoDir()
+	if err != nil {
+		return nil, err
+	}
+	resolved, file, err := roundProfile(layout, round.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	argv, err := resolved.TestArgv(file, filter, paths)
+	if err != nil {
+		return nil, err
+	}
+	return &testTarget{
+		layout: layout, owner: owner, repo: repo, pr: pr,
+		round: round, resolved: resolved, file: file, argv: argv,
+		src: &sandbox.Sources{
+			Layout:      layout,
+			Owner:       owner,
+			Repo:        repo,
+			PR:          pr,
+			Head:        round.Head,
+			RepoDir:     dir,
+			Copy:        resolved.Sandbox.Copy,
+			Setup:       resolved.Sandbox.Setup,
+			Require:     resolved.Sandbox.Require,
+			ProfileFile: file,
+		},
+	}, nil
+}
+
 // newTestCmd runs the profile's test command inside the sandbox (§11, §5.2.1).
 //
 // The sandbox is checked before the run rather than trusted, per §5.1.6, and a
@@ -134,7 +228,7 @@ func listedOrNone(value string) string {
 // is the contract: a suite run in a sandbox still holding an unreverted mutation
 // measures the mutation, and reports the result under the head's name.
 //
-//nolint:funlen // measured 2026-08-31 at 102 lines; refactor to clear, never raise the limit
+//nolint:funlen // measured 2026-09-16 at 82 lines against a limit of 60; refactor to clear, never raise the limit
 func newTestCmd(out *writer) *cobra.Command {
 	var filter string
 	var paths []string
@@ -143,65 +237,13 @@ func newTestCmd(out *writer) *cobra.Command {
 		Short: "Run the profile's test command inside the sandbox",
 		Args:  prArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pr, err := parsePR(args[0])
+			target, err := resolveTestTarget(cmd, args, filter, paths)
 			if err != nil {
 				return err
 			}
-			// §5.2.1's three conditions on a `--path`, asked before
-			// any state is read: a malformed invocation is §11.2's
-			// 2, and a run refused for its command line must have
-			// built no sandbox and executed nothing.
-			if err := run.CheckPaths(paths); err != nil {
-				return err
-			}
-			owner, repo, err := repoOf(cmd)
-			if err != nil {
-				return err
-			}
-			layout, err := state.Default()
-			if err != nil {
-				return err
-			}
-			round, err := briefedRound(layout, owner, repo, pr)
-			if err != nil {
-				return err
-			}
-			// §9.3.2: this command writes the round's run record and
-			// builds the sandbox at the round's head when §5.1.6
-			// finds none, so a head that moved under the round
-			// refuses before anything runs.
-			if err := round.RefuseStale(); err != nil {
-				return err
-			}
-			dir, err := repoDir()
-			if err != nil {
-				return err
-			}
-			// The profile the round resolved, for the reason
-			// `cr sandbox create` reads the same field: §3.7 makes
-			// `cr brief` its one writer, and a command that
-			// re-selected one could run a suite the roles of this
-			// round were never briefed against.
-			resolved, file, err := roundProfile(layout, round.ProfileID)
-			if err != nil {
-				return err
-			}
-			argv, err := resolved.TestArgv(file, filter, paths)
-			if err != nil {
-				return err
-			}
-			src := &sandbox.Sources{
-				Layout:      layout,
-				Owner:       owner,
-				Repo:        repo,
-				PR:          pr,
-				Head:        round.Head,
-				RepoDir:     dir,
-				Copy:        resolved.Sandbox.Copy,
-				Setup:       resolved.Sandbox.Setup,
-				Require:     resolved.Sandbox.Require,
-				ProfileFile: file,
-			}
+			layout, owner, repo, pr := target.layout, target.owner, target.repo, target.pr
+			round, resolved, src := target.round, target.resolved, target.src
+			argv := target.argv
 			ready, uncopied, err := ensureAnnounced(cmd, out, src, resolved.LeftoverGlob(), argv)
 			if err != nil {
 				return err
@@ -233,7 +275,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			// suite touches — the test database the profile
 			// configures — so it is held for exactly as long as
 			// something is running against it.
-			probe, err := lockProbe(layout, owner, repo, dir, round.ProfileID)
+			probe, err := lockProbe(layout, owner, repo, src.RepoDir, round.ProfileID)
 			if err != nil {
 				return err
 			}
