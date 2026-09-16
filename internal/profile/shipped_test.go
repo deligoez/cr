@@ -50,8 +50,16 @@ func TestTheEmbeddedReleasesAreExactlyThePinnedOnes(t *testing.T) {
 //
 // The tags are read from the repository, which a shallow clone does not carry;
 // there the pinned list above is what remains checked.
+//
+// Every tag is read and not only the ones `--merged HEAD` reaches, and that is
+// measured rather than tidy: on 2026-09-16 the v0.2.2 release commit had been
+// replayed onto main under a different SHA, so `git tag --merged HEAD` listed
+// v0.1.0, v0.2.0 and v0.2.1 and silently omitted the tag a user had installed
+// from — this guard was then covering three of the four releases in the
+// repository and saying nothing about the fourth. A release is a release
+// whether or not its commit is an ancestor of the branch being tested.
 func TestEveryReleaseTagCarryingABuiltinProfileIsCovered(t *testing.T) {
-	tags := strings.Fields(repositoryGit(t, "tag", "--merged", "HEAD", "--list", "v*"))
+	tags := strings.Fields(repositoryGit(t, "tag", "--list", "v*"))
 	if len(tags) == 0 {
 		t.Skip("this clone carries no release tag, so only the pinned list is checked")
 	}
