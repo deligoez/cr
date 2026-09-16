@@ -2,18 +2,19 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.2.1.** The release implements the contract in
-> [`spec/0.2.0.md`](spec/0.2.0.md); its notes are in
-> [`spec/0.2.1-release-notes.md`](spec/0.2.1-release-notes.md), and the upgrade
-> notes for v0.1 state in
+> **Status: v0.3.0.** The release implements the contract in
+> [`spec/0.3.0.md`](spec/0.3.0.md); its notes are in
+> [`spec/0.3.0-release-notes.md`](spec/0.3.0-release-notes.md), and the notes
+> for the releases before it in
+> [`spec/0.2.1-release-notes.md`](spec/0.2.1-release-notes.md) and
 > [`spec/0.2.0-release-notes.md`](spec/0.2.0-release-notes.md).
 
 `cr` reviews a pull request someone else wrote. It reads the intent from your
 tracker, proves that every changed unit was examined, grades every finding by
 the evidence behind it, and hands you a draft to edit before anything is posted.
-v0.2 ends at posting: when the pull request's head moves, the round goes stale
+v0.3 ends at posting: when the pull request's head moves, the round goes stale
 and `cr brief` opens a new one. Following the conversation after posting, and
-migrating anchors across a head change, is v0.3.
+migrating anchors across a head change, is a later release.
 
 `cr` never calls a language model. It fetches, executes, validates and records;
 the agent driving it forms the judgements. Read [`VISION.md`](VISION.md) for the
