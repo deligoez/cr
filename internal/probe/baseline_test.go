@@ -151,6 +151,23 @@ func TestABaselineIsRecordedOncePerHeadFilterAndPaths(t *testing.T) {
 	}
 }
 
+// §5.2.6's last sentence: "A run record carrying no `sandbox` matches no
+// sandbox generation." Both directions are refused — a record naming no
+// generation is not a run of any sandbox cr can identify, and an empty
+// generation names no sandbox to look for runs of.
+func TestARunCarryingNoSandboxMatchesNoGeneration(t *testing.T) {
+	const generation = "2026-09-16T09:00:00Z"
+	ungenerated := run.Record{ID: "r1", Stamp: state.Stamp{Head: "0a1b2c3", Round: 1}}
+	measured := ungenerated
+	measured.ID, measured.Sandbox = "r2", generation
+
+	stored := []run.Record{ungenerated, measured}
+	assert.Equal(t, []run.Record{measured}, OfSandbox(stored, generation),
+		"a record naming no generation is not a run of this sandbox")
+	assert.Equal(t, []run.Record{}, OfSandbox(stored, ""),
+		"and no generation matches no record, rather than every record that names none")
+}
+
 // baselineRun is a run record that stands as a baseline: at head, carrying
 // filter and paths, on un-probed and uncontaminated code.
 func baselineRun(head, filter string, paths []string, mark ...func(*run.Record)) run.Record {
