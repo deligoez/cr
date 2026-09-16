@@ -253,3 +253,33 @@ func ValidateBody(record, body string) error {
 	}
 	return nil
 }
+
+// ValidateRegions holds one block read back out of a draft to §8.1.3's
+// sequence of regions, before AgentRegion recovers the agent's body from it.
+//
+// §8.1.3 makes a comment a fixed sequence — the label, the provenance block,
+// the agent body, the evidence block — so a comment carries at most one region
+// of each name, and cr generates every one of them. A second region of a name
+// is therefore not a region cr rendered but a pair the body brought, and it
+// has to be refused here: AgentRegion finds a region by its pair wherever it
+// sits, so it would take the forged one out as cr's own, discarding the text
+// the reviewer wrote inside it and handing ValidateBody a body the `<!-- cr:`
+// sequence has already left. The refusal is §8.1.3's own, at the exit code
+// §8.1.3 fixes.
+//
+// A pair the body brought where the block holds no other region of that name
+// is not separable from one cr rendered under a state that has since changed —
+// a question hardened per §6.3.3 leaves a label region on a record cr renders
+// none for now — so this reads what the block says about itself and never what
+// the record would generate today. The channel where that case is separable is
+// RefuseReserved's.
+func ValidateRegions(record, comment string) error {
+	for _, region := range ownedRegions {
+		if region.count(comment) > 1 {
+			return &BodyError{Record: record, Problem: fmt.Sprintf(
+				"carries a second %s region, and §8.1.3's sequence places one %s region, "+
+					"which cr generates itself", region.open, region.name())}
+		}
+	}
+	return nil
+}

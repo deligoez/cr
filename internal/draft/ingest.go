@@ -149,7 +149,10 @@ type readBlock struct {
 //
 // Only the agent region is compared or kept. render.AgentRegion discards every
 // cr-owned region of the block, whatever was typed inside it, because §8.1.3
-// has cr regenerate those.
+// has cr regenerate those. A block holding two regions of one name is refused
+// first, per render.ValidateRegions: §8.1.3's sequence places one of each, so
+// the second is a pair the body brought, and recovering the region from such a
+// block would discard the reviewer's own text inside it without a word.
 //
 // Everything above the first marker is §7.1.4's header, which cr regenerates
 // whole, so nothing in it is read. A block naming a record outside queued is
@@ -188,6 +191,9 @@ func Ingest(queued []*finding.Finding, in *Draft) (Triage, error) {
 		}
 		if discarded {
 			continue
+		}
+		if err := render.ValidateRegions(record.ID, found.text); err != nil {
+			return Triage{}, err
 		}
 		region := render.AgentRegion(found.text)
 		if entry, known := in.Rendered[record.ID]; !known || region != entry {
