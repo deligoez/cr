@@ -30,6 +30,7 @@ var specFields = []field{
 	{Name: "round", Stamped: true},
 	{Name: "input"},
 	{Name: "filter"},
+	{Name: "paths"},
 	{Name: "result"},
 	{Name: "reason"},
 	{Name: "tests_run"},
@@ -55,11 +56,11 @@ func TestTheProbeFieldTableIsTheOneTheSpecWrites(t *testing.T) {
 // against. So the assertion is made against a marshalled record rather than
 // against the struct a second reflective walk would report.
 //
-// The three rows §5.5's Required column answers "no" are asserted from the
+// The four rows §5.5's Required column answers "no" are asserted from the
 // other side too, with `reason` beside them: a record that derived no counts,
-// narrowed to no filter and carries no `error` omits exactly those four and no
-// others, which is what keeps §5.3.4's fifth rung able to tell a count of zero
-// from no count at all.
+// narrowed to no filter and no path and carries no `error` omits exactly those
+// five and no others, which is what keeps §5.3.4's fifth rung able to tell a
+// count of zero from no count at all.
 func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 	four, none := 4, 0
 	filled := &Record{
@@ -68,6 +69,7 @@ func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 		Stamp:       state.Stamp{Head: "9f2c1ab", Round: 2},
 		Input:       "--- a/app.go\n+++ b/app.go\n",
 		Filter:      "Retry",
+		Paths:       []string{"tests/Unit"},
 		Result:      ResultError,
 		Reason:      "§5.3.4's third rung: the runner exited on a signal (killed)",
 		TestsRun:    &four,
@@ -86,13 +88,14 @@ func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 
 	sparse := *filled
 	sparse.Result, sparse.Reason = resultNoTestFailed, ""
-	sparse.Filter, sparse.TestsRun, sparse.TestsFailed = "", nil, nil
+	sparse.Filter, sparse.Paths, sparse.TestsRun, sparse.TestsFailed = "", nil, nil, nil
 	assert.ElementsMatch(t,
 		slices.DeleteFunc(named, func(name string) bool {
-			return name == "filter" || name == "tests_run" || name == "tests_failed" || name == "reason"
+			return name == "filter" || name == "paths" ||
+				name == "tests_run" || name == "tests_failed" || name == "reason"
 		}),
 		wireKeys(t, &sparse),
-		"§5.5: the three rows the Required column answers no, and reason, are the ones that may be absent")
+		"§5.5: the four rows the Required column answers no, and reason, are the ones that may be absent")
 }
 
 // wireKeys is the keys of one record as probes.ndjson holds them.
