@@ -73,6 +73,18 @@ type Record struct {
 	// whole suite ran. §5.3.6 carries it into the evidence region, so a
 	// filtered run never claims more than the tests it selected.
 	Filter string `json:"filter,omitempty"`
+	// Paths are the `--path` values the probe was given, absent when it
+	// was given none, and they are the population §5.2.2 has its
+	// baseline measure. §5.3.6 carries them into the evidence region
+	// beside the filter, for the same reason: cr cannot establish that a
+	// path holds the tests which would have caught the mutation, so it
+	// says which paths ran and stops.
+	//
+	// For a gap probe these are not the path the probe's own run was
+	// narrowed to. §5.4.2 narrows that run to the file cr placed, which
+	// does not exist in the baseline; what these name is the population
+	// the baseline measured.
+	Paths []string `json:"paths,omitempty"`
 	// Result is §5.5's `result`, and is always the value Decide produced:
 	// §5.1.7's check has had its say before the record is written.
 	Result Result `json:"result"`
@@ -131,6 +143,7 @@ var fields = []field{
 	{Name: "round", Stamped: true},
 	{Name: "input"},
 	{Name: "filter"},
+	{Name: "paths"},
 	{Name: "result"},
 	{Name: "reason"},
 	{Name: "tests_run"},
