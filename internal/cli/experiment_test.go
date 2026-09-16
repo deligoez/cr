@@ -133,8 +133,12 @@ func TestTheTestHeaderListsTheCopiedEnvFiles(t *testing.T) {
 
 // A gitignored `.env.local` no `sandbox.copy` entry names: the header says the
 // suite runs without it and names the field, and a filtered probe with no
-// baseline at the head says the whole suite runs first. The second probe
-// finds both baselines recorded and says nothing about one.
+// baseline at the head says which run comes first. The second probe finds that
+// baseline recorded and says nothing about one.
+//
+// §5.2.2 makes a mutation probe's baseline "the run with the probe's filter and
+// paths", so the run announced here carries the same `--only retries` the probe
+// does: one baseline, not the whole suite beside it.
 func TestTheProbeHeaderNamesTheUncopiedFileAndTheImplicitBaseline(t *testing.T) {
 	root, sandboxPath, runner, profileFile := envFixture(t,
 		[]string{".env", ".env.testing"}, ".env", ".env.local", ".env.testing")
@@ -152,16 +156,16 @@ func TestTheProbeHeaderNamesTheUncopiedFileAndTheImplicitBaseline(t *testing.T) 
 
 	stdout, stderr := streams(t, probing...)
 	assert.Equal(t, opening+"  recreated  per §5.1.6: there is no sandbox at that path\n"+envLines+
-		"  baseline   the whole suite runs first as the §5.2.2 baseline: "+runner+"\n"+
-		recapLine+recapLine+recapLine, stderr,
-		"§5.2.2: the unfiltered baseline, the filtered one, then the probe")
+		"  baseline   §5.2.2's baseline is not on file and runs first: "+runner+" --only retries\n"+
+		recapLine+recapLine, stderr,
+		"§5.2.2: the baseline the filter selects, then the probe")
 	assert.Equal(t, []string{"baseline", "command", "establishes", "filter", "honesty", "kind",
 		"probe", "result", "run", "sandbox", "target", "warnings"}, documentKeys(t, stdout))
 	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: there is no sandbox at that path",
 		uncopied}, honestyList(t, stdout), "the document carries the header's uncopied file too")
 
 	stdout, again := streams(t, probing...)
-	assert.Equal(t, opening+envLines+recapLine, again, "both baselines stand at the head, so only the probe runs")
+	assert.Equal(t, opening+envLines+recapLine, again, "the baseline stands at the head, so only the probe runs")
 	assert.Equal(t, []any{uncopied}, honestyList(t, stdout))
 
 	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
