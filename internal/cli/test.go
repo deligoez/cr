@@ -199,6 +199,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				RepoDir:     dir,
 				Copy:        resolved.Sandbox.Copy,
 				Setup:       resolved.Sandbox.Setup,
+				Require:     resolved.Sandbox.Require,
 				ProfileFile: file,
 			}
 			ready, uncopied, err := ensureAnnounced(cmd, out, src, resolved.LeftoverGlob(), argv)

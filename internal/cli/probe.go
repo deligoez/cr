@@ -641,11 +641,19 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 		RepoDir:     dir,
 		Copy:        resolved.Sandbox.Copy,
 		Setup:       resolved.Sandbox.Setup,
+		Require:     resolved.Sandbox.Require,
 		ProfileFile: file,
 	}
 	glob := resolved.LeftoverGlob()
 	ready, err := sandbox.Ensure(src, glob)
 	if err != nil {
+		return nil, err
+	}
+	// §5.1.8, in the order the section gives it: after §5.1.6's check, and
+	// before any run — which for a probe means before §5.2.6's baseline as
+	// well as before the probe's own run, since both measure the sandbox
+	// this refuses to run a suite in.
+	if err := sandbox.CheckRequired(src, ready.Path); err != nil {
 		return nil, err
 	}
 	return &probeSetup{

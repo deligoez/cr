@@ -85,16 +85,25 @@ func announceExperiment(
 }
 
 // ensureAnnounced is `cr test`'s §5.1.6 check, which rebuilds a sandbox that
-// fails it, followed by the header for a run of command in the sandbox it
-// admitted, and returns that sandbox with the header's env-file sentences. A
-// probe announces later, once §5.6.1's lock says which baselines the head still
-// lacks.
+// fails it, then §5.1.8's refusal of a sandbox missing a `sandbox.require`
+// path, then the header for a run of command in the sandbox it admitted, and
+// returns that sandbox with the header's env-file sentences. A probe announces
+// later, once §5.6.1's lock says whether the head still lacks its baseline.
+//
+// §5.1.8 lands between the two, in the order the section gives it: "after
+// §5.1.6's check and before any run". A recreation is what would supply the
+// missing file, so asking first would refuse a sandbox the check was about to
+// rebuild correctly; and announcing an experiment cr is not going to perform
+// would tell the reader a run started that never did.
 func ensureAnnounced(
 	cmd *cobra.Command, out *writer, src *sandbox.Sources, glob string, command []string,
 ) (*sandbox.Ready, []string, error) {
 	ready, err := sandbox.Ensure(src, glob)
 	if err != nil {
 		return nil, nil, headNotFetched(cmd, src.Owner, src.Repo, src.PR, err)
+	}
+	if err := sandbox.CheckRequired(src, ready.Path); err != nil {
+		return nil, nil, err
 	}
 	uncopied, err := announceExperiment(cmd, out, src, ready, command, nil)
 	return ready, uncopied, err

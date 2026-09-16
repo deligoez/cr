@@ -72,6 +72,9 @@ type Sources struct {
 	Copy []string
 	// Setup is the resolved profile's `sandbox.setup` (§2.4, §5.1.3).
 	Setup []string
+	// Require is the resolved profile's `sandbox.require` (§2.4, §5.1.8):
+	// the paths a test or probe run refuses to start without.
+	Require []string
 	// ProfileFile is the file those two came out of. It carries no
 	// behaviour and exists so a refusal can name the file the user has to
 	// open, which is what §2.5 item 3 requires of the abort.
@@ -221,25 +224,33 @@ func (src *Sources) steps() error {
 
 // copyPath holds one `sandbox.copy` entry to a path inside the checkout.
 func copyPath(file, rel string) error {
+	return entryPath(file, "sandbox.copy", rel)
+}
+
+// entryPath holds one entry of a §2.4 path list to a path inside the checkout,
+// naming the field it came from. `sandbox.copy` and `sandbox.require` are both
+// "paths relative to the repository root", and an entry that is not one means
+// the same thing in either: cr would write, or look, outside the sandbox.
+func entryPath(file, field, rel string) error {
 	cleaned := filepath.Clean(rel)
 	switch {
 	case rel == "" || cleaned == ".":
 		return &profile.MalformedError{
 			File:    file,
-			Field:   "sandbox.copy",
+			Field:   field,
 			Problem: "holds an empty entry, which addresses the whole checkout rather than a path in it",
 		}
 	case filepath.IsAbs(rel):
 		return &profile.MalformedError{
 			File:  file,
-			Field: "sandbox.copy",
+			Field: field,
 			Problem: fmt.Sprintf(
-				"holds the absolute path %q; §5.1.2 copies paths from the main checkout, which are relative to it", rel),
+				"holds the absolute path %q; §2.4 takes these as paths relative to the repository root", rel),
 		}
 	case cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)):
 		return &profile.MalformedError{
 			File:  file,
-			Field: "sandbox.copy",
+			Field: field,
 			Problem: fmt.Sprintf(
 				"holds %q, which leaves the checkout and would write outside the sandbox", rel),
 		}
