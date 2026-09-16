@@ -95,3 +95,73 @@ func TestTheFilterIsPassedAsTheProfilesFilterFlag(t *testing.T) {
 			"§2.4.4 has cr report the situation rather than name a file that does not exist")
 	})
 }
+
+// §2.4's `tests.paths_arg`: "Argv appended to `tests.cmd` once per `--path`,
+// with every `{path}` replaced by that path; when absent, `--path` MUST abort
+// with exit code 3 naming the profile."
+//
+// The refusal is the half worth having, for the reason the filter's is. A run
+// over the whole suite when one directory was asked for answers a different
+// question, and §5.2.2 keys a baseline by the paths given — so a dropped path
+// would have a probe graded against a population it never ran.
+func TestEveryPathIsPassedThroughTheProfilesPathsArg(t *testing.T) {
+	file := filepath.Join("home", ".cr", "profiles", "laravel-pest.json")
+	runner := []string{"./vendor/bin/pest"}
+
+	t.Run("each path repeats the argv with the placeholder replaced", func(t *testing.T) {
+		p := argvProfile(runner, "--filter")
+		p.Tests.PathsArg = []string{"--test-directory={path}"}
+
+		argv, err := p.TestArgv(file, "", []string{"tests/Feature", "tests/Unit"})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"./vendor/bin/pest", "--test-directory=tests/Feature", "--test-directory=tests/Unit",
+		}, argv)
+	})
+
+	t.Run("a multi-element argv is repeated whole, and every placeholder filled", func(t *testing.T) {
+		p := argvProfile(runner, "--filter")
+		p.Tests.PathsArg = []string{"--path", "{path}", "--also", "{path}"}
+
+		argv, err := p.TestArgv(file, "", []string{"tests/Unit"})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"./vendor/bin/pest", "--path", "tests/Unit", "--also", "tests/Unit",
+		}, argv)
+	})
+
+	t.Run("the filter comes first and the paths follow it", func(t *testing.T) {
+		p := argvProfile(runner, "--filter")
+		p.Tests.PathsArg = []string{"{path}"}
+
+		argv, err := p.TestArgv(file, "an empty cart", []string{"tests/Unit"})
+
+		require.NoError(t, err)
+		assert.Equal(t,
+			[]string{"./vendor/bin/pest", "--filter", "an empty cart", "tests/Unit"}, argv)
+	})
+
+	t.Run("no path leaves the argv as the filter left it", func(t *testing.T) {
+		p := argvProfile(runner, "--filter")
+		p.Tests.PathsArg = []string{"{path}"}
+
+		argv, err := p.TestArgv(file, "", nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, runner, argv)
+	})
+
+	t.Run("a path with no argv to carry it is refused", func(t *testing.T) {
+		p := argvProfile(runner, "--filter")
+
+		argv, err := p.TestArgv(file, "", []string{"tests/Unit"})
+
+		assert.Nil(t, argv)
+		var unavailable *UnavailableError
+		require.ErrorAs(t, err, &unavailable)
+		assert.Equal(t, testPathsArgField, unavailable.Field)
+		assert.Equal(t, file, unavailable.File, "§2.4: the refusal names the profile")
+	})
+}
