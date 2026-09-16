@@ -28,8 +28,12 @@ type experimentHeader struct {
 	recreated *sandbox.Recreated
 	// env is the clone root's gitignored `.env*` files beside the sandbox.
 	env *sandbox.EnvFiles
-	// baseline is §5.2.2's unfiltered argv when that baseline runs first,
-	// and nil when it does not.
+	// baseline is the argv of §5.2.2's baseline when that baseline is not
+	// on file and runs first, and nil when it is already recorded. It is
+	// worth a line because it is not always the argv above it: a gap
+	// probe's baseline drops the filter, and an unpathed probe's is the
+	// whole suite, so an operator who asked for one narrow experiment may
+	// be about to wait for every test there is.
 	baseline []string
 }
 
@@ -50,7 +54,7 @@ func (h *experimentHeader) lines() []string {
 		lines = append(lines, "  not copied "+sentence)
 	}
 	if h.baseline != nil {
-		lines = append(lines, "  baseline   the whole suite runs first as the §5.2.2 baseline: "+
+		lines = append(lines, "  baseline   §5.2.2's baseline is not on file and runs first: "+
 			strings.Join(h.baseline, " "))
 	}
 	return lines

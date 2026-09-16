@@ -97,7 +97,7 @@ func (s Spec) Resolve(stored []run.Record, head string) (Baseline, bool) {
 // run carrying a `probe`, or one §5.1.6 found the sandbox unclean after, is not
 // a baseline whatever names it, and stands is the one place that says so.
 func (r *Record) ResolveBaseline(stored []run.Record) (Baseline, bool) {
-	spec := Referenced(r.Kind, r.Filter)
+	spec := Referenced(r.Kind, r.Filter, r.Paths)
 	for i := range stored {
 		if candidate := &stored[i]; candidate.ID == r.Baseline &&
 			spec.stands(candidate, r.Head) {
@@ -128,16 +128,16 @@ type Performer func(Spec) (run.Record, error)
 // baseline at all — nothing is on file at that head, and what §5.2.6 performs is
 // on code no probe has touched.
 func Ensure(
-	stored []run.Record, head string, kind Kind, filter string, perform Performer,
+	stored []run.Record, head string, kind Kind, filter string, paths []string, perform Performer,
 ) (Baseline, error) {
-	for _, spec := range Missing(stored, head, Required(kind, filter)) {
+	for _, spec := range Missing(stored, head, Required(kind, filter, paths)) {
 		performed, err := perform(spec)
 		if err != nil {
 			return Baseline{}, err
 		}
 		stored = append(stored, performed)
 	}
-	resolved, ok := Referenced(kind, filter).Resolve(stored, head)
+	resolved, ok := Referenced(kind, filter, paths).Resolve(stored, head)
 	if !ok {
 		// The baseline was performed and still does not stand, which
 		// means the run that came back is not one §5.2.6 admits: it

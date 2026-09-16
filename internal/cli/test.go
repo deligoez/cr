@@ -43,6 +43,12 @@ type testRunResult struct {
 	// Filter is the expression the run was narrowed to, absent when the
 	// whole suite ran.
 	Filter string `json:"filter,omitempty"`
+	// Paths are the `--path` values the run was narrowed to, in the
+	// order they were given, and absent when none was. They are reported
+	// beside the filter because §5.2.2 keys a baseline by both: a caller
+	// about to run a probe needs to know which population this run id
+	// stands for.
+	Paths []string `json:"paths,omitempty"`
 	// ExitCode is the runner's own exit status. It is reported rather than
 	// interpreted: a failing suite is an ordinary outcome, and §5.2.5 and
 	// §5.3.4 are what read the number.
@@ -91,6 +97,7 @@ func (r *testRunResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "ran in %s\n", w.accent(r.Sandbox))
 	fmt.Fprintf(&out, "  command %s\n", strings.Join(r.Command, " "))
 	fmt.Fprintf(&out, "  filter  %s\n", listedOrNone(r.Filter))
+	fmt.Fprintf(&out, "  paths   %s\n", listed(r.Paths))
 	fmt.Fprintf(&out, "  exit    %d\n", r.ExitCode)
 	if r.TimedOut {
 		// §5.2.3's outcome, said in words, because the exit code
@@ -130,6 +137,7 @@ func listedOrNone(value string) string {
 //nolint:funlen // measured 2026-08-31 at 102 lines; refactor to clear, never raise the limit
 func newTestCmd(out *writer) *cobra.Command {
 	var filter string
+	var paths []string
 	cmd := &cobra.Command{
 		Use:   "test " + prPlaceholder,
 		Short: "Run the profile's test command inside the sandbox",
@@ -137,6 +145,13 @@ func newTestCmd(out *writer) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr, err := parsePR(args[0])
 			if err != nil {
+				return err
+			}
+			// §5.2.1's three conditions on a `--path`, asked before
+			// any state is read: a malformed invocation is §11.2's
+			// 2, and a run refused for its command line must have
+			// built no sandbox and executed nothing.
+			if err := run.CheckPaths(paths); err != nil {
 				return err
 			}
 			owner, repo, err := repoOf(cmd)
@@ -171,7 +186,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			argv, err := resolved.TestArgv(file, filter)
+			argv, err := resolved.TestArgv(file, filter, paths)
 			if err != nil {
 				return err
 			}
@@ -256,6 +271,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
 			recorded, err := recordRun(layout, owner, repo, pr, stamp, &run.Record{
 				Filter:       filter,
+				Paths:        paths,
 				ExitCode:     code,
 				TimedOut:     timedOut,
 				DurationMS:   took.Milliseconds(),
@@ -273,6 +289,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				Sandbox:      ready.Path,
 				Command:      argv,
 				Filter:       filter,
+				Paths:        paths,
 				ExitCode:     code,
 				TimedOut:     timedOut,
 				Contaminated: contaminated,
@@ -284,6 +301,9 @@ func newTestCmd(out *writer) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&filter, "filter", "",
 		"narrow the run to a subset, passed as the profile's tests.filter_flag")
+	cmd.Flags().StringArrayVar(&paths, "path", nil,
+		"narrow the run to a path inside the sandbox, passed through the profile's "+
+			"tests.paths_arg; repeatable")
 	return cmd
 }
 

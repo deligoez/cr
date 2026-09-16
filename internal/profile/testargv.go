@@ -3,6 +3,7 @@ package profile
 import (
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // The dotted §2.4 fields a test run needs, spelled once so a refusal names the
@@ -10,7 +11,16 @@ import (
 const (
 	testCmdField        = "tests.cmd"
 	testFilterFlagField = "tests.filter_flag"
+	testPathsArgField   = "tests.paths_arg"
 )
+
+// pathPlaceholder is the position §2.4 substitutes each `--path` into, in every
+// element of `tests.paths_arg`. A `tests.paths_arg` that holds none is a runner
+// whose path argument is positional, and the path is then not passed at all —
+// which is why nothing here requires the placeholder to be present: §2.4 says
+// what is replaced, and a profile that replaces nothing is the author's
+// statement about their runner rather than a fault cr can diagnose.
+const pathPlaceholder = "{path}"
 
 // UnavailableError reports a §2.4 field a command needs and the resolved
 // profile does not set.
@@ -65,21 +75,25 @@ func (e *UnavailableError) Hint() string {
 }
 
 // TestArgv returns the argv §5.2.1 runs inside the sandbox, narrowed to filter
-// when one was given.
+// when one was given and to paths when any were.
 //
 // The filter is appended as `tests.filter_flag` and the expression after it,
 // two argv elements rather than one string. There is no shell anywhere in cr's
 // execution path — §3.1.1 settled that for the tracker command and §5.1.3
 // inherits it — so an expression holding a space, a quote, or a `$` reaches the
-// runner as the one argument it is, and there is nothing to quote for.
+// runner as the one argument it is, and there is nothing to quote for. A path
+// reaches it the same way, through `tests.paths_arg` once per path, in the
+// order the paths were given.
 //
 // A `--filter` against a profile that sets no flag is refused rather than
-// dropped. Running the whole suite when a subset was asked for would answer a
+// dropped, and so is a `--path` against one that sets no `tests.paths_arg`.
+// Running the whole suite when a subset was asked for would answer a
 // different question than the one put, and §5.3.6 rests on knowing exactly
-// which tests a probe selected.
+// which tests a probe selected — which is the same reason §5.2.2 keys a
+// baseline by the filter and the paths together.
 //
 // file names the profile the fields came from, so a refusal says what to open.
-func (p *Profile) TestArgv(file, filter string) ([]string, error) {
+func (p *Profile) TestArgv(file, filter string, paths []string) ([]string, error) {
 	if len(p.Tests.Cmd) == 0 {
 		return nil, &UnavailableError{
 			File:  file,
@@ -88,15 +102,30 @@ func (p *Profile) TestArgv(file, filter string) ([]string, error) {
 		}
 	}
 	argv := slices.Clone(p.Tests.Cmd)
-	if filter == "" {
+	if filter != "" {
+		if p.Tests.FilterFlag == "" {
+			return nil, &UnavailableError{
+				File:  file,
+				Field: testFilterFlagField,
+				Needs: "§5.2.1 passes --filter as that flag, so this profile has no way to narrow a run to a subset",
+			}
+		}
+		argv = append(argv, p.Tests.FilterFlag, filter)
+	}
+	if len(paths) == 0 {
 		return argv, nil
 	}
-	if p.Tests.FilterFlag == "" {
+	if len(p.Tests.PathsArg) == 0 {
 		return nil, &UnavailableError{
 			File:  file,
-			Field: testFilterFlagField,
-			Needs: "§5.2.1 passes --filter as that flag, so this profile has no way to narrow a run to a subset",
+			Field: testPathsArgField,
+			Needs: "§2.4 has every --path passed through that argv, so this profile has no way to narrow a run to a path",
 		}
 	}
-	return append(argv, p.Tests.FilterFlag, filter), nil
+	for _, path := range paths {
+		for _, arg := range p.Tests.PathsArg {
+			argv = append(argv, strings.ReplaceAll(arg, pathPlaceholder, path))
+		}
+	}
+	return argv, nil
 }

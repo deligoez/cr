@@ -123,6 +123,11 @@ type Tests struct {
 	Globs []string `json:"globs"`
 	// FilterFlag narrows the run to a subset.
 	FilterFlag string `json:"filter_flag"`
+	// PathsArg is the argv §5.2.1 appends to Cmd once per `--path`, with
+	// every `{path}` in it replaced by that path. An empty PathsArg is a
+	// profile that cannot narrow a run by path at all, and §2.4 refuses a
+	// `--path` against one rather than dropping it.
+	PathsArg []string `json:"paths_arg"`
 	// TimeoutSeconds bounds one run, default DefaultTimeoutSeconds.
 	TimeoutSeconds int `json:"timeout_seconds"`
 	// OutputTailBytes is the retained runner output, default
@@ -193,6 +198,7 @@ type wireTests struct {
 	Cmd               []string `json:"cmd"`
 	Globs             []string `json:"globs"`
 	FilterFlag        string   `json:"filter_flag"`
+	PathsArg          []string `json:"paths_arg"`
 	TimeoutSeconds    *int     `json:"timeout_seconds"`
 	OutputTailBytes   *int     `json:"output_tail_bytes"`
 	CountPattern      string   `json:"count_pattern"`
@@ -473,6 +479,7 @@ func (w *wire) resolve(probeTemplate string) Profile {
 		Tests: Tests{
 			Cmd:             []string{},
 			Globs:           []string{},
+			PathsArg:        []string{},
 			TimeoutSeconds:  DefaultTimeoutSeconds,
 			OutputTailBytes: DefaultOutputTailBytes,
 		},
@@ -491,6 +498,7 @@ func (w *wire) resolve(probeTemplate string) Profile {
 		p.Tests.Cmd = list(t.Cmd)
 		p.Tests.Globs = list(t.Globs)
 		p.Tests.FilterFlag = t.FilterFlag
+		p.Tests.PathsArg = list(t.PathsArg)
 		p.Tests.CountPattern = t.CountPattern
 		p.Tests.FailedPattern = t.FailedPattern
 		p.Tests.ProbePathTemplate = probeTemplate

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -40,6 +39,11 @@ type probeRunResult struct {
 	// whole suite ran. §5.3.6 has a filtered run prove the gap only for
 	// the tests it selected, so it is reported rather than implied.
 	Filter string `json:"filter,omitempty"`
+	// Paths are the `--path` values, absent when none was given, and
+	// reported for §5.3.6's reason too: a path-narrowed run proves the
+	// gap only for the tests those paths hold. They are also the
+	// population the baseline beside them measured.
+	Paths []string `json:"paths,omitempty"`
 	// Result is §5.5's `result`, after §5.1.7 has had its say.
 	Result string `json:"result"`
 	// Reason is the probe record's `reason`: why Result is `error` or
@@ -86,6 +90,7 @@ func (r *probeRunResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "%s probe in %s\n", r.Kind, w.accent(r.Sandbox))
 	fmt.Fprintf(&out, "  command  %s\n", strings.Join(r.Command, " "))
 	fmt.Fprintf(&out, "  filter   %s\n", listedOrNone(r.Filter))
+	fmt.Fprintf(&out, "  paths    %s\n", listed(r.Paths))
 	fmt.Fprintf(&out, "  target   %s\n", r.Target)
 	fmt.Fprintf(&out, "  baseline %s\n", r.Baseline)
 	if r.Voided != "" {
@@ -236,7 +241,13 @@ type measuredRun struct {
 	detail string
 }
 
-// perform runs the suite once, narrowed to filter.
+// perform runs the suite once, narrowed to filter and to paths.
+//
+// Both narrowings travel together because §5.2.2 keys a baseline by the pair:
+// the population a probe's own run measured and the population its baseline
+// measured have to be the same population, and a run that took one of the two
+// from the request and the other from somewhere else would be comparing two
+// different suites.
 //
 // The cleanliness check is deliberately not here. §5.1.7 has the post-run check
 // decide what the record says, and for a probe that check has to run after the
@@ -244,8 +255,8 @@ type measuredRun struct {
 // find its own artefact and void itself. Where the check belongs is therefore
 // the caller's to know, and leaving it out is what keeps this one function
 // honest for every run.
-func (s *suite) perform(filter string) (*measuredRun, error) {
-	argv, err := s.profile.TestArgv(s.file, filter)
+func (s *suite) perform(filter string, paths []string) (*measuredRun, error) {
+	argv, err := s.profile.TestArgv(s.file, filter, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +297,7 @@ func (s *suite) perform(filter string) (*measuredRun, error) {
 	executed, failed := counter.Counts()
 	record := &run.Record{
 		Filter:      filter,
+		Paths:       paths,
 		ExitCode:    exit.Code,
 		TimedOut:    exit.TimedOut,
 		Unstarted:   unstarted,
@@ -331,6 +343,7 @@ func newProbeCmd(out *writer) *cobra.Command {
 // one `return err` away from being skipped.
 func newProbeRunCmd(out *writer) *cobra.Command {
 	var kind, patchFile, testFile, filter, target string
+	var paths []string
 	cmd := &cobra.Command{
 		Use:   "run " + prPlaceholder,
 		Short: "Execute and record a probe",
@@ -344,9 +357,16 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// §5.2.1's three conditions on a `--path`, which §5.3.2
+			// and §5.4.2 pass through this command, asked before any
+			// state is read: §11.2 codes a malformed invocation 2,
+			// and such a run must have executed nothing.
+			if err := run.CheckPaths(paths); err != nil {
+				return err
+			}
 			request := &probeRequest{
 				owner: owner, repo: repo, pr: pr,
-				filter: filter, target: target,
+				filter: filter, paths: paths, target: target,
 			}
 			var ran error
 			switch probe.Kind(kind) {
@@ -378,6 +398,9 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 		"the new test file to place and run, per §5.4.1; a gap probe only")
 	cmd.Flags().StringVar(&filter, "filter", "",
 		"narrow the run to a subset, passed as the profile's tests.filter_flag")
+	cmd.Flags().StringArrayVar(&paths, "path", nil,
+		"narrow the run to a path inside the sandbox, passed through the profile's "+
+			"tests.paths_arg; repeatable, and the population the baseline measures")
 	cmd.Flags().StringVar(&target, "target", "",
 		"the path:line the probe addresses; required for a gap probe, "+
 			"rejected for a mutation probe, which derives it (§5.3.2)")
@@ -527,6 +550,10 @@ type probeRequest struct {
 	target string
 	// filter is what the run is narrowed to, empty for the whole suite.
 	filter string
+	// paths are the `--path` values, empty for a run of every test the
+	// filter selects. §5.2.2 makes them the population the probe's
+	// baseline measures, and §5.5 stores them on the record.
+	paths []string
 }
 
 // probeSetup is the round, the profile, and the sandbox one probe run works
@@ -761,6 +788,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 				Kind:        probe.Mutation,
 				Input:       request.patch,
 				Filter:      request.filter,
+				Paths:       request.paths,
 				Result:      outcome.Result(),
 				Reason:      outcome.Reason(probe.Reason(measured)),
 				TestsRun:    measured.TestsRun,
@@ -829,6 +857,7 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 			Kind:        probe.Gap,
 			Input:       request.test,
 			Filter:      request.filter,
+			Paths:       request.paths,
 			Result:      outcome.Result(),
 			Reason:      outcome.Reason(probe.GapReason(measured)),
 			TestsRun:    measured.TestsRun,
@@ -928,6 +957,7 @@ func reportProbe(
 		Sandbox:     setup.ready.Path,
 		Command:     finished.performed.command,
 		Filter:      request.filter,
+		Paths:       request.paths,
 		Result:      string(finished.outcome.Result()),
 		Reason:      finished.record.Reason,
 		Establishes: finished.establishes,
@@ -1024,13 +1054,21 @@ type performedProbe struct {
 }
 
 // probeBaselines performs and records every baseline §5.2.2 requires that the
-// head has no run for yet (§5.2.6), before the probe itself runs.
+// head and sandbox generation have no run for yet (§5.2.6), before the probe
+// itself runs.
 //
 // The baselines come first and never after, which is what keeps them un-probed:
 // they run against the sandbox as §5.1 prepared it, so the record §5.2.6 stores
 // is admissible by construction rather than by inspection.
-func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, error) {
-	command, err := setup.tests.profile.TestArgv(setup.tests.file, request.filter)
+//
+// ownPaths are the paths the probe's own run is narrowed to, which are not
+// always the paths its baseline measures: §5.4.2 narrows a gap probe's run to
+// the one file cr placed, and §5.2.2 has its baseline measure the `--path`
+// values instead, because the placed file does not exist in the baseline.
+func probeBaselines(
+	setup *probeSetup, request *probeRequest, ownPaths []string,
+) (*performedProbe, error) {
+	command, err := setup.tests.profile.TestArgv(setup.tests.file, request.filter, ownPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -1043,13 +1081,17 @@ func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, 
 	}
 	// Only the runs of the sandbox this probe runs in can be its baselines.
 	stored = probe.OfSandbox(stored, setup.ready.Generation)
-	// The header goes out before the first run, and says so when §5.2.2's
-	// whole-suite baseline is that run: a filtered probe the operator
-	// expects to take seconds may start with the entire suite.
+	// The header goes out before the first run, and says what §5.2.2's
+	// baseline is when that baseline is the run about to happen: an
+	// operator who asked for one narrowed experiment may be about to wait
+	// for the entire suite, and that is worth saying before the wait
+	// rather than after it.
+	referenced := probe.Referenced(request.kind, request.filter, request.paths)
 	var baseline []string
-	if slices.Contains(probe.Missing(stored, setup.round.Head, probe.Required(request.kind, request.filter)),
-		probe.Spec{}) {
-		if baseline, err = setup.tests.profile.TestArgv(setup.tests.file, ""); err != nil {
+	if len(probe.Missing(stored, setup.round.Head,
+		probe.Required(request.kind, request.filter, request.paths))) > 0 {
+		if baseline, err = setup.tests.profile.TestArgv(
+			setup.tests.file, referenced.Filter, referenced.Paths); err != nil {
 			return nil, err
 		}
 	}
@@ -1060,7 +1102,7 @@ func probeBaselines(setup *probeSetup, request *probeRequest) (*performedProbe, 
 	// performed, kept for the refusal when that baseline does not stand.
 	var unclean string
 	performed.baseline, err = probe.Ensure(
-		stored, setup.round.Head, request.kind, request.filter,
+		stored, setup.round.Head, request.kind, request.filter, request.paths,
 		func(spec probe.Spec) (run.Record, error) {
 			ran, found, err := baselineRun(setup, request, spec)
 			if found != "" {
@@ -1101,7 +1143,7 @@ func unusableBaseline(setup *probeSetup, request *probeRequest, unclean string, 
 func mutationRuns(
 	setup *probeSetup, request *probeRequest,
 ) (*performedProbe, probe.Measured, error) {
-	performed, err := probeBaselines(setup, request)
+	performed, err := probeBaselines(setup, request, request.paths)
 	if err != nil {
 		return nil, probe.Measured{}, err
 	}
@@ -1114,7 +1156,7 @@ func mutationRuns(
 	var mutated *measuredRun
 	err = setup.layout.UnderSandboxMutation(
 		request.owner, request.repo, request.pr, mutations, func() error {
-			ran, err := setup.tests.perform(request.filter)
+			ran, err := setup.tests.perform(request.filter, request.paths)
 			mutated = ran
 			return err
 		})
@@ -1152,10 +1194,20 @@ func mutationRuns(
 // The placement, the run, and the removal are one call, because §5.4.2's
 // removal "MUST happen even when the run fails or times out" and
 // state.UnderSandboxTestFile is the only door onto the write that arranges it.
+//
+// §5.4.2 narrows the probe's own run to the file cr placed, as its only path,
+// and §5.4.2's last clause is the profile that cannot take one: a profile with
+// no `tests.paths_arg` has no way to name a path to its runner, so the run
+// "MUST use the filter alone" and the runner's own discovery finds the placed
+// file — which is what `tests.probe_path_template` is fixed per profile for.
 func gapRuns(
 	setup *probeSetup, request *probeRequest, placement string,
 ) (*performedProbe, probe.GapMeasured, error) {
-	performed, err := probeBaselines(setup, request)
+	var ownPaths []string
+	if len(setup.tests.profile.Tests.PathsArg) > 0 {
+		ownPaths = []string{placement}
+	}
+	performed, err := probeBaselines(setup, request, ownPaths)
 	if err != nil {
 		return nil, probe.GapMeasured{}, err
 	}
@@ -1163,7 +1215,7 @@ func gapRuns(
 	var placed *measuredRun
 	err = setup.layout.UnderSandboxTestFile(
 		request.owner, request.repo, request.pr, placement, request.test, func() error {
-			ran, err := setup.tests.perform(request.filter)
+			ran, err := setup.tests.perform(request.filter, ownPaths)
 			placed = ran
 			return err
 		})
@@ -1188,7 +1240,7 @@ func gapRuns(
 func baselineRun(
 	setup *probeSetup, request *probeRequest, spec probe.Spec,
 ) (stored run.Record, unclean string, err error) {
-	ran, err := setup.tests.perform(spec.Filter)
+	ran, err := setup.tests.perform(spec.Filter, spec.Paths)
 	if err != nil {
 		return run.Record{}, "", err
 	}
