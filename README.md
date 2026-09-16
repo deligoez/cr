@@ -31,6 +31,11 @@ problems it is built to solve.
 - **Findings carry experiments.** `cr` runs the suite in a throwaway worktree, a
   mutation probe breaks a line to prove a test gap, and a gap probe runs a new
   test against the head. Every probe reverts, even when the run fails or times out.
+  A probe's baseline measures the tests the probe runs — the same `--filter` and
+  `--path` — so a narrowed experiment is never graded against a population it
+  never touched, and the filter and paths reach the posted comment with the
+  result. A profile's `sandbox.require` refuses a run before it starts when the
+  sandbox lacks a file the suite cannot do without.
 - **Coverage is proven.** Every unit times every active role is a filled cell,
   and a disabled or unavailable axis is reported with its reason.
 - **You are still the reviewer.** `cr` writes a draft; you edit it. Deleting a
@@ -123,8 +128,8 @@ already have posted.
 | `cr merge <files...> -o <out> --pr <n>` | Merge and deduplicate per-role findings; list record pairs a shared citation or a citation inside the other's anchor joins, dropping none |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
-| `cr test <pr> [--filter <f>]` | Run the profile's test command inside the sandbox |
-| `cr probe run <pr> --kind mutation\|gap ...` | Execute and record a probe (`--patch`, `--test`, `--target`, `--filter`) |
+| `cr test <pr> [--filter <f>] [--path <path>]...` | Run the profile's test command inside the sandbox, narrowed to the paths through `tests.paths_arg` |
+| `cr probe run <pr> --kind mutation\|gap ...` | Execute and record a probe (`--patch`, `--test`, `--target`, `--filter`, `--path`), over a baseline of the same filter and paths |
 | `cr draft <pr>` | Render the editable draft and read back its triage |
 | `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <path>\|-]` | Apply one triage verb to the draft, as the hand edit would |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review; resolve an unknown outcome |
