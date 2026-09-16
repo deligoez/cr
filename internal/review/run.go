@@ -306,7 +306,8 @@ func Run(src *Sources) (*Fanout, error) {
 	}
 	return &Fanout{
 		Round: r.Round, Head: r.Head, Prompts: prompts,
-		Honesty:  append(sentences(lenses), p.StaleDisclosures()...),
+		Honesty: append(append(sentences(lenses), p.StaleDisclosures()...),
+			staleRoles(src)...),
 		Expected: r.expectedCells(coverage.Expect(unitIDs(r.Units), r.Active)),
 		Skipped:  lenses.Roles,
 	}, nil
@@ -434,6 +435,27 @@ func lensesOf(
 		return coverage.Lenses{}, err
 	}
 	return coverage.RoundLenses(axes, halves, corpus, meta.ActiveRoles, meta.ProfileID), nil
+}
+
+// staleRoles is §2.5.2's report over the corpus this fan-out resolved: a
+// sentence per ejected role file that is, byte for byte, a role an earlier
+// release shipped and not this build's.
+//
+// `cr review` is the command the report matters most on, because §4.6.1 carries
+// a role's `instructions` and `focus` into every prompt it emits: a reviewer
+// handed an earlier release's framing judges by an earlier release's standard,
+// and nothing in the prompt itself would say so.
+//
+// A corpus that does not resolve is answered with nothing, for the reason the
+// cli's staleProfile gives: lensesOf above resolves the same corpus and reports
+// that failure with §2.5.3's exit code, and a disclosure is not the place to
+// refuse a run.
+func staleRoles(src *Sources) []string {
+	corpus, err := role.Resolve(src.Layout.RepoRolesDir(src.Owner, src.Repo), src.Layout.RolesDir())
+	if err != nil {
+		return []string{}
+	}
+	return role.StaleDisclosures(corpus)
 }
 
 // sentences renders §4.5.4's report as the lines §11.1 exempts from `--quiet`.
