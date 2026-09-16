@@ -86,7 +86,7 @@ func TestATestRunRecreatesASandboxMissingACopiedFile(t *testing.T) {
 }
 
 // D-S22-1 through `cr probe run`: the same stale sandbox is recreated before
-// §5.2.6's baselines, and every run of the probe reads `.env.testing`.
+// §5.2.6's baseline, and every run of the probe reads `.env.testing`.
 func TestAProbeRunRecreatesASandboxMissingACopiedFile(t *testing.T) {
 	_, sandboxPath, runner, profileFile := envFixture(t, []string{".env"}, ".env", ".env.testing")
 	rewriteProfile(t, profileFile, runner, []string{".env"}, []string{})
@@ -102,8 +102,8 @@ func TestAProbeRunRecreatesASandboxMissingACopiedFile(t *testing.T) {
 		"  recreated  per §5.1.6: "+reason+"\n"+
 		"  env files  .env, .env.testing gitignored at the clone root\n"+
 		"  in sandbox .env, .env.testing\n"+
-		"  baseline   the whole suite runs first as the §5.2.2 baseline: "+runner+"\n"+
-		strings.Repeat("env .env.testing\n"+recapLine, 3), stderr)
+		"  baseline   §5.2.2's baseline is not on file and runs first: "+runner+" --only retries\n"+
+		strings.Repeat("env .env.testing\n"+recapLine, 2), stderr)
 	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: " + reason}, honestyList(t, stdout))
 }
 
@@ -250,7 +250,7 @@ func TestATestRunRecreatesASandboxThatLostAFileSetupRewrote(t *testing.T) {
 }
 
 // D-S22b-2 through `cr probe run`: the sandbox that lost the rewritten file is
-// recreated before §5.2.6's baselines, and a `cr test` after it recreates
+// recreated before §5.2.6's baseline, and a `cr test` after it recreates
 // nothing.
 func TestAProbeRunRecreatesASandboxThatLostAFileSetupRewrote(t *testing.T) {
 	sandboxPath, runner, profileFile := rewritingFixture(t)
@@ -265,8 +265,8 @@ func TestAProbeRunRecreatesASandboxThatLostAFileSetupRewrote(t *testing.T) {
 		"  recreated  per §5.1.6: "+reason+"\n"+
 		"  env files  .env gitignored at the clone root\n"+
 		"  in sandbox .env\n"+
-		"  baseline   the whole suite runs first as the §5.2.2 baseline: "+runner+"\n"+
-		strings.Repeat("env .env\n"+recapLine, 3), stderr)
+		"  baseline   §5.2.2's baseline is not on file and runs first: "+runner+" --only retries\n"+
+		strings.Repeat("env .env\n"+recapLine, 2), stderr)
 	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: " + reason}, honestyList(t, stdout))
 
 	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
@@ -432,8 +432,10 @@ func TestASandboxWhoseSetupRemovesACopiedFileIsNotRecreated(t *testing.T) {
 	stdout, stderr := streams(t, probing...)
 	var first map[string]any
 	require.NoError(t, json.Unmarshal([]byte(stdout), &first))
-	assert.Equal(t, "experiment "+runner+" --only retries\n"+header+strings.Repeat("env .env\n"+recapLine, 2), stderr,
-		"the unfiltered baseline is a cr test run of this sandbox: the filtered one, then the probe")
+	assert.Equal(t, "experiment "+runner+" --only retries\n"+header+
+		"  baseline   §5.2.2's baseline is not on file and runs first: "+runner+" --only retries\n"+
+		strings.Repeat("env .env\n"+recapLine, 2), stderr,
+		"the two cr test runs measured the whole suite, so §5.2.2's filtered baseline runs first")
 	assert.Equal(t, []any{"r3", "r4"}, []any{first["baseline"], first["run"]})
 	stdout, stderr = streams(t, probing...)
 	var second map[string]any
