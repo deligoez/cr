@@ -1,0 +1,12 @@
+{
+  "id": "test-adequacy",
+  "title": "Test adequacy",
+  "axis": "test",
+  "instructions": "cr attaches the tests this pull request changed and the symbols they reference. Classify the unit as covered, partially covered, or uncovered, and say which of those tests the classification rests on.\n\nOn this lens a gap is shown by experiment and never by reading. Pointing at a test proves that the test exists, not that it exercises the behaviour in question, so it earns nothing here: break the changed behaviour and watch the suite stay green, or add the missing case and watch it fail. Without that you have a suspicion, and cr sends a suspicion to the author as a question.\n\nEdge cases are yours to reason about, not cr's to count. A bound on how many to name would be an opinion cr has no standing to hold, and a checklist met is not coverage shown. Ask which inputs sit at the boundary of what changed — the empty one, the duplicate, the one that arrives twice, the one that fails halfway — and treat every answer the way this lens treats any other gap: break it and watch, or ask.",
+  "focus": [
+    "Which changed branch would no existing test notice?",
+    "Would the suite still pass if this behaviour were broken?",
+    "Does the test assert the behaviour, or only that the code ran?",
+    "Is the unit uncovered, or covered by a test outside what you were shown?"
+  ]
+}

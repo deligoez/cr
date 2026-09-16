@@ -100,14 +100,25 @@ func (e *MalformedError) Error() string {
 	return fmt.Sprintf("%s: %s %s", e.File, e.Field, e.Problem)
 }
 
-// Load reads and validates one role file. path also fixes the expected id,
-// which §2.5 requires to equal the file stem.
-func Load(path string) (Role, error) {
+// Load reads and validates one role file, and decides §2.5.2's standing of the
+// bytes it read. path also fixes the expected id, which §2.5 requires to equal
+// the file stem.
+//
+// The standing is settled here and nowhere else, because it is a fact about the
+// file rather than about what the file says: whether these exact bytes are a
+// role an earlier release shipped can only be known where the bytes are read,
+// and a second read to answer it later could read a different file. The Layer
+// is left unset; §2.5.4 decides that, and only resolution knows it.
+func Load(path string) (Resolved, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Role{}, &MalformedError{File: path, Problem: fmt.Sprintf("cannot be read: %v", err)}
+		return Resolved{}, &MalformedError{File: path, Problem: fmt.Sprintf("cannot be read: %v", err)}
 	}
-	return Parse(path, data)
+	r, err := Parse(path, data)
+	if err != nil {
+		return Resolved{}, err
+	}
+	return Resolved{Role: r, stale: staleNotice(path, data)}, nil
 }
 
 // Parse validates data as the role file at path. The path is only read for the

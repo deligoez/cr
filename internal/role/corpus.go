@@ -40,6 +40,13 @@ type Resolved struct {
 	Role Role
 	// Layer is where that file came from.
 	Layer Layer
+
+	// stale is §2.5.2's sentence naming the file this role was read from
+	// as an earlier release's shipped role, and empty for every other
+	// file. It is unexported because it is not a row of §2.5's table: it
+	// is what cr found out about the file, not what the file says.
+	// StaleDisclosures is how a command reads it.
+	stale string
 }
 
 // Resolve returns the role corpus for one repository, in the order §2.5.5
@@ -150,13 +157,15 @@ type corpus struct {
 // won it, because that is the only layer it was resolved from: §2.5.4 leaves
 // the shadowed file out of the corpus rather than demoting it, so there is no
 // second entry to place.
-func (c *corpus) add(layer Layer, roles []Role) {
+func (c *corpus) add(layer Layer, roles []Resolved) {
 	for i := range roles {
-		if _, shadowed := c.taken[roles[i].ID]; shadowed {
+		if _, shadowed := c.taken[roles[i].Role.ID]; shadowed {
 			continue
 		}
-		c.taken[roles[i].ID] = struct{}{}
-		c.roles = append(c.roles, Resolved{Role: roles[i], Layer: layer})
+		c.taken[roles[i].Role.ID] = struct{}{}
+		resolved := roles[i]
+		resolved.Layer = layer
+		c.roles = append(c.roles, resolved)
 	}
 }
 
@@ -170,7 +179,7 @@ func (c *corpus) add(layer Layer, roles []Role) {
 // Entries that are not role files — a subdirectory, an editor's backup, a
 // README — are skipped rather than rejected, because §2.2 fixes the role file
 // name as <id>.json and says nothing about what else may sit beside it.
-func loadDir(dir string) ([]Role, error) {
+func loadDir(dir string) ([]Resolved, error) {
 	entries, err := os.ReadDir(dir)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -178,7 +187,7 @@ func loadDir(dir string) ([]Role, error) {
 	case err != nil:
 		return nil, &MalformedError{File: dir, Problem: "cannot be listed: " + err.Error()}
 	}
-	roles := make([]Role, 0, len(entries))
+	roles := make([]Resolved, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), fileExt) {
 			continue
@@ -199,14 +208,16 @@ func loadDir(dir string) ([]Role, error) {
 // §2.5.3 is caught rather than trusted unread, and they are parsed under the
 // file name `cr init --eject-roles` writes them as, which §2.5 requires to
 // equal the id.
-func parseAll(files map[string]string) ([]Role, error) {
-	roles := make([]Role, 0, len(files))
+func parseAll(files map[string]string) ([]Resolved, error) {
+	roles := make([]Resolved, 0, len(files))
 	for _, id := range slices.Sorted(maps.Keys(files)) {
 		r, err := Parse(id+fileExt, []byte(files[id]))
 		if err != nil {
 			return nil, err
 		}
-		roles = append(roles, r)
+		// No standing is computed: §2.5.2's report is owed for an
+		// ejected file, and a role inside the binary is this build's.
+		roles = append(roles, Resolved{Role: r})
 	}
 	return roles, nil
 }
@@ -217,6 +228,6 @@ func parseAll(files map[string]string) ([]Role, error) {
 // sorts before `a-b.json` because `.` is above `-`, while §2.5.5 puts `a`
 // before `a-b`. os.ReadDir hands back file-name order, so relying on it would
 // order most corpora right and one shape of id wrong.
-func sortByID(roles []Role) {
-	slices.SortFunc(roles, func(a, b Role) int { return strings.Compare(a.ID, b.ID) })
+func sortByID(roles []Resolved) {
+	slices.SortFunc(roles, func(a, b Resolved) int { return strings.Compare(a.Role.ID, b.Role.ID) })
 }
