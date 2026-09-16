@@ -82,14 +82,27 @@ func TestTheShippedRolesCoverEveryAxisExactlyOnce(t *testing.T) {
 func TestBuiltinsReturnsTheFilesOnDisk(t *testing.T) {
 	const dir = "builtin"
 
-	shipped := Builtins()
-	entries, err := os.ReadDir(dir)
+	current := Builtins()
+	listed, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	require.Len(t, entries, len(shipped), "%s holds the shipped roles and nothing else", dir)
+	// builtin/shipped holds the earlier releases' role files, which
+	// shipped.go embeds whole and Builtins() deliberately does not carry:
+	// they are what a file on disk is compared against, never a role this
+	// build resolves.
+	entries := make([]os.DirEntry, 0, len(listed))
+	for _, entry := range listed {
+		if entry.IsDir() {
+			require.Equal(t, shippedDirName, entry.Name(),
+				"%s holds the role files and the shipped releases, and nothing else", dir)
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	require.Len(t, entries, len(current), "%s holds the shipped roles and nothing else", dir)
 
 	for _, entry := range entries {
 		id := strings.TrimSuffix(entry.Name(), ".json")
-		content, ok := shipped[id]
+		content, ok := current[id]
 		require.True(t, ok, "%s is embedded by nothing", entry.Name())
 
 		onDisk, err := os.ReadFile(filepath.Join(dir, entry.Name()))

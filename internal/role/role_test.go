@@ -82,7 +82,7 @@ func TestTheIDMustBeTheKebabCaseFileStem(t *testing.T) {
 	t.Run("a well-formed file takes its id from the stem", func(t *testing.T) {
 		r, err := Load(roleFile(t, "test-adequacy", nil))
 		require.NoError(t, err)
-		assert.Equal(t, "test-adequacy", r.ID)
+		assert.Equal(t, "test-adequacy", r.Role.ID)
 	})
 
 	for _, c := range []struct {
@@ -205,17 +205,17 @@ func TestAFileCrCannotReadOrDecodeSaysWhatItCan(t *testing.T) {
 func TestParseNormalisesTheOptionalListsAndKeepsWhatWasSet(t *testing.T) {
 	omitted, err := Load(roleFile(t, "test-adequacy", nil))
 	require.NoError(t, err)
-	assert.Equal(t, []string{}, omitted.Focus)
-	assert.Equal(t, []string{}, omitted.Profiles)
+	assert.Equal(t, []string{}, omitted.Role.Focus)
+	assert.Equal(t, []string{}, omitted.Role.Profiles)
 
 	set, err := Load(roleFile(t, "test-adequacy", map[string]any{
 		"focus":    []string{"Which changed branch is unexercised?"},
 		"profiles": []string{"laravel-pest"},
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"Which changed branch is unexercised?"}, set.Focus)
-	assert.Equal(t, []string{"laravel-pest"}, set.Profiles)
-	assert.Equal(t, "Test adequacy", set.Title)
-	assert.Equal(t, axis.Test, set.Axis)
-	assert.Equal(t, "Judge whether the changed behaviour is exercised.", set.Instructions)
+	assert.Equal(t, []string{"Which changed branch is unexercised?"}, set.Role.Focus)
+	assert.Equal(t, []string{"laravel-pest"}, set.Role.Profiles)
+	assert.Equal(t, "Test adequacy", set.Role.Title)
+	assert.Equal(t, axis.Test, set.Role.Axis)
+	assert.Equal(t, "Judge whether the changed behaviour is exercised.", set.Role.Instructions)
 }
