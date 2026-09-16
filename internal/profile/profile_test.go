@@ -21,6 +21,7 @@ var specFields = []string{
 	"axes",
 	"sandbox.copy",
 	"sandbox.setup",
+	"sandbox.require",
 	"tests.cmd",
 	"tests.globs",
 	"tests.filter_flag",
@@ -106,6 +107,7 @@ func TestParseAppliesTheDocumentedDefaults(t *testing.T) {
 	// slice as null.
 	assert.Equal(t, []string{}, p.Sandbox.Copy)
 	assert.Equal(t, []string{}, p.Sandbox.Setup)
+	assert.Equal(t, []string{}, p.Sandbox.Require)
 	assert.Equal(t, []string{}, p.Tests.Cmd)
 	assert.Equal(t, []string{}, p.Tests.Globs)
 	assert.Equal(t, []string{}, p.Tests.PathsArg)
@@ -126,7 +128,7 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 		"id": "laravel-pest",
 		"match": {"files": ["artisan"], "globs": ["app/**/*.php"]},
 		"axes": {"test": true},
-		"sandbox": {"copy": [".env"], "setup": ["composer install"]},
+		"sandbox": {"copy": [".env"], "setup": ["composer install"], "require": [".env.testing"]},
 		"tests": {
 			"cmd": ["./vendor/bin/pest"],
 			"globs": ["tests/**/*Test.php"],
@@ -147,6 +149,7 @@ func TestParseKeepsExplicitOptionalValues(t *testing.T) {
 
 	assert.Equal(t, []string{".env"}, p.Sandbox.Copy)
 	assert.Equal(t, []string{"composer install"}, p.Sandbox.Setup)
+	assert.Equal(t, []string{".env.testing"}, p.Sandbox.Require)
 	assert.Equal(t, []string{"./vendor/bin/pest"}, p.Tests.Cmd)
 	assert.Equal(t, []string{"tests/**/*Test.php"}, p.Tests.Globs)
 	assert.Equal(t, "--filter", p.Tests.FilterFlag)
