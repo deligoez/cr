@@ -342,6 +342,7 @@ func newRecordCmd(out *writer) *cobra.Command {
 			}
 			recorded := newRecordResult(records, found, &dropped)
 			recorded.Honesty = append(recorded.Honesty, staleProfile(layout.Profile(round.ProfileID))...)
+			recorded.Honesty = append(recorded.Honesty, staleRoles(layout, owner, repo)...)
 			if recorded.NotesAfterPrompts, err = recordNotesAfter(layout, &round.Meta, records); err != nil {
 				return err
 			}
