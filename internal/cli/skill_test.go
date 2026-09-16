@@ -16,6 +16,12 @@ import (
 // than off a list kept here, and hold the parse to the built tree, so neither
 // a command added to the spec nor one lost by the parser passes unnoticed.
 
+// currentSpec is the normative contract §11's table is read out of, and the
+// one line a version bump moves. The spec file is this guard's fixture: what
+// the skill and the built tree are held to is the table the release ships,
+// never a list kept in this package.
+const currentSpec = "spec/0.3.0.md"
+
 // specCommands names every command §11's table lists, spelled as typed: the
 // words before the first positional or optional argument, with `a|b`
 // alternatives expanded and a flag that distinguishes a row (`init
@@ -23,9 +29,9 @@ import (
 // makes it a global override on every command rather than part of one.
 func specCommands(t *testing.T) []string {
 	t.Helper()
-	spec := string(repoFile(t, "spec/0.3.0.md"))
+	spec := string(repoFile(t, currentSpec))
 	start := strings.Index(spec, "\n## 11. ")
-	require.GreaterOrEqual(t, start, 0, "spec/0.3.0.md has no §11 heading")
+	require.GreaterOrEqual(t, start, 0, "%s has no §11 heading", currentSpec)
 	end := strings.Index(spec[start:], "\n### 11.1 ")
 	require.Positive(t, end, "§11's command table has no §11.1 after it")
 
