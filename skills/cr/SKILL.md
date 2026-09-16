@@ -685,13 +685,24 @@ the triage and renders the draft again.
 | set `disposition="wrong"` in the marker | discarded as a false positive, body or not; a **repository-wide** waiver that counts against the class |
 
 **Never write `<!-- cr:` into a body.** §8.1.3 reserves the sequence for the
-record marker and for the label, provenance and evidence regions cr generates,
-and a body carrying it is refused with exit 1 naming the record. That covers a
-well-formed pair as much as a bare fragment: a body that brings its own
-`<!-- cr:evidence -->`…`<!-- cr:/evidence -->` gives the block two evidence
-regions, and `cr draft` and `cr post` refuse it. There is no escape — a fenced
-block does not help, because the check reads the bytes — so rewrite the sentence
-without the sequence.
+record marker and for the label, provenance and evidence regions cr generates.
+Through `cr triage --body-file` the refusal is unconditional: a body carrying
+the sequence — a bare fragment and a well-formed
+`<!-- cr:evidence -->`…`<!-- cr:/evidence -->` pair alike — is refused with
+exit 1 naming the record, before `draft.md` is touched.
+
+Hand-written into `draft.md`, one case is refused and the other is undone
+silently. A pair doubling a region the block already carries gives that block
+two regions of one name, and `cr draft` and `cr post` refuse it with exit 1
+naming the record. A pair naming a region the block does not carry — a `label`
+pair on a finding, say — is not separable from a region cr rendered under a
+state that has since changed, so it is not refused: the run exits 0, cr
+regenerates the block from the record, and the forged sequence reaches no state
+file and no posted payload. Nothing invented reaches the author; what is lost
+is the text you wrote inside that pair, dropped without a word.
+
+There is no escape — a fenced block does not help, because the check reads the
+bytes — so rewrite the sentence without the sequence.
 
 **On a large draft, prefer `cr triage` to line arithmetic.** It finds the block
 by record id and makes exactly the hand edit its verb names, under the per-PR
