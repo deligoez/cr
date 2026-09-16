@@ -111,6 +111,11 @@ type Sandbox struct {
 	Copy []string `json:"copy"`
 	// Setup holds the commands run once after sandbox creation.
 	Setup []string `json:"setup"`
+	// Require names the paths, relative to the repository root, that
+	// §5.1.8 has `cr test` and `cr probe run` refuse to run without. It
+	// is what turns a suite silently reading the wrong environment into
+	// a refusal before anything executes.
+	Require []string `json:"require"`
 }
 
 // Tests configures the runner. An absent Cmd disables the test axis, which is
@@ -190,8 +195,9 @@ type wireMatch struct {
 }
 
 type wireSandbox struct {
-	Copy  []string `json:"copy"`
-	Setup []string `json:"setup"`
+	Copy    []string `json:"copy"`
+	Setup   []string `json:"setup"`
+	Require []string `json:"require"`
 }
 
 type wireTests struct {
@@ -483,13 +489,17 @@ func (w *wire) resolve(probeTemplate string) Profile {
 			TimeoutSeconds:  DefaultTimeoutSeconds,
 			OutputTailBytes: DefaultOutputTailBytes,
 		},
-		Sandbox: Sandbox{Copy: []string{}, Setup: []string{}},
+		Sandbox: Sandbox{Copy: []string{}, Setup: []string{}, Require: []string{}},
 		Rules:   make([]json.RawMessage, 0, len(w.Rules)),
 	}
 	maps.Copy(p.Axes, w.Axes)
 	p.Rules = append(p.Rules, w.Rules...)
 	if w.Sandbox != nil {
-		p.Sandbox = Sandbox{Copy: list(w.Sandbox.Copy), Setup: list(w.Sandbox.Setup)}
+		p.Sandbox = Sandbox{
+			Copy:    list(w.Sandbox.Copy),
+			Setup:   list(w.Sandbox.Setup),
+			Require: list(w.Sandbox.Require),
+		}
 	}
 	if w.Symbols != nil {
 		p.Symbols = Symbols{Lang: w.Symbols.Lang}
