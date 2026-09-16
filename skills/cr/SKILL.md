@@ -34,9 +34,15 @@ file only when its bytes equal a profile an earlier release shipped (v0.1.0,
 v0.2.0 or v0.2.1): such a file carries no edit, and `updated` names it. A file
 that matches no shipped version is left as it is and named under `honesty`, so
 re-run `cr init` after an upgrade and compare any file it names by hand.
-`cr init --eject-roles` also writes the built-in roles as editable files. State
-lives only under `~/.cr/` (override with `CR_HOME`); cr never writes inside the
-repository under review.
+`cr init --eject-roles` also writes the built-in roles as editable files.
+
+`cr init` treats an **ejected role file** the same way: one whose bytes equal a
+role an earlier release shipped (v0.1.0, v0.2.0, v0.2.1 or v0.2.2) is updated
+and named under `updated`, one that was edited is left alone and named under
+`honesty`, and a role that was never ejected is neither written nor mentioned
+— without `--eject-roles` cr resolves it from the binary. State lives only
+under `~/.cr/` (override with `CR_HOME`); cr never writes inside the repository
+under review.
 
 **Repository detection.** Every PR-scoped command reads owner/repo from the
 repository's one GitHub remote. `--repo <owner/repo>` overrides it. No remote,
@@ -275,9 +281,13 @@ cr cells record 1 cells.ndjson
 ```json
 {
   "recorded": [{"unit": "u2", "role": "convention", "result": "pass", "unit_hash": "676014eb06ee8adb", "head": "…", "round": 2}, …],
-  "round": 2
+  "round": 2,
+  "honesty": []
 }
 ```
+
+`honesty` carries the stale-profile and stale-ejected-role notices, as every
+command that loads one of those files does.
 
 A cell is `{"unit", "role", "result": "pass"|"finding"|"question"|"na"}`; an
 `na` cell also carries a `"reason"`, and a test-axis cell that is not `na` carries `"coverage": {"classification": "covered"|"partially-covered"|"uncovered", "test_paths": [...]}`.
@@ -1026,20 +1036,37 @@ role classed outside it under `classes_outside` and stores it all the same).
 `cr init --eject-roles`
 writes the four built-ins (`intent-coverage`, `correctness`, `convention`,
 `test-adequacy`) as editable files. More than one role may serve an axis. An
-ejected file shadows the built-in and a second eject never rewrites it, so a
-role file ejected before v0.2.3 keeps the older instructions: its
-`test-adequacy` lacks the three paragraphs on where a missing-test record goes,
-and its `correctness` lacks the paragraph on a predicate's other occurrences
-and keeps the earlier closing paragraph, which does not yet say that another
-copy of the same code carries no assertion. Delete the file and eject again to
-take them, or eject into a scratch home and carry every difference into your
-edit:
+ejected file shadows the built-in, and a second eject never rewrites one you
+edited — but plain `cr init` does bring an **unedited** ejected file up to
+date: a file whose bytes equal the role v0.1.0, v0.2.0, v0.2.1 or v0.2.2
+shipped is replaced with this release's and named under `updated`.
+
+So a role ejected before v0.3 and never touched is updated by `cr init`, and
+one you edited is not. Between upgrading cr and re-running `cr init`, every
+command that loads the older file says so under `honesty`, naming the release,
+what the shipped role changed, and `cr init`:
+
+```json
+{
+  "honesty": [
+    "/Users/you/.cr/roles/correctness.json is the correctness role cr v0.2.2 shipped, unedited, and the shipped role has since changed instructions; cr init updates the file to it, and until then every prompt cr emits for this role carries the earlier release's framing"
+  ]
+}
+```
+
+To see what an edit would be losing, eject into a scratch home and diff:
 
 ```bash
 CR_HOME=/tmp/cr-roles cr init --eject-roles
 diff <(jq -r .instructions ~/.cr/roles/correctness.json) \
      <(jq -r .instructions /tmp/cr-roles/roles/correctness.json)
 ```
+
+v0.2.3 is the change that notice usually points at: `test-adequacy` gained
+three paragraphs on where a missing-test record goes, and `correctness` gained
+the paragraph on a predicate's other occurrences and lost the earlier closing
+paragraph, which did not yet say that another copy of the same code carries no
+assertion.
 
 To add one, write the file:
 
