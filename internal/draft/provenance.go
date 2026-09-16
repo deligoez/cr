@@ -10,8 +10,9 @@ import (
 
 // Provenances is what the owned regions need from outside the records
 // themselves: for §8.1.6's provenance region, the rationale of every rule a
-// record's citation was matched against and the note every note-sourced claim
-// rests on; for §8.1.7's evidence region, the probe every `probed` record
+// record's citation was matched against, the note every note-sourced claim
+// rests on, and the extra intent file of §3.1.5 every file-sourced claim
+// names; for §8.1.7's evidence region, the probe every `probed` record
 // rests on and the cap on the input it carries.
 //
 // The first and third provenance triggers are read off the record —
@@ -26,6 +27,11 @@ type Provenances struct {
 	Rationales map[string]string
 	// NoteClaims are the round's claims with `source: note`, by claim id.
 	NoteClaims map[string]NoteClaim
+	// FileClaims are the round's claims with `source: file`, by claim id,
+	// each holding the extra intent file of §3.1.5 it names. Unlike a
+	// note, the document itself is not in cr's state — §3.1.5 reads it at
+	// the path the round was given — so what §8.1.6 can name is that path.
+	FileClaims map[string]string
 	// Probes are probes.ndjson's records by probe id.
 	Probes map[string]*probe.Record
 	// MaxProbeInput is the resolved post.max_probe_input_bytes of §2.7,
@@ -67,6 +73,9 @@ func (p *Provenances) of(record *finding.Finding) (*render.Provenance, error) {
 		if rests, found := p.NoteClaims[record.Claim]; found {
 			disclosed.Claim, disclosed.Note, disclosed.NoteSource = record.Claim, rests.Note, rests.Source
 			disclosed.NoteStanding = rests.Standing
+		}
+		if drawn, found := p.FileClaims[record.Claim]; found {
+			disclosed.FileClaim, disclosed.IntentFile = record.Claim, drawn
 		}
 	}
 	for at := range record.Citations {
