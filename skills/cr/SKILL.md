@@ -107,15 +107,18 @@ user before they confirm.
 **cr reads the issue text and nothing it links to.** `cr brief` lists every URL
 the issue text carries under `honesty` ("the issue text links https://docs.google.com/…,
 which cr did not read: …"), the target of a terminal hyperlink included even
-when its visible text shows no URL. A requirement stated only behind such a link is in
-no claim until you bring its text in: record the linked document's relevant
-text with `cr note CR-5 "<text>" --source other --pr 1` and draw a claim from
+when its visible text shows no URL — a link inside a file `--intent-extra`
+appended included. A requirement stated only behind such a link is in
+no claim until you bring its text in: save the linked document and append it
+with `--intent-extra <path>` (below), or record its relevant text with
+`cr note CR-5 "<text>" --source other --pr 1` and draw a claim from
 that note (`"source": "note"`, `note_id`, and the note's body as `span`, per
 §3.3.2).
 
 The issue text is stored as read, with terminal control sequences (ANSI
 colour codes) removed and every U+00A0 no-break space turned into a plain
-space, from `--intent-file` and the tracker command alike; line breaks and
+space — from `--intent-file`, the tracker command and every `--intent-extra`
+file alike; line breaks and
 padding are kept. Extract the claims from it yourself — each a verbatim span —
 and record them. **Copy each span from `cr brief`'s printed issue text, and stop
 it at a line wrap**: a span copied from the tracker's own output can carry a
@@ -137,8 +140,29 @@ Each claim id appears once in the file; a repeated id is refused with exit 1
 naming both lines. Recording the claims again clears the round's mapping, so
 record the mapping again after it.
 
+**A document the tracker does not hold can be part of the issue text.**
+`--intent-extra <path>` — repeatable, and on `cr brief` and `cr claims record`
+alike — appends that file's text to the issue text under a separator line
+`--- cr intent file: <path> ---`; `intent.extra_files` in `~/.cr/config.json`
+appends the same way with no flag to type. The flag's paths come first, in the
+order given, then the configured ones, and a path both name is appended once.
+Pass `cr claims record` the same paths `cr brief` was given: the two read the
+issue text independently, so a run missing one reads a different issue text,
+reports drift, and refuses the claims drawn from the part it did not read.
+
+A claim drawn from such a file carries `"source": "file"` and `"file"` naming
+the path exactly as the separator line above its text spells it, and its span
+must occur inside that file's text. A claim of the tracker's own text must
+occur before the first separator line. **Never span a separator line**: a span
+that contains or crosses one lies wholly inside no part and is refused with
+exit 1, as is a `source: file` claim naming a file the round did not read, one
+that names no file, and a `file` on a claim of any other source. A comment
+resting on such a claim carries the file in its provenance block, the way one
+resting on a note carries the note and its source.
+
 `cr brief` and `cr status` list the issue paragraphs no claim span overlaps,
-under `issue_paragraphs` (a paragraph is a blank-line separated block; any
+under `issue_paragraphs` (a paragraph is a blank-line separated block, and a
+separator line is part of none and breaks the block around it; any
 overlap covers it). Nothing is ranked: read each listed paragraph and decide
 whether it states a requirement a claim should carry. `cr status` reads the text
 the round last stored (`"stored": false` when no command stored one for the
