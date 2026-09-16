@@ -88,6 +88,7 @@ cr brief 1 --issue CR-5 --intent-file issue.txt   # orientation payload, opens r
 cr claims record 1 claims.ndjson --intent-file issue.txt
 cr review 1 --axis intent                         # the intent pass runs first
 cr map record 1 pairs.ndjson
+cr review 1 --axis intent                         # §4.6.5's unmapped-unit re-emission
 cr review 1                                       # per-role, per-unit prompts
 cr cells record 1 cells.ndjson
 cr merge ~/.cr/state/acme/shop/pr-1/fanout/1/*/review-*.ndjson -o merged.ndjson --pr 1
@@ -101,9 +102,15 @@ cr post 1 --confirm                               # the only network write
 ```
 
 A record that names a probe is recorded after the probe runs; `cr record` may
-run again in the round. `cr review`'s `expected_cells` marks a cell already
-recorded with `"recorded": true`, so after `cr map record` only the prompts of
-unrecorded cells need running, several to a sub-agent. A note recorded after
+run again in the round. The intent pass runs twice on purpose: only after
+`cr map record` is a unit known to be mapped to no claim, so `cr review --axis
+intent` re-emits one prompt per such unit and the default narrowing does not
+apply to that re-emission. `cr review` otherwise emits a prompt only for a cell
+the round does not hold or a standing note has outdated, marking every cell it
+expects in `expected_cells` with `"recorded"` and `"stale_by_note"`; `--all`
+emits the whole round again. So the fan-out hands you exactly the prompts that
+are open, several to a sub-agent, and no filtering of your own is needed. A note
+recorded after
 the prompts were emitted is reported, never refused: `cr note` names the passes
 it postdates, `cr record` and `cr status` name the records written from a prompt
 older than a note on their claim or unit, and `cr draft` names them in the draft
