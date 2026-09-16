@@ -63,9 +63,35 @@ func (r ownedRegion) checked(record, content string) (string, error) {
 	if strings.Contains(content, Reserved) {
 		return "", &BodyError{Record: record, Problem: fmt.Sprintf(
 			"would carry %q in its %s region, which §8.1.3 reserves for cr's own delimiters",
-			Reserved, strings.TrimSuffix(strings.TrimPrefix(r.open, Reserved), " -->"))}
+			Reserved, r.name())}
 	}
 	return r.wrap(content), nil
+}
+
+// name is the region's own word in §8.1.3's pair — "label", "provenance",
+// "evidence" — read off the opening marker, so a message naming a region and
+// the delimiter it names cannot drift apart.
+func (r ownedRegion) name() string {
+	return strings.TrimSuffix(strings.TrimPrefix(r.open, Reserved), " -->")
+}
+
+// count is how many complete occurrences of the region text holds, found
+// exactly as withoutRegion removes them and OwnedSpans locates them: each
+// opening marker with the first closing marker after it.
+func (r ownedRegion) count(text string) int {
+	n := 0
+	for from := 0; ; n++ {
+		start := strings.Index(text[from:], r.open)
+		if start < 0 {
+			return n
+		}
+		start += from
+		length := strings.Index(text[start:], r.close)
+		if length < 0 {
+			return n
+		}
+		from = start + length + len(r.close)
+	}
 }
 
 // regionSeparator is what stands between two regions of a comment: a blank
