@@ -452,15 +452,16 @@ Probes run in a sandbox worktree at the round's head. The profile supplies
 
 ```bash
 cr sandbox create 1
-cr test 1
-cr probe run 1 --kind mutation --patch mutation.diff --filter TestDiscount
+cr test 1 --path internal/order
+cr probe run 1 --kind mutation --patch mutation.diff --filter TestDiscount --path internal/order
 ```
 
 ```json
 {
   "probe": "p1", "kind": "mutation",
-  "command": ["./run-tests.sh", "-run", "TestDiscount"],
+  "command": ["./run-tests.sh", "-run", "TestDiscount", "./internal/order/..."],
   "filter": "TestDiscount",
+  "paths": ["internal/order"],
   "result": "no-test-failed",
   "establishes": "gap",
   "target": "order.go:5",
@@ -469,6 +470,21 @@ cr probe run 1 --kind mutation --patch mutation.diff --filter TestDiscount
   "honesty": []
 }
 ```
+
+`--path` is repeatable and narrows the run to a path inside the sandbox,
+passed through the profile's `tests.paths_arg` once per path with every
+`{path}` replaced. Each one must be relative, clean and resolve inside the
+sandbox — otherwise exit 2 — and cr does not check that it exists. A `--path`
+against a profile with no `tests.paths_arg` exits 3 naming that profile; use
+`--filter` alone there.
+
+A probe's baseline is a run of the tests the probe runs, not of the whole
+suite: for a mutation probe the run with the same filter and paths, for a gap
+probe the run with the same paths and no filter (the whole suite when it has
+none). It is recorded once per head, sandbox generation, filter and paths, so a
+`cr test` narrowed the same way is reused and one narrowed differently is not.
+Keep `--filter` and `--path` the same across a probe and the `cr test` you want
+it to reuse.
 
 A mutation probe derives its target from the patch. A gap probe places a test
 you write and needs `--target`:
@@ -480,6 +496,14 @@ cr probe run 1 --kind gap --test gap_test.go --target order.go:5 --filter TestDi
 ```json
 {"probe": "p2", "kind": "gap", "result": "passed", "establishes": "behaviour", "target": "order.go:5", …}
 ```
+
+A gap probe's own run is narrowed to the file cr placed, as its only path,
+whatever `--path` you gave — those name the population its baseline measures.
+So when you pass `--path` to a gap probe, at least one must lie under the
+directory `tests.probe_path_template` puts the file in, or the command exits 2.
+A profile with no `tests.paths_arg` cannot name a path to its runner, so the
+probe's run uses the filter alone there and the runner's own discovery finds
+the placed file.
 
 Only a mutation probe's `no-test-failed` over a passing baseline establishes a
 missing test. Both `no-test-failed` and a gap probe's `passed` need the run to
@@ -533,8 +557,8 @@ not remove it: the runner argv, the sandbox path, a `recreated` line naming the
 cause when the sandbox was rebuilt for this run, the clone root's gitignored
 `.env*` files and which of them the sandbox holds, one `not copied` line per
 such file the sandbox lacks (whether or not `sandbox.copy` names it), and, when
-a probe's unfiltered §5.2.2 baseline has not run in this sandbox yet, a
-`baseline` line saying the whole suite runs first. Read the header before the
+a probe's §5.2.2 baseline has not run in this sandbox yet, a
+`baseline` line naming the argv that runs first. Read the header before the
 run finishes. A `not copied` line means the suite runs without that file and
 may read another environment (a Laravel suite missing `.env.testing` reads
 `.env`, which can point at a development database): stop the run. When the line
@@ -544,16 +568,25 @@ a directory below the clone root (copies are taken from the directory cr runs
 in), so run cr from the clone root, or the profile's `sandbox.setup` removed
 it, which recreates nothing, even once the profile changes, because the
 sandbox stands as its setup left it, so fix what removes it and run
-`cr sandbox destroy <pr>`. Then run again. A filtered
-probe with a `baseline` line runs the entire suite before the filtered run. The
+`cr sandbox destroy <pr>`. Then run again. A probe with a `baseline` line runs
+that argv before its own. The
 `not copied` sentences are under the document's `honesty` too, beside the
 recreation notice, and `cr sandbox create` reports them the same way.
 
+A profile may make that binding for the files its suite cannot run without:
+`sandbox.require` lists paths relative to the repository root, and `cr test`
+and `cr probe run` refuse with exit 3 before any run when the sandbox does not
+hold one, naming the path and `sandbox.copy`. Both shipped profiles require
+nothing, so the check costs nothing until a profile asks for it; adding
+`.env.testing` to a Laravel profile's `sandbox.require` turns the `not copied`
+line above into a refusal.
+
 Every run record carries `sandbox`, the generation of the sandbox it measured,
-and a probe resolves its baselines only among the runs of the sandbox it runs
-in: after a recreation the next probe performs §5.2.2's baselines again rather
-than reusing ones measured before it. A sandbox created by an earlier cr names
-no generation and is recreated once, with that reason.
+and a probe resolves its baseline only among the runs of the sandbox it runs
+in: after a recreation the next probe performs §5.2.2's baseline again rather
+than reusing one measured before it. A sandbox created by an earlier cr names
+no generation and is recreated once, with that reason; a run record written by
+one carries no `sandbox` and matches no generation, so it is never a baseline.
 
 ### 5. Draft
 
@@ -1096,11 +1129,15 @@ only after it. A role naming an unknown axis:
 A profile is mechanical, language-specific configuration. Required: `id`,
 `match.files` (marker files that select it; empty means never auto-selected),
 `match.globs`, and `axes` (default on/off per axis). Optional: `sandbox.copy`,
-`sandbox.setup`, `tests.cmd` (argv; absent disables the test axis), `tests.globs`
-(required with `tests.cmd`), `tests.filter_flag`, `tests.timeout_seconds`,
+`sandbox.setup`, `sandbox.require` (paths a test or probe run refuses to start
+without), `tests.cmd` (argv; absent disables the test axis), `tests.globs`
+(required with `tests.cmd`), `tests.filter_flag`, `tests.paths_arg` (argv
+appended once per `--path`, every `{path}` replaced by that path),
+`tests.timeout_seconds`,
 `tests.output_tail_bytes`, `tests.count_pattern` and `tests.failed_pattern` (one
 capture group each), `tests.probe_path_template`, `rules`, `symbols.lang`. cr
-ships `laravel-pest` and `generic`. `laravel-pest` copies `.env`, `.env.testing`
+ships `laravel-pest` and `generic`, both requiring nothing. `laravel-pest`
+copies `.env`, `.env.testing`
 and `vendor` into the sandbox: Laravel runs tests under `APP_ENV=testing`, and
 without `.env.testing` it reads `.env`, so a suite would reach the database the
 developer's own `.env` names. A command that loads a profile file byte-equal to
