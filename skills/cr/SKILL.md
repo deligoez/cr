@@ -684,6 +684,15 @@ the triage and renders the draft again.
 | delete the block entirely, marker included | discarded `not-here`; a **pull-request-scoped** waiver |
 | set `disposition="wrong"` in the marker | discarded as a false positive, body or not; a **repository-wide** waiver that counts against the class |
 
+**Never write `<!-- cr:` into a body.** §8.1.3 reserves the sequence for the
+record marker and for the label, provenance and evidence regions cr generates,
+and a body carrying it is refused with exit 1 naming the record. That covers a
+well-formed pair as much as a bare fragment: a body that brings its own
+`<!-- cr:evidence -->`…`<!-- cr:/evidence -->` gives the block two evidence
+regions, and `cr draft` and `cr post` refuse it. There is no escape — a fenced
+block does not help, because the check reads the bytes — so rewrite the sentence
+without the sequence.
+
 **On a large draft, prefer `cr triage` to line arithmetic.** It finds the block
 by record id and makes exactly the hand edit its verb names, under the per-PR
 lock, so no line number or byte offset has to be computed and a second edit
