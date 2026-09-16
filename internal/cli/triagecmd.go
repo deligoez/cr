@@ -50,9 +50,13 @@ var errBodyWithDiscard = errors.New(
 // It is the draft edit and nothing more. §7.2 has triage happen by editing the
 // file or through this command with the same effect, so the command writes the
 // bytes the matching hand edit writes and leaves every consequence — the
-// discard, the waiver, the triage event, §8.1.3's refusal of a body — to the
-// `cr draft` or `cr post` that reads the file back. It writes per-PR state, so
-// §9.3.2 refuses it on a moved head exactly as it refuses `cr draft`.
+// discard, the waiver, the triage event — to the `cr draft` or `cr post` that
+// reads the file back. The one exception is §8.1.3's refusal of a body carrying
+// the `<!-- cr:` sequence, which draft.Triaged makes here: §8.1.2 names
+// `--body-file` as a channel by which a body reaches the draft, and this is the
+// only point at which cr holds that body rather than bytes it has to parse
+// regions out of. It writes per-PR state, so §9.3.2 refuses it on a moved head
+// exactly as it refuses `cr draft`.
 func newTriageCmd(out *writer) *cobra.Command {
 	var bodyFile string
 	cmd := &cobra.Command{

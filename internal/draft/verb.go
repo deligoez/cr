@@ -89,9 +89,20 @@ func (e *SoftenQuestionError) Error() string {
 //
 // body is `--body-file`'s content, and nil when none was given. Its leading and
 // trailing line feeds are dropped, because render.AgentRegion drops them from
-// every block it reads and a region therefore never carries them. Nothing else
-// about it is judged here: §8.1.3 is `cr draft`'s and `cr post`'s to apply to
-// the region they read.
+// every block it reads and a region therefore never carries them.
+//
+// One thing about it is judged here, and §8.1.3 leaves no room to defer it:
+// a body carrying the `<!-- cr:` sequence is refused, at the exit code §8.1.3
+// fixes, before a byte is written. §8.1.2 names this flag as one of the two
+// channels by which a body reaches the draft, and it is the only one where cr
+// holds the body itself — once the pair is in the file, a well-formed
+// `<!-- cr:label -->`…`<!-- cr:/label -->` is the same bytes as a region cr
+// rendered, and the check a `cr draft` or `cr post` can still make over the
+// block is render.ValidateRegions' narrower one. A refusal writes nothing, so
+// §7.2.4's equivalence with the hand edit is untouched for every body §8.1.3
+// admits, and a hand edit writing one it does not is refused at the same exit
+// code by the `cr draft` or `cr post` that reads it back. Everything else about
+// the body — §8.1.5's question mark, §7.1.6's preservation — stays theirs.
 //
 // A draft this cannot split into blocks by record — a malformed marker, or two
 // blocks for one record — is refused as `cr draft` refuses it, since there is
@@ -132,6 +143,9 @@ func Triaged(file, id string, verb Verb, body *string) (string, error) {
 	}
 	text := file[lineEnd:end]
 	if body != nil {
+		if err := render.RefuseReserved(id, *body); err != nil {
+			return "", err
+		}
 		text = withAgentRegion(text, strings.Trim(*body, "\n"))
 	}
 	return file[:start] + line + text + file[end:], nil

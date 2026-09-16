@@ -247,6 +247,20 @@ func ValidateBody(record, body string) error {
 	if strings.TrimSpace(body) == "" {
 		return &BodyError{Record: record, Problem: "is empty, and §8.1.3 requires every body to be non-empty"}
 	}
+	return RefuseReserved(record, body)
+}
+
+// RefuseReserved refuses a body carrying §8.1.3's reserved sequence, naming
+// the record.
+//
+// It is ValidateBody's second half on its own, for the one body cr is handed
+// whole rather than read back out of a draft. §8.1.2 names `cr triage
+// --body-file` as a channel by which a body reaches the draft, and there the
+// sequence is looked for in the bytes the caller wrote, before any region has
+// been parsed out of them — the only point in the pipeline at which the check
+// is exact, since a well-formed pair inside those bytes is indistinguishable
+// from a region of cr's own once the block has been written.
+func RefuseReserved(record, body string) error {
 	if strings.Contains(body, Reserved) {
 		return &BodyError{Record: record, Problem: fmt.Sprintf(
 			"contains %q, which §8.1.3 reserves for the record marker and cr's own regions", Reserved)}
