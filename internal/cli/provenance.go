@@ -27,6 +27,7 @@ func draftProvenances(
 	sources := &draft.Provenances{
 		Rationales: make(map[string]string),
 		NoteClaims: make(map[string]draft.NoteClaim),
+		FileClaims: make(map[string]string),
 		Probes:     make(map[string]*probe.Record),
 	}
 	ruleCited, claimed, probed := false, false, false
@@ -47,7 +48,7 @@ func draftProvenances(
 		}
 	}
 	if claimed {
-		if err := readNoteClaims(l, owner, repo, pr, round, sources.NoteClaims); err != nil {
+		if err := readClaimProvenance(l, owner, repo, pr, round, sources); err != nil {
 			return nil, err
 		}
 	}
@@ -78,9 +79,11 @@ func readProbes(l state.Layout, owner, repo string, pr int, into map[string]*pro
 	return nil
 }
 
-// readNoteClaims fills into the note behind every claim of the round drawn
-// from the context store, with the source the store records for that note and
-// whether it still stands.
+// readClaimProvenance fills in what §8.1.6 names for the two claim sources it
+// discloses: the note behind every claim of the round drawn from the context
+// store, with the source the store records for that note and whether it still
+// stands, and the extra intent file of §3.1.5 behind every claim drawn from
+// one.
 //
 // The notes are the issue key's, as §3.6.4 loads them. §8.1.6 names the note
 // behind every such claim with no exception for a withdrawn one, so a claim
@@ -89,22 +92,32 @@ func readProbes(l state.Layout, owner, repo string, pr int, into map[string]*pro
 // with no source to name. The register is withdrawnClaims' business: a record
 // resting on either is held as a question and reported under §3.6.6, and the
 // region beside it says why.
-func readNoteClaims(
-	l state.Layout, owner, repo string, pr int, round *state.Meta, into map[string]draft.NoteClaim,
+//
+// A file-sourced claim carries its path and nothing more. The document is not
+// cr's state — §3.1.5 reads it at the path the round was given and §3.3.1 has
+// already checked the claim's span against that text — so there is no standing
+// to report and nothing to look up.
+func readClaimProvenance(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, into *draft.Provenances,
 ) error {
-	claims, notes, err := roundNoteClaims(l, owner, repo, pr, round)
+	claims, notes, err := roundClaims(l, owner, repo, pr, round)
 	if err != nil {
 		return err
 	}
 	for i := range claims {
-		rests := draft.NoteClaim{Note: claims[i].NoteID, Standing: render.NoteMissing}
-		if held, found := note.Find(notes, claims[i].NoteID); found {
-			rests.Source, rests.Standing = string(held.Source), render.NoteStands
-			if held.Retracted() {
-				rests.Standing = render.NoteRetracted
+		switch claims[i].Source {
+		case intent.ClaimFromNote:
+			rests := draft.NoteClaim{Note: claims[i].NoteID, Standing: render.NoteMissing}
+			if held, found := note.Find(notes, claims[i].NoteID); found {
+				rests.Source, rests.Standing = string(held.Source), render.NoteStands
+				if held.Retracted() {
+					rests.Standing = render.NoteRetracted
+				}
 			}
+			into.NoteClaims[claims[i].ID] = rests
+		case intent.ClaimFromFile:
+			into.FileClaims[claims[i].ID] = claims[i].File
 		}
-		into[claims[i].ID] = rests
 	}
 	return nil
 }
@@ -117,12 +130,15 @@ func readNoteClaims(
 // `cr record`, so a note retracted mid-round takes the assertion register away
 // from the records resting on it in the same round.
 func withdrawnClaims(l state.Layout, owner, repo string, pr int, round *state.Meta) (map[string]bool, error) {
-	claims, notes, err := roundNoteClaims(l, owner, repo, pr, round)
+	claims, notes, err := roundClaims(l, owner, repo, pr, round)
 	if err != nil {
 		return nil, err
 	}
 	withdrawn := make(map[string]bool, len(claims))
 	for i := range claims {
+		if claims[i].Source != intent.ClaimFromNote {
+			continue
+		}
 		if !note.StandingOf(notes, claims[i].NoteID).Stands() {
 			withdrawn[claims[i].ID] = true
 		}
@@ -130,12 +146,17 @@ func withdrawnClaims(l state.Layout, owner, repo string, pr int, round *state.Me
 	return withdrawn, nil
 }
 
-// roundNoteClaims reads the round's claims with `source: note` and every note
-// the issue key's store holds, which is what note.StandingOf needs whole.
+// roundClaims reads the round's claims and every note the issue key's store
+// holds, which is what note.StandingOf needs whole.
+//
+// The claims are not filtered by source here, because the two callers want
+// different subsets of them — §3.6.6's withdrawal reads the note-sourced ones
+// and §8.1.6's region reads those and the file-sourced ones too — and one read
+// of claims.ndjson per command is the point of the shared helper.
 //
 // A round that resolved no issue key has no store to load, so every
 // note-sourced claim in it reads as resting on a note the store does not hold.
-func roundNoteClaims(
+func roundClaims(
 	l state.Layout, owner, repo string, pr int, round *state.Meta,
 ) ([]intent.Claim, []note.Note, error) {
 	claims, err := state.ReadStamped[intent.Claim](
@@ -150,11 +171,5 @@ func roundNoteClaims(
 			return nil, nil, err
 		}
 	}
-	drawn := make([]intent.Claim, 0, len(claims))
-	for i := range claims {
-		if claims[i].Source == intent.ClaimFromNote {
-			drawn = append(drawn, claims[i])
-		}
-	}
-	return drawn, notes, nil
+	return claims, notes, nil
 }
