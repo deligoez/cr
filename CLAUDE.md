@@ -3,8 +3,8 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.2.0.md` is the
-normative v0.2 contract. This file holds the working conventions and the rules
+sequenced next, and what must be measured before it is decided. `spec/0.3.0.md` is the
+normative v0.3 contract. This file holds the working conventions and the rules
 that are easy to violate by accident.
 
 ## Install
@@ -422,22 +422,22 @@ package is under `internal/`, so there is no importable API to compare.
 
 ## Command surface
 
-Every command below is **implemented**. `spec/0.2.0.md` §11 is the
+Every command below is **implemented**. `spec/0.3.0.md` §11 is the
 source of truth; this table is a map, not a promise.
 
 | Command | Purpose |
 |---------|---------|
 | `cr init [--eject-roles]` | Create the `~/.cr` tree and write the default profiles; `--eject-roles` also writes the built-in roles as editable files |
-| `cr brief <pr> [--issue <key>] [--intent-file <path>]` | Orientation payload; opens a new round when the head moved |
+| `cr brief <pr> [--issue <key>] [--intent-file <path>] [--intent-extra <path>]...` | Orientation payload; opens a new round when the head moved. `--intent-extra` appends a file to the issue text, repeatably |
 | `cr review <pr> [--axis <id>] [--units <ids> \| --shard <k/n>] [--all]` | Emit per-role, per-unit prompts and output paths, narrowed to the cells still open unless `--all` |
-| `cr claims record <pr> <file> [--intent-file <path>]` | Store the claims extracted from the issue |
+| `cr claims record <pr> <file> [--intent-file <path>] [--intent-extra <path>]...` | Store the claims extracted from the issue; like `--intent-file`, the extras are not inherited from the brief |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
 | `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
 | `cr merge <files...> -o <out> [--repo <r>] --pr <n>` | Merge and deduplicate per-role findings |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
-| `cr test <pr> [--filter]` | Run the suite inside the sandbox |
+| `cr test <pr> [--filter] [--path <path>]...` | Run the suite inside the sandbox, scoped to the given paths |
 | `cr probe run <pr> --kind <kind> ...` | Execute and record a mutation or gap probe |
 | `cr draft <pr>` | Render the editable draft |
 | `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <f>\|-]` | Apply one triage verb to the draft, as the hand edit would (§7.2.4) |
@@ -451,9 +451,9 @@ source of truth; this table is a map, not a promise.
 | `cr status <pr>` | Coverage, states, and completeness |
 | `cr config [--resolved]` | Effective configuration and its layers |
 
-v0.2 ends at posting. `cr recheck`, `cr verify`, `cr resolve`, and `cr accept`
-are **not** v0.2 commands — the re-review half of the loop, anchor migration
-included, is v0.3, declared out of scope in `spec/0.2.0.md` §1.3.6. A moved
+v0.3 ends at posting. `cr recheck`, `cr verify`, `cr resolve`, and `cr accept`
+are **not** v0.3 commands — the re-review half of the loop, anchor migration
+included, is v0.4, declared out of scope in `spec/0.3.0.md` §1.3.6. A moved
 head makes the round stale (§9.3); `cr brief` opens a new one.
 
 ## Project structure
@@ -495,7 +495,8 @@ scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known
                      mutation-run.sh, mutation-merge.py
 spec/
   0.1.0.md           Normative v0.1 contract
-  0.2.0.md           Normative v0.2 contract, the current one
+  0.2.0.md           Normative v0.2 contract
+  0.3.0.md           Normative v0.3 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
@@ -504,7 +505,9 @@ skills/cr/
 ```
 
 Runtime state never lives here. It lives under `~/.cr/`, laid out in
-`spec/0.2.0.md` §2.2.
+`spec/0.3.0.md` §2.2. Since v0.3.0 §2.3's table is a fence as well as a map: cr
+refuses to write any file under a pull request's state directory that the table
+does not name.
 
 ## Sibling codebase: tp
 
@@ -700,6 +703,14 @@ do not race. Three rules make it safe, each learned by breaking it.
   2026-09-14, a mutant of `internal/cli/output.go` overlaid that way left the
   pseudo-terminal test green against unmutated code. Passing the map as
   `GOFLAGS=-overlay=<map>` reaches the child build, and the same mutant went red.
+- **`hc` hunk indices go stale within seconds, and a green tree is no evidence
+  the commit is yours.** Measured 2026-09-16 with several units editing one
+  file: a plan built from an `hc diff --json` read moments earlier took a
+  sibling unit's hunk under its own message, and the working tree stayed green
+  throughout, because both hunks compiled. So re-read `hc diff --json`
+  immediately before each `hc run`, and verify what landed on a `git archive` of
+  the commit rather than on the working tree — only the extract shows what the
+  commit actually holds.
 
 **`.tp-review/` is tp's, including `REVIEW-DECISION.md`.** Since tp 1.1.1 a
 `PreToolUse` hook refuses a hand edit anywhere under it, citing tp's §6.2 scope
@@ -900,7 +911,7 @@ because they hold for the next pass:
 | Suggestions | An out-of-hunk suggestion blocks posting with the record id named |
 | Posting | No network write without `--confirm`; all comments land in one review; a posted round refuses a second |
 | Unknown outcome | A 5xx or timeout exits 4; `cr draft`, `cr post --confirm` and a moved-head `cr brief` refuse until `cr post --reconcile` |
-| Moved head | `cr brief` opens a new round with open records stale; anchors are not migrated (v0.3) |
+| Moved head | `cr brief` opens a new round with open records stale; anchors are not migrated (v0.4) |
 | Dedup | A finding matching an existing human thread is suppressed |
 | Honesty | A disabled axis appears in the report with its reason |
 | Nil slices | Empty collections serialise as `[]`, never `null` |
