@@ -93,6 +93,48 @@ func TestBriefAppendsEveryExtraIntentFileUnderItsSeparatorLine(t *testing.T) {
 		"`cr status` reports over the text the brief stored")
 }
 
+// §3.3.3 over the joined text of §3.1.5: a claim drawn from an extra intent
+// file reads as undrifted while the round is briefed with the same paths, and a
+// brief that drops one reports drift and says that claim's span is gone.
+//
+// The second half is the trap the skill warns about, asserted rather than
+// described: `cr brief` and `cr claims record` read the issue text
+// independently, so a run given fewer paths is reading another issue text.
+func TestABriefThatDropsAnExtraIntentFileReportsDriftForItsClaims(t *testing.T) {
+	_, issue, _ := rerecordHome(t)
+	design := writeOutside(t, "design.md", extraDesign)
+	_, err := recordClaimsWithExtra(t, issue, []string{design},
+		`{"id":"`+fixtureIssue+`#c1","text":"Oldest first.","source":"file",`+
+			`"file":"`+design+`","span":"drains oldest first"}`)
+	require.NoError(t, err)
+
+	same := briefWithExtra(t, issue, design)
+	assert.False(t, same.Drift.Drifted, "the same paths read the same issue text")
+	require.Len(t, same.Drift.Claims, 1)
+	assert.True(t, same.Drift.Claims[0].SpanOccurs)
+
+	dropped := briefWithExtra(t, issue)
+	assert.True(t, dropped.Drift.Drifted, "a dropped part is a changed issue text")
+	require.Len(t, dropped.Drift.Claims, 1)
+	assert.False(t, dropped.Drift.Claims[0].SpanOccurs,
+		"§3.3.3: the span of a claim drawn from the dropped part no longer occurs")
+}
+
+// briefWithExtra runs `cr brief` over issue with extra appended, and decodes it.
+func briefWithExtra(t *testing.T, issue string, extra ...string) ingestBrief {
+	t.Helper()
+	args := []string{"brief", fixturePR, "--repo", fixtureSlug,
+		"--issue", fixtureIssue, "--intent-file", issue}
+	for _, path := range extra {
+		args = append(args, "--intent-extra", path)
+	}
+	printed, err := runCLIPrinting(t, args...)
+	require.NoError(t, err)
+	var briefed ingestBrief
+	require.NoError(t, json.Unmarshal([]byte(printed), &briefed))
+	return briefed
+}
+
 // §3.1.5's second source through `cr claims record`: `intent.extra_files`
 // appends the same way the flag does, so a project that configures a document
 // need not name it on every command.
