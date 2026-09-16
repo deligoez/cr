@@ -366,6 +366,16 @@ var codes = []mapped{
 			"changes record. To say something else at a record's location, keep that record " +
 			"there and edit its body instead of deleting it and moving another record onto " +
 			"its line. `cr draft` reads the same file again"},
+	// §7.2.4 rejects with exit code 1 a record id the draft holds no block
+	// for. The command line is the shape §11 gives it and the draft read;
+	// what is wrong is the id, which names nothing in the file.
+	{is[*draft.NoBlockError](), ExitValidation,
+		"name a record whose block the draft holds; `cr draft <pr>` prints the draft's path, and " +
+			"each block opens with a marker naming its record id"},
+	// §7.2.4 rejects `soften` on a block already reading kind=question with
+	// exit code 1, beside the unknown id above.
+	{is[*draft.SoftenQuestionError](), ExitValidation,
+		"the block is already a question; use `keep` to replace its body, or leave it as it is"},
 	// §5.4.4's floor and §5.4.5's ceiling, refused by `cr record` before
 	// anything is stored and by `cr post` before the payload is built. The
 	// record parsed and every field §6.1 requires is there; what is wrong
