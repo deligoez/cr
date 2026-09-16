@@ -103,3 +103,36 @@ func TestASandboxWithoutAGenerationIsRecreated(t *testing.T) {
 	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
 	assert.Equal(t, []any{}, honestyList(t, stdout))
 }
+
+// §5.2.6: "A run record carrying no `sandbox` matches no sandbox generation."
+//
+// The record below is one an earlier cr wrote: it stands at the round's head,
+// carries no probe and passed, so every other condition §5.2.6 puts on a
+// baseline holds — and the missing generation is the only thing that can keep
+// it from being resolved as one. A probe that reused it would be graded against
+// a sandbox nothing can identify, which is exactly what stamping the generation
+// was added to prevent.
+func TestARunFromBeforeGenerationsIsNoBaseline(t *testing.T) {
+	prepared, fixture, _, _ := probeFixture(t, passingRunner)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+	legacy := map[string]any{
+		"id": "r1", "head": head, "round": 2, "exit_code": 0,
+		"timed_out": false, "contaminated": false, "duration_ms": 1,
+		"tests_run": 4, "tests_failed": 0, "output_tail": "Tests:  4 passed\n", "passed": true,
+	}
+	line, err := json.Marshal(legacy)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(
+		prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileRuns),
+		append(line, '\n'), 0o600))
+
+	reported := probeDocument(t, throughAPipe(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--kind", "mutation", "--patch", writePatch(t, fixtureDiff)))
+
+	assert.Equal(t, "r2", reported["baseline"],
+		"§5.2.6 performed a fresh baseline rather than resolving the record naming no generation")
+	runs := storedRecords(t, prepared, state.FileRuns)
+	require.Len(t, runs, 3, "the legacy record, the baseline performed for it, and the probe's own run")
+	assert.NotContains(t, runs[0], "sandbox", "the record left in place still names no generation")
+	assert.NotEmpty(t, runs[1]["sandbox"], "and the run performed instead names the sandbox it measured")
+}
