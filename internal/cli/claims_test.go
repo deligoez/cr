@@ -466,3 +466,19 @@ func TestTheIntentFileBypassesTheTrackerCommandRatherThanOutrankingIt(t *testing
 	assert.Equal(t, []string{"jira", "issue", "view", intent.Placeholder, "--plain"},
 		configured.Cmd, "§3.1.2 is the default intent.cmd, resolved through §2.7's layers")
 }
+
+// §3.1.5's two sources of extra intent files, and the order between them: the
+// `--intent-extra` paths in the order given, then `intent.extra_files`' own, a
+// path both give counted once.
+func TestTheExtraIntentFilesAreTheFlagsThenTheConfiguredPathsEachOnce(t *testing.T) {
+	layout := state.New(crHome(t))
+	require.NoError(t, layout.Init())
+	t.Setenv("CR_INTENT_EXTRA_FILES", `["shared.md","design.md"]`)
+
+	source, err := intentSource(layout, claimsOwner, claimsRepo, "",
+		[]string{"design.md", "api.md", "design.md"})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"design.md", "api.md", "shared.md"}, source.Extra,
+		"§3.1.5: the flag's order first, then the configured paths, each path once")
+}
