@@ -165,3 +165,32 @@ func TestAnUncompilableKeyPatternIsAConfigurationFault(t *testing.T) {
 	assert.Contains(t, err.Error(), "intent.key_pattern")
 	assert.Equal(t, Key{}, key)
 }
+
+// PatternAdmits answers one question — would `--issue <key>` resolve <key> —
+// and it has to answer it the way ResolveKey would, because a caller reading
+// yes goes on to tell a user to type that flag.
+//
+// The fragment case is the one a plain MatchString gets wrong: `[0-9]+` matches
+// inside `CR-7`, and §3.2's leftmost-match rule then resolves `7`, which is not
+// the key asked about. The uncompilable pattern is not reachable through a
+// command — ResolveKey aborts on it first — and is pinned here so the function
+// stays total rather than growing an error return nobody can trigger.
+func TestPatternAdmitsAnswersWhatTheFlagWouldResolve(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		pattern string
+		key     string
+		want    bool
+	}{
+		{name: "the default and a key of its shape", pattern: specDefaultPattern, key: "CR-7", want: true},
+		{name: "a key found inside a longer source", pattern: specDefaultPattern, key: "feature/CR-7", want: false},
+		{name: "a pattern that matches nothing of it", pattern: `ZZZ-[0-9]+`, key: "CR-7", want: false},
+		{name: "a pattern that matches only a fragment", pattern: `[0-9]+`, key: "CR-7", want: false},
+		{name: "no key", pattern: specDefaultPattern, key: "", want: false},
+		{name: "a pattern that will not compile", pattern: `[A-Z`, key: "CR-7", want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, PatternAdmits(tc.pattern, tc.key))
+		})
+	}
+}
