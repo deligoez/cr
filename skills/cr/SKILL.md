@@ -1262,6 +1262,14 @@ suggestion), `globs`, `exempt`, `profiles`. Layers, highest first: per
 repository, global, the profile's `rules`; a higher layer replaces a same-id rule
 whole.
 
+The `laravel-pest` profile ships four starter rules in that lowest layer:
+`negative-test-name` (the one with a detector), `single-use-local`,
+`variable-named-for-its-value` and `repeated-fixture-setup`. They are house style
+cr proposes rather than style the team declared, so each keeps the default
+`question` register and `low` severity. A team that has adopted one writes a file
+under the same id at the global or per-repository layer, where `kind` and
+`severity` are theirs; `cr rules list` shows which layer each rule came from.
+
 ```json
 {
   "id": "no-zero-floor",
