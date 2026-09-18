@@ -477,8 +477,8 @@ func lineOr(reported *int, absent int) int {
 
 // WriteThreads stores the ingested threads in threads.ndjson (§2.3).
 //
-// §2.3.3 does not list that file among the eight whose records carry head and
-// round, so the write goes through WriteRecords, which refuses those eight.
+// §2.3.3 does not list that file among the nine whose records carry head and
+// round, so the write goes through WriteRecords, which refuses those nine.
 // The file is named here and nowhere else, so a command that ingests threads
 // cannot put them anywhere but where the §2.3 table says they live.
 func WriteThreads(k *state.Lock, threads []Thread) error {

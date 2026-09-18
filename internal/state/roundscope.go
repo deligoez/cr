@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// ReadStamped reads one of the eight §2.3.3 files and returns the records of
+// ReadStamped reads one of the nine §2.3.3 files and returns the records of
 // one round, in file order. It refuses a file §2.3.3 does not list, as
 // AppendStamped does.
 //
@@ -46,7 +46,7 @@ func ReadStamped[T any](l Layout, owner, repo string, pr int, name string, round
 // The result is never nil: a file holding none of the round's records is no
 // records rather than a null slice (§12.3). A line is decoded twice — once for
 // its round and once into the record type — which is what lets the filter run
-// over every one of the eight shapes without any of them exposing the pair.
+// over every one of the nine shapes without any of them exposing the pair.
 //
 // A line it cannot decode is refused through unusableLine, as decodeRecords
 // refuses one.
@@ -80,7 +80,7 @@ func unusableLine(path string, line int, err error) error {
 	return fmt.Errorf("%s line %d: %w", path, line, FileFailure("use", filepath.Base(path), UnusableHint, err))
 }
 
-// ReplaceStamped replaces the current round's records in one of the eight
+// ReplaceStamped replaces the current round's records in one of the nine
 // §2.3.3 files, stamping head and round onto every record it writes and leaving
 // every earlier round's line byte for byte. It refuses a file §2.3.3 does not
 // list, as AppendStamped does.
@@ -117,7 +117,7 @@ func ReplaceStamped[T Stamped](k *Lock, name string, at Stamp, records []T) erro
 	return k.Write(name, append(kept, added...))
 }
 
-// ClearStamped drops the current round's records from one of the eight §2.3.3
+// ClearStamped drops the current round's records from one of the nine §2.3.3
 // files and leaves every earlier round's line byte for byte.
 //
 // mapping.ndjson is what it exists for: §3.3.1 clears it whenever claims are
@@ -365,7 +365,7 @@ func earlierRounds(k *Lock, name string, round int) ([]byte, error) {
 // file order and byte for byte.
 //
 // A line is handed to drop as the fields it supplied rather than as a decoded
-// record. This file is generic over eight different record shapes, and decoding
+// record. This file is generic over nine different record shapes, and decoding
 // each line into its own struct would mean a line the current version cannot
 // fully decode — a field a later version added — deciding the fate of a round
 // it has nothing to do with. The bytes that survive are the bytes that were

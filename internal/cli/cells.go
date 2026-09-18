@@ -20,7 +20,7 @@ import (
 // cellKeyFields is §4.5.6's key, by the JSON names coverage.ndjson holds them
 // under: a cell sits at one `(unit, role)`, and that pair is what a recording
 // replaces. It is declared here, beside the command §4.5.6 gives the rule to,
-// rather than inside internal/state, which is generic over all eight files of
+// rather than inside internal/state, which is generic over all nine files of
 // §2.3.3 and knows nothing about what makes a cell a cell.
 var cellKeyFields = []string{"unit", "role"}
 

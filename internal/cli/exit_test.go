@@ -218,7 +218,7 @@ func TestAMalformedMarkerExitsWithTheValidationCode(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(fmt.Errorf("reading the draft: %w", err)))
 }
 
-// agentRecord stands in for a record type of one of the eight §2.3.3 files. It
+// agentRecord stands in for a record type of one of the nine §2.3.3 files. It
 // carries head and round the only way any type can: by embedding state.Stamp.
 type agentRecord struct {
 	state.Stamp

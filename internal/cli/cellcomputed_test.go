@@ -97,7 +97,7 @@ func theRecordedCell(t *testing.T, layout state.Layout) coverage.Cell {
 // the file that was refused leaves the round exactly as it found it.
 //
 // §4.5.5's two computed fields are refused by different guards — `head` by
-// state.DecodeStamped, which owns §2.3.3's pair for all eight files, and
+// state.DecodeStamped, which owns §2.3.3's pair for all nine files, and
 // `unit_hash` by the cell's own decoder — and both are asserted here through
 // the command, because what a caller sees is one exit code and one round on
 // disk. A guard that refused only inside its package, or that returned a usage

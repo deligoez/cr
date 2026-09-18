@@ -178,7 +178,7 @@ func countsLine(counts finding.TriageCounts) string {
 // is exempt: there is no one round whose head §9.3.1 could compare against a
 // current one, and no per-PR state for §9.3.2 to refuse the write of. §9.3.5's
 // round scoping does not reach it either — triage.ndjson is repository state
-// under §2.2 and not one of §2.3.3's eight per-PR files, so there is no round
+// under §2.2 and not one of §2.3.3's nine per-PR files, so there is no round
 // stamped on a record here for a read to be narrowed to.
 //
 // The read takes no lock, per §2.3.2, and this command writes nothing at all:

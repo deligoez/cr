@@ -66,7 +66,7 @@ func TestTheWriterOwnsHeadAndRound(t *testing.T) {
 	}, got)
 }
 
-// §2.3.3 names exactly eight files. Which writer a file takes follows from that
+// §2.3.3 names exactly nine files. Which writer a file takes follows from that
 // list and not from the caller, so a stamped file cannot be written unstamped
 // and an unstamped one cannot acquire the pair by accident.
 func TestAFileIsWrittenThroughTheWriterItsSchemaRequires(t *testing.T) {

@@ -343,7 +343,7 @@ func (c *cellChecker) gated(line int, filled *role.Role) error {
 // the order a rejection names them.
 //
 // `head` is not among them because state.DecodeStamped already refuses it for
-// every one of §2.3.3's eight files. `unit_hash` is a cell's alone, so it is
+// every one of §2.3.3's nine files. `unit_hash` is a cell's alone, so it is
 // refused here: §3.4.6 fixes the value, `cr cells record` takes it from
 // units.ndjson for the unit the cell names, and no other record carries it.
 var cellComputed = []string{"unit_hash"}

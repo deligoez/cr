@@ -26,12 +26,12 @@ const (
 // round, the pull request, the head, and the reason when one was given.
 //
 // It deliberately does not embed state.Stamp, which carries the same head and
-// round for the eight files of §2.3.3. Those two fields are what §9.3.5 has
+// round for the nine files of §2.3.3. Those two fields are what §9.3.5 has
 // every command filter on when it reads only the current round's records, and
 // §9.3.5 exempts waivers from that scoping in as many words: a waiver applies
 // across rounds. Carrying the pair under the name every round-scoped reader
 // recognises would invite exactly the read the exemption forbids. Neither of
-// §7.4.4's files is one of §2.3.3's eight either, so the stamp's writer-owned
+// §7.4.4's files is one of §2.3.3's nine either, so the stamp's writer-owned
 // contract does not reach them — state.ReplaceStamped refuses `waivers.ndjson`
 // by name, and the repository-wide file is not per-PR state at all.
 //
