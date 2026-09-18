@@ -216,16 +216,30 @@ type checker struct {
 	round *Round
 }
 
-// proposalFields are §5.7's rows an agent may write, in the table's order.
-var proposalFields = []string{
-	"id", "kind", "role", "unit", "finding", "target",
-	"hypothesis", "settles", "input", "filter", "paths",
-}
-
-// proposalComputed are §5.7's rows cr writes. `head` and `round` are not here:
+// proposalFields are §5.7's rows an agent may write and proposalComputed the
+// rows cr writes, both read off the one table in fields.go so the decoder and
+// the prompt cannot come to describe a proposal differently.
+//
+// §2.3.3's `head` and `round` are left out of proposalComputed:
 // state.DecodeStamped refuses those before this checker sees the line, and
-// naming them twice would give the agent two different sentences for one rule.
-var proposalComputed = []string{"state", "probe", "reason"}
+// naming them twice would give the agent two sentences for one rule.
+var proposalFields, proposalComputed = splitFields()
+
+// splitFields reads fields.go's table into the two lists the checker uses.
+func splitFields() (writable, computed []string) {
+	writable, computed = make([]string, 0, len(fields)), make([]string, 0, 3)
+	for _, field := range fields {
+		switch field.Requirement {
+		case finding.Computed:
+			computed = append(computed, field.Name)
+		case finding.Stamped:
+			// state.DecodeStamped owns these.
+		default:
+			writable = append(writable, field.Name)
+		}
+	}
+	return writable, computed
+}
 
 // check is §5.7.1, in the order the sentence names its refusals.
 func (c *checker) check(line int, supplied map[string]json.RawMessage, p *Proposal) error {
