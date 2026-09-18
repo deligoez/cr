@@ -248,13 +248,22 @@ Two rules that make the phase-boundary run worth doing:
    not-survived and leaves NOT COVERED alone**, because coverage is gathered
    before any mutant runs and never touches the failing exec.
 
-   A second corruption reaches the same fake 100% by another road, found in a
-   sibling repository: gremlins can measure its baseline from a **cached** `go
-   test`, so the baseline reads ~0, the coefficient multiplies it to ~0, and
-   every slow mutant times out. There the tell was `Gathering coverage... done
-   in 186ms` against a real 73-second suite. cr is not currently hit — three
-   runs here gathered in 21.9s, 22.2s and 24.3s against a 26.7s suite — but
-   `go clean -testcache` before a run costs nothing and forecloses it.
+   A second corruption reaches the same fake 100% by another road: gremlins can
+   measure its baseline from a **cached** `go test`, so the baseline reads ~0,
+   the coefficient multiplies it to ~0, and every slow mutant times out. In a
+   sibling repository the tell was `Gathering coverage... done in 186ms` against
+   a real 73-second suite.
+
+   **cr is hit by this, and the per-package runs are where it bites.** Measured
+   2026-09-18 on `./internal/proposal`, whose cold suite is 0.23s: a run started
+   with a warm cache reported **16 TIMED OUT of 18 runnable in 2.3 seconds, 100%
+   efficacy**; `go clean -testcache` immediately before the same command gave 17
+   killed, 1 lived, **0 timed out**, 94.44%. The whole-tree runs recorded above
+   escaped it only because gathering a 26.7s suite is slow enough to be
+   noticed. So run `go clean -testcache` before **every** gremlins invocation,
+   not once before a batch: a dry run, a `go test`, or the previous package's
+   run repopulates the cache in between, and the next package then reports a
+   perfect score in seconds.
 
    **The tell to reach for first is the gathering time itself: it should be
    close to a cold `go test` of what is being mutated.** One number, one
