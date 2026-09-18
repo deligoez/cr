@@ -493,7 +493,9 @@ var codes = []mapped{
 	// recorded round and the key §3.2 just resolved disagree, which §11.2
 	// codes 4 beside the moved head above.
 	{is[*brief.KeyRewriteError](), ExitState,
-		"pass the issue key the round recorded, which the message names"},
+		"take the step the message names: pass the recorded issue key while " +
+			"intent.key_pattern still admits it, or restore such a pattern or remove " +
+			"the pull request's state directory when it no longer does"},
 	// §4.6.1: `--units` names an id that is not a unit of the current round.
 	// The ids are checked against units.ndjson, which is data rather than
 	// the shape of the command line, and §4.6.1 codes the rejection 1.
