@@ -45,6 +45,17 @@ into questions — still has no measurement.
 - **Against a human review.** On pull requests that already carry a careful human review, compare what cr
   raises with what the human raised: overlap, cr-only, human-only, and cr's false assertions (the number
   that should be zero).
+
+  **Measured 2026-09-18** (`spec/measurements/2026-09-18-m3-against-a-human-review.md`; tarfin-labs/backend#3757,
+  January 2025, 25 human line comments, review threads shimmed out of cr's ingestion, read-only worktree,
+  nothing posted). Against the 16 comments written at the commit cr reviewed: **8 recovered, 8 missed, 43
+  cr-only records, 0 false assertions among 9 findings**, each verified by hand. The split is by kind, not by
+  luck: every dead-code, redundant-assertion and test-discrimination point was recovered, and seven of the
+  eight misses are *shaping* comments — name this test that way, extract this helper. House style is not in
+  the issue and not in the diff, so §2.6's rule corpus is where those belong, which makes a rule-corpus
+  intake the measured remedy for cr's one systematic miss (see 4). cr also found at that commit what the
+  human found two commits later (`latestOfMany`), and stated the consequence the human did not: an ordered
+  `hasOne` makes the endpoint's `whereHas` match any decision rather than the last.
 - **Recall against known defects.** The defects the v0.2.0 QA pass found are recorded with repros and the
   sections they violated. Reverse the `qa-` fix commits so the diff under review is the defective code, give the violated
   sections as intent, and count findings, questions and misses — and whether the misses are cross-cutting
