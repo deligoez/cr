@@ -541,7 +541,16 @@ record with `"probe": "p1"`; it supports that record only when its target lies
 inside the record's RIGHT anchor range (§6.2.2). A mutation of production code
 therefore never supports a record anchored on a test file: a record saying a
 production line has no test is anchored on that line, from its own unit's cell
-(see the test axis under step 2). `cr sandbox destroy 1` removes the
+(see the test axis under step 2).
+
+A run whose test runner leaves a process behind says so. Every process the
+runner starts inherits the runner lock, so when that lock is still held two
+seconds after the run ends, `cr test` and `cr probe run` disclose it in
+`honesty`: cr never learns such a process's pid and cannot signal it, and it may
+still be using the sandbox and the test database. The notice never changes the
+run's result or the probe's.
+
+`cr sandbox destroy 1` removes the
 worktree. `cr test` and `cr probe run` share one lock per repository root and
 profile, from any subdirectory, and exit 4 when `probe.lock_timeout_seconds`
 passes while another run holds it. The lock is held under the state root and
