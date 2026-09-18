@@ -18,7 +18,8 @@ import (
 // measured record did — a convention role reviewing draft/marker.go.
 const quotingTheMarker = "Every block opens with `<!-- cr:record id=\"f1\" -->`, which this helper does not write."
 
-// M-1.1: `cr record` refuses a record whose `summary` or `evidence` carries
+// M-1.1: `cr record` refuses a record whose `summary`, `evidence` or
+// `suggestion` carries
 // §8.1.3's reserved sequence, naming the file, the line, the record id and the
 // field, and stores nothing.
 //
@@ -44,6 +45,10 @@ func TestRecordRefusesAReservedSequenceInSummaryOrEvidence(t *testing.T) {
 	}{
 		{field: "summary", text: quotingTheMarker},
 		{field: "evidence", text: "The body would be read as a region: " + render.Reserved},
+		// §7.1.3 fences the suggestion into the same body, so it is the third
+		// door to the trap: the replacement lines of a record about the marker
+		// grammar naturally quote the marker.
+		{field: "suggestion", text: render.Reserved + "record id=\"f1\" -->"},
 	} {
 		t.Run(tc.field, func(t *testing.T) {
 			layout := recordedHome(t)
