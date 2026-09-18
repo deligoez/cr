@@ -20,6 +20,7 @@ package proposal
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -327,6 +328,15 @@ func (c *checker) role(line int, _ map[string]json.RawMessage, p *Proposal) erro
 // an experiment on a unit another role is reviewing.
 func (c *checker) target(line int, _ map[string]json.RawMessage, p *Proposal) error {
 	if err := probe.CheckTarget(c.round.Head, p.Target); err != nil {
+		// Only the target's own fault is reported as the target's. A
+		// read that failed because the clone lacks the head is the
+		// clone's, and folding it in here would answer a missing commit
+		// with "correct this line" — a step that cannot work, over data
+		// nothing is wrong with.
+		invalid := &probe.InvalidTargetError{}
+		if !errors.As(err, &invalid) {
+			return err
+		}
 		return &RejectedError{
 			File: c.file, Line: line, Field: "target",
 			Problem: fmt.Sprintf("reads %q, which does not resolve at the round's head: %v", p.Target, err),
