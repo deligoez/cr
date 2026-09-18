@@ -2,12 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.3.2.** The release implements the contract in
-> [`spec/0.3.0.md`](spec/0.3.0.md) unchanged. It fences a credential-shaped
-> file out of the units so its content reaches no prompt, discloses a process
-> of the test runner that outlives the run, and ships the first four house-style
-> rules with the `laravel-pest` profile; its notes are in
-> [`spec/0.3.2-release-notes.md`](spec/0.3.2-release-notes.md). v0.3.1 fixed
+> **Status: v0.4.0.** The release implements the contract in
+> [`spec/0.4.0.md`](spec/0.4.0.md), whose one new obligation is §5.7: a role
+> that holds a suspicion it cannot establish proposes the experiment that would
+> settle it, and running that proposal re-grades the record. It also fences a
+> credential-shaped file out of the units so its content reaches no prompt,
+> discloses a process of the test runner that outlives the run, and ships the
+> first four house-style rules with the `laravel-pest` profile; its notes are in
+> [`spec/0.4.0-release-notes.md`](spec/0.4.0-release-notes.md). v0.3.1 fixed
 > what cr found when it reviewed its own v0.1.0 packages
 > ([`spec/measurements/2026-09-18-m1-recall-against-known-defects.md`](spec/measurements/2026-09-18-m1-recall-against-known-defects.md)),
 > in [`spec/0.3.1-release-notes.md`](spec/0.3.1-release-notes.md), and the
