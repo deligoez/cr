@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// specVersion is the contract this build implements, and the document specRows
+// reads. It moves with the code rather than with the newest file in `spec/`: a
+// spec written ahead of its implementation is not yet what cr does, and a guard
+// pointed at one would fail on every row the build has not reached.
+const specVersion = "0.4.0"
+
 // specRows reads §2.3's table out of the normative document and returns the
 // file name each row names, in the table's own order.
 //
@@ -20,12 +26,12 @@ import (
 // said something else entirely.
 func specRows(t *testing.T) []string {
 	t.Helper()
-	spec, err := os.ReadFile(filepath.Join("..", "..", "spec", "0.3.0.md"))
+	spec, err := os.ReadFile(filepath.Join("..", "..", "spec", specVersion+".md"))
 	require.NoError(t, err)
 	document := string(spec)
 
 	start := strings.Index(document, "\n### 2.3 Per-PR state\n")
-	require.GreaterOrEqual(t, start, 0, "spec/0.3.0.md has no §2.3 heading")
+	require.GreaterOrEqual(t, start, 0, "spec/"+specVersion+".md has no §2.3 heading")
 	end := strings.Index(document[start:], "\n1. All writes")
 	require.Positive(t, end, "§2.3's table has no numbered list after it")
 
