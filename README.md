@@ -2,13 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.3.1.** The release implements the contract in
-> [`spec/0.3.0.md`](spec/0.3.0.md) unchanged, and fixes what cr found when it
-> reviewed its own v0.1.0 packages
-> ([`spec/measurements/2026-09-18-m1-recall-against-known-defects.md`](spec/measurements/2026-09-18-m1-recall-against-known-defects.md));
-> its notes are in
-> [`spec/0.3.1-release-notes.md`](spec/0.3.1-release-notes.md), and the notes
-> for the releases before it in
+> **Status: v0.3.2.** The release implements the contract in
+> [`spec/0.3.0.md`](spec/0.3.0.md) unchanged, and fences a credential-shaped
+> file out of the units so its content reaches no prompt; its notes are in
+> [`spec/0.3.2-release-notes.md`](spec/0.3.2-release-notes.md). v0.3.1 fixed
+> what cr found when it reviewed its own v0.1.0 packages
+> ([`spec/measurements/2026-09-18-m1-recall-against-known-defects.md`](spec/measurements/2026-09-18-m1-recall-against-known-defects.md)),
+> in [`spec/0.3.1-release-notes.md`](spec/0.3.1-release-notes.md), and the
+> notes for the releases before it are in
 > [`spec/0.3.0-release-notes.md`](spec/0.3.0-release-notes.md),
 > [`spec/0.2.1-release-notes.md`](spec/0.2.1-release-notes.md) and
 > [`spec/0.2.0-release-notes.md`](spec/0.2.0-release-notes.md).
