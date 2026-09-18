@@ -3,9 +3,10 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.3.0.md` is the
-normative v0.3 contract. This file holds the working conventions and the rules
-that are easy to violate by accident.
+sequenced next, and what must be measured before it is decided. `spec/0.3.0.md`
+is the normative contract of the shipped release, and `spec/0.4.0.md` the next
+one: written, reference-checked, and not yet implemented. This file holds the
+working conventions and the rules that are easy to violate by accident.
 
 ## Install
 
@@ -451,10 +452,20 @@ source of truth; this table is a map, not a promise.
 | `cr status <pr>` | Coverage, states, and completeness |
 | `cr config [--resolved]` | Effective configuration and its layers |
 
-v0.3 ends at posting. `cr recheck`, `cr verify`, `cr resolve`, and `cr accept`
-are **not** v0.3 commands — the re-review half of the loop, anchor migration
-included, is v0.4, declared out of scope in `spec/0.3.0.md` §1.3.6. A moved
-head makes the round stale (§9.3); `cr brief` opens a new one.
+v0.3 ends at posting, and so does v0.4. `cr recheck`, `cr verify`, `cr resolve`
+and `cr accept` are commands of neither — the re-review half of the loop, anchor
+migration included, is **v0.5**, declared out of scope in `spec/0.4.0.md` §1.3.6.
+A moved head makes the round stale (§9.3); `cr brief` opens a new one.
+
+**v0.4's one new obligation is §5.7, proposed experiments.** A role that holds a
+suspicion it cannot establish writes a proposal — kind, unit, target, hypothesis,
+what would settle it, and the patch or test to run — `cr proposals record` stores
+it, and `cr probe run --proposal <id>` executes it and re-grades the record it
+names. The evidence is measured: in measurement 3 cr produced 51 records graded
+32 `cited`, 19 `argued` and **0 `probed`**, because §6.1 gives a role only
+`probe`, the id of an experiment that already ran. Both measurements needed a
+bespoke side-channel before any probe could run, and 25 records across them wrote
+prose into that field. A proposal is never evidence; only running it is.
 
 ## Project structure
 
@@ -496,7 +507,8 @@ scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known
 spec/
   0.1.0.md           Normative v0.1 contract
   0.2.0.md           Normative v0.2 contract
-  0.3.0.md           Normative v0.3 contract, the current one
+  0.3.0.md           Normative v0.3 contract, the shipped one
+  0.4.0.md           Normative v0.4 contract, written and not yet implemented
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
