@@ -222,6 +222,12 @@ type suite struct {
 	src *sandbox.Sources
 	// generation names the sandbox at path, and is stamped on every run.
 	generation string
+	// lingering says some run of this probe — a baseline or the probe's
+	// own — left a process still holding the runner lock (§5.6.3). It is
+	// accumulated over every run rather than carried on one, because a
+	// straggler of the baseline is running beside the probe's run, which is
+	// the reading the disclosure exists for.
+	lingering bool
 }
 
 // measuredRun is one execution of the suite, before §5.1.6's post-run check and
@@ -276,7 +282,12 @@ func (s *suite) perform(filter string, paths []string) (*measuredRun, error) {
 	started := time.Now()
 	exit, err := sandbox.RunExit(argv, s.path, log, budget, runner)
 	took := time.Since(started)
-	if released := runner.Release(); released != nil {
+	// A disclosure and never a result: what the suite said is unchanged by
+	// a straggler, so it is accumulated and reported beside the probe
+	// rather than allowed to suppress or re-grade it.
+	lingering, released := runner.Release()
+	s.lingering = s.lingering || lingering
+	if released != nil {
 		return nil, errors.Join(err, released)
 	}
 
@@ -1056,7 +1067,7 @@ func probeDisclosures(setup *probeSetup, finished *finishedProbe) []string {
 	if spent := setup.capped.Ran(); spent.Reached() {
 		disclosed = append(disclosed, spent.Disclosure())
 	}
-	return disclosed
+	return append(disclosed, survivorNotice(setup.tests.lingering)...)
 }
 
 // unpassedBaseline is the disclosure of a probe whose result is the one its
