@@ -30,6 +30,12 @@ import (
 type probeRunResult struct {
 	// Probe is the id of the probe record §5.5 stored for this run.
 	Probe string `json:"probe"`
+	// Proposal is the §5.7 proposal this run executed, absent for a run
+	// the command line supplied.
+	Proposal string `json:"proposal,omitempty"`
+	// Regraded is §5.7.4's recomputation, absent when the run executed no
+	// proposal or the proposal named no record.
+	Regraded *Regraded `json:"regraded,omitempty"`
 	// Kind is the sort of probe that ran (§5.5).
 	Kind string `json:"kind"`
 	// Sandbox is the worktree the experiment was performed in.
@@ -354,7 +360,7 @@ func newProbeCmd(out *writer) *cobra.Command {
 // that cr is still alive to prevent, and an undo written after the run would be
 // one `return err` away from being skipped.
 func newProbeRunCmd(out *writer) *cobra.Command {
-	var kind, patchFile, testFile, filter, target string
+	var kind, patchFile, testFile, filter, target, fromProposal string
 	var paths []string
 	cmd := &cobra.Command{
 		Use:   "run " + prPlaceholder,
@@ -380,21 +386,13 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 				owner: owner, repo: repo, pr: pr,
 				filter: filter, paths: paths, target: target,
 			}
-			var ran error
-			switch probe.Kind(kind) {
-			case probe.Mutation:
-				if err := mutationInput(request, patchFile, testFile, target); err != nil {
-					return err
-				}
-				ran = runMutationProbe(cmd, out, request)
-			case probe.Gap:
-				if err := gapInput(request, patchFile, testFile, target); err != nil {
-					return err
-				}
-				ran = runGapProbe(cmd, out, request)
-			default:
-				return fmt.Errorf(
-					"--kind %q: §5.5 names two kinds of probe, mutation (§5.3) and gap (§5.4)", kind)
+			ran, err := performProbe(cmd, out, request, &probeFlags{
+				kind: kind, patchFile: patchFile, testFile: testFile,
+				target: target, filter: filter, paths: paths,
+				fromProposal: fromProposal,
+			})
+			if err != nil {
+				return err
 			}
 			// Both kinds read the round's head from the clone, to build the
 			// sandbox and to place the probe, so a head the clone lacks is
@@ -416,7 +414,87 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 	cmd.Flags().StringVar(&target, "target", "",
 		"the path:line the probe addresses; required for a gap probe, "+
 			"rejected for a mutation probe, which derives it (§5.3.2)")
+	cmd.Flags().StringVar(&fromProposal, "proposal", "",
+		"run the experiment a role proposed, by its x<n> id (§5.7.3); "+
+			"every other input flag is rejected beside it")
 	return cmd
+}
+
+// onlyTheProposal is §5.7.3's refusal of an input flag beside `--proposal`,
+// with exit code 2: the proposal carries every input, and a flag beside it
+// would run something other than what the role proposed.
+func onlyTheProposal(kind, patchFile, testFile, target, filter string, paths []string) error {
+	for _, given := range []struct{ flag, value string }{
+		{"--kind", kind}, {"--patch", patchFile}, {"--test", testFile},
+		{"--target", target}, {"--filter", filter},
+	} {
+		if given.value != "" {
+			return fmt.Errorf("%s is rejected beside --proposal: §5.7.3 runs the proposal's own "+
+				"kind, input, target, filter and paths, so the experiment cr executes is the one "+
+				"the role proposed", given.flag)
+		}
+	}
+	if len(paths) > 0 {
+		return errors.New("--path is rejected beside --proposal: §5.7.3 runs the proposal's own " +
+			"kind, input, target, filter and paths, so the experiment cr executes is the one " +
+			"the role proposed")
+	}
+	return nil
+}
+
+// probeFlags is `cr probe run`'s command line, as the flags gave it.
+//
+// It is a struct rather than eight parameters because every one of them is read
+// by one decision — which kind runs, and out of what — and a positional list
+// that long is where a caller swaps `target` for `filter` and nothing says so.
+type probeFlags struct {
+	kind, patchFile, testFile string
+	target, filter            string
+	paths                     []string
+	// fromProposal is §5.7.3's `--proposal`, empty for a run the command
+	// line supplied whole.
+	fromProposal string
+}
+
+// performProbe resolves the run's inputs and performs it, returning what the
+// probe run reported so the caller can route a git failure through
+// headNotFetched.
+//
+// §5.7.3's proposal supplies every input, so the two input readers are skipped
+// for it: they hold a command line to the flags its kind takes, and §5.7.3
+// admitted none.
+func performProbe(
+	cmd *cobra.Command, out *writer, request *probeRequest, flags *probeFlags,
+) (ran, refused error) {
+	kind := flags.kind
+	if flags.fromProposal != "" {
+		proposed, err := proposedRun(
+			request.owner, request.repo, request.pr, flags.fromProposal, request,
+			flags.kind, flags.patchFile, flags.testFile, flags.target, flags.filter, flags.paths)
+		if err != nil {
+			return nil, err
+		}
+		kind = proposed
+	}
+	fromFlags := request.proposal == ""
+	switch probe.Kind(kind) {
+	case probe.Mutation:
+		if fromFlags {
+			if err := mutationInput(request, flags.patchFile, flags.testFile, flags.target); err != nil {
+				return nil, err
+			}
+		}
+		return runMutationProbe(cmd, out, request), nil
+	case probe.Gap:
+		if fromFlags {
+			if err := gapInput(request, flags.patchFile, flags.testFile, flags.target); err != nil {
+				return nil, err
+			}
+		}
+		return runGapProbe(cmd, out, request), nil
+	}
+	return nil, fmt.Errorf(
+		"--kind %q: §5.5 names two kinds of probe, mutation (§5.3) and gap (§5.4)", kind)
 }
 
 // mutationInput holds §5.3's invocation to the flags that kind takes, and reads
@@ -566,6 +644,9 @@ type probeRequest struct {
 	// filter selects. §5.2.2 makes them the population the probe's
 	// baseline measures, and §5.5 stores them on the record.
 	paths []string
+	// proposal is the §5.7 proposal this run executes, empty for a run the
+	// command line supplied. §5.7.4 settles it once the probe is written.
+	proposal string
 }
 
 // probeSetup is the round, the profile, and the sandbox one probe run works
@@ -1013,7 +1094,22 @@ func storeProbe(
 func reportProbe(
 	out *writer, setup *probeSetup, request *probeRequest, finished *finishedProbe, warning string,
 ) error {
+	// §5.7.4, before the report: the proposal that asked for this
+	// experiment becomes `run` and the record it named is re-graded, so what
+	// is emitted below is the state the round is actually in.
+	var regraded *Regraded
+	if request.proposal != "" {
+		settled, err := settleProposal(
+			setup.layout, request.owner, request.repo, request.pr,
+			&setup.round, request.proposal, finished.probeID)
+		if err != nil {
+			return err
+		}
+		regraded = settled
+	}
 	return out.emit(&probeRunResult{
+		Proposal:    request.proposal,
+		Regraded:    regraded,
 		Probe:       finished.probeID,
 		Kind:        string(finished.record.Kind),
 		Sandbox:     setup.ready.Path,
