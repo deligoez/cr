@@ -892,7 +892,7 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut string) map[string][]string {
+func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole, mergeOut string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -904,7 +904,8 @@ func repoRuns(merged, claims, issue, cells, pairs, mutation, perRole, mergeOut s
 			"claims", "record", fixturePR, claims,
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
-		"cells record": {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
+		"cells record":     {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
+		"proposals record": {"proposals", "record", fixturePR, proposals, "--repo", fixtureSlug},
 		// `cr claims set-aside` writes intent-gaps.ndjson and reads the
 		// §3.6 store, both under the state root, and reaches the
 		// repository not at all. It runs last: §4.1.7 derives the entry
@@ -1170,6 +1171,21 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	require.NoError(t, os.WriteFile(cells,
 		[]byte(`{"unit":"u1","role":"correctness","result":"finding"}`+"\n"), 0o600))
 
+	// The file `cr proposals record` is pointed at, outside the repository
+	// for the same reason. Its target is app.go's changed line 3, inside the
+	// one unit `cr brief` forms, and its id is the first of the block §4.6.2
+	// gives the correctness role over that unit: the shipped role ids sort
+	// convention, correctness, intent-coverage, test-adequacy, so with one
+	// unit that prompt sits second in the grid and its hundred ids start at
+	// x101. It names no `finding`, because §5.7.1 holds that against the
+	// records of the current round and `cr record` sorts after this command.
+	proposals := filepath.Join(home, "proposals.ndjson")
+	require.NoError(t, os.WriteFile(proposals, []byte(`{"id":"x101","kind":"mutation",`+
+		`"role":"correctness","unit":"u1","target":"app.go:3",`+
+		`"hypothesis":"No test notices the dropped error.",`+
+		`"settles":"A suite that stays green under the mutation proves the gap.",`+
+		`"input":"--- a/app.go\n+++ b/app.go\n"}`+"\n"), 0o600))
+
 	// The file `cr map record` is pointed at. It is empty rather than a
 	// pair, because §4.1.6 checks every claim id against the round's
 	// claims and `cr claims record` sorts after `cr map record` in the run
@@ -1228,7 +1244,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
-	runs := repoRuns(merged, claims, issue, cells, pairs, mutation,
+	runs := repoRuns(merged, claims, issue, cells, proposals, pairs, mutation,
 		perRole, filepath.Join(home, "merge-out.ndjson"))
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),

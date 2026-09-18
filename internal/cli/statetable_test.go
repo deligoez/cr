@@ -87,6 +87,14 @@ func populatedPRState(t *testing.T) string {
 		strings.Replace(record, "%s", "The returned error is dropped.", 1))
 	issue := write("issue.txt", "The retry must back off exponentially.\n")
 	cells := write("cells.ndjson", `{"unit":"u1","role":"correctness","result":"finding"}`+"\n")
+	// §5.7's proposal, with the id §4.6.2 gives the correctness role over the
+	// round's one unit; repoRuns says why this file sits outside the
+	// repository under review.
+	proposals := write("proposals.ndjson", `{"id":"x101","kind":"mutation",`+
+		`"role":"correctness","unit":"u1","target":"app.go:3",`+
+		`"hypothesis":"No test notices the dropped error.",`+
+		`"settles":"A suite that stays green under the mutation proves the gap.",`+
+		`"input":"--- a/app.go\n+++ b/app.go\n"}`+"\n")
 	pairs := write("mapping.ndjson", "")
 	claims := write("claims.ndjson", `{"id":"`+fixtureIssue+`#c1",`+
 		`"text":"The retry backs off exponentially.","source":"acceptance",`+
@@ -105,7 +113,7 @@ func populatedPRState(t *testing.T) string {
 		"CR_HOME=" + root,
 	}
 
-	runs := repoRuns(merged, claims, issue, cells, pairs, mutation,
+	runs := repoRuns(merged, claims, issue, cells, proposals, pairs, mutation,
 		perRole, filepath.Join(home, "merge-out.ndjson"))
 	require.ElementsMatch(t, leafCommands(t), slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")

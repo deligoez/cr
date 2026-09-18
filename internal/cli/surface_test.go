@@ -94,6 +94,7 @@ var specSurface = []surfaceRow{
 		"filter": "§5.2.2",
 		"path":   "§5.2.2",
 	}},
+	{path: []string{"proposals", "record"}, use: "record <pr> <file>"},
 	{path: []string{"draft"}, use: "draft <pr>"},
 	{path: []string{"triage"}, use: "triage <pr> <record-id> not-here|wrong|soften|keep",
 		spec: []string{"body-file"}},

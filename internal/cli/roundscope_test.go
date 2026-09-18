@@ -31,6 +31,7 @@ var stampedFileConstants = map[string]string{
 	"FileMapping":    state.FileMapping,
 	"FileFindings":   state.FileFindings,
 	"FileProbes":     state.FileProbes,
+	"FileProposals":  state.FileProposals,
 	"FileRuns":       state.FileRuns,
 	"FileIntentGaps": state.FileIntentGaps,
 	"FileCoverage":   state.FileCoverage,
@@ -76,6 +77,9 @@ var crossRoundReaders = map[string]string{
 	"internal/cli/rulessuggest.go: postedComments": "§2.6.3.1 harvests every recorded round of " +
 		"every pull request of the repository, so there is no one round to scope to.",
 	"internal/cli/test.go: appendRun": "run.NextID, for the reason probe.NextID is.",
+	"internal/cli/proposals.go: refuseDepartedProposalIDs": "§4.6.2's blocks start past every id an " +
+		"earlier round's proposals hold, and §5.7 gives a proposal no key a later round reuses, so an id " +
+		"any round's proposal holds is held still.",
 	"internal/cli/recordids.go: refuseHeldIDs": "§6.1 makes a record id stable for the life of the pull " +
 		"request, and §9.3.4 keeps an earlier round's record as `stale`, so an id any round's record holds " +
 		"is held still.",

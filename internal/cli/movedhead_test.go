@@ -187,7 +187,9 @@ func movedHeadRuns(dir string) map[string]section93 {
 		"claims set-aside": refusesTheWrite("claims", "set-aside", fixturePR,
 			fixtureIssue+"#c1", "--note", fixtureIssue+"#n1"),
 		"cells record": refusesTheWrite("cells", "record", fixturePR, file("cells.ndjson")),
-		"map record":   refusesTheWrite("map", "record", fixturePR, file("mapping.ndjson")),
+		"proposals record": refusesTheWrite(
+			"proposals", "record", fixturePR, file("proposals.ndjson")),
+		"map record": refusesTheWrite("map", "record", fixturePR, file("mapping.ndjson")),
 		// §6.5.1 has `cr merge` write its drop counts into the current
 		// round's `summary.json`, which §2.3's table lists as per-PR
 		// state — so it is a writer even though the file `-o` names is

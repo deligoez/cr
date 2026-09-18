@@ -260,6 +260,14 @@ func headRuns(t *testing.T) map[string]headRun {
 			"claims", "record", fixturePR, empty, "--intent-file", issue, "--repo", fixtureSlug),
 		"claims set-aside": exempt("stamps intent-gaps.ndjson from the context store, and reads no revision",
 			"claims", "set-aside", fixturePR, fixtureIssue+"#c1", "--note", fixtureIssue+"#n1", "--repo", fixtureSlug),
+		// §5.7's `target` resolves against the head, and the round's u1 is
+		// money.go's added line 12, which is the line the patch above
+		// mutates.
+		"proposals record": routed("proposals", "record", fixturePR, file("proposals.ndjson",
+			`{"id":"x101","kind":"mutation","role":"correctness","unit":"u1",`+
+				`"target":"money.go:12","hypothesis":"No test reads the comment.",`+
+				`"settles":"A green suite under the mutation proves the gap.",`+
+				`"input":"--- a/money.go\n+++ b/money.go\n"}`+"\n")),
 		"cells record": exempt("validates cells against the round's units under the state root, and reads no revision",
 			"cells", "record", fixturePR, empty, "--repo", fixtureSlug),
 		"map record": exempt("validates the mapping against the round's units under the state root, and reads no revision",
@@ -521,7 +529,7 @@ func TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails(t *testing.T) {
 			headOnly = append(headOnly, name)
 		}
 	}
-	require.Equal(t, []string{"probe run", "sandbox create", "test"}, headOnly)
+	require.Equal(t, []string{"probe run", "proposals record", "sandbox create", "test"}, headOnly)
 	for _, name := range headOnly {
 		t.Run(name, func(t *testing.T) {
 			run := headRuns(t)[name]
