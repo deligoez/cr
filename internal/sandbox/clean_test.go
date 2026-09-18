@@ -193,6 +193,73 @@ func TestTheRecreationNoticeIsAnHonestyDisclosure(t *testing.T) {
 	assert.Contains(t, disclosed, "§5.1.6")
 }
 
+// M-1.4: a sandbox directory that is no longer a readable worktree is an
+// unclean sandbox, not a failure of the check.
+//
+// The directory is there, so §5.1.6's first question is answered, and every
+// question after it is asked of git — which cannot answer any of them, because
+// the `.git` file that makes the directory a worktree is broken or gone. A check
+// that returned that error would stop `cr test` and `cr probe run` at the one
+// state recreation exists to clear: the S10 field note's "missing but already
+// registered worktree" is the same state seen from `cr sandbox create`, and
+// nothing cr offers gets out of it.
+//
+// Measured against the unfixed code, both rows: Ensure returned git's own
+// `fatal: not a git repository` and rebuilt nothing, so the sandbox stayed
+// broken for every later run.
+//
+// The rows are the two ways the directory stops being a worktree in the field —
+// the repository under review re-cloned or `git worktree prune`d out from under
+// it, and the `.git` file truncated by a crash — and the recreation has to cope
+// with both: the registration may still name the path, or may not.
+func TestASandboxDirectoryThatIsNotAReadableWorktreeIsRecreated(t *testing.T) {
+	for name, breaks := range map[string]func(t *testing.T, path string){
+		"its .git file is corrupt": func(t *testing.T, path string) {
+			t.Helper()
+			require.NoError(t, os.WriteFile(filepath.Join(path, ".git"), []byte("not a gitdir\n"), 0o600))
+		},
+		"its .git file is gone": func(t *testing.T, path string) {
+			t.Helper()
+			require.NoError(t, os.Remove(filepath.Join(path, ".git")))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			src, path, sentinel := sandboxed(t)
+			breaks(t, path)
+
+			ready, err := Ensure(src, fixtureLeftoverGlob)
+			require.NoError(t, err, "§5.1.6 recreates a sandbox it cannot read rather than refusing to run")
+
+			require.NotNil(t, ready.Recreated, "the sandbox failed a check and was not rebuilt")
+			assert.Contains(t, ready.Recreated.Reason, "is not a readable worktree")
+			assert.NoFileExists(t, sentinel, "the recreation was reported but never performed")
+			assert.Equal(t, src.Head, runGit(t, path, "rev-parse", "HEAD"),
+				"the rebuilt sandbox is a worktree at the round's head")
+
+			again, err := Ensure(src, fixtureLeftoverGlob)
+			require.NoError(t, err)
+			assert.Nil(t, again.Recreated,
+				"§5.1.6's recreation has to converge, or every run rebuilds its sandbox for ever")
+		})
+	}
+}
+
+// The negative direction: a sandbox git answers for is left alone.
+//
+// It is the assertion that keeps the row above from being satisfied by a check
+// that rebuilds every sandbox it is handed. A recreation costs a fresh checkout
+// and §5.1.3's whole setup, and §5.1.6 spends that only on a sandbox that failed
+// a check.
+func TestASandboxThatIsStillAWorktreeIsNotRecreated(t *testing.T) {
+	src, _, sentinel := sandboxed(t)
+
+	ready, err := Ensure(src, fixtureLeftoverGlob)
+	require.NoError(t, err)
+
+	assert.Nil(t, ready.Recreated, "the sandbox was readable and clean")
+	assert.FileExists(t, sentinel, "an intact sandbox was rebuilt anyway")
+}
+
 // A tracked file §5.1.3's setup already modified, modified again, is named.
 //
 // This is the case where the set of deviating paths says nothing. `sandbox.setup`
