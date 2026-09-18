@@ -64,26 +64,38 @@ func TestABriefRefusesToReplaceARecordedIssueKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(claims), testIssue+"#c1")
 
-	for name, rekey := range map[string]func(){
-		"a key_pattern that no longer matches": func() {
-			src.IssueFlag = ""
-			src.Config = withPattern(t, `ZZZ-[0-9]+`)
+	for name, rewrite := range map[string]struct {
+		set func()
+		// remedy is the step that keeps the recorded key in this case,
+		// and the two cases do not share one: naming the key with
+		// `--issue` works only while the pattern still admits it.
+		remedy string
+	}{
+		"a key_pattern that no longer matches": {
+			set: func() {
+				src.IssueFlag = ""
+				src.Config = withPattern(t, `ZZZ-[0-9]+`)
+			},
+			remedy: "restore a pattern that matches " + testIssue,
 		},
-		"a different key named on the command line": func() {
-			src.IssueFlag = "OTHER-1"
-			src.Config = withPattern(t, `[A-Z]+-[0-9]+`)
+		"a different key named on the command line": {
+			set: func() {
+				src.IssueFlag = "OTHER-1"
+				src.Config = withPattern(t, `[A-Z]+-[0-9]+`)
+			},
+			remedy: "--issue " + testIssue,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			rekey()
+			rewrite.set()
 
 			_, err := Run(src)
 
 			var refused *KeyRewriteError
 			require.ErrorAs(t, err, &refused)
 			assert.Equal(t, testIssue, refused.Recorded)
-			assert.Contains(t, err.Error(), "--issue "+testIssue,
-				"§12.4: the refusal names the step that keeps the recorded key")
+			assert.Contains(t, err.Error(), rewrite.remedy,
+				"§12.4: the refusal names a step that keeps the recorded key")
 			assert.Contains(t, err.Error(), testIssue+"#c<n>",
 				"§3.3: and says what the rewrite would orphan")
 

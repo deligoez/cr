@@ -143,3 +143,32 @@ func ResolveKey(sources KeySources, pattern string) (Key, error) {
 	}
 	return Key{}, nil
 }
+
+// PatternAdmits reports whether naming key on the command line would resolve
+// key, under `intent.key_pattern` as it now reads.
+//
+// It is ResolveKey's own answer rather than a second one: the question a caller
+// asks here is exactly "would `--issue <key>` yield <key>", and the way to be
+// sure of that is to run the flag through the same resolution, with the same
+// compiled pattern and the same non-empty-match rule. A separate MatchString
+// would drift from it, and would answer yes for a pattern that matches only a
+// fragment of the key — `[0-9]+` finds `7` inside `CR-7`, which resolves a key
+// that is not the one asked about.
+//
+// An empty key is not admitted. Nothing resolves it, and §3.2's fallback is
+// what an absent key already means.
+//
+// A pattern that will not compile is not admitted either. ResolveKey aborts on
+// it with KeyPatternError long before any caller of this function is reached,
+// so the only question left here is which of two messages to print, and the
+// honest answer for a pattern that cannot run is that it recognises nothing.
+func PatternAdmits(pattern, key string) bool {
+	if key == "" {
+		return false
+	}
+	resolved, err := ResolveKey(KeySources{Flag: key}, pattern)
+	if err != nil {
+		return false
+	}
+	return resolved.Value == key
+}
