@@ -109,6 +109,8 @@ type statusResult struct {
 	Records recordReport `json:"records"`
 	// Probes is §10.1.5.
 	Probes probeReport `json:"probes"`
+	// Proposals is §10.1.8: §5.7's proposals of this round by state.
+	Proposals proposalReport `json:"proposals"`
 	// Unstanding is §3.6.6's report: the notes this round's cells and
 	// records rest on that no longer stand, and what rests on each.
 	//
@@ -351,24 +353,56 @@ func statusOf(
 		Unsettled:  unsettled,
 		Records:    records,
 	})
-	disclosed, err := statusHonesty(
-		l, owner, repo, pr, round, lenses, records, verdict)
+	return assembleStatus(l, owner, repo, pr, round, &statusParts{
+		rows: rows, covered: covered, axes: axes, lenses: lenses,
+		records: records, probes: probes, unstanding: unstanding,
+		files: files, drift: drift, verdict: verdict,
+	})
+}
+
+// statusParts is what statusOf read about the round, handed to the assembly in
+// one value rather than a dozen parameters.
+type statusParts struct {
+	rows       coverage.Rows
+	covered    intentCoverage
+	axes       activation.Activation
+	lenses     coverage.Lenses
+	records    []*finding.Finding
+	probes     []probe.Record
+	unstanding []unstandingNote
+	files      *unit.Files
+	drift      []string
+	verdict    coverage.Completeness
+}
+
+// assembleStatus builds §10.1's document out of what statusOf read, adding
+// §10.1.8's proposals and §11.1's disclosures.
+func assembleStatus(
+	l state.Layout, owner, repo string, pr int, round *state.Round, parts *statusParts,
+) (*statusResult, error) {
+	proposed, disclosed, err := statusProposals(l, owner, repo, pr, round, len(parts.probes))
+	if err != nil {
+		return nil, err
+	}
+	disclosed, err = statusSaid(
+		l, owner, repo, pr, round, parts.lenses, parts.records, parts.verdict, disclosed)
 	if err != nil {
 		return nil, err
 	}
 	return &statusResult{
 		Round:        round.Round,
 		Head:         round.Head,
-		Coverage:     rows,
-		Files:        files,
-		Intent:       covered,
-		Axes:         axes,
-		Skipped:      lenses.Roles,
-		Records:      recordTalliesOf(records),
-		Probes:       probesOf(probes, records),
-		Unstanding:   unstanding,
-		Completeness: verdict,
-		Honesty: append(append(append(disclosed, drift...),
+		Coverage:     parts.rows,
+		Files:        parts.files,
+		Intent:       parts.covered,
+		Axes:         parts.axes,
+		Skipped:      parts.lenses.Roles,
+		Records:      recordTalliesOf(parts.records),
+		Probes:       probesOf(parts.probes, parts.records),
+		Proposals:    proposed,
+		Unstanding:   parts.unstanding,
+		Completeness: parts.verdict,
+		Honesty: append(append(append(disclosed, parts.drift...),
 			staleProfile(l.Profile(round.ProfileID))...), staleRoles(l, owner, repo)...),
 	}, nil
 }
