@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // RunnerLockFile is the lock a test runner cr starts in one pull request's
@@ -83,23 +84,64 @@ func (k *RunnerLock) Started(group int) error {
 	return nil
 }
 
-// Release clears the recorded group and closes both locks.
+// SurvivorGrace is how long Release waits for the runner lock to come free
+// before it reports a process of the run still holding it, and survivorPoll how
+// often it asks.
+//
+// The grace costs a run that left nothing behind nothing at all: every process
+// of a runner that has exited has already dropped the descriptor, so the first
+// probe succeeds. It is paid only where there is something to report, or where
+// a child of the runner is still shutting down — which is the case the grace
+// exists to tell apart from a survivor, since calling a straggler a survivor
+// would be the expensive direction to be wrong in.
+const (
+	SurvivorGrace = 2 * time.Second
+	survivorPoll  = 20 * time.Millisecond
+)
+
+// Release clears the recorded group, closes both locks, and reports whether a
+// process of the run was still holding the runner lock SurvivorGrace later.
 //
 // The runner lock is closed rather than unlocked. It is one lock shared with
 // every process the runner started, and an unlock would release it for a
-// process still alive; a close releases only cr's own hold on it.
-func (k *RunnerLock) Release() error {
+// process still alive; a close releases only cr's own hold on it. That is also
+// what makes the lock the instrument here: once cr's own hold is gone, the lock
+// is held by exactly the processes of this run that are still alive, whether or
+// not they stayed in the group §5.2.3's kill reaches.
+//
+// A failure to probe the lock is not joined into the error. The run itself
+// succeeded or failed on its own terms, and refusing to report it because cr
+// could not answer a disclosure question would lose the answer to keep the
+// question; lingering is reported false, which is what cr can establish.
+func (k *RunnerLock) Release() (lingering bool, err error) {
 	var failures []error
+	path := k.runner.Name()
 	if err := k.runner.Truncate(0); err != nil {
-		failures = append(failures, FileFailure("write", k.runner.Name(), lockHint, err))
+		failures = append(failures, FileFailure("write", path, lockHint, err))
 	}
 	if err := k.runner.Close(); err != nil {
-		failures = append(failures, FileFailure("release", k.runner.Name(), lockHint, err))
+		failures = append(failures, FileFailure("release", path, lockHint, err))
 	}
 	if err := k.owner.Close(); err != nil {
-		failures = append(failures, FileFailure("release", k.owner.Name(), lockHint, err))
+		failures = append(failures, FileFailure("release", path, lockHint, err))
 	}
-	return errors.Join(failures...)
+	return heldAfterGrace(path), errors.Join(failures...)
+}
+
+// heldAfterGrace reports whether the runner lock at path is still held once
+// SurvivorGrace has passed, and false for a lock it cannot read.
+func heldAfterGrace(path string) bool {
+	deadline := time.Now().Add(SurvivorGrace)
+	for {
+		free, err := runnerLockFree(path)
+		if err != nil || free {
+			return false
+		}
+		if !time.Now().Before(deadline) {
+			return true
+		}
+		time.Sleep(survivorPoll)
+	}
 }
 
 // LeftRunner is a runner an earlier cr run started in a pull request's sandbox
