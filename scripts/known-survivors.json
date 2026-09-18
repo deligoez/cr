@@ -23,6 +23,20 @@
   ],
   "survivors": [
     {
+      "file": "review/ids.go",
+      "line": 117,
+      "column": 32,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "baseOf takes the highest suffix an earlier round stored with `id.n > base`; `>=` assigns the value already held and changes nothing, which is the shape finding/id.go's NextID carries and says so in a comment. Verified by hand on 2026-09-18 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/review` stayed green."
+   },
+   {
+      "file": "proposal/proposal.go",
+      "line": 128,
+      "column": 21,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "parseID refuses `n <= 0` after `strings.HasPrefix(rest, \"0\")` has already refused every spelling of zero, so `<` and `<=` differ only at n == 0, which cannot reach the comparison; a negative spelling (x-1) is refused by both. Verified by hand on 2026-09-18 -- applied `<` through `go test -overlay`, `go test -count=1 ./internal/proposal` stayed green."
+   },
+   {
       "file": "cli/anchorunit.go",
       "line": 75,
       "column": 30,
