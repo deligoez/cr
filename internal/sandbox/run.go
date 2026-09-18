@@ -170,6 +170,23 @@ const (
 	heldRunnerAbandoned = 125
 )
 
+// outputDrain is how long cmd.Wait waits for the runner's output to finish
+// being copied once the runner itself has exited (M-1.6).
+//
+// §5.2.3's kill reaches a process group, and everything the kill reaches closes
+// the pipe the output travels through. A process that left the group does not:
+// a runner that starts a watcher or a database under `setsid`, or with job
+// control on, leaves a survivor holding the inherited pipe, and cmd.Wait goes on
+// waiting for the copy from it. Measured before this bound: a 500ms budget
+// against a survivor sleeping 20 seconds did not return inside 15, so `cr test`
+// and `cr probe run` would have waited out the survivor's whole life.
+//
+// The delay begins after the process exits, so it costs a well-behaved runner
+// nothing: its own copy is already finished by then. Two seconds is what a
+// survivor's buffered output is given before the pipes are closed under it,
+// which is the price of getting an answer back at all.
+const outputDrain = 2 * time.Second
+
 // init makes a process started under heldRunner the runner it holds, before
 // any other work of cr's begins.
 //
@@ -205,6 +222,7 @@ func RunExit(
 	cmd.Stdout = log
 	cmd.Stderr = log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.WaitDelay = outputDrain
 	program := cmd.Path
 	hold, err := holdRunner(cmd, runner)
 	if err != nil {
@@ -240,22 +258,16 @@ func RunExit(
 	}
 	select {
 	case err := <-finished:
-		var exit *exec.ExitError
-		switch {
-		case err == nil:
-			return Exit{}, nil
-		case errors.As(err, &exit):
-			return Exit{Code: exit.ExitCode(), Signal: signalOf(exit)}, nil
-		}
-		return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
+		return finishedExit(argv, err)
 	case <-expired:
 		// The error is discarded because there is nothing left to do
 		// about it: a group that has already exited answers ESRCH,
 		// and the run is being reported as a timeout either way.
 		_ = syscall.Kill(-group, syscall.SIGKILL)
-		// Reaped before returning. The killed group is what closes the
-		// output pipe, so this waits for the copy to finish rather
-		// than on a grandchild that outlived its parent.
+		// Reaped before returning. Everything the kill reached closes
+		// the output pipe as it dies; a process that left the group
+		// holds it open, and outputDrain is what bounds the wait on
+		// that copy rather than on the survivor's own lifetime.
 		var exit *exec.ExitError
 		if errors.As(<-finished, &exit) {
 			return Exit{Code: exit.ExitCode(), TimedOut: true}, nil
@@ -266,6 +278,27 @@ func RunExit(
 		<-finished
 		return Exit{Code: -1}, &InterruptedError{Signal: received.String()}
 	}
+}
+
+// finishedExit is how a run that ended inside its budget ended, read from what
+// cmd.Wait returned.
+func finishedExit(argv []string, err error) (Exit, error) {
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return Exit{}, nil
+	case errors.As(err, &exit):
+		return Exit{Code: exit.ExitCode(), Signal: signalOf(exit)}, nil
+	case errors.Is(err, exec.ErrWaitDelay):
+		// The runner returned zero and something it started was still
+		// holding the output pipe when outputDrain expired. What was
+		// cut short is the copying of a survivor's output; the run is
+		// the status the runner itself returned, and reporting a suite
+		// that ran and passed as a runner that could not be started
+		// would be a false statement about the code.
+		return Exit{}, nil
+	}
+	return Exit{}, &RunError{Args: slices.Clone(argv), Err: err}
 }
 
 // holdRunner turns cmd into the start of a held runner: cr's own binary under
