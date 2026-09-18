@@ -294,7 +294,8 @@ func newTestCmd(out *writer) *cobra.Command {
 			took := time.Since(started)
 			// Joined rather than branched, as every other release
 			// in cr is: the lock goes whether or not the run did.
-			if err := errors.Join(err, runner.Release(), probe.Unlock()); err != nil {
+			lingering, released := runner.Release()
+			if err := errors.Join(err, released, probe.Unlock()); err != nil {
 				return err
 			}
 			// §5.1.6's check again, now that the suite has finished
@@ -337,8 +338,8 @@ func newTestCmd(out *writer) *cobra.Command {
 				TimedOut:     timedOut,
 				Contaminated: contaminated,
 				Warnings:     []string{probe.CollisionWarning()},
-				Honesty: append(append(recreationNotice(ready), uncopied...),
-					resolved.StaleDisclosures()...),
+				Honesty: append(append(append(recreationNotice(ready), survivorNotice(lingering)...),
+					uncopied...), resolved.StaleDisclosures()...),
 			})
 		},
 	}
@@ -366,6 +367,19 @@ func recreationNotice(ready *sandbox.Ready) []string {
 		notices = append(notices, ready.Recreated.Disclosure())
 	}
 	return notices
+}
+
+// survivorNotice renders §5.6.3's disclosure for a process of this run's test
+// runner that still held the runner lock when the run ended, and nothing when
+// the lock came free.
+//
+// It is a slice rather than a string so that a run with nothing to disclose
+// adds nothing, the shape recreationNotice already uses.
+func survivorNotice(lingering bool) []string {
+	if !lingering {
+		return nil
+	}
+	return []string{sandbox.RunnerSurvivor{}.Disclosure()}
 }
 
 // lockProbe takes §5.6.1's advisory lock for the repository under review and
