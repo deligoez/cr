@@ -46,11 +46,12 @@ paragraphs of this file used to carry is the Shipped table below.
 
 Each of these is measured rather than wished for: the evidence is a run that had to work around its absence.
 
-- **A role cannot propose an experiment.** §5's probes are cr's differentiator and the fan-out gives no way
-  to reach them: a role holds the suspicion, and §6.1 gives it only `probe`, a field for the *id* of an
-  already-executed probe. Measured twice — 15 records in one run and 10 in another wrote prose into that
-  field ("Take an application for which shouldInitializeMachine() is false…"), and both measurements needed
-  a bespoke side-channel before any probe could run. Widening `probe` to carry prose is ruled out on cr's
+- **A role cannot propose an experiment.** *Specified in `spec/0.4.0.md` §5.7; not yet implemented.*
+  §5's probes are cr's differentiator and the fan-out gives no way to reach them: a role holds the
+  suspicion, and §6.1 gives it only `probe`, a field for the *id* of an already-executed probe.
+  Measured twice: 15 records in one run and 10 in another wrote prose into that field ("Take an
+  application for which shouldInitializeMachine() is false…"), and both measurements needed a bespoke
+  side-channel before any probe could run. Widening `probe` to carry prose is ruled out on cr's
   own grounds: §6.2.1 closes the grade's inputs and `internal/finding/grade.go` makes "evidence prose is
   never parsed" structural rather than a promise, so a prose proposal is written into the one field cr has
   decided never to read. **The shape is a per-round proposals file** the roles write and `cr probe run`
