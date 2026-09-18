@@ -188,6 +188,85 @@ func TestEveryCopyLandsBeforeTheFirstSetupCommandRuns(t *testing.T) {
 	assert.Equal(t, []string{first, second}, created.Setup)
 }
 
+// M-1.5: §5.1.2's copy never writes through a link the head under review checks
+// out, however the link is placed.
+//
+// `sandbox.copy` entries are held to a path inside the checkout lexically, which
+// settles what the *profile* may name and nothing about what the *head* puts
+// there. The head is the pull request's content: a branch may perfectly well
+// track `.env` as a link to somewhere else on the machine, or track the
+// directory a copied path descends through as one. The copy then opens the name
+// for writing, the kernel follows the link, and the user's own `.env` — the file
+// `sandbox.copy` exists to carry, credentials included — is written to a path
+// outside ~/.cr entirely. Invariant 2 permits cr one write inside the repository
+// under review and none anywhere else.
+//
+// Measured against the unfixed code: both rows overwrote the file outside, which
+// held "the file outside" before the creation and "APP_ENV=testing" after it.
+//
+// The sandbox must still end up equal to the checkout for the copied path
+// (§5.1.2), so it is asserted in the same breath: refusing the entry and
+// refusing to write outside are not the same answer, and only one of them leaves
+// the suite able to run.
+func TestACopyDoesNotWriteThroughALinkTheHeadCheckedOut(t *testing.T) {
+	for name, fixture := range map[string]struct {
+		// link is the path the head tracks as a symbolic link, and
+		// copy the `sandbox.copy` entry that lands on or under it.
+		link, copy string
+	}{
+		"the copied path is itself a link":        {link: ".env", copy: ".env"},
+		"the copied path descends through a link": {link: "config", copy: "config/outside.txt"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, _ := repository(t)
+			outside := t.TempDir()
+			target := filepath.Join(outside, "outside.txt")
+			require.NoError(t, os.WriteFile(target, []byte("the file outside\n"), 0o600))
+
+			// The head tracks the link. A directory the copy
+			// descends through is linked to the directory the file
+			// outside sits in, so the write lands beside it.
+			pointsAt := target
+			if fixture.link != fixture.copy {
+				pointsAt = outside
+			}
+			runGit(t, dir, "checkout", "--quiet", "pr-head")
+			require.NoError(t, os.Symlink(pointsAt, filepath.Join(dir, fixture.link)))
+			runGit(t, dir, "add", fixture.link)
+			runGit(t, dir, "commit", "--quiet", "-m", "a link where a copied path goes")
+			head := runGit(t, dir, "rev-parse", "HEAD")
+			runGit(t, dir, "checkout", "--quiet", "main")
+
+			// The checkout cr copies from holds an ordinary file
+			// there, which is what a developer's own `.env` is.
+			source := filepath.Join(dir, fixture.copy)
+			require.NoError(t, os.MkdirAll(filepath.Dir(source), 0o750))
+			require.NoError(t, os.WriteFile(source, []byte("APP_ENV=testing\n"), 0o600))
+
+			src := sources(t, dir, head)
+			src.Copy = []string{fixture.copy}
+
+			created, err := Create(src)
+			require.NoError(t, err)
+
+			body, err := os.ReadFile(target)
+			require.NoError(t, err)
+			assert.Equal(t, "the file outside\n", string(body),
+				"invariant 2: the copy followed the head's link and wrote outside the sandbox")
+			assert.Equal(t, []string{fixture.copy}, created.Copied)
+
+			copied, err := os.ReadFile(filepath.Join(created.Path, fixture.copy))
+			require.NoError(t, err, "§5.1.2: the path the profile named is in the sandbox")
+			assert.Equal(t, "APP_ENV=testing\n", string(copied))
+
+			landed, err := os.Lstat(filepath.Join(created.Path, fixture.copy))
+			require.NoError(t, err)
+			assert.Zero(t, landed.Mode()&os.ModeSymlink,
+				"the copy replaced the head's link rather than writing through it")
+		})
+	}
+}
+
 // A setup command that refuses stops the run, and what it wrote reaches the
 // user.
 //
