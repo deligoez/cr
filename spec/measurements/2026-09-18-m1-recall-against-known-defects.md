@@ -38,6 +38,58 @@ Found: a record whose anchor or a citation lies inside the row's v0.1.0 ranges (
 
 The one disagreement between the readers: the orchestrator had f9601 (`cr brief` on a moved head reports one head, §9.3.1) as a possible partial for row 24 (`cr status` failing on a head the clone lacks); the second reader's "different command, different behaviour" is right, and it is counted as none.
 
+## Pass 2: the same subject with probes
+
+The first two rounds read; §5's experiments never ran, because `generic` declares no `tests.cmd`. Pass 2 repeats
+the subject under a `go` profile (`go test -v -count=1` through a runner that prints one `Tests: N ran, M failed`
+line; `-run` as the filter, `./<path>` per `--path`, probe template `internal/cli/cr_probe_<id>_test.go`), so the
+test axis is active and a role may earn `probed`. The roles could not run anything themselves: each proposed its
+experiments to the orchestrator, which ran every one with `cr probe run` and linked each to the record that named
+it. The intent pass was not repeated; its mapping and cells were carried in, so correctness, convention and
+test-adequacy ran with the same claims.
+
+What it cost and produced: 123 prompts, then 82 after convention was dropped from the rerun (see below), $97;
+25 probes proposed and run; 31 records — 2 findings, 29 questions; grades **probed 20, cited 9, argued 2**.
+
+| | pass 1 (reading) | pass 2 (probes) |
+|---|---|---|
+| **targets found, 16 yes rows** | 0 | **0** |
+| targets found, 8 partial rows | 0 | **0** |
+| mechanical candidates (anchor or citation inside a target's range) | 6 | 8 |
+| of those, matching on behaviour | 0 | 0 |
+| records graded `probed` | 0 | 20 |
+| false assertions | 0 of 2 | **0 of 2** |
+| probes run | — | 25: 21 `no-test-failed`, 1 `failed`, 2 gap `failed`, 1 gap `no-tests-selected` |
+
+**Recall did not move: still 0 of 24.** The eight candidates are the five near-misses of pass 1 plus three more,
+and every one fails the summary test for the same reason — the roles anchored on the right lines and asked a
+different question. Test adequacy anchors on the code under test, so it lands on target ranges more often; that
+raises the candidate count and not the recall.
+
+**What execution did buy, which reading could not.** Twenty-one mutations of cr's own v0.1.0 code were proven
+uncaught by the tests each probe selected, and 20 records rest on them as `probed` — every one a real gap in cr's
+suite at that commit, none of them in the ground truth, none of them stateable by reading. Six of the twenty-one
+ran the whole package's suite (`^Test`, 21 or 22 tests); the other fifteen selected between 2 and 17 tests, and
+§5.3.6 limits each of those to the tests it ran, which cr says in its own `supports` reason. Every probe reverted:
+the sandbox and the clone are byte-clean, and no `cr_probe_*` file survives.
+
+**Two gap probes failed, which is the pass's sharpest result.** The injected tests for the marker-read-as-prose
+question (`draft/marker.go:152`) and for the unbounded timeout wait (`sandbox/run.go:178`) both failed on the head
+over passing baselines — the behaviour the roles suspected is absent, by execution rather than by reading. Both
+are M-1.6 and its neighbour in `spec/field-feedback.md`, and both were fixed in v0.3.1. Neither could be recorded
+as it stood: §5.4.4 puts a supported failed gap probe at severity `high` or above and both roles wrote `medium`,
+so `cr record` refused the round naming the record. The orchestrator undid its own link rather than rewrite a
+role's severity, and the two records stand ungraded; the probes stand as evidence in `probes.ndjson`. That
+refusal is cr working: the register and the severity floor are enforced where the evidence arrives.
+
+**Two run notes.** The first attempt at this pass was voided in full: the memory plugin had been re-enabled after
+pass 1 and all 123 transcripts carried its per-turn block, so the pre-registered audit discarded them ($116).
+The rerun dropped the convention role, which had touched no target in pass 1 and proposes no experiment. One
+role-unit of the rerun (`u40-test-adequacy`) was voided by the same audit for reading the shared proposal
+directory; its accesses were to files it had itself just written and its one shell call was denied by the
+permission layer, so the voiding is the rule applied strictly rather than a contamination found. Its two records
+and its cell are excluded from every count above.
+
 ## Reading
 
 cr's reading roles, given the spec's own items as claims and whole files as units, found none of the 24 defects that a 478-case QA pass found by executing scenarios — and said four true things about v0.1.0 that the 14 recorded audit rounds under spec/.tp-review/0.1.0 did not say either. Measured, one grep anyone can repeat (`"evidence_file":"internal/brief/rekey.go"` across `spec/.tp-review/0.1.0/audit-round-*.ndjson`): every one of the 14 rounds carries exactly one such row, and all 14 read `"status":"PASS"`, `"evidence_lines":"14-40"`, item `task-issue-key-rewrite-refusal` ("KeyRewriteError (exit 4) with a --issue hint refuses before any write"), the exact lines f10601 flags; every rendered.json mention in the rounds is a triage-body row, none about DecodeRendered's error class; no row mentions Unclean, an orphaned sandbox, or git.Head. The audit did not merely fail to say it; it passed the lines fourteen times. The four: two real defects (a hint that cannot succeed when `intent.key_pattern` changed; a corrupt rendered.json exiting 2 with the usage hint instead of 3 with UnusableHint, a class the QA found only for meta.json; still present on main, checked by reading main's rendered_decode.go:19, a bare fmt.Errorf, regenerate.go:63 returning it, and exit.go's rows, none of which claims a json error, so the floor's usage hint applies), and two departures from the 0.1.0 text that 0.2.0 later codified, raised as questions. No assertion was wrong.
@@ -45,6 +97,14 @@ cr's reading roles, given the spec's own items as claims and whole files as unit
 The near-misses are the informative part. Five records landed within a few lines of a target and asked a different question: the roles reached the right places and did not have the scenario that turns the place into the defect. That is the case for probes and for QA-shaped gap tests over reading, and it bounds what P1 buys: given perfect claims, the intent axis mapped 79 of 110 and raised 7 questions, none about the six omission rows. The reading we offer is that a claim maps to code that implements it in general and the defects were specific cases (a runner that never started, a probe voided by the post-run check).
 
 What the claims bought, measured by the comparator: with the intent axis unavailable the same 41 units produced 9 distinct records instead of 23 — the 7 intent questions vanished and correctness/convention wrote 9 instead of 16 — and the recall on the 24 targets was 0 either way. The comparator asserted more (3 distinct defects against 2) and asked less, and every assertion was true; the intent round's extra records were questions about what the claims did not state (an unmapped payload item, an unstated refusal, a rule the slice's sections did not carry). Both conditions are single runs of a nondeterministic model, and nothing here separates the 16→9 difference in correctness/convention records from run-to-run variance; what survives that caveat is the recall (0 and 0) and the identity of the two defects found in both rounds. So on this subject the claims bought questions about the spec, not defects in the code, and the same two real defects were found with and without them; a third (`Unclean` returning git's error instead of an unclean reason, so an orphaned sandbox is never rebuilt) was found in both rounds, as a question with claims and as a finding without.
+
+Pass 2 answers the question the first two rounds left open, and answers it against the hope: execution did not
+turn the near-misses into findings. A probe decides the question a role already asked, and the roles asked about
+the test suite's reach, not about the 24 defects — so the experiments proved twenty-one real test gaps and no
+target. The lesson for the ROADMAP is narrower than "probes before breadth": a probe is only as good as the
+suspicion it settles, and what neither reading nor probing produced here is the *scenario* — the QA found its 24
+by driving commands against a fixture until one behaved wrongly. That is a third instrument, and the measurement
+now has a number for all three: QA 24 of 24, reading 0, probes 0.
 
 "Found nothing the QA found" and "found nothing" are different sentences; the trust economy's own number — wrong assertions reaching a colleague — is 0 of 2 with claims and 0 of 4 finding records (3 defects) without, and the recall number says what the reading roles are not: a substitute for execution.
 
