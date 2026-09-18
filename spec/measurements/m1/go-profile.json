@@ -1,0 +1,18 @@
+{
+  "id": "go",
+  "match": {"files": ["go.mod"], "globs": ["**/*.go"]},
+  "axes": {"intent": true, "correctness": true, "convention": true, "test": true},
+  "sandbox": {"copy": [], "setup": ["go build ./..."], "require": []},
+  "tests": {
+    "cmd": ["/private/tmp/claude-501/-Users-deligoez-Developer-deligoez-projects-cr/ab43de41-7948-4a07-bc9b-b5622c5ddeda/scratchpad/measure-1/go-runner.sh"],
+    "globs": ["**/*_test.go"],
+    "filter_flag": "-run",
+    "paths_arg": ["./{path}"],
+    "timeout_seconds": 900,
+    "output_tail_bytes": 8192,
+    "count_pattern": "Tests: (\\d+) ran",
+    "failed_pattern": "(\\d+) failed",
+    "probe_path_template": "internal/cli/cr_probe_<probe-id>_test.go"
+  },
+  "symbols": {"lang": "go"}
+}
