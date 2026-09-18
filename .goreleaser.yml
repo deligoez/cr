@@ -67,3 +67,10 @@ changelog:
     exclude:
       - "^chore\\(deps\\)"
       - "^docs\\(changelog\\)"
+
+# The release's title is the headline of its own notes file, which the workflow
+# reads out of `spec/<version>-release-notes.md`'s first line and exports. A
+# name template written here instead would be a second place the title is
+# decided, and the two would drift the first time a headline was reworded.
+release:
+  name_template: "{{ .Env.RELEASE_NAME }}"
