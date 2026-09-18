@@ -7,6 +7,7 @@ import (
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/role"
 )
 
@@ -66,6 +67,74 @@ func contract(p *page, lens *role.Role, output, contractFile string, round int, 
 	forbiddenLine(p)
 }
 
+// proposalSchema writes §5.7's table into the round's contract file, beside
+// §6.1's, so a role reads both schemas in one place.
+func proposalSchema(p *page) {
+	p.section("Proposed experiment schema (§5.7)")
+	p.line("A proposal carries §5.7's fields:")
+	for _, field := range proposal.Fields() {
+		p.line("- %s: %s", field.Name, findingWords[field.Requirement])
+	}
+	p.line("")
+	p.line("kind is one of %s. target is a path:line inside the proposal's own unit, resolved against "+
+		"the round's head. hypothesis and settles are English (§6.1.1). A proposal is never evidence: "+
+		"only `cr probe run --proposal <id>` turns one into a probe record, and that is what re-grades "+
+		"the record a proposal names in finding.", strings.Join(proposal.Kinds(), " or "))
+}
+
+// proposalContract writes §4.6.2's second half: the file the role writes §5.7's
+// proposed experiments to, and the block of proposal ids it may write there.
+//
+// It is a section of its own rather than a paragraph of the record contract,
+// because the two are different asks with different refusals. A role with a
+// suspicion it cannot establish writes here as well as there, and the sentence
+// that matters most is the last one: running the experiment is what changes the
+// register, so proposing one is not a way to assert.
+func proposalContract(p *page, proposals string, round int, asks IDs) {
+	p.section("Proposed experiments (§5.7)")
+	p.line("A suspicion you cannot establish from reading is what §5.7 exists for. Write the experiment " +
+		"that would settle it, one JSON object per line, to:")
+	p.line("")
+	p.line("    %s", proposals)
+	p.line("")
+	p.line("A proposal carries %s. `kind` is one of %s; `target` is a path:line inside this unit; "+
+		"`hypothesis` is what you believe and cannot establish; `settles` is the result that would "+
+		"settle it; `input` is the unified diff for a mutation or the test file's content for a gap. "+
+		"`finding` may name a record you wrote for this unit, and then running the proposal re-grades "+
+		"that record.",
+		strings.Join(proposalWritable(), ", "), strings.Join(proposal.Kinds(), " or "))
+	p.line("")
+	if first, last := asks.spelledAs(proposal.IDOf); first == "" {
+		p.line("This prompt's block of proposal ids is spent: every id in it is held by a stored " +
+			"proposal, so propose nothing here and say so to the operator.")
+	} else {
+		p.line("Give the proposals you write here the ids %s through %s, in order from %s. No other "+
+			"prompt of round %d is given any of them (§4.6.2).", first, last, first, round)
+	}
+	p.line("")
+	p.line("A proposal is **not evidence**. `probe` stays the id of an experiment that ran, and a " +
+		"record naming a proposal there is rejected; an unestablished suspicion is still a question " +
+		"(§4.1.4, §6.3). Only `cr probe run --proposal <id>` turns a proposal into evidence.")
+	p.line("")
+	p.line("You may not write %s; cr computes or stamps them (§5.7, §2.3.3).",
+		strings.Join(proposal.Reserved(), ", "))
+}
+
+// proposalWritable is §5.7's rows an agent writes, each with what the Required
+// column answers, read off proposal.Fields so the prompt cannot offer a field
+// the decoder refuses.
+func proposalWritable() []string {
+	reserved := proposal.Reserved()
+	words := make([]string, 0, len(proposal.Fields()))
+	for _, field := range proposal.Fields() {
+		if slices.Contains(reserved, field.Name) {
+			continue
+		}
+		words = append(words, field.Name+" ("+findingWords[field.Requirement]+")")
+	}
+	return words
+}
+
 // englishLine states §6.1.1 to the one writing a record.
 const englishLine = "Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
 	"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1)."
@@ -112,6 +181,7 @@ func Contract(round int) string {
 		"time, where a question body that does not ask is rewritten into one before `cr post` accepts it.")
 	p.line("")
 	forbiddenLine(&p)
+	proposalSchema(&p)
 	return p.String()
 }
 
