@@ -22,7 +22,8 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.2.3 | What the field trial's operator asked for, within the v0.2 contract: notes that postdate a prompt reported, recorded cells marked, duplicate candidates listed, issue text cleaned and its links and uncovered paragraphs disclosed |
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
-| v0.3.2 | The two defects listed before any feature: a credential-shaped file (`.env`, `id_rsa`, `*.pem` and the rest of a built-in fence read before `ignore.globs`) is listed by path and not clustered, so its content reaches no role's prompt; and a process of the test runner still holding the runner lock when the run ends is disclosed by `cr test` and `cr probe run` |
+| v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.3.2 (untagged, shipped inside v0.4.0) | The two defects listed before any feature: a credential-shaped file (`.env`, `id_rsa`, `*.pem` and the rest of a built-in fence read before `ignore.globs`) is listed by path and not clustered, so its content reaches no role's prompt; and a process of the test runner still holding the runner lock when the run ends is disclosed by `cr test` and `cr probe run` |
 
 ## What has been measured
 
@@ -46,7 +47,9 @@ paragraphs of this file used to carry is the Shipped table below.
 
 Each of these is measured rather than wished for: the evidence is a run that had to work around its absence.
 
-- **A role cannot propose an experiment.** *Specified in `spec/0.4.0.md` §5.7; not yet implemented.*
+- ~~**A role cannot propose an experiment.**~~ *Shipped in v0.4.0 as `spec/0.4.0.md` §5.7; the paragraphs
+  below are kept until a real round has used it, because nothing has yet measured whether roles propose
+  experiments worth running.*
   §5's probes are cr's differentiator and the fan-out gives no way to reach them: a role holds the
   suspicion, and §6.1 gives it only `probe`, a field for the *id* of an already-executed probe.
   Measured twice: 15 records in one run and 10 in another wrote prose into that field ("Take an
