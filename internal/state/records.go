@@ -15,7 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/text"
 )
 
-// Stamp is the head and round pair §2.3.3 requires on every record of the eight
+// Stamp is the head and round pair §2.3.3 requires on every record of the nine
 // files it names.
 //
 // A record type carries the pair by embedding this struct, which is also the
@@ -38,15 +38,15 @@ type Stamped interface {
 	setStamp(Stamp)
 }
 
-// stampedFiles are the eight files §2.3.3 names, in the order it names them.
+// stampedFiles are the nine files §2.3.3 names, in the order it names them.
 // The list is what routes a write: it is consulted here rather than at any call
 // site, so no command can decide for itself whether its file carries the pair.
 var stampedFiles = []string{
 	FileClaims, FileUnits, FileMapping, FileFindings,
-	FileProbes, FileRuns, FileIntentGaps, FileCoverage,
+	FileProbes, FileProposals, FileRuns, FileIntentGaps, FileCoverage,
 }
 
-// StampedFiles returns the eight §2.3.3 file names in the order §2.3.3 names
+// StampedFiles returns the nine §2.3.3 file names in the order §2.3.3 names
 // them. The result is a copy, so a caller can neither widen the set nor
 // reorder it.
 //
@@ -70,7 +70,7 @@ func WriteRecords[T any](k *Lock, name string, records []T) error {
 	return writeRecords(k, name, records)
 }
 
-// AppendStamped adds records to the end of one of the eight §2.3.3 files,
+// AppendStamped adds records to the end of one of the nine §2.3.3 files,
 // stamping head and round onto every record it adds and leaving what the file
 // already holds byte for byte. It refuses a file §2.3.3 does not list.
 //
@@ -188,7 +188,7 @@ func (e *MalformedLineError) Unwrap() error { return e.Err }
 var stampFields = []string{"head", "round"}
 
 // DecodeStamped decodes the NDJSON an agent hands a recording command into the
-// record type of one of the eight §2.3.3 files, and refuses a line that
+// record type of one of the nine §2.3.3 files, and refuses a line that
 // supplied head or round.
 //
 // The stamped writers own the pair, so a record arriving with either was
