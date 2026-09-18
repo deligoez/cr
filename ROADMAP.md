@@ -65,10 +65,14 @@ Each of these is measured rather than wished for: the evidence is a run that had
   against a careful reviewer are shaping comments — name this test that way, extract this helper, call this
   variable `$specification`. House style is not in the issue and not in the diff. §2.6's rule corpus is the
   right home and cr ships **no rules at all**, while `cr rules suggest` harvests only from *posted* rounds,
-  so a team's first review — where style matters most — has nothing. Ship a starter corpus and a way to seed
-  one; Alibaba's `rule_docs` (52 per-language guides, Apache-2.0, headed by "Favor precision over recall… a
-  false positive costs reviewer trust") is the first source, as a corpus intake with attribution, not as an
-  adoption of their selector.
+  so a team's first review — where style matters most — has nothing. **Half shipped in v0.3.2**: the
+  `laravel-pest` profile now carries four rules drawn from M3's own miss set, in the profile layer §2.6
+  already defines, each in the `question` register because they are style cr proposes rather than style the
+  team declared. What is left is the seeding — no other profile has a corpus, and `cr rules suggest` still
+  harvests only from posted rounds. Alibaba's `rule_docs` (52 per-language guides, Apache-2.0, headed by
+  "Favor precision over recall… a false positive costs reviewer trust") is the first source, as a corpus
+  intake with attribution, not as an adoption of their selector. Discharged when a second profile ships a
+  corpus and a team can seed one without writing every file by hand.
 - **Two profiles is not a tool.** Only `laravel-pest` and `generic` ship, so on any other stack the
   reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template. The
   Go profile is written and measured already (`spec/measurements/m1/go-profile.json`: runner, count
