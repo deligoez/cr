@@ -111,6 +111,13 @@ func newProposalsRecordCmd(out *writer) *cobra.Command {
 			); err != nil {
 				return err
 			}
+			// §5.7.5, before the write: a proposal cr cannot execute
+			// is stored with the reason rather than dropped, so a
+			// role's ask that will never be answered is visible to
+			// the operator instead of missing.
+			if err := markUnrunnable(layout, round.ProfileID, proposals); err != nil {
+				return err
+			}
 			held, err := layout.LockPR(owner, repo, pr)
 			if err != nil {
 				return err
@@ -133,6 +140,44 @@ func newProposalsRecordCmd(out *writer) *cobra.Command {
 			})
 		},
 	}
+}
+
+// markUnrunnable is §5.7.5: a proposal the round's profile gives cr no way to
+// execute is stored `unrunnable` with the reason, never dropped and never
+// refused.
+//
+// Refusing it would be the wrong answer twice over. The proposal is
+// well-formed, so §5.7.1 has nothing to say about it; and a role that asked a
+// good question on a repository with no test runner has said something the
+// operator needs to read, which a rejected file would hide behind the first
+// line cr could not use.
+func markUnrunnable(l state.Layout, profileID string, proposals []*proposal.Proposal) error {
+	p, err := statusProfile(l, profileID)
+	if err != nil {
+		return err
+	}
+	for _, ask := range proposals {
+		switch {
+		case len(p.Tests.Cmd) == 0:
+			ask.State, ask.Reason = proposal.StateUnrunnable, fmt.Sprintf(
+				"the resolved profile %s declares no tests.cmd, so §5.2.1 has no runner to "+
+					"perform this experiment", namedProfileID(profileID))
+		case ask.Kind == proposal.KindGap && p.ProbePath("x") == "":
+			ask.State, ask.Reason = proposal.StateUnrunnable, fmt.Sprintf(
+				"the resolved profile %s declares no tests.probe_path_template, so §5.4.2 has "+
+					"nowhere in the sandbox to place a gap probe's test file", namedProfileID(profileID))
+		}
+	}
+	return nil
+}
+
+// namedProfileID words the profile a reason names, and says so plainly when the
+// round resolved none.
+func namedProfileID(id string) string {
+	if id == "" {
+		return "(none: no profile matched this repository)"
+	}
+	return id
 }
 
 // decodeProposals reads the file an agent handed `cr proposals record` and
