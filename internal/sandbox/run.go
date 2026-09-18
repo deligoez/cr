@@ -380,6 +380,28 @@ func (s *StoppedRunner) Disclosure() string {
 	return notice
 }
 
+// RunnerSurvivor is a process of a finished run's test runner that was still
+// holding the runner lock once the run ended, per §5.6.3.
+//
+// It is what cr can say about the process the timeout kill could not reach.
+// §5.2.3's kill reaches a process group; a process that left the group survives
+// it, cr never learns its pid and cannot signal it, so the honest remedy is to
+// say so rather than to claim the sandbox is free. Disclosed for a run that
+// ended any way at all, because a straggler of a run that passed holds the same
+// test database as one that timed out.
+type RunnerSurvivor struct{}
+
+// Disclosure states only what was observed from outside: the lock every process
+// of the run inherits was still held after the grace. Which process holds it,
+// and whether it left §5.2.3's group or merely outlived its parent, is not
+// something cr can establish.
+func (RunnerSurvivor) Disclosure() string {
+	return fmt.Sprintf("a process this run's test runner started still held the runner lock %s after the "+
+		"run ended, per §5.6.3: it may still be using the sandbox and the test database, and cr cannot "+
+		"signal it because §5.2.3's kill reaches a process group and this process is outside cr's reach",
+		state.SurvivorGrace)
+}
+
 // leftRunnerGrace is how long a killed runner group is given to exit before
 // the run goes ahead, and leftRunnerPoll how often it is asked. A SIGKILL is
 // not refused, so the grace bounds only a process that left the group.
