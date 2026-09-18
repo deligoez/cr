@@ -2,22 +2,14 @@
 
 `VISION.md` says why cr exists; each `spec/<version>.md` is the normative contract of one release. This
 file is neither. It is the working list of what cr lacks, what is sequenced next, and what has to be
-measured before it is decided. It is revised whenever a release ships or a measurement lands, and an item
-leaves it only by becoming a spec or by being dropped with its reason.
+measured before it is decided.
 
-## Where the plan came from, and why it moved
+**An item leaves this file three ways and no other: it becomes a spec, it is dropped with its reason, or it
+is written into Not planned.** Nothing stays by default, and nothing accretes.
 
-The first spec (`e106957`, 2026-08-05) put the whole reviewer loop in v0.1, including "re-reviewing after
-the author pushes, and resolving threads". Spec review cut the re-review half out of v0.1, and VISION.md's
-roadmap then placed it in v0.2. v0.2.0 (2026-09-14) became a repair release instead: a 478-case QA pass
-against real pull requests found defects fourteen audit rounds had passed, and the user chose to ship those
-repairs and the spec changes they forced as v0.2.0. The conversation half therefore moved to v0.3, and
-every later theme in VISION.md's table moved with it. v0.3.0 (2026-09-16) then went the same way: the
-first field trial on a real pull request, and the test-environment incident it exposed, took v0.2.2,
-v0.2.3 and v0.3.0 between them, so the conversation half moved again — to v0.4.
-
-The lesson that reorders this list: **what cr has not been run against, it has not been shown to do.** The
-largest open question is not a missing feature but an unmeasured bet, so measurement comes before breadth.
+The lesson that orders the list: **what cr has not been run against, it has not been shown to do.** Three
+measurements now stand behind the ordering, all under `spec/measurements/`; the version history the first
+paragraphs of this file used to carry is the Shipped table below.
 
 ## Shipped
 
@@ -29,130 +21,184 @@ largest open question is not a missing feature but an unmeasured bet, so measure
 | v0.2.2 | Test-environment safety after a field trial ran the sandbox against a developer's application database: `.env.testing` copied, every gitignored env file the sandbox lacks reported, an experiment header before every run, a stale sandbox rebuilt |
 | v0.2.3 | What the field trial's operator asked for, within the v0.2 contract: notes that postdate a prompt reported, recorded cells marked, duplicate candidates listed, issue text cleaned and its links and uncovered paragraphs disclosed |
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
+| v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
+
+## What has been measured
+
+| | Instrument | Result |
+|---|---|---|
+| M1, 2026-09-18 | cr's reading roles, then its probes, over its own v0.1.0 packages, against 24 defects a 478-case QA pass had found | Reading **0 of 24**, probes **0 of 24**, false assertions **0**; the probes proved 21 real test gaps and decided two suspicions by experiment. QA 24, reading 0, probes 0 — the instrument matches the defect |
+| M3, 2026-09-18 | cr against a careful human review on a real pull request (tarfin-labs/backend#3757), threads shimmed out of its ingestion | **8 of 16** of the human's comments recovered, 43 cr-only records, false assertions **0 of 9** verified by hand; seven of the eight misses are house style |
+| AACR-Bench, external | Alibaba's 2145 expert-labelled comments over 200 pull requests | Evidence distance predicts correctness (0.741 / 0.696 / 0.607, non-overlapping CIs); comment *wording* predicts nothing. See Questions, settled |
 
 ## Next
 
-### 1. Measure the bet (before anything else)
+### 0. Defects (before any feature)
 
-cr has reviewed scratch pull requests on `deligoez/cr-qa` and one real pull request, in the field trial
-recorded in `spec/field-feedback.md`. That trial measured the operator's experience, not the bet: cr's
-central claim — a wrong comment costs trust, so cr trades recall for precision and turns weak findings
-into questions — still has no measurement.
+- **A credential-shaped file in the diff reaches every prompt.** Measured end to end, twice: a tracked
+  `.env`, `id_rsa` or `.netrc` is not matched by `ignore.globs` (which defaults to empty,
+  `internal/config/config.go:56`), is not binary and is not generated, so `internal/unit/files.go`'s
+  four-way sort clusters it, and `internal/review/text.go:118` writes its added lines into every role's
+  prompt as a fenced diff block. §3.4 has no fence and §5.1.2's `.env*` report is about a different
+  question — what the *sandbox* lacks. The fix is a built-in path fence applied before `ignore.globs`, and
+  it **discloses rather than silently drops**: §4.5.4's honesty obligation means the brief says a file was
+  fenced, or a reviewer cannot tell a fence from an oversight. No configuration key turns it off in the
+  first release.
+- **A runner's survivor outside the process group is neither killed nor reported.** v0.3.1 bounded the wait
+  (`cmd.WaitDelay`), so a descendant that left the group no longer blocks the run for ever; cr cannot signal
+  it, so the honest remedy is the disclosure that does not exist yet — the shape `StoppedRunner.Lingering`
+  already uses. `spec/field-feedback.md` M-1.6's tail.
+
+### 1. The basics cr lacks
+
+Each of these is measured rather than wished for: the evidence is a run that had to work around its absence.
+
+- **A role cannot propose an experiment.** §5's probes are cr's differentiator and the fan-out gives no way
+  to reach them: a role holds the suspicion, and §6.1 gives it only `probe`, a field for the *id* of an
+  already-executed probe. Measured twice — 15 records in one run and 10 in another wrote prose into that
+  field ("Take an application for which shouldInitializeMachine() is false…"), and both measurements needed
+  a bespoke side-channel before any probe could run. Widening `probe` to carry prose is ruled out on cr's
+  own grounds: §6.2.1 closes the grade's inputs and `internal/finding/grade.go` makes "evidence prose is
+  never parsed" structural rather than a promise, so a prose proposal is written into the one field cr has
+  decided never to read. **The shape is a per-round proposals file** the roles write and `cr probe run`
+  consumes — exactly `cr claims record`, `cr map record` and `cr cells record`: role writes a file, cr
+  validates and ingests. A proposal carries kind, target, the mutation or command, and the outcome that
+  would settle it, so it is machine-checkable the way a claim is; `probe` stays an id, and a proposal
+  becomes evidence only by being run. **Not tool-shaped**, and that is decided rather than open: cr is a CLI
+  an orchestrator drives, not a server a model calls mid-reasoning, and P5 keeps it that way. The opposite
+  answer exists to look at — Alibaba's reviewer gives its agent six tools and no execution at all, and its
+  published ceiling is 37.8% precision at 28.9% recall.
+- **Nowhere to put house style.** M3's miss set is the evidence: seven of the eight comments cr missed
+  against a careful reviewer are shaping comments — name this test that way, extract this helper, call this
+  variable `$specification`. House style is not in the issue and not in the diff. §2.6's rule corpus is the
+  right home and cr ships **no rules at all**, while `cr rules suggest` harvests only from *posted* rounds,
+  so a team's first review — where style matters most — has nothing. Ship a starter corpus and a way to seed
+  one; Alibaba's `rule_docs` (52 per-language guides, Apache-2.0, headed by "Favor precision over recall… a
+  false positive costs reviewer trust") is the first source, as a corpus intake with attribution, not as an
+  adoption of their selector.
+- **Two profiles is not a tool.** Only `laravel-pest` and `generic` ship, so on any other stack the
+  reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template. The
+  Go profile is written and measured already (`spec/measurements/m1/go-profile.json`: runner, count
+  patterns, filter and path flags, probe template), so it is a commit rather than a project; TypeScript and
+  Python follow. Tracker commands for GitHub Issues and Linear belong here too.
+- **A driver for the mechanical steps.** A round is ten commands of which three need the agent's judgement.
+  Measured: the orchestration was written three separate times for the three measurement passes, and every
+  time the plumbing — which prompts to run, where their output goes, collecting the cells — was the
+  operator's to build rather than cr's. §7.3's statistics, the probe cap's report, and the round's
+  completeness all exist; what is missing is the one command that walks the mechanical half.
+
+### 2. Measure what is still unmeasured
+
+M1 and M3 answered two of this item's three slices. What is left has no data at all:
 
 - **Real use.** Review real pull requests with cr, posting only what the reviewer would have posted anyway,
   and record per round: comments kept, softened, deleted, marked `wrong`; author replies; wall clock and
-  token cost of the round. §7.3's triage statistics exist for this and have no data yet.
-- **Against a human review.** On pull requests that already carry a careful human review, compare what cr
-  raises with what the human raised: overlap, cr-only, human-only, and cr's false assertions (the number
-  that should be zero).
+  token cost. §7.3's triage statistics exist for exactly this and hold one round's data from one field
+  trial. It is the same question the volume question below asks, from the other end.
+- **AACR-Bench as an instrument.** Its 640 negatives are a straight binary test of whether cr's grade ladder
+  and §6.3's question-forcing separate wrong from right, with no matcher needed and no scoring script (which
+  is unpublished). cr's own false-assertion denominators are 6 and 9; this one is 640. Recall over its 245
+  Go rows is a second, larger slice, conditional on the first and on the Go profile.
 
-  **Measured 2026-09-18** (`spec/measurements/2026-09-18-m3-against-a-human-review.md`; tarfin-labs/backend#3757,
-  January 2025, 25 human line comments, review threads shimmed out of cr's ingestion, read-only worktree,
-  nothing posted). Against the 16 comments written at the commit cr reviewed: **8 recovered, 8 missed, 43
-  cr-only records, 0 false assertions among 9 findings**, each verified by hand. The split is by kind, not by
-  luck: every dead-code, redundant-assertion and test-discrimination point was recovered, and seven of the
-  eight misses are *shaping* comments — name this test that way, extract this helper. House style is not in
-  the issue and not in the diff, so §2.6's rule corpus is where those belong, which makes a rule-corpus
-  intake the measured remedy for cr's one systematic miss (see 4). cr also found at that commit what the
-  human found two commits later (`latestOfMany`), and stated the consequence the human did not: an ordered
-  `hasOne` makes the endpoint's `whereHas` match any decision rather than the last.
-- **Recall against known defects.** The defects the v0.2.0 QA pass found are recorded with repros and the
-  sections they violated. Reverse the `qa-` fix commits so the diff under review is the defective code, give the violated
-  sections as intent, and count findings, questions and misses — and whether the misses are cross-cutting
-  (see 5).
+### 3. Scenario coverage
 
-  **Measured 2026-09-18** (`spec/measurements/2026-09-18-m1-recall-against-known-defects.md`; deligoez/cr#1,
-  the v0.1.0 `brief`, `sandbox`, `probe`, `run`, `draft` and `coverage` packages added from nothing, 24 targets
-  with pre-registered rules, two readers matching blind to each other, Opus roles from a fresh clone with the
-  memory plugin off). Reading roles with 110 mechanically extracted claims: 123 prompts, $89, 23 records (2
-  findings, 21 questions), **0 of 16 targets found, 0 of 8 partials, 0 false assertions**, 0 of 6 omissions
-  raised as gaps; five near-misses within lines of a target asking a different question. Without the intent
-  axis: 82 prompts, $60, 9 distinct records, 0 and 0 again, 0 false assertions. Found instead: two real defects
-  the 14 recorded audit rounds had passed (`rekey.go:14-40` PASS in all 14), one more without claims, and two
-  0.1.0-text departures 0.2.0 later codified, as questions. The reading offered: the roles reached the right
-  places and lacked the scenario that turns a place into a defect; the 24 were found by executing scenarios.
+M1 gave all three instruments a number against the same 24 defects: a QA pass that drove commands found 24,
+reading roles 0, probes proposed by those roles 0. A probe decides a suspicion; nothing in the loop
+*produces* the suspicion a scenario produces. Candidates, cheapest first: a role whose prompt carries the
+command surface and asks what a user would do with this unit and what would then go wrong; a fixture
+repository the round drives commands against, which is what `deligoez/cr-qa` already is for cr itself;
+`cr probe run --kind gap` used the way the QA used its cases, one command sequence per probe rather than one
+unit test. Decide after a cheap trial: one scenario-shaped role over the same subject, counted against the
+same 24.
 
-  **Pass 2, the same subject with probes** (a `go` profile, test axis active, roles proposing experiments the
-  orchestrator ran): recall **did not move — 0 of 16 and 0 of 8 again**, with more mechanical candidates (8) and
-  the same behaviour mismatch. What execution bought instead: 21 mutations proven uncaught by the tests they
-  selected, 20 records resting on them as `probed`, and two gap probes that failed on the head, deciding two
-  suspicions by experiment; both became v0.3.1 fixes. Consequence for this list: not "probes before breadth" — a
-  probe only settles the question a role already asked. The instrument none of these three passes has is the
-  **scenario**: the 24 were found by driving commands against a fixture until one behaved wrongly. QA 24 of 24,
-  reading 0, probes 0. The misses did not cluster on cross-cutting items (5), they were case-shaped.
-
-### 2. Isolation for untrusted code
+### 4. Isolation for untrusted code
 
 Probes run the pull request's `tests.cmd` on the reviewer's machine in a git worktree, with the reviewer's
 permissions. That is acceptable for a colleague's pull request and not for an outside contributor's. Before
 cr is pointed at code from outside the team: a container or equivalent sandbox for test runs, no network by
 default, and an explicit profile opt-in for anything else.
 
-### 3. The conversation (v0.4)
+### 5. The conversation (v0.4)
 
 The re-review half the first spec promised:
 
-- anchor migration across a push, using the context window and content hash v0.1 and v0.2 already record;
+- anchor migration across a push, using the context window and content hash v0.1 onward already record.
+  Alibaba's `internal/diff/resolver.go` is the working reference for the shape: the agent supplies a
+  verbatim excerpt rather than a line number, and the tool finds it by normalised sliding-window match over
+  the hunk's new side, then the old side, then the file, declining on zero or multiple hits;
 - recheck and verification: after the author pushes, is each posted concern addressed;
 - resolving and withdrawing threads, still behind `--confirm`;
 - reading author replies from GitHub instead of storing them by hand with `cr answer`;
-- a question closed by an answer is neutral, an open question is not — the rule a convergence criterion needs.
+- a question closed by an answer is neutral, an open question is not — the rule a convergence criterion
+  needs.
 
-### 4. Profiles and ecosystems
-
-Only `laravel-pest` and `generic` ship. On any other stack the reinvention lens is off (no symbol index),
-the test axis needs a hand-written `tests.cmd`, and mutation probes need profile templates.
-
-- profiles for Go, TypeScript and Python, each with a symbol scanner and probe templates;
-- tracker commands for GitHub Issues and Linear alongside the jira CLI;
-- GitLab and Bitbucket are not planned until a user needs them; cr's single network-write door keeps that
-  change contained.
-
-### 4a. Scenario coverage (new, from measurement 1)
-
-The measurement gives all three instruments a number against the same 24 defects: a QA pass that drove commands
-found 24, reading roles found 0, and probes proposed by those roles found 0. A probe decides a suspicion; nothing
-in the loop *produces* the suspicion a scenario produces. Candidates, cheapest first: a role whose prompt carries
-the command surface and asks what a user would do with this unit and what would then go wrong; a fixture
-repository the round can drive commands against, which is what `deligoez/cr-qa` already is for cr itself;
-`cr probe run --kind gap` used the way the QA used its cases, one command sequence per probe rather than one unit
-test. To be chosen after a cheap trial: run one scenario-shaped role over the same subject and count against the
-same 24.
-
-### 5. Cross-cutting requirements
-
-A unit is built from hunks, so a requirement that spans the change ("every write takes the lock") is seen in
-thirty pieces and never whole. Candidates, to be chosen after measurement 1 shows whether misses cluster
-here: a claim mapped to more than k units gets a whole-change pass by a dedicated role, and a claim about
-tree state no hunk touches (a README listing every command) gets a tree-level check.
-
-### 6. Operator cost
-
-A round is about ten commands orchestrated by the skill. v0.3.0's narrowed fan-out, shards and `cr triage`
-took the repeated work out of a second pass; what is left, once the round's cost is measured (1):
-
-- a single driver for the mechanical steps, leaving the agent only the judgement steps;
-- prompt size budgets for large pull requests (248 prompts measured 2.3 MB), and an honest report of what
-  was cut when `post.max_comments` or the probe cap bites.
-
-### 7. Team use
+### 6. Team use
 
 State, waivers and triage statistics live in one reviewer's `~/.cr`. A team cannot share "this class is
-wrong" or a context note. VISION.md's original team theme — write context supplements back to the tracker,
-share the context store — belongs here, together with shared repository-wide waivers.
-
-### 8. Author side
-
-VISION.md's original author-side theme: on the user's own pull requests, ingest incoming review comments as
-a work list.
-Sequenced after the reviewer side has been measured, because it is a second product.
+wrong" or a context note. Write context supplements back to the tracker, share the context store, and share
+repository-wide waivers.
 
 ## Questions to settle by measurement
 
 - **Does the question channel converge?** If the question-to-finding ratio on a real spec is high, a
   convergence rule that counts open questions never reaches clean, and one that does not count them loses
-  recall. First data point, measurement 1 (2026-09-18): 21 questions to 2 findings with the spec's items as
-  claims, 6 to 4 without; every finding true. The ratio is high exactly when the claims are present.
+  recall. First data points: M1, 21 questions to 2 findings with the spec's items as claims, 6 to 4 without;
+  M3, 42 questions to 9 findings against a human review. Every finding in both was true. The ratio is high
+  exactly where the claims are.
+- **Is 43 records a good round or a bad one?** M3 produced 43 cr-only records beside a careful human's 25
+  comments, and all nine of its assertions were true — but the question is about the whole set reaching an
+  author, not the assertions. AACR-Bench's sharpest structural result is that precision collapses on volume
+  alone and on nothing else: 465 comments buys 37.8%, 5980 comments buys 7.2%, same model family. Nobody
+  knows which side of that curve 43 sits on. §7.3's triage statistics are the instrument and have one
+  round's data; this is the same question "real use" above ends on.
+- **Does evidence distance predict correctness, and does register?** *Settled, both halves*, against
+  AACR-Bench (Apache-2.0: 2145 expert-labelled review comments over 200 real pull requests, 50 repositories,
+  10 languages, 1505 correct and 640 incorrect). Comments the benchmark's experts annotated as needing only
+  the diff are right 74.1% of the time (n=1017, 95% CI [0.714, 0.768]); file-level 69.6% (n=744);
+  repository-level 60.7% (n=384, CI [0.558, 0.656]). The outer intervals do not overlap, and the ordering
+  survives every available control: within each category (Code Defect 0.738/0.685/0.626, Maintainability
+  0.733/0.686/0.545, Security 0.757/0.708/0.615), within each author including the 548 human-written
+  comments (0.763/0.712/0.590), and the context mix is near-identical across all seven authors, so it is not
+  a proxy for who wrote the comment. That is §6.2's axis, measured from outside cr: the further the evidence
+  sits from the diff, the likelier the comment is wrong. The negative half is as load-bearing. No property
+  of a comment's *wording* predicts anything: hedging present versus absent is −0.023, assertive wording
+  −0.013, and the sharpest cut — two or more hedges with no assertive verb (0.668) against assertive verbs
+  with no hedge (0.687) — runs the wrong way and lies inside noise, as do backtick density, explicit line
+  references, note length and anchor span. §6.2.1's "`evidence` prose is never parsed" is therefore not
+  fastidiousness: a grader or filter keyed on how confident a finding sounds would be keyed on noise. What
+  is *not* settled is whether cr's own graders can recover the distance from what they see. A blind pilot
+  (58 comments, balanced, stratified on context, real diffs, graded before labels were joined) returned
+  cited 0.433 against argued 0.571, z = −1.05 — but at n=58 it could only have detected a gap of about 0.30
+  where the real gap is 0.134, so the null is uninformative and refutes nothing. Its one usable output is a
+  rubric lesson: "settleable by pointing" collects comments the diff *refutes* as well as ones it supports,
+  and a post-hoc grader conflates the two. If that generalises, the grade can only be assigned honestly at
+  production, by the role holding the evidence with its citation attached — where §6.2 already puts it, and
+  an argument against any late grading or filter pass.
+
+## Not planned
+
+An item here has been considered and declined. It returns only with a measurement that overturns the reason.
+
+- **A whole-change pass for cross-cutting requirements.** A unit is built from hunks, so a requirement that
+  spans the change ("every write takes the lock") is seen in pieces. The item's own condition was to decide
+  it after M1 showed whether the misses clustered there; M1's misses were case-shaped and M3's were house
+  style, so the condition is discharged negative, twice. And there is now a number for why it is the
+  expensive direction: 18% of AACR-Bench's comments (384 of 2145) need repository-level context, and that
+  band has the worst precision of the three at 0.607. A whole-change pass buys the least reliable comments
+  at the highest cost.
+- **The author side** — ingesting incoming review comments on the user's own pull requests as a work list.
+  It is a second product, not a later item of this one, and leaving it in Next is what turns a plan into a
+  wish list.
+- **GitLab and Bitbucket.** Not until a user needs them; cr's single network-write door keeps that change
+  contained when one does.
+- **A post-hoc filter or fact-check pass over merged findings.** Measured and declined: a diff-only grader
+  could not recover evidence distance (above), and removing exactly the class it can identify would have
+  dropped 5 wrong comments and 3 correct ones — a 1.67:1 trade cr's asymmetry cannot buy at a prompt per
+  finding.
+- **A risk plan before the fan-out.** Alibaba's reviewer builds one and then strips it from round 2 onward
+  because it caps recall. cr already has a pre-pass with provenance: the intent axis maps claims to units,
+  and §6.2 can grade what rests on it. A second, unsourced plan would give the roles a ceiling and cr
+  nothing it could grade.
 
 ## Known limits kept by design
 
