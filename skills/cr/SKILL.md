@@ -342,6 +342,40 @@ then the other roles' cells. A cell's `note_id` must name a standing note of the
 round's issue key; one naming no such note, or a retracted one, is refused with
 exit 1.
 
+### Proposing an experiment
+
+A role that holds a suspicion it cannot establish writes a **proposal** beside
+its findings, to the second path its prompt names, with the `x<n>` ids that
+prompt gave it. §5.7's fields: `kind` (`mutation` or `gap`), `role`, `unit`,
+`target` (`path:line`, inside that unit), `hypothesis`, `settles`, `input` (the
+unified diff, or the test file's content), and optionally `finding` and the
+`filter` and `paths` the run should use.
+
+```bash
+cr proposals record 1 proposals.ndjson
+```
+
+```json
+{
+  "recorded": [{"id": "x101", "kind": "mutation", "unit": "u1", "state": "open", "target": "order.go:5", …}],
+  "round": 1,
+  "honesty": []
+}
+```
+
+**A proposal is never evidence.** `probe` stays the id of an experiment that
+ran, and a record naming a proposal there is refused. Running the proposal is
+what changes the register:
+
+```bash
+cr probe run 1 --proposal x101
+```
+
+That writes the probe record, marks the proposal `run`, and — when the proposal
+names a `finding` of the round — sets that record's `probe`, recomputes its
+grade and re-applies §6.3's forcing. An `open` proposal never blocks a round;
+`cr status` reports the counts.
+
 A claim with no implementation is not a finding (there is no code to anchor it
 to): it appears only in `cr status`. Take it out of scope with a note:
 
