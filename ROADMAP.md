@@ -60,8 +60,15 @@ into questions — still has no measurement.
   the 14 recorded audit rounds had passed (`rekey.go:14-40` PASS in all 14), one more without claims, and two
   0.1.0-text departures 0.2.0 later codified, as questions. The reading offered: the roles reached the right
   places and lacked the scenario that turns a place into a defect; the 24 were found by executing scenarios.
-  Consequence for this list: probes and QA-shaped gap tests before more reading breadth; the misses did not
-  cluster on cross-cutting items (5), they were case-shaped.
+
+  **Pass 2, the same subject with probes** (a `go` profile, test axis active, roles proposing experiments the
+  orchestrator ran): recall **did not move — 0 of 16 and 0 of 8 again**, with more mechanical candidates (8) and
+  the same behaviour mismatch. What execution bought instead: 21 mutations proven uncaught by the tests they
+  selected, 20 records resting on them as `probed`, and two gap probes that failed on the head, deciding two
+  suspicions by experiment; both became v0.3.1 fixes. Consequence for this list: not "probes before breadth" — a
+  probe only settles the question a role already asked. The instrument none of these three passes has is the
+  **scenario**: the 24 were found by driving commands against a fixture until one behaved wrongly. QA 24 of 24,
+  reading 0, probes 0. The misses did not cluster on cross-cutting items (5), they were case-shaped.
 
 ### 2. Isolation for untrusted code
 
@@ -89,6 +96,17 @@ the test axis needs a hand-written `tests.cmd`, and mutation probes need profile
 - tracker commands for GitHub Issues and Linear alongside the jira CLI;
 - GitLab and Bitbucket are not planned until a user needs them; cr's single network-write door keeps that
   change contained.
+
+### 4a. Scenario coverage (new, from measurement 1)
+
+The measurement gives all three instruments a number against the same 24 defects: a QA pass that drove commands
+found 24, reading roles found 0, and probes proposed by those roles found 0. A probe decides a suspicion; nothing
+in the loop *produces* the suspicion a scenario produces. Candidates, cheapest first: a role whose prompt carries
+the command surface and asks what a user would do with this unit and what would then go wrong; a fixture
+repository the round can drive commands against, which is what `deligoez/cr-qa` already is for cr itself;
+`cr probe run --kind gap` used the way the QA used its cases, one command sequence per probe rather than one unit
+test. To be chosen after a cheap trial: run one scenario-shaped role over the same subject and count against the
+same 24.
 
 ### 5. Cross-cutting requirements
 
