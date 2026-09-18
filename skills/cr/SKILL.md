@@ -86,7 +86,11 @@ cr brief 1 --issue CR-5 --intent-file issue.txt
 Prints the orientation payload and opens round 1: PR identity, its state when it
 is not open, head and merge base, the selected profile and the layer that chose
 it, the issue key and text, recorded claims and drift, the units of the diff, files excluded by
-`ignore.globs` and binary or generated files listed but not clustered, ingested
+`ignore.globs` and the credential-shaped, binary or generated files listed but
+not clustered (a file whose name says it carries a secret — `.env`, `id_rsa`,
+`*.pem` and the rest of §3.4.7's built-in fence — is named by path and its
+content reaches no prompt; the fence is read before `ignore.globs` and is not a
+setting), ingested
 threads, notes and candidate notes, and the active, disabled and unavailable
 axes with reasons.
 
