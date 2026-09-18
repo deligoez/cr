@@ -733,6 +733,20 @@ Inject only what tp cannot know: runtime setup
 operational gotchas. Subagents do not nest, so the orchestrator runs each round's
 fan-out itself.
 
+**What a subagent sees is measured, not assumed.** 2026-09-18, a haiku Agent-tool
+subagent asked to quote the first 120 characters of every system-provided block
+in its context listed this repository's current CLAUDE.md and the project memory
+index verbatim, and no memory-plugin block; a headless `claude -p` session in a
+fresh clone listed the plugin's SessionStart and per-turn "Relevant conclusions"
+blocks, which carried the QA's defect descriptions word for word, and no
+`[Honcho Memory` block once the plugin was `enabled=false`. So a unit that must
+not know this file's lessons (a measurement's role agents) runs as `claude -p`
+from a fresh clone with the plugin off, and the transcript is grepped for the
+block before its output is trusted; native Read is hook-blocked there, and a
+codedbpro relative path resolves against the daemon's tree, not the clone, so
+the roles get absolute paths and the transcripts' `path`/`file` arguments are
+audited (`spec/measurements/m1/audit-transcripts.py`).
+
 ### Continuous improvement
 
 - After each cycle, note friction and fix it immediately if it is cr's fault.
