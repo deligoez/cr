@@ -50,6 +50,19 @@ into questions — still has no measurement.
   sections as intent, and count findings, questions and misses — and whether the misses are cross-cutting
   (see 5).
 
+  **Measured 2026-09-18** (`spec/measurements/2026-09-18-m1-recall-against-known-defects.md`; deligoez/cr#1,
+  the v0.1.0 `brief`, `sandbox`, `probe`, `run`, `draft` and `coverage` packages added from nothing, 24 targets
+  with pre-registered rules, two readers matching blind to each other, Opus roles from a fresh clone with the
+  memory plugin off). Reading roles with 110 mechanically extracted claims: 123 prompts, $89, 23 records (2
+  findings, 21 questions), **0 of 16 targets found, 0 of 8 partials, 0 false assertions**, 0 of 6 omissions
+  raised as gaps; five near-misses within lines of a target asking a different question. Without the intent
+  axis: 82 prompts, $60, 9 distinct records, 0 and 0 again, 0 false assertions. Found instead: two real defects
+  the 14 recorded audit rounds had passed (`rekey.go:14-40` PASS in all 14), one more without claims, and two
+  0.1.0-text departures 0.2.0 later codified, as questions. The reading offered: the roles reached the right
+  places and lacked the scenario that turns a place into a defect; the 24 were found by executing scenarios.
+  Consequence for this list: probes and QA-shaped gap tests before more reading breadth; the misses did not
+  cluster on cross-cutting items (5), they were case-shaped.
+
 ### 2. Isolation for untrusted code
 
 Probes run the pull request's `tests.cmd` on the reviewer's machine in a git worktree, with the reviewer's
@@ -109,7 +122,8 @@ Sequenced after the reviewer side has been measured, because it is a second prod
 
 - **Does the question channel converge?** If the question-to-finding ratio on a real spec is high, a
   convergence rule that counts open questions never reaches clean, and one that does not count them loses
-  recall.
+  recall. First data point, measurement 1 (2026-09-18): 21 questions to 2 findings with the spec's items as
+  claims, 6 to 4 without; every finding true. The ratio is high exactly when the claims are present.
 
 ## Known limits kept by design
 
