@@ -253,8 +253,11 @@ func TestEveryPromptNamesItsOutputAndTheContractFile(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, prompt.Role, bound, "cr merge attributes the file to the role that wrote it")
 
-		_, section, found := strings.Cut(prompt.Text, "\n## Output (§4.6.2)\n\n")
+		_, tail, found := strings.Cut(prompt.Text, "\n## Output (§4.6.2)\n\n")
 		require.True(t, found, "%s on %s", prompt.Role, prompt.Unit)
+		section, proposals, proposed := strings.Cut(tail, "\n## Proposed experiments (§5.7)\n\n")
+		require.True(t, proposed, "§4.6.2 gives every prompt §5.7's file too: %s on %s",
+			prompt.Role, prompt.Unit)
 		assert.Equal(t, "Write this role's records for this unit, one JSON object per line, to:\n\n"+
 			"    "+prompt.Output+"\n\n"+
 			"The file's name binds every record in it to role "+prompt.Role+": cr merge attributes a record to "+
@@ -271,6 +274,20 @@ func TestEveryPromptNamesItsOutputAndTheContractFile(t *testing.T) {
 		for _, row := range schemaRows {
 			assert.NotContains(t, section, row, "§6.1's schema is the contract file's, not the prompt's")
 		}
+
+		// §4.6.2's second file: its own path, its own id block, and the
+		// sentence that keeps a proposal from reading as evidence.
+		assert.Equal(t, "/state/pr-7/fanout/1/"+prompt.Unit+"/proposals-"+prompt.Role+".ndjson",
+			prompt.Proposals)
+		assert.Contains(t, proposals, "    "+prompt.Proposals+"\n")
+		assert.Contains(t, proposals, "Give the proposals you write here the ids "+
+			prompt.FirstProposalID+" through "+prompt.LastProposalID+", in order from "+
+			prompt.FirstProposalID+". No other prompt of round 1 is given any of them (§4.6.2).")
+		assert.Contains(t, proposals, "A proposal is **not evidence**.")
+		assert.Contains(t, proposals,
+			"You may not write state, probe, reason, round, head; cr computes or stamps them")
+		assert.NotEqual(t, prompt.FirstID, prompt.FirstProposalID,
+			"the two sequences are spelled apart, so neither can hand out the other's id")
 
 		_, record, claims := strings.Cut(prompt.Text, "\n## Claim record (§3.3)\n\n")
 		assert.Equal(t, prompt.Axis == axis.Intent, claims, "%s on %s", prompt.Role, prompt.Unit)
@@ -308,7 +325,22 @@ func TestTheContractFileCarriesTheRecordSchema(t *testing.T) {
 		assert.Contains(t, text, row)
 	}
 	assert.Contains(t, text, "\n"+englishSentence)
-	assert.True(t, strings.HasSuffix(text, "\n\n"+forbiddenSentence), text)
+	assert.Contains(t, text, "\n\n"+forbiddenSentence)
+
+	// §5.7's schema sits beside §6.1's, so a role reads both in one file.
+	schema, proposals, found := strings.Cut(text, "\n## Proposed experiment schema (§5.7)\n\n")
+	require.True(t, found, text)
+	assert.NotContains(t, schema, "- hypothesis: required\n",
+		"§5.7's rows belong to §5.7's section")
+	for _, row := range []string{
+		"\n- kind: required\n", "\n- target: required\n", "\n- hypothesis: required\n",
+		"\n- settles: required\n", "\n- input: required\n", "\n- finding: optional\n",
+		"\n- state: computed by cr\n", "\n- probe: computed by cr\n", "\n- head: stamped by cr\n",
+	} {
+		assert.Contains(t, proposals, row)
+	}
+	assert.Contains(t, proposals, "kind is one of mutation or gap.")
+	assert.Contains(t, proposals, "A proposal is never evidence")
 }
 
 // §2.6.1.4's standards without a detector reach the prompt of their axis's
