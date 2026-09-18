@@ -31,5 +31,46 @@
   },
   "symbols": {
     "lang": "php"
-  }
+  },
+  "rules": [
+    {
+      "id": "negative-test-name",
+      "title": "A negative test is named it_does_not_...",
+      "rationale": "A suite whose negative tests are named one way and one test another makes the odd one read as a different kind of assertion. The reader of a failure list should be able to tell what did not happen without opening the file.",
+      "class": "test-naming",
+      "severity": "low",
+      "globs": ["tests/**/*.php"],
+      "detect": {
+        "mode": "regex",
+        "pattern": "\\bit_(?:not|dont|doesnt|does_nt)_"
+      },
+      "fix": {
+        "replace": "it_(?:not|dont|doesnt|does_nt)_",
+        "with": "it_does_not_"
+      }
+    },
+    {
+      "id": "single-use-local",
+      "title": "A local read once is inlined unless its name explains something",
+      "rationale": "A variable assigned and then read exactly once adds a name the reader must carry to the single place it is used. It earns its place only when the name says something the expression does not.",
+      "class": "single-use-local",
+      "severity": "low"
+    },
+    {
+      "id": "variable-named-for-its-value",
+      "title": "A variable is named for what it holds",
+      "rationale": "A name taken from where a value came from rather than from what it is sends the next reader to the wrong concept. A specification held in a variable called $decision reads as a decision at every later line.",
+      "class": "variable-naming",
+      "severity": "low"
+    },
+    {
+      "id": "repeated-fixture-setup",
+      "title": "Fixture setup repeated across tests is extracted and named",
+      "rationale": "The same arrangement written out in several tests hides what each test is actually varying. A named helper puts the difference on the line that differs, and the name states the state under test.",
+      "axis": "test",
+      "class": "repeated-fixture-setup",
+      "severity": "low",
+      "globs": ["tests/**/*.php"]
+    }
+  ]
 }
