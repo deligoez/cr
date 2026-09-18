@@ -581,3 +581,48 @@ func TestARunGivenNoBudgetIsNotKilled(t *testing.T) {
 	assert.False(t, timedOut, "§5.2.3 kills a run that exceeded a budget, and there was none")
 	assert.Contains(t, printed.String(), "the suite ran")
 }
+
+// M-1.6: a run returns though a process that left the runner's group still
+// holds the output pipe.
+//
+// §5.2.3's kill reaches a process group, and a process that put itself in
+// another one is out of its reach: `set -m` gives a shell's background job a
+// group of its own, which is what a runner that leaves a watcher or a database
+// behind does in the field. The escapee inherits the pipe the runner's output
+// travels through, so cmd.Wait goes on waiting for the copy long after the
+// runner itself is dead and every process the kill could reach has been reaped.
+//
+// Measured before the fix: a 500ms budget against a runner whose escapee slept
+// 20 seconds did not return inside 15, and `cr test` and `cr probe run` would
+// have waited as long as the escapee lived. Measured after it: 2.64 seconds,
+// which is the budget plus outputDrain.
+//
+// io.Discard rather than a buffer, because the drain closes the pipes without
+// waiting for the copy to notice: a goroutine may still be writing when Wait
+// returns, and a test that read a buffer afterwards would be reporting that
+// race rather than this one.
+func TestARunReturnsThoughASurvivorOutsideTheGroupHoldsThePipe(t *testing.T) {
+	dir, head := repository(t)
+	src := sources(t, dir, head)
+	created, err := Create(src)
+	require.NoError(t, err)
+
+	// The inner shell enables job control for the background job alone, so
+	// the escapee leaves the group while the runner's own `sleep` stays in
+	// it and is killed. Both hold the inherited pipe.
+	runner := script(t, t.TempDir(), "runner.sh", "sh -c 'set -m; sleep 20 &'\nsleep 120\n")
+
+	returned := make(chan Exit, 1)
+	go func() {
+		exit, runErr := RunExit([]string{runner}, created.Path, io.Discard, 500*time.Millisecond, nil)
+		assert.NoError(t, runErr, "a killed run is an outcome, not a runner that could not be started")
+		returned <- exit
+	}()
+
+	select {
+	case exit := <-returned:
+		assert.True(t, exit.TimedOut, "§5.2.3: the run exceeded its budget and was killed")
+	case <-time.After(15 * time.Second):
+		t.Fatal("the run is still waiting on a pipe a process outside the killed group holds")
+	}
+}
