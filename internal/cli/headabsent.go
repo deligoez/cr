@@ -28,19 +28,21 @@ const (
 // §6.1.2 reads a LEFT anchor at the merge base, which takes `cr draft`,
 // `cr record` and `cr merge` there. The sandbox is checked out at the head and
 // nothing else, so `cr sandbox create`, `cr test` and `cr probe run` reach the
-// head alone.
+// head alone. §5.7's targets are head-side without exception, so
+// `cr proposals record` reaches the head alone too.
 var headReads = map[string][]string{
-	"brief":          {readsHead, readsBase},
-	"status":         {readsHead, readsBase},
-	"review":         {readsHead, readsBase},
-	"post":           {readsHead, readsBase},
-	"draft":          {readsHead, readsBase},
-	"record":         {readsHead, readsBase},
-	"merge":          {readsHead, readsBase},
-	"rules check":    {readsHead, readsBase},
-	"sandbox create": {readsHead},
-	"test":           {readsHead},
-	"probe run":      {readsHead},
+	"brief":            {readsHead, readsBase},
+	"status":           {readsHead, readsBase},
+	"review":           {readsHead, readsBase},
+	"post":             {readsHead, readsBase},
+	"draft":            {readsHead, readsBase},
+	"record":           {readsHead, readsBase},
+	"merge":            {readsHead, readsBase},
+	"rules check":      {readsHead, readsBase},
+	"sandbox create":   {readsHead},
+	"test":             {readsHead},
+	"probe run":        {readsHead},
+	"proposals record": {readsHead},
 }
 
 // headNotFetched is the one predicate that classifies a command's git failure
