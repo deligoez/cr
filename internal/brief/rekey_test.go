@@ -191,3 +191,40 @@ func TestAPatternThatStoppedMatchingIsNotFixableFromTheCommandLine(t *testing.T)
 	assert.NotContains(t, retried.Error(), "--issue",
 		"M-1.2: a refusal does not offer a step that cannot succeed")
 }
+
+// The remedy the refusal offers is the one the pattern leaves open.
+//
+// M-1.2 of spec/field-feedback.md: `--issue <recorded>` keeps the recorded key
+// only while `intent.key_pattern` still admits that key, so a message that
+// offers it unconditionally sends the reader into the identical refusal. Both
+// halves are read off the error alone, because the message is the whole of what
+// this error does.
+func TestTheRemedyIsTheOneThePatternLeavesOpen(t *testing.T) {
+	refusal := &KeyRewriteError{
+		Owner: testOwner, Repo: testRepo, PR: testPR,
+		Recorded: testIssue, Resolved: "OTHER-1",
+		Pattern: `[A-Z]+-[0-9]+`, StateDir: "/state/pr",
+	}
+
+	admits := refusal.Error()
+	assert.Contains(t, admits, "--issue "+testIssue,
+		"a pattern that still admits the recorded key makes the flag the way back")
+	assert.Contains(t, admits, "/state/pr", "and the state directory is the other way")
+
+	refusal.Pattern = `ZZZ-[0-9]+`
+	refusal.Resolved = ""
+	closed := refusal.Error()
+	assert.NotContains(t, closed, "--issue",
+		"M-1.2: §3.2 runs the flag through the pattern, so naming the key resolves nothing")
+	assert.Contains(t, closed, `intent.key_pattern "ZZZ-[0-9]+" no longer admits `+testIssue,
+		"the message names the pattern and the recorded key instead")
+	assert.Contains(t, closed, "restore a pattern that matches "+testIssue,
+		"and offers the step that does keep the recorded key")
+	assert.Contains(t, closed, "/state/pr", "beside the one that discards the round")
+
+	// A pattern that finds only a fragment of the recorded key resolves some
+	// other key, not the recorded one, so the flag is shut there too.
+	refusal.Pattern = `[0-9]+`
+	assert.NotContains(t, refusal.Error(), "--issue",
+		"`[0-9]+` resolves 7 out of CR-7, which is not the key the round recorded")
+}
