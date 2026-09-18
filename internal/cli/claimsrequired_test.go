@@ -28,7 +28,9 @@ func unjoinedClaims(lines ...string) string {
 func intentClaimSections(t *testing.T) map[string]string {
 	t.Helper()
 	sections := map[string]string{}
-	for _, prompt := range fanOut(t, "--axis", axis.Intent).Prompts {
+	prompts := fanOut(t, "--axis", axis.Intent).Prompts
+	for i := range prompts {
+		prompt := &prompts[i]
 		require.Equal(t, axis.Intent, prompt.Axis)
 		sections[prompt.Unit] = promptSection(t, prompt.Text, "Claims mapped to this unit (§4.1.6)")
 	}

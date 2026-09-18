@@ -177,8 +177,8 @@ func briefedWithoutMapping(t *testing.T) (src *Sources, head string) {
 // promptOf finds the prompt one role emitted for one unit.
 func promptOf(t *testing.T, fan *Fanout, roleID, unitID string) string {
 	t.Helper()
-	for _, prompt := range fan.Prompts {
-		if prompt.Role == roleID && prompt.Unit == unitID {
+	for i := range fan.Prompts {
+		if prompt := &fan.Prompts[i]; prompt.Role == roleID && prompt.Unit == unitID {
 			return prompt.Text
 		}
 	}
