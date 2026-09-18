@@ -60,7 +60,8 @@ func ingestDraft(
 	if err != nil {
 		return triaged{}, err
 	}
-	entries, err := draft.DecodeRendered(state.FileRendered, stored)
+	entries, err := draft.DecodeRendered(
+		l.RoundFile(owner, repo, pr, round.Round, state.FileRendered), stored)
 	if err != nil {
 		return triaged{}, err
 	}
