@@ -157,3 +157,37 @@ func TestTheRefusalNamesTheResolvedKeyOrSaysThereIsNone(t *testing.T) {
 	refusal.Resolved = ""
 	assert.Contains(t, refusal.Error(), "§3.2 resolved no key at all from")
 }
+
+// Following the remedy the refusal offers must not reproduce the refusal.
+//
+// M-1.2 of spec/field-feedback.md: `cr brief <pr> --issue <recorded>` cannot
+// succeed in the case the refusal is written for, because §3.2 runs the flag
+// through `intent.key_pattern` like every other source — so a pattern that
+// stopped matching the recorded key does not match it when it is typed either,
+// and the same refusal comes back. This drives both briefs end to end, which is
+// the only way to see that the second one changed nothing.
+func TestAPatternThatStoppedMatchingIsNotFixableFromTheCommandLine(t *testing.T) {
+	dir, head, base := repository(t)
+	src := sources(t, dir, answering(head, base, oneThread))
+	assembled, err := Run(src)
+	require.NoError(t, err)
+	require.Equal(t, testIssue, assembled.Issue.Key)
+	recordClaim(t, src, testIssue, head, assembled.Round)
+
+	src.IssueFlag = ""
+	src.Config = withPattern(t, `ZZZ-[0-9]+`)
+	_, err = Run(src)
+	var refused *KeyRewriteError
+	require.ErrorAs(t, err, &refused)
+
+	// What the message used to send the reader to do: name the recorded key.
+	src.IssueFlag = testIssue
+	_, retried := Run(src)
+	var again *KeyRewriteError
+	require.ErrorAs(t, retried, &again,
+		"§3.2 applies the pattern to --issue too, so the flag resolves no key")
+	assert.Equal(t, refused.Error(), again.Error(),
+		"the retry reaches the identical refusal, having changed nothing")
+	assert.NotContains(t, retried.Error(), "--issue",
+		"M-1.2: a refusal does not offer a step that cannot succeed")
+}
