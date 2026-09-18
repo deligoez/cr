@@ -82,13 +82,20 @@ func staleNotice(file string, content []byte) string {
 	if !standing.Stale() {
 		return ""
 	}
-	since := "has changed since"
-	if changed := changedFields(content, []byte(Builtins()[id])); len(changed) > 0 {
+	since, consequence := "has changed since", ""
+	changed := changedFields(content, []byte(Builtins()[id]))
+	if len(changed) > 0 {
 		since = "has since changed " + strings.Join(changed, ", ")
 	}
+	// The sandbox sentence follows only from `sandbox.copy`. It was written
+	// when that was the only field a release had ever changed, and stating
+	// it for a profile whose `rules` moved would have cr assert a
+	// consequence that does not follow from what it just named.
+	if len(changed) == 0 || slices.Contains(changed, "sandbox.copy") {
+		consequence = ", and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"
+	}
 	return fmt.Sprintf("%s is the %s profile cr %s shipped, unedited, and the shipped profile %s; "+
-		"cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox "+
-		"lacking a file it copies", file, id, standing.Release, since)
+		"cr init updates the file to it%s", file, id, standing.Release, since, consequence)
 }
 
 // changedFields names, in dotted spelling and sorted, every field whose value
