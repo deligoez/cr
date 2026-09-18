@@ -132,7 +132,17 @@ func Unclean(src *Sources, leftoverGlob string) (string, error) {
 
 	at, err := git.Head(path)
 	if err != nil {
-		return "", err
+		// M-1.4: the directory is there and git cannot read it. Its
+		// `.git` file is broken, or the registration that file names
+		// has been pruned or re-cloned out from under it — the S10
+		// field note's "missing but already registered worktree" seen
+		// from the other side. That is an unclean sandbox and not a
+		// failure of the check: returning the error would stop
+		// `cr test` and `cr probe run` at the one state §5.1.6's
+		// recreation exists to clear, while §5.1.1 refuses to create
+		// over the directory, so nothing short of removing it by hand
+		// gets the pull request moving again.
+		return fmt.Sprintf("the sandbox directory exists but is not a readable worktree: %v", err), nil
 	}
 	if at != src.Head {
 		return fmt.Sprintf("the sandbox is at %s, and the round's head is %s", at, src.Head), nil

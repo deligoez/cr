@@ -82,9 +82,33 @@ func removeDirectory(src *Sources, path string) error {
 	if err != nil {
 		return err
 	}
-	if registered {
-		return git.RemoveWorktree(src.RepoDir, path)
+	if !registered {
+		return removeAsOwnFiles(src)
 	}
+	refused := git.RemoveWorktree(src.RepoDir, path)
+	if refused == nil {
+		return nil
+	}
+	// M-1.4: a registration git lists is not a worktree git will act on.
+	// `worktree remove` validates the directory's `.git` file first and
+	// refuses one it cannot read — measured, `validation failed, cannot
+	// remove working tree: '…/.git' is not a .git file, error code 5`, and
+	// `'…/.git' does not exist` for the same directory with the file gone.
+	// That is the same position as an unlisted directory, reached by the
+	// other road, and it answers the same way: the directory is cr's own
+	// files under §2.2's root, so cr removes them and prunes the
+	// registration that named them. The refusal is reported only if that
+	// fails too, since a failure to remove is the thing worth telling.
+	if err := removeAsOwnFiles(src); err != nil {
+		return errors.Join(refused, err)
+	}
+	return nil
+}
+
+// removeAsOwnFiles deletes the sandbox directory as what §2.2 makes it — cr's
+// own files under the state root — and prunes the registration that named it,
+// which is what would otherwise refuse the next `worktree add` at that path.
+func removeAsOwnFiles(src *Sources) error {
 	if err := src.Layout.RemoveOrphanedSandbox(src.Owner, src.Repo, src.PR); err != nil {
 		return err
 	}
