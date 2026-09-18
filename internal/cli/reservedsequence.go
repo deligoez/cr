@@ -36,8 +36,8 @@ func (e *ReservedSequenceError) Unwrap() error {
 	return e.RejectedRecordError
 }
 
-// reservedTextFields are the fields §8.1.2 places in a block's body verbatim,
-// in §6.1's table order, which is the order a record is walked in so a record
+// reservedTextFields are the fields §8.1.2 and §7.1.3 place in a block's body
+// verbatim, in §6.1's table order, which is the order a record is walked in so a record
 // carrying the sequence in both is always reported by the same field.
 var reservedTextFields = []struct {
 	name string
@@ -45,6 +45,9 @@ var reservedTextFields = []struct {
 }{
 	{"summary", func(r *finding.Finding) string { return r.Summary }},
 	{"evidence", func(r *finding.Finding) string { return r.Evidence }},
+	// §7.1.3 renders the suggestion into the body as a fenced block, so it
+	// reaches the draft the same way and is held to the same rule.
+	{"suggestion", func(r *finding.Finding) string { return r.Suggestion }},
 }
 
 // refuseReservedSequences holds every record of one input file to §8.1.3's
