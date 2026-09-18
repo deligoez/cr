@@ -66,10 +66,16 @@ func BlockOf(held []finding.Finding, round int, corpus []role.Resolved, units []
 // spelled names the run as the prompt's JSON carries it, and as two empty
 // strings when no id past the stored ones is left.
 func (b IDs) spelled() (first, last string) {
+	return b.spelledAs(finding.IDOf)
+}
+
+// spelledAs is spelled under another sequence's spelling, which is how §5.7's
+// `x<n>` proposal ids reach a prompt through the same block type.
+func (b IDs) spelledAs(spell func(int) string) (first, last string) {
 	if !b.left() {
 		return "", ""
 	}
-	return finding.IDOf(b.First), finding.IDOf(b.Last)
+	return spell(b.First), spell(b.Last)
 }
 
 // idBase is the highest id held by a record an earlier round stored for the
@@ -151,6 +157,26 @@ func (r *Round) ids(base int, roleID string, at int) IDs {
 	return blockFor(r.heldSuffixes(), base, slices.Index(r.Places, roleID)*len(r.Units)+at)
 }
 
+// proposalIDs is the block of §5.7 proposal ids this round's prompt for roleID
+// over the unit at index at is given, over the proposals the pull request
+// stores.
+func (r *Round) proposalIDs(roleID string, at int) IDs {
+	suffixes := proposalSuffixes(r.HeldProposals)
+	return blockFor(suffixes, baseOf(suffixes, r.Round),
+		slices.Index(r.Places, roleID)*len(r.Units)+at)
+}
+
+// proposalSuffixes is a stored proposal set under §5.7's spelling.
+func proposalSuffixes(held []proposal.Proposal) []heldID {
+	suffixes := make([]heldID, 0, len(held))
+	for i := range held {
+		if n, ok := proposal.IDSuffix(held[i].ID); ok {
+			suffixes = append(suffixes, heldID{round: held[i].Round, n: n})
+		}
+	}
+	return suffixes
+}
+
 // ProposalIDs is the block of §5.7 proposal ids `cr review` gives the prompt for
 // roleID over unitID in round, and false when no prompt of the round was given
 // one: held is every proposal the pull request stores, corpus is §2.5.5's
@@ -168,12 +194,7 @@ func ProposalIDs(
 	if at < 0 || row < 0 {
 		return IDs{}, false
 	}
-	suffixes := make([]heldID, 0, len(held))
-	for i := range held {
-		if n, ok := proposal.IDSuffix(held[i].ID); ok {
-			suffixes = append(suffixes, heldID{round: held[i].Round, n: n})
-		}
-	}
+	suffixes := proposalSuffixes(held)
 	return blockFor(suffixes, baseOf(suffixes, round), row*len(units)+at), true
 }
 

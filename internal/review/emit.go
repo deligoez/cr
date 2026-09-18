@@ -10,6 +10,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/rule"
@@ -57,6 +58,11 @@ type Round struct {
 	// Places are the role ids the round's id blocks are laid out by, per
 	// blockPlaces: a role's index here is its row of blocks.
 	Places []string
+	// HeldProposals are the proposals the pull request stores, whole and
+	// across rounds, which §5.7's id blocks start past. It is the record
+	// set's counterpart on the other sequence, and Held is not reused for
+	// it: the two grids are laid out over different files.
+	HeldProposals []proposal.Proposal
 	// Units are the round's units, in §3.4.6's id order.
 	Units []Unit
 	// Claims are the claims recorded for the round.
@@ -146,6 +152,13 @@ type Prompt struct {
 	// holds the block's last id.
 	FirstID string `json:"first_id"`
 	LastID  string `json:"last_id"`
+	// Proposals is the NDJSON path §4.6.2 has the role write §5.7's
+	// proposed experiments to, and FirstProposalID and LastProposalID the
+	// block of proposal ids it may write there, under the same rule the
+	// record ids follow.
+	Proposals       string `json:"proposals"`
+	FirstProposalID string `json:"first_proposal_id"`
+	LastProposalID  string `json:"last_proposal_id"`
 	// Text is the prompt itself.
 	Text string `json:"prompt"`
 }
@@ -170,16 +183,22 @@ func Emit(r *Round) []Prompt {
 				continue
 			}
 			output := filepath.Join(r.Units[at].FanOut, finding.FanOutFile(lens.ID))
+			proposals := filepath.Join(r.Units[at].FanOut, proposal.FanOutFile(lens.ID))
 			ids := r.ids(base, lens.ID, at)
 			first, last := ids.spelled()
+			asks := r.proposalIDs(lens.ID, at)
+			firstAsk, lastAsk := asks.spelledAs(proposal.IDOf)
 			prompts = append(prompts, Prompt{
-				Role:    lens.ID,
-				Axis:    lens.Axis,
-				Unit:    r.Units[at].ID,
-				Output:  output,
-				FirstID: first,
-				LastID:  last,
-				Text:    r.text(lens, at, output, ids),
+				Role:            lens.ID,
+				Axis:            lens.Axis,
+				Unit:            r.Units[at].ID,
+				Output:          output,
+				FirstID:         first,
+				LastID:          last,
+				Proposals:       proposals,
+				FirstProposalID: firstAsk,
+				LastProposalID:  lastAsk,
+				Text:            r.text(lens, at, output, ids, proposals, asks),
 			})
 		}
 	}

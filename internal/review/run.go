@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/unit"
@@ -517,6 +518,10 @@ func (r *Round) read(src *Sources, meta *state.Meta) ([]unit.Record, error) {
 		return nil, err
 	}
 	if r.Held, err = state.ReadRecords[finding.Finding](l, owner, repo, pr, state.FileFindings); err != nil {
+		return nil, err
+	}
+	if r.HeldProposals, err = state.ReadRecords[proposal.Proposal](
+		l, owner, repo, pr, state.FileProposals); err != nil {
 		return nil, err
 	}
 	notes, err := notesOf(l, meta.IssueKey)
