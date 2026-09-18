@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -132,9 +133,9 @@ func (l Layout) applySandboxMutation(
 	undo := func() error {
 		var failures []error
 		// Backwards, so a file mutated twice ends as it began.
-		for i := len(written) - 1; i >= 0; i-- {
-			if err := os.WriteFile(written[i].path, written[i].content, written[i].mode); err != nil {
-				failures = append(failures, fmt.Errorf("cannot restore %s: %w", written[i].path, err))
+		for _, w := range slices.Backward(written) {
+			if err := os.WriteFile(w.path, w.content, w.mode); err != nil {
+				failures = append(failures, fmt.Errorf("cannot restore %s: %w", w.path, err))
 			}
 		}
 		return errors.Join(failures...)

@@ -149,8 +149,7 @@ func Resolve(sources KeySources, pattern string, source Source) (Intent, error) 
 		return Intent{Pattern: pattern}, nil
 	}
 	reading, err := Read(source, key.Value)
-	var refused *CommandError
-	if errors.As(err, &refused) {
+	if refused, ok := errors.AsType[*CommandError](err); ok {
 		refused.Resolved = true
 	}
 	if err != nil {

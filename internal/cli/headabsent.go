@@ -61,8 +61,7 @@ var headReads = map[string][]string{
 // or the pull request cannot be read to ask, or one of a command headReads does
 // not name. Whatever it returns then goes through withRemoteMismatch.
 func headNotFetched(cmd *cobra.Command, owner, repo string, pr int, err error) error {
-	var failed *git.CommandError
-	if errors.As(err, &failed) {
+	if _, ok := errors.AsType[*git.CommandError](err); ok {
 		reads := headReads[strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")]
 		err = absentCommit(owner, repo, pr, reads, err)
 	}

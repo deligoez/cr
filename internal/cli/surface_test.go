@@ -247,7 +247,7 @@ func TestAStubStillValidatesItsArguments(t *testing.T) {
 		// A word of alternatives, such as §7.2.4's verb, is one
 		// positional too.
 		positional := strings.Count(row.use, "<")
-		for _, word := range strings.Fields(row.use) {
+		for word := range strings.FieldsSeq(row.use) {
 			if strings.Contains(word, "|") {
 				positional++
 			}

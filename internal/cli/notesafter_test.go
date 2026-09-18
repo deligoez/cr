@@ -117,7 +117,7 @@ func TestANoteRecordedAfterThePromptsIsReportedFromNoteToDraft(t *testing.T) {
 		closing := bytes.Index(body, []byte("\n-->\n"))
 		require.GreaterOrEqual(t, closing, 0, "the draft opens with its header")
 		reported := make([]string, 0)
-		for _, line := range strings.Split(string(body[:closing]), "\n") {
+		for line := range strings.SplitSeq(string(body[:closing]), "\n") {
 			if strings.HasPrefix(line, "notes after prompts: ") {
 				reported = append(reported, line)
 			}

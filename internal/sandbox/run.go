@@ -268,8 +268,7 @@ func RunExit(
 		// the output pipe as it dies; a process that left the group
 		// holds it open, and outputDrain is what bounds the wait on
 		// that copy rather than on the survivor's own lifetime.
-		var exit *exec.ExitError
-		if errors.As(<-finished, &exit) {
+		if exit, ok := errors.AsType[*exec.ExitError](<-finished); ok {
 			return Exit{Code: exit.ExitCode(), TimedOut: true}, nil
 		}
 		return Exit{TimedOut: true}, nil

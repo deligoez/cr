@@ -65,8 +65,8 @@ func TestEveryReleaseTagCarryingABuiltinProfileIsCovered(t *testing.T) {
 	}
 	covered := 0
 	for _, tag := range tags {
-		listed := strings.Fields(repositoryGit(t, "ls-tree", "--full-tree", "--name-only", tag, "internal/profile/builtin/"))
-		for _, file := range listed {
+		listed := strings.FieldsSeq(repositoryGit(t, "ls-tree", "--full-tree", "--name-only", tag, "internal/profile/builtin/"))
+		for file := range listed {
 			if !strings.HasSuffix(file, fileExt) {
 				continue
 			}

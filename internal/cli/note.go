@@ -233,8 +233,7 @@ func notedRoundOf(cmd *cobra.Command, l state.Layout, pr int) (notedRound, bool,
 		return notedRound{}, false, err
 	}
 	round, err := briefedRound(l, owner, name, pr)
-	var unbriefed *state.NotBriefedError
-	if errors.As(err, &unbriefed) {
+	if _, ok := errors.AsType[*state.NotBriefedError](err); ok {
 		return notedRound{}, false, nil
 	}
 	if err != nil {

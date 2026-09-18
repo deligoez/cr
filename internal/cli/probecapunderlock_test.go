@@ -73,8 +73,7 @@ func (p *concurrentProbe) exitCode(t *testing.T) int {
 		require.FailNowf(t, "cr probe run did not finish within a minute",
 			"stdout:\n%s\nstderr:\n%s", p.stdout.String(), p.stderr.String())
 	}
-	var exited *exec.ExitError
-	if errors.As(p.err, &exited) {
+	if exited, ok := errors.AsType[*exec.ExitError](p.err); ok {
 		return exited.ExitCode()
 	}
 	require.NoError(t, p.err)

@@ -104,8 +104,7 @@ func newAnswerCmd(out *writer) *cobra.Command {
 func answerHonesty(l state.Layout, owner, repo string, pr int) ([]string, error) {
 	honesty := make([]string, 0, 1)
 	round, err := briefedRound(l, owner, repo, pr)
-	var unbriefed *state.NotBriefedError
-	if errors.As(err, &unbriefed) {
+	if _, ok := errors.AsType[*state.NotBriefedError](err); ok {
 		return honesty, nil
 	}
 	if err != nil {

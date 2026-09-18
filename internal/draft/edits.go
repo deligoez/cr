@@ -267,8 +267,7 @@ func (e *markerEdit) rejected(err error) error {
 		return err
 	}
 	refused := &MarkerEditError{ID: e.record.ID, At: e.at, Field: "anchor", Problem: rejected.Problem}
-	var foreign *finding.ForeignAnchorError
-	if errors.As(err, &foreign) {
+	if foreign, ok := errors.AsType[*finding.ForeignAnchorError](err); ok {
 		refused.Problem = foreign.Reason + ", so keep the comment within its unit or delete the block"
 		return &MarkerUnitEditError{MarkerEditError: refused}
 	}

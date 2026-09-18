@@ -99,7 +99,7 @@ func ReadEmissions(l state.Layout, owner, repo string, pr, round int) ([]Emissio
 		return nil, err
 	}
 	kept := make([]Emission, 0)
-	for _, line := range bytes.Split(body, []byte{'\n'}) {
+	for line := range bytes.SplitSeq(body, []byte{'\n'}) {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
