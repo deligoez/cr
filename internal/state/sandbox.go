@@ -39,7 +39,9 @@ func (l Layout) Sandbox(owner, repo string, pr int) string {
 //
 // The destination is derived from the sandbox path and never from the caller,
 // which is what keeps §2.2's root around a copy whose source is a directory in
-// the repository under review.
+// the repository under review. The sandbox is then opened as an os.Root and
+// every write goes through it: see copyTree for what that buys and why joining
+// the path is not enough.
 func (l Layout) CopyIntoSandbox(owner, repo string, pr int, repoDir, rel string) (bool, error) {
 	if err := l.containRepo(owner, repo); err != nil {
 		return false, err
@@ -51,7 +53,27 @@ func (l Layout) CopyIntoSandbox(owner, repo string, pr int, repoDir, rel string)
 		}
 		return false, fmt.Errorf("cannot inspect %s: %w", source, err)
 	}
-	return true, copyTree(source, filepath.Join(l.Sandbox(owner, repo, pr), rel))
+	sandbox := l.Sandbox(owner, repo, pr)
+	// A caller reaches here with the worktree already added, so the
+	// directory is there; it is created for the one that has not, because
+	// a root cannot be opened on a path that does not exist and a copy
+	// into a sandbox is not the place to decide that one is missing.
+	if err := os.MkdirAll(sandbox, dirPerm); err != nil {
+		return false, fmt.Errorf("cannot create directory %s: %w", sandbox, err)
+	}
+	root, err := os.OpenRoot(sandbox)
+	if err != nil {
+		return false, fmt.Errorf("cannot open the sandbox %s: %w", sandbox, err)
+	}
+	// The close is deferred and its error dropped: every write below has
+	// already reported its own, and a directory handle closes nothing a
+	// caller could act on.
+	defer func() { _ = root.Close() }()
+	within := filepath.Clean(rel)
+	if err := plantDirs(root, filepath.Dir(within)); err != nil {
+		return false, err
+	}
+	return true, copyTree(root, source, within)
 }
 
 // RemoveOrphanedSandbox deletes the sandbox directory of one pull request, for
@@ -73,23 +95,41 @@ func (l Layout) RemoveOrphanedSandbox(owner, repo string, pr int) error {
 	return nil
 }
 
-// copyTree copies one file, symlink, or directory tree from source to target.
+// copyTree copies one file, symlink, or directory tree from source to the path
+// rel inside root, which is the sandbox.
+//
+// Every write goes through the root rather than through a joined path, and that
+// is what keeps §5.1.2 inside §2.2's tree. A `sandbox.copy` entry is held to a
+// path inside the checkout when the profile is read, which settles what the
+// profile may name and nothing about what the head under review checks out
+// there: a branch may perfectly well track `.env`, or a directory a copied path
+// descends through, as a link to somewhere else on the machine. Joining and
+// writing would follow it, and the user's own `.env` — credentials included —
+// would land outside ~/.cr entirely, which invariant 2 permits nowhere. A root
+// refuses that write instead (`openat: path escapes from parent`, measured), so
+// what the head put there is replaced by what the checkout holds, which is what
+// §5.1.2 asks for anyway.
 //
 // A symlink is recreated rather than followed. `vendor` is full of them, and
 // following one would both multiply the bytes copied and turn a link pointing
-// out of the tree into a real copy of whatever it pointed at.
-func copyTree(source, target string) error {
+// out of the tree into a real copy of whatever it pointed at. Creating one is
+// still allowed through the root: the link is data, and nothing is written
+// through it here.
+func copyTree(root *os.Root, source, rel string) error {
 	info, err := os.Lstat(source)
 	if err != nil {
 		return fmt.Errorf("cannot inspect %s: %w", source, err)
 	}
+	if err := clearTarget(root, rel, info.IsDir()); err != nil {
+		return err
+	}
 	switch {
 	case info.Mode()&fs.ModeSymlink != 0:
-		return copyLink(source, target)
+		return copyLink(root, source, rel)
 	case info.IsDir():
-		return copyDir(source, target, info.Mode().Perm())
+		return copyDir(root, source, rel, info.Mode().Perm())
 	case info.Mode().IsRegular():
-		return copyFile(source, target, info.Mode().Perm())
+		return copyFile(root, source, rel, info.Mode().Perm())
 	}
 	// A socket, a device, or a named pipe. Copying one is meaningless and
 	// skipping it silently would leave a sandbox that is quietly missing
@@ -97,55 +137,93 @@ func copyTree(source, target string) error {
 	return fmt.Errorf("cannot copy %s: it is neither a regular file, a directory, nor a symlink", source)
 }
 
+// plantDirs makes every component of rel a real directory inside root.
+//
+// It is copyTree's question asked of the parents rather than of the entry:
+// `config/local.php` is a path inside the checkout whether the head tracks
+// `config` as a directory or as a link pointing somewhere else, and a root
+// refuses to write under the link rather than following it. So a component that
+// is not a directory is replaced by one, and the copy lands where the caller
+// asked for it.
+func plantDirs(root *os.Root, rel string) error {
+	if rel == "." || rel == string(filepath.Separator) {
+		return nil
+	}
+	if err := plantDirs(root, filepath.Dir(rel)); err != nil {
+		return err
+	}
+	if err := clearTarget(root, rel, true); err != nil {
+		return err
+	}
+	if err := root.Mkdir(rel, dirPerm); err != nil && !errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("cannot create directory %s in the sandbox: %w", rel, err)
+	}
+	return nil
+}
+
+// clearTarget removes whatever stands at rel inside root, and leaves a
+// directory standing when a directory is what is about to be written there.
+//
+// The removal is what makes a copy a replacement. The sandbox is a checkout of
+// the head, so a copied path often arrives on top of a file git just wrote; a
+// link cannot be created over an existing name at all, and a link left standing
+// is a name every later write would resolve through. Lstat and RemoveAll both
+// act on the name rather than on what it points at, so a link is removed and its
+// target is not.
+func clearTarget(root *os.Root, rel string, keepDir bool) error {
+	info, err := root.Lstat(rel)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		return fmt.Errorf("cannot inspect %s in the sandbox: %w", rel, err)
+	case keepDir && info.IsDir():
+		return nil
+	}
+	if err := root.RemoveAll(rel); err != nil {
+		return fmt.Errorf("cannot replace %s in the sandbox: %w", rel, err)
+	}
+	return nil
+}
+
 // copyDir recreates a directory and everything under it.
-func copyDir(source, target string, perm fs.FileMode) error {
-	if err := os.MkdirAll(target, perm); err != nil {
-		return fmt.Errorf("cannot create directory %s: %w", target, err)
+func copyDir(root *os.Root, source, rel string, perm fs.FileMode) error {
+	if err := root.Mkdir(rel, perm); err != nil && !errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("cannot create directory %s in the sandbox: %w", rel, err)
 	}
 	entries, err := os.ReadDir(source)
 	if err != nil {
 		return fmt.Errorf("cannot list %s: %w", source, err)
 	}
 	for _, entry := range entries {
-		if err := copyTree(filepath.Join(source, entry.Name()), filepath.Join(target, entry.Name())); err != nil {
+		if err := copyTree(root, filepath.Join(source, entry.Name()), filepath.Join(rel, entry.Name())); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// copyLink recreates a symbolic link, replacing whatever stands at target.
-func copyLink(source, target string) error {
+// copyLink recreates a symbolic link.
+func copyLink(root *os.Root, source, rel string) error {
 	pointsAt, err := os.Readlink(source)
 	if err != nil {
 		return fmt.Errorf("cannot read the link %s: %w", source, err)
 	}
-	if err := os.MkdirAll(filepath.Dir(target), dirPerm); err != nil {
-		return fmt.Errorf("cannot create directory %s: %w", filepath.Dir(target), err)
-	}
-	// A link cannot be created over an existing name, and the sandbox is a
-	// checkout that may already hold one of its own.
-	if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("cannot replace %s: %w", target, err)
-	}
-	if err := os.Symlink(pointsAt, target); err != nil {
-		return fmt.Errorf("cannot link %s: %w", target, err)
+	if err := root.Symlink(pointsAt, rel); err != nil {
+		return fmt.Errorf("cannot link %s in the sandbox: %w", rel, err)
 	}
 	return nil
 }
 
 // copyFile copies one regular file, keeping the mode it was read with: an
 // executable in a copied `vendor/bin` has to stay executable.
-func copyFile(source, target string, perm fs.FileMode) error {
+func copyFile(root *os.Root, source, rel string, perm fs.FileMode) error {
 	body, err := os.ReadFile(source)
 	if err != nil {
 		return fmt.Errorf("cannot read %s: %w", source, err)
 	}
-	if err := os.MkdirAll(filepath.Dir(target), dirPerm); err != nil {
-		return fmt.Errorf("cannot create directory %s: %w", filepath.Dir(target), err)
-	}
-	if err := os.WriteFile(target, body, perm); err != nil {
-		return fmt.Errorf("cannot write %s: %w", target, err)
+	if err := root.WriteFile(rel, body, perm); err != nil {
+		return fmt.Errorf("cannot write %s in the sandbox: %w", rel, err)
 	}
 	return nil
 }
