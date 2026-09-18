@@ -28,6 +28,7 @@ const (
 	FileThreads     = "threads.ndjson"
 	FileFindings    = "findings.ndjson"
 	FileProbes      = "probes.ndjson"
+	FileProposals   = "proposals.ndjson"
 	FileCoverage    = "coverage.ndjson"
 	FileTransitions = "transitions.ndjson"
 	FileWaivers     = "waivers.ndjson"
@@ -71,7 +72,7 @@ const (
 var prFiles = []string{
 	FileMeta, FileClaims, FileUnits, FileMapping, FilePostedIndex,
 	FileIntentGaps, FileRuns, FileThreads, FileFindings, FileProbes,
-	FileCoverage, FileTransitions, FileWaivers,
+	FileProposals, FileCoverage, FileTransitions, FileWaivers,
 }
 
 // prNamed is every name §2.3's table gives a file sitting directly in a pull
