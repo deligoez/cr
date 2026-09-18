@@ -1,0 +1,35 @@
+{
+  "id": "laravel-pest",
+  "match": {
+    "files": ["artisan", "composer.json", "phpunit.xml", "tests/Pest.php"],
+    "globs": [
+      "app/**/*.php",
+      "config/**/*.php",
+      "database/**/*.php",
+      "routes/**/*.php",
+      "tests/**/*.php",
+      "resources/views/**/*.blade.php"
+    ]
+  },
+  "axes": {
+    "intent": true,
+    "correctness": true,
+    "convention": true,
+    "test": true
+  },
+  "sandbox": {
+    "copy": [".env", ".env.testing", "vendor"],
+    "setup": ["composer install --no-interaction --prefer-dist --no-progress"]
+  },
+  "tests": {
+    "cmd": ["./vendor/bin/pest", "--colors=never"],
+    "globs": ["tests/**/*Test.php"],
+    "filter_flag": "--filter",
+    "count_pattern": "(?:Tests:|,)\\s+(\\d+)\\s+(?:deprecated|failed|warning|risky|incomplete|notice|passed)\\b",
+    "failed_pattern": "(?:Tests:|,)\\s+(\\d+)\\s+failed\\b",
+    "probe_path_template": "tests/Feature/cr_probe_<probe-id>Test.php"
+  },
+  "symbols": {
+    "lang": "php"
+  }
+}

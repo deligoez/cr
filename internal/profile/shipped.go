@@ -21,7 +21,7 @@ import (
 //
 // A release is added here when a later release changes a shipped profile, and
 // TestEveryReleaseTagCarryingABuiltinProfileIsCovered fails until it is.
-var shippedReleases = []string{"v0.1.0", "v0.2.0", "v0.2.1"}
+var shippedReleases = []string{"v0.1.0", "v0.2.0", "v0.2.1", "v0.2.2", "v0.2.3", "v0.3.0", "v0.3.1"}
 
 // shipped holds the previous releases' profile files.
 //
