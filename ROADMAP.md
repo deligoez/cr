@@ -80,7 +80,12 @@ Each of these is measured rather than wished for: the evidence is a run that had
   reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template. The
   Go profile is written and measured already (`spec/measurements/m1/go-profile.json`: runner, count
   patterns, filter and path flags, probe template), so it is a commit rather than a project; TypeScript and
-  Python follow. Tracker commands for GitHub Issues and Linear belong here too.
+  Python follow.
+- **Every non-Jira team writes configuration before its first review.** `intent.cmd` defaults to a `jira`
+  binary (§3.1.2), and the intent axis is the one P1 calls the authority, so a team on GitHub Issues or
+  Linear cannot run a first round as shipped: it configures a tracker command or passes `--intent-file` by
+  hand. Ship the two commands. This is a tracker, not a profile, and it is listed on its own because the
+  file's opening rule forbids riders.
 - **A driver for the mechanical steps.** A round is ten commands of which three need the agent's judgement.
   Measured: the orchestration was written three separate times for the three measurement passes, and every
   time the plumbing — which prompts to run, where their output goes, collecting the cells — was the
@@ -94,7 +99,9 @@ M1 and M3 answered two of this item's three slices. What is left has no data at 
 - **Real use.** Review real pull requests with cr, posting only what the reviewer would have posted anyway,
   and record per round: comments kept, softened, deleted, marked `wrong`; author replies; wall clock and
   token cost. §7.3's triage statistics exist for exactly this and hold one round's data from one field
-  trial. It is the same question the volume question below asks, from the other end.
+  trial. It is the same question the volume question below asks, from the other end. **Blocked on a decision,
+  not on work:** which real pull requests cr is pointed at, and whether its output is posted under the
+  reviewer's name. Both are the user's to make, and nothing here proceeds until they are made.
 - **AACR-Bench as an instrument.** Its 640 negatives are a straight binary test of whether cr's grade ladder
   and §6.3's question-forcing separate wrong from right, with no matcher needed and no scoring script (which
   is unpublished). cr's own false-assertion denominators are 6 and 9; this one is 640. Recall over its 245
@@ -111,14 +118,7 @@ repository the round drives commands against, which is what `deligoez/cr-qa` alr
 unit test. Decide after a cheap trial: one scenario-shaped role over the same subject, counted against the
 same 24.
 
-### 4. Isolation for untrusted code
-
-Probes run the pull request's `tests.cmd` on the reviewer's machine in a git worktree, with the reviewer's
-permissions. That is acceptable for a colleague's pull request and not for an outside contributor's. Before
-cr is pointed at code from outside the team: a container or equivalent sandbox for test runs, no network by
-default, and an explicit profile opt-in for anything else.
-
-### 5. The conversation (v0.4)
+### 4. The conversation (v0.4)
 
 The re-review half the first spec promised:
 
@@ -132,11 +132,13 @@ The re-review half the first spec promised:
 - a question closed by an answer is neutral, an open question is not — the rule a convergence criterion
   needs.
 
-### 6. Team use
+### 5. Team use
 
-State, waivers and triage statistics live in one reviewer's `~/.cr`. A team cannot share "this class is
-wrong" or a context note. Write context supplements back to the tracker, share the context store, and share
-repository-wide waivers.
+- **A second reviewer starts from nothing.** State, waivers and triage statistics live in one reviewer's
+  `~/.cr`, so "this class is wrong" and the context store are per-person: the two a second reviewer needs on
+  their first round are shared repository-wide waivers and a shared context store. Opens when a second
+  reviewer uses cr; cr has one today, so there is no measurement that a team wants any of this, and the
+  trigger is what discharges the item rather than somebody's spare afternoon.
 
 ## Questions to settle by measurement
 
@@ -202,6 +204,11 @@ An item here has been considered and declined. It returns only with a measuremen
 
 ## Known limits kept by design
 
+- **cr runs the pull request's `tests.cmd` with the reviewer's permissions**, in a git worktree on the
+  reviewer's own machine. It is not to be pointed at an outside contributor's pull request until that run
+  happens in a container with no network by default and an explicit profile opt-in for anything else. This
+  is a gate rather than a task: it binds today, and the work behind it opens the day the first
+  outside-contributor pull request is reviewed.
 - `COMMENT` is the only review event; cr never approves or requests changes.
 - An interrupted runner exits 4; the next command recreates the sandbox.
 - The out-of-block record-id refusal applies once `cr review` has emitted the round.
