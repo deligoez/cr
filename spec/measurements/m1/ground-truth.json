@@ -1,0 +1,8791 @@
+[
+  {
+    "commit": "3bea258",
+    "subject": "fix(config): exit 3 naming the file, key and layer for a config layer cr cannot use",
+    "task": "qa-config-errors-exit-three",
+    "defects": [
+      "D-S01-3",
+      "D-S01-4"
+    ],
+    "sections": [
+      "### 2.7 Configuration layers",
+      "### 11.2 Exit codes"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/config"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            160,
+            160
+          ],
+          [
+            650,
+            650
+          ],
+          [
+            653,
+            657
+          ],
+          [
+            662,
+            662
+          ]
+        ],
+        "v010_ranges": [
+          [
+            160,
+            160
+          ],
+          [
+            650,
+            650
+          ],
+          [
+            653,
+            657
+          ],
+          [
+            662,
+            662
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/config/config.go",
+        "parent_ranges": [
+          [
+            280,
+            280
+          ],
+          [
+            296,
+            299
+          ],
+          [
+            302,
+            302
+          ],
+          [
+            304,
+            304
+          ],
+          [
+            306,
+            306
+          ],
+          [
+            310,
+            310
+          ],
+          [
+            319,
+            319
+          ],
+          [
+            321,
+            321
+          ],
+          [
+            340,
+            340
+          ],
+          [
+            344,
+            344
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            364,
+            365
+          ],
+          [
+            374,
+            374
+          ],
+          [
+            384,
+            384
+          ],
+          [
+            390,
+            390
+          ],
+          [
+            394,
+            394
+          ]
+        ],
+        "v010_ranges": [
+          [
+            280,
+            280
+          ],
+          [
+            296,
+            299
+          ],
+          [
+            302,
+            302
+          ],
+          [
+            304,
+            304
+          ],
+          [
+            306,
+            306
+          ],
+          [
+            310,
+            310
+          ],
+          [
+            319,
+            319
+          ],
+          [
+            321,
+            321
+          ],
+          [
+            340,
+            340
+          ],
+          [
+            344,
+            344
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            364,
+            365
+          ],
+          [
+            374,
+            374
+          ],
+          [
+            384,
+            384
+          ],
+          [
+            390,
+            390
+          ],
+          [
+            394,
+            394
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "2002229",
+    "subject": "fix(config): consult the detected repository's layer in cr config",
+    "task": "qa-config-shows-repo-layer",
+    "defects": [
+      "D-S01-2"
+    ],
+    "sections": [
+      "### 2.7 Configuration layers"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/config.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            14,
+            14
+          ],
+          [
+            16,
+            16
+          ],
+          [
+            24,
+            24
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            52,
+            53
+          ],
+          [
+            66,
+            67
+          ],
+          [
+            74,
+            74
+          ],
+          [
+            104,
+            104
+          ],
+          [
+            125,
+            126
+          ],
+          [
+            128,
+            133
+          ],
+          [
+            141,
+            141
+          ],
+          [
+            143,
+            143
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            14,
+            14
+          ],
+          [
+            16,
+            16
+          ],
+          [
+            24,
+            24
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            52,
+            53
+          ],
+          [
+            66,
+            67
+          ],
+          [
+            74,
+            74
+          ],
+          [
+            104,
+            104
+          ],
+          [
+            125,
+            126
+          ],
+          [
+            128,
+            133
+          ],
+          [
+            141,
+            141
+          ],
+          [
+            143,
+            143
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "b560aec",
+    "subject": "fix(brief): report every lens that did not run as review and status do",
+    "task": "qa-brief-lens-honesty-parity",
+    "defects": [
+      "D-S02-2"
+    ],
+    "sections": [
+      "### 4.5 Axis activation and honest reporting",
+      "### 3.7 Orientation"
+    ],
+    "packages": [
+      "internal/activation",
+      "internal/brief",
+      "internal/cli",
+      "internal/profile"
+    ],
+    "hunks": [
+      {
+        "path": "internal/activation/activation.go",
+        "parent_ranges": [
+          [
+            16,
+            18
+          ]
+        ],
+        "v010_ranges": [
+          [
+            16,
+            18
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/brief/brief.go",
+        "parent_ranges": [
+          [
+            160,
+            163
+          ],
+          [
+            171,
+            177
+          ],
+          [
+            179,
+            197
+          ],
+          [
+            348,
+            350
+          ],
+          [
+            375,
+            375
+          ],
+          [
+            379,
+            384
+          ],
+          [
+            386,
+            389
+          ],
+          [
+            391,
+            391
+          ],
+          [
+            395,
+            397
+          ],
+          [
+            399,
+            400
+          ],
+          [
+            402,
+            402
+          ]
+        ],
+        "v010_ranges": [
+          [
+            160,
+            163
+          ],
+          [
+            171,
+            177
+          ],
+          [
+            179,
+            197
+          ],
+          [
+            348,
+            350
+          ],
+          [
+            375,
+            375
+          ],
+          [
+            379,
+            384
+          ],
+          [
+            386,
+            389
+          ],
+          [
+            391,
+            391
+          ],
+          [
+            395,
+            397
+          ],
+          [
+            399,
+            400
+          ],
+          [
+            402,
+            402
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/brief.go",
+        "parent_ranges": [
+          [
+            58,
+            61
+          ]
+        ],
+        "v010_ranges": [
+          [
+            58,
+            61
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            10,
+            10
+          ],
+          [
+            22,
+            22
+          ],
+          [
+            490,
+            495
+          ],
+          [
+            511,
+            542
+          ],
+          [
+            545,
+            545
+          ],
+          [
+            547,
+            547
+          ],
+          [
+            551,
+            552
+          ]
+        ],
+        "v010_ranges": [
+          [
+            10,
+            10
+          ],
+          [
+            22,
+            22
+          ],
+          [
+            490,
+            495
+          ],
+          [
+            511,
+            542
+          ],
+          [
+            545,
+            545
+          ],
+          [
+            547,
+            547
+          ],
+          [
+            551,
+            552
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/profile/none.go",
+        "parent_ranges": [
+          [
+            3,
+            7
+          ],
+          [
+            79,
+            110
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            7
+          ],
+          [
+            79,
+            110
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "1f5db7d",
+    "subject": "fix(cells): refuse a repeated seat, an unknown key, test paths not given, an na beside a record, and cells before the mapping",
+    "task": "qa-cells-record-validation",
+    "defects": [
+      "D-S04-2",
+      "D-S04-3"
+    ],
+    "sections": [
+      "### 4.5 Axis activation and honest reporting",
+      "### 4.4 Test adequacy"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/coverage"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/cells.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            8,
+            8
+          ],
+          [
+            202,
+            202
+          ],
+          [
+            205,
+            205
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            8,
+            8
+          ],
+          [
+            202,
+            202
+          ],
+          [
+            205,
+            205
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            420,
+            420
+          ]
+        ],
+        "v010_ranges": [
+          [
+            411,
+            411
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/coverage/cell.go",
+        "parent_ranges": [
+          [
+            23,
+            23
+          ],
+          [
+            129,
+            129
+          ],
+          [
+            133,
+            133
+          ],
+          [
+            137,
+            138
+          ],
+          [
+            154,
+            154
+          ],
+          [
+            156,
+            159
+          ],
+          [
+            173,
+            173
+          ],
+          [
+            176,
+            176
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            190,
+            190
+          ],
+          [
+            220,
+            220
+          ],
+          [
+            237,
+            237
+          ],
+          [
+            267,
+            267
+          ],
+          [
+            299,
+            299
+          ],
+          [
+            331,
+            333
+          ],
+          [
+            337,
+            337
+          ],
+          [
+            347,
+            347
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            351,
+            351
+          ],
+          [
+            356,
+            356
+          ],
+          [
+            358,
+            358
+          ],
+          [
+            381,
+            381
+          ],
+          [
+            412,
+            414
+          ]
+        ],
+        "v010_ranges": [
+          [
+            23,
+            23
+          ],
+          [
+            129,
+            129
+          ],
+          [
+            133,
+            133
+          ],
+          [
+            137,
+            138
+          ],
+          [
+            154,
+            154
+          ],
+          [
+            156,
+            159
+          ],
+          [
+            173,
+            173
+          ],
+          [
+            176,
+            176
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            190,
+            190
+          ],
+          [
+            220,
+            220
+          ],
+          [
+            237,
+            237
+          ],
+          [
+            267,
+            267
+          ],
+          [
+            299,
+            299
+          ],
+          [
+            331,
+            333
+          ],
+          [
+            337,
+            337
+          ],
+          [
+            347,
+            347
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            351,
+            351
+          ],
+          [
+            356,
+            356
+          ],
+          [
+            358,
+            358
+          ],
+          [
+            381,
+            381
+          ],
+          [
+            412,
+            414
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "e3b38cc",
+    "subject": "fix(record): refuse a LEFT anchor on a line the diff did not remove",
+    "task": "qa-left-anchor-deleted-lines-only",
+    "defects": [
+      "D-S05-2"
+    ],
+    "sections": [
+      "### 9.2 Anchors",
+      "### 6.1 Record schema"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/git"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/anchorunit.go",
+        "parent_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            31,
+            31
+          ],
+          [
+            33,
+            33
+          ],
+          [
+            35,
+            40
+          ],
+          [
+            55,
+            55
+          ],
+          [
+            83,
+            85
+          ],
+          [
+            89,
+            89
+          ],
+          [
+            92,
+            93
+          ]
+        ],
+        "v010_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            27,
+            27
+          ],
+          [
+            31,
+            31
+          ],
+          [
+            33,
+            33
+          ],
+          [
+            35,
+            40
+          ],
+          [
+            55,
+            55
+          ],
+          [
+            83,
+            85
+          ],
+          [
+            89,
+            89
+          ],
+          [
+            92,
+            93
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/merge.go",
+        "parent_ranges": [
+          [
+            434,
+            434
+          ]
+        ],
+        "v010_ranges": [
+          [
+            434,
+            434
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/git/hunk.go",
+        "parent_ranges": [
+          [
+            94,
+            94
+          ],
+          [
+            202,
+            202
+          ],
+          [
+            247,
+            247
+          ]
+        ],
+        "v010_ranges": [
+          [
+            94,
+            94
+          ],
+          [
+            202,
+            202
+          ],
+          [
+            247,
+            247
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "0e5eaa6",
+    "subject": "fix(state): refuse a meta.json profile_id that is not one profile file stem",
+    "task": "qa-meta-profile-id-containment",
+    "defects": [
+      "D-S07-6"
+    ],
+    "sections": [
+      "### 2.2 State layout",
+      "### 2.4 Profiles"
+    ],
+    "packages": [
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/state/briefed.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            78,
+            78
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            78,
+            78
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/state/layout.go",
+        "parent_ranges": [
+          [
+            69,
+            69
+          ]
+        ],
+        "v010_ranges": [
+          [
+            69,
+            69
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/state/meta.go",
+        "parent_ranges": [
+          [
+            75,
+            75
+          ]
+        ],
+        "v010_ranges": [
+          [
+            75,
+            75
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "91f44e2",
+    "subject": "fix(review): keep id blocks fixed across a re-brief and refuse an empty --axis",
+    "task": "qa-review-id-blocks-and-axis-flag",
+    "defects": [],
+    "sections": [
+      "### 4.6 Review fan-out"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/review"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/review.go",
+        "parent_ranges": [
+          [
+            92,
+            92
+          ]
+        ],
+        "v010_ranges": [
+          [
+            92,
+            92
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/emit.go",
+        "parent_ranges": [
+          [
+            55,
+            55
+          ]
+        ],
+        "v010_ranges": [
+          [
+            55,
+            55
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/ids.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            67,
+            70
+          ],
+          [
+            75,
+            76
+          ],
+          [
+            78,
+            78
+          ],
+          [
+            88,
+            88
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            67,
+            70
+          ],
+          [
+            75,
+            76
+          ],
+          [
+            78,
+            78
+          ],
+          [
+            88,
+            88
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/run.go",
+        "parent_ranges": [
+          [
+            339,
+            339
+          ],
+          [
+            367,
+            367
+          ],
+          [
+            413,
+            414
+          ],
+          [
+            417,
+            417
+          ],
+          [
+            419,
+            419
+          ],
+          [
+            425,
+            425
+          ]
+        ],
+        "v010_ranges": [
+          [
+            339,
+            339
+          ],
+          [
+            367,
+            367
+          ],
+          [
+            413,
+            414
+          ],
+          [
+            417,
+            417
+          ],
+          [
+            419,
+            419
+          ],
+          [
+            425,
+            425
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "297aa5e",
+    "subject": "fix(post): warn on the indentation of the suggestion actually posted",
+    "task": "qa-post-edited-suggestion-indent",
+    "defects": [
+      "D-S09-1"
+    ],
+    "sections": [
+      "### 8.2 Suggestion validation"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/draft",
+      "internal/suggestion"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/draft.go",
+        "parent_ranges": [
+          [
+            240,
+            243
+          ]
+        ],
+        "v010_ranges": [
+          [
+            240,
+            243
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/indentation.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            10,
+            11
+          ],
+          [
+            13,
+            16
+          ],
+          [
+            18,
+            18
+          ],
+          [
+            23,
+            23
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            43,
+            43
+          ],
+          [
+            49,
+            58
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            10,
+            11
+          ],
+          [
+            13,
+            16
+          ],
+          [
+            18,
+            18
+          ],
+          [
+            23,
+            23
+          ],
+          [
+            25,
+            25
+          ],
+          [
+            43,
+            43
+          ],
+          [
+            49,
+            58
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/post.go",
+        "parent_ranges": [
+          [
+            60,
+            60
+          ],
+          [
+            106,
+            106
+          ],
+          [
+            294,
+            294
+          ],
+          [
+            304,
+            304
+          ],
+          [
+            313,
+            313
+          ],
+          [
+            554,
+            554
+          ]
+        ],
+        "v010_ranges": [
+          [
+            60,
+            60
+          ],
+          [
+            106,
+            106
+          ],
+          [
+            294,
+            294
+          ],
+          [
+            304,
+            304
+          ],
+          [
+            313,
+            313
+          ],
+          [
+            554,
+            554
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/send.go",
+        "parent_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            151,
+            151
+          ]
+        ],
+        "v010_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            151,
+            151
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/draft/draft.go",
+        "parent_ranges": [
+          [
+            206,
+            206
+          ]
+        ],
+        "v010_ranges": [
+          [
+            206,
+            206
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/draft/sent.go",
+        "parent_ranges": [
+          [
+            0,
+            0
+          ]
+        ],
+        "v010_ranges": [],
+        "translation": "absent-at-v0.1.0"
+      },
+      {
+        "path": "internal/suggestion/indent.go",
+        "parent_ranges": [
+          [
+            40,
+            41
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            59,
+            60
+          ],
+          [
+            67,
+            67
+          ]
+        ],
+        "v010_ranges": [
+          [
+            40,
+            41
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            59,
+            60
+          ],
+          [
+            67,
+            67
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "aaf3783",
+    "subject": "fix(intent): judge note claims against their note and retracted set-asides as unsettled",
+    "task": "qa-note-claims-drift-and-retraction",
+    "defects": [
+      "D-S03-3",
+      "D-S03-5",
+      "D-S03-7"
+    ],
+    "sections": [
+      "### 3.3 Claim extraction",
+      "### 3.6 Context store",
+      "### 4.1 Intent coverage"
+    ],
+    "packages": [
+      "internal/brief",
+      "internal/cli",
+      "internal/intent"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/brief.go",
+        "parent_ranges": [
+          [
+            271,
+            275
+          ],
+          [
+            279,
+            279
+          ]
+        ],
+        "v010_ranges": [
+          [
+            292,
+            296
+          ],
+          [
+            300,
+            300
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/claims.go",
+        "parent_ranges": [
+          [
+            6,
+            6
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            159,
+            159
+          ],
+          [
+            168,
+            176
+          ],
+          [
+            188,
+            188
+          ],
+          [
+            189,
+            189
+          ],
+          [
+            310,
+            311
+          ],
+          [
+            321,
+            321
+          ],
+          [
+            347,
+            347
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            352,
+            352
+          ],
+          [
+            355,
+            355
+          ],
+          [
+            357,
+            357
+          ]
+        ],
+        "v010_ranges": [
+          [
+            6,
+            6
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            159,
+            159
+          ],
+          [
+            168,
+            176
+          ],
+          [
+            188,
+            188
+          ],
+          [
+            189,
+            189
+          ],
+          [
+            310,
+            311
+          ],
+          [
+            321,
+            321
+          ],
+          [
+            347,
+            347
+          ],
+          [
+            349,
+            349
+          ],
+          [
+            352,
+            352
+          ],
+          [
+            355,
+            355
+          ],
+          [
+            357,
+            357
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            533,
+            533
+          ]
+        ],
+        "v010_ranges": [
+          [
+            518,
+            518
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            16,
+            16
+          ],
+          [
+            255,
+            255
+          ],
+          [
+            272,
+            272
+          ],
+          [
+            352,
+            352
+          ],
+          [
+            354,
+            354
+          ],
+          [
+            355,
+            355
+          ],
+          [
+            367,
+            367
+          ],
+          [
+            377,
+            377
+          ],
+          [
+            410,
+            410
+          ],
+          [
+            418,
+            419
+          ],
+          [
+            422,
+            422
+          ]
+        ],
+        "v010_ranges": [
+          [
+            15,
+            15
+          ],
+          [
+            255,
+            255
+          ],
+          [
+            272,
+            272
+          ],
+          [
+            352,
+            352
+          ],
+          [
+            354,
+            354
+          ],
+          [
+            355,
+            355
+          ],
+          [
+            367,
+            367
+          ],
+          [
+            377,
+            377
+          ],
+          [
+            410,
+            410
+          ],
+          [
+            418,
+            419
+          ],
+          [
+            422,
+            422
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/statusnotes.go",
+        "parent_ranges": [
+          [
+            10,
+            10
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            86,
+            86
+          ],
+          [
+            90,
+            90
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            99,
+            99
+          ],
+          [
+            115,
+            115
+          ],
+          [
+            130,
+            130
+          ],
+          [
+            157,
+            157
+          ],
+          [
+            165,
+            165
+          ]
+        ],
+        "v010_ranges": [
+          [
+            10,
+            10
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            86,
+            86
+          ],
+          [
+            90,
+            90
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            99,
+            99
+          ],
+          [
+            115,
+            115
+          ],
+          [
+            130,
+            130
+          ],
+          [
+            157,
+            157
+          ],
+          [
+            165,
+            165
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/intent/claimspan.go",
+        "parent_ranges": [
+          [
+            116,
+            116
+          ]
+        ],
+        "v010_ranges": [
+          [
+            116,
+            116
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/intent/drift.go",
+        "parent_ranges": [
+          [
+            27,
+            27
+          ],
+          [
+            87,
+            92
+          ],
+          [
+            97,
+            97
+          ],
+          [
+            101,
+            101
+          ]
+        ],
+        "v010_ranges": [
+          [
+            27,
+            27
+          ],
+          [
+            87,
+            92
+          ],
+          [
+            97,
+            97
+          ],
+          [
+            101,
+            101
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "5305de5",
+    "subject": "fix(summary): count raised and waived records that skip cr merge",
+    "task": "qa-summary-counts-without-merge",
+    "defects": [
+      "D-S05-3"
+    ],
+    "sections": [
+      "### 10.3 Round summary",
+      "### 7.4 Waivers"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/intake.go",
+        "parent_ranges": [
+          [
+            0,
+            0
+          ]
+        ],
+        "v010_ranges": [],
+        "translation": "absent-at-v0.1.0"
+      },
+      {
+        "path": "internal/cli/merge.go",
+        "parent_ranges": [
+          [
+            234,
+            239
+          ],
+          [
+            247,
+            247
+          ]
+        ],
+        "v010_ranges": [
+          [
+            234,
+            239
+          ],
+          [
+            247,
+            247
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/record.go",
+        "parent_ranges": [
+          [
+            114,
+            114
+          ],
+          [
+            326,
+            326
+          ],
+          [
+            329,
+            329
+          ],
+          [
+            355,
+            355
+          ],
+          [
+            374,
+            374
+          ],
+          [
+            390,
+            390
+          ],
+          [
+            473,
+            473
+          ]
+        ],
+        "v010_ranges": [
+          [
+            114,
+            114
+          ],
+          [
+            326,
+            326
+          ],
+          [
+            329,
+            329
+          ],
+          [
+            355,
+            355
+          ],
+          [
+            374,
+            374
+          ],
+          [
+            390,
+            390
+          ],
+          [
+            473,
+            473
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/recorddrops.go",
+        "parent_ranges": [
+          [
+            13,
+            13
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            54,
+            54
+          ],
+          [
+            55,
+            55
+          ],
+          [
+            70,
+            70
+          ]
+        ],
+        "v010_ranges": [
+          [
+            13,
+            13
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            54,
+            54
+          ],
+          [
+            55,
+            55
+          ],
+          [
+            70,
+            70
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/summary.go",
+        "parent_ranges": [
+          [
+            56,
+            58
+          ],
+          [
+            126,
+            128
+          ],
+          [
+            129,
+            129
+          ],
+          [
+            132,
+            132
+          ]
+        ],
+        "v010_ranges": [
+          [
+            56,
+            58
+          ],
+          [
+            126,
+            128
+          ],
+          [
+            129,
+            129
+          ],
+          [
+            132,
+            132
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "1d769ff",
+    "subject": "fix(probe): refuse patch lines cr does not execute and record why a probe is error",
+    "task": "qa-probe-patch-strict-and-reasons",
+    "defects": [
+      "D-S06-3",
+      "D-S06-4"
+    ],
+    "sections": [
+      "### 5.3 Mutation probe",
+      "### 5.5 Probe record"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/git",
+      "internal/probe",
+      "internal/sandbox"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/probe.go",
+        "parent_ranges": [
+          [
+            43,
+            43
+          ],
+          [
+            92,
+            92
+          ],
+          [
+            220,
+            220
+          ],
+          [
+            245,
+            245
+          ],
+          [
+            248,
+            248
+          ],
+          [
+            261,
+            261
+          ],
+          [
+            267,
+            268
+          ],
+          [
+            274,
+            274
+          ],
+          [
+            693,
+            693
+          ],
+          [
+            738,
+            751
+          ],
+          [
+            772,
+            772
+          ],
+          [
+            790,
+            790
+          ],
+          [
+            847,
+            847
+          ],
+          [
+            955,
+            956
+          ],
+          [
+            969,
+            969
+          ],
+          [
+            1005,
+            1005
+          ]
+        ],
+        "v010_ranges": [
+          [
+            43,
+            43
+          ],
+          [
+            92,
+            92
+          ],
+          [
+            220,
+            220
+          ],
+          [
+            245,
+            245
+          ],
+          [
+            248,
+            248
+          ],
+          [
+            261,
+            261
+          ],
+          [
+            267,
+            268
+          ],
+          [
+            274,
+            274
+          ],
+          [
+            693,
+            693
+          ],
+          [
+            738,
+            751
+          ],
+          [
+            772,
+            772
+          ],
+          [
+            790,
+            790
+          ],
+          [
+            847,
+            847
+          ],
+          [
+            955,
+            956
+          ],
+          [
+            969,
+            969
+          ],
+          [
+            1005,
+            1005
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/git/patch.go",
+        "parent_ranges": [
+          [
+            99,
+            99
+          ],
+          [
+            180,
+            180
+          ],
+          [
+            190,
+            190
+          ],
+          [
+            199,
+            199
+          ]
+        ],
+        "v010_ranges": [
+          [
+            99,
+            99
+          ],
+          [
+            180,
+            180
+          ],
+          [
+            190,
+            190
+          ],
+          [
+            199,
+            199
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/probe/gap.go",
+        "parent_ranges": [
+          [
+            34,
+            34
+          ],
+          [
+            76,
+            76
+          ]
+        ],
+        "v010_ranges": [
+          [
+            34,
+            34
+          ],
+          [
+            76,
+            76
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/probe/mutation.go",
+        "parent_ranges": [
+          [
+            44,
+            44
+          ],
+          [
+            78,
+            78
+          ]
+        ],
+        "v010_ranges": [
+          [
+            44,
+            44
+          ],
+          [
+            78,
+            78
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/probe/outcome.go",
+        "parent_ranges": [
+          [
+            69,
+            69
+          ]
+        ],
+        "v010_ranges": [
+          [
+            69,
+            69
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/probe/record.go",
+        "parent_ranges": [
+          [
+            78,
+            78
+          ],
+          [
+            127,
+            127
+          ]
+        ],
+        "v010_ranges": [
+          [
+            78,
+            78
+          ],
+          [
+            127,
+            127
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/sandbox/run.go",
+        "parent_ranges": [
+          [
+            137,
+            137
+          ],
+          [
+            145,
+            145
+          ],
+          [
+            164,
+            164
+          ],
+          [
+            166,
+            166
+          ],
+          [
+            168,
+            168
+          ],
+          [
+            179,
+            179
+          ],
+          [
+            181,
+            181
+          ],
+          [
+            182,
+            182
+          ]
+        ],
+        "v010_ranges": [
+          [
+            137,
+            137
+          ],
+          [
+            145,
+            145
+          ],
+          [
+            164,
+            164
+          ],
+          [
+            166,
+            166
+          ],
+          [
+            168,
+            168
+          ],
+          [
+            179,
+            179
+          ],
+          [
+            181,
+            181
+          ],
+          [
+            182,
+            182
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "29a95bd",
+    "subject": "fix(rules): show a hit's fix suggestion in the prompt and list rules the profile scope leaves out",
+    "task": "qa-rule-fix-and-scope-visible",
+    "defects": [],
+    "sections": [
+      "### 2.6 Rules"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/review"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/rules.go",
+        "parent_ranges": [
+          [
+            48,
+            48
+          ],
+          [
+            50,
+            53
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            182,
+            182
+          ],
+          [
+            186,
+            186
+          ],
+          [
+            305,
+            305
+          ]
+        ],
+        "v010_ranges": [
+          [
+            48,
+            48
+          ],
+          [
+            50,
+            53
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            182,
+            182
+          ],
+          [
+            186,
+            186
+          ],
+          [
+            305,
+            305
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/attach.go",
+        "parent_ranges": [
+          [
+            94,
+            94
+          ]
+        ],
+        "v010_ranges": [
+          [
+            94,
+            94
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/emit.go",
+        "parent_ranges": [
+          [
+            88,
+            88
+          ]
+        ],
+        "v010_ranges": [
+          [
+            85,
+            85
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/review/text.go",
+        "parent_ranges": [
+          [
+            276,
+            276
+          ],
+          [
+            288,
+            288
+          ]
+        ],
+        "v010_ranges": [
+          [
+            276,
+            276
+          ],
+          [
+            288,
+            288
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "98df0c8",
+    "subject": "fix(state): report a meta.json that does not decode as unusable state",
+    "task": "qa-meta-decode-exit-three",
+    "defects": [
+      "D-S11-1"
+    ],
+    "sections": [
+      "### 2.2 State layout",
+      "### 11.2 Exit codes"
+    ],
+    "packages": [
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/state/briefed.go",
+        "parent_ranges": [
+          [
+            5,
+            5
+          ],
+          [
+            32,
+            33
+          ],
+          [
+            82,
+            86
+          ],
+          [
+            89,
+            89
+          ]
+        ],
+        "v010_ranges": [
+          [
+            2,
+            4
+          ],
+          [
+            29,
+            30
+          ],
+          [
+            78,
+            79
+          ],
+          [
+            80,
+            80
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "5bcb5ab",
+    "subject": "fix(draft): keep a round's new classes after its records are discarded",
+    "task": "qa-new-classes-survive-triage",
+    "defects": [
+      "D-S10-1"
+    ],
+    "sections": [
+      "### 7.3 Triage statistics"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/draft.go",
+        "parent_ranges": [
+          [
+            253,
+            253
+          ],
+          [
+            577,
+            577
+          ],
+          [
+            579,
+            579
+          ]
+        ],
+        "v010_ranges": [
+          [
+            252,
+            252
+          ],
+          [
+            576,
+            576
+          ],
+          [
+            578,
+            578
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/triage.go",
+        "parent_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            49,
+            49
+          ],
+          [
+            55,
+            55
+          ]
+        ],
+        "v010_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            49,
+            49
+          ],
+          [
+            55,
+            55
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "6d01e24",
+    "subject": "fix(probe): explain an unusable baseline, an unstarted runner and a voided probe",
+    "task": "qa-gap-probe-errors-explained",
+    "defects": [
+      "D-S07-1",
+      "D-S07-3",
+      "D-S07-4"
+    ],
+    "sections": [
+      "### 5.4 Gap probe",
+      "### 5.1 Sandbox"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/probe",
+      "internal/run",
+      "internal/sandbox"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/gapsupport.go",
+        "parent_ranges": [
+          [
+            70,
+            70
+          ],
+          [
+            72,
+            72
+          ],
+          [
+            89,
+            89
+          ],
+          [
+            257,
+            257
+          ]
+        ],
+        "v010_ranges": [
+          [
+            70,
+            70
+          ],
+          [
+            72,
+            72
+          ],
+          [
+            89,
+            89
+          ],
+          [
+            257,
+            257
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/probe.go",
+        "parent_ranges": [
+          [
+            274,
+            286
+          ],
+          [
+            852,
+            852
+          ],
+          [
+            878,
+            878
+          ],
+          [
+            895,
+            895
+          ],
+          [
+            896,
+            896
+          ],
+          [
+            937,
+            937
+          ],
+          [
+            941,
+            941
+          ],
+          [
+            942,
+            942
+          ],
+          [
+            948,
+            948
+          ],
+          [
+            1040,
+            1040
+          ],
+          [
+            1043,
+            1043
+          ],
+          [
+            1048,
+            1048
+          ],
+          [
+            1050,
+            1050
+          ],
+          [
+            1056,
+            1056
+          ],
+          [
+            1058,
+            1058
+          ]
+        ],
+        "v010_ranges": [
+          [
+            264,
+            275
+          ],
+          [
+            829,
+            829
+          ],
+          [
+            854,
+            854
+          ],
+          [
+            871,
+            871
+          ],
+          [
+            872,
+            872
+          ],
+          [
+            913,
+            913
+          ],
+          [
+            917,
+            917
+          ],
+          [
+            918,
+            918
+          ],
+          [
+            924,
+            924
+          ],
+          [
+            1013,
+            1013
+          ],
+          [
+            1016,
+            1016
+          ],
+          [
+            1021,
+            1021
+          ],
+          [
+            1023,
+            1023
+          ],
+          [
+            1029,
+            1029
+          ],
+          [
+            1031,
+            1031
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/probe/outcome.go",
+        "parent_ranges": [
+          [
+            37,
+            37
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            72,
+            73
+          ],
+          [
+            75,
+            75
+          ]
+        ],
+        "v010_ranges": [
+          [
+            37,
+            37
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            69,
+            69
+          ],
+          [
+            69,
+            69
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/probe/resolve.go",
+        "parent_ranges": [
+          [
+            130,
+            134
+          ],
+          [
+            137,
+            137
+          ]
+        ],
+        "v010_ranges": [
+          [
+            130,
+            134
+          ],
+          [
+            137,
+            137
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/run/run.go",
+        "parent_ranges": [
+          [
+            68,
+            68
+          ],
+          [
+            157,
+            157
+          ]
+        ],
+        "v010_ranges": [
+          [
+            68,
+            68
+          ],
+          [
+            157,
+            157
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/sandbox/baseline.go",
+        "parent_ranges": [
+          [
+            45,
+            45
+          ],
+          [
+            121,
+            132
+          ]
+        ],
+        "v010_ranges": [
+          [
+            45,
+            45
+          ],
+          [
+            121,
+            132
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/sandbox/clean.go",
+        "parent_ranges": [
+          [
+            112,
+            112
+          ]
+        ],
+        "v010_ranges": [
+          [
+            112,
+            112
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "8ec41d5",
+    "subject": "fix(config): refuse a protected CR_ variable on every command and a protected profile field",
+    "task": "qa-protected-settings-every-command",
+    "defects": [
+      "D-S05-5"
+    ],
+    "sections": [
+      "### 2.7 Configuration layers",
+      "### 6.3 The argued rule"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/config",
+      "internal/profile"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/root.go",
+        "parent_ranges": [
+          [
+            8,
+            8
+          ],
+          [
+            29,
+            29
+          ]
+        ],
+        "v010_ranges": [
+          [
+            8,
+            8
+          ],
+          [
+            29,
+            29
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/config/config.go",
+        "parent_ranges": [
+          [
+            211,
+            211
+          ],
+          [
+            490,
+            490
+          ],
+          [
+            496,
+            497
+          ],
+          [
+            500,
+            500
+          ],
+          [
+            503,
+            520
+          ]
+        ],
+        "v010_ranges": [
+          [
+            211,
+            211
+          ],
+          [
+            437,
+            437
+          ],
+          [
+            443,
+            444
+          ],
+          [
+            447,
+            447
+          ],
+          [
+            450,
+            467
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/profile/profile.go",
+        "parent_ranges": [
+          [
+            34,
+            34
+          ],
+          [
+            204,
+            204
+          ],
+          [
+            214,
+            214
+          ]
+        ],
+        "v010_ranges": [
+          [
+            34,
+            34
+          ],
+          [
+            204,
+            204
+          ],
+          [
+            214,
+            214
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "10e188e",
+    "subject": "fix(merge): refuse every anchor cr record refuses",
+    "task": "qa-merge-refuses-cross-hunk-anchor",
+    "defects": [],
+    "sections": [
+      "### 6.5 Merge",
+      "### 9.2 Anchors"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/anchorunit.go",
+        "parent_ranges": [
+          [
+            30,
+            31
+          ],
+          [
+            49,
+            49
+          ],
+          [
+            51,
+            51
+          ],
+          [
+            59,
+            83
+          ],
+          [
+            95,
+            95
+          ]
+        ],
+        "v010_ranges": [
+          [
+            27,
+            28
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/merge.go",
+        "parent_ranges": [
+          [
+            295,
+            295
+          ],
+          [
+            425,
+            425
+          ],
+          [
+            438,
+            438
+          ],
+          [
+            439,
+            439
+          ],
+          [
+            453,
+            453
+          ]
+        ],
+        "v010_ranges": [
+          [
+            277,
+            277
+          ],
+          [
+            407,
+            407
+          ],
+          [
+            420,
+            420
+          ],
+          [
+            421,
+            421
+          ],
+          [
+            434,
+            435
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "429b3a3",
+    "subject": "fix(status): name the seats missing a cell and hold completeness to the intent pass",
+    "task": "qa-status-completeness-reasons",
+    "defects": [
+      "D-S04-1"
+    ],
+    "sections": [
+      "### 10.2 Completeness",
+      "### 3.6 Context store"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/coverage"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/cells.go",
+        "parent_ranges": [
+          [
+            14,
+            14
+          ],
+          [
+            209,
+            209
+          ],
+          [
+            211,
+            211
+          ],
+          [
+            214,
+            214
+          ]
+        ],
+        "v010_ranges": [
+          [
+            10,
+            10
+          ],
+          [
+            201,
+            203
+          ],
+          [
+            201,
+            203
+          ],
+          [
+            203,
+            204
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            10,
+            10
+          ],
+          [
+            252,
+            252
+          ],
+          [
+            282,
+            285
+          ],
+          [
+            340,
+            340
+          ]
+        ],
+        "v010_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            10,
+            10
+          ],
+          [
+            251,
+            251
+          ],
+          [
+            281,
+            284
+          ],
+          [
+            339,
+            339
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/statusnotes.go",
+        "parent_ranges": [
+          [
+            151,
+            151
+          ]
+        ],
+        "v010_ranges": [
+          [
+            133,
+            133
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/coverage/cell.go",
+        "parent_ranges": [
+          [
+            29,
+            29
+          ],
+          [
+            140,
+            140
+          ],
+          [
+            145,
+            145
+          ],
+          [
+            147,
+            147
+          ],
+          [
+            149,
+            149
+          ],
+          [
+            240,
+            240
+          ],
+          [
+            277,
+            277
+          ],
+          [
+            471,
+            471
+          ]
+        ],
+        "v010_ranges": [
+          [
+            28,
+            28
+          ],
+          [
+            136,
+            139
+          ],
+          [
+            136,
+            139
+          ],
+          [
+            136,
+            139
+          ],
+          [
+            136,
+            139
+          ],
+          [
+            155,
+            160
+          ],
+          [
+            186,
+            186
+          ],
+          [
+            330,
+            330
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/coverage/completeness.go",
+        "parent_ranges": [
+          [
+            10,
+            11
+          ],
+          [
+            29,
+            29
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            76,
+            78
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            82,
+            82
+          ],
+          [
+            113,
+            113
+          ],
+          [
+            122,
+            122
+          ],
+          [
+            124,
+            124
+          ]
+        ],
+        "v010_ranges": [
+          [
+            10,
+            11
+          ],
+          [
+            29,
+            29
+          ],
+          [
+            46,
+            46
+          ],
+          [
+            76,
+            78
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            82,
+            82
+          ],
+          [
+            113,
+            113
+          ],
+          [
+            122,
+            122
+          ],
+          [
+            124,
+            124
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/coverage/rows.go",
+        "parent_ranges": [
+          [
+            38,
+            47
+          ],
+          [
+            61,
+            61
+          ]
+        ],
+        "v010_ranges": [
+          [
+            38,
+            47
+          ],
+          [
+            61,
+            61
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "d29bfe3",
+    "subject": "fix(review): list a unit file's outdated human threads in its prompts",
+    "task": "qa-outdated-threads-in-prompts",
+    "defects": [
+      "D-W3-2"
+    ],
+    "sections": [
+      "### 3.5 Existing threads",
+      "### 4.6 Review fan-out"
+    ],
+    "packages": [
+      "internal/review"
+    ],
+    "hunks": [
+      {
+        "path": "internal/review/text.go",
+        "parent_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            81,
+            81
+          ],
+          [
+            366,
+            369
+          ]
+        ],
+        "v010_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            81,
+            81
+          ],
+          [
+            332,
+            335
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/review/threads.go",
+        "parent_ranges": [
+          [
+            47,
+            47
+          ]
+        ],
+        "v010_ranges": [
+          [
+            47,
+            47
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "617d743",
+    "subject": "fix(brief): report the records a new round moved to stale",
+    "task": "qa-brief-reports-staled-records",
+    "defects": [
+      "D-S11-3"
+    ],
+    "sections": [
+      "### 9.3 A changed head"
+    ],
+    "packages": [
+      "internal/brief",
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/brief.go",
+        "parent_ranges": [
+          [
+            141,
+            141
+          ],
+          [
+            218,
+            218
+          ]
+        ],
+        "v010_ranges": [
+          [
+            141,
+            141
+          ],
+          [
+            239,
+            239
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/brief/invalidate.go",
+        "parent_ranges": [
+          [
+            51,
+            51
+          ],
+          [
+            53,
+            53
+          ],
+          [
+            120,
+            121
+          ],
+          [
+            155,
+            155
+          ],
+          [
+            163,
+            163
+          ]
+        ],
+        "v010_ranges": [
+          [
+            51,
+            51
+          ],
+          [
+            53,
+            53
+          ],
+          [
+            120,
+            121
+          ],
+          [
+            155,
+            155
+          ],
+          [
+            163,
+            163
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/brief.go",
+        "parent_ranges": [
+          [
+            94,
+            94
+          ]
+        ],
+        "v010_ranges": [
+          [
+            94,
+            94
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "ea836ac",
+    "subject": "fix(draft): print the comment cap and keep the round's forcing counts",
+    "task": "qa-draft-reports-cap-and-classes",
+    "defects": [
+      "D-S08-1",
+      "D-S08-2",
+      "D-S08-3"
+    ],
+    "sections": [
+      "### 7.1 Draft format",
+      "### 6.3 The argued rule",
+      "### 11.1 Global flags"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/draft"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/draft.go",
+        "parent_ranges": [
+          [
+            53,
+            54
+          ],
+          [
+            69,
+            69
+          ],
+          [
+            77,
+            78
+          ],
+          [
+            111,
+            111
+          ],
+          [
+            224,
+            224
+          ],
+          [
+            274,
+            274
+          ]
+        ],
+        "v010_ranges": [
+          [
+            53,
+            54
+          ],
+          [
+            69,
+            69
+          ],
+          [
+            77,
+            78
+          ],
+          [
+            111,
+            111
+          ],
+          [
+            224,
+            224
+          ],
+          [
+            273,
+            273
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/triage.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            79,
+            79
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            57,
+            57
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/edits.go",
+        "parent_ranges": [
+          [
+            111,
+            111
+          ]
+        ],
+        "v010_ranges": [
+          [
+            111,
+            111
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "771bc7c",
+    "subject": "fix(brief): stop offering a reply the context store already holds",
+    "task": "qa-brief-skips-answered-threads",
+    "defects": [
+      "D-W2-2"
+    ],
+    "sections": [
+      "### 3.6 Context store",
+      "### 3.5 Existing threads"
+    ],
+    "packages": [
+      "internal/brief"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/brief.go",
+        "parent_ranges": [
+          [
+            322,
+            322
+          ]
+        ],
+        "v010_ranges": [
+          [
+            332,
+            332
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/brief/candidates.go",
+        "parent_ranges": [
+          [
+            6,
+            6
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            41,
+            41
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            60,
+            60
+          ]
+        ],
+        "v010_ranges": [
+          [
+            6,
+            6
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            41,
+            41
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            60,
+            60
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "090422a",
+    "subject": "fix(post): adopt on reconcile only the review posted for the round's own head",
+    "task": "qa-reconcile-adopts-own-round-only",
+    "defects": [
+      "D-W2-3",
+      "D-W2-5"
+    ],
+    "sections": [
+      "### 8.4 Partial failure"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/finding",
+      "internal/gh"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/posted.go",
+        "parent_ranges": [
+          [
+            195,
+            195
+          ],
+          [
+            199,
+            199
+          ]
+        ],
+        "v010_ranges": [
+          [
+            195,
+            195
+          ],
+          [
+            199,
+            199
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/reconcile.go",
+        "parent_ranges": [
+          [
+            27,
+            28
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            50,
+            50
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            54,
+            55
+          ],
+          [
+            57,
+            57
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            83,
+            83
+          ],
+          [
+            85,
+            85
+          ],
+          [
+            95,
+            95
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            172,
+            173
+          ],
+          [
+            175,
+            179
+          ],
+          [
+            182,
+            182
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            185,
+            186
+          ],
+          [
+            187,
+            187
+          ],
+          [
+            189,
+            189
+          ],
+          [
+            270,
+            270
+          ],
+          [
+            394,
+            394
+          ],
+          [
+            396,
+            396
+          ],
+          [
+            399,
+            399
+          ]
+        ],
+        "v010_ranges": [
+          [
+            27,
+            28
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            50,
+            50
+          ],
+          [
+            52,
+            52
+          ],
+          [
+            54,
+            55
+          ],
+          [
+            57,
+            57
+          ],
+          [
+            60,
+            60
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            83,
+            83
+          ],
+          [
+            85,
+            85
+          ],
+          [
+            95,
+            95
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            172,
+            173
+          ],
+          [
+            175,
+            179
+          ],
+          [
+            182,
+            182
+          ],
+          [
+            183,
+            183
+          ],
+          [
+            185,
+            186
+          ],
+          [
+            187,
+            187
+          ],
+          [
+            189,
+            189
+          ],
+          [
+            270,
+            270
+          ],
+          [
+            394,
+            394
+          ],
+          [
+            396,
+            396
+          ],
+          [
+            399,
+            399
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/send.go",
+        "parent_ranges": [
+          [
+            139,
+            139
+          ],
+          [
+            172,
+            172
+          ],
+          [
+            193,
+            193
+          ]
+        ],
+        "v010_ranges": [
+          [
+            136,
+            136
+          ],
+          [
+            169,
+            169
+          ],
+          [
+            190,
+            190
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/finding/postedindex.go",
+        "parent_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            53,
+            53
+          ]
+        ],
+        "v010_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            44,
+            44
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            53,
+            53
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/gh/reviews.go",
+        "parent_ranges": [
+          [
+            23,
+            23
+          ],
+          [
+            41,
+            41
+          ]
+        ],
+        "v010_ranges": [
+          [
+            23,
+            23
+          ],
+          [
+            41,
+            41
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "0c0cdc4",
+    "subject": "fix(note): refuse invalid UTF-8, off-pattern issue keys and unknown answered records",
+    "task": "qa-note-input-validation",
+    "defects": [
+      "D-S03-1",
+      "D-S03-2",
+      "D-S03-4",
+      "D-S05-4"
+    ],
+    "sections": [
+      "### 3.6 Context store",
+      "### 1.4 Normalisation",
+      "### 3.2 Issue key resolution"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/intent",
+      "internal/note",
+      "internal/state",
+      "internal/text"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            263,
+            263
+          ],
+          [
+            533,
+            533
+          ]
+        ],
+        "v010_ranges": [
+          [
+            254,
+            254
+          ],
+          [
+            518,
+            518
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/note.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            8,
+            8
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            122,
+            122
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            8,
+            8
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            122,
+            122
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/intent/keyshape.go",
+        "parent_ranges": [
+          [
+            0,
+            0
+          ]
+        ],
+        "v010_ranges": [],
+        "translation": "absent-at-v0.1.0"
+      },
+      {
+        "path": "internal/note/answer.go",
+        "parent_ranges": [
+          [
+            84,
+            88
+          ],
+          [
+            90,
+            98
+          ],
+          [
+            108,
+            108
+          ],
+          [
+            111,
+            111
+          ]
+        ],
+        "v010_ranges": [
+          [
+            84,
+            88
+          ],
+          [
+            90,
+            98
+          ],
+          [
+            108,
+            108
+          ],
+          [
+            111,
+            111
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/note/store.go",
+        "parent_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            18,
+            19
+          ],
+          [
+            126,
+            126
+          ]
+        ],
+        "v010_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            18,
+            19
+          ],
+          [
+            126,
+            126
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/state/records.go",
+        "parent_ranges": [
+          [
+            13,
+            13
+          ],
+          [
+            229,
+            229
+          ]
+        ],
+        "v010_ranges": [
+          [
+            13,
+            13
+          ],
+          [
+            229,
+            229
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/text/normalise.go",
+        "parent_ranges": [
+          [
+            61,
+            62
+          ],
+          [
+            121,
+            121
+          ]
+        ],
+        "v010_ranges": [
+          [
+            61,
+            62
+          ],
+          [
+            121,
+            121
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "3cedbc7",
+    "subject": "fix(draft): name the edited marker when a marker id is changed",
+    "task": "qa-draft-marker-id-edit-message",
+    "defects": [
+      "D-S08-4"
+    ],
+    "sections": [
+      "### 7.1 Draft format"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/draft"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            323,
+            323
+          ]
+        ],
+        "v010_ranges": [
+          [
+            308,
+            308
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/edits.go",
+        "parent_ranges": [
+          [
+            40,
+            40
+          ]
+        ],
+        "v010_ranges": [
+          [
+            40,
+            40
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/ingest.go",
+        "parent_ranges": [
+          [
+            116,
+            116
+          ],
+          [
+            152,
+            152
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            309,
+            309
+          ],
+          [
+            314,
+            316
+          ],
+          [
+            319,
+            322
+          ],
+          [
+            334,
+            337
+          ],
+          [
+            339,
+            340
+          ],
+          [
+            342,
+            342
+          ],
+          [
+            344,
+            344
+          ]
+        ],
+        "v010_ranges": [
+          [
+            116,
+            116
+          ],
+          [
+            152,
+            152
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            309,
+            309
+          ],
+          [
+            314,
+            316
+          ],
+          [
+            319,
+            322
+          ],
+          [
+            334,
+            337
+          ],
+          [
+            339,
+            340
+          ],
+          [
+            342,
+            342
+          ],
+          [
+            344,
+            344
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "4810d5e",
+    "subject": "fix(post): word the review body lens disclosure for the author",
+    "task": "qa-review-body-reader-disclosure",
+    "defects": [
+      "D-S09-5"
+    ],
+    "sections": [
+      "### 8.4 Partial failure",
+      "### 4.5 Axis activation and honest reporting"
+    ],
+    "packages": [
+      "internal/activation",
+      "internal/coverage",
+      "internal/intent",
+      "internal/reinvention",
+      "internal/render",
+      "internal/testadequacy"
+    ],
+    "hunks": [
+      {
+        "path": "internal/activation/activation.go",
+        "parent_ranges": [
+          [
+            88,
+            88
+          ]
+        ],
+        "v010_ranges": [
+          [
+            88,
+            88
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/coverage/lenses.go",
+        "parent_ranges": [
+          [
+            27,
+            27
+          ]
+        ],
+        "v010_ranges": [
+          [
+            27,
+            27
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/coverage/skipped.go",
+        "parent_ranges": [
+          [
+            45,
+            45
+          ],
+          [
+            84,
+            84
+          ]
+        ],
+        "v010_ranges": [
+          [
+            45,
+            45
+          ],
+          [
+            84,
+            84
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/intent/intent.go",
+        "parent_ranges": [
+          [
+            40,
+            40
+          ]
+        ],
+        "v010_ranges": [
+          [
+            40,
+            40
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/reinvention/unavailable.go",
+        "parent_ranges": [
+          [
+            31,
+            31
+          ],
+          [
+            41,
+            41
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            99,
+            105
+          ],
+          [
+            108,
+            108
+          ],
+          [
+            110,
+            110
+          ]
+        ],
+        "v010_ranges": [
+          [
+            31,
+            31
+          ],
+          [
+            41,
+            41
+          ],
+          [
+            58,
+            58
+          ],
+          [
+            99,
+            105
+          ],
+          [
+            108,
+            108
+          ],
+          [
+            110,
+            110
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/render/reviewbody.go",
+        "parent_ranges": [
+          [
+            60,
+            60
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            113,
+            113
+          ]
+        ],
+        "v010_ranges": [
+          [
+            60,
+            60
+          ],
+          [
+            109,
+            109
+          ],
+          [
+            113,
+            113
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/testadequacy/attach.go",
+        "parent_ranges": [
+          [
+            65,
+            65
+          ],
+          [
+            75,
+            75
+          ],
+          [
+            122,
+            122
+          ],
+          [
+            128,
+            128
+          ],
+          [
+            184,
+            184
+          ],
+          [
+            206,
+            206
+          ],
+          [
+            211,
+            211
+          ]
+        ],
+        "v010_ranges": [
+          [
+            65,
+            65
+          ],
+          [
+            75,
+            75
+          ],
+          [
+            122,
+            122
+          ],
+          [
+            128,
+            128
+          ],
+          [
+            184,
+            184
+          ],
+          [
+            206,
+            206
+          ],
+          [
+            211,
+            211
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "c61a304",
+    "subject": "fix(post): range-check the suggestion that will be sent",
+    "task": "qa-post-validates-sent-suggestion",
+    "defects": [],
+    "sections": [
+      "### 8.2 Suggestion validation"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/positions.go",
+        "parent_ranges": [
+          [
+            5,
+            5
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            72,
+            72
+          ]
+        ],
+        "v010_ranges": [
+          [
+            5,
+            5
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            62,
+            62
+          ],
+          [
+            72,
+            72
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/post.go",
+        "parent_ranges": [
+          [
+            300,
+            300
+          ]
+        ],
+        "v010_ranges": [
+          [
+            291,
+            291
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "947df77",
+    "subject": "fix(cli): say what is wrong in three misleading cr note and claims messages",
+    "task": "qa-cli-message-wording",
+    "defects": [
+      "D-S03-6"
+    ],
+    "sections": [
+      "## 12. Output contract"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            284,
+            284
+          ]
+        ],
+        "v010_ranges": [
+          [
+            269,
+            269
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/note.go",
+        "parent_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            77,
+            77
+          ],
+          [
+            98,
+            98
+          ],
+          [
+            120,
+            121
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            4
+          ],
+          [
+            73,
+            73
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            113,
+            114
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "86b9005",
+    "subject": "fix(record): refuse a record at a seat holding an na cell, and document the cell rules",
+    "task": "qa-cells-followups",
+    "defects": [],
+    "sections": [
+      "### 4.5 Axis activation and honest reporting"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/coverage"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/recordpass.go",
+        "parent_ranges": [
+          [
+            12,
+            13
+          ],
+          [
+            15,
+            21
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            41,
+            41
+          ],
+          [
+            43,
+            44
+          ],
+          [
+            49,
+            49
+          ],
+          [
+            51,
+            51
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            58,
+            58
+          ]
+        ],
+        "v010_ranges": [
+          [
+            12,
+            13
+          ],
+          [
+            15,
+            21
+          ],
+          [
+            32,
+            32
+          ],
+          [
+            41,
+            41
+          ],
+          [
+            43,
+            44
+          ],
+          [
+            49,
+            49
+          ],
+          [
+            51,
+            51
+          ],
+          [
+            56,
+            56
+          ],
+          [
+            58,
+            58
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/coverage/cell.go",
+        "parent_ranges": [
+          [
+            119,
+            121
+          ],
+          [
+            131,
+            131
+          ],
+          [
+            136,
+            147
+          ]
+        ],
+        "v010_ranges": [
+          [
+            117,
+            119
+          ],
+          [
+            128,
+            130
+          ],
+          [
+            134,
+            136
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "a8549e1",
+    "subject": "fix(unit): number a deletion-only unit in the merge base and measure it at its insertion point",
+    "task": "qa-left-unit-base-ranges",
+    "defects": [
+      "D-W1-1",
+      "D-W1-2"
+    ],
+    "sections": [
+      "### 3.4 Diff ingestion and unit clustering",
+      "### 6.2 Evidence grades"
+    ],
+    "packages": [
+      "internal/brief",
+      "internal/git",
+      "internal/review",
+      "internal/unit"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/store.go",
+        "parent_ranges": [
+          [
+            127,
+            128
+          ]
+        ],
+        "v010_ranges": [
+          [
+            127,
+            128
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/git/hunk.go",
+        "parent_ranges": [
+          [
+            107,
+            112
+          ],
+          [
+            116,
+            116
+          ],
+          [
+            119,
+            119
+          ]
+        ],
+        "v010_ranges": [
+          [
+            101,
+            106
+          ],
+          [
+            110,
+            110
+          ],
+          [
+            113,
+            113
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/review/run.go",
+        "parent_ranges": [
+          [
+            476,
+            478
+          ],
+          [
+            507,
+            507
+          ]
+        ],
+        "v010_ranges": [
+          [
+            474,
+            476
+          ],
+          [
+            505,
+            505
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/review/text.go",
+        "parent_ranges": [
+          [
+            117,
+            117
+          ]
+        ],
+        "v010_ranges": [
+          [
+            114,
+            114
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/unit/contains.go",
+        "parent_ranges": [
+          [
+            9,
+            11
+          ],
+          [
+            15,
+            15
+          ],
+          [
+            29,
+            29
+          ]
+        ],
+        "v010_ranges": [
+          [
+            9,
+            11
+          ],
+          [
+            15,
+            15
+          ],
+          [
+            29,
+            29
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/unit/unit.go",
+        "parent_ranges": [
+          [
+            12,
+            12
+          ],
+          [
+            14,
+            20
+          ],
+          [
+            22,
+            22
+          ],
+          [
+            46,
+            47
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            155,
+            155
+          ],
+          [
+            157,
+            157
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            164,
+            164
+          ]
+        ],
+        "v010_ranges": [
+          [
+            12,
+            12
+          ],
+          [
+            14,
+            20
+          ],
+          [
+            22,
+            22
+          ],
+          [
+            46,
+            47
+          ],
+          [
+            48,
+            48
+          ],
+          [
+            155,
+            155
+          ],
+          [
+            157,
+            157
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            164,
+            164
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "2f6bf3e",
+    "subject": "fix(record): refuse a RIGHT anchor naming a unit that only removes lines",
+    "task": "qa-anchors-on-changed-lines-only",
+    "defects": [
+      "D-W1-3"
+    ],
+    "sections": [
+      "### 9.2 Anchors",
+      "### 7.2 Triage verbs"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/anchorunit.go",
+        "parent_ranges": [
+          [
+            30,
+            30
+          ],
+          [
+            35,
+            35
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            76,
+            76
+          ],
+          [
+            82,
+            82
+          ],
+          [
+            84,
+            87
+          ],
+          [
+            90,
+            96
+          ],
+          [
+            97,
+            97
+          ]
+        ],
+        "v010_ranges": [
+          [
+            27,
+            28
+          ],
+          [
+            27,
+            28
+          ],
+          [
+            34,
+            41
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "4a7e859",
+    "subject": "fix(sandbox): remove a sandbox whose setup failed and name the profile file in its hints",
+    "task": "qa-sandbox-setup-failure-cleanup",
+    "defects": [
+      "D-S06-1",
+      "D-S06-2"
+    ],
+    "sections": [
+      "### 5.1 Sandbox",
+      "### 2.4 Profiles"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/profile",
+      "internal/sandbox"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            118,
+            118
+          ],
+          [
+            120,
+            121
+          ],
+          [
+            687,
+            687
+          ],
+          [
+            690,
+            690
+          ],
+          [
+            692,
+            692
+          ],
+          [
+            705,
+            705
+          ]
+        ],
+        "v010_ranges": [
+          [
+            118,
+            118
+          ],
+          [
+            120,
+            121
+          ],
+          [
+            649,
+            651
+          ],
+          [
+            652,
+            658
+          ],
+          [
+            652,
+            658
+          ],
+          [
+            662,
+            662
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/profile/testargv.go",
+        "parent_ranges": [
+          [
+            45,
+            45
+          ]
+        ],
+        "v010_ranges": [
+          [
+            45,
+            45
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/sandbox/sandbox.go",
+        "parent_ranges": [
+          [
+            132,
+            132
+          ],
+          [
+            133,
+            133
+          ]
+        ],
+        "v010_ranges": [
+          [
+            132,
+            132
+          ],
+          [
+            133,
+            133
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "8332d88",
+    "subject": "fix(post): finalise the round summary's comment count and confirmation",
+    "task": "qa-post-summary-final-counts",
+    "defects": [
+      "D-W2-1",
+      "D-W2-4"
+    ],
+    "sections": [
+      "### 10.3 Round summary"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/draft.go",
+        "parent_ranges": [
+          [
+            488,
+            488
+          ],
+          [
+            540,
+            540
+          ],
+          [
+            553,
+            553
+          ]
+        ],
+        "v010_ranges": [
+          [
+            476,
+            476
+          ],
+          [
+            528,
+            528
+          ],
+          [
+            541,
+            541
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/post.go",
+        "parent_ranges": [
+          [
+            439,
+            439
+          ],
+          [
+            444,
+            444
+          ],
+          [
+            449,
+            455
+          ],
+          [
+            519,
+            520
+          ],
+          [
+            522,
+            523
+          ],
+          [
+            526,
+            526
+          ],
+          [
+            534,
+            534
+          ]
+        ],
+        "v010_ranges": [
+          [
+            430,
+            430
+          ],
+          [
+            435,
+            435
+          ],
+          [
+            440,
+            446
+          ],
+          [
+            510,
+            511
+          ],
+          [
+            513,
+            514
+          ],
+          [
+            517,
+            517
+          ],
+          [
+            525,
+            525
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/reconcile.go",
+        "parent_ranges": [
+          [
+            465,
+            465
+          ],
+          [
+            483,
+            483
+          ],
+          [
+            489,
+            495
+          ],
+          [
+            501,
+            507
+          ]
+        ],
+        "v010_ranges": [
+          [
+            386,
+            386
+          ],
+          [
+            401,
+            401
+          ],
+          [
+            407,
+            413
+          ],
+          [
+            419,
+            425
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/summary.go",
+        "parent_ranges": [
+          [
+            48,
+            48
+          ],
+          [
+            83,
+            89
+          ],
+          [
+            143,
+            143
+          ],
+          [
+            199,
+            199
+          ]
+        ],
+        "v010_ranges": [
+          [
+            48,
+            48
+          ],
+          [
+            82,
+            88
+          ],
+          [
+            140,
+            140
+          ],
+          [
+            196,
+            196
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "8814bb2",
+    "subject": "fix(status): report a moved head without reading the head the clone may lack",
+    "task": "qa-status-reports-moved-head-first",
+    "defects": [
+      "D-W3-1"
+    ],
+    "sections": [
+      "### 9.3 A changed head",
+      "### 10.2 Completeness"
+    ],
+    "packages": [
+      "internal/brief",
+      "internal/cli",
+      "internal/git"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/brief.go",
+        "parent_ranges": [
+          [
+            342,
+            342
+          ]
+        ],
+        "v010_ranges": [
+          [
+            353,
+            353
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            221,
+            221
+          ]
+        ],
+        "v010_ranges": [
+          [
+            210,
+            210
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            69,
+            69
+          ],
+          [
+            138,
+            138
+          ],
+          [
+            262,
+            262
+          ],
+          [
+            279,
+            279
+          ],
+          [
+            312,
+            312
+          ],
+          [
+            336,
+            337
+          ],
+          [
+            345,
+            345
+          ],
+          [
+            496,
+            496
+          ],
+          [
+            514,
+            514
+          ],
+          [
+            519,
+            519
+          ]
+        ],
+        "v010_ranges": [
+          [
+            66,
+            66
+          ],
+          [
+            135,
+            135
+          ],
+          [
+            259,
+            259
+          ],
+          [
+            276,
+            276
+          ],
+          [
+            306,
+            306
+          ],
+          [
+            330,
+            331
+          ],
+          [
+            339,
+            339
+          ],
+          [
+            444,
+            444
+          ],
+          [
+            462,
+            462
+          ],
+          [
+            467,
+            467
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/git/commit.go",
+        "parent_ranges": [
+          [
+            0,
+            0
+          ]
+        ],
+        "v010_ranges": [],
+        "translation": "absent-at-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "cb63782",
+    "subject": "fix(sandbox): stop the test runner when cr is interrupted or killed",
+    "task": "qa-probe-runner-signal-cleanup",
+    "defects": [
+      "D-S06-5"
+    ],
+    "sections": [
+      "### 5.3 Mutation probe",
+      "### 5.6 Isolation and budget",
+      "### 5.1 Sandbox"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/sandbox",
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            123,
+            123
+          ]
+        ],
+        "v010_ranges": [
+          [
+            119,
+            122
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/probe.go",
+        "parent_ranges": [
+          [
+            212,
+            212
+          ],
+          [
+            253,
+            253
+          ],
+          [
+            255,
+            255
+          ],
+          [
+            256,
+            256
+          ],
+          [
+            580,
+            580
+          ]
+        ],
+        "v010_ranges": [
+          [
+            206,
+            206
+          ],
+          [
+            243,
+            243
+          ],
+          [
+            244,
+            246
+          ],
+          [
+            246,
+            246
+          ],
+          [
+            566,
+            566
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/test.go",
+        "parent_ranges": [
+          [
+            227,
+            227
+          ],
+          [
+            229,
+            229
+          ],
+          [
+            233,
+            233
+          ],
+          [
+            282,
+            283
+          ],
+          [
+            289,
+            290
+          ],
+          [
+            292,
+            292
+          ]
+        ],
+        "v010_ranges": [
+          [
+            227,
+            227
+          ],
+          [
+            229,
+            229
+          ],
+          [
+            233,
+            233
+          ],
+          [
+            282,
+            283
+          ],
+          [
+            289,
+            290
+          ],
+          [
+            292,
+            292
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/sandbox/clean.go",
+        "parent_ranges": [
+          [
+            44,
+            44
+          ],
+          [
+            59,
+            59
+          ],
+          [
+            65,
+            65
+          ],
+          [
+            70,
+            70
+          ]
+        ],
+        "v010_ranges": [
+          [
+            44,
+            44
+          ],
+          [
+            59,
+            59
+          ],
+          [
+            65,
+            65
+          ],
+          [
+            70,
+            70
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/sandbox/run.go",
+        "parent_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            13,
+            13
+          ],
+          [
+            134,
+            134
+          ],
+          [
+            136,
+            136
+          ],
+          [
+            138,
+            138
+          ],
+          [
+            155,
+            155
+          ],
+          [
+            158,
+            158
+          ],
+          [
+            165,
+            165
+          ],
+          [
+            171,
+            171
+          ],
+          [
+            203,
+            203
+          ],
+          [
+            204,
+            204
+          ]
+        ],
+        "v010_ranges": [
+          [
+            9,
+            9
+          ],
+          [
+            13,
+            13
+          ],
+          [
+            134,
+            134
+          ],
+          [
+            136,
+            136
+          ],
+          [
+            137,
+            138
+          ],
+          [
+            137,
+            138
+          ],
+          [
+            137,
+            138
+          ],
+          [
+            143,
+            143
+          ],
+          [
+            149,
+            149
+          ],
+          [
+            180,
+            182
+          ],
+          [
+            182,
+            182
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/state/runnerlock.go",
+        "parent_ranges": [
+          [
+            0,
+            0
+          ]
+        ],
+        "v010_ranges": [],
+        "translation": "absent-at-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "9439528",
+    "subject": "fix(record): hint a free id inside the refused prompt's id block",
+    "task": "qa-next-free-id-within-block",
+    "defects": [
+      "D-S05-1"
+    ],
+    "sections": [
+      "### 4.6 Review fan-out",
+      "### 6.5 Merge"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/review"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/merge.go",
+        "parent_ranges": [
+          [
+            471,
+            471
+          ]
+        ],
+        "v010_ranges": [
+          [
+            444,
+            444
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/record.go",
+        "parent_ranges": [
+          [
+            453,
+            453
+          ]
+        ],
+        "v010_ranges": [
+          [
+            422,
+            422
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/recordids.go",
+        "parent_ranges": [
+          [
+            6,
+            6
+          ],
+          [
+            20,
+            20
+          ],
+          [
+            38,
+            41
+          ],
+          [
+            50,
+            64
+          ],
+          [
+            67,
+            67
+          ],
+          [
+            69,
+            78
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            81,
+            81
+          ],
+          [
+            87,
+            88
+          ],
+          [
+            94,
+            94
+          ]
+        ],
+        "v010_ranges": [
+          [
+            6,
+            6
+          ],
+          [
+            20,
+            20
+          ],
+          [
+            38,
+            41
+          ],
+          [
+            50,
+            64
+          ],
+          [
+            67,
+            67
+          ],
+          [
+            69,
+            78
+          ],
+          [
+            80,
+            80
+          ],
+          [
+            81,
+            81
+          ],
+          [
+            87,
+            88
+          ],
+          [
+            94,
+            94
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/ids.go",
+        "parent_ranges": [
+          [
+            35,
+            35
+          ]
+        ],
+        "v010_ranges": [
+          [
+            33,
+            33
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "490c107",
+    "subject": "fix(review): fence quoted thread comments and list file-level threads in prompts",
+    "task": "qa-prompt-threads-fenced-and-file-level",
+    "defects": [],
+    "sections": [
+      "### 3.5 Existing threads",
+      "### 4.6 Review fan-out"
+    ],
+    "packages": [
+      "internal/review"
+    ],
+    "hunks": [
+      {
+        "path": "internal/review/text.go",
+        "parent_ranges": [
+          [
+            59,
+            60
+          ],
+          [
+            84,
+            84
+          ],
+          [
+            353,
+            353
+          ],
+          [
+            363,
+            363
+          ],
+          [
+            373,
+            374
+          ],
+          [
+            376,
+            386
+          ],
+          [
+            388,
+            388
+          ],
+          [
+            391,
+            395
+          ],
+          [
+            398,
+            400
+          ],
+          [
+            405,
+            405
+          ],
+          [
+            407,
+            407
+          ],
+          [
+            409,
+            409
+          ]
+        ],
+        "v010_ranges": [
+          [
+            57,
+            59
+          ],
+          [
+            81,
+            82
+          ],
+          [
+            316,
+            316
+          ],
+          [
+            326,
+            326
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ],
+          [
+            331,
+            336
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/review/threads.go",
+        "parent_ranges": [
+          [
+            48,
+            49
+          ],
+          [
+            51,
+            59
+          ],
+          [
+            63,
+            64
+          ]
+        ],
+        "v010_ranges": [
+          [
+            47,
+            48
+          ],
+          [
+            47,
+            48
+          ],
+          [
+            47,
+            48
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "01a3009",
+    "subject": "fix(draft): name the escape in the moved-block refusal",
+    "task": "qa-draft-moved-block-hint",
+    "defects": [],
+    "sections": [
+      "### 7.2 Triage verbs"
+    ],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            341,
+            342
+          ],
+          [
+            345,
+            345
+          ]
+        ],
+        "v010_ranges": [
+          [
+            308,
+            309
+          ],
+          [
+            308,
+            309
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "13ff894",
+    "subject": "fix(config): refuse a configured profile that is not a file stem and name what a patch refusal refused",
+    "task": "qa-config-profile-stem-and-patch-hint",
+    "defects": [],
+    "sections": [
+      "### 2.4 Profiles",
+      "### 5.3 Mutation probe"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/config",
+      "internal/git",
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            706,
+            706
+          ],
+          [
+            711,
+            713
+          ],
+          [
+            730,
+            730
+          ]
+        ],
+        "v010_ranges": [
+          [
+            649,
+            651
+          ],
+          [
+            652,
+            658
+          ],
+          [
+            662,
+            662
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/config/config.go",
+        "parent_ranges": [
+          [
+            40,
+            40
+          ],
+          [
+            65,
+            65
+          ],
+          [
+            405,
+            405
+          ]
+        ],
+        "v010_ranges": [
+          [
+            40,
+            40
+          ],
+          [
+            65,
+            65
+          ],
+          [
+            322,
+            322
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/git/patch.go",
+        "parent_ranges": [
+          [
+            66,
+            66
+          ],
+          [
+            209,
+            209
+          ],
+          [
+            240,
+            240
+          ],
+          [
+            247,
+            247
+          ],
+          [
+            251,
+            252
+          ],
+          [
+            255,
+            255
+          ]
+        ],
+        "v010_ranges": [
+          [
+            66,
+            66
+          ],
+          [
+            190,
+            191
+          ],
+          [
+            197,
+            198
+          ],
+          [
+            197,
+            198
+          ],
+          [
+            197,
+            198
+          ],
+          [
+            197,
+            198
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/state/layout.go",
+        "parent_ranges": [
+          [
+            70,
+            70
+          ],
+          [
+            74,
+            74
+          ],
+          [
+            81,
+            81
+          ]
+        ],
+        "v010_ranges": [
+          [
+            68,
+            69
+          ],
+          [
+            68,
+            69
+          ],
+          [
+            68,
+            69
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/state/meta.go",
+        "parent_ranges": [
+          [
+            81,
+            81
+          ]
+        ],
+        "v010_ranges": [
+          [
+            74,
+            75
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "96ad883",
+    "subject": "fix(post): pin the posted review to the round's head",
+    "task": "qa-review-post-pins-commit",
+    "defects": [],
+    "sections": [
+      "### 8.3 Batching",
+      "### 8.4 Partial failure"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/post"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/post.go",
+        "parent_ranges": [
+          [
+            614,
+            614
+          ]
+        ],
+        "v010_ranges": [
+          [
+            581,
+            581
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/reconcile.go",
+        "parent_ranges": [
+          [
+            131,
+            131
+          ],
+          [
+            225,
+            225
+          ],
+          [
+            239,
+            239
+          ],
+          [
+            253,
+            255
+          ],
+          [
+            262,
+            263
+          ],
+          [
+            265,
+            266
+          ],
+          [
+            270,
+            270
+          ]
+        ],
+        "v010_ranges": [
+          [
+            94,
+            96
+          ],
+          [
+            174,
+            180
+          ],
+          [
+            184,
+            187
+          ],
+          [
+            184,
+            187
+          ],
+          [
+            188,
+            190
+          ],
+          [
+            188,
+            190
+          ],
+          [
+            191,
+            191
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/post/review.go",
+        "parent_ranges": [
+          [
+            60,
+            60
+          ],
+          [
+            128,
+            128
+          ]
+        ],
+        "v010_ranges": [
+          [
+            60,
+            60
+          ],
+          [
+            128,
+            128
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "dde360e",
+    "subject": "fix(record): refuse a new record id outside its prompt's id block",
+    "task": "qa-merge-refuses-out-of-block-id",
+    "defects": [],
+    "sections": [
+      "### 4.6 Review fan-out",
+      "### 6.5 Merge"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/recordids.go",
+        "parent_ranges": [
+          [
+            57,
+            57
+          ],
+          [
+            83,
+            83
+          ],
+          [
+            99,
+            99
+          ],
+          [
+            162,
+            162
+          ]
+        ],
+        "v010_ranges": [
+          [
+            49,
+            65
+          ],
+          [
+            93,
+            93
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            94,
+            94
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/state/fanout.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            4,
+            4
+          ],
+          [
+            33,
+            33
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            4,
+            4
+          ],
+          [
+            33,
+            33
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "86d7008",
+    "subject": "fix(brief): keep earlier rounds' units and mapping when a new round opens",
+    "task": "qa-units-mapping-kept-per-round",
+    "defects": [
+      "D-S11-2"
+    ],
+    "sections": [
+      "### 9.3 A changed head",
+      "### 2.3 Per-PR state"
+    ],
+    "packages": [
+      "internal/brief"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/invalidate.go",
+        "parent_ranges": [
+          [
+            62,
+            63
+          ],
+          [
+            65,
+            70
+          ],
+          [
+            72,
+            84
+          ],
+          [
+            86,
+            86
+          ]
+        ],
+        "v010_ranges": [
+          [
+            60,
+            61
+          ],
+          [
+            63,
+            68
+          ],
+          [
+            70,
+            82
+          ],
+          [
+            84,
+            84
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/brief/store.go",
+        "parent_ranges": [
+          [
+            49,
+            49
+          ],
+          [
+            65,
+            65
+          ]
+        ],
+        "v010_ranges": [
+          [
+            49,
+            49
+          ],
+          [
+            65,
+            65
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "a72573b",
+    "subject": "fix(probe): count a zero failed count only on a clean exit",
+    "task": "qa-ladders-require-clean-exit",
+    "defects": [
+      "S-S06-1"
+    ],
+    "sections": [
+      "### 5.3 Mutation probe",
+      "### 5.4 Gap probe"
+    ],
+    "packages": [
+      "internal/probe"
+    ],
+    "hunks": [
+      {
+        "path": "internal/probe/gap.go",
+        "parent_ranges": [
+          [
+            52,
+            52
+          ],
+          [
+            75,
+            75
+          ]
+        ],
+        "v010_ranges": [
+          [
+            49,
+            49
+          ],
+          [
+            72,
+            72
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/probe/mutation.go",
+        "parent_ranges": [
+          [
+            61,
+            61
+          ],
+          [
+            77,
+            77
+          ]
+        ],
+        "v010_ranges": [
+          [
+            57,
+            57
+          ],
+          [
+            73,
+            73
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "3a30a17",
+    "subject": "fix(status): count an empty claims recording as the round's claims",
+    "task": "qa-claims-record-accepts-empty",
+    "defects": [],
+    "sections": [
+      "### 3.3 Claim extraction",
+      "### 10.2 Completeness"
+    ],
+    "packages": [
+      "internal/brief",
+      "internal/cli",
+      "internal/coverage",
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/store.go",
+        "parent_ranges": [
+          [
+            107,
+            107
+          ],
+          [
+            112,
+            112
+          ],
+          [
+            124,
+            124
+          ]
+        ],
+        "v010_ranges": [
+          [
+            102,
+            102
+          ],
+          [
+            107,
+            107
+          ],
+          [
+            119,
+            119
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/claims.go",
+        "parent_ranges": [
+          [
+            384,
+            384
+          ],
+          [
+            409,
+            409
+          ]
+        ],
+        "v010_ranges": [
+          [
+            346,
+            348
+          ],
+          [
+            356,
+            358
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            447,
+            447
+          ]
+        ],
+        "v010_ranges": [
+          [
+            337,
+            338
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/coverage/completeness.go",
+        "parent_ranges": [
+          [
+            64,
+            64
+          ],
+          [
+            172,
+            172
+          ],
+          [
+            176,
+            176
+          ],
+          [
+            178,
+            178
+          ],
+          [
+            181,
+            181
+          ]
+        ],
+        "v010_ranges": [
+          [
+            44,
+            45
+          ],
+          [
+            124,
+            125
+          ],
+          [
+            124,
+            125
+          ],
+          [
+            124,
+            125
+          ],
+          [
+            124,
+            125
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/state/meta.go",
+        "parent_ranges": [
+          [
+            45,
+            45
+          ],
+          [
+            119,
+            119
+          ]
+        ],
+        "v010_ranges": [
+          [
+            45,
+            45
+          ],
+          [
+            110,
+            110
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "1869fa1",
+    "subject": "fix(rule): detect rule hits only in files that formed a unit",
+    "task": "qa-rules-detect-unit-files-only",
+    "defects": [
+      "D-W1-5"
+    ],
+    "sections": [
+      "### 2.6 Rules",
+      "### 3.4 Diff ingestion and unit clustering"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/review",
+      "internal/rule"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/rulescheck.go",
+        "parent_ranges": [
+          [
+            140,
+            140
+          ]
+        ],
+        "v010_ranges": [
+          [
+            140,
+            140
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/review/attach.go",
+        "parent_ranges": [
+          [
+            100,
+            100
+          ]
+        ],
+        "v010_ranges": [
+          [
+            99,
+            99
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/rule/attach.go",
+        "parent_ranges": [
+          [
+            23,
+            23
+          ]
+        ],
+        "v010_ranges": [
+          [
+            23,
+            23
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "739f671",
+    "subject": "fix(probe): refuse a patch naming a file the sandbox lacks with exit 1",
+    "task": "qa-patch-missing-file-exit-one",
+    "defects": [],
+    "sections": [
+      "### 5.3 Mutation probe",
+      "### 11.2 Exit codes"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/git",
+      "internal/sandbox",
+      "internal/state"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            633,
+            633
+          ]
+        ],
+        "v010_ranges": [
+          [
+            577,
+            577
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/probe.go",
+        "parent_ranges": [
+          [
+            426,
+            426
+          ],
+          [
+            429,
+            429
+          ],
+          [
+            482,
+            482
+          ],
+          [
+            693,
+            693
+          ]
+        ],
+        "v010_ranges": [
+          [
+            402,
+            402
+          ],
+          [
+            405,
+            405
+          ],
+          [
+            458,
+            458
+          ],
+          [
+            669,
+            669
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/git/patch.go",
+        "parent_ranges": [
+          [
+            32,
+            32
+          ],
+          [
+            177,
+            177
+          ]
+        ],
+        "v010_ranges": [
+          [
+            32,
+            32
+          ],
+          [
+            157,
+            157
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/sandbox/run.go",
+        "parent_ranges": [
+          [
+            72,
+            94
+          ]
+        ],
+        "v010_ranges": [
+          [
+            69,
+            91
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/state/mutate.go",
+        "parent_ranges": [
+          [
+            53,
+            53
+          ],
+          [
+            188,
+            188
+          ]
+        ],
+        "v010_ranges": [
+          [
+            53,
+            53
+          ],
+          [
+            188,
+            188
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "707e7c5",
+    "subject": "fix(post): surface post_unresolved, refuse --reconcile with --confirm, and name whole comment ranges",
+    "task": "qa-post-unresolved-visible",
+    "defects": [
+      "D-S09-2",
+      "D-S09-3",
+      "D-S09-4"
+    ],
+    "sections": [
+      "### 8.4 Partial failure",
+      "### 10.1 Coverage report"
+    ],
+    "packages": [
+      "internal/cli",
+      "internal/post"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            686,
+            686
+          ]
+        ],
+        "v010_ranges": [
+          [
+            625,
+            625
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/post.go",
+        "parent_ranges": [
+          [
+            65,
+            65
+          ],
+          [
+            97,
+            97
+          ],
+          [
+            135,
+            135
+          ],
+          [
+            168,
+            168
+          ],
+          [
+            197,
+            197
+          ],
+          [
+            313,
+            313
+          ],
+          [
+            460,
+            460
+          ],
+          [
+            493,
+            493
+          ]
+        ],
+        "v010_ranges": [
+          [
+            60,
+            61
+          ],
+          [
+            92,
+            92
+          ],
+          [
+            126,
+            126
+          ],
+          [
+            159,
+            159
+          ],
+          [
+            188,
+            188
+          ],
+          [
+            303,
+            305
+          ],
+          [
+            454,
+            454
+          ],
+          [
+            487,
+            487
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/reconcile.go",
+        "parent_ranges": [
+          [
+            613,
+            613
+          ]
+        ],
+        "v010_ranges": [
+          [
+            517,
+            517
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/send.go",
+        "parent_ranges": [
+          [
+            154,
+            154
+          ]
+        ],
+        "v010_ranges": [
+          [
+            150,
+            152
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            365,
+            366
+          ],
+          [
+            388,
+            388
+          ],
+          [
+            389,
+            389
+          ]
+        ],
+        "v010_ranges": [
+          [
+            308,
+            309
+          ],
+          [
+            329,
+            332
+          ],
+          [
+            329,
+            332
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/post/reject.go",
+        "parent_ranges": [
+          [
+            15,
+            19
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            184,
+            184
+          ]
+        ],
+        "v010_ranges": [
+          [
+            15,
+            19
+          ],
+          [
+            34,
+            34
+          ],
+          [
+            184,
+            184
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "ef754c9",
+    "subject": "fix(post): disclose a closed or merged pull request before anything is sent",
+    "task": "qa-pr-state-disclosed",
+    "defects": [
+      "D-W1-6"
+    ],
+    "sections": [
+      "### 3.7 Orientation",
+      "### 8.5 Confirmation gate"
+    ],
+    "packages": [
+      "internal/brief",
+      "internal/cli",
+      "internal/gh"
+    ],
+    "hunks": [
+      {
+        "path": "internal/brief/brief.go",
+        "parent_ranges": [
+          [
+            169,
+            169
+          ],
+          [
+            236,
+            236
+          ],
+          [
+            311,
+            311
+          ]
+        ],
+        "v010_ranges": [
+          [
+            164,
+            164
+          ],
+          [
+            248,
+            248
+          ],
+          [
+            321,
+            321
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/brief.go",
+        "parent_ranges": [
+          [
+            52,
+            52
+          ],
+          [
+            64,
+            64
+          ],
+          [
+            68,
+            68
+          ],
+          [
+            93,
+            93
+          ],
+          [
+            253,
+            254
+          ]
+        ],
+        "v010_ranges": [
+          [
+            52,
+            52
+          ],
+          [
+            64,
+            64
+          ],
+          [
+            68,
+            68
+          ],
+          [
+            93,
+            93
+          ],
+          [
+            247,
+            248
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/head.go",
+        "parent_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            7,
+            7
+          ],
+          [
+            18,
+            18
+          ],
+          [
+            20,
+            29
+          ],
+          [
+            42,
+            42
+          ],
+          [
+            44,
+            44
+          ]
+        ],
+        "v010_ranges": [
+          [
+            3,
+            3
+          ],
+          [
+            7,
+            7
+          ],
+          [
+            18,
+            18
+          ],
+          [
+            20,
+            29
+          ],
+          [
+            42,
+            42
+          ],
+          [
+            44,
+            44
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      },
+      {
+        "path": "internal/cli/post.go",
+        "parent_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            200,
+            200
+          ],
+          [
+            218,
+            218
+          ],
+          [
+            254,
+            254
+          ],
+          [
+            285,
+            285
+          ],
+          [
+            328,
+            328
+          ],
+          [
+            337,
+            337
+          ],
+          [
+            476,
+            480
+          ],
+          [
+            511,
+            511
+          ],
+          [
+            516,
+            516
+          ]
+        ],
+        "v010_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            176,
+            176
+          ],
+          [
+            194,
+            194
+          ],
+          [
+            230,
+            230
+          ],
+          [
+            261,
+            261
+          ],
+          [
+            303,
+            305
+          ],
+          [
+            312,
+            314
+          ],
+          [
+            452,
+            453
+          ],
+          [
+            483,
+            483
+          ],
+          [
+            487,
+            488
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/prstate.go",
+        "parent_ranges": [
+          [
+            0,
+            0
+          ]
+        ],
+        "v010_ranges": [],
+        "translation": "absent-at-v0.1.0"
+      },
+      {
+        "path": "internal/cli/send.go",
+        "parent_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            50,
+            50
+          ],
+          [
+            99,
+            99
+          ],
+          [
+            154,
+            154
+          ]
+        ],
+        "v010_ranges": [
+          [
+            4,
+            4
+          ],
+          [
+            47,
+            47
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            150,
+            152
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/status.go",
+        "parent_ranges": [
+          [
+            16,
+            16
+          ],
+          [
+            243,
+            243
+          ],
+          [
+            250,
+            250
+          ]
+        ],
+        "v010_ranges": [
+          [
+            13,
+            13
+          ],
+          [
+            233,
+            233
+          ],
+          [
+            240,
+            240
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/gh/pr.go",
+        "parent_ranges": [
+          [
+            44,
+            44
+          ],
+          [
+            81,
+            81
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            158,
+            158
+          ]
+        ],
+        "v010_ranges": [
+          [
+            44,
+            44
+          ],
+          [
+            81,
+            81
+          ],
+          [
+            94,
+            94
+          ],
+          [
+            158,
+            158
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "c081376",
+    "subject": "fix(post): form waiver and posted-index keys before the review is sent",
+    "task": null,
+    "defects": [],
+    "sections": [],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/posted.go",
+        "parent_ranges": [
+          [
+            182,
+            183
+          ],
+          [
+            195,
+            205
+          ],
+          [
+            207,
+            214
+          ]
+        ],
+        "v010_ranges": [
+          [
+            182,
+            183
+          ],
+          [
+            194,
+            196
+          ],
+          [
+            197,
+            200
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/reconcile.go",
+        "parent_ranges": [
+          [
+            359,
+            359
+          ],
+          [
+            364,
+            364
+          ],
+          [
+            470,
+            473
+          ],
+          [
+            494,
+            495
+          ],
+          [
+            497,
+            497
+          ],
+          [
+            500,
+            500
+          ]
+        ],
+        "v010_ranges": [
+          [
+            265,
+            265
+          ],
+          [
+            269,
+            271
+          ],
+          [
+            376,
+            379
+          ],
+          [
+            394,
+            395
+          ],
+          [
+            395,
+            397
+          ],
+          [
+            398,
+            400
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/regenerate.go",
+        "parent_ranges": [
+          [
+            350,
+            350
+          ],
+          [
+            353,
+            354
+          ],
+          [
+            358,
+            358
+          ],
+          [
+            360,
+            360
+          ]
+        ],
+        "v010_ranges": [
+          [
+            349,
+            350
+          ],
+          [
+            350,
+            350
+          ],
+          [
+            354,
+            354
+          ],
+          [
+            356,
+            356
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/send.go",
+        "parent_ranges": [
+          [
+            81,
+            91
+          ],
+          [
+            103,
+            103
+          ],
+          [
+            141,
+            149
+          ],
+          [
+            168,
+            168
+          ],
+          [
+            180,
+            182
+          ],
+          [
+            186,
+            192
+          ],
+          [
+            199,
+            199
+          ],
+          [
+            207,
+            207
+          ]
+        ],
+        "v010_ranges": [
+          [
+            74,
+            84
+          ],
+          [
+            96,
+            96
+          ],
+          [
+            128,
+            135
+          ],
+          [
+            154,
+            154
+          ],
+          [
+            166,
+            168
+          ],
+          [
+            170,
+            175
+          ],
+          [
+            182,
+            182
+          ],
+          [
+            189,
+            191
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "a8a7bd3",
+    "subject": "fix(cli): refuse a protected config key or profile field on every command",
+    "task": null,
+    "defects": [],
+    "sections": [],
+    "packages": [
+      "internal/cli"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/root.go",
+        "parent_ranges": [
+          [
+            10,
+            10
+          ],
+          [
+            32,
+            37
+          ],
+          [
+            90,
+            90
+          ]
+        ],
+        "v010_ranges": [
+          [
+            8,
+            9
+          ],
+          [
+            29,
+            30
+          ],
+          [
+            80,
+            80
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "a26d95c",
+    "subject": "fix(draft): hold a moved marker anchor to the refusal cr record makes",
+    "task": null,
+    "defects": [],
+    "sections": [],
+    "packages": [
+      "internal/cli",
+      "internal/draft"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/anchorunit.go",
+        "parent_ranges": [
+          [
+            114,
+            114
+          ]
+        ],
+        "v010_ranges": [
+          [
+            53,
+            54
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/regenerate.go",
+        "parent_ranges": [
+          [
+            68,
+            72
+          ]
+        ],
+        "v010_ranges": [
+          [
+            68,
+            72
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/edits.go",
+        "parent_ranges": [
+          [
+            207,
+            207
+          ],
+          [
+            211,
+            211
+          ],
+          [
+            219,
+            227
+          ],
+          [
+            229,
+            229
+          ],
+          [
+            232,
+            232
+          ]
+        ],
+        "v010_ranges": [
+          [
+            155,
+            155
+          ],
+          [
+            159,
+            159
+          ],
+          [
+            165,
+            173
+          ],
+          [
+            175,
+            175
+          ],
+          [
+            178,
+            178
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/ingest.go",
+        "parent_ranges": [
+          [
+            31,
+            31
+          ],
+          [
+            217,
+            217
+          ]
+        ],
+        "v010_ranges": [
+          [
+            31,
+            31
+          ],
+          [
+            209,
+            209
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "075198d",
+    "subject": "fix(draft): refuse a marker that moves an anchor outside its record's unit",
+    "task": null,
+    "defects": [],
+    "sections": [],
+    "packages": [
+      "internal/cli",
+      "internal/draft",
+      "internal/finding"
+    ],
+    "hunks": [
+      {
+        "path": "internal/cli/anchorunit.go",
+        "parent_ranges": [
+          [
+            15,
+            32
+          ],
+          [
+            38,
+            38
+          ],
+          [
+            49,
+            49
+          ],
+          [
+            52,
+            62
+          ],
+          [
+            78,
+            79
+          ],
+          [
+            85,
+            85
+          ],
+          [
+            91,
+            91
+          ],
+          [
+            93,
+            96
+          ],
+          [
+            99,
+            110
+          ],
+          [
+            112,
+            112
+          ],
+          [
+            115,
+            117
+          ],
+          [
+            123,
+            123
+          ],
+          [
+            142,
+            142
+          ]
+        ],
+        "v010_ranges": [
+          [
+            14,
+            27
+          ],
+          [
+            27,
+            28
+          ],
+          [
+            34,
+            41
+          ],
+          [
+            42,
+            51
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ],
+          [
+            53,
+            54
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/exit.go",
+        "parent_ranges": [
+          [
+            334,
+            334
+          ]
+        ],
+        "v010_ranges": [
+          [
+            300,
+            302
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/cli/regenerate.go",
+        "parent_ranges": [
+          [
+            68,
+            73
+          ]
+        ],
+        "v010_ranges": [
+          [
+            67,
+            73
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/edits.go",
+        "parent_ranges": [
+          [
+            41,
+            41
+          ],
+          [
+            208,
+            210
+          ],
+          [
+            226,
+            226
+          ],
+          [
+            229,
+            229
+          ],
+          [
+            240,
+            240
+          ],
+          [
+            245,
+            246
+          ],
+          [
+            248,
+            248
+          ]
+        ],
+        "v010_ranges": [
+          [
+            38,
+            39
+          ],
+          [
+            152,
+            155
+          ],
+          [
+            163,
+            174
+          ],
+          [
+            163,
+            174
+          ],
+          [
+            178,
+            178
+          ],
+          [
+            178,
+            178
+          ],
+          [
+            178,
+            178
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/draft/ingest.go",
+        "parent_ranges": [
+          [
+            32,
+            37
+          ]
+        ],
+        "v010_ranges": [
+          [
+            31,
+            32
+          ]
+        ],
+        "translation": "translated"
+      },
+      {
+        "path": "internal/finding/validate.go",
+        "parent_ranges": [
+          [
+            36,
+            36
+          ]
+        ],
+        "v010_ranges": [
+          [
+            36,
+            36
+          ]
+        ],
+        "translation": "same-as-v0.1.0"
+      }
+    ],
+    "class": null
+  },
+  {
+    "commit": "a6736b9",
+    "subject": "fix(sandbox): name a signalled runner the same way on Linux and macOS",
+    "task": null,
+    "defects": [],
+    "sections": [],
+    "packages": [
+      "internal/sandbox"
+    ],
+    "hunks": [
+      {
+        "path": "internal/sandbox/run.go",
+        "parent_ranges": [
+          [
+            290,
+            290
+          ],
+          [
+            296,
+            296
+          ]
+        ],
+        "v010_ranges": [
+          [
+            182,
+            183
+          ],
+          [
+            182,
+            183
+          ]
+        ],
+        "translation": "translated"
+      }
+    ],
+    "class": null
+  }
+]
