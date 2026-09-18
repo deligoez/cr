@@ -856,6 +856,25 @@ Mirrors tp so the experience transfers.
 2. `CLAUDE.md` reflects any new convention or invariant.
 3. `README.md` reflects every new command and feature.
 4. All three are committed and included in the release tag.
+5. `spec/<version>-release-notes.md` exists and opens with
+   `# cr v<version> — <headline>`, the em dash included.
+
+**A release's title and body are its notes file, and the pipeline takes them —
+nobody pastes them.** The title is that first line with `cr ` removed; the body
+is the file. `.github/workflows/release.yml` reads both out of the tag and fails
+the release when the file is missing or its first line is the wrong shape, and
+`.goreleaser.yml`'s `release.name_template` reads the title the workflow
+exported. `TestEveryReleaseNotesFileOpensWithItsTitle`,
+`TestEveryReleaseTagHasItsNotesFile` and
+`TestTheReleaseWorkflowPublishesTheNotesFile` hold all three.
+
+This is a mechanism because the habit failed. The naming was three different
+things across eight releases — `cr v0.2.1` for the first three, `v0.2.2 —
+<headline>` for the next three — and **v0.3.1 and v0.4.0 shipped with the bare
+tag as their title and GoReleaser's commit list as their body**, because a tag
+is pushed once and nobody reads the release page afterwards. A hand-pasted body
+is a step that can be forgotten without anything failing, which is the blindness
+the step exists to close.
 
 ### Post-release
 
