@@ -60,7 +60,7 @@ func (r ownedRegion) wrap(content string) string {
 // the record is refused under §8.1.3's rejection of a body holding it — as
 // ProvenanceRegion refuses a rationale that would.
 func (r ownedRegion) checked(record, content string) (string, error) {
-	if strings.Contains(content, Reserved) {
+	if HoldsReserved(content) {
 		return "", &BodyError{Record: record, Problem: fmt.Sprintf(
 			"would carry %q in its %s region, which §8.1.3 reserves for cr's own delimiters",
 			Reserved, r.name())}
@@ -261,11 +261,24 @@ func ValidateBody(record, body string) error {
 // is exact, since a well-formed pair inside those bytes is indistinguishable
 // from a region of cr's own once the block has been written.
 func RefuseReserved(record, body string) error {
-	if strings.Contains(body, Reserved) {
+	if HoldsReserved(body) {
 		return &BodyError{Record: record, Problem: fmt.Sprintf(
 			"contains %q, which §8.1.3 reserves for the record marker and cr's own regions", Reserved)}
 	}
 	return nil
+}
+
+// HoldsReserved reports whether text carries §8.1.3's reserved sequence.
+//
+// It is the detection every refusal of the sequence makes, handed out rather
+// than restated, so a caller outside this package refuses exactly the text a
+// draft would refuse. `cr record` and `cr merge` are those callers: §8.1.2
+// renders a block's initial body out of the record's `summary` and `evidence`,
+// so a stored record carrying the sequence in either field is one `cr draft`
+// refuses and no command can repair — the refusal has to happen where the
+// record enters cr, and it has to be the same sequence.
+func HoldsReserved(text string) bool {
+	return strings.Contains(text, Reserved)
 }
 
 // ValidateRegions holds one block read back out of a draft to §8.1.3's

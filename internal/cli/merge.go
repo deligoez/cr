@@ -479,6 +479,10 @@ func (c *mergeCounts) lines() []string {
 // out, would match no waiver or posted-index entry, and an already-posted
 // finding would reach the draft again.
 //
+// §8.1.3's reserved sequence is refused here too, through the same check
+// `cr record` makes, so a role's own file names the line to rewrite rather than
+// the merged output naming a line the role never wrote.
+//
 // The ids are held to §6.1 last, across every input and against the pull
 // request's stored records, through the check `cr record` makes: two roles'
 // files both carrying f1 would otherwise merge into a file where
@@ -499,6 +503,9 @@ func readPerRole(
 		}
 		read, err := finding.DecodePerRole(file, body, units)
 		if err != nil {
+			return nil, err
+		}
+		if err := refuseReservedSequences(file, body, read); err != nil {
 			return nil, err
 		}
 		if err := refuseForeignAnchors(owner, repo, pr, round, file, body, formed, read); err != nil {

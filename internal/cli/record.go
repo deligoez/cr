@@ -605,6 +605,11 @@ func acceptRecords(
 // agent's to write, and refuseUnknownThreads refuses a value naming no thread
 // ingested for the pull request, so a record retires by §3.5.4 only on a thread
 // that exists.
+//
+// §8.1.3's reserved sequence is refused at the same door, through
+// refuseReservedSequences: §8.1.2 renders a block's first body out of `summary`
+// and `evidence`, so a record stored carrying `<!-- cr:` in either is one no
+// later command can draft or repair.
 func decodeInput(
 	l state.Layout, owner, repo string, pr, round int, file string, body []byte, units []string,
 ) ([]*finding.Finding, error) {
@@ -614,6 +619,9 @@ func decodeInput(
 	}
 	records, err := finding.Decode(file, body, units, from)
 	if err != nil {
+		return nil, err
+	}
+	if err := refuseReservedSequences(file, body, records); err != nil {
 		return nil, err
 	}
 	if err := refuseUnknownThreads(l, owner, repo, pr, file, body, records); err != nil {

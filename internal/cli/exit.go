@@ -205,9 +205,22 @@ var codes = []mapped{
 	// with exit code 1. Every file read and parsed; what is refused is
 	// prose inside one record's block, which §11.2 codes 1 alongside the
 	// record rejections below.
+	//
+	// The step names both channels the refused body can have come by,
+	// because only one of them is an edit to the draft. `cr record` and
+	// `cr merge` now refuse the sequence in `summary` and `evidence`, but a
+	// record stored before that check reaches this refusal at the first
+	// rendering, where there is no block to edit yet — `cr draft` is what
+	// would write it, `cr triage` needs it, and no command rewrites a stored
+	// record's prose. That record is repaired in findings.ndjson or not at
+	// all, and a step saying only "edit the draft" sent the reviewer to a
+	// file this refusal prevents (field feedback M-1.1).
 	{is[*render.BodyError](), ExitValidation,
 		"edit that record's body in the draft; §8.1.3 refuses an empty one and " +
-			"one carrying cr's own marker sequence"},
+			"one carrying cr's own marker sequence `<!-- cr:`. If no draft holds the record " +
+			"yet, it was stored before `cr record` refused that sequence: rewrite or remove " +
+			"the line findings.ndjson holds for that id, since no command edits a stored " +
+			"record's summary or evidence"},
 	// §8.2.4 fixes the code a suggestion failing §8.2's validation is
 	// refused with, and it is the body refusal's: every file was read, and
 	// what cannot be posted is one record's replacement range, which §11.2
@@ -322,6 +335,15 @@ var codes = []mapped{
 	// unusable file gets.
 	{is[*finding.InvalidClassError](), ExitValidation,
 		"§6.1 wants a kebab-case class; correct that record's class in the file"},
+	// §8.1.3's reserved sequence in a record's `summary` or `evidence`,
+	// refused by `cr record` and `cr merge` where the record enters cr. It
+	// is a §6.1.3 rejection and wraps one, so it sits above that row; its
+	// step is the role's own sentence rather than a value of the field, and
+	// naming the sequence is what makes that sentence findable.
+	{is[*ReservedSequenceError](), ExitValidation,
+		"rewrite that record's text without cr's marker sequence `<!-- cr:` and run the command " +
+			"again; §8.1.3 reserves it for the record marker and cr's own regions, and §8.1.2 " +
+			"renders the comment body out of `summary` and `evidence`"},
 	// §6.1.3 rejects a record missing a required field, naming one unit no
 	// round has, or claiming a role other than the one whose output file it
 	// arrived in, with exit code 1. The file read and parsed; the fault is
