@@ -18,6 +18,7 @@ import (
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/review"
 	"github.com/deligoez/cr/internal/role"
@@ -443,6 +444,12 @@ var codes = []mapped{
 	{is[*coverage.RejectedCellError](), ExitValidation,
 		"correct the cell the message names; `cr status` lists the round's units " +
 			"and active roles"},
+	// §5.7.1 rejects a proposal with exit code 1 and stores nothing. It is
+	// the cell's row again, for the same reason: the file was found, read
+	// and parsed, and what is wrong is the agent's data inside it.
+	{is[*proposal.RejectedError](), ExitValidation,
+		"correct the proposal the message names; §5.7's table is the whole of " +
+			"what one carries, and `cr review` gave its role the ids it may write"},
 	// §9.1: a transition its table does not list MUST be rejected with exit
 	// code 4, naming the record and its current state. It is the first
 	// thing mapped onto ExitState, and it is a state conflict rather than
