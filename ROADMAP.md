@@ -22,6 +22,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.2.3 | What the field trial's operator asked for, within the v0.2 contract: notes that postdate a prompt reported, recorded cells marked, duplicate candidates listed, issue text cleaned and its links and uncovered paragraphs disclosed |
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
+| v0.3.2 | A credential-shaped file (`.env`, `id_rsa`, `*.pem` and the rest of a built-in fence read before `ignore.globs`) is listed by path and not clustered, so its content reaches no role's prompt |
 
 ## What has been measured
 
@@ -35,15 +36,11 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-- **A credential-shaped file in the diff reaches every prompt.** Measured end to end, twice: a tracked
-  `.env`, `id_rsa` or `.netrc` is not matched by `ignore.globs` (which defaults to empty,
-  `internal/config/config.go:56`), is not binary and is not generated, so `internal/unit/files.go`'s
-  four-way sort clusters it, and `internal/review/text.go:118` writes its added lines into every role's
-  prompt as a fenced diff block. §3.4 has no fence and §5.1.2's `.env*` report is about a different
-  question — what the *sandbox* lacks. The fix is a built-in path fence applied before `ignore.globs`, and
-  it **discloses rather than silently drops**: §4.5.4's honesty obligation means the brief says a file was
-  fenced, or a reviewer cannot tell a fence from an oversight. No configuration key turns it off in the
-  first release.
+- **§3.4.7 does not name the credential kind cr now lists.** v0.3.2 ships the fence: such a file is a third
+  listed kind beside `binary` and `generated`, read before `ignore.globs`, and no configuration key turns
+  it off. §3.4.7 names two kinds without closing the set, so the behaviour contradicts no MUST, but it is
+  written down only in `spec/0.3.2-release-notes.md`. Discharged when the next `spec/<version>.md` names
+  the third kind and its match rule.
 - **A runner's survivor outside the process group is neither killed nor reported.** v0.3.1 bounded the wait
   (`cmd.WaitDelay`), so a descendant that left the group no longer blocks the run for ever; cr cannot signal
   it, so the honest remedy is the disclosure that does not exist yet — the shape `StoppedRunner.Lingering`
