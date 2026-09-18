@@ -663,7 +663,7 @@ last check before the write. A question written as a statement is refused:
 ```json
 {
   "error": "the body of record f1 is a kind=question body holding no \"?\" character, and §8.1.5 refuses to post a question written as a statement",
-  "hint": "edit that record's body in the draft; §8.1.3 refuses an empty one and one carrying cr's own marker sequence"
+  "hint": "edit that record's body in the draft; §8.1.3 refuses an empty one and one carrying cr's own marker sequence `<!-- cr:`. If no draft holds the record yet, it was stored before `cr record` refused that sequence: rewrite or remove the line findings.ndjson holds for that id, since no command edits a stored record's summary or evidence"
 }
 ```
 
@@ -703,6 +703,15 @@ is the text you wrote inside that pair, dropped without a word.
 
 There is no escape — a fenced block does not help, because the check reads the
 bytes — so rewrite the sentence without the sequence.
+
+**The same holds for a record's `summary` and `evidence`, and it is refused
+earlier.** §8.1.2 renders a block's first body out of those two fields verbatim,
+so `cr record` and `cr merge` refuse with exit 1 a record carrying `<!-- cr:` in
+either, naming the file, the line, the record id and the field. A record stored
+with it could never be drafted at all: `cr draft` would refuse it, `cr triage`
+needs the draft that refusal prevents, and no command rewrites a stored record's
+prose. When a finding is about cr's own draft grammar, describe the marker
+instead of quoting it.
 
 **On a large draft, prefer `cr triage` to line arithmetic.** It finds the block
 by record id and makes exactly the hand edit its verb names, under the per-PR
