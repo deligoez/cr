@@ -206,6 +206,25 @@ func Regrade(record *Finding, evidence Evidence) {
 	record.Grade = notAbove(ComputeGrade(record, evidence), record.Grade)
 }
 
+// RegradeOnProbe writes §6.2's grade onto a record whose probe `cr` has just
+// executed, without the ratchet. It is §5.7.4's one exception to Regrade.
+//
+// The exception is narrow, and the narrowness is the argument. What the ratchet
+// refuses is a raise that happens *behind* the reviewer — a mapping that moved,
+// a claim that arrived between two moments of one round — because the human
+// approved a question and would then post an assertion. This raise is the
+// opposite of that: it happens because somebody ran `cr probe run --proposal`,
+// and the experiment they spent is exactly the evidence §6.2's `probed` row
+// asks for. A record that could never rise on it would make §5.7 an ask with no
+// answer.
+//
+// It posts nothing by itself. §6.3.1 stops forcing the record to a question,
+// and §7.2's table still requires the human's own edit in the draft to make it
+// a finding — so the assertion still has an author, which is P4.
+func RegradeOnProbe(record *Finding, evidence Evidence) {
+	record.Grade = ComputeGrade(record, evidence)
+}
+
 // notAbove is the ratchet itself: the computed grade when it is no stronger
 // than the one the record already holds, and the held one otherwise.
 //
