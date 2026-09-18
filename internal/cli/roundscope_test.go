@@ -77,6 +77,9 @@ var crossRoundReaders = map[string]string{
 	"internal/cli/rulessuggest.go: postedComments": "§2.6.3.1 harvests every recorded round of " +
 		"every pull request of the repository, so there is no one round to scope to.",
 	"internal/cli/test.go: appendRun": "run.NextID, for the reason probe.NextID is.",
+	"internal/cli/probeproposal.go: loadProposal": "§5.7.3 names a proposal by id and refuses one of " +
+		"another round itself, naming the round it was proposed in; a read scoped to the current round " +
+		"would answer that with \"no such proposal\", which is the wrong sentence and the wrong code.",
 	"internal/cli/proposals.go: refuseDepartedProposalIDs": "§4.6.2's blocks start past every id an " +
 		"earlier round's proposals hold, and §5.7 gives a proposal no key a later round reuses, so an id " +
 		"any round's proposal holds is held still.",

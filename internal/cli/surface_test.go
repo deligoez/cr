@@ -93,6 +93,9 @@ var specSurface = []surfaceRow{
 		"target": "§5.5",
 		"filter": "§5.2.2",
 		"path":   "§5.2.2",
+		// §5.7.3's own flag: the proposal supplies every input above,
+		// and giving one beside it is refused with code 2.
+		"proposal": "§5.7.3",
 	}},
 	{path: []string{"proposals", "record"}, use: "record <pr> <file>"},
 	{path: []string{"draft"}, use: "draft <pr>"},
