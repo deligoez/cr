@@ -450,6 +450,22 @@ var codes = []mapped{
 	{is[*proposal.RejectedError](), ExitValidation,
 		"correct the proposal the message names; §5.7's table is the whole of " +
 			"what one carries, and `cr review` gave its role the ids it may write"},
+	// §5.7.3's `--proposal` naming nothing the pull request holds. The id
+	// is the caller's to correct, as a record id given to `cr triage` is,
+	// so it is code 1 rather than the usage code: the command line is
+	// well-formed and the value in it is not there.
+	{is[*UnknownProposalError](), ExitValidation,
+		"`cr status` lists the round's open proposals with their ids"},
+	// §5.7.3 refuses a proposal of another round or head, and §5.7.4 one
+	// already run, both with code 4. Nothing about the input is wrong;
+	// what refuses is where the proposal stands, which retyping cannot
+	// change and a new round or a new experiment can.
+	{is[*StaleProposalError](), ExitState,
+		"`cr brief` opens the round a proposal of the current head belongs to; " +
+			"`cr status` shows the round and head this pull request stands at"},
+	{is[*ProposalSpentError](), ExitState,
+		"the experiment this proposal asked for has been run; read its probe, " +
+			"and propose another if it settled nothing"},
 	// §9.1: a transition its table does not list MUST be rejected with exit
 	// code 4, naming the record and its current state. It is the first
 	// thing mapped onto ExitState, and it is a state conflict rather than
