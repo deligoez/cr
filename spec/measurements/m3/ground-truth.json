@@ -1,0 +1,326 @@
+[
+ {
+  "id": "H1",
+  "author": "tkaratug",
+  "path": "app/Http/Controllers/Retailer/ApplicationActionController.php",
+  "line": 138,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Bu ikisini başka yerde kullanmamışız, değişken tanımlarını kaldırabiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935131977",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H2",
+  "author": "tkaratug",
+  "path": "app/Http/Controllers/Retailer/ApplicationActionController.php",
+  "line": 144,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`whereHas` ve `with` kullanımlarını `withWhereHas` ile birleştirebiliyoruz. Burada da uygulayabiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1939188139",
+  "replies": []
+ },
+ {
+  "id": "H3",
+  "author": "tkaratug",
+  "path": "app/Http/Controllers/Retailer/ApplicationActionController.php",
+  "line": 146,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Sonraki başvuruların aynı bayiden yapılmış olmasını da şart koşmalı mıyız? Yani çiftçi bu başvurudan sonra gidip başka bayiden başvuru yapıp tamamlarsa yine bu bayide reddedilmiş olarak görünmeye devam etmeli mi?",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1942996114",
+  "replies": [
+   "Ayrıca buna test yazmalıyız.",
+   "Aynı bayiden yapması kontrolü ve testi eklendi.",
+   "Aynı bayi testi eksik görünüyor."
+  ]
+ },
+ {
+  "id": "H4",
+  "author": "tkaratug",
+  "path": "app/Http/Controllers/Retailer/ApplicationActionController.php",
+  "line": 154,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`retailer_user_id` yerine `retailer_id`ye bakmak lazım. Farklı verileri karşılaştırmışız burada.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1944392563",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H5",
+  "author": "tkaratug",
+  "path": "app/Http/Resources/Retailer/BaseApplicationResource.php",
+  "line": 56,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Yukarda `lastDecision` zaten load edildiği için `whenLoaded()` işlevsiz kalıyor burada. O yüzden yukarda set etmeye gerek yok. Buraya veri paslayan yerde load edilmiş olması yeterli.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1942994021",
+  "replies": [
+   "Ok",
+   "`whenLoaded()`ı kaldıralım anlamında söylememiştim, o dursun. Bu resource'a veri geçerken load ettirmek yeterli. İçerde "
+  ]
+ },
+ {
+  "id": "H6",
+  "author": "tkaratug",
+  "path": "app/Models/Application.php",
+  "line": 1062,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Burada son karar bir kefile de ait olabilir bu da kullanılacak yerde filtrelenmesini gerektirir. Buna gerek bırakmamak adına filtrelemeyi burada yapabiliriz. Ayrıca buna ilgili case de dahil olmak üzere test yazmalıyız.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935142265",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H7",
+  "author": "tkaratug",
+  "path": "app/Models/Application.php",
+  "line": 1068,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Burada `latestOfMany()` methodunu kullanabiliriz sanırım.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1936819113",
+  "replies": [
+   "Updated"
+  ]
+ },
+ {
+  "id": "H8",
+  "author": "tkaratug",
+  "path": "database/factories/ApplicationFactory.php",
+  "line": 381,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Buna `$decision` yerine `$specification` diyebiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935143898",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H9",
+  "author": "tkaratug",
+  "path": "database/factories/ApplicationFactory.php",
+  "line": 395,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Buna niye gerek var?",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935146903",
+  "replies": [
+   "Ok. Factory ile gereksinim kaldırıldı."
+  ]
+ },
+ {
+  "id": "H10",
+  "author": "tkaratug",
+  "path": "database/factories/ApplicationFactory.php",
+  "line": 403,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Buna gerek var mı? `$attributes` içerisinde bu tarihler varsa zaten yukarıdaki merge ile eziyor olmalılar.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935146701",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H11",
+  "author": "tkaratug",
+  "path": "tests/Feature/Retailer/ApplicationActionControllerTest.php",
+  "line": 2290,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`a_retailer_can_view_rejected_applications_with_other_reason` desek daha anlasılır olabilir.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935148662",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H12",
+  "author": "tkaratug",
+  "path": "tests/Feature/Retailer/ApplicationActionControllerTest.php",
+  "line": 2302,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`rejected` ve `withRejectionDecisionType` birlikte kullanmak yerine `rejectedWithReason()` adında bir method kullansak, ret durumunu da burada set edebiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935150565",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H13",
+  "author": "tkaratug",
+  "path": "tests/Feature/Retailer/ApplicationActionControllerTest.php",
+  "line": 2320,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Bu filtreye gerek yok gibi. Bizim için status'un rejected olması yeterli. Bunun dışındaki tüm durumları kullanabiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935152053",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H14",
+  "author": "tkaratug",
+  "path": "tests/Feature/Retailer/ApplicationActionControllerTest.php",
+  "line": 2331,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Sadece sayıyı dönmek yeterli olmaz. Doğru başvuruların döndüğünden de emin olmalıyız.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935152485",
+  "replies": [
+   "Ok. Id kontrolü eklendi."
+  ]
+ },
+ {
+  "id": "H15",
+  "author": "tkaratug",
+  "path": "tests/Feature/Retailer/ApplicationActionControllerTest.php",
+  "line": 2356,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Yukarıda bahsettiğim tek metod ile sebepli reddedilme kurgusunu burada da kullanabiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935155255",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H16",
+  "author": "tkaratug",
+  "path": "tests/Feature/Retailer/ApplicationActionControllerTest.php",
+  "line": 2402,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Bu testte bu kadar fazla başvuru oluşturmaya gerek yok. Bir tane other reason ile reddedilmiş oluşturup üzerine bir de tamamlanmış oluştursak ve reddedilmişin response'da yer almadığını (boş response) görsek yeterli.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1944395747",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H17",
+  "author": "tkaratug",
+  "path": "tests/Machines/International/Romania/Application/Actions/SendRejectionNotificationToFarmerActionTest.php",
+  "line": 57,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`it_doesnt_send_rejection_notification_to_the_farmer_for_applications_that_are_rejected_for_other_reason` diyebiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935154771",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H18",
+  "author": "tkaratug",
+  "path": "tests/Machines/International/Romania/Application/Actions/SendRejectionNotificationToFarmerActionTest.php",
+  "line": 66,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Yukarıda bahsettiğim tek metod ile sebepli reddedilme kurgusunu burada da kullanabiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935155174",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H19",
+  "author": "tkaratug",
+  "path": "tests/Machines/International/Romania/Application/Actions/SendRejectionNotificationToFarmerActionTest.php",
+  "line": 84,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`assertNothingSent` kullandıysak buna gerek yok artık.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935155709",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H20",
+  "author": "tkaratug",
+  "path": "tests/Machines/International/Romania/Application/Actions/SendRejectionNotificationToRetailerActionTest.php",
+  "line": 59,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`it_doesnt_send_rejection_notification_to_the_retailer_for_applications_that_are_rejected_for_other_reason` diyebiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935156049",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H21",
+  "author": "tkaratug",
+  "path": "tests/Machines/International/Romania/Application/Actions/SendRejectionNotificationToRetailerActionTest.php",
+  "line": 69,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Yukarıda bahsettiğim tek metod ile sebepli reddedilme kurgusunu burada da kullanabiliriz.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935156169",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H22",
+  "author": "tkaratug",
+  "path": "tests/Machines/International/Romania/Application/Actions/SendRejectionNotificationToRetailerActionTest.php",
+  "line": 87,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "`assertNothingSent` kullandıysak buna gerek yok artık.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1935156450",
+  "replies": [
+   "Ok"
+  ]
+ },
+ {
+  "id": "H23",
+  "author": "tkaratug",
+  "path": "tests/Unit/Model/ApplicationTest.php",
+  "line": 272,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Kefil kararının en güncel çiftçi kararından daha yeni olması lazım değil mi?",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1939191461",
+  "replies": [
+   "Sequenceleri güncelledim. Mantıken en son çiftçi kararı gerekiyor."
+  ]
+ },
+ {
+  "id": "H24",
+  "author": "tkaratug",
+  "path": "tests/Unit/Model/ApplicationTest.php",
+  "line": 269,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Düzeltelim diye söylemiyorum ama bu tip iterasyon içeren durumlarda model factory'lerin `forEachSequence()` metodunu kullanabilirsin.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1939190512",
+  "replies": []
+ },
+ {
+  "id": "H25",
+  "author": "tkaratug",
+  "path": "tests/Unit/Model/ApplicationTest.php",
+  "line": 285,
+  "start_line": null,
+  "side": "RIGHT",
+  "body": "Aynı başvuruya ait bir de daha güncel kefil kararı eklemek lazım. Sadece farmer'a verilen en güncel kararı istiyoruz ve aldığımızdan emin olmalıyız.",
+  "url": "https://github.com/tarfin-labs/backend/pull/3757#discussion_r1936820626",
+  "replies": [
+   "Updated"
+  ]
+ }
+]

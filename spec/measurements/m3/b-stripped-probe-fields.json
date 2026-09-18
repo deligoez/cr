@@ -1,0 +1,62 @@
+[
+ {
+  "record": "f801",
+  "probe_text": "Seed one application with two decisions, an older one inside the created_at window used at ApplicationActionController.php:145 and a newer one outside it, then "
+ },
+ {
+  "record": "f6501",
+  "probe_text": "Delete '->latest()' from app/Models/Application.php:1062 so the relation reads $this->hasOne(Decision::class), then run tests/Feature/Retailer/ApplicationAction"
+ },
+ {
+  "record": "f6801",
+  "probe_text": "Delete line 395 and lines 399-403 of database/factories/ApplicationFactory.php, then run tests/Feature/Retailer/ApplicationActionControllerTest.php --filter ret"
+ },
+ {
+  "record": "f6802",
+  "probe_text": "Change 'subject' to ApplicationDecisionSubject::Retailer and 'blocking_period' to 0 at database/factories/ApplicationFactory.php:389-390, then run the two Appli"
+ },
+ {
+  "record": "f2101",
+  "probe_text": "Count Romania applications that are not yet in a terminal state and have application_mre null: SELECT COUNT(*) FROM applications a JOIN sales_channels sc ON sc."
+ },
+ {
+  "record": "f6101",
+  "probe_text": "Replace the guard on app/Machines/International/Romania/Application/Actions/SendRejectionNotificationToFarmerAction.php:29 with `if ($application->last_decision"
+ },
+ {
+  "record": "f6102",
+  "probe_text": "Change line 29 of the action to read `$application->lastDecision?->type` (the HasOne on app/Models/Application.php:1060) instead of `$application->last_decision"
+ },
+ {
+  "record": "f5801",
+  "probe_text": "Delete the `->where('retailer_id', $retailerUser->retailer->id)` clause at ApplicationActionController.php:143 and run tests/Feature/Retailer/ApplicationActionC"
+ },
+ {
+  "record": "f5802",
+  "probe_text": "Remove the type condition at ApplicationActionController.php:147 and run tests/Feature/Retailer/ApplicationActionControllerTest.php; if both new tests still pas"
+ },
+ {
+  "record": "f5803",
+  "probe_text": "Delete `->notDemo()` (line 141) and separately `->rejected()` (line 142) and run tests/Feature/Retailer/ApplicationActionControllerTest.php; green in both cases"
+ },
+ {
+  "record": "f5804",
+  "probe_text": "Change `whereHas('lastDecision', ...)` at ApplicationActionController.php:145 to `whereHas('decisions', ...)` and run tests/Feature/Retailer/ApplicationActionCo"
+ },
+ {
+  "record": "f5805",
+  "probe_text": "Replace `now()->startOfDay()->subWeek()` at ApplicationActionController.php:138 with `now()->subWeek()` and run tests/Feature/Retailer/ApplicationActionControll"
+ },
+ {
+  "record": "f6701",
+  "probe_text": "Delete line 19 of database/factories/ApplicationFactory.php (or repoint it at a non-existent class) and run tests/Feature/Retailer/ApplicationActionControllerTe"
+ },
+ {
+  "record": "f2801",
+  "probe_text": "Create a rejected application for the retailer with an OtherReasonsRejectionSpecification decision dated two days ago and a second, newer decision of a differen"
+ },
+ {
+  "record": "f3501",
+  "probe_text": "Mutation probe: in SendRejectionNotificationToFarmerAction::__invoke() replace the type comparison on line 29 with `if ($application->last_decision === null)` a"
+ }
+]
