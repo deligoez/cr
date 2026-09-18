@@ -1,0 +1,251 @@
+package cli
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/state"
+)
+
+// proposalPrompt is what §4.6.2 gave one prompt of the round: the role, the
+// unit, and the first proposal id it may write.
+type proposalPrompt struct {
+	Role   string `json:"role"`
+	Unit   string `json:"unit"`
+	FirstP string `json:"first_proposal_id"`
+}
+
+// briefedForProposals opens the round over probeFixture's pull request and
+// returns the first prompt `cr review` emitted.
+//
+// The ids come from the prompt rather than from arithmetic written out here.
+// §4.6.2's grid is what decides them, and a test that computed its own would
+// pass while the prompt and the recorder disagreed — which is the one thing
+// §5.7.1's block refusal exists to catch.
+func briefedForProposals(t *testing.T, prepared state.Layout) proposalPrompt {
+	t.Helper()
+	// probeFixture names its profile in meta.json alone, and `cr brief`
+	// resolves the profile again: the fixture carries no marker file, so
+	// without §2.4.1's per-repository override the round would come back
+	// with no profile, no test axis, and every proposal unrunnable.
+	require.NoError(t, os.WriteFile(
+		prepared.RepoConfig(fixtureOwner, fixtureProject), []byte(`{"profile":"qa"}`), 0o600))
+	issue := filepath.Join(t.TempDir(), "issue.txt")
+	require.NoError(t, os.WriteFile(issue, []byte(fixtureIssue+": the retry backs off.\n"), 0o600))
+	_, err := runCLIPrinting(t, "brief", fixturePR, "--repo", fixtureSlug,
+		"--issue", fixtureIssue, "--intent-file", issue)
+	require.NoError(t, err)
+	// §4.6.5 refuses the remaining axes until the intent pass has recorded
+	// a mapping. Both files are empty, which is a real §4.1.1 answer: every
+	// unit may be mapped to zero claims.
+	empty := filepath.Join(t.TempDir(), "empty.ndjson")
+	require.NoError(t, os.WriteFile(empty, nil, 0o600))
+	_, err = runCLIPrinting(t, "claims", "record", fixturePR, empty,
+		"--repo", fixtureSlug, "--intent-file", issue)
+	require.NoError(t, err)
+	_, err = runCLIPrinting(t, "map", "record", fixturePR, empty, "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	printed, err := runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	var fanout struct {
+		Prompts []proposalPrompt `json:"prompts"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &fanout))
+	require.NotEmpty(t, fanout.Prompts, "the round emits at least one prompt")
+	require.NotEmpty(t, fanout.Prompts[0].FirstP, "§4.6.2 gives every prompt a block of proposal ids")
+	return fanout.Prompts[0]
+}
+
+// proposalFile writes one §5.7 proposal outside the repository under review, at
+// the id and seat the prompt gave, and returns its path.
+func proposalFile(t *testing.T, at proposalPrompt, names string) string {
+	t.Helper()
+	line := `{"id":` + mustJSON(t, at.FirstP) +
+		`,"kind":"mutation","role":` + mustJSON(t, at.Role) +
+		`,"unit":` + mustJSON(t, at.Unit) +
+		`,"target":"app.go:3",` +
+		`"hypothesis":"No test notices the dropped retry.",` +
+		`"settles":"A suite that stays green under the mutation proves the gap.",` +
+		`"input":` + mustJSON(t, fixtureDiff)
+	if names != "" {
+		line += `,"finding":` + mustJSON(t, names)
+	}
+	path := filepath.Join(t.TempDir(), "proposals.ndjson")
+	require.NoError(t, os.WriteFile(path, []byte(line+"}\n"), 0o600))
+	return path
+}
+
+// mustJSON is a value as a JSON string literal, so a patch's newlines reach the
+// file the way §5.7's `input` carries them.
+func mustJSON(t *testing.T, value string) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
+// recordFile writes one record at the prompt's own seat, graded `argued`
+// because it cites nothing and names no probe, and returns its path and id.
+func recordFile(t *testing.T, at proposalPrompt) (path, id string) {
+	t.Helper()
+	id = "f" + at.FirstP[1:]
+	path = filepath.Join(t.TempDir(), "merged.ndjson")
+	require.NoError(t, os.WriteFile(path, []byte(`{"id":`+mustJSON(t, id)+`,"kind":"finding",`+
+		`"role":`+mustJSON(t, at.Role)+`,"class":"untested-branch","severity":"high",`+
+		`"unit":`+mustJSON(t, at.Unit)+`,`+
+		`"anchor":{"path":"app.go","side":"RIGHT","start_line":3,"line":3},`+
+		`"summary":"No test exercises the retry.",`+
+		`"evidence":"The branch has no assertion behind it."}`+"\n"), 0o600))
+	return path, id
+}
+
+// §5.7.3 and §5.7.4 end to end: the proposal runs as its kind's probe, becomes
+// `run` carrying the probe it produced, and the record it names is re-graded
+// from `argued` to `probed`.
+//
+// The re-grade is the whole point of §5.7, so it is asserted from the stored
+// record rather than from the command's own report: what the round holds is
+// what the draft will render.
+func TestRunningAProposalRegradesTheRecordItNames(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	records, recordID := recordFile(t, at)
+	_, err := runCLIPrinting(t, "record", fixturePR, records, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	_, err = runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, recordID), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	before := storedRecords(t, prepared, state.FileFindings)
+	require.Len(t, before, 1)
+	require.Equal(t, "argued", before[0]["grade"],
+		"a record citing nothing and naming no probe is argued")
+
+	printed, err := runCLIPrinting(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--proposal", at.FirstP)
+	require.NoError(t, err)
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal([]byte(printed), &reported))
+	assert.Equal(t, at.FirstP, reported["proposal"])
+	assert.Equal(t, map[string]any{
+		"record": recordID, "probe": "p1", "was": "argued", "now": "probed",
+	}, reported["regraded"], "§5.7.4 reports the grade the record held and the grade it holds")
+
+	after := storedRecords(t, prepared, state.FileFindings)
+	require.Len(t, after, 1)
+	assert.Equal(t, "probed", after[0]["grade"],
+		"§5.7.4: running the experiment is what changes the register")
+	assert.Equal(t, "p1", after[0]["probe"])
+
+	proposals := storedRecords(t, prepared, state.FileProposals)
+	require.Len(t, proposals, 1)
+	assert.Equal(t, "run", proposals[0]["state"])
+	assert.Equal(t, "p1", proposals[0]["probe"])
+}
+
+// A proposal that names no record still runs and still settles; the probe
+// stands on its own and nothing is re-graded.
+func TestAProposalNamingNoRecordRunsAndRegradesNothing(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, ""), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	printed, err := runCLIPrinting(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+		"--proposal", at.FirstP)
+	require.NoError(t, err)
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal([]byte(printed), &reported))
+	assert.Equal(t, "p1", reported["probe"])
+	assert.NotContains(t, reported, "regraded")
+
+	proposals := storedRecords(t, prepared, state.FileProposals)
+	require.Len(t, proposals, 1)
+	assert.Equal(t, "run", proposals[0]["state"])
+}
+
+// §5.7.4 writes a proposal's probe once: a second run of the same proposal is
+// refused with the state code, naming the probe the first produced.
+func TestAProposalRunsOnce(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, ""), "--repo", fixtureSlug)
+	require.NoError(t, err)
+	_, err = runCLIPrinting(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", at.FirstP)
+	require.NoError(t, err)
+
+	err = runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", at.FirstP)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "proposal "+at.FirstP+" was already run and produced probe p1")
+	assert.Equal(t, ExitState, exitCodeFor(err))
+}
+
+// §5.7.3 refuses every input flag beside `--proposal`, with the usage code: the
+// proposal carries the whole experiment, and a flag beside it would run
+// something the role did not propose.
+func TestAnInputFlagBesideProposalIsRefused(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, ""), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	for flag, argv := range map[string][]string{
+		"--kind":   {"--kind", "mutation"},
+		"--patch":  {"--patch", writePatch(t, fixtureDiff)},
+		"--test":   {"--test", writePatch(t, "x")},
+		"--target": {"--target", "app.go:3"},
+		"--filter": {"--filter", "TestRetry"},
+		"--path":   {"--path", "app.go"},
+	} {
+		t.Run(flag, func(t *testing.T) {
+			err := runCLI(t, append([]string{
+				"probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", at.FirstP,
+			}, argv...)...)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), flag+" is rejected beside --proposal")
+			assert.Equal(t, ExitUsage, exitCodeFor(err))
+		})
+	}
+}
+
+// A `--proposal` naming nothing the pull request holds is refused with the
+// validation code and the step that lists the open ones.
+func TestAnUnknownProposalIsRefused(t *testing.T) {
+	probeFixture(t, "echo 'Tests:  4 passed'\n")
+
+	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", "x9")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `--proposal "x9" names no proposal this pull request holds`)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+}
+
+// §10.1.8: `cr status` reports the round's proposals by state and names the
+// open ones, so the reader knows which experiment is still unanswered.
+func TestStatusReportsTheRoundsProposals(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, ""), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	printed, err := runCLIPrinting(t, "status", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	var report struct {
+		Proposals proposalReport `json:"proposals"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &report))
+	assert.Equal(t, proposalReport{
+		Total: 1, Open: 1, OpenIDs: []string{at.FirstP},
+		Unrunnables: []unrunnableProposal{},
+	}, report.Proposals)
+}
