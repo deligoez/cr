@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/role"
 )
 
@@ -81,16 +82,56 @@ func (b IDs) spelled() (first, last string) {
 // are still writing, giving a later `cr review` of the same round blocks that
 // overlap the ids an earlier emission gave.
 func (r *Round) idBase() int {
-	base := 0
+	return baseOf(r.heldSuffixes(), r.Round)
+}
+
+// heldID is one stored id reduced to what the block arithmetic reads: the round
+// that wrote it, and its numeric suffix.
+type heldID struct {
+	round, n int
+}
+
+// heldSuffixes is Round.Held under §6.1's spelling.
+func (r *Round) heldSuffixes() []heldID {
+	suffixes := make([]heldID, 0, len(r.Held))
 	for i := range r.Held {
-		if r.Held[i].Round == r.Round {
-			continue
+		if n, ok := finding.IDSuffix(r.Held[i].ID); ok {
+			suffixes = append(suffixes, heldID{round: r.Held[i].Round, n: n})
 		}
-		if n, ok := finding.IDSuffix(r.Held[i].ID); ok && n > base {
-			base = n
+	}
+	return suffixes
+}
+
+// baseOf is the highest suffix held by an id an earlier round stored, which
+// every block of this round starts past. This round's own are left out for the
+// reason idBase gives.
+func baseOf(held []heldID, round int) int {
+	base := 0
+	for _, id := range held {
+		if id.round != round && id.n > base {
+			base = id.n
 		}
 	}
 	return base
+}
+
+// blockFor is the grid arithmetic both §6.1's record ids and §5.7's proposal
+// ids use: the prompt's place gives it a hundred ids past base, and the block's
+// first free id is past every stored id inside it.
+//
+// The two sequences share the grid and nothing else. They are spelled
+// differently — `f<n>` and `x<n>` — so neither can hand out an id the other
+// holds, and a proposal block never has to agree with a record block about
+// anything but which cell of the grid a prompt sits in.
+func blockFor(held []heldID, base, place int) IDs {
+	block := IDs{First: base + place*idBlock + 1}
+	block.Last = block.First + idBlock - 1
+	for _, id := range held {
+		if id.n >= block.First && id.n <= block.Last {
+			block.First = id.n + 1
+		}
+	}
+	return block
 }
 
 // ids is the block of the prompt for the role over the unit at index at.
@@ -107,15 +148,33 @@ func (r *Round) idBase() int {
 // Round.Roles is always drawn from the corpus Round.Places is built over, which
 // is what makes the role's index there its place.
 func (r *Round) ids(base int, roleID string, at int) IDs {
-	place := slices.Index(r.Places, roleID)*len(r.Units) + at
-	block := IDs{First: base + place*idBlock + 1}
-	block.Last = block.First + idBlock - 1
-	for i := range r.Held {
-		if n, ok := finding.IDSuffix(r.Held[i].ID); ok && n >= block.First && n <= block.Last {
-			block.First = n + 1
+	return blockFor(r.heldSuffixes(), base, slices.Index(r.Places, roleID)*len(r.Units)+at)
+}
+
+// ProposalIDs is the block of §5.7 proposal ids `cr review` gives the prompt for
+// roleID over unitID in round, and false when no prompt of the round was given
+// one: held is every proposal the pull request stores, corpus is §2.5.5's
+// resolved corpus, and units are the round's unit ids in id order.
+//
+// It is the grid Round.ids lays record ids out on, over proposals.ndjson's own
+// sequence, which is what §4.6.2's "a block disjoint from every other prompt's
+// of the round" comes to for proposals.
+func ProposalIDs(
+	held []proposal.Proposal, round int, corpus []role.Resolved, units []string, roleID, unitID string,
+) (IDs, bool) {
+	places := blockPlaces(corpus)
+	at := slices.Index(units, unitID)
+	row := slices.Index(places, roleID)
+	if at < 0 || row < 0 {
+		return IDs{}, false
+	}
+	suffixes := make([]heldID, 0, len(held))
+	for i := range held {
+		if n, ok := proposal.IDSuffix(held[i].ID); ok {
+			suffixes = append(suffixes, heldID{round: held[i].Round, n: n})
 		}
 	}
-	return block
+	return blockFor(suffixes, baseOf(suffixes, round), row*len(units)+at), true
 }
 
 // blockPlaces is the order a round's rows of id blocks are laid out in: every
