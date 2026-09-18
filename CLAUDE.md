@@ -3,10 +3,9 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.3.0.md`
-is the normative contract of the shipped release, and `spec/0.4.0.md` the next
-one: written, reference-checked, and not yet implemented. This file holds the
-working conventions and the rules that are easy to violate by accident.
+sequenced next, and what must be measured before it is decided. `spec/0.4.0.md`
+is the normative contract, implemented. This file holds the working conventions
+and the rules that are easy to violate by accident.
 
 ## Install
 
@@ -467,6 +466,16 @@ names. The evidence is measured: in measurement 3 cr produced 51 records graded
 bespoke side-channel before any probe could run, and 25 records across them wrote
 prose into that field. A proposal is never evidence; only running it is.
 
+**§5.7.4 is the one place a grade may rise inside a round**, through
+`finding.RegradeOnProbe`, and the exception is narrow on purpose.
+`finding.Regrade`'s ratchet exists to stop a raise that happens *behind* the
+reviewer — a mapping that moved between two moments of one round — because a
+human who approved a question would then post an assertion. A probe an operator
+ran on purpose is the opposite case, and a record that could never rise on it
+would make §5.7 an ask with no answer. It still posts nothing: §7.2's table
+requires the human's own draft edit to turn the record into a finding. Do not
+widen this to a second caller without the same argument.
+
 ## Project structure
 
 ```
@@ -507,8 +516,8 @@ scripts/             deadcode.sh, speccheck.py, frontier.py, survivors.py, known
 spec/
   0.1.0.md           Normative v0.1 contract
   0.2.0.md           Normative v0.2 contract
-  0.3.0.md           Normative v0.3 contract, the shipped one
-  0.4.0.md           Normative v0.4 contract, written and not yet implemented
+  0.3.0.md           Normative v0.3 contract
+  0.4.0.md           Normative v0.4 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
