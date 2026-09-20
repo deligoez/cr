@@ -107,3 +107,91 @@ Inherited from measurements 1 and 3, each because it failed once:
 
 Rig under `spec/measurements/m4/`. Results are written into this file below this line when the runs
 complete, and the pre-registered text above is not edited afterwards.
+
+---
+
+# Result, Part A — the channel carries, and what it carries is well formed
+
+Run 2026-09-19 to 2026-09-20. 76 prompts over 19 units × 4 roles, one `claude -p` session each, Opus.
+
+| | |
+|---|---|
+| sessions | 76 of 76 |
+| transcript audit | **76 clean, 0 voided** |
+| wall clock | 46.1 hours |
+| per-session gap | median 0.6 min, p90 1.6 min, **max 1745 min** |
+| cost | $52.16 |
+| worktree after every batch | byte-clean |
+
+**The 46 hours are one wait, not a rate.** Seventy-five sessions landed about a minute apart; one,
+`u14-test-adequacy`, sat for 29 hours. Its transcript carries two `rate_limit_event` entries with
+`overageStatus: rejected, overageDisabledReason: out_of_credits`, and the two `resetsAt` values are 31.5
+hours apart: the five-hour usage window was spent, overage was off, and `claude -p` waited the window out
+rather than failing. The session then ran for 82 seconds and succeeded. So the stall is invisible to a
+runner that watches exit codes, which is why `run-roles.sh` now caps a session in wall clock and
+`run-batch.sh` retries a capped one on a later pass.
+
+## The pre-registered numbers
+
+**A1 — proposals written: 18**, over 8 of the 19 units.
+
+| role | proposals |
+|---|---|
+| test-adequacy | 15 |
+| correctness | 3 |
+| convention | 0 |
+| intent-coverage | 0 |
+
+The null result A1 was written to allow did not happen, and the distribution is the part worth keeping:
+the two roles whose findings can only be established by an experiment wrote every proposal, and the two
+whose findings rest on reading wrote none. §4.4.2 says the same thing normatively — "a test-adequacy
+finding asserts only with an experiment" — so the channel was used by exactly the roles the contract
+points at. All 19 intent prompts ran first and produced 0; reading that pass alone as the answer would
+have been wrong, and it is recorded here because it nearly was.
+
+**A2 — accepted: 18 of 18, with no refusal.** 11 `mutation`, 7 `gap`; all stored `open`, so §5.7.5 found
+none unrunnable; 17 of 18 name a record in `finding`. §5.7.1's refusals — the id block, the unit, the
+target's containment, the active role, the empty required string — caught nothing, on the first run, from
+roles that had never seen the section before.
+
+**A3 — 16 of 18** target a file the human reviewer commented on.
+
+**A4 — judged by the two clauses that decide whether running one can grade anything**, rather than by
+taste:
+
+| | |
+|---|---|
+| §6.2.2, target inside the named record's anchor range | **17 of 17** |
+| §5.4.4, gap proposal whose record carries a claim mapped to its unit | **6 of 6** |
+
+So every proposal that names a record is positioned to re-grade it if its result comes out the way its
+hypothesis predicts. This is the measurable half of "worth spending a probe on"; the other half is
+whether the experiment is a good one, which only Part B can answer by running it.
+
+**A5 — the records the 17 proposals name**: 14 `argued` questions, 1 `cited` question, 2 `cited` findings.
+The fourteen are precisely what §5.7 exists for — records that stayed questions because the role could not
+establish them.
+
+## Beside the pre-registration
+
+**cr produced fewer records than measurement 3 did on the same subject**: 31 against 51, with 4 findings
+against 9 and grades cited 13 / argued 18 against 32 / 19. The setup differs in one thing, the binary, so
+the difference is either the model's run-to-run variation or the §5.7 section taking attention the other
+sections had. This measurement cannot tell those apart and does not try; it is recorded because a reader
+comparing the two runs will see it.
+
+Probed records: **0**, as in measurement 3 — no sandbox, no probe, by construction.
+
+## What went wrong in the operating, recorded because it cost evidence
+
+1. **Progress was reported three times without once measuring elapsed time.** The session count said 93%
+   done while the clock said a day had been spent inside one session. The count was the flattering number
+   and it was the only one read.
+2. **A process check used `grep -c 'run-roles'`, which counts its own command line.** It returned 4 and was
+   read as "alive"; it would have returned a non-zero count with nothing running. CLAUDE.md records the
+   same failure for `pgrep -f`.
+3. **The new session cap was tested against a prompt whose evidence was already collected.** A five-second
+   cap on `u1-convention` opened a fresh session, killed it, and truncated that transcript from ~40 KB to
+   15928 bytes. No counted output was lost — that role wrote no records and no proposals anywhere, and its
+   usage line and cell survive — but the transcript audit can no longer be re-run for that one session.
+   The audit had already reported 76 of 76 clean. A destructive guard is tested on a throwaway input.
