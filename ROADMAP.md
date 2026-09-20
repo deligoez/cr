@@ -167,6 +167,14 @@ The re-review half the first spec promised:
   recall. First data points: M1, 21 questions to 2 findings with the spec's items as claims, 6 to 4 without;
   M3, 42 questions to 9 findings against a human review. Every finding in both was true. The ratio is high
   exactly where the claims are.
+- **Does a `probed` question ever become a finding?** M4 part B produced seven records graded `probed`
+  by experiment, and all seven stayed `kind: question`, because §5.7.4 moves the grade and §7.2 leaves
+  the kind to the human's edit in the draft. So the trust-economy number M4 pre-registered — false
+  assertions among the probed records — came back 0 over an empty set: nothing in that set asserts.
+  §5.7 today buys a question the human *may* promote (§6.3.3 admits `question` → `finding` only on
+  `probed` or `cited`) with the probe's evidence region rendered under it. Whether a human promotes
+  one, and whether the promoted one is true, cannot be measured without a human reading a draft, which
+  is the one part of the loop no batch can stand in for.
 - **Is 43 records a good round or a bad one?** M3 produced 43 cr-only records beside a careful human's 25
   comments, and all nine of its assertions were true — but the question is about the whole set reaching an
   author, not the assertions. AACR-Bench's sharpest structural result is that precision collapses on volume
