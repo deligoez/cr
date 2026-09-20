@@ -63,9 +63,12 @@ paragraphs of this file used to carry is the Shipped table below.
 
 Each of these is measured rather than wished for: the evidence is a run that had to work around its absence.
 
-- ~~**A role cannot propose an experiment.**~~ *Shipped in v0.4.0 as `spec/0.4.0.md` §5.7; the paragraphs
-  below are kept until a real round has used it, because nothing has yet measured whether roles propose
-  experiments worth running.*
+- ~~**A role cannot propose an experiment.**~~ *Shipped in v0.4.0 as `spec/0.4.0.md` §5.7, and measured
+  in M4: roles do propose experiments worth running — 17 accepted over two parts, 9 run, 7 records
+  moved `argued` → `probed`, every one of the seven verified by hand. What M4 did **not** settle is
+  whether that changes anything a reviewer sends: the grade moves, the `kind` does not, and only a
+  human's draft edit turns a probed question into a finding. The paragraphs below are kept as the
+  record of why the shape is what it is.*
   §5's probes are cr's differentiator and the fan-out gives no way to reach them: a role holds the
   suspicion, and §6.1 gives it only `probe`, a field for the *id* of an already-executed probe.
   Measured twice: 15 records in one run and 10 in another wrote prose into that field ("Take an
