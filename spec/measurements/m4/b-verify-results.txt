@@ -1,0 +1,9 @@
+p1 rc=0 FAIL_lines=0 secs=92
+p4 rc=0 FAIL_lines=0 secs=92
+p5 rc=0 FAIL_lines=0 secs=91
+p6 rc=0 FAIL_lines=0 secs=92
+p7 rc=0 FAIL_lines=0 secs=91
+p8 rc=0 FAIL_lines=0 secs=92
+p9 rc=0 FAIL_lines=0 secs=93
+ctl rc=1 FAIL_lines=5 secs=85
+DONE
