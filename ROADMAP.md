@@ -43,6 +43,21 @@ paragraphs of this file used to carry is the Shipped table below.
   it off. §3.4.7 names two kinds without closing the set, so the behaviour contradicts no MUST, but it is
   written down only in `spec/0.3.2-release-notes.md`. Discharged when the next `spec/<version>.md` names
   the third kind and its match rule.
+- **A proposal's `filter` and `paths` are the only two fields the prompt never explains, and they are
+  where every wasted run went.** `internal/review/contract.go:100` glosses `kind`, `target`,
+  `hypothesis`, `settles`, `input` and `finding`, then stops; §5.7's table defines the pair circularly
+  (*the `--path` values the run is to use*) and the role never sees the table. Measured in M4 part B:
+  of ten runs attempted, three produced nothing and all three were this — two proposals put the file
+  they were reasoning about in `paths` (`go test ./internal/probe/resolve.go` selects no tests), and
+  one put a whole `go test` argument string in `filter`. Nothing else cost a run. Discharged when the
+  prompt says `--path` scopes which tests run rather than which file is under test, `filter` is a test
+  name, and a gap probe's placed test lives under `tests.probe_path_template`.
+- **A record cannot describe cr's own marker sequence.** §8.1.3 reserves `<!-- cr:` anywhere in a
+  record's prose, so a role reviewing `internal/draft` that names the sequence has its record refused —
+  and the proposal naming that record is then refused in turn for naming no record of the round. Both
+  refusals are correct and a unit's work is lost to them. Measured once, in M4 part B. Narrow enough
+  to leave standing; recorded because the repair is not obvious (the reservation has to survive) and a
+  second occurrence would change that.
 
 ### 1. The basics cr lacks
 
