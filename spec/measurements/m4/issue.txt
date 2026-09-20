@@ -1,0 +1,9 @@
+### Added
+- WB-800: Added new route that `rejected-by-other-reason-applications` to fetch rejected applications.
+- WB-800: Added `lastDecision` relation to Application model.
+- WB-800: Added `rejectedApplicationsWithOtherReason` method to get rejected applications data with test-cases.
+- WB-800: Added `withRejectionDecisionType` method to ApplicationFactory to generate rejected applications.
+
+### Changed
+- WB-800: Changed send notification to `farmer` rule if the application rejected by other reason with test-cases.
+- WB-800: Changed send notification to `retailer` rule if the application rejected by other reason with test-cases.

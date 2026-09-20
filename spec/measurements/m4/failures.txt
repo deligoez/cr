@@ -1,0 +1,9 @@
+stalled u1-convention after 6s (cap 5s)
+NOTE: the line above is not the run's. On 2026-09-20 the operator tested the new
+session cap with CR_M4_SESSION_TIMEOUT=5 against u1-convention, a prompt the batch
+had already completed, which killed a fresh session at 5s and truncated
+role-logs/u1-convention.json from ~40KB to 15928 bytes. The original session's
+usage line survives; its fanout output was empty then and is empty now (convention
+wrote no records and no proposals anywhere), so no counted output was lost. What is
+lost is the ability to re-run the transcript audit for that one session; the audit
+had already reported 76 of 76 clean before the overwrite.
