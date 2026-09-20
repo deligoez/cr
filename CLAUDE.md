@@ -733,6 +733,12 @@ do not race. Three rules make it safe, each learned by breaking it.
   2026-09-14, a mutant of `internal/cli/output.go` overlaid that way left the
   pseudo-terminal test green against unmutated code. Passing the map as
   `GOFLAGS=-overlay=<map>` reaches the child build, and the same mutant went red.
+  **When the mutation comes from a stored patch, `git apply` needs `--unidiff-zero`.** Measured
+  2026-09-21 re-checking M4's seven probes by hand: six patches carried context and applied, and the
+  seventh — one hunk, zero context, `@@ -49 +49 @@` — was refused with `patch does not apply` at the
+  line whose bytes match exactly, by the same `git apply` cr had already applied it with. `patch(1)`
+  took it without a word. A stored patch that suddenly "does not apply" is the applier's flag before
+  it is a stale target.
 - **`hc` hunk indices go stale within seconds, and a green tree is no evidence
   the commit is yours.** Measured 2026-09-16 with several units editing one
   file: a plan built from an `hc diff --json` read moments earlier took a
