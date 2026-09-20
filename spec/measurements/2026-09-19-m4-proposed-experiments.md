@@ -195,3 +195,109 @@ Probed records: **0**, as in measurement 3 — no sandbox, no probe, by construc
    15928 bytes. No counted output was lost — that role wrote no records and no proposals anywhere, and its
    usage line and cell survive — but the transcript audit can no longer be re-run for that one session.
    The audit had already reported 76 of 76 clean. A destructive guard is tested on a throwaway input.
+
+
+# Result, Part B — an experiment moves the grade, and the field that wastes one is `paths`
+
+Subject: cr's own v0.1.0 packages presented as `deligoez/cr#1`, the measurement-1 fixture, in a fresh
+clone at `86e2193b`, with a `gh` shim serving the pull request and a `go test` sandbox. One role,
+`test-adequacy`, over 22 units.
+
+22 sessions ran in 60 minutes (20:58:08–21:58:19) at $38.03, model opus, 59–298s each. The transcript
+audit came back 21 clean and 1 flagged: `u58-test-adequacy` called `Skill`, which loaded codedbpro's
+own skill and carried no lesson of this repository, so the session was kept and `Skill` was added to
+the runner's `--disallowedTools` afterwards. The clone was byte-clean after the batch and nothing was
+pushed.
+
+## Two refusals that cost a role its finding, and are both correct
+
+18 records and 18 proposals were written; 17 of each were stored.
+
+`f31902` was a question about the branch that handles cr's own reserved marker sequence, and its
+evidence quoted the sequence in order to name it. §8.1.3 reserves `<!-- cr:` for the marker and cr's
+own regions, so `cr record` refused the record. `x31902` named `f31902`, so `cr proposals record` then
+refused the proposal: *finding names "f31902", which is no record of the current round*. Neither
+refusal is wrong and together they drop a whole unit's work, because a reviewer of cr's draft
+machinery cannot describe the machinery in cr's own record. The exposure is narrow — it needs the
+literal sequence — but it is exactly the self-referential case dogfooding is for.
+
+## The pre-registered numbers
+
+| | |
+|---|---|
+| **B1** proposals accepted | **17** — 15 mutation, 2 gap, all 17 naming a finding |
+| **B1** judged worth running | **10** |
+| **B1** ran | **9** |
+| **B1** refused before running | **1** |
+| **B1** `no-test-failed`, establishing a gap | **7** |
+| **B1** `no-tests-selected`, establishing nothing | **2** |
+| **B2** records that reached `probed` | **7**, against measurement 3's comparable 0 |
+| **B3** ran and changed no grade | **2** |
+| **B4** false assertions among them | **0 — see below, the set is empty by construction** |
+
+Every baseline run counted 1453 tests and 0 failed. Each of the seven moved `argued` → `probed` inside
+the round, through §5.7.4's exception to §6.2's ratchet, and eight proposals were left `open`.
+
+## What Part B actually found: `paths` is unexplained, and it is the only thing that wasted a run
+
+Three of the ten attempted runs produced nothing, and all three failed on the same field.
+
+- `x36101` gave `paths: ["internal/probe/resolve.go"]`. The runner was invoked
+  `go-runner.sh ./internal/probe/resolve.go`, which selects no tests: `no-tests-selected`, establishes
+  `nothing`.
+- `x36702` gave a `filter` and no `paths`, and also selected none.
+- `x34101` gave `paths: ["internal/draft/rendered_decode.go"]` and was refused before running, because
+  §5.4.2 places a gap probe's test file where `tests.probe_path_template` says — `internal/cli/` — and
+  no `--path` covered it. Its `filter` read `-run TestARenderedJSONHoldingNullIsRefusedNamingTheFile
+  ./internal/draft`: a whole `go test` argument string where a test name belongs.
+
+`--path` scopes **which tests run**, not **which file is under test**, and nothing the role was given
+says so. The emitted prompt glosses every other field and these two not at all:
+
+> A proposal carries id (required), kind (required), role (required), unit (required), finding
+> (optional), target (required), hypothesis (required), settles (required), input (required), filter
+> (optional), paths (optional). `kind` is one of mutation or gap; `target` is a path:line inside this
+> unit; `hypothesis` is what you believe and cannot establish; `settles` is the result that would
+> settle it; `input` is the unified diff for a mutation or the test file's content for a gap.
+
+`internal/review/contract.go:100` is where that sentence is built, and it glosses `kind`, `target`,
+`hypothesis`, `settles`, `input` and `finding` and stops. §5.7's table does define the two rows — *the
+test filter the run is to use*, *the `--path` values the run is to use* — but the role never sees the
+table, and even in it the wording is circular for someone who has never run `cr probe run`. A role fills
+an unexplained field with the file it is reasoning about, which is the one answer that cannot work.
+Nothing else cost a run. The repair is two glosses in the prompt and a less circular pair of rows in
+§5.7 — not the runner, which behaved exactly as §5.4.2 says.
+
+## B4 is 0, and the 0 is vacuous
+
+Two separate things are true, and reading them as one would overstate what §5.7 has bought.
+
+**The seven results are what the tree says.** Each stored mutation was applied to a copy of its file
+and mapped over the original with `go test -count=1 -overlay`, with the map also passed as `GOFLAGS`
+so the tests that build the binary see it, over the whole tree in the clone at `86e2193b`. All seven
+suites stayed green, which is `no-test-failed` independently. The instrument was checked in the same
+run: an eighth, control mutation of `markerOpen`'s token went red, exit 1 with 5 `FAIL` packages, in
+85 seconds against the seven greens' 91–93. So a green here is the tree's answer and not the overlay
+failing to reach the code.
+
+**But no record asserts anything.** §5.7.4 raises a record's *grade*; a record's *kind* is §7.2's, and
+only the human's edit in the draft turns a question into a finding. All seven stayed
+`kind: question`, 13 `low` and 4 `medium`. B4 asks for false assertions among the `probed` records and
+there are no assertions among them at all, so 0 is a true reading of an empty set rather than evidence
+that the grading is sound. The pre-registration did not anticipate that, and it is recorded here
+rather than repaired in the pre-registered text.
+
+What §5.7 demonstrably buys, then, is narrower than "a role can establish a finding": seven questions
+the human *may* promote in the draft, since §6.3.3 admits `question` → `finding` only on `probed` or
+`cited`, each carrying the cr-owned evidence region the draft renders under it. Whether a human then
+promotes one, and whether the promoted one is true, is what a measurement 5 would have to watch, and
+it cannot be watched without a human in the loop.
+
+## One instrument note
+
+`git apply` refuses a zero-context hunk unless `--unidiff-zero` is passed, and one of the seven stored
+patches has zero context. Verifying by hand without the flag reports `patch does not apply` for a patch
+cr had already applied successfully — a refusal that reads as a contradiction of cr's own result and is
+not one. `patch(1)` applies the same file without a word. Six of the seven patches carried context and
+applied either way, so the disagreement appears on exactly one row and looks like a stale target.
+Check which applier is in hand before concluding a stored patch no longer fits.
