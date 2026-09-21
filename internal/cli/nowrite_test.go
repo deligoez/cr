@@ -132,9 +132,17 @@ func TestCrReachesTheNetworkThroughOneRunnerAndNoOtherWay(t *testing.T) {
 // is its only input, and the token therefore comes into being where the flag is
 // read. Widening this further is a deliberate act with a reviewer, not
 // something a call site does by existing — a second caller is a second gate.
+// The third entry arrived with v0.5 and is the deliberate act this comment
+// asks for. §9.6 adds two network writes — resolving a thread and retracting a
+// concern — and puts both behind §8.5's gate, each reading its own `--confirm`.
+// That is three gates and not one gate widened: §8.5.3's requirement is that a
+// flag be the only input to a confirmation, and it still is at every one of
+// them. What would break the rule is a call site that minted a token from
+// something other than a flag it had just read.
 var mintSites = []string{
 	filepath.Join("internal", "gh") + string(filepath.Separator),
 	filepath.Join("internal", "cli", "post.go"),
+	filepath.Join("internal", "cli", "settle.go"),
 }
 
 // mints are the two ways a token can come into being: the constructor, and the
