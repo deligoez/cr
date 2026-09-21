@@ -156,6 +156,38 @@ func OpenStates() []State {
 	return open
 }
 
+// UnsentStates returns the open states a record passes through before it is
+// posted, in §9.1 table order: §10.2.4's set, derived rather than written out.
+//
+// It exists because v0.5 split two sets that were the same set through v0.4.
+// §10.2.4 blocks a round on a record "still in `draft` or `queued`", and until
+// `posted` became open those were exactly the open states, so the check read
+// OpenStates and was right by coincidence. Reading OpenStates now would block
+// every round that had posted anything — which is to say every round that
+// finished — because §9.1.2 keeps a posted concern open until somebody settles
+// it.
+//
+// The derivation is kept rather than replaced by a literal pair, so a state
+// added to §9.1 before posting still blocks completeness and is still named in
+// the reason. What is excluded is one state and the exclusion is the point:
+// posting is where a record leaves this round's work, whatever happens to it
+// afterwards.
+func UnsentStates() []State {
+	unsent := make([]State, 0, len(states)-len(terminal))
+	for _, candidate := range OpenStates() {
+		if candidate != StatePosted {
+			unsent = append(unsent, candidate)
+		}
+	}
+	return unsent
+}
+
+// Unsent reports whether a record in this state is still this round's work to
+// finish, in §10.2.4's sense.
+func (s State) Unsent() bool {
+	return slices.Contains(UnsentStates(), s)
+}
+
 // UnknownStateError reports a value that names no state of §9.1.
 //
 // It carries the value so the user can see what was rejected. Reaching it means
