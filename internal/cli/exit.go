@@ -484,6 +484,12 @@ var codes = []mapped{
 	// another round is input the command cannot use — §11.2's code 1 — and
 	// not a malformed invocation: the command line is well-formed and the
 	// record may well exist, one round back.
+	// §9.5.5 admits `answered` only on a question, and a finding given it
+	// is input the command cannot use: §9.1.3 counts an answered record as
+	// settled, so the word would have a convergence figure count a finding
+	// nobody dealt with as dealt with.
+	{is[*finding.AnsweredNeedsAQuestionError](), ExitValidation,
+		"a finding is addressed or withdrawn; `cr verify` takes answered only where the record asks"},
 	{is[*unknownRecordError](), ExitValidation,
 		"`cr status` lists the round's records; `cr brief` opens the round a newer head belongs to"},
 	{is[*notSettledError](), ExitState,
