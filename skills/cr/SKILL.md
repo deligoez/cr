@@ -1034,6 +1034,11 @@ missing. A complete round is not an approval: cr never approves a pull request.
 Once the author has replied or pushed, `cr brief` opens the new round — posted
 records survive it, only unsent ones go stale — and `cr recheck` reads back what
 changed. It performs no network write, moves no record, and reaches no verdict.
+A posted record stays in the round that posted it: `cr recheck` lists every
+posted record of the pull request, and `cr verify`, `cr resolve` and
+`cr withdraw` find a record by its id in whichever round holds it. (v0.5.0 read
+only the current round, so after a push none of the four could see a posted
+record; v0.5.1 fixes it.)
 
 ```bash
 cr recheck 1
