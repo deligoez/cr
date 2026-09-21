@@ -102,10 +102,37 @@ Each of these is measured rather than wished for: the evidence is a run that had
   intake with attribution, not as an adoption of their selector. Discharged when a second profile ships a
   corpus and a team can seed one without writing every file by hand.
 - **Two profiles is not a tool.** Only `laravel-pest` and `generic` ship, so on any other stack the
-  reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template. The
-  Go profile is written and measured already (`spec/measurements/m1/go-profile.json`: runner, count
-  patterns, filter and path flags, probe template), so it is a commit rather than a project; TypeScript and
-  Python follow.
+  reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template.
+  TypeScript and Python follow the Go one.
+
+  **This entry said the Go profile "is a commit rather than a project" and that was wrong.** Measured
+  2026-09-21 by trying it: the profile in `spec/measurements/m1/go-profile.json` is not shippable,
+  and a third profile is a normative change. Two things, both cheap to know and expensive to
+  rediscover.
+
+  1. **`go test` prints no count cr can read.** §5.2.1 takes a run's executed and failed counts from
+     `tests.count_pattern`, and `internal/run/counts.go`'s `sum` adds the capture group of every
+     match — `go test -v` emits `--- PASS: TestFoo (0.00s)` with no number on it and no total
+     anywhere, so no regex can count. With no counts, §5.3.4's and §5.4.3's ladders can only answer
+     `inconclusive`, and every probe on a Go repository establishes nothing. The m1 profile hid this
+     behind a wrapper script at an absolute scratchpad path, which is why it read as finished.
+     The working shape, measured on this tree: `tests.cmd` of
+     `["sh","-c","<script>","cr-go"]` where the script runs `go test -v -count=1`, passes the output
+     through unchanged, appends `./...` when the invocation names no path (because `go test` with no
+     package argument tests one directory and a §5.2.2 baseline of one directory is not the suite),
+     and prints one trailing line `cr-tests: N ran, M failed` that
+     `(?m)^cr-tests: (\d+) ran` and `(?m)^cr-tests: \d+ ran, (\d+) failed` read. Verified on three
+     shapes: a normal run counts; a filter matching nothing gives `0 ran`, so the ladder answers
+     `no-tests-selected` rather than `inconclusive`; a lone non-test file gives `0 ran` at exit 0.
+     `probe_path_template` is `<target-dir>/cr_probe_<probe-id>_test.go`, which v0.4.1 made possible.
+  2. **§2.4.5 pins the shipped set at two**, by name, so a third profile cannot land without a spec
+     version. `TestV01ShipsExactlyTheTwoProfilesOf245` and `TestBothShippedProfilesRequireNoSandboxPath`
+     both fail on a third, correctly. This is why the Go profile belongs in v0.5's spec rather than in
+     a patch release minted for it.
+
+  Open, and asked of `cr-research` on 2026-09-21: whether a shell wrapper is what other tools do, or
+  whether some `go test` invocation or widely-installed runner emits a parseable total; and whether
+  pytest, vitest and jest print totals cr can match directly or need the same treatment.
 - **Every non-Jira team writes configuration before its first review.** `intent.cmd` defaults to a `jira`
   binary (§3.1.2), and the intent axis is the one P1 calls the authority, so a team on GitHub Issues or
   Linear cannot run a first round as shipped: it configures a tracker command or passes `--intent-file` by
