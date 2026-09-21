@@ -31,6 +31,8 @@ const (
 	FileProposals   = "proposals.ndjson"
 	FileCoverage    = "coverage.ndjson"
 	FileTransitions = "transitions.ndjson"
+	FileVerdicts    = "verdicts.ndjson"
+	FileMigrations  = "migrations.ndjson"
 	FileWaivers     = "waivers.ndjson"
 	// FileSandboxBaseline is §5.1.6's post-setup baseline, and it is a
 	// row of this table rather than a file in the sandbox because of
@@ -72,7 +74,8 @@ const (
 var prFiles = []string{
 	FileMeta, FileClaims, FileUnits, FileMapping, FilePostedIndex,
 	FileIntentGaps, FileRuns, FileThreads, FileFindings, FileProbes,
-	FileProposals, FileCoverage, FileTransitions, FileWaivers,
+	FileProposals, FileCoverage, FileTransitions, FileVerdicts, FileMigrations,
+	FileWaivers,
 }
 
 // prNamed is every name §2.3's table gives a file sitting directly in a pull
@@ -144,6 +147,8 @@ var prFileWriter = map[string]string{
 	FileRuns:        "cr test",
 	FilePostedIndex: "cr post --confirm",
 	FileWaivers:     "cr draft",
+	FileVerdicts:    "cr verify",
+	FileMigrations:  "cr recheck",
 }
 
 // readHint is §12.4's next actionable step for a file of §2.2's tree a command
