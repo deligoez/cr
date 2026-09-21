@@ -162,7 +162,11 @@ func markUnrunnable(l state.Layout, profileID string, proposals []*proposal.Prop
 			ask.State, ask.Reason = proposal.StateUnrunnable, fmt.Sprintf(
 				"the resolved profile %s declares no tests.cmd, so §5.2.1 has no runner to "+
 					"perform this experiment", namedProfileID(profileID))
-		case ask.Kind == proposal.KindGap && p.ProbePath("x") == "":
+		// A target directory of "internal" stands in for the one the
+		// probe would bring: this asks whether the profile can place a
+		// gap probe at all, and a template that resolves to nothing
+		// resolves to nothing for every directory.
+		case ask.Kind == proposal.KindGap && p.ProbePath("x", "internal") == "":
 			ask.State, ask.Reason = proposal.StateUnrunnable, fmt.Sprintf(
 				"the resolved profile %s declares no tests.probe_path_template, so §5.4.2 has "+
 					"nowhere in the sandbox to place a gap probe's test file", namedProfileID(profileID))
