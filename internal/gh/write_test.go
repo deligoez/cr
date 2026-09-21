@@ -9,10 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// resolveMutation is a GraphQL write in the shape cr would plausibly grow one:
-// §9's re-review half resolves a thread, and that is a mutation sent by gh as
-// the same POST every ingestion query already travels as.
-const resolveMutation = `mutation($thread:ID!){resolveReviewThread(input:{threadId:$thread}){thread{id}}}`
+// The GraphQL write this file tests the read door against is cr's own, taken
+// from settle.go rather than written here.
+//
+// It was a plausible-shape fixture through v0.4, when §9's re-review half did
+// not exist. v0.5 grew the real one, and pointing the guard at it is strictly
+// stronger: a mutation cr actually sends is the one that must not find a way
+// through the read door, and a fixture could drift from it without either
+// failing.
 
 // No write reaches gh through the read door, whatever it is wearing. §2.1.2
 // allows cr no network write except §8's calls, and those only behind §8.5's
