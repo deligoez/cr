@@ -121,13 +121,24 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) ([]string, err
 					return false, unusable(fieldState, err)
 				}
 			}
+			// §9.3.4 names the two states it stales — `draft` and
+			// `queued` — and this asks for them by name rather than
+			// for whichever states are open.
+			//
+			// The two were the same set through v0.4 and are not
+			// from v0.5: §9.1.2 made `posted` open, because a
+			// concern nobody has settled is not finished. Staling
+			// by openness would abandon every posted concern the
+			// moment the author pushed, which is the opposite of
+			// what §9.4 through §9.6 exist to do — the record has
+			// to survive the push to be verified against it.
+			//
 			// A line carrying no state, or the JSON null §9.1's
 			// decoder leaves alone, is in no §9.1 state at all and
-			// is neither open nor terminal. Leaving it is the
-			// conservative half: cr wrote no such record, so moving
-			// one would be this version acting on a line it does
-			// not understand.
-			if !current.Open() {
+			// matches neither name. Leaving it is the conservative
+			// half: cr wrote no such record, so moving one would be
+			// this version acting on a line it does not understand.
+			if current != finding.StateDraft && current != finding.StateQueued {
 				return false, nil
 			}
 			// A record named anything §6.1 does not spell f<n> is no
