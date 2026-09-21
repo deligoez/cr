@@ -351,7 +351,22 @@ own asymmetry applied to a location instead of to a claim.
 Not researched, and not to be assumed: how Gerrit or GitLab handle any of this. All of the above is
 GitHub, git, and Alibaba's reader.
 
-#### The shape v0.5 takes — now `spec/0.5.0.md`, §9.4 through §9.6
+#### The shape v0.5 takes — implemented in `spec/0.5.0.md`, §9.4 through §9.6
+
+*Everything below is built and under test. Two things the design met on the way are worth keeping
+here, because neither was visible from the spec.*
+
+**Two sets came apart that had been one by coincidence.** §9.3.4 stales `draft` and `queued`, and
+the implementation asked for "the open states" — which was the same set until `posted` joined it, and
+then meant cr abandoned every posted concern the moment the author pushed. §10.2.4 blocks completeness
+the same way, and reading the open set there meant no round could ever be complete once it had posted
+anything. `finding.UnsentStates()` is the separation. Both were caught by existing tests rather than
+by reading, which is the argument for having them.
+
+**A withdrawal cannot carry prose, and the fence found that rather than the design.**
+`TestNoCommandAcceptsABodyArgumentOrABodyField` refused a `--body-file` on `cr withdraw` as a second
+body channel beside the draft's, which §8.1.2 allows only one of. The retraction is now a resolution
+and a record; the reviewer writes the explanation themselves, as §7.2.3 already has them do.
 
 **`posted` stops being terminal, and that is the whole change.** §9.1 makes it terminal today because
 v0.4 ends at posting; v0.5 gives it four exits and adds the states they lead to.
