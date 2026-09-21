@@ -548,13 +548,22 @@ cr probe run 1 --kind gap --test gap_test.go --target order.go:5 --filter TestDi
 {"probe": "p2", "kind": "gap", "result": "passed", "establishes": "behaviour", "target": "order.go:5", …}
 ```
 
-A gap probe's own run is narrowed to the file cr placed, as its only path,
-whatever `--path` you gave — those name the population its baseline measures.
-So when you pass `--path` to a gap probe, at least one must lie under the
-directory `tests.probe_path_template` puts the file in, or the command exits 2.
-A profile with no `tests.paths_arg` cannot name a path to its runner, so the
-probe's run uses the filter alone there and the runner's own discovery finds
-the placed file.
+A gap probe's own run is narrowed to the **directory** cr placed the file in, as
+its only path, whatever `--path` you gave — those name the population its
+baseline measures. So when you pass `--path` to a gap probe, at least one must
+lie under the directory `tests.probe_path_template` resolves to, or the command
+exits 2. A profile with no `tests.paths_arg` cannot name a path to its runner,
+so the probe's run uses the filter alone there and the runner's own discovery
+finds the placed file.
+
+The directory rather than the file matters for a language whose tests are
+compiled into the package they test. `go test` handed one `_test.go` file
+compiles it as `command-line-arguments`, a package holding that file and nothing
+it refers to, and fails to build. For the same reason such a profile writes its
+template as `<target-dir>/cr_probe_<probe-id>_test.go`: `<target-dir>` resolves
+to the directory of `--target`, so the test lands in the package it is about. It
+may only be the template's first segment, and every profile cr ships keeps a
+fixed path instead.
 
 Only a mutation probe's `no-test-failed` over a passing baseline establishes a
 missing test. Both `no-test-failed` and a gap probe's `passed` need the run to
