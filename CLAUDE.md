@@ -480,6 +480,25 @@ posted concern the moment the author pushes. §10.2.4 blocks completeness on
 round is ever complete once it has posted anything. Both were caught by tests
 rather than by reading, which is what those guards are for.
 
+**A posted record lives in the round that posted it, and the third split is
+where it is read.** v0.5.0 shipped with `cr recheck`, `cr verify`, `cr resolve`
+and `cr withdraw` reading only the current round, while `cr brief` carries only
+claims into the round a push opens — so after a real push `cr recheck` reported
+`"concerns": []` and the other three answered "not a record of round 2".
+Measured 2026-09-21, the day of the tag: every v0.5 test seeded the posted
+record into the round the command read, so none could see it. The fix finds the
+record by id in
+whichever round holds it (`internal/cli/sent.go`, declared in
+`crossRoundReaders`) and changes its state there with `finding.MoveSent`, which
+keeps the line's round and head. **Copying the record into the new round is the
+tempting fix and it is wrong three ways**: `refusePostedRound` would refuse the
+new round's review as already sent, `raisedInRound` would count the copy as
+raised again, and unit ids are round-scoped, so the copy's `u1` would collide
+with the new round's. `TestAPostedConcernOutlivesThePushThatMovesTheHead` drives
+a real `cr brief` over a real second commit; overlaid onto v0.5.0's three command
+files it goes red at `cr recheck`'s concern list and at `cr withdraw`. Test a
+lifecycle across the event that ends the round, not inside one round.
+
 **cr still forms no opinion about whether a concern was addressed.** §9.5.6 is
 explicit: an outdated thread, a probe that stopped reproducing and an author
 writing "fixed" are each as consistent with a concern that was addressed as
