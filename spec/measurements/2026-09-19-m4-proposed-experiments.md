@@ -197,7 +197,7 @@ Probed records: **0**, as in measurement 3 — no sandbox, no probe, by construc
    The audit had already reported 76 of 76 clean. A destructive guard is tested on a throwaway input.
 
 
-# Result, Part B — an experiment moves the grade, and the field that wastes one is `paths`
+# Result, Part B — an experiment moves the grade, and no Go gap probe can run
 
 Subject: cr's own v0.1.0 packages presented as `deligoez/cr#1`, the measurement-1 fixture, in a fresh
 clone at `86e2193b`, with a `gh` shim serving the pull request and a `go test` sandbox. One role,
@@ -238,21 +238,37 @@ literal sequence — but it is exactly the self-referential case dogfooding is f
 Every baseline run counted 1453 tests and 0 failed. Each of the seven moved `argued` → `probed` inside
 the round, through §5.7.4's exception to §6.2's ratchet, and eight proposals were left `open`.
 
-## What Part B actually found: `paths` is unexplained, and it is the only thing that wasted a run
+## What Part B actually found: one unexplained field, and a gap probe Go cannot run
 
-Three of the ten attempted runs produced nothing, and all three failed on the same field.
+Three of the ten attempted runs produced nothing. **This section was written once against the
+`result` values alone and was wrong about two of the three**; the correction is below and the
+original grouping is not preserved, because a measurement record that misattributes a cause
+instructs the next repair at the wrong place.
 
-- `x36101` gave `paths: ["internal/probe/resolve.go"]`. The runner was invoked
-  `go-runner.sh ./internal/probe/resolve.go`, which selects no tests: `no-tests-selected`, establishes
-  `nothing`.
-- `x36702` gave a `filter` and no `paths`, and also selected none.
-- `x34101` gave `paths: ["internal/draft/rendered_decode.go"]` and was refused before running, because
-  §5.4.2 places a gap probe's test file where `tests.probe_path_template` says — `internal/cli/` — and
-  no `--path` covered it. Its `filter` read `-run TestARenderedJSONHoldingNullIsRefusedNamingTheFile
-  ./internal/draft`: a whole `go test` argument string where a test name belongs.
+The three, read off the run records rather than the probe results:
 
-`--path` scopes **which tests run**, not **which file is under test**, and nothing the role was given
-says so. The emitted prompt glosses every other field and these two not at all:
+- `x36101`, mutation, **the role's**. It gave `paths: ["internal/probe/resolve.go"]`, so the runner
+  was invoked `go-runner.sh ./internal/probe/resolve.go`. Go compiles a lone file as the synthetic
+  package `command-line-arguments`, and run `r6` exited 1 with
+  `internal/probe/resolve.go:55:9: undefined: Spec` and seven more, `0 ran, 0 failed`.
+- `x36702`, gap, **cr's**. The role gave no `paths` at all. It wrote a `package probe` test, and
+  §5.4.2 places a gap probe's file at the profile's fixed `tests.probe_path_template`, here
+  `internal/cli/cr_probe_<probe-id>_test.go`, then passes that file as the run's only path. Run `r4`
+  exited 1 with `internal/cli/cr_probe_p2_test.go:30:19: undefined: Target`, `0 ran, 0 failed`.
+- `x34101`, gap, **cr's**, the same clause one step earlier. Its `paths` named the package it was
+  testing, and §5.4.2 requires at least one `--path` under the template's directory, so the command
+  was refused before running. (Its `filter` did also read `-run TestARenderedJSONHoldingNullIsRefused…
+  ./internal/draft` — a whole `go test` argument string where a test name belongs.)
+
+So **both gap probes failed, and for one structural reason: a Go test must be compiled into the
+package it tests, and `tests.probe_path_template` is one fixed path per profile.** No value of that
+template fixes it, because the package a gap probe needs differs per probe. On this tree no Go gap
+probe can succeed, whatever the role writes. `cr` behaved exactly as §5.4.2 says; §5.4.2 is what
+cannot hold for a language with package-scoped tests.
+
+The role's one loss is the other half, and it is a prompt defect. `--path` scopes **which tests
+run**, not **which file is under test**, and nothing the role was given says so. The emitted prompt
+glosses every other field and these two not at all:
 
 > A proposal carries id (required), kind (required), role (required), unit (required), finding
 > (optional), target (required), hypothesis (required), settles (required), input (required), filter
@@ -263,10 +279,16 @@ says so. The emitted prompt glosses every other field and these two not at all:
 `internal/review/contract.go:100` is where that sentence is built, and it glosses `kind`, `target`,
 `hypothesis`, `settles`, `input` and `finding` and stops. §5.7's table does define the two rows — *the
 test filter the run is to use*, *the `--path` values the run is to use* — but the role never sees the
-table, and even in it the wording is circular for someone who has never run `cr probe run`. A role fills
-an unexplained field with the file it is reasoning about, which is the one answer that cannot work.
-Nothing else cost a run. The repair is two glosses in the prompt and a less circular pair of rows in
-§5.7 — not the runner, which behaved exactly as §5.4.2 says.
+table, and even in it the wording is circular for someone who has never run `cr probe run`. A role
+fills an unexplained field with the file it is reasoning about, which is the one answer that cannot
+work.
+
+**How the first reading went wrong, because the same mistake is available next time.** All three runs
+carried `result: no-tests-selected` or a refusal naming `--path`, and §5.4.2's own rung 3 words that
+result "the filter excluded the supplied test **or it failed to load**". Reading the result and
+stopping there makes all three look like one field's misuse. The cause is one level down, in
+`runs.ndjson`'s `output_tail`, where two of the three say `build failed` and name the undefined
+symbol. A probe result is a verdict about the code; it is not a diagnosis of the run.
 
 ## B4 is 0, and the 0 is vacuous
 
