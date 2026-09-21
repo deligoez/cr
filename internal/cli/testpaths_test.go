@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -151,17 +152,23 @@ func TestAPathedProbeReusesOnlyABaselineOverTheSamePaths(t *testing.T) {
 	assert.NotContains(t, runs[2], "probe", "§5.2.6: only a run carrying no probe may serve as a baseline")
 }
 
-// §5.4.2: "The probe's own run MUST pass the placed file through
+// §5.4.2: "The probe's own run MUST pass that directory through
 // `tests.paths_arg` as its only path, its run record's `paths` holding it" —
 // while §5.2.2 has its baseline measure "the run with the probe's paths and no
 // filter".
 //
 // The two populations are different on purpose and both are asserted, because
 // the point of the clause is that they differ: the placed file does not exist
-// in the baseline, so a baseline narrowed to it would select nothing, and a
-// probe run narrowed to the whole `--path` set would run tests the ladder is
-// not reading.
-func TestAGapProbeRunsOverThePlacedFileAndBaselinesOverItsPaths(t *testing.T) {
+// in the baseline, so a baseline narrowed to where it will go would still be a
+// different set from the probe's, and a probe run narrowed to the whole
+// `--path` set would run tests the ladder is not reading.
+//
+// v0.4.1 changed the probe's path from the placed file to its directory. The
+// fixture's template puts the file in `tests`, so the assertion moves from
+// `tests/cr_probe_p1.txt` to `tests`, and here it happens to coincide with the
+// `--path` the baseline took — which is why the run records are read for it
+// rather than the difference being inferred from the two values.
+func TestAGapProbeRunsOverThePlacedDirectoryAndBaselinesOverItsPaths(t *testing.T) {
 	prepared, _, _, _ := probeFixture(t, gapProbeRunner, gapProbeTemplate, pathsArgProfile)
 	supplied := writeProbeTest(t)
 
@@ -177,8 +184,11 @@ func TestAGapProbeRunsOverThePlacedFileAndBaselinesOverItsPaths(t *testing.T) {
 	assert.Equal(t, []any{"tests"}, runs[0]["paths"],
 		"§5.2.2: the baseline measures the probe's paths")
 	assert.NotContains(t, runs[0], "filter", "and no filter, since the probe's test is not there yet")
-	assert.Equal(t, []any{gapProbePath}, runs[1]["paths"],
-		"§5.4.2: the probe's own run is narrowed to the file cr placed, as its only path")
+	assert.Equal(t, []any{path.Dir(gapProbePath)}, runs[1]["paths"],
+		"§5.4.2: the probe's own run is narrowed to the directory cr placed the file in")
+	assert.NotContains(t, runs[1]["paths"], gapProbePath,
+		"never the file itself: a runner that builds a package from its paths cannot build "+
+			"one from a lone test file")
 }
 
 // §5.4.2: "When `--path` is given, at least one MUST lie under the directory of
