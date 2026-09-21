@@ -156,20 +156,35 @@ func TestEveryBrokenConditionIsReportedInTheOrderSection102NumbersThem(t *testin
 }
 
 // §10.2.4's sentence names the states it actually blocks on, read out of
-// §9.1.2's open set rather than spelled here.
+// finding.UnsentStates rather than spelled here.
 //
-// A state added to §9.1 as non-terminal would block completeness through
-// State.Open and be named by the same call, so the predicate and the sentence
+// A state added to §9.1 before posting would block completeness through
+// State.Unsent and be named by the same call, so the predicate and the sentence
 // cannot come apart — which is the failure a hardcoded "draft or queued" would
-// hide: a round blocked by a third open state, reported as blocked by two.
-func TestTheOpenStatesNamedInTheReasonAreTheOnesThatBlock(t *testing.T) {
-	for _, state := range finding.OpenStates() {
+// hide: a round blocked by a third unsent state, reported as blocked by two.
+//
+// `posted` is asserted from the other side, and it is why this test reads the
+// unsent set and not the open one. §9.1.2 made a posted record open in v0.5,
+// and a completeness check over the open set would then refuse to call any
+// round finished once it had posted anything — the round's work is done at
+// posting, whatever the concern's fate afterwards.
+func TestTheUnsentStatesNamedInTheReasonAreTheOnesThatBlock(t *testing.T) {
+	for _, state := range finding.UnsentStates() {
 		held := completeRound()
 		held.Records = append(held.Records, &finding.Finding{ID: "f3", State: state})
 
 		verdict := Complete(&held)
 
-		require.False(t, verdict.Complete, "%s is open, so it blocks §10.2.4", state)
+		require.False(t, verdict.Complete, "%s is unsent, so it blocks §10.2.4", state)
 		assert.Contains(t, verdict.Reason(), state.String())
 	}
+
+	posted := completeRound()
+	posted.Records = append(posted.Records, &finding.Finding{ID: "f3", State: finding.StatePosted})
+
+	verdict := Complete(&posted)
+
+	assert.True(t, verdict.Complete,
+		"§10.2.4 blocks on unsent work, and a posted record is sent")
+	assert.NotContains(t, verdict.Reason(), "posted")
 }
