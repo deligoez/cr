@@ -124,6 +124,15 @@ func populatedPRState(t *testing.T) string {
 		cmd.Env = env
 		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		require.NoErrorf(t, cmd.Run(), "cr %s: %s", name, strings.TrimSpace(stderr.String()))
+		// §9.5 and §9.6 act on a record that reached GitHub, and no run
+		// here posts. The seed and its timing are seedSettledRecords',
+		// which explains why straight after `cr post` is the one window
+		// it fits in; this fixture needs it for the same reason the
+		// §2.2 guard does, and verdicts.ndjson is a §2.3 row only a
+		// `cr verify` that ran writes.
+		if name == "post" {
+			seedSettledRecords(t, prepared)
+		}
 	}
 	return prepared.PRDir(fixtureOwner, fixtureProject, fixturePRNumber)
 }

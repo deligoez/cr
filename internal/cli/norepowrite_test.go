@@ -906,6 +906,24 @@ func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole,
 		},
 		"cells record":     {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
 		"proposals record": {"proposals", "record", fixturePR, proposals, "--repo", fixtureSlug},
+		// §9.4 through §9.6 read the head's tree and write under the
+		// state root: a migration reads `git show`-style blobs and a
+		// verdict, a resolve and a retraction touch findings.ndjson,
+		// verdicts.ndjson and the journal. None of them has a reason
+		// to write into the clone, which is what §2.2 forbids and this
+		// guard measures for every command alike.
+		"recheck": {"recheck", fixturePR, "--repo", fixtureSlug},
+		// f8 and f9 are the seeded records: §9.5.5 and §9.6.2 act on a
+		// posted one, §9.6.1 on a settled one. `standing` moves nothing,
+		// so f8 is still posted when `cr withdraw` reaches it, and
+		// neither settling run carries `--confirm`, so both print what
+		// they would send and write nothing.
+		"verify": {
+			"verify", fixturePR, "f8", "standing",
+			"--evidence", "the reply asks for time", "--repo", fixtureSlug,
+		},
+		"resolve":  {"resolve", fixturePR, "f9", "--repo", fixtureSlug},
+		"withdraw": {"withdraw", fixturePR, "f8", "--repo", fixtureSlug},
 		// `cr claims set-aside` writes intent-gaps.ndjson and reads the
 		// §3.6 store, both under the state root, and reaches the
 		// repository not at all. It runs last: §4.1.7 derives the entry
@@ -1030,6 +1048,41 @@ func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole,
 	}
 }
 
+// seedSettledRecords writes the two records §9.5 and §9.6 need, after `cr post`
+// has run and before the commands that read them.
+//
+// Nothing in this run posts — `cr post` is invoked without `--confirm` — so no
+// record here would ever carry a thread, and §9.5.5, §9.6.1 and §9.6.2 all
+// refuse a record that never reached GitHub. f8 is `posted`, which `cr verify`
+// and `cr withdraw` act on; f9 is `addressed`, which `cr resolve` does.
+//
+// The timing is the whole of this function's reason to exist, and it is
+// squeezed from both sides. Written before `cr record` or `cr draft` it is
+// lost, because both rewrite the round's findings; written before `cr post`, a
+// `posted` record in the round makes §8.3.1 refuse a second review and
+// `cr post` exits 4. runOrder defers all four of those and then the three
+// settling commands, so straight after `cr post` is the one window there is.
+func seedSettledRecords(t *testing.T, prepared state.Layout) {
+	t.Helper()
+	round, err := prepared.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+
+	settled := func(id, recordState, thread string) string {
+		return `{"id":"` + id + `","kind":"question","role":"correctness","unit":"u1",` +
+			`"state":"` + recordState + `","thread_id":"` + thread + `",` +
+			`"head":"` + round.Head + `","round":` + strconv.Itoa(round.Round) + `}` + "\n"
+	}
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	stored, err := os.ReadFile(prepared.PRFile(
+		fixtureOwner, fixtureProject, fixturePRNumber, state.FileFindings))
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings, append(stored,
+		[]byte(settled("f8", "posted", "PRRT_seeded8")+
+			settled("f9", "addressed", "PRRT_seeded9"))...)))
+	require.NoError(t, held.Unlock())
+}
+
 // runOrder is the sequence the runs are performed in: alphabetical, but with
 // `cr sandbox create` hoisted to just behind `cr brief`.
 //
@@ -1061,7 +1114,15 @@ func runOrder(t *testing.T, runs map[string][]string) []string {
 	// an answer against a record the pull request holds. `cr triage` goes
 	// between `cr draft` and `cr post`, because §7.2.4 edits a block the
 	// draft rendered and `cr post` reads the draft it leaves.
-	deferred := []string{"answer", "cells record", "claims set-aside", "draft", "triage", "post"}
+	// §9.5 and §9.6 act on what posting produced, so the three settling
+	// commands go after `cr post` — the same rule the rest of this list
+	// follows, that one command's input is another's output. Their seed is
+	// written between: a `posted` record in the round before `cr post` runs
+	// makes §8.3.1 refuse a second review.
+	deferred := []string{
+		"answer", "cells record", "claims set-aside", "draft", "triage", "post",
+		"recheck", "verify", "resolve", "withdraw",
+	}
 	for _, name := range append(slices.Clone(hoisted), deferred...) {
 		require.Contains(t, runs, name, "the ordered %s has no invocation to run", name)
 	}
@@ -1133,6 +1194,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	// the id is the whole of what this command reads.
 	require.NoError(t, held.Write(state.FileUnits,
 		[]byte(`{"id":"u1","head":"`+fixtureHead+`","round":1}`+"\n")))
+
 	require.NoError(t, held.Unlock())
 	// `cr waivers remove` deletes a waiver that exists, so one is there to
 	// delete: a `not-here` over a file no other run anchors in, so no merge
@@ -1257,6 +1319,9 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	for _, name := range runOrder(t, runs) {
 		run(append(strings.Fields(name), "--help")...)
 		run(runs[name]...)
+		if name == "post" {
+			seedSettledRecords(t, prepared)
+		}
 	}
 
 	after := fingerprintOf(t, fixture)
