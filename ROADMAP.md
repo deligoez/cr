@@ -165,10 +165,38 @@ Each of these is measured rather than wished for: the evidence is a run that had
      **12**, which is the instrument check. A filter matching nothing reads 0, so the ladder still
      answers `no-tests-selected`.
      `probe_path_template` is `<target-dir>/cr_probe_<probe-id>_test.go`, which v0.4.1 made possible.
-     Not measured, and to be verified against real runs before any of them ships: pytest, jest and
-     vitest are all believed recap-shaped, which would make **Go the only language needing the new
-     mode**. `gotestsum` is ruled out — it would put a network fetch in `sandbox.setup` ahead of
-     every probe run to buy a recap line the occurrence mode gets for free.
+     `gotestsum` is ruled out — it would put a network fetch in `sandbox.setup` ahead of every probe
+     run to buy a recap line the occurrence mode gets for free.
+
+     **Go is not the only outlier, and the other runners were measured rather than remembered.**
+     `cr-research` ran all of them against one fixture — 4 passing, 1 failing, 1 skipped, so the truth
+     to hit is executed 5 and failed 1 — through a harness replicating `counts.go`'s `sum()` exactly.
+     Versions, because a recap format is a version-dependent claim: pytest 9.1.1, jest 30.5.2,
+     vitest 5.0.1, cargo 1.98.1, go1.27.1, darwin/arm64.
+
+     | runner | `tests.cmd` | `count_pattern` | `failed_pattern` | reads |
+     |---|---|---|---|---|
+     | jest | `jest --json` | `"num(?:Passed\|Failed)Tests":(\d+)` | `"numFailedTests":(\d+)` | 5 / 1, zero case 0 / 0 |
+     | vitest | `vitest run --reporter=json` | same fields | same | same |
+     | pytest | `pytest -q` | `(\d+) (?:passed\|failed)\b` | `(\d+) failed\b` | 5 / 1, zero case **undetermined** |
+     | cargo | `cargo test` | `(\d+) (?:passed\|failed)\b` | `(\d+) failed\b` | 2 / 1 |
+     | go | `go test -v -count=1` | none exists | — | undetermined |
+
+     Two things follow. **pytest is a second outlier, narrower than Go**: a filter matching nothing
+     prints `6 deselected` and no `passed`/`failed` at all, so the pattern never matches, `Counts()`
+     returns nil, and the ladder reaches `inconclusive` where Go reaches `no-tests-selected` — the
+     weaker answer for the same situation. `pytest -v` with occurrence counting at
+     `^[^ ]+::[^ ]+ (PASSED|FAILED|SKIPPED)` gives 6 / 1 normally and 0 on the zero case; the anchor
+     excludes the short-summary line `FAILED test_sample.py::test_e`, which otherwise doubles the
+     failed count. So the occurrence mode is not a Go special case — it is what a runner needs when
+     the recap is absent (Go) or vanishes on the zero case (pytest). And **jest has no per-test list
+     to count instead**: `jest --verbose` printed no per-test lines at all on 30.5.2, passing or
+     failing, so its JSON reporter is the only route rather than a preference. vitest's
+     `--reporter=verbose` does print them.
+
+     The jest/vitest key spelling is load-bearing and invisible: `"numFailedTests":` does not match
+     inside `"numFailedTestSuites":1` only because the suite key reads `TestSuites` where the test key
+     reads `Tests"`. Any profile shipping it wants that comment beside the pattern.
   2. **§2.4.5 pins the shipped set at two**, by name, so a third profile cannot land without a spec
      version. `TestV01ShipsExactlyTheTwoProfilesOf245` and `TestBothShippedProfilesRequireNoSandboxPath`
      both fail on a third, correctly. This is why the Go profile belongs in v0.5's spec rather than in
