@@ -237,7 +237,7 @@ func leftoverArtefacts(path, leftoverGlob string) ([]string, error) {
 	// The sandbox path is derived by internal/state from an owner, a
 	// repository and a number, so it contributes no glob metacharacter of
 	// its own; every wildcard in the joined pattern comes from the profile.
-	matched, err := filepath.Glob(filepath.Join(path, filepath.FromSlash(leftoverGlob)))
+	matched, err := matchLeftover(path, leftoverGlob)
 	if err != nil {
 		return nil, fmt.Errorf("cannot scan %s for a leftover probe artefact: %w", leftoverGlob, err)
 	}
@@ -260,6 +260,46 @@ func leftoverArtefacts(path, leftoverGlob string) ([]string, error) {
 		}
 	}
 	return untracked, nil
+}
+
+// matchLeftover resolves §5.1.6's glob against the sandbox.
+//
+// A template whose directory is §5.4.2's `<target-dir>` resolves to a glob
+// opening `**/`, because the probe file's directory follows the probe's target
+// and is not known to a scan. `filepath.Glob` reads `**` as one segment, so a
+// leftover two directories down would go unseen and the sandbox would be
+// called clean while holding an artefact — the exact miss §5.1.6 exists to
+// prevent. Such a glob is therefore walked rather than globbed, matching the
+// file name alone at any depth, with `.git` skipped because a worktree's
+// administrative files are not the repository's.
+func matchLeftover(path, leftoverGlob string) ([]string, error) {
+	name, anyDepth := strings.CutPrefix(leftoverGlob, "**/")
+	if !anyDepth {
+		return filepath.Glob(filepath.Join(path, filepath.FromSlash(leftoverGlob)))
+	}
+	var found []string
+	err := filepath.WalkDir(path, func(entry string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		switch ok, matchErr := filepath.Match(name, d.Name()); {
+		case matchErr != nil:
+			return matchErr
+		case ok:
+			found = append(found, entry)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return found, nil
 }
 
 // recreate rebuilds the sandbox, which is what §5.1.6 requires of a failed
