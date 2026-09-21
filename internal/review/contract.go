@@ -104,6 +104,8 @@ func proposalContract(p *page, proposals string, round int, asks IDs) {
 		"that record.",
 		strings.Join(proposalWritable(), ", "), strings.Join(proposal.Kinds(), " or "))
 	p.line("")
+	p.line("%s", scopeLine())
+	p.line("")
 	if first, last := asks.spelledAs(proposal.IDOf); first == "" {
 		p.line("This prompt's block of proposal ids is spent: every id in it is held by a stored " +
 			"proposal, so propose nothing here and say so to the operator.")
@@ -118,6 +120,25 @@ func proposalContract(p *page, proposals string, round int, asks IDs) {
 	p.line("")
 	p.line("You may not write %s; cr computes or stamps them (§5.7, §2.3.3).",
 		strings.Join(proposal.Reserved(), ", "))
+}
+
+// scopeLine glosses §5.7's `filter` and `paths`, the two rows a proposal's
+// sentence named without saying what they mean.
+//
+// Measured in M4 part B: they were the only two fields the sentence left
+// unexplained, and `x36101` filled `paths` with the source file its hypothesis
+// was about. §5.4.2 passes each value through `tests.paths_arg`, so the runner
+// was handed `go test ./internal/probe/resolve.go`, which compiles that one file
+// as a package of its own and exits on eight undefined symbols — no test ran, and
+// the experiment settled nothing. A field an agent is judged by is one the prompt
+// has to explain, and the failure it invites is silent: the run succeeds at
+// running and answers nothing.
+func scopeLine() string {
+	return "`filter` and `paths` scope the run, never the code the experiment is about. `filter` is " +
+		"the name of a test for the runner to select, not a runner argument string; `paths` are test " +
+		"targets the runner understands, the package or directory whose tests are to run, never the " +
+		"file the patch changes. Leave both out to run the whole suite, which is the safe answer " +
+		"when you are unsure."
 }
 
 // proposalWritable is §5.7's rows an agent writes, each with what the Required
