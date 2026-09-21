@@ -39,8 +39,20 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-*Empty. The three that stood here were v0.4.1's whole content, and each is discharged with the
-evidence that closed it:*
+- **A run that did not compile is disclosed as `no-tests-selected`, the same word as a filter that
+  matched nothing.** §5.3.4's rung 4 and §5.4.3's rung 3 fire on `tests_run == 0` before any rung
+  reads the exit code, and both carry an empty `reason`, so the operator sees one word for two
+  situations that need different fixes. **The trust-economy half is already closed and was checked
+  rather than assumed:** `run.Verdict()` conjoins four clauses — not contaminated, exit 0,
+  `tests_run > 0`, `tests_failed == 0` — so a build-failed run is stored `passed: false` and can
+  never support a `probed` grade. Measured on M4's stored runs: `r5` is a baseline carrying no probe,
+  exit 1, 0 ran, `passed: false`. What is left is disclosure, and it is not cosmetic: reading
+  `no-tests-selected` and stopping there is exactly what made M4's first write-up blame the wrong
+  clause for two of its three lost runs. Discharged when a zero count from a non-zero exit carries a
+  `reason` naming the exit status, as §5.3.4's `error` and `inconclusive` rungs already do.
+
+*The three below were v0.4.1's whole content, and each is discharged with the evidence that closed
+it:*
 
 - ~~**§3.4.7 does not name the credential kind cr now lists.**~~ `spec/0.4.1.md` §3.4.7 names it a
   third listed kind beside `binary` and `generated`, with the match rule written out and the clause
