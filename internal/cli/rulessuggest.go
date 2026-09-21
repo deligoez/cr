@@ -124,7 +124,9 @@ func harvestMin(l state.Layout, owner, repo string) (int, error) {
 }
 
 // postedComments is §2.6.3.1's scan: every record of the repository that
-// reached `posted`, with the body its round's draft carries for it.
+// reached `posted`, with the body its round's draft carries for it. A record
+// `cr verify` or `cr withdraw` has since moved on was posted all the same, so
+// the test is State.Sent rather than the state `posted` alone.
 //
 // The body is read out of `rounds/<n>/draft.md` rather than off the record,
 // because §8.1.2 makes editing that file the one input path for reader-facing
@@ -151,7 +153,7 @@ func postedComments(l state.Layout, owner, repo string) ([]rule.Comment, error) 
 		}
 		drafts := make(map[int]map[string]string)
 		for i := range stored {
-			if stored[i].State != finding.StatePosted {
+			if !stored[i].State.Sent() {
 				continue
 			}
 			bodies, err := roundBodies(l, owner, repo, pr, stored[i].Round, drafts)
