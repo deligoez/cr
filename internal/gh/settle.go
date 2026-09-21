@@ -3,8 +3,6 @@ package gh
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 )
 
 // resolveMutation is §9.6.1's write: GraphQL's resolveReviewThread over the
@@ -76,43 +74,4 @@ func (c Confirmation) ResolveThread(thread string) error {
 		return &NotResolvedError{Thread: thread}
 	}
 	return nil
-}
-
-// replyBody is the request body of a reply, which carries the text and nothing
-// else. The endpoint takes the comment to reply to in its path.
-type replyBody struct {
-	Body string `json:"body"`
-}
-
-// replyResponse is the answer to a reply, read for the comment id GitHub gave
-// it so §9.6.2's record can name what it posted.
-type replyResponse struct {
-	ID int64 `json:"id"`
-}
-
-// ReplyToComment posts one reply under an existing review comment, per §9.6.2,
-// and returns the id of the comment it created.
-//
-// The endpoint is the replies collection of the comment being answered, which
-// is what keeps the reply in the thread rather than starting a new one at the
-// same line. A reply that started its own thread would read to the author as a
-// second concern about code cr was withdrawing a concern about.
-func (c Confirmation) ReplyToComment(owner, repo string, pr int, comment int64, body string) (int64, error) {
-	payload, err := json.Marshal(replyBody{Body: body})
-	if err != nil {
-		return 0, err
-	}
-	endpoint := strings.Join([]string{
-		"repos", owner, repo, "pulls", strconv.Itoa(pr),
-		"comments", strconv.FormatInt(comment, 10), "replies",
-	}, "/")
-	out, err := c.Write(payload, "api", endpoint, "--method", "POST", "--input", "-")
-	if err != nil {
-		return 0, err
-	}
-	var answer replyResponse
-	if err := json.Unmarshal([]byte(out), &answer); err != nil {
-		return 0, fmt.Errorf("cannot read the reply posted to comment %d: %w", comment, err)
-	}
-	return answer.ID, nil
 }

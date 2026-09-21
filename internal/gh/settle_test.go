@@ -10,35 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// §9.6's two writes are behind §8.5's gate like every other, and the gate is
-// not re-implemented in settle.go — both reach Confirmation.Write and are
+// §9.6's write is behind §8.5's gate like every other, and the gate is not
+// re-implemented in settle.go — the resolve reaches Confirmation.Write and is
 // refused there.
 //
 // The marker file is the assertion rather than the error: a refusal that
 // arrived after gh ran would be a report about a write that had already
 // happened, which is the failure §2.1.2's single door exists to prevent.
-func TestNeitherSettlingWriteRunsWithoutConfirmation(t *testing.T) {
-	t.Run("resolve", func(t *testing.T) {
-		ran := filepath.Join(t.TempDir(), "gh-was-started")
-		stubGh(t, "touch "+ran+"\necho '{}'")
+func TestTheSettlingWriteDoesNotRunWithoutConfirmation(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "gh-was-started")
+	stubGh(t, "touch "+ran+"\necho '{}'")
 
-		err := Confirm(false).ResolveThread("PRRT_kwDO")
+	err := Confirm(false).ResolveThread("PRRT_kwDO")
 
-		var refused *WriteRefusedError
-		require.ErrorAs(t, err, &refused)
-		assert.NoFileExists(t, ran, "gh was started before the boundary refused")
-	})
-
-	t.Run("reply", func(t *testing.T) {
-		ran := filepath.Join(t.TempDir(), "gh-was-started")
-		stubGh(t, "touch "+ran+"\necho '{}'")
-
-		_, err := Confirm(false).ReplyToComment("acme", "web", 42, 991, "withdrawn")
-
-		var refused *WriteRefusedError
-		require.ErrorAs(t, err, &refused)
-		assert.NoFileExists(t, ran, "gh was started before the boundary refused")
-	})
+	var refused *WriteRefusedError
+	require.ErrorAs(t, err, &refused)
+	assert.NoFileExists(t, ran, "gh was started before the boundary refused")
 }
 
 // §9.6.1: a resolution is recorded only when GitHub reports one.
@@ -69,34 +56,6 @@ func TestAResolveIsOnlyARresolutionWhenGitHubSaysSo(t *testing.T) {
 
 		require.Error(t, Confirm(true).ResolveThread("T1"))
 	})
-}
-
-// §9.6.2: the reply goes to the replies collection of the comment being
-// answered, which is what keeps it inside the thread.
-//
-// The endpoint is asserted because a reply that started its own thread would
-// read to the author as a second concern about the code cr is withdrawing a
-// concern about — a retraction that arrives as a new complaint.
-func TestAReplyIsPostedInsideTheThreadItAnswers(t *testing.T) {
-	sent := filepath.Join(t.TempDir(), "argv")
-	body := filepath.Join(t.TempDir(), "body")
-	stubGh(t, `echo "$@" > `+sent+"\ncat > "+body+`
-echo '{"id":4242}'`)
-
-	id, err := Confirm(true).ReplyToComment("acme", "web", 42, 991, "withdrawn: the test covers it")
-
-	require.NoError(t, err)
-	assert.Equal(t, int64(4242), id, "the reply's own comment id is read back")
-
-	argv, err := os.ReadFile(sent)
-	require.NoError(t, err)
-	assert.Contains(t, string(argv), "repos/acme/web/pulls/42/comments/991/replies")
-	assert.Contains(t, string(argv), "--method POST")
-
-	written, err := os.ReadFile(body)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"body":"withdrawn: the test covers it"}`, string(written),
-		"the request carries the text and nothing else")
 }
 
 // The resolve is a GraphQL mutation and travels as one, with the thread id in
