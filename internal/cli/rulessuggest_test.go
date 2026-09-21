@@ -161,6 +161,31 @@ func TestThreeMatchingCommentsAcrossTwoRoundsAreOneCandidate(t *testing.T) {
 		"§2.6.3.2 reports the comments that formed the candidate, across the rounds they came from")
 }
 
+// §2.6.3.1 scans "comments posted from recorded rounds", and a comment is still
+// one that was posted after `cr verify` or `cr withdraw` has moved its record.
+//
+// v0.5.0 asked for the state `posted` alone, so the moment a reviewer recorded
+// that the author answered a question, that question left the harvest — the
+// more of a pull request's concerns got settled, the less of it the scan could
+// see. Three identical comments, one still posted, one answered and one
+// withdrawn, are one candidate of three.
+func TestACommentSettledAfterPostingIsStillHarvested(t *testing.T) {
+	harvestedHome(t,
+		aPostedComment{pr: 7, round: 1, id: "f1", class: "dropped-error",
+			body: "The error this call returns is dropped."},
+		aPostedComment{pr: 7, round: 1, id: "f2", class: "dropped-error", at: finding.StateAnswered,
+			body: "The error this call returns is dropped."},
+		aPostedComment{pr: 7, round: 1, id: "f3", class: "dropped-error", at: finding.StateWithdrawn,
+			body: "The error this call returns is dropped."},
+	)
+
+	printed := suggested(t)
+
+	assert.Equal(t, 3, printed.Scanned, "every one of the three was posted")
+	require.Len(t, printed.Candidates, 1)
+	assert.Equal(t, []string{"f1@1", "f2@1", "f3@1"}, recordsOf(printed.Candidates[0]))
+}
+
 // The scan reads posted comments and nothing else, across every pull request of
 // the repository.
 //
