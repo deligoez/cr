@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -982,7 +983,14 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 // gapPlacement resolves the sandbox path a gap probe reserved as id places its
 // test file at, and refuses one it cannot place.
 func gapPlacement(setup *probeSetup, request *probeRequest, reserved string) (string, error) {
-	placement := setup.tests.profile.ProbePath(reserved)
+	// §5.4.2's `<target-dir>`: the directory of the path `--target` names.
+	// probe.ParseTarget has already held the target to §5.5's shape, so the
+	// path here is one cr resolved against the head.
+	targetPath, _, err := probe.ParseTarget(request.target)
+	if err != nil {
+		return "", err
+	}
+	placement := setup.tests.profile.ProbePath(reserved, path.Dir(targetPath))
 	if placement == "" {
 		return "", &profile.MalformedError{
 			File:  setup.tests.file,
@@ -1041,6 +1049,17 @@ func underProbeDirectory(paths []string, placement string) error {
 			"test file (%s): §5.4.2 runs the probe over the file it placed and §5.2.2 measures its "+
 			"baseline over the --path values, so paths that reach none of that directory compare "+
 			"two different populations", dir, placement)
+}
+
+// probeRunPath is the path §5.4.2 gives the probe's own run: the directory the
+// placed file sits in, or the file itself when the template puts it at the
+// repository root and there is no directory to name.
+func probeRunPath(placement string) string {
+	dir := path.Dir(placement)
+	if dir == "." || dir == "/" {
+		return placement
+	}
+	return dir
 }
 
 // finishedProbe is what a probe's locked half hands to its report: the stored
@@ -1353,17 +1372,25 @@ func mutationRuns(
 // removal "MUST happen even when the run fails or times out" and
 // state.UnderSandboxTestFile is the only door onto the write that arranges it.
 //
-// §5.4.2 narrows the probe's own run to the file cr placed, as its only path,
-// and §5.4.2's last clause is the profile that cannot take one: a profile with
-// no `tests.paths_arg` has no way to name a path to its runner, so the run
-// "MUST use the filter alone" and the runner's own discovery finds the placed
-// file — which is what `tests.probe_path_template` is fixed per profile for.
+// §5.4.2 narrows the probe's own run to the directory cr placed the file in, as
+// its only path, and §5.4.2's last clause is the profile that cannot take one: a
+// profile with no `tests.paths_arg` has no way to name a path to its runner, so
+// the run "MUST use the filter alone" and the runner's own discovery finds the
+// placed file.
+//
+// The directory rather than the file is v0.4.1's correction, and it is measured.
+// Handed the file, `go test` compiles it as the synthetic package
+// `command-line-arguments`, which holds that one file and nothing the test
+// refers to: measurement 4 part B's gap probe exited 1 on `undefined: Target`
+// with no test run. A runner that builds a package out of the paths it is given
+// cannot build one out of a test file alone, and a runner that discovers tests
+// under a path is unharmed by being given the directory instead.
 func gapRuns(
 	setup *probeSetup, request *probeRequest, placement string,
 ) (*performedProbe, probe.GapMeasured, error) {
 	var ownPaths []string
 	if len(setup.tests.profile.Tests.PathsArg) > 0 {
-		ownPaths = []string{placement}
+		ownPaths = []string{probeRunPath(placement)}
 	}
 	performed, err := probeBaselines(setup, request, ownPaths)
 	if err != nil {
