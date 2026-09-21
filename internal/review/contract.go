@@ -8,6 +8,7 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/proposal"
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
 )
 
@@ -160,6 +161,26 @@ func proposalWritable() []string {
 const englishLine = "Write summary and evidence in English (§6.1.1), whatever language the issue, the " +
 	"threads or the code comments are in; reader-facing prose is produced from them at draft time (§8.1)."
 
+// reservedLine states §8.1.3's sequence to the one writing a record.
+//
+// It is a fence a role is judged by and, until measurement 4, was never told:
+// §8.1.2 composes a comment's body out of `summary` and `evidence`, so a record
+// carrying the sequence in either is refused where the record enters and no
+// later command repairs it. M4 part B lost a whole unit's work to that silence —
+// a role reviewing cr's own draft machinery quoted the sequence in order to name
+// it, `cr record` refused the record, and `cr proposals record` then refused the
+// proposal that named it, for naming no record of the round.
+//
+// The sequence is render.Reserved rather than a literal, so the prompt names the
+// bytes the refusal looks for.
+func reservedLine() string {
+	return "No field of a record may carry the sequence " + strconv.Quote(render.Reserved) +
+		": §8.1.3 reserves it for the record marker and cr's own regions, and §8.1.2 composes a " +
+		"comment's body out of summary and evidence, so a record carrying it is rejected with exit " +
+		"code 1 where the record enters. When the code under review is cr's own marker machinery, " +
+		"name the sequence in words rather than quoting it."
+}
+
 // forbiddenLine states §6.1.4's fence: every field an agent's line may not carry.
 func forbiddenLine(p *page) {
 	p.line("You may not write %s. cr computes or stamps them, and a record arriving with one is "+
@@ -200,6 +221,7 @@ func Contract(round int) string {
 	p.line("%s", englishLine)
 	p.line("A kind=question record's posted body must contain \"?\" (§8.1.5); that body is composed at draft " +
 		"time, where a question body that does not ask is rewritten into one before `cr post` accepts it.")
+	p.line("%s", reservedLine())
 	p.line("")
 	forbiddenLine(&p)
 	proposalSchema(&p)
