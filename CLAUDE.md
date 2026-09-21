@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.4.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.4.1.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -475,6 +475,23 @@ names. The evidence is measured: in measurement 3 cr produced 51 records graded
 bespoke side-channel before any probe could run, and 25 records across them wrote
 prose into that field. A proposal is never evidence; only running it is.
 
+**A gap probe's test file is placed where its target lives, not where the
+profile says.** §5.4.2's `tests.probe_path_template` may open with
+`<target-dir>`, which resolves to the directory of `--target`, and the probe's
+own run is scoped to that directory rather than to the placed file. Both halves
+are measured, on measurement 4 part B's own failed proposal: a `package probe`
+test placed at `internal/cli/cr_probe_p2_test.go` — the one path a fixed Go
+template could give — ran `go test ./internal/cli/cr_probe_p2_test.go`, which
+compiles a lone file as `command-line-arguments` and exited 1 on `undefined:
+Target` with `0 ran, 0 failed`. The same test at
+`internal/probe/cr_probe_p1_test.go` run as `./internal/probe` gives `1 ran, 1
+failed` over a baseline of 1453 passing. **A language whose tests compile into
+the package they test has no one directory that serves every probe**, so a
+template fixed whole cannot place one at all. §5.1.6's leftover scan follows:
+such a template's glob opens `**/`, and `filepath.Glob` reads `**` as a single
+segment, so `internal/sandbox` walks it instead — verified by planting an
+artefact two directories down and watching the sandbox be recreated for it.
+
 **§5.7.4 is the one place a grade may rise inside a round**, through
 `finding.RegradeOnProbe`, and the exception is narrow on purpose.
 `finding.Regrade`'s ratchet exists to stop a raise that happens *behind* the
@@ -526,7 +543,8 @@ spec/
   0.1.0.md           Normative v0.1 contract
   0.2.0.md           Normative v0.2 contract
   0.3.0.md           Normative v0.3 contract
-  0.4.0.md           Normative v0.4 contract, the current one
+  0.4.0.md           Normative v0.4 contract
+  0.4.1.md           Normative v0.4.1 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
