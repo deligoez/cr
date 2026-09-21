@@ -39,7 +39,10 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-- **A run that did not compile is disclosed as `no-tests-selected`, the same word as a filter that
+- ~~**A run that did not compile is disclosed as `no-tests-selected`.**~~ *Closed in `spec/0.5.0.md`:
+  §5.3.4's and §5.4.3's zero-count rungs now carry a `reason` naming the exit code when it is not 0,
+  and §5.5's table gains the `reason` row the implementation had been writing without one.*
+  **A run that did not compile is disclosed as `no-tests-selected`, the same word as a filter that
   matched nothing.** §5.3.4's rung 4 and §5.4.3's rung 3 fire on `tests_run == 0` before any rung
   reads the exit code, and both carry an empty `reason`, so the operator sees one word for two
   situations that need different fixes. **The trust-economy half is already closed and was checked
@@ -338,7 +341,7 @@ own asymmetry applied to a location instead of to a claim.
 Not researched, and not to be assumed: how Gerrit or GitLab handle any of this. All of the above is
 GitHub, git, and Alibaba's reader.
 
-#### The shape v0.5 takes, before its spec is written
+#### The shape v0.5 takes — now `spec/0.5.0.md`, §9.4 through §9.6
 
 **`posted` stops being terminal, and that is the whole change.** §9.1 makes it terminal today because
 v0.4 ends at posting; v0.5 gives it four exits and adds the states they lead to.
