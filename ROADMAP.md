@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.4.1 | The three defects measurement 4 found, and nothing else: §3.4.7 names the credential kind (a debt owed since v0.3.2), a gap probe's test may be placed under its target's directory and its run is scoped to that directory rather than to the file, and the two proposal fields the prompt never explained — `filter` and `paths` — are explained, as is §8.1.3's reserved sequence |
 | v0.3.2 (untagged, shipped inside v0.4.0) | The two defects listed before any feature: a credential-shaped file (`.env`, `id_rsa`, `*.pem` and the rest of a built-in fence read before `ignore.globs`) is listed by path and not clustered, so its content reaches no role's prompt; and a process of the test runner still holding the runner lock when the run ends is disclosed by `cr test` and `cr probe run` |
 
 ## What has been measured
@@ -38,36 +39,30 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-- **§3.4.7 does not name the credential kind cr now lists.** v0.3.2 ships the fence: such a file is a third
-  listed kind beside `binary` and `generated`, read before `ignore.globs`, and no configuration key turns
-  it off. §3.4.7 names two kinds without closing the set, so the behaviour contradicts no MUST, but it is
-  written down only in `spec/0.3.2-release-notes.md`. Discharged when the next `spec/<version>.md` names
-  the third kind and its match rule.
-- **§5.4.2's fixed `tests.probe_path_template` cannot place a Go gap probe's test.** A Go test is
-  compiled into the package it tests, and the package differs per probe, so one path per profile is
-  the wrong shape and no value of it works. Measured in M4 part B: both gap probes of the round
-  failed on it and neither reached a verdict. `x36702` wrote a `package probe` test, cr placed it at
-  `internal/cli/cr_probe_p2_test.go` and passed that lone file as the run's only path — `go test`
-  compiled it as `command-line-arguments` and exited 1 with `undefined: Target`; `x34101` was refused
-  before running because its `--path` named the package under test rather than the template's
-  directory. Neither is the role's error. The likely shape is a template that fixes the **file name**
-  — which is what §5.1.6 needs to recognise a leftover — while the directory comes from the probe,
-  and a run scoped to that directory rather than to the file. Discharged when a Go gap probe reaches
-  a verdict on this tree.
-- **A proposal's `filter` and `paths` are the two fields the prompt never explains.**
-  `internal/review/contract.go:100` glosses `kind`, `target`, `hypothesis`, `settles`, `input` and
-  `finding`, then stops; §5.7's table defines the pair circularly (*the `--path` values the run is to
-  use*) and the role never sees the table. Measured in M4 part B: `x36101` put the file it was
-  reasoning about in `paths`, so the runner was handed `go test ./internal/probe/resolve.go`, which
-  compiles one file alone and exits 1 with eight undefined symbols. Discharged when the prompt says
-  `--path` scopes which tests run rather than which file is under test, and `filter` is a test name
-  rather than a runner argument string.
-- **A record cannot describe cr's own marker sequence.** §8.1.3 reserves `<!-- cr:` anywhere in a
-  record's prose, so a role reviewing `internal/draft` that names the sequence has its record refused —
-  and the proposal naming that record is then refused in turn for naming no record of the round. Both
-  refusals are correct and a unit's work is lost to them. Measured once, in M4 part B. Narrow enough
-  to leave standing; recorded because the repair is not obvious (the reservation has to survive) and a
-  second occurrence would change that.
+*Empty. The three that stood here were v0.4.1's whole content, and each is discharged with the
+evidence that closed it:*
+
+- ~~**§3.4.7 does not name the credential kind cr now lists.**~~ `spec/0.4.1.md` §3.4.7 names it a
+  third listed kind beside `binary` and `generated`, with the match rule written out and the clause
+  that no configuration key turns it off. The debt was two versions old and had never left
+  `spec/0.3.2-release-notes.md`.
+- ~~**§5.4.2's fixed `tests.probe_path_template` cannot place a Go gap probe's test.**~~ The
+  template's directory may now be `<target-dir>`, resolved to the directory of `--target`, and the
+  probe's own run is scoped to that directory rather than to the placed file. Discharged against the
+  criterion this entry set — a Go gap probe reaching a verdict on this tree — with M4 part B's own
+  failed proposal, `x36702`: the same `package probe` test, the same target, placed now at
+  `internal/probe/cr_probe_p1_test.go` and run as `./internal/probe`. Before: `0 ran, 0 failed`,
+  `undefined: Target`, `result: no-tests-selected`. After: `1 ran, 1 failed`, `result: failed`,
+  over a baseline of 1453 passing. §5.1.6's leftover scan follows: an any-depth glob is walked
+  rather than globbed, verified by planting an artefact two directories down and watching the
+  sandbox be recreated for it.
+- ~~**A proposal's `filter` and `paths` are the two fields the prompt never explains.**~~ The prompt
+  now says they scope the run and not the code, that `filter` is a test name rather than a runner
+  argument string, that `paths` are test targets and never the file the patch changes, and that
+  leaving both out runs the whole suite. §8.1.3's reserved sequence, the other fence M4 found a role
+  was judged by and never told, is now named in the round's contract file beside §8.1.5's.
+  The reservation itself stands — it is what keeps a record's prose from splitting its own draft
+  block — so what v0.4.1 changed is that a role is told about it and given a way through.
 
 ### 1. The basics cr lacks
 
