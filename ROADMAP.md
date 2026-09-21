@@ -146,10 +146,21 @@ Each of these is measured rather than wished for: the evidence is a run that had
   waiver, so cr does what it says and this is a gap, not a broken contract.
   v0.5's draft spec carried the clause and it was dropped before the tag, for a reason worth keeping:
   `finding.WaiverFor` keys a waiver from the head's trees, which would have made `cr withdraw` a
-  head-reading command and coupled a GitHub write to a git read. The way out is probably the one
-  §9.4 already takes — key from the record's own stored `content_hash` and context window, which is
-  what migration matches on — and that would make this small. Discharged when a withdrawal counts
-  against its class in `cr stats`.
+  head-reading command and coupled a GitHub write to a git read. Keying from the stored
+  `content_hash` instead is **not** a way out: it changes the pre-image, so every stored waiver and
+  posted-index entry would stop matching, which is v0.1's break a second time
+  (`contextkey_test.go:99` measured the narrower form). The design that survived review with
+  cr-research, 2026-09-21, has three parts. First, `cr withdraw <pr> <id> wrong|not-here`, positional
+  like `cr triage` and refused without it, because cr cannot establish which it was (P2), and
+  `WaiverScope` already forbids deciding scope for the human. Second, two outcome actions,
+  `withdrawn-wrong` and `withdrawn-not-here`, written under the posting round's triage key so they
+  replace its `kept` and one raise keeps one outcome; `triageKey` already makes the later outcome
+  win. Third, the waiver key's hash stamped at `cr record` time, where `StampAnchor` holds the
+  anchored lines, so the pre-image is unchanged and no later command reads a tree. That third part
+  matters because a withdrawal can follow a force-push, and cr-research measured the superseded
+  commit absent from a fresh clone. Since v0.5.1 a posted record keeps its round, so the posting
+  round is the record's own `round`. Discharged when a withdrawal counts against its class in
+  `cr stats`.
 - **No per-language correctness corpus.** This is the half split out of the item above, and it has a
   source: Alibaba's `rule_docs` is a reasonable first intake for per-language *defect and security*
   rules, with attribution, as a corpus intake and not as an adoption of their selector. It pairs with
