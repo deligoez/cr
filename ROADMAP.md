@@ -31,7 +31,7 @@ paragraphs of this file used to carry is the Shipped table below.
 |---|---|---|
 | M1, 2026-09-18 | cr's reading roles, then its probes, over its own v0.1.0 packages, against 24 defects a 478-case QA pass had found | Reading **0 of 24**, probes **0 of 24**, false assertions **0**; the probes proved 21 real test gaps and decided two suspicions by experiment. QA 24, reading 0, probes 0 — the instrument matches the defect |
 | M3, 2026-09-18 | cr against a careful human review on a real pull request (tarfin-labs/backend#3757), threads shimmed out of its ingestion | **8 of 16** of the human's comments recovered, 43 cr-only records, false assertions **0 of 9** verified by hand; seven of the eight misses are house style |
-| M4, 2026-09-19/21 | v0.4.0's §5.7 channel: part A, 76 role sessions on a real pull request (tarfin-labs/backend#3757) carrying no sandbox; part B, 22 sessions on cr's own v0.1.0 packages with a `go test` sandbox | A: the channel carries — well-formed proposals, none usable as evidence. B: 17 proposals accepted, 9 run, **7 records reached `probed`** against M3's 0, all 7 verified green by hand under `go test -overlay` with a control mutant red. **B4 false assertions 0, but vacuously** — §5.7.4 raises the *grade*, and the *kind* stays `question` until a human edits the draft. The only thing that wasted a run was `paths`, which the prompt never explains |
+| M4, 2026-09-19/21 | v0.4.0's §5.7 channel: part A, 76 role sessions on a real pull request (tarfin-labs/backend#3757) carrying no sandbox; part B, 22 sessions on cr's own v0.1.0 packages with a `go test` sandbox | A: the channel carries — well-formed proposals, none usable as evidence. B: 17 proposals accepted, 9 run, **7 records reached `probed`** against M3's 0, all 7 verified green by hand under `go test -overlay` with a control mutant red. **B4 false assertions 0, but vacuously** — §5.7.4 raises the *grade*, and the *kind* stays `question` until a human edits the draft. Of the three runs that produced nothing, one was the role misreading the unexplained `paths`, and **both gap probes were cr's**: §5.4.2's fixed `tests.probe_path_template` cannot place a Go test in the package it tests |
 | AACR-Bench, external | Alibaba's 2145 expert-labelled comments over 200 pull requests | Evidence distance predicts correctness (0.741 / 0.696 / 0.607, non-overlapping CIs); comment *wording* predicts nothing. See Questions, settled |
 
 ## Next
@@ -43,15 +43,25 @@ paragraphs of this file used to carry is the Shipped table below.
   it off. §3.4.7 names two kinds without closing the set, so the behaviour contradicts no MUST, but it is
   written down only in `spec/0.3.2-release-notes.md`. Discharged when the next `spec/<version>.md` names
   the third kind and its match rule.
-- **A proposal's `filter` and `paths` are the only two fields the prompt never explains, and they are
-  where every wasted run went.** `internal/review/contract.go:100` glosses `kind`, `target`,
-  `hypothesis`, `settles`, `input` and `finding`, then stops; §5.7's table defines the pair circularly
-  (*the `--path` values the run is to use*) and the role never sees the table. Measured in M4 part B:
-  of ten runs attempted, three produced nothing and all three were this — two proposals put the file
-  they were reasoning about in `paths` (`go test ./internal/probe/resolve.go` selects no tests), and
-  one put a whole `go test` argument string in `filter`. Nothing else cost a run. Discharged when the
-  prompt says `--path` scopes which tests run rather than which file is under test, `filter` is a test
-  name, and a gap probe's placed test lives under `tests.probe_path_template`.
+- **§5.4.2's fixed `tests.probe_path_template` cannot place a Go gap probe's test.** A Go test is
+  compiled into the package it tests, and the package differs per probe, so one path per profile is
+  the wrong shape and no value of it works. Measured in M4 part B: both gap probes of the round
+  failed on it and neither reached a verdict. `x36702` wrote a `package probe` test, cr placed it at
+  `internal/cli/cr_probe_p2_test.go` and passed that lone file as the run's only path — `go test`
+  compiled it as `command-line-arguments` and exited 1 with `undefined: Target`; `x34101` was refused
+  before running because its `--path` named the package under test rather than the template's
+  directory. Neither is the role's error. The likely shape is a template that fixes the **file name**
+  — which is what §5.1.6 needs to recognise a leftover — while the directory comes from the probe,
+  and a run scoped to that directory rather than to the file. Discharged when a Go gap probe reaches
+  a verdict on this tree.
+- **A proposal's `filter` and `paths` are the two fields the prompt never explains.**
+  `internal/review/contract.go:100` glosses `kind`, `target`, `hypothesis`, `settles`, `input` and
+  `finding`, then stops; §5.7's table defines the pair circularly (*the `--path` values the run is to
+  use*) and the role never sees the table. Measured in M4 part B: `x36101` put the file it was
+  reasoning about in `paths`, so the runner was handed `go test ./internal/probe/resolve.go`, which
+  compiles one file alone and exits 1 with eight undefined symbols. Discharged when the prompt says
+  `--path` scopes which tests run rather than which file is under test, and `filter` is a test name
+  rather than a runner argument string.
 - **A record cannot describe cr's own marker sequence.** §8.1.3 reserves `<!-- cr:` anywhere in a
   record's prose, so a role reviewing `internal/draft` that names the sequence has its record refused —
   and the proposal naming that record is then refused in turn for naming no record of the round. Both
