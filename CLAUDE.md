@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.4.1.md`
+sequenced next, and what must be measured before it is decided. `spec/0.5.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -451,6 +451,10 @@ source of truth; this table is a map, not a promise.
 | `cr draft <pr>` | Render the editable draft |
 | `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <f>\|-]` | Apply one triage verb to the draft, as the hand edit would (§7.2.4) |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the round's one review; settle an unknown outcome |
+| `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors (§9.5) |
+| `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <t>` | Record the agent's judgement about one posted record (§9.5.5) |
+| `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread (§9.6.1) |
+| `cr withdraw <pr> <record-id> [--confirm]` | Retract a posted concern and resolve its thread (§9.6.2) |
 | `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
 | `cr note <ISSUE-KEY> <text> --pr <n>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
@@ -460,10 +464,34 @@ source of truth; this table is a map, not a promise.
 | `cr status <pr>` | Coverage, states, and completeness |
 | `cr config [--resolved]` | Effective configuration and its layers |
 
-v0.3 ends at posting, and so does v0.4. `cr recheck`, `cr verify`, `cr resolve`
-and `cr accept` are commands of neither — the re-review half of the loop, anchor
-migration included, is **v0.5**, declared out of scope in `spec/0.4.0.md` §1.3.6.
-A moved head makes the round stale (§9.3); `cr brief` opens a new one.
+**v0.5 closes the loop, and `posted` stopping being terminal is the whole of
+it.** §9.1 gives it four exits — `answered`, `addressed`, `withdrawn`, or
+carried forward still posted — §9.4 migrates the anchors cr owns, §9.5 reports
+what came back, and §9.6 resolves or retracts behind `--confirm`. A moved head
+still makes unsent work stale (§9.3), and `cr brief` still opens the new round;
+what changed is that a posted record survives it, because it has to be verified
+against the head that moved.
+
+**Two sets came apart in v0.5 that had been the same set by coincidence**, and
+both broke a command until they were separated. §9.3.4 stales `draft` and
+`queued` *by name*, not "the open states" — staling by openness abandons every
+posted concern the moment the author pushes. §10.2.4 blocks completeness on
+`finding.UnsentStates()`, not `OpenStates()` — blocking on openness means no
+round is ever complete once it has posted anything. Both were caught by tests
+rather than by reading, which is what those guards are for.
+
+**cr still forms no opinion about whether a concern was addressed.** §9.5.6 is
+explicit: an outdated thread, a probe that stopped reproducing and an author
+writing "fixed" are each as consistent with a concern that was addressed as
+with one whose code was deleted. `cr recheck` reports, `cr verify` records the
+agent's word, and neither decides. That is P5 held at the one place it is most
+tempting to drop, because the evidence is usually unambiguous.
+
+**`cr withdraw` posts no prose**, and the fence is §8.1.2's: cr has one channel
+for a body a human wrote — the draft — and a `--body-file` on a second command
+would be a second. `TestNoCommandAcceptsABodyArgumentOrABodyField` is what
+refuses it, and the reviewer who wants to explain writes that reply themselves,
+as §7.2.3 already has them do for every comment cr does not compose.
 
 **v0.4's one new obligation is §5.7, proposed experiments.** A role that holds a
 suspicion it cannot establish writes a proposal — kind, unit, target, hypothesis,
@@ -544,7 +572,8 @@ spec/
   0.2.0.md           Normative v0.2 contract
   0.3.0.md           Normative v0.3 contract
   0.4.0.md           Normative v0.4 contract
-  0.4.1.md           Normative v0.4.1 contract, the current one
+  0.4.1.md           Normative v0.4.1 contract
+  0.5.0.md           Normative v0.5 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
