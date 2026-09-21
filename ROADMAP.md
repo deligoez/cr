@@ -40,15 +40,7 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-- **A withdrawal collects the best false-positive signal cr has and throws it away.**
-  §9.6 moves a retracted record to `withdrawn` and resolves its thread, and that is all. A concern
-  the author saw and the reviewer then took back is the strongest evidence a class is wrong that cr
-  can ever get — stronger than a `wrong` in triage, because the author read it — and §7.3 exists to
-  act on exactly that. v0.5's spec carried a clause making a withdrawal write a repository-wide
-  `wrong` waiver; it was dropped during implementation, for a reason worth keeping: `finding.WaiverFor`
-  needs the head's trees to key the waiver, which would have made `cr withdraw` a head-reading command
-  and coupled a GitHub write to a git read. That is a design question rather than a line of code, and
-  it was not v0.5's topic. Discharged when a withdrawal counts against its class in `cr stats`.
+*Empty.*
 
 - ~~**A run that did not compile is disclosed as `no-tests-selected`.**~~ *Closed in `spec/0.5.0.md`:
   §5.3.4's and §5.4.3's zero-count rungs now carry a `reason` naming the exit code when it is not 0,
@@ -145,6 +137,18 @@ Each of these is measured rather than wished for: the evidence is a run that had
   So **house style has to come from the team**, by definition, and the remedy is seeding a corpus from a
   team's own code and review history. Discharged when a team can seed one without writing every file by
   hand, and `cr rules suggest` harvests from something other than posted rounds.
+- **A withdrawal collects the best false-positive signal cr has and throws it away.** §9.6 moves a
+  retracted record to `withdrawn` and resolves its thread, and that is all. A concern the author saw
+  and the reviewer then took back is the strongest evidence a class is wrong that cr can ever get —
+  stronger than a `wrong` in triage, because the author read it — and §7.3 exists to act on exactly
+  that. It sits here rather than under Defects on purpose: nothing in `spec/0.5.0.md` promises the
+  waiver, so cr does what it says and this is a gap, not a broken contract.
+  v0.5's draft spec carried the clause and it was dropped before the tag, for a reason worth keeping:
+  `finding.WaiverFor` keys a waiver from the head's trees, which would have made `cr withdraw` a
+  head-reading command and coupled a GitHub write to a git read. The way out is probably the one
+  §9.4 already takes — key from the record's own stored `content_hash` and context window, which is
+  what migration matches on — and that would make this small. Discharged when a withdrawal counts
+  against its class in `cr stats`.
 - **No per-language correctness corpus.** This is the half split out of the item above, and it has a
   source: Alibaba's `rule_docs` is a reasonable first intake for per-language *defect and security*
   rules, with attribution, as a corpus intake and not as an adoption of their selector. It pairs with
