@@ -39,6 +39,16 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
+- **A withdrawal collects the best false-positive signal cr has and throws it away.**
+  §9.6 moves a retracted record to `withdrawn` and resolves its thread, and that is all. A concern
+  the author saw and the reviewer then took back is the strongest evidence a class is wrong that cr
+  can ever get — stronger than a `wrong` in triage, because the author read it — and §7.3 exists to
+  act on exactly that. v0.5's spec carried a clause making a withdrawal write a repository-wide
+  `wrong` waiver; it was dropped during implementation, for a reason worth keeping: `finding.WaiverFor`
+  needs the head's trees to key the waiver, which would have made `cr withdraw` a head-reading command
+  and coupled a GitHub write to a git read. That is a design question rather than a line of code, and
+  it was not v0.5's topic. Discharged when a withdrawal counts against its class in `cr stats`.
+
 - ~~**A run that did not compile is disclosed as `no-tests-selected`.**~~ *Closed in `spec/0.5.0.md`:
   §5.3.4's and §5.4.3's zero-count rungs now carry a `reason` naming the exit code when it is not 0,
   and §5.5's table gains the `reason` row the implementation had been writing without one.*
