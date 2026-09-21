@@ -48,6 +48,22 @@ var (
 	// ActorBrief is `cr brief`, which stales the open records of the round
 	// it closes, per §9.3.4.
 	ActorBrief = Actor{"cr brief"}
+	// ActorVerify is `cr verify`, which records the agent's judgement about
+	// a posted record and moves it out of `posted` when that judgement
+	// settles it (§9.5.5).
+	//
+	// It is an actor rather than a mode of some other command because the
+	// judgement is the agent's and the write is cr's: §9.5.6 forbids cr to
+	// reach the judgement itself, so the command that carries one in from
+	// outside needs its own row.
+	ActorVerify = Actor{"cr verify"}
+	// ActorWithdrawConfirm is `cr withdraw --confirm`, the run that has
+	// been through §8.5's gate and retracts a posted concern (§9.6.2).
+	//
+	// Only the confirmed run is an actor. A withdrawal prints its reply and
+	// writes nothing without `--confirm`, so an unconfirmed run moves no
+	// record and has no row to ask for.
+	ActorWithdrawConfirm = Actor{"cr withdraw --confirm"}
 )
 
 // actors is §9.1's third column, deduplicated, in the order its rows name them.
@@ -57,6 +73,8 @@ var actors = []Actor{
 	ActorPostConfirm,
 	ActorPostReconcile,
 	ActorBrief,
+	ActorVerify,
+	ActorWithdrawConfirm,
 }
 
 // String returns the command line the actor goes by in §9.1's table, which is
@@ -142,6 +160,8 @@ var table = []row{
 	{from: []From{Existing(StateQueued)}, to: []State{StateDiscarded}, by: []Actor{ActorDraft, ActorPostConfirm}},
 	{from: []From{Existing(StateQueued)}, to: []State{StatePosted}, by: []Actor{ActorPostConfirm, ActorPostReconcile}},
 	{from: []From{Existing(StateDraft), Existing(StateQueued)}, to: []State{StateStale}, by: []Actor{ActorBrief}},
+	{from: []From{Existing(StatePosted)}, to: []State{StateAnswered, StateAddressed}, by: []Actor{ActorVerify}},
+	{from: []From{Existing(StatePosted)}, to: []State{StateWithdrawn}, by: []Actor{ActorWithdrawConfirm}},
 }
 
 // move is one cell of the expanded table: the exact question a command asks.
