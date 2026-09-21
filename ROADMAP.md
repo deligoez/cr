@@ -206,6 +206,30 @@ Each of these is measured rather than wished for: the evidence is a run that had
      sentence. Then a fourth profile is a commit, which is what this entry wrongly claimed the third
      already was.
 
+  **A constraint on `count_pattern` that belongs beside §5.2.1, not in any one profile.** A single
+  capture group summed over non-overlapping matches can read a recap line **only when the words it
+  keys on appear nowhere else in the output**. Go's regexp is RE2, so there is no lookbehind to
+  exclude a line — `(?<!Suites: )(\d+) passed` does not compile, it is rejected as an invalid named
+  capture — and anchoring does not rescue it either, because matches are non-overlapping and the
+  anchored prefix is consumed by the first match, so only the first number on the line is ever read.
+  Measured through cr's own `sum()` semantics against jest's real recap
+  (`Test Suites: 1 failed, 1 total` above `Tests: 1 failed, 1 skipped, 4 passed, 6 total`), truth
+  being 5 executed and 1 failed:
+
+  | pattern | reads |
+  |---|---|
+  | `(\d+) (?:passed\|failed)\b` | ran 6, **failed 2** |
+  | `(\d+) (?:passed\|failed\|total)\b` | ran 13, failed 2 |
+  | `(?m)^Tests:.*?(\d+) (?:passed\|failed)` | **ran 1** |
+
+  Three plausible patterns, three wrong answers, and the first is the dangerous shape because it
+  **inflates the failed count** rather than obviously breaking — a baseline reading two failures where
+  there is one still fails §5.2.5's verdict, so nothing is graded on it, but a `failed` probe result
+  would be read as the code's. This is why a shipped profile picks a JSON reporter over a prettier
+  one, and it is the scope of the occurrence mode: that mode exists for runners whose counts are
+  per-line rather than per-recap. Writing the constraint down is cheap and it cost three wrong
+  patterns to find.
+
   Which languages, if the order is ever questioned: AACR-Bench's 50 repositories give comment share
   C++ 508, TypeScript 422, Java 272, Go 245, C 206, Python 151, JavaScript 141, Rust 92, PHP 56,
   C# 52 — Go + TypeScript + Python is 38% of 2145, and Java would take it to 51%. Popularity is the
