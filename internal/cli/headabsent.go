@@ -30,6 +30,11 @@ const (
 // nothing else, so `cr sandbox create`, `cr test` and `cr probe run` reach the
 // head alone. §5.7's targets are head-side without exception, so
 // `cr proposals record` reaches the head alone too.
+//
+// `cr recheck` reaches the head alone, and §9.4.2 is why it reaches nothing
+// else: the migration reads the current head's tree and the record's own
+// stored anchor, and never the superseded commit — which a force-push removes
+// from a fresh clone, where it cannot be fetched by SHA.
 var headReads = map[string][]string{
 	"brief":            {readsHead, readsBase},
 	"status":           {readsHead, readsBase},
@@ -43,6 +48,7 @@ var headReads = map[string][]string{
 	"test":             {readsHead},
 	"probe run":        {readsHead},
 	"proposals record": {readsHead},
+	"recheck":          {readsHead},
 }
 
 // headNotFetched is the one predicate that classifies a command's git failure
