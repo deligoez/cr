@@ -279,15 +279,64 @@ same 24.
 
 The re-review half the first spec promised:
 
-- anchor migration across a push, using the context window and content hash v0.1 onward already record.
-  Alibaba's `internal/diff/resolver.go` is the working reference for the shape: the agent supplies a
-  verbatim excerpt rather than a line number, and the tool finds it by normalised sliding-window match over
-  the hunk's new side, then the old side, then the file, declining on zero or multiple hits;
+- anchor migration across a push, using the context window and content hash v0.1 onward already record;
 - recheck and verification: after the author pushes, is each posted concern addressed;
 - resolving and withdrawing threads, still behind `--confirm`;
 - reading author replies from GitHub instead of storing them by hand with `cr answer`;
 - a question closed by an answer is neutral, an open question is not — the rule a convergence criterion
   needs.
+
+**Migration is smaller than it looks, and `cr-research` measured why.** Four findings, the first three
+checked against cr's own code here before being written down.
+
+1. **GitHub migrates posted comments itself, and says honestly when it could not.** On
+   `deligoez/cr-qa#13`, 14 comments written against `be7e2c7` all carry `commit_id` `49d8bca`; the four
+   it could not place carry `line: null` while keeping `originalLine`, `originalStartLine` and
+   `diff_hunk`. **cr already reads exactly that** — `internal/gh/threads.go:154` selects
+   `isOutdated path line startLine originalLine originalStartLine diffSide`, and `Anchor.Line` is
+   documented as zero when the head no longer carries the code while `OriginalLine` survives "so an
+   outdated thread still names a place". So for a *posted* comment the work is not re-finding it. It is
+   deciding what an outdated thread means — withdraw, re-ask, or carry forward — which is a policy
+   question, not an algorithm.
+2. **REST's `position` is a trap cr avoids by construction, and the clause should say so on purpose.**
+   Measured on the same pull request: three comments originally at lines 9, 44 and 44 all report
+   `position: 1` after the head moved, while `line` is null for all three. A reader trusting `position`
+   would place three different comments on one line and believe it had succeeded. There is no defect —
+   the GraphQL selection does not ask for `position` at all, verified here — but one sentence in §5
+   naming `line`/`originalLine` as the read and `position` as never-read keeps somebody from
+   "simplifying" it to a REST call later.
+3. **What stays cr's own** is what nothing external tracks: records not yet posted, waivers, and any
+   record being re-graded. Waivers matter most because their key moves with the code —
+   `finding/waiver.go:91` keys on `ContextKeyHash(ContextBefore, anchored, ContextAfter)`, so the
+   window moving changes the key.
+4. **The migration must not need the old tree, and that is measured rather than assumed.** After a
+   force-push the superseded commit is absent from a fresh clone and cannot be fetched by sha
+   (`fatal: couldn't find remote ref c6878b3b`). The instrument check is worth repeating: a first run
+   reported the old commit present, an artefact of `git clone /local/path` hardlinking the object store
+   and carrying unreachable objects across; cloning over `file://` forces the pack protocol and gives
+   the real answer. GitHub may itself retain a force-pushed commit, but that is a host's retention
+   policy and not a git guarantee, and it was not tested. So the migration reads **only the new tree
+   plus what cr stored** — `path`, `side`, `start_line`, `line`, `content_hash`, `context_before`,
+   `context_after`. That is what §9.2.3 recorded the window for.
+
+**The shape, and the rule that matters more than the shape.** Alibaba's `internal/diff/resolver.go`
+generalises cleanly: normalise each line (trim, strip a leading `+`/`-`), sliding-window match the
+stored text over the hunk's new side, then the old side, then the file. Its decision rule is worth
+copying verbatim — **a unique hit relocates, and zero hits and multiple hits both decline**, on the
+reasoning that the same boilerplate legitimately appears in several files and guessing trades one wrong
+location for another. cr can do better in one way, because it stored more: the anchored lines are a
+narrow key and the anchored lines plus the context window are a wider one, so try narrow, widen on
+ambiguity, decline if still ambiguous.
+
+**The failure to design against is a migration that looks like it worked.** Declining is cheap — the
+record becomes a question or is withdrawn, and §7.2 still requires a human's edit before anything
+posts. Placing a comment on a line that merely resembles the old one is a wrong assertion with a
+confident location attached, which is the most expensive thing cr can produce. So: **a migration that
+cannot be made unique is not a migration.** It withdraws or re-asks; it never places. That is §6.2's
+own asymmetry applied to a location instead of to a claim.
+
+Not researched, and not to be assumed: how Gerrit or GitLab handle any of this. All of the above is
+GitHub, git, and Alibaba's reader.
 
 ### 5. Team use
 
