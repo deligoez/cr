@@ -79,7 +79,11 @@ func (p *Profile) TakesTargetDir() bool {
 // which becomes `*`. A profile with no test axis returns the empty string, and a
 // caller MUST read that as "nothing to scan" rather than as a pattern.
 func (p *Profile) LeftoverGlob() string {
-	return strings.Replace(p.Tests.ProbePathTemplate, probeIDPlaceholder, "*", 1)
+	glob := strings.Replace(p.Tests.ProbePathTemplate, probeIDPlaceholder, "*", 1)
+	// `<target-dir>` stands for a directory of any depth, so the scan that
+	// reads this glob has to look under all of them. `**` says so; the
+	// caller is what decides how to walk it.
+	return strings.Replace(glob, targetDirPlaceholder, "**", 1)
 }
 
 // probeTemplate returns the effective §2.4 probe path template: the profile's
