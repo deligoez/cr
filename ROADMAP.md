@@ -338,6 +338,46 @@ own asymmetry applied to a location instead of to a claim.
 Not researched, and not to be assumed: how Gerrit or GitLab handle any of this. All of the above is
 GitHub, git, and Alibaba's reader.
 
+#### The shape v0.5 takes, before its spec is written
+
+**`posted` stops being terminal, and that is the whole change.** §9.1 makes it terminal today because
+v0.4 ends at posting; v0.5 gives it four exits and adds the states they lead to.
+
+| From | To | Meaning |
+|---|---|---|
+| `posted` | `answered` | The author's reply settles a posted question |
+| `posted` | `addressed` | The concern is gone at the new head |
+| `posted` | `withdrawn` | The reviewer retracts it |
+| `posted` | `posted` | It still stands at the new head, carried into the round |
+
+`answered`, `addressed` and `withdrawn` are terminal. A record that can be neither carried nor placed
+is the case the migration rule above governs: it does not silently move.
+
+**P5 is the constraint the command surface has to satisfy, and it is easy to break here.** "Is this
+concern addressed?" is a judgement, so cr may not make it — the same reason §3.6.2 already refuses to
+let `cr answer` change a record's state, saying the judgement is v0.5's. The split that keeps P5:
+
+| Command | What it does | Who judges |
+|---|---|---|
+| `cr recheck <pr>` | Read-only. Per posted record: what GitHub's own migration says (`line`, `isOutdated`, `originalLine`), what cr's migration says for what it owns (placed / declined-ambiguous / declined-absent), replies since posting, and whether a probe that supported it still reproduces | cr reports, nobody judges |
+| `cr verify <pr> <record-id> addressed\|standing` | Records the judgement with its evidence | the agent |
+| `cr resolve <pr> <record-id> --confirm` | Resolves the GitHub thread | the human confirms |
+| `cr withdraw <pr> <record-id> --confirm` | Posts the retraction and resolves | the human confirms |
+
+So cr executes and records; the agent judges; nothing reaches GitHub without `--confirm`, which is P4
+unchanged. `cr recheck` making the call itself would be the P5 violation, and it is the tempting design
+because the evidence is usually unambiguous — which is exactly when a tool starts forming opinions.
+
+**Two things this settles that are already owed.** `cr answer` stops being the hand-fed channel: §4's
+list wants replies read from GitHub, and the ingested reply becomes the evidence `cr verify` cites.
+And the convergence rule the first spec asked for gets its footing — a question closed by an answer is
+neutral, an open question is not — because `answered` is now a state that exists to be counted.
+
+**What v0.5 does not touch.** Approving or requesting changes stays out (§1.3.3, and
+`internal/post/review.go`'s unexported `event` constant is the mechanism). The Go profile and the
+count-occurrence mode ride a later version: §2.4.5 and §5.2.1 both have to open for them, but neither
+is part of closing the loop, and v0.4's own lesson was that a release should be one topic.
+
 ### 5. Team use
 
 - **A second reviewer starts from nothing.** State, waivers and triage statistics live in one reviewer's
