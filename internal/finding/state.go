@@ -10,12 +10,16 @@ import (
 
 // State is one row of §9.1's table: where a record stands in its life.
 //
-// §9's opening paragraph fixes how short that life is. A record's life in v0.1
-// ends when it is posted; everything after that — the author replying, pushing,
-// and the reviewer verifying, resolving, or withdrawing — is the re-review half
-// of the loop, and §1.3.6 puts it in v0.3. So there is no `verified`,
-// `resolved`, `accepted`, or `withdrawn` here, and the type is shaped so that
-// there cannot be one by accident either.
+// §9 no longer ends that life at posting: v0.5 gives §9.4 through §9.6 to the
+// author replying, the author pushing, and the reviewer verifying, resolving or
+// withdrawing, and `answered`, `addressed` and `withdrawn` are the states those
+// produce.
+//
+// The vocabulary is still closed, and the closing still matters. There is no
+// `verified`, `resolved` or `accepted`: verifying writes `answered` or
+// `addressed` depending on what settled the record, and resolving a thread is a
+// write to GitHub that §9.6.1 permits only on a record already in one of those
+// two — it moves nothing, so it names nothing here.
 //
 // That shape is why this is a struct around an unexported name rather than the
 // string type its five siblings in finding.go use. A defined string type is
@@ -33,7 +37,7 @@ import (
 // smaller than the one it closes.
 type State struct{ name string }
 
-// The seven states of §9.1's table, in the order the table lists them.
+// The ten states of §9.1's table, in the order the table lists them.
 var (
 	// StateDraft is recorded, not yet queued for a draft.
 	StateDraft = State{"draft"}
@@ -47,9 +51,20 @@ var (
 	// StateDiscarded was deleted during triage: a waiver is written and
 	// `disposition` is set (§7.2).
 	StateDiscarded = State{"discarded"}
-	// StatePosted was sent to GitHub and its thread created. It is where
-	// v0.1 ends.
+	// StatePosted was sent to GitHub and its thread created.
+	//
+	// It was terminal through v0.4, where the loop ended at posting. §9.1
+	// gives it four exits now, three of them transitions and the fourth
+	// standing still: a concern nobody has settled is open, not finished.
 	StatePosted = State{"posted"}
+	// StateAnswered is a posted question the author's reply settled
+	// (§9.5.5).
+	StateAnswered = State{"answered"}
+	// StateAddressed is a posted record whose concern is gone at the
+	// current head (§9.5.5).
+	StateAddressed = State{"addressed"}
+	// StateWithdrawn is a posted record the reviewer retracted (§9.6.2).
+	StateWithdrawn = State{"withdrawn"}
 	// StateStale was abandoned unposted when the head moved (§9.3.4).
 	StateStale = State{"stale"}
 )
@@ -64,6 +79,9 @@ var states = []State{
 	StateSuppressed,
 	StateDiscarded,
 	StatePosted,
+	StateAnswered,
+	StateAddressed,
+	StateWithdrawn,
 	StateStale,
 }
 
@@ -74,7 +92,9 @@ var states = []State{
 // remains in `draft` or `queued`", so a drift between them is a wrong verdict
 // about whether a round is finished.
 var terminal = []State{
-	StatePosted,
+	StateAnswered,
+	StateAddressed,
+	StateWithdrawn,
 	StateDiscarded,
 	StateDuplicate,
 	StateSuppressed,
@@ -87,14 +107,18 @@ func (s State) String() string {
 	return s.name
 }
 
-// Valid reports whether s is one of §9.1's seven. The zero State is not: a
+// Valid reports whether s is one of §9.1's ten. The zero State is not: a
 // record that has never been through a §9.1 transition is in no state at all,
 // which is neither open nor terminal.
 func (s State) Valid() bool {
 	return slices.Contains(states, s)
 }
 
-// Terminal reports whether s is one of §9.1.2's five terminal states.
+// Terminal reports whether s is one of §9.1.2's seven terminal states.
+//
+// `posted` left this list in v0.5 and that is the release's whole shape: a
+// concern the author has not answered and nobody has verified is open, and
+// §9.1.3 has the statistics count it that way.
 func (s State) Terminal() bool {
 	return slices.Contains(terminal, s)
 }
@@ -105,7 +129,7 @@ func (s State) Open() bool {
 	return s.Valid() && !s.Terminal()
 }
 
-// States returns §9.1's seven in table order. The result is a copy, so a caller
+// States returns §9.1's ten in table order. The result is a copy, so a caller
 // can neither widen the set nor reorder it.
 func States() []State {
 	return append(make([]State, 0, len(states)), states...)
@@ -150,7 +174,7 @@ func (e *UnknownStateError) Error() string {
 		names = append(names, known.name)
 	}
 	return fmt.Sprintf(
-		"%q is not a record state; v0.3 has exactly %s, and §1.3.6 puts verifying, resolving, and withdrawing in v0.4",
+		"%q is not a record state; §9.1 has exactly %s, and verifying writes answered or addressed while resolving a thread moves no record",
 		e.Value, strings.Join(names, ", "),
 	)
 }
