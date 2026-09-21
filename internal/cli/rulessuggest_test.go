@@ -96,13 +96,13 @@ func draftedBlock(t *testing.T, l state.Layout, comment *aPostedComment) string 
 
 // suggested runs `cr rules suggest` against whatever CR_HOME points at and
 // returns the document it printed.
-func suggested(t *testing.T, args ...string) rulesSuggestResult {
+func suggested(t *testing.T) rulesSuggestResult {
 	t.Helper()
 	cmd := newRootCmd()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs(append([]string{"rules", "suggest", "--repo", harvestSlug}, args...))
+	cmd.SetArgs([]string{"rules", "suggest", "--repo", harvestSlug})
 	require.NoError(t, cmd.Execute())
 	var printed rulesSuggestResult
 	require.NoError(t, json.Unmarshal(out.Bytes(), &printed))
