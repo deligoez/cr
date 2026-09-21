@@ -16,11 +16,21 @@ var specStates = []string{
 	"suppressed",
 	"discarded",
 	"posted",
+	"answered",
+	"addressed",
+	"withdrawn",
 	"stale",
 }
 
 // specTerminal is §9.1.2's list, transcribed in the order that item writes it.
-var specTerminal = []string{"posted", "discarded", "duplicate", "suppressed", "stale"}
+//
+// `posted` is absent from v0.5 onward and its absence is the release: §9.1.2
+// calls a posted record open, and §9.1.3 has §7.3's statistics and §10.2's
+// completeness count it so. A transcription that kept it would pass while the
+// loop stayed one round long.
+var specTerminal = []string{
+	"answered", "addressed", "withdrawn", "discarded", "duplicate", "suppressed", "stale",
+}
 
 // names renders a set of states as the strings §9.1's table writes, so an
 // assertion reads as the table does and a failure names the state.
@@ -41,13 +51,13 @@ func mustMarshal(t *testing.T, record *Finding) []byte {
 }
 
 // The vocabulary is the whole of §9, so the exact set is the assertion rather
-// than the presence of each. §9's opening paragraph ends a record's life at
-// posting and §1.3.6 puts verifying, resolving, and withdrawing in v0.4, so an
-// eighth state is not an addition — it is v0.3 half-implemented, with §9.1's
-// transition table silent about how a record reaches it and §9.1.2 silent about
-// whether it is open. A missing one is worse: nothing would name what a record
+// than the presence of each. §9.1's table, its transition table and §9.1.2's
+// terminal list are one vocabulary read three ways, so an eleventh state is not
+// an addition — it is a release half-implemented, with the transition table
+// silent about how a record reaches it and §9.1.2 silent about whether it is
+// open. A missing one is worse: nothing would name what a record
 // suppressed by §3.5.4 or abandoned by §9.3.4 has become.
-func TestTheSevenStatesAreTheOnesTheSpecWrites(t *testing.T) {
+func TestTheTenStatesAreTheOnesTheSpecWrites(t *testing.T) {
 	assert.Equal(t, specStates, names(States()))
 
 	for _, name := range specStates {
@@ -57,16 +67,24 @@ func TestTheSevenStatesAreTheOnesTheSpecWrites(t *testing.T) {
 		assert.True(t, parsed.Valid())
 	}
 
-	// The four states of the re-review half. They are absent by being
-	// unrepresentable: State's only field is unexported, so nothing outside
-	// state.go can build one, and this is the door a name has to come
-	// through.
-	for _, v02 := range []string{"verified", "resolved", "accepted", "withdrawn"} {
-		_, err := ParseState(v02)
+	// Three plausible names the re-review half does not use. They are
+	// absent by being unrepresentable: State's only field is unexported, so
+	// nothing outside state.go can build one, and this is the door a name
+	// has to come through.
+	//
+	// v0.5 added the states these were once standing in for, and took none
+	// of these three. Verifying writes `answered` or `addressed` depending
+	// on what settled the record, so `verified` would say less than either;
+	// resolving a thread is a write to GitHub that §9.6.1 permits only on a
+	// record already settled, so it moves nothing and names nothing here;
+	// and §1.3.3 keeps cr out of approving at all, so `accepted` is a
+	// verdict it may never reach.
+	for _, absent := range []string{"verified", "resolved", "accepted"} {
+		_, err := ParseState(absent)
 		var unknown *UnknownStateError
 		require.ErrorAs(t, err, &unknown)
-		assert.Equal(t, v02, unknown.Value)
-		assert.Contains(t, err.Error(), "§1.3.6")
+		assert.Equal(t, absent, unknown.Value)
+		assert.Contains(t, err.Error(), "verifying writes answered or addressed")
 	}
 
 	// The set is closed to its callers too, or the copy States hands back
@@ -78,10 +96,15 @@ func TestTheSevenStatesAreTheOnesTheSpecWrites(t *testing.T) {
 
 // §1.1 defines Open as any record in a non-terminal state per §9.1, which makes
 // the open set a derivation and not a list. Both halves are asserted against
-// §9.1's whole table so that they stay a partition of it: §10.2.4 reads the open
-// set as "no record remains in `draft` or `queued`", and a state that fell out
-// of both halves — or into both — would make that a wrong verdict about whether
-// a round is finished, in either direction.
+// §9.1's whole table so that they stay a partition of it: a state that fell out
+// of both halves — or into both — would make §10.2's completeness a wrong
+// verdict about whether a round is finished, in either direction.
+//
+// `posted` joined the open set in v0.5 and the assertion below is written out
+// rather than derived, because that membership is the release. §10.2.4 reads
+// completeness over unposted work and is unaffected; §9.1.3 is what makes the
+// difference visible, by having §7.3 count an `answered` record settled and a
+// `posted` one still open.
 func TestOpenIsEveryStateThatIsNotTerminal(t *testing.T) {
 	open, closed := make([]string, 0), make([]string, 0)
 	for _, s := range States() {
@@ -93,7 +116,8 @@ func TestOpenIsEveryStateThatIsNotTerminal(t *testing.T) {
 		open = append(open, s.String())
 	}
 	assert.ElementsMatch(t, specTerminal, closed)
-	assert.Equal(t, []string{"draft", "queued"}, open)
+	assert.Equal(t, []string{"draft", "queued", "posted"}, open,
+		"§9.1.2 from v0.5: a posted concern nobody has settled is open")
 	assert.Equal(t, open, names(OpenStates()))
 
 	// A record that has been through no §9.1 transition is in no state at

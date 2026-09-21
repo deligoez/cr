@@ -34,6 +34,9 @@ var specTransitions = []struct{ from, to, by string }{
 	{"queued", "posted", "cr post --reconcile"},
 	{"draft", "stale", "cr brief"},
 	{"queued", "stale", "cr brief"},
+	{"posted", "answered", "cr verify"},
+	{"posted", "addressed", "cr verify"},
+	{"posted", "withdrawn", "cr withdraw --confirm"},
 }
 
 // specActors is §9.1's third column, deduplicated. `cr merge` is not in it, and
@@ -45,6 +48,8 @@ var specActors = []string{
 	"cr post --confirm",
 	"cr post --reconcile",
 	"cr brief",
+	"cr verify",
+	"cr withdraw --confirm",
 }
 
 // fromNamed resolves a From cell of §9.1's table.
@@ -150,8 +155,13 @@ func TestEveryTransitionIsTheTableAndNothingElse(t *testing.T) {
 // The hint is §12.4's: every error names the next actionable step, and the step
 // out of an illegal transition is whichever of §9.1's rows does apply to the
 // state the record is actually in. A terminal record has none, and saying so is
-// the actionable answer — v0.1 ends at posting per §9, so there is nothing to
-// go and do.
+// the actionable answer.
+//
+// `posted` is the case that changed in v0.5 and it is asserted here for that
+// reason. Through v0.4 the honest answer for a posted record was that there was
+// no next step, because the loop ended at posting; now there are three, and the
+// refusal has to offer them or a reviewer holding a concern the author replied
+// to would be told the record is finished.
 func TestARefusalNamesTheRecordAndItsCurrentState(t *testing.T) {
 	queued := MayTransition("f7", Existing(StateQueued), StateDraft, ActorRecord)
 	require.Error(t, queued)
@@ -163,8 +173,17 @@ func TestARefusalNamesTheRecordAndItsCurrentState(t *testing.T) {
 	posted := MayTransition("f7", Existing(StatePosted), StateQueued, ActorDraft)
 	require.Error(t, posted)
 	assert.Contains(t, posted.Error(), "f7 is posted")
-	assert.Contains(t, posted.Error(), "§9.1 lists no move out of it",
-		"v0.1 ends at posting, so the honest next step is that there is none")
+	for _, step := range []string{
+		"answered by cr verify", "addressed by cr verify", "withdrawn by cr withdraw --confirm",
+	} {
+		assert.Contains(t, posted.Error(), step,
+			"§12.4: a posted record has three next steps from v0.5, and the refusal names them")
+	}
+
+	withdrawn := MayTransition("f7", Existing(StateWithdrawn), StateQueued, ActorDraft)
+	require.Error(t, withdrawn)
+	assert.Contains(t, withdrawn.Error(), "§9.1 lists no move out of it",
+		"a terminal record still has no next step, and withdrawn is one")
 
 	fresh := MayTransition("f7", Creation, StateQueued, ActorDraft)
 	require.Error(t, fresh)
