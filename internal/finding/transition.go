@@ -164,6 +164,33 @@ var table = []row{
 	{from: []From{Existing(StatePosted)}, to: []State{StateWithdrawn}, by: []Actor{ActorWithdrawConfirm}},
 }
 
+// SentStates returns `posted` and every state §9.1's table reaches from it, in
+// table order: the records whose comment reached GitHub, whatever has happened
+// to them since.
+//
+// It is derived from the table rather than written out, for the reason
+// UnsentStates is: v0.5 gave `posted` three exits, and a reader that still
+// asked for `posted` alone lost a record the moment `cr verify` settled it.
+// §2.6.3.1 harvests "comments posted from recorded rounds", and an answered
+// question's comment was posted all the same.
+func SentStates() []State {
+	sent := []State{StatePosted}
+	for _, candidate := range states {
+		for _, r := range table {
+			if slices.Contains(r.from, Existing(StatePosted)) && slices.Contains(r.to, candidate) &&
+				!slices.Contains(sent, candidate) {
+				sent = append(sent, candidate)
+			}
+		}
+	}
+	return sent
+}
+
+// Sent reports whether a record in this state reached GitHub, per SentStates.
+func (s State) Sent() bool {
+	return slices.Contains(SentStates(), s)
+}
+
 // move is one cell of the expanded table: the exact question a command asks.
 // Every field is comparable, so the set below is a map and the decision is a
 // lookup rather than a walk.
