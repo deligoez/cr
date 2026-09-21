@@ -237,7 +237,7 @@ func claimReason(c *Conditions) string {
 func recordReason(c *Conditions) string {
 	open := make([]string, 0, len(c.Records))
 	for _, record := range c.Records {
-		if record.State.Open() {
+		if record.State.Unsent() {
 			open = append(open, record.ID)
 		}
 	}
@@ -248,15 +248,19 @@ func recordReason(c *Conditions) string {
 		openStates() + ": " + strings.Join(open, ", ")
 }
 
-// openStates names §9.1.2's open states the way the reason says them, read out
-// of internal/finding rather than written here.
+// openStates names §10.2.4's states the way the reason says them, read out of
+// internal/finding rather than written here.
 //
-// §10.2.4 spells the two — `draft` and `queued` — and finding.OpenStates
-// derives them from the terminal list, so a state added to §9.1 as non-terminal
-// would both block completeness and be named. A sentence that spelled the two
-// itself would go on saying `draft or queued` about a round blocked by a third.
+// §10.2.4 spells the two — `draft` and `queued` — and finding.UnsentStates
+// derives them, so a state added to §9.1 before posting would both block
+// completeness and be named. A sentence that spelled the two itself would go on
+// saying `draft or queued` about a round blocked by a third.
+//
+// It reads UnsentStates and not OpenStates, and v0.5 is why: `posted` is open
+// from §9.1.2 onward, and a completeness check over the open set would refuse
+// to call any round finished once it had posted anything.
 func openStates() string {
-	held := finding.OpenStates()
+	held := finding.UnsentStates()
 	names := make([]string, 0, len(held))
 	for _, state := range held {
 		names = append(names, state.String())
