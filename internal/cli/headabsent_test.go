@@ -256,6 +256,25 @@ func headRuns(t *testing.T) map[string]headRun {
 		"context": exempt("prints the context store under the state root", "context", fixtureIssue),
 		"answer": exempt("files a note against a record the round holds, and reads no revision",
 			"answer", fixturePR, "f1", "the retry is deliberate", "--source", "chat", "--repo", fixtureSlug),
+		// §9.5.5 moves a record between states and stores the
+		// judgement's text. The anchor it carries is not re-resolved:
+		// §9.4.1 keeps a posted record's place GitHub's, and a verdict
+		// is about the concern rather than about where it sits.
+		"verify": exempt("stamps a verdict onto a record the round holds, and reads no revision",
+			"verify", fixturePR, "f1", "standing", "--evidence", "the reply asks for time",
+			"--repo", fixtureSlug),
+		// §9.6's two act on a thread GitHub holds and on the record's
+		// own state. Neither resolves an anchor: §9.4.1 leaves a
+		// posted record's place to GitHub, so there is no revision to
+		// read the code at.
+		"resolve": exempt("resolves a thread GitHub holds, and reads no revision",
+			"resolve", fixturePR, "f1", "--repo", fixtureSlug),
+		"withdraw": exempt("retracts a record and resolves its thread, and reads no revision",
+			"withdraw", fixturePR, "f1", "--repo", fixtureSlug),
+		// §9.4.2 has the migration read the current head's tree and
+		// never the superseded commit, so `cr recheck` reaches the
+		// head alone — a clone lacking it cannot place an anchor.
+		"recheck": routed("recheck", fixturePR, "--repo", fixtureSlug),
 		"claims record": exempt("validates claims against the issue text, and reads no revision",
 			"claims", "record", fixturePR, empty, "--intent-file", issue, "--repo", fixtureSlug),
 		"claims set-aside": exempt("stamps intent-gaps.ndjson from the context store, and reads no revision",
@@ -529,7 +548,8 @@ func TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails(t *testing.T) {
 			headOnly = append(headOnly, name)
 		}
 	}
-	require.Equal(t, []string{"probe run", "proposals record", "sandbox create", "test"}, headOnly)
+	require.Equal(t,
+		[]string{"probe run", "proposals record", "recheck", "sandbox create", "test"}, headOnly)
 	for _, name := range headOnly {
 		t.Run(name, func(t *testing.T) {
 			run := headRuns(t)[name]

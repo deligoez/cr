@@ -222,6 +222,19 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// §9.3.1's readers: neither writes per-PR state, so both run
 		// and both say where the head is.
 		"rules check": disclosesTheMove("rules", "check", fixturePR),
+		// §9.5 is a read: `cr recheck` reports thread state, replies
+		// and migrations and writes no per-PR state, so §9.3.2 has
+		// nothing of its to refuse. It is also the command a reviewer
+		// whose head just moved reaches for first, which is the case
+		// §9.3.1's disclosure exists for.
+		"recheck": disclosesTheMove("recheck", fixturePR),
+		// §9.5.5 and §9.6 write: a verdict, a record's state, the
+		// journal. A round whose head outran it is refused like every
+		// other writer, before anything is read.
+		"verify": refusesTheWrite("verify", fixturePR, "f3", "standing",
+			"--evidence", "the reply asks for time"),
+		"resolve":  refusesTheWrite("resolve", fixturePR, "f3"),
+		"withdraw": refusesTheWrite("withdraw", fixturePR, "f3"),
 		"answer": disclosesTheMove("answer", fixturePR, "f3", "the retry is deliberate",
 			"--source", "chat"),
 		// `cr status` counts §10.1's report out of files other commands
