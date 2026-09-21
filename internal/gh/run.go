@@ -2,9 +2,10 @@
 // and is the single door §2.1.2 leaves for a network write.
 //
 // Every invocation this file builds is a read, and §3.7 has cr brief perform no
-// network write at all. The one write §8 describes, the review-creation call,
-// comes through the confirmation-gated boundary in write.go; nothing in this
-// package resolves a thread or edits anything else on GitHub.
+// network write at all. Every write comes through the confirmation-gated
+// boundary in write.go and nowhere else: §8's review-creation call, and from
+// v0.5 §9.6's two — resolving a review thread and replying to a comment, both
+// in settle.go, both behind the same Confirmation.
 //
 // A run is pinned rather than inherited, for the same reason internal/git
 // pins its own. §2.1.1 requires the same state, the same head, and the same
