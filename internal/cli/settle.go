@@ -126,14 +126,9 @@ func settleRecord(out *writer, cmd *cobra.Command, args []string, how settling) 
 	if err := round.RefuseStale(); err != nil {
 		return err
 	}
-	records, err := state.ReadStamped[*finding.Finding](
-		layout, owner, repo, pr, state.FileFindings, round.Round)
+	held, err := sentRecord(layout, owner, repo, pr, args[1])
 	if err != nil {
 		return err
-	}
-	held := recordNamed(records, args[1])
-	if held == nil {
-		return &unknownRecordError{ID: args[1], Round: round.Round}
 	}
 	// §6.1 stamps `thread_id` when a record is posted, so the thread is
 	// read off the record rather than looked up: a record with none never
@@ -157,7 +152,7 @@ func settleRecord(out *writer, cmd *cobra.Command, args []string, how settling) 
 	if !how.confirm {
 		return out.emit(result)
 	}
-	return sendSettlement(out, layout, owner, repo, pr, &round, records, held, how, result)
+	return sendSettlement(out, layout, owner, repo, pr, &round, held, how, result)
 }
 
 // sendSettlement performs §9.6's writes: the reply when there is one, the
@@ -171,8 +166,7 @@ func settleRecord(out *writer, cmd *cobra.Command, args []string, how settling) 
 // it again.
 func sendSettlement(
 	out *writer, l state.Layout, owner, repo string, pr int, round *state.Round,
-	records []*finding.Finding, held *finding.Finding,
-	how settling, result *settleResult,
+	held *finding.Finding, how settling, result *settleResult,
 ) error {
 	if err := gh.Confirm(true).ResolveThread(held.ThreadID); err != nil {
 		return err
@@ -187,34 +181,26 @@ func sendSettlement(
 	if err := journal.Move(held.ID, finding.Existing(held.State), finding.StateWithdrawn); err != nil {
 		return err
 	}
-	held.State = finding.StateWithdrawn
-	if err := writeWithdrawal(l, owner, repo, pr, round, records, journal); err != nil {
+	if err := writeWithdrawal(l, owner, repo, pr, held, journal); err != nil {
 		return err
 	}
+	held.State = finding.StateWithdrawn
 	result.State = held.State.String()
 	return out.emit(result)
 }
 
 // writeWithdrawal stores §9.6.2's move under §2.3.1's lock, with the journal
-// line §9.1.1 requires beside it.
+// line §9.1.1 requires beside it, in the line that holds the record.
 func writeWithdrawal(
-	l state.Layout, owner, repo string, pr int, round *state.Round,
-	records []*finding.Finding, journal *finding.Journal,
+	l state.Layout, owner, repo string, pr int, held *finding.Finding, journal *finding.Journal,
 ) error {
 	lock, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
 	}
-	stamp := state.Stamp{Head: round.Head, Round: round.Round}
-	writes := []func() error{
-		func() error { return journal.Write(lock) },
-		func() error { return state.ReplaceStamped(lock, state.FileFindings, stamp, records) },
-	}
-	for _, write := range writes {
-		if err := write(); err != nil {
-			_ = lock.Unlock()
-			return err
-		}
+	if err := finding.MoveSent(lock, held.ID, held.State, finding.StateWithdrawn, journal); err != nil {
+		_ = lock.Unlock()
+		return err
 	}
 	return lock.Unlock()
 }

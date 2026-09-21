@@ -139,6 +139,13 @@ func recheckRound(
 	if err != nil {
 		return nil, err
 	}
+	// A posted record stays in the round that posted it, so the concerns
+	// are read from every round; the migrations below are the current
+	// round's own work.
+	posted, err := postedConcerns(l, owner, repo, pr)
+	if err != nil {
+		return nil, err
+	}
 	threads, err := state.ReadRecords[gh.Thread](l, owner, repo, pr, state.FileThreads)
 	if err != nil {
 		return nil, err
@@ -154,18 +161,17 @@ func recheckRound(
 		Migrated: make([]migrate.Outcome, 0),
 		Honesty:  []string{round.Disclosure()},
 	}
-	for _, record := range records {
-		if record.State == finding.StatePosted {
-			// A record whose thread cr has not ingested reports what
-			// it knows and nothing invented, which is postedOf's job;
-			// the zero value is what it is handed to say so.
-			thread := byID[record.ThreadID]
-			if thread == nil {
-				thread = &gh.Thread{}
-			}
-			report.Concerns = append(report.Concerns, postedOf(record, thread))
-			continue
+	for _, record := range posted {
+		// A record whose thread cr has not ingested reports what it
+		// knows and nothing invented, which is postedOf's job; the zero
+		// value is what it is handed to say so.
+		thread := byID[record.ThreadID]
+		if thread == nil {
+			thread = &gh.Thread{}
 		}
+		report.Concerns = append(report.Concerns, postedOf(record, thread))
+	}
+	for _, record := range records {
 		// §9.4.1 migrates what cr owns, which is every non-terminal
 		// record other than a posted one: GitHub holds a posted
 		// record's place and reports it above.

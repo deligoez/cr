@@ -76,6 +76,12 @@ var crossRoundReaders = map[string]string{
 		"grade this renders.",
 	"internal/cli/rulessuggest.go: postedComments": "§2.6.3.1 harvests every recorded round of " +
 		"every pull request of the repository, so there is no one round to scope to.",
+	"internal/cli/sent.go: postedConcerns": "§9.5.2 reports on every record in `posted`, and a posted " +
+		"record stays in the round that posted it, so a read scoped to the round a moved head opened " +
+		"would report no concern at the moment the author pushed.",
+	"internal/cli/sent.go: sentRecord": "§9.5.5, §9.6.1 and §9.6.2 name a record that reached GitHub by its " +
+		"id, which §6.1 keeps stable for the life of the pull request, and it lives in the round that " +
+		"posted it.",
 	"internal/cli/test.go: appendRun": "run.NextID, for the reason probe.NextID is.",
 	"internal/cli/probeproposal.go: loadProposal": "§5.7.3 names a proposal by id and refuses one of " +
 		"another round itself, naming the round it was proposed in; a read scoped to the current round " +

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,21 +24,19 @@ var errEmptyEvidence = errors.New(
 	"--evidence is empty, and §9.5.5 requires a judgement to say what it rests on: give it the " +
 		"reply, the diff, or the probe result the verdict was read from")
 
-// unknownRecordError reports a record id the current round does not hold.
+// unknownRecordError reports a record id no round of the pull request holds.
 type unknownRecordError struct {
-	// ID is what was named, and Round the round that was searched.
-	ID    string
-	Round int
+	// ID is what was named.
+	ID string
 }
 
 func (e *unknownRecordError) Error() string {
-	return "record " + e.ID + " is not a record of round " + strconv.Itoa(e.Round) +
-		"; §9.3.5 has a command read only the current round's records"
+	return "no record " + e.ID + " is stored for this pull request, in any round"
 }
 
 // Hint is §12.4's next actionable step.
 func (e *unknownRecordError) Hint() string {
-	return "run cr status to list the round's records, or cr brief if the round is not the one you meant"
+	return "run cr recheck to list the posted records, or cr status for the current round's"
 }
 
 // verifyResult is what `cr verify` reports: the record, the verdict carried in,
@@ -135,21 +132,16 @@ func verifyRecord(
 	out *writer, l state.Layout, owner, repo string, pr int, round *state.Round,
 	id string, verdict finding.Verdict, evidence string,
 ) error {
-	records, err := state.ReadStamped[*finding.Finding](
-		l, owner, repo, pr, state.FileFindings, round.Round)
+	held, err := sentRecord(l, owner, repo, pr, id)
 	if err != nil {
 		return err
-	}
-	held := recordNamed(records, id)
-	if held == nil {
-		return &unknownRecordError{ID: id, Round: round.Round}
 	}
 	if verdict == finding.VerdictAnswered && held.Kind != finding.KindQuestion {
 		return &finding.AnsweredNeedsAQuestionError{Record: id, Kind: string(held.Kind)}
 	}
 
 	journal := finding.NewJournal(finding.ActorVerify, round.Head, time.Now())
-	moved := false
+	from, moved := held.State, false
 	if to, changes := verdict.State(); changes {
 		if err := journal.Move(id, finding.Existing(held.State), to); err != nil {
 			return err
@@ -161,7 +153,7 @@ func verifyRecord(
 		Record: id, Verdict: verdict.String(), Evidence: evidence,
 		Head: round.Head, Round: round.Round, At: time.Now(),
 	}
-	if err := writeVerdict(l, owner, repo, pr, round, records, journal, &line); err != nil {
+	if err := writeVerdict(l, owner, repo, pr, held, from, moved, journal, &line); err != nil {
 		return err
 	}
 	return out.emit(&verifyResult{
@@ -172,26 +164,30 @@ func verifyRecord(
 
 // writeVerdict performs §9.5.5's writes as one, under the per-PR lock.
 //
-// findings.ndjson is replaced for the current round rather than appended to,
-// for publishDraft's reason: the records written are the ones just read back
-// out of it. The journal and the verdict line are appends, because both are
-// histories and neither replaces anything.
+// A verdict that moves the record changes its state in the line that holds it,
+// through finding.MoveSent, which writes the journal first; `standing` moves
+// nothing and writes no record. The verdict line is an append, because it is a
+// history and replaces nothing.
 func writeVerdict(
-	l state.Layout, owner, repo string, pr int, round *state.Round,
-	records []*finding.Finding, journal *finding.Journal, line *finding.VerdictRecord,
+	l state.Layout, owner, repo string, pr int,
+	record *finding.Finding, from finding.State, moved bool,
+	journal *finding.Journal, line *finding.VerdictRecord,
 ) error {
 	held, err := l.LockPR(owner, repo, pr)
 	if err != nil {
 		return err
 	}
-	stamp := state.Stamp{Head: round.Head, Round: round.Round}
 	writes := []func() error{
 		func() error { return journal.Write(held) },
-		func() error { return state.ReplaceStamped(held, state.FileFindings, stamp, records) },
-		func() error {
-			return state.AppendRecords(held, state.FileVerdicts, []finding.VerdictRecord{*line})
-		},
 	}
+	if moved {
+		writes[0] = func() error {
+			return finding.MoveSent(held, record.ID, from, record.State, journal)
+		}
+	}
+	writes = append(writes, func() error {
+		return state.AppendRecords(held, state.FileVerdicts, []finding.VerdictRecord{*line})
+	})
 	for _, write := range writes {
 		if err := write(); err != nil {
 			_ = held.Unlock()
@@ -199,16 +195,4 @@ func writeVerdict(
 		}
 	}
 	return held.Unlock()
-}
-
-// recordNamed finds one record by id among the round's own, which is what
-// state.ReadStamped hands back: §9.3.5 scopes the read, so nothing here has to
-// filter and nothing here can forget to.
-func recordNamed(records []*finding.Finding, id string) *finding.Finding {
-	for _, record := range records {
-		if record.ID == id {
-			return record
-		}
-	}
-	return nil
 }
