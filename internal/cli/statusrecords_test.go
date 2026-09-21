@@ -116,10 +116,11 @@ func TestStatusCountsRecordsByStateSeverityAndGradeWithTheProbesBehindThem(t *te
 	report := readStatus(t)
 
 	assert.Equal(t, 4, report.Records.Total)
-	require.Len(t, report.Records.ByState, 7, "§9.1's table has seven states and each gets a row")
+	require.Len(t, report.Records.ByState, 10, "§9.1's table has ten states and each gets a row")
 	for name, count := range map[string]int{
 		"draft": 1, "queued": 1, "duplicate": 1,
-		"suppressed": 0, "discarded": 0, "posted": 1, "stale": 0,
+		"suppressed": 0, "discarded": 0, "posted": 1,
+		"answered": 0, "addressed": 0, "withdrawn": 0, "stale": 0,
 	} {
 		assert.Equal(t, count, countedAs(report.Records.ByState, name), "state %s", name)
 	}
@@ -302,7 +303,7 @@ func TestTheStatusTextCarriesTheRecordCountsAndTheRetractedNotes(t *testing.T) {
 
 	for _, expected := range []string{
 		"records: 5 total",
-		"  by state: draft 2, queued 1, duplicate 1, suppressed 0, discarded 0, posted 1, stale 0",
+		"  by state: draft 2, queued 1, duplicate 1, suppressed 0, discarded 0, posted 1, answered 0, addressed 0, withdrawn 0, stale 0",
 		"  by severity: critical 1, high 1, medium 2, low 1",
 		"  by grade: probed 1, cited 2, argued 2",
 		"probes: 2 run, 1 standing behind a graded record",
