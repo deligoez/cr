@@ -2,16 +2,17 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.4.1.** The release implements the contract in
-> [`spec/0.4.1.md`](spec/0.4.1.md). v0.4.0's one new obligation is §5.7: a role
-> that holds a suspicion it cannot establish proposes the experiment that would
-> settle it, and running that proposal re-grades the record. v0.4.1 is the three
-> defects measuring §5.7 found — a gap probe's test may now be placed under its
-> target's directory, which is what lets one run at all on a language whose
-> tests compile into the package they test; a proposal's `filter` and `paths`
-> are explained to the role, as is §8.1.3's reserved sequence; and §3.4.7 names
-> the credential kind cr has fenced since v0.3.2. Its notes are in
-> [`spec/0.4.1-release-notes.md`](spec/0.4.1-release-notes.md), v0.4.0's in
+> **Status: v0.5.0.** The release implements the contract in
+> [`spec/0.5.0.md`](spec/0.5.0.md) and closes the loop. Every version through
+> v0.4 ended at posting; v0.5 reads back what came back. `posted` stops being a
+> terminal state, `cr recheck` reports thread state, replies and the anchors cr
+> migrated, `cr verify` records the judgement **you** make about each posted
+> concern, and `cr resolve` and `cr withdraw` close a thread behind `--confirm`.
+> cr still reaches no verdict of its own: whether a concern was addressed is a
+> judgement, and §9.5.6 leaves it where it belongs. Its notes are in
+> [`spec/0.5.0-release-notes.md`](spec/0.5.0-release-notes.md); v0.4.1's — the
+> three defects measuring §5.7 found — are in
+> [`spec/0.4.1-release-notes.md`](spec/0.4.1-release-notes.md), and v0.4.0's in
 > [`spec/0.4.0-release-notes.md`](spec/0.4.0-release-notes.md). v0.3.1 fixed
 > what cr found when it reviewed its own v0.1.0 packages
 > ([`spec/measurements/2026-09-18-m1-recall-against-known-defects.md`](spec/measurements/2026-09-18-m1-recall-against-known-defects.md)),
@@ -153,6 +154,10 @@ already have posted.
 | `cr draft <pr>` | Render the editable draft and read back its triage |
 | `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <path>\|-]` | Apply one triage verb to the draft, as the hand edit would; `soften` exits 1 on a block already `kind="question"`, which §6.3's forcing makes every `argued` record, so `keep --body-file` is the verb for rewording one |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review; resolve an unknown outcome |
+| `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors |
+| `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <text>` | Record the agent's judgement about one posted record |
+| `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread |
+| `cr withdraw <pr> <record-id> [--confirm]` | Retract a posted concern and resolve its thread |
 | `cr answer <pr> <record-id> <text> [--source <s>]` | Store the answer to a posted question as a note |
 | `cr note <ISSUE-KEY> <text> --pr <n> [--source <s>]` | Store an out-of-band fact |
 | `cr note --remove <note-id>` | Retract a note |
