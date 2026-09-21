@@ -102,6 +102,11 @@ var specSurface = []surfaceRow{
 	{path: []string{"triage"}, use: "triage <pr> <record-id> not-here|wrong|soften|keep",
 		spec: []string{"body-file"}},
 	{path: []string{"post"}, use: "post <pr>", spec: []string{"confirm", "reconcile"}},
+	{path: []string{"recheck"}, use: "recheck <pr>"},
+	{path: []string{"verify"}, use: "verify <pr> <record-id> answered|addressed|standing",
+		spec: []string{"evidence"}},
+	{path: []string{"resolve"}, use: "resolve <pr> <record-id>", spec: []string{"confirm"}},
+	{path: []string{"withdraw"}, use: "withdraw <pr> <record-id>", spec: []string{"confirm"}},
 	{path: []string{"answer"}, use: "answer <pr> <record-id> <text>", added: map[string]string{
 		// §3.6.1 requires a source on every entry in the context store,
 		// and §3.6.2 stores an answer as one of them.
