@@ -151,23 +151,41 @@ Each of these is measured rather than wished for: the evidence is a run that had
      anywhere, so no regex can count. With no counts, §5.3.4's and §5.4.3's ladders can only answer
      `inconclusive`, and every probe on a Go repository establishes nothing. The m1 profile hid this
      behind a wrapper script at an absolute scratchpad path, which is why it read as finished.
-     The working shape, measured on this tree: `tests.cmd` of
-     `["sh","-c","<script>","cr-go"]` where the script runs `go test -v -count=1`, passes the output
-     through unchanged, appends `./...` when the invocation names no path (because `go test` with no
-     package argument tests one directory and a §5.2.2 baseline of one directory is not the suite),
-     and prints one trailing line `cr-tests: N ran, M failed` that
-     `(?m)^cr-tests: (\d+) ran` and `(?m)^cr-tests: \d+ ran, (\d+) failed` read. Verified on three
-     shapes: a normal run counts; a filter matching nothing gives `0 ran`, so the ladder answers
-     `no-tests-selected` rather than `inconclusive`; a lone non-test file gives `0 ran` at exit 0.
+     A first answer wrapped `go test` in a `sh -c` script that printed a recap line. **Take the other
+     answer**: `cr-research` measured the same ground and located the mismatch in cr rather than in
+     Go. `sum()` assumes a runner prints *a recap line containing numbers*; Pest does, `cargo test`
+     does (`test result: FAILED. 1 passed; 1 failed; …`, measured), and `go test` prints *one line
+     per test* instead. So the fix is **a second count mode that counts occurrences of the pattern**
+     rather than summing its captures — and then Go needs no wrapper, no `sh -c`, no shipped shell.
+     `tests.cmd` becomes `["go","test","-v","-count=1"]` with `^--- (PASS|FAIL|SKIP): ` and
+     `^--- FAIL: `.
+     Anchoring at `^` is load-bearing and measured twice, by me and by research, agreeing:
+     `./internal/text` reads **12** anchored and **66** with leading whitespace allowed, because Go
+     indents subtests — and `go test -json`'s top-level pass/fail events for the same package read
+     **12**, which is the instrument check. A filter matching nothing reads 0, so the ladder still
+     answers `no-tests-selected`.
      `probe_path_template` is `<target-dir>/cr_probe_<probe-id>_test.go`, which v0.4.1 made possible.
+     Not measured, and to be verified against real runs before any of them ships: pytest, jest and
+     vitest are all believed recap-shaped, which would make **Go the only language needing the new
+     mode**. `gotestsum` is ruled out — it would put a network fetch in `sandbox.setup` ahead of
+     every probe run to buy a recap line the occurrence mode gets for free.
   2. **§2.4.5 pins the shipped set at two**, by name, so a third profile cannot land without a spec
      version. `TestV01ShipsExactlyTheTwoProfilesOf245` and `TestBothShippedProfilesRequireNoSandboxPath`
      both fail on a third, correctly. This is why the Go profile belongs in v0.5's spec rather than in
-     a patch release minted for it.
+     a patch release minted for it — and while that clause is being opened, **pin the property rather
+     than the count**: every shipped profile carries a runner whose counts cr can read, a filter flag
+     and a probe path template, with the set in a table a later version extends without amending the
+     sentence. Then a fourth profile is a commit, which is what this entry wrongly claimed the third
+     already was.
 
-  Open, and asked of `cr-research` on 2026-09-21: whether a shell wrapper is what other tools do, or
-  whether some `go test` invocation or widely-installed runner emits a parseable total; and whether
-  pytest, vitest and jest print totals cr can match directly or need the same treatment.
+  Which languages, if the order is ever questioned: AACR-Bench's 50 repositories give comment share
+  C++ 508, TypeScript 422, Java 272, Go 245, C 206, Python 151, JavaScript 141, Rust 92, PHP 56,
+  C# 52 — Go + TypeScript + Python is 38% of 2145, and Java would take it to 51%. Popularity is the
+  weaker criterion, though: what decides is whether the probe machinery can work at all, which is a
+  readable count, a filter flag and a placeable probe path. On that test the three already named are
+  the right three and Java is fourth. Per-language precision from the same dataset says which will be
+  hardest to make trustworthy: C# 0.87, JavaScript 0.79, Java 0.78, Python 0.75, PHP 0.73,
+  TypeScript 0.72, Go 0.71, C 0.67, Rust 0.64, C++ 0.60.
 - **Every non-Jira team writes configuration before its first review.** `intent.cmd` defaults to a `jira`
   binary (§3.1.2), and the intent axis is the one P1 calls the authority, so a team on GitHub Issues or
   Linear cannot run a first round as shipped: it configures a tracker command or passes `--intent-file` by
