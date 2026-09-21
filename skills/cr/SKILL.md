@@ -73,9 +73,14 @@ configured tracker command (`intent.cmd`, default `jira issue view {key} --plain
 
 ## The loop
 
-brief → review fan-out → merge → record → probe → draft → **human read** → post.
-**v0.3 stops at posting.** Whether the author addressed anything is outside what
-cr can observe; re-review is v0.4.
+brief → review fan-out → merge → record → probe → draft → **human read** → post
+→ **recheck** → verify → resolve or withdraw.
+
+**v0.5 closes the loop.** Posting is no longer the end: a posted record stays
+open until somebody settles it, and §9.4 through §9.6 are how. What cr does
+after the author replies or pushes is read, migrate and record — it still
+reaches no verdict about whether a concern was addressed, because that is a
+judgement and §9.5.6 leaves it to you.
 
 ### 1. Brief
 
@@ -1023,6 +1028,73 @@ cr status 1
 While the intent axis is active, a round is not complete until both
 `cr claims record` and `cr map record` have run for it; the reason names what is
 missing. A complete round is not an approval: cr never approves a pull request.
+
+### 8. Recheck, and settle what came back
+
+Once the author has replied or pushed, `cr brief` opens the new round — posted
+records survive it, only unsent ones go stale — and `cr recheck` reads back what
+changed. It performs no network write, moves no record, and reaches no verdict.
+
+```bash
+cr recheck 1
+```
+
+```json
+{
+  "round": 2,
+  "concerns": [
+    {"id": "f2", "thread": "PRRT_kwDO…", "kind": "finding", "outdated": true,
+     "resolved": false, "line": 0, "original_line": 6,
+     "replies": [{"author": "the-author", "body": "Fixed in 49d8bca."}]}
+  ],
+  "migrated": [
+    {"record": "f5", "from": "order.go:12", "to": "order.go:31",
+     "placed": true, "key": "content", "candidates": 1}
+  ],
+  "honesty": []
+}
+```
+
+`outdated` is GitHub's own answer, and `line: 0` beside `original_line: 6` is
+what an outdated thread looks like: the head no longer carries the code, and
+`original_line` survives so the thread still names a place. cr reads
+`line`/`original_line` and never REST's `position`, which is not a location —
+three comments at different lines all report `position: 1` once the head moves.
+
+**Anchors cr owns are migrated; a posted record's place is GitHub's.** A
+migration matches the record's stored `content_hash` against the head, widens to
+the recorded context window when several places match, and **declines** when it
+still cannot make the answer unique. A declined record keeps the anchor it had
+and is reported `placed: false` with how many candidates the last key left —
+`0` means the code is gone, `2` means it is now in two places. It is never
+moved on a guess: a comment on a line that merely resembles the old one is a
+wrong assertion carrying a confident location.
+
+Then you judge, and cr records the judgement:
+
+```bash
+cr verify 1 f2 addressed --evidence "the author's 49d8bca adds the guard; the probe no longer reproduces"
+cr verify 1 f7 standing  --evidence "the reply asks for time and changes nothing yet"
+```
+
+`answered` (a question the reply settled), `addressed` (the concern is gone), or
+`standing` (read, still open). `--evidence` is required and stored verbatim,
+never parsed. `standing` moves nothing and is recorded anyway, because a concern
+somebody read and left open is a different fact from one nobody read.
+
+Finally, close the thread — both writes are behind `--confirm`, like posting:
+
+```bash
+cr resolve 1 f2 --confirm
+cr withdraw 1 f9 --confirm
+```
+
+`cr resolve` refuses a record nobody settled: resolving a thread over an open
+concern hides it. `cr withdraw` retracts a concern that should not have been
+raised and resolves its thread. **It posts no prose** — §8.1.2 gives cr one
+channel for a body a human wrote, the draft, and a flag here carrying text to
+GitHub would be a second; write the explanation yourself if you want the author
+to have one.
 
 ### A moved head
 
