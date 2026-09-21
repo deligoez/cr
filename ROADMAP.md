@@ -275,7 +275,7 @@ repository the round drives commands against, which is what `deligoez/cr-qa` alr
 unit test. Decide after a cheap trial: one scenario-shaped role over the same subject, counted against the
 same 24.
 
-### 4. The conversation (v0.4)
+### 4. The conversation (v0.5)
 
 The re-review half the first spec promised:
 
