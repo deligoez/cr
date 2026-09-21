@@ -21,7 +21,7 @@ func TestEnsurePRCreatesEveryStateFile(t *testing.T) {
 		"posted-index.ndjson", "intent-gaps.ndjson", "runs.ndjson",
 		"threads.ndjson", "findings.ndjson", "probes.ndjson",
 		"proposals.ndjson", "coverage.ndjson", "transitions.ndjson",
-		"waivers.ndjson",
+		"verdicts.ndjson", "migrations.ndjson", "waivers.ndjson",
 	}, PRFiles(), "the file set is the §2.3 table, in table order")
 
 	for _, name := range PRFiles() {

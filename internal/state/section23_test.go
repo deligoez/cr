@@ -14,7 +14,7 @@ import (
 // reads. It moves with the code rather than with the newest file in `spec/`: a
 // spec written ahead of its implementation is not yet what cr does, and a guard
 // pointed at one would fail on every row the build has not reached.
-const specVersion = "0.4.0"
+const specVersion = "0.5.0"
 
 // specRows reads §2.3's table out of the normative document and returns the
 // file name each row names, in the table's own order.
