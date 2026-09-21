@@ -475,6 +475,21 @@ var codes = []mapped{
 	{is[*finding.IllegalTransitionError](), ExitState,
 		"`cr status` shows the state the record is in; §9.1's table lists the " +
 			"transitions it admits from there"},
+	// §9.6's two refusals are the same kind for the same reason. The
+	// command line is right, the record is well-formed and the round holds
+	// it; what refuses is where the record stands — unsettled for a
+	// resolve, or never posted at all. Neither is fixed by retyping the
+	// invocation, which is what §11.2's code 2 would tell the reader to do.
+	// §9.3.5 scopes a command to the current round's records, so an id from
+	// another round is input the command cannot use — §11.2's code 1 — and
+	// not a malformed invocation: the command line is well-formed and the
+	// record may well exist, one round back.
+	{is[*unknownRecordError](), ExitValidation,
+		"`cr status` lists the round's records; `cr brief` opens the round a newer head belongs to"},
+	{is[*notSettledError](), ExitState,
+		"settle it first with `cr verify`, or retract it with `cr withdraw`"},
+	{is[*noThreadError](), ExitState,
+		"only a record that reached posted has a thread; `cr status` lists the round's states"},
 	// §3.7 makes `cr brief` the writer of meta.json, units.ndjson and
 	// threads.ndjson, and §4.1.6, §4.5.6, §9.3.1 and §3.5.3 all read them
 	// as authoritative. A command that found no round is therefore not
