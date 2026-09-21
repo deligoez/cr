@@ -167,7 +167,7 @@ func TestShippedProfilesPlaceTheProbeInsideTheirOwnGlobs(t *testing.T) {
 	}`))
 	require.NoError(t, err)
 	assert.Empty(t, generic.Tests.ProbePathTemplate)
-	assert.Empty(t, generic.ProbePath("a1b2c3"))
+	assert.Empty(t, generic.ProbePath("a1b2c3", "app"))
 }
 
 // assertProbePathSatisfiesGlobs checks the §2.4 property on a profile that
@@ -175,7 +175,7 @@ func TestShippedProfilesPlaceTheProbeInsideTheirOwnGlobs(t *testing.T) {
 // tests.globs claim.
 func assertProbePathSatisfiesGlobs(t *testing.T, p *Profile) {
 	t.Helper()
-	placed := p.ProbePath("a1b2c3")
+	placed := p.ProbePath("a1b2c3", "app/Services")
 	for _, glob := range p.Tests.Globs {
 		ok, err := filepath.Match(glob, placed)
 		require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestLeftoverGlobFindsTheProbeArtefactOnDisk(t *testing.T) {
 	assert.Equal(t, "tests/Feature/cr_probe_*Test.php", p.LeftoverGlob())
 
 	sandbox := t.TempDir()
-	artefact := filepath.Join(sandbox, filepath.FromSlash(p.ProbePath("a1b2c3")))
+	artefact := filepath.Join(sandbox, filepath.FromSlash(p.ProbePath("a1b2c3", "app")))
 	require.NoError(t, os.MkdirAll(filepath.Dir(artefact), 0o750))
 	require.NoError(t, os.WriteFile(artefact, []byte("<?php\n"), 0o600))
 	// A test file the repository owns is not an artefact, and recreating a

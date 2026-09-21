@@ -108,7 +108,7 @@ func TestBothShippedProfilesRequireNoSandboxPath(t *testing.T) {
 func TestTheLaravelPestProbePathSatisfiesItsTestGlobs(t *testing.T) {
 	p := loadLaravelPest(t)
 
-	placed := p.ProbePath("p7")
+	placed := p.ProbePath("p7", "app/Services")
 
 	assert.Equal(t, "tests/Feature/cr_probe_p7Test.php", placed)
 	// The glob's two literal anchors, read off the profile rather than
