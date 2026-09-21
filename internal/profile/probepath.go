@@ -18,6 +18,17 @@ const (
 	// extPlaceholder stands for the test file suffix, derived from
 	// `tests.globs` and never from a supplied test file.
 	extPlaceholder = "<ext>"
+	// targetDirPlaceholder stands for the directory of the path in
+	// `--target`, and may only be the template's first segment.
+	//
+	// It exists because a language that compiles a test into the package it
+	// tests has no one directory that serves every probe. Measured in
+	// measurement 4 part B: cr placed a `package probe` test at
+	// `internal/cli/cr_probe_p2_test.go`, the one path the Go profile's
+	// template could give, and `go test` exited 1 on `undefined: Target`
+	// without running a test. No value of a whole-fixed template fixes
+	// that, because the package differs per probe.
+	targetDirPlaceholder = "<target-dir>"
 )
 
 // wildcards are the three glob metacharacters §2.4 names when it defines a
@@ -37,8 +48,30 @@ var placeholderToken = regexp.MustCompile(`<[^<>]*>`)
 // carries its `<ext>`, so the probe id is the only substitution left. A profile
 // with no `tests.globs` has no test axis and therefore no probe path: it
 // resolves to the empty template and returns the empty path.
-func (p *Profile) ProbePath(probeID string) string {
-	return strings.Replace(p.Tests.ProbePathTemplate, probeIDPlaceholder, probeID, 1)
+// targetDir is the directory of the path in `--target`, slash-separated and
+// empty when the target sits at the repository root. A template with no
+// `<target-dir>` ignores it.
+func (p *Profile) ProbePath(probeID, targetDir string) string {
+	placed := strings.Replace(p.Tests.ProbePathTemplate, probeIDPlaceholder, probeID, 1)
+	if !strings.Contains(placed, targetDirPlaceholder) {
+		return placed
+	}
+	// The placeholder is the first segment, so an empty target directory
+	// leaves the file at the root rather than under a leading separator.
+	if targetDir == "" || targetDir == "." {
+		return strings.TrimPrefix(placed, targetDirPlaceholder+"/")
+	}
+	return strings.Replace(placed, targetDirPlaceholder, targetDir, 1)
+}
+
+// TakesTargetDir reports whether the resolved template places its file under
+// the directory of the probe's target, rather than at one path per profile.
+//
+// It is what a caller asks before it has a target in hand — `cr proposals
+// record` checks that a gap proposal can be placed at all, and §5.1.6 scans a
+// sandbox with no probe running.
+func (p *Profile) TakesTargetDir() bool {
+	return strings.Contains(p.Tests.ProbePathTemplate, targetDirPlaceholder)
 }
 
 // LeftoverGlob returns the glob §5.1.6 scans for a leftover probe artefact: the
@@ -76,12 +109,23 @@ func (t *wireTests) probeTemplate(file string) (string, error) {
 		template = defaultProbeTemplate(probeRoot(t.Globs[0]), ext)
 	}
 	for _, token := range placeholderToken.FindAllString(template, -1) {
-		if token != probeIDPlaceholder && token != extPlaceholder {
+		if token != probeIDPlaceholder && token != extPlaceholder && token != targetDirPlaceholder {
 			return "", &MalformedError{
 				File:    file,
 				Field:   probeTemplateField,
-				Problem: fmt.Sprintf("uses %s, but §2.4's placeholder vocabulary is closed to %s and %s", token, probeIDPlaceholder, extPlaceholder),
+				Problem: fmt.Sprintf("uses %s, but §2.4's placeholder vocabulary is closed to %s, %s and %s", token, probeIDPlaceholder, extPlaceholder, targetDirPlaceholder),
 			}
+		}
+	}
+	if n := strings.Count(template, targetDirPlaceholder); n > 1 ||
+		(n == 1 && !strings.HasPrefix(template, targetDirPlaceholder+"/")) {
+		return "", &MalformedError{
+			File:  file,
+			Field: probeTemplateField,
+			Problem: fmt.Sprintf(
+				"uses %s outside the template's first segment; §5.4.2 resolves it to the "+
+					"directory of --target, so it stands for the whole leading directory and "+
+					"nothing else", targetDirPlaceholder),
 		}
 	}
 	if n := strings.Count(template, probeIDPlaceholder); n != 1 {
