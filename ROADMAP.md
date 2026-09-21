@@ -109,10 +109,33 @@ Each of these is measured rather than wished for: the evidence is a run that had
   `laravel-pest` profile now carries four rules drawn from M3's own miss set, in the profile layer §2.6
   already defines, each in the `question` register because they are style cr proposes rather than style the
   team declared. What is left is the seeding — no other profile has a corpus, and `cr rules suggest` still
-  harvests only from posted rounds. Alibaba's `rule_docs` (52 per-language guides, Apache-2.0, headed by
-  "Favor precision over recall… a false positive costs reviewer trust") is the first source, as a corpus
-  intake with attribution, not as an adoption of their selector. Discharged when a second profile ships a
-  corpus and a team can seed one without writing every file by hand.
+  harvests only from posted rounds.
+
+  **This entry used to name Alibaba's `rule_docs` as its first source, and that was the wrong pairing.**
+  `cr-research` read the corpus: 52 language files, 2403 lines, 1428 prose bullets under per-file
+  `#### Topic` headings that share no taxonomy — only "Obvious Typos or Spelling Errors" repeats, in 21
+  files. Against §2.6's eight fields **one maps and seven do not**: `system_rules.json`'s `path_rule_map`
+  gives glob → document (`**/*.go` → go.md), but at *file* granularity, so it is one glob for 69 lines of
+  prose rather than a glob per rule. No ids, no classes, no severities; its bullets are instructions to a
+  reviewing model where cr's `rationale` is a sentence quotable to the *author*; and 2 of the 52 files so
+  much as mention a regex, so there are no `detect` patterns at all. cr does accept a prose rule — §2.6.1.4
+  injects one with no `detect` block into its axis role's prompt — so a converted bullet is a first-class
+  rule, but converting is authoring per rule and hopeless at 1428.
+  The decisive objection is not the shape, it is the aim. M3's misses were shaping comments on a **PHP**
+  pull request, and every one of `php.md`'s nine headings is defect-oriented; its single line touching
+  naming reads *"Do not make formatting, naming, import ordering, modern-syntax preferences, or advice
+  already enforced by deterministic PHP tooling into blocking findings."* The corpus is deliberately tuned
+  **against** the register M3 found cr missing — that is how it buys precision, and why its published
+  ceiling is 28.9% recall. Shipping it would have caught none of cr's eight misses and might have
+  suppressed the two things cr did find in that register.
+  So **house style has to come from the team**, by definition, and the remedy is seeding a corpus from a
+  team's own code and review history. Discharged when a team can seed one without writing every file by
+  hand, and `cr rules suggest` harvests from something other than posted rounds.
+- **No per-language correctness corpus.** This is the half split out of the item above, and it has a
+  source: Alibaba's `rule_docs` is a reasonable first intake for per-language *defect and security*
+  rules, with attribution, as a corpus intake and not as an adoption of their selector. It pairs with
+  profiles rather than with house style. Discharged when a shipped profile other than `laravel-pest`
+  carries a corpus.
 - **Two profiles is not a tool.** Only `laravel-pest` and `generic` ship, so on any other stack the
   reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template.
   TypeScript and Python follow the Go one.
