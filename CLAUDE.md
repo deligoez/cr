@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.5.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.5.1.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -573,7 +573,8 @@ spec/
   0.3.0.md           Normative v0.3 contract
   0.4.0.md           Normative v0.4 contract
   0.4.1.md           Normative v0.4.1 contract
-  0.5.0.md           Normative v0.5 contract, the current one
+  0.5.0.md           Normative v0.5 contract
+  0.5.1.md           Normative v0.5.1 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
