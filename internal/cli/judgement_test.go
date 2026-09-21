@@ -160,16 +160,38 @@ func confirm() []*finding.Finding {
 	assert.Empty(t, found, "§2.1.3: a record cr built would be a verdict on a rule hit or a candidate")
 }
 
-// §2.1.3's sixth judgement, whether a posted concern has been addressed, has
-// nowhere to be recorded as a verdict in v0.1: `posted` is terminal, no actor of
-// §9.1 may move a record out of it, and `cr answer` records the agent's answer
-// as a note without touching the record (§3.6.2). The note package, which
-// `cr answer` writes through, names no transition at all.
-func TestNoCommandSettlesWhetherAPostedConcernWasAddressed(t *testing.T) {
-	assert.True(t, finding.StatePosted.Terminal())
+// §2.1.3's sixth judgement, whether a posted concern has been addressed, is the
+// one v0.5 gave a home to — and the guard has to change with it without letting
+// go of what it was guarding.
+//
+// Through v0.4 the invariant was enforced by absence: `posted` was terminal, so
+// no actor could move a record out of it and the judgement had nowhere to land.
+// §9.5.5 now gives it somewhere, which makes the question sharper rather than
+// moot: the judgement is still the agent's, and cr's part is to copy it in.
+// §9.5.6 says so directly, because every signal cr can read — an outdated
+// thread, a probe that stopped reproducing, an author writing "fixed" — is as
+// consistent with a concern that was addressed as with one whose code was
+// deleted.
+//
+// So the assertion is now about *which* actors may settle a posted record, and
+// it is exactly the two commands that carry a judgement in from outside. Any
+// third would be a command that settled one on cr's own reading.
+func TestOnlyACarriedJudgementSettlesAPostedConcern(t *testing.T) {
+	assert.False(t, finding.StatePosted.Terminal(),
+		"§9.1.2 from v0.5: a posted concern nobody has settled is open")
+
+	settling := map[finding.Actor][]finding.State{
+		finding.ActorVerify:          {finding.StateAnswered, finding.StateAddressed},
+		finding.ActorWithdrawConfirm: {finding.StateWithdrawn},
+	}
 	for _, to := range finding.States() {
 		for _, by := range finding.Actors() {
-			assert.Error(t, finding.MayTransition("f1", finding.Existing(finding.StatePosted), to, by),
+			err := finding.MayTransition("f1", finding.Existing(finding.StatePosted), to, by)
+			if slices.Contains(settling[by], to) {
+				assert.NoError(t, err, "§9.1: %s settles a posted record as %s", by, to)
+				continue
+			}
+			assert.Error(t, err,
 				"%s may move a posted record to %s, which would be cr settling it", by, to)
 		}
 	}
