@@ -49,9 +49,22 @@ const (
 	// §2.4 spelling every MalformedError about a pattern carries.
 	countPatternField  = "tests.count_pattern"
 	failedPatternField = "tests.failed_pattern"
-	// patternGroups is the capture group count §2.4 fixes for each of them:
-	// one, holding the count that match contributes to §5.2.1's sum.
+	// patternGroups is the capture group count §2.4 fixes for each of them
+	// in the sum mode: one, holding the count that match contributes to
+	// §5.2.1's sum.
 	patternGroups = 1
+	// countModeField is `tests.count_mode`, in the same spelling.
+	countModeField = "tests.count_mode"
+)
+
+// The two values of `tests.count_mode`, per §5.2.1.
+const (
+	// CountModeSum adds the one capture group of every match, for a runner
+	// that prints a recap line with numbers on it. It is the default.
+	CountModeSum = "sum"
+	// CountModeOccurrences counts the matches, for a runner that prints one
+	// line per test and no recap.
+	CountModeOccurrences = "occurrences"
 )
 
 // Profile is one resolved §2.4 profile: every field of the table, with the
@@ -133,6 +146,11 @@ type Tests struct {
 	// profile that cannot narrow a run by path at all, and §2.4 refuses a
 	// `--path` against one rather than dropping it.
 	PathsArg []string `json:"paths_arg"`
+	// PathsDefault is the argv §5.2.1 appends to Cmd when no `--path` is
+	// given. A runner whose bare invocation tests one directory — `go test`
+	// tests the current package and nothing else — needs it to run the whole
+	// suite, and a runner that tests everything by default leaves it empty.
+	PathsDefault []string `json:"paths_default"`
 	// TimeoutSeconds bounds one run, default DefaultTimeoutSeconds.
 	TimeoutSeconds int `json:"timeout_seconds"`
 	// OutputTailBytes is the retained runner output, default
@@ -144,6 +162,10 @@ type Tests struct {
 	// FailedPattern yields one failed test count per match, summed the same
 	// way. Matching nothing means zero rather than undetermined.
 	FailedPattern string `json:"failed_pattern"`
+	// CountMode is how §5.2.1 reads the two patterns: CountModeSum adds
+	// their one capture group over every match, CountModeOccurrences counts
+	// their matches. It is never empty once resolved.
+	CountMode string `json:"count_mode"`
 	// ProbePathTemplate is where a gap probe's file is placed, resolved
 	// per probepath.go: the default is filled in, `<ext>` is substituted,
 	// and `<probe-id>` is the one placeholder left.
@@ -205,6 +227,8 @@ type wireTests struct {
 	Globs             []string `json:"globs"`
 	FilterFlag        string   `json:"filter_flag"`
 	PathsArg          []string `json:"paths_arg"`
+	PathsDefault      []string `json:"paths_default"`
+	CountMode         string   `json:"count_mode"`
 	TimeoutSeconds    *int     `json:"timeout_seconds"`
 	OutputTailBytes   *int     `json:"output_tail_bytes"`
 	CountPattern      string   `json:"count_pattern"`
@@ -414,7 +438,11 @@ func (t *wireTests) validate(path string) error {
 			Problem: fmt.Sprintf("is %d; retaining no output leaves a run unevidenced", *t.OutputTailBytes),
 		}
 	}
-	if err := validatePattern(path, countPatternField, "executed", t.CountPattern); err != nil {
+	groups, err := t.patternGroups(path)
+	if err != nil {
+		return err
+	}
+	if err := validatePattern(path, countPatternField, "executed", t.CountPattern, groups); err != nil {
 		return err
 	}
 	// §2.4 makes tests.failed_pattern required alongside tests.count_pattern,
@@ -427,7 +455,26 @@ func (t *wireTests) validate(path string) error {
 			Problem: "is required when " + countPatternField + " is present",
 		}
 	}
-	return validatePattern(path, failedPatternField, "failed", t.FailedPattern)
+	return validatePattern(path, failedPatternField, "failed", t.FailedPattern, groups)
+}
+
+// patternGroups is the capture-group count `tests.count_mode` requires of both
+// patterns: one to sum, none to count. An absent mode is §2.4's default, the
+// sum, and a value naming neither aborts rather than guessing which a runner
+// meant — the two read the same output as different numbers.
+func (t *wireTests) patternGroups(path string) (int, error) {
+	switch t.CountMode {
+	case "", CountModeSum:
+		return patternGroups, nil
+	case CountModeOccurrences:
+		return 0, nil
+	}
+	return 0, &MalformedError{
+		File:  path,
+		Field: countModeField,
+		Problem: fmt.Sprintf("is %q, and §2.4 admits %q or %q",
+			t.CountMode, CountModeSum, CountModeOccurrences),
+	}
 }
 
 // validatePattern holds one of §2.4's two count patterns to the arity §2.4
@@ -452,7 +499,7 @@ func (t *wireTests) validate(path string) error {
 // arity fault, but its group count cannot be read at all, and §2.6.1.2 already
 // settles the shape for cr's other configured regex: an uncompilable pattern
 // aborts with exit code 3 naming the file it came from.
-func validatePattern(path, field, what, pattern string) error {
+func validatePattern(path, field, what, pattern string, groups int) error {
 	if pattern == "" {
 		return nil
 	}
@@ -464,11 +511,16 @@ func validatePattern(path, field, what, pattern string) error {
 			Problem: fmt.Sprintf("is not a valid Go regexp: %v", err),
 		}
 	}
-	if n := compiled.NumSubexp(); n != patternGroups {
+	if n := compiled.NumSubexp(); n != groups {
+		yielding := fmt.Sprintf("yielding a count of %s tests", what)
+		if groups == 0 {
+			yielding = fmt.Sprintf("because %s %q counts matching lines of %s tests",
+				countModeField, CountModeOccurrences, what)
+		}
 		return &MalformedError{
 			File:    path,
 			Field:   field,
-			Problem: fmt.Sprintf("has %d capture groups, but §2.4 requires exactly %d, yielding a count of %s tests. A (?:...) group does not capture.", n, patternGroups, what),
+			Problem: fmt.Sprintf("has %d capture groups, but §2.4 requires exactly %d, %s. A (?:...) group does not capture.", n, groups, yielding),
 		}
 	}
 	return nil
@@ -486,6 +538,8 @@ func (w *wire) resolve(probeTemplate string) Profile {
 			Cmd:             []string{},
 			Globs:           []string{},
 			PathsArg:        []string{},
+			PathsDefault:    []string{},
+			CountMode:       CountModeSum,
 			TimeoutSeconds:  DefaultTimeoutSeconds,
 			OutputTailBytes: DefaultOutputTailBytes,
 		},
@@ -509,6 +563,10 @@ func (w *wire) resolve(probeTemplate string) Profile {
 		p.Tests.Globs = list(t.Globs)
 		p.Tests.FilterFlag = t.FilterFlag
 		p.Tests.PathsArg = list(t.PathsArg)
+		p.Tests.PathsDefault = list(t.PathsDefault)
+		if t.CountMode != "" {
+			p.Tests.CountMode = t.CountMode
+		}
 		p.Tests.CountPattern = t.CountPattern
 		p.Tests.FailedPattern = t.FailedPattern
 		p.Tests.ProbePathTemplate = probeTemplate

@@ -74,6 +74,12 @@ func (e *UnavailableError) Hint() string {
 			"`cr config --resolved` does not show profile fields", e.Field, e.File)
 }
 
+// CountsOccurrences reports whether §5.2.1 counts the profile's patterns'
+// matches rather than summing their capture group.
+func (p *Profile) CountsOccurrences() bool {
+	return p.Tests.CountMode == CountModeOccurrences
+}
+
 // TestArgv returns the argv §5.2.1 runs inside the sandbox, narrowed to filter
 // when one was given and to paths when any were.
 //
@@ -113,7 +119,9 @@ func (p *Profile) TestArgv(file, filter string, paths []string) ([]string, error
 		argv = append(argv, p.Tests.FilterFlag, filter)
 	}
 	if len(paths) == 0 {
-		return argv, nil
+		// §2.4's `tests.paths_default`: what a runner needs to be told to
+		// run everything, for one whose bare invocation does not.
+		return append(argv, p.Tests.PathsDefault...), nil
 	}
 	if len(p.Tests.PathsArg) == 0 {
 		return nil, &UnavailableError{
