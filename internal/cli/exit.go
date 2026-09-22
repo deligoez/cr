@@ -878,6 +878,13 @@ func hintFor(err error) string {
 	if errors.As(err, &mismatch) && row.claims(mismatch) {
 		return mismatch.Hint()
 	}
+	// The candidates are in the error's own hint, ready to copy. Measured
+	// 2026-09-22 against deligoez/cr-qa: v0.6.0 wrote that hint and never
+	// read it, so the row's generic step reached the operator instead.
+	var ambiguous *intent.AmbiguousIssueError
+	if errors.As(err, &ambiguous) && row.claims(ambiguous) {
+		return ambiguous.Hint()
+	}
 	// A zero *state.FileError built outside FileFailure carries no step of
 	// its own, and takes the floor's rather than an empty one.
 	var file *state.FileError
