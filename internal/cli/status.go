@@ -772,8 +772,16 @@ func lensesWith(
 	if err != nil {
 		return activation.Activation{}, coverage.Lenses{}, err
 	}
-	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, resolved.String(intentKeyPattern))
+	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, keyPatternOf(&resolved))
 	return axes, coverage.RoundLenses(axes, derived, corpus, round.ActiveRoles, round.ProfileID), nil
+}
+
+// keyPatternOf is the pattern §3.2 holds the round's key to under the tracker
+// the configuration names, per intent.KeyPattern: every reader of the pattern
+// asks it here, so a `github` tracker's keys are not refused by a Jira-shaped
+// default nobody configured for them.
+func keyPatternOf(resolved *config.Config) string {
+	return intent.KeyPattern(resolved.String(intent.TrackerSetting), resolved.String(intentKeyPattern))
 }
 
 // intentKeyPattern is §3.2's `intent.key_pattern`, by the key §2.7's table

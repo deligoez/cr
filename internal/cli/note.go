@@ -206,7 +206,7 @@ func checkNoteKey(cmd *cobra.Command, l state.Layout, issueKey string) error {
 	if err != nil {
 		return err
 	}
-	return intent.CheckKey(issueKey, resolved.String(intentKeyPattern))
+	return intent.CheckKey(issueKey, keyPatternOf(&resolved))
 }
 
 // notedRound is the round of the pull request `--pr` names, read before the note

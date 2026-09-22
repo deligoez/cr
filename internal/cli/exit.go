@@ -316,6 +316,17 @@ var codes = []mapped{
 	{is[*intent.NoIssueKeyError](), ExitValidation,
 		"§3.3 forms every claim id out of the issue key; run `cr brief` with " +
 			"`--issue` so the round has one"},
+	// §3.2 for a `github` tracker: the pull request closes more than one
+	// issue, and which to review against is the reviewer's to say. The
+	// answer GitHub gave is fine and so is the command line; what is
+	// missing is a choice, §11.2's 1.
+	{is[*intent.AmbiguousIssueError](), ExitValidation,
+		"pass --issue naming the one issue to review the change against"},
+	// §3.1.8: the number names a pull request, which GitHub answers on the
+	// issue endpoint too. Read as the intent, it would review the change
+	// against itself, so the number is refused as the wrong one, §11.2's 1.
+	{is[*gh.NotAnIssueError](), ExitValidation,
+		"pass --issue with the number of the issue the pull request closes"},
 	// §3.3.1 rejects a claim with exit code 1. The file was found, read,
 	// and parsed, so nothing about it failed as a file; what is wrong is
 	// the agent's data inside it, exactly as it is for the record rejection

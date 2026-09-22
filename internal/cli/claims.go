@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
@@ -471,5 +472,8 @@ func intentSource(l state.Layout, owner, repo, file string, extra []string) (int
 	if file != "" {
 		return intent.Source{File: file, Extra: extras}, nil
 	}
-	return intent.Source{Cmd: resolved.Strings("intent.cmd"), Extra: extras}, nil
+	// §3.1.8: a `github` tracker reads through cr's gh door, and
+	// intent.cmd is then never started.
+	return brief.TrackerSource(resolved.String(intent.TrackerSetting), ghClient(),
+		intent.Source{Cmd: resolved.Strings("intent.cmd"), Extra: extras}), nil
 }

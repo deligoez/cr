@@ -352,7 +352,8 @@ func gate(src *Sources, r *Round, meta *state.Meta) (*profile.Profile, activatio
 		return nil, activation.Activation{}, err
 	}
 	axes := activation.OfRound(
-		p, meta.ProfileID, meta.IssueKey, src.Config.String("intent.key_pattern"))
+		p, meta.ProfileID, meta.IssueKey,
+		intent.KeyPattern(src.Config.String(intent.TrackerSetting), src.Config.String("intent.key_pattern")))
 	if err := refuseWithoutClaims(src, r, axes, meta); err != nil {
 		return nil, activation.Activation{}, err
 	}

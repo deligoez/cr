@@ -271,7 +271,7 @@ func awaitingMapping(l state.Layout, round *state.Meta) (*coverage.Unmapped, err
 	if err != nil {
 		return nil, err
 	}
-	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, resolved.String(intentKeyPattern))
+	axes := activation.OfRound(p, round.ProfileID, round.IssueKey, keyPatternOf(&resolved))
 	if !slices.Contains(axes.Active, axis.Intent) {
 		return nil, nil
 	}
