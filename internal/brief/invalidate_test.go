@@ -348,13 +348,15 @@ func TestAnIncrementWritesTheRowsSection934NamesAndNoOthers(t *testing.T) {
 // invalidated are the rows §9.3.4 writes on top of §3.7's derived inputs:
 // findings.ndjson holds the records it moves to `stale`, and claims.ndjson holds
 // the claims it carries forward — plus transitions.ndjson, where §9.1.1 has each
-// of those moves to `stale` leave its journal line. mapping.ndjson is not among
-// them: §9.3.4 clears the opening round's mapping, which holds no line, and
-// §9.3.5 keeps every earlier round's.
+// of those moves to `stale` leave its journal line, and migrations.ndjson, where
+// §9.4.7 has the increment report every record it migrated. mapping.ndjson is
+// not among them: §9.3.4 clears the opening round's mapping, which holds no
+// line, and §9.3.5 keeps every earlier round's.
 var invalidated = map[string]bool{
 	state.FileFindings:    true,
 	state.FileClaims:      true,
 	state.FileTransitions: true,
+	state.FileMigrations:  true,
 }
 
 // The claims a brief carries forward are claims and not extractions.

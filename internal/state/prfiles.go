@@ -148,7 +148,7 @@ var prFileWriter = map[string]string{
 	FilePostedIndex: "cr post --confirm",
 	FileWaivers:     "cr draft",
 	FileVerdicts:    "cr verify",
-	FileMigrations:  "cr recheck",
+	FileMigrations:  "cr brief",
 }
 
 // readHint is §12.4's next actionable step for a file of §2.2's tree a command

@@ -64,7 +64,7 @@ func persist(src *Sources, assembled *Brief) error {
 // cheap beside a round that says it is new over records nobody staled.
 func write(src *Sources, held *state.Lock, assembled *Brief) error {
 	if assembled.round.opened() {
-		if err := invalidate(held, assembled); err != nil {
+		if err := invalidate(src, held, assembled); err != nil {
 			return err
 		}
 	}

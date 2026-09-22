@@ -6,6 +6,7 @@ import (
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/migrate"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -41,18 +42,18 @@ const (
 // first would leave a round whose head says the increment happened and whose
 // records were never swept, and the re-run that would have fixed it compares
 // equal and does nothing.
-func invalidate(held *state.Lock, assembled *Brief) error {
+func invalidate(src *Sources, held *state.Lock, assembled *Brief) error {
 	// §9.1.1: one journal line per record the sweep moves, at the head this
 	// brief moves to. The moves are decided line by line inside the sweep,
 	// and the journal is written under the same lock after every move is
 	// decided and before findings.ndjson publishes them — the order `cr
 	// record`, `cr draft` and `cr post` write theirs in.
 	journal := finding.NewJournal(finding.ActorBrief, assembled.Head, time.Now())
-	staled, err := staleOpenRecords(held, journal)
+	swept, err := sweepOpenRecords(held, journal, newCarrier(src, assembled))
 	if err != nil {
 		return err
 	}
-	assembled.Staled = staled
+	assembled.Staled, assembled.Carried, assembled.Migrations = swept.staled, swept.carried, swept.migrations
 	if err := clearMapping(held, assembled); err != nil {
 		return err
 	}
@@ -75,8 +76,29 @@ func clearMapping(held *state.Lock, assembled *Brief) error {
 	return state.ClearStamped(held, state.FileMapping, assembled.Round)
 }
 
-// staleOpenRecords is §9.3.4's first clause: every record still in `draft` or
-// `queued` moves to `stale`.
+// swept is what sweepOpenRecords did, in findings.ndjson's order.
+type swept struct {
+	// staled and carried are the ids moved to `stale` and carried to
+	// `draft`, which are the records the journal holds a line for.
+	staled, carried []string
+	// migrations are §9.4.7's lines, one per record the sweep migrated.
+	migrations []migrate.Record
+}
+
+// sweepOpenRecords is §9.3.4's first clause: every record still in `draft` or
+// `queued` is migrated per §9.4, and moves to `draft` in the new round when
+// §9.4.5 carries it and to `stale` otherwise.
+//
+// A carried record's line moves rather than being copied, and that is the one
+// place RewriteStamped's lines change their round and head. §6.1 keeps a record
+// id for the life of the pull request, and every reader that finds a record by
+// id across rounds — finding.MoveSent among them — refuses an id two lines
+// carry; a copy in the new round would be exactly that. The closing round keeps
+// its history of the move in transitions.ndjson and migrations.ndjson.
+//
+// A record already in the new round is left alone: it is one an interrupted
+// run of this same increment carried, and migrating it again from the place it
+// was carried to would report a move that did not happen.
 //
 // No round scopes it, because §9.3.4 does not scope it: the records it moves
 // are the ones the closing round produced, so a sweep reading only the round
@@ -111,8 +133,8 @@ func clearMapping(held *state.Lock, assembled *Brief) error {
 //
 // It returns the ids it moved, in the file's order, which are the records the
 // journal holds a line for.
-func staleOpenRecords(held *state.Lock, journal *finding.Journal) ([]string, error) {
-	staled := make([]string, 0)
+func sweepOpenRecords(held *state.Lock, journal *finding.Journal, carrier *carrier) (swept, error) {
+	out := swept{staled: make([]string, 0), carried: make([]string, 0), migrations: make([]migrate.Record, 0)}
 	err := state.RewriteStamped(held, state.FileFindings,
 		func(fields map[string]json.RawMessage) (bool, error) {
 			var current finding.State
@@ -151,6 +173,25 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) ([]string, err
 			if !finding.ValidID(id) {
 				return false, unusable(fieldID, &storedIDError{written: fields[fieldID]})
 			}
+			record, err := decodeSwept(fields)
+			if err != nil {
+				return false, err
+			}
+			if record.Round == carrier.assembled.Round {
+				return false, nil
+			}
+			line, moved, err := carrier.carry(record)
+			if err != nil {
+				return false, err
+			}
+			out.migrations = append(out.migrations, line)
+			if moved != nil {
+				if err := journal.Move(id, finding.Existing(current), finding.StateDraft); err != nil {
+					return false, err
+				}
+				out.carried = append(out.carried, id)
+				return true, carried(fields, moved, carrier.assembled)
+			}
 			if err := journal.Move(id, finding.Existing(current), finding.StateStale); err != nil {
 				return false, err
 			}
@@ -159,7 +200,7 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) ([]string, err
 				return false, err
 			}
 			fields[fieldState] = stale
-			staled = append(staled, id)
+			out.staled = append(out.staled, id)
 			return true, nil
 		},
 		// The journal is appended once every move is decided and before
@@ -167,11 +208,56 @@ func staleOpenRecords(held *state.Lock, journal *finding.Journal) ([]string, err
 		// every record where it was and the re-run moves and journals
 		// them again. Publishing first would leave the records stale
 		// with no line, and the re-run would find nothing left to move.
-		func() error { return journal.Write(held) })
+		// migrations.ndjson is written with it, for the same reason.
+		func() error {
+			if err := journal.Write(held); err != nil {
+				return err
+			}
+			if len(out.migrations) == 0 {
+				return nil
+			}
+			return state.AppendRecords(held, state.FileMigrations, out.migrations)
+		})
+	if err != nil {
+		return swept{}, err
+	}
+	return out, nil
+}
+
+// decodeSwept reads a whole record out of the fields the sweep was handed, the
+// way every other read of findings.ndjson binds them.
+func decodeSwept(fields map[string]json.RawMessage) (*finding.Finding, error) {
+	raw, err := json.Marshal(fields)
 	if err != nil {
 		return nil, err
 	}
-	return staled, nil
+	var record finding.Finding
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return nil, unusable("record", err)
+	}
+	return &record, nil
+}
+
+// carried writes §9.4.5's move onto the line's fields: the new round and head,
+// the unit and anchor the record now sits on, its citations as §9.4.8 read
+// them again, no probe, and `draft`.
+func carried(fields map[string]json.RawMessage, moved *finding.Finding, assembled *Brief) error {
+	set := map[string]any{
+		"round": assembled.Round, "head": assembled.Head,
+		"unit": moved.Unit, "anchor": moved.Anchor, fieldState: finding.StateDraft,
+	}
+	if moved.Citations != nil {
+		set["citations"] = moved.Citations
+	}
+	for key, value := range set {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		fields[key] = encoded
+	}
+	delete(fields, "probe")
+	return nil
 }
 
 // unusable is the refusal of one stored findings.ndjson field the sweep could

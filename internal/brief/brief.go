@@ -35,6 +35,7 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/migrate"
 	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
@@ -149,6 +150,12 @@ type Brief struct {
 	// run that opened none. They are reported by the command that made the
 	// move, so a driving agent does not learn of it only from the journal.
 	Staled []string `json:"staled_records"`
+	// Carried are the ids §9.4.5 carried into the round this run opened,
+	// back to `draft`, and Migrations are §9.4.7's report of every record
+	// the increment migrated, carried or not. Both are empty on a run that
+	// opened no round.
+	Carried    []string         `json:"carried_records"`
+	Migrations []migrate.Record `json:"migrations"`
 	// round is §9.3.3's decision for this run: the round above, and the
 	// round it was opened from. §9.3.4 reads both — whether an increment
 	// happened at all, and which round's records the increment invalidates.
@@ -278,6 +285,8 @@ func Run(src *Sources) (*Brief, error) {
 	// Empty until §9.3.4's sweep says otherwise, which only a run that
 	// opens a round makes, inside persist.
 	assembled.Staled = make([]string, 0)
+	assembled.Carried = make([]string, 0)
+	assembled.Migrations = make([]migrate.Record, 0)
 	if err := persist(src, assembled); err != nil {
 		return nil, err
 	}
