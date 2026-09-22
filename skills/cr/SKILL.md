@@ -71,6 +71,19 @@ hint names both repositories and gives
 `cr` needs `git`, `gh` (authenticated), and, unless you pass `--intent-file`, the
 configured tracker command (`intent.cmd`, default `jira issue view {key} --plain`).
 
+**GitHub Issues needs no tracker command.** Set `intent.tracker` to `github` in
+`~/.cr/repos/<owner>/<repo>/config.json` and cr reads the issue through the same
+`gh` it reads the pull request with. The key is the issue the pull request
+closes as GitHub links it (a `Closes #12` in the body, or the Development
+panel), written `owner.repo#12`; a `#12` mentioned in prose is not a link and is
+not read. `--issue` takes `12`, `#12`, `owner/repo#12`, the issue URL, or the
+key. A pull request closing two issues is refused until `--issue` names one,
+and a number that is a pull request is refused as not an issue:
+
+```json
+{"intent.tracker": "github"}
+```
+
 ## The loop
 
 brief → review fan-out → merge → record → probe → draft → **human read** → post
@@ -1028,6 +1041,9 @@ cr status 1
 While the intent axis is active, a round is not complete until both
 `cr claims record` and `cr map record` have run for it; the reason names what is
 missing. A complete round is not an approval: cr never approves a pull request.
+`posted_concerns` lists every record still `posted`, with the round that posted
+it — from the second round on, those live in earlier rounds, and a posted
+concern does not block completeness.
 
 ### 8. Recheck, and settle what came back
 
@@ -1091,12 +1107,17 @@ Finally, close the thread — both writes are behind `--confirm`, like posting:
 
 ```bash
 cr resolve 1 f2 --confirm
-cr withdraw 1 f9 --confirm
+cr withdraw 1 f9 wrong --confirm
 ```
 
 `cr resolve` refuses a record nobody settled: resolving a thread over an open
 concern hides it. `cr withdraw` retracts a concern that should not have been
-raised and resolves its thread. **It posts no prose** — §8.1.2 gives cr one
+raised and resolves its thread, and **you say which it was**: `wrong` (the
+concern was false; a repository-wide waiver, counted against its class in
+`cr stats`) or `not-here` (true, but not worth the comment; a pull-request
+waiver, counted for volume only). cr cannot tell the two apart, so there is no
+default. A retraction the author has already read is the strongest evidence
+about a class cr collects. **It posts no prose** — §8.1.2 gives cr one
 channel for a body a human wrote, the draft, and a flag here carrying text to
 GitHub would be a second; write the explanation yourself if you want the author
 to have one.
@@ -1321,8 +1342,17 @@ without), `tests.cmd` (argv; absent disables the test axis), `tests.globs`
 appended once per `--path`, every `{path}` replaced by that path),
 `tests.timeout_seconds`,
 `tests.output_tail_bytes`, `tests.count_pattern` and `tests.failed_pattern` (one
-capture group each), `tests.probe_path_template`, `rules`, `symbols.lang`. cr
-ships `laravel-pest` and `generic`, both requiring nothing. `laravel-pest`
+capture group each in the default `sum` mode, none in `occurrences` mode),
+`tests.count_mode` (`sum` adds the groups over every match; `occurrences`
+counts matches, for a runner that prints one line per test and no recap),
+`tests.paths_default` (argv appended when no `--path` is given),
+`tests.probe_path_template`, `rules`, `symbols.lang`. cr ships `laravel-pest`,
+`go` and `generic`, all requiring nothing. `go` runs `go test -v -count=1`, adds
+`./...` when no path is given, counts the top-level `--- PASS:`/`--- FAIL:` lines
+(skips are not executed tests), and places a gap probe beside its target, since
+a Go test compiles into the package it tests. A tree that does not build prints
+no test line and exits non-zero, and that reads as undetermined, never as zero
+tests. `laravel-pest`
 copies `.env`, `.env.testing`
 and `vendor` into the sandbox: Laravel runs tests under `APP_ENV=testing`, and
 without `.env.testing` it reads `.env`, so a suite would reach the database the
