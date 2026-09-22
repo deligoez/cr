@@ -42,7 +42,24 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-*Empty.*
+- **§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.** Found by the
+  v0.6.0 QA pass, 2026-09-22, and read against `spec/0.6.0.md` with cr-research. §9.4.1 migrates
+  every record that is not terminal and never a posted one, so its domain is `draft` and `queued`.
+  §9.3.2 refuses every per-PR write while the head has moved, which is the only time a migration
+  matters, and §9.3.4 moves every `draft` and `queued` record to `stale` on the brief that follows —
+  and no row of §9.1's table leaves `stale`. So a migration can persist nothing before that brief and
+  has nothing to act on after it. Two signatures follow: `state.FileMigrations` names `cr recheck`
+  as its owner in §2.3's table and has no caller under `internal/cli`, and §9.4.5's "carried to a
+  later round where the code may have settled" and §9.6's "the only way to close an unplaceable
+  record" both presume a carry §9.3.4 does not give. **No wrong assertion can reach an author**: a
+  migrated or declined `draft`/`queued` record is staled before it can be drafted or posted, which is
+  why v0.6.1 shipped without it. The readings: **(i)** migration is load-bearing — §9.3.4 stales only
+  records that did not place and carries placed ones with their migrated anchors, so drafted comments
+  survive an author's small push, §9.4.5's MUST NOT becomes the line between carried and staled, and
+  the brief that carries them writes `migrations.ndjson`; **(ii)** migration is a preview — `cr
+  recheck` reports where a record would land, the §2.3 row and §9.4.5 are struck, and §9.6's
+  sentence is reworded. cr-research leans to (i), the only reading under which §9.4.5, §9.6 and
+  v0.6.1's migration fix all mean something. Either changes what a round holds, so it is the user's.
 
 - ~~**A run that did not compile is disclosed as `no-tests-selected`.**~~ *Closed in `spec/0.5.0.md`:
   §5.3.4's and §5.4.3's zero-count rungs now carry a `reason` naming the exit code when it is not 0,
