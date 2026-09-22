@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -62,6 +63,22 @@ type resolvedSetting struct {
 	// Source is the config file's path or the environment variable's
 	// name, and empty for the two layers that are not a place.
 	Source string `json:"source"`
+	// Inert says why a setting is resolved and not in force, and is absent
+	// for every setting that is. The row stays, because §2.7 annotates
+	// every setting; what the annotation adds is that this one is read by
+	// nothing. Measured 2026-09-22 against deligoez/cr-qa: under
+	// `intent.tracker: github` v0.6.0 listed the Jira key pattern as if it
+	// held, while §3.2 held keys to owner.repo#n.
+	Inert string `json:"inert,omitempty"`
+}
+
+// inertUnderGitHub are the settings the GitHub tracker reads none of, with
+// the reason each is inert: cr forms the key itself and reads the issue
+// through gh.
+var inertUnderGitHub = map[string]string{
+	"intent.key_pattern": "not in force: intent.tracker is github, and §3.2 holds keys to " +
+		intent.GitHubKeyPattern,
+	"intent.cmd": "not in force: intent.tracker is github, and §3.1.8 reads the issue through gh",
 }
 
 // resolvedConfigResult is §2.7's annotated configuration, keyed by the same
@@ -86,6 +103,9 @@ func (r resolvedConfigResult) Text(w *writer) string {
 		if setting.Source != "" {
 			from += " " + setting.Source
 		}
+		if setting.Inert != "" {
+			from += "; " + setting.Inert
+		}
 		lines = append(lines, fmt.Sprintf("%s = %v  (%s)", w.accent(key), setting.Value, from))
 	}
 	notes, _ := r[configHonesty].([]string)
@@ -101,13 +121,18 @@ func (r resolvedConfigResult) Text(w *writer) string {
 // rather than silently dropped from the listing.
 func annotated(resolved config.Config) resolvedConfigResult {
 	origins := resolved.Origins()
+	github := resolved.String(intent.TrackerSetting) == intent.TrackerGitHub
 	out := make(resolvedConfigResult, len(origins))
 	for key, value := range resolved.Map() {
-		out[key] = resolvedSetting{
+		setting := resolvedSetting{
 			Value:  value,
 			From:   origins[key].From,
 			Source: origins[key].Source,
 		}
+		if github {
+			setting.Inert = inertUnderGitHub[key]
+		}
+		out[key] = setting
 	}
 	return out
 }
