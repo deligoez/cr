@@ -77,7 +77,8 @@ func (r *recheckResult) Text(w *writer) string {
 			text += ", " + strconv.Itoa(len(one.Replies)) + " repl(ies)"
 		}
 	}
-	for _, one := range r.Migrated {
+	for i := range r.Migrated {
+		one := &r.Migrated[i]
 		text += "\n  " + w.accent(one.Record) + " " + migrationText(&one.Outcome)
 		if one.Carried {
 			text += ", carried from round " + strconv.Itoa(one.FromRound)
@@ -257,54 +258,74 @@ func previewMigrations(round *state.Round, base string, records []*finding.Findi
 	if err != nil {
 		return nil, err
 	}
-	touched := make([]string, 0)
-	if base != "" {
-		mergeBase, err := git.MergeBase(dir, base, round.Current)
-		if err != nil {
-			return nil, err
-		}
-		changed, err := git.ChangedFiles(dir, mergeBase, round.Current)
-		if err != nil {
-			return nil, err
-		}
-		for _, file := range changed {
-			if file.Changed && !file.Binary {
-				touched = append(touched, file.Path)
-			}
-		}
+	touched, err := touchedAt(dir, base, round.Current)
+	if err != nil {
+		return nil, err
 	}
-	read := make(map[string]*migrate.File)
-	fileAt := func(path string) (*migrate.File, error) {
-		if held, done := read[path]; done {
-			return held, nil
-		}
-		lines, exists, err := git.FileAtRevision(dir, round.Current, path)
-		if err != nil {
-			return nil, err
-		}
-		var file *migrate.File
-		if exists {
-			file = &migrate.File{Path: path, Lines: lines}
-		}
-		read[path] = file
-		return file, nil
-	}
+	head := &headTree{dir: dir, head: round.Current, read: make(map[string]*migrate.File)}
 	for _, record := range unsent {
-		paths := append([]string{record.Anchor.Path}, touched...)
-		files := make([]migrate.File, 0, len(paths))
-		for i, path := range paths {
-			if slices.Contains(paths[:i], path) {
-				continue
-			}
-			file, err := fileAt(path)
-			if err != nil {
-				return nil, err
-			}
-			if file != nil {
-				files = append(files, *file)
-			}
+		files, err := head.searched(append([]string{record.Anchor.Path}, touched...))
+		if err != nil {
+			return nil, err
 		}
 		preview = append(preview, migrate.Anchor(record.ID, &record.Anchor, files))
 	}
 	return preview, nil
+}
+
+// touchedAt are the files the diff from base's merge base to head changes, the
+// ones §9.4.3 searches after an anchor's own. A pull request whose base GitHub
+// did not report has none to add.
+func touchedAt(dir, base, head string) ([]string, error) {
+	touched := make([]string, 0)
+	if base == "" {
+		return touched, nil
+	}
+	mergeBase, err := git.MergeBase(dir, base, head)
+	if err != nil {
+		return nil, err
+	}
+	changed, err := git.ChangedFiles(dir, mergeBase, head)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range changed {
+		if file.Changed && !file.Binary {
+			touched = append(touched, file.Path)
+		}
+	}
+	return touched, nil
+}
+
+// headTree reads files at one head, each once.
+type headTree struct {
+	dir, head string
+	// read holds every path asked for, nil for one the head does not hold.
+	read map[string]*migrate.File
+}
+
+// searched are the files paths name that the head holds, each once, in the
+// order given.
+func (h *headTree) searched(paths []string) ([]migrate.File, error) {
+	files := make([]migrate.File, 0, len(paths))
+	for i, path := range paths {
+		if slices.Contains(paths[:i], path) {
+			continue
+		}
+		file, done := h.read[path]
+		if !done {
+			lines, exists, err := git.FileAtRevision(h.dir, h.head, path)
+			if err != nil {
+				return nil, err
+			}
+			if exists {
+				file = &migrate.File{Path: path, Lines: lines}
+			}
+			h.read[path] = file
+		}
+		if file != nil {
+			files = append(files, *file)
+		}
+	}
+	return files, nil
 }
