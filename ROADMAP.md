@@ -311,6 +311,15 @@ Each of these is measured rather than wished for: the evidence is a run that had
 *Five small items the v0.6.0 QA pass found against `deligoez/cr-qa` and `cr-qa-go`, 2026-09-22, in
 the order cr-research ranked them. None lets a wrong assertion reach an author.*
 
+**v0.6.2's scope, agreed with cr-research on 2026-09-22: these five and §2's reconcile measurement,
+with no spec change.** Each fits inside `spec/0.6.0.md` only when cut as written here. `cr test`'s
+JSON is §5.2.4's run record, with the counts left out rather than `null` when they cannot be
+derived. `cr config --resolved` keeps the key-pattern row, because §2.7 says to annotate *every*
+setting, and adds that the pattern is not in force under `github`; leaving the row out would need a
+normative change. The head check is a disclosure naming both SHAs, since making it a refusal would
+add an exit-4 condition. v0.7.0 is §0's reconciliation, whichever reading the user picks: both
+change normative text. The driver stays out of it.
+
 - **`cr test --json` carries no counts.** v0.6.0's occurrence mode is checked on one's own repository
   by running `cr test`, and its JSON shows no `tests_run` or `tests_failed`; the counts land only in
   `runs.ndjson`, under `~/.cr`, which the skill does not point at. So the feature cannot be checked
