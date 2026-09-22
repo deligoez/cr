@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.5.1.md`
+sequenced next, and what must be measured before it is decided. `spec/0.6.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -454,7 +454,7 @@ source of truth; this table is a map, not a promise.
 | `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors (§9.5) |
 | `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <t>` | Record the agent's judgement about one posted record (§9.5.5) |
 | `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread (§9.6.1) |
-| `cr withdraw <pr> <record-id> [--confirm]` | Retract a posted concern and resolve its thread (§9.6.2) |
+| `cr withdraw <pr> <record-id> wrong\|not-here [--confirm]` | Retract a posted concern, waive it by its disposition, and resolve its thread (§9.6.2) |
 | `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
 | `cr note <ISSUE-KEY> <text> --pr <n>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
@@ -593,7 +593,8 @@ spec/
   0.4.0.md           Normative v0.4 contract
   0.4.1.md           Normative v0.4.1 contract
   0.5.0.md           Normative v0.5 contract
-  0.5.1.md           Normative v0.5.1 contract, the current one
+  0.5.1.md           Normative v0.5.1 contract
+  0.6.0.md           Normative v0.6 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
