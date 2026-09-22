@@ -920,6 +920,17 @@ Mirrors tp so the experience transfers.
   machine here has `diff.external` set, and an unpinned `git diff` returned that
   differ's output instead of a unified diff. §2.1.1 requires the same inputs to
   give the same result, and git reads a lot of ambient state.
+- **Every git subcommand cr runs is on an allowlist, and adding one is a
+  deliberate act.** `gitReads` in `internal/cli/norepowrite_test.go` is that
+  list, over `internal/git`'s source rather than over a run, so a write lands in
+  the guard before any command wires it. v0.6.2 added `ls-remote`, which `cr
+  brief` uses to read the remote's `refs/pull/<n>/head` beside gh's answer:
+  GitHub's API can report the pre-push head for a few seconds, measured
+  2026-09-22 on `deligoez/cr-qa`, and a brief then fans out against the old
+  head. That read asks the remote and writes nothing, not even a ref of the
+  clone. **A test fixture's remote is a github.com URL**, so the suite fences
+  the read the way it fences gh — `remotePullHead` is a variable, stubbed in
+  `TestMain` — or every brief in the suite would reach the network.
 - **The review request body is the payload alone.** `cr post --confirm` hands gh
   exactly `commit_id`, `event`, `body` and `comments` on standard input
   (`--input -`), never `posted.json`, whose records, discards and outcomes
