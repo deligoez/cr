@@ -49,6 +49,9 @@ var unstampedFileConstants = map[string]bool{
 	"FileThreads":     true,
 	"FileTransitions": true,
 	"FileWaivers":     true,
+	// §9.4.7's lines carry the round they were written for as a field of
+	// their own, and each reader filters by it, as a verdict's is read.
+	"FileMigrations": true,
 }
 
 // crossRoundReaders are the production reads of a §2.3.3 file that are not
@@ -269,6 +272,7 @@ func fileNamed(t *testing.T, constant string) string {
 		"FileThreads":     state.FileThreads,
 		"FileTransitions": state.FileTransitions,
 		"FileWaivers":     state.FileWaivers,
+		"FileMigrations":  state.FileMigrations,
 	}
 	name, known := named[constant]
 	require.True(t, known, "%s is declared unstamped and this helper does not know it", constant)
