@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.6.2 | The rest of the v0.6.0 QA pass: `cr test` prints the counts and verdict it stored, a brief discloses a head GitHub still reports after a push against the remote's own `refs/pull/<n>/head`, and three refusals that named no step now name one — a base with no shared history, the intent settings the GitHub tracker leaves inert, and a pull request closing two issues. `cr post --reconcile` was measured against a real lost answer for the first time |
 | v0.6.1 | Two defects the v0.6.0 QA pass found on real pull requests: `cr recheck` migrated an anchor against the head the record was made at rather than the one the push moved to, and so reported code that had moved as unmoved; and a gap probe whose template places its test at the repository root ran on no directory and came back `inconclusive` |
 | v0.6.0 | A `go` profile, with an occurrence count mode for a runner that prints one line per test and a zero read only from a clean exit, and §2.4.5 pinning what a shipped profile carries rather than how many; GitHub Issues as a tracker, keyed `owner.repo#n` from the pull request's closing link and read through cr's own gh door; `cr withdraw … wrong\|not-here` writing the waiver its disposition scopes and a `withdrawn-*` outcome that replaces the posting's `kept`, with the waiver key's hash stamped at record time; `cr status` listing posted concerns from every round; and `cr resolve`/`cr withdraw --confirm` fixed, which GitHub had refused since v0.5.0 |
 | v0.5.1 | The case v0.5 exists for: after a push opened a new round, `cr recheck`, `cr verify`, `cr resolve` and `cr withdraw` could not see a posted record, because it stays in the round that posted it and they read only the current one. They now find it by id where it lives and change its state there. `cr rules suggest` also harvests a comment after `cr verify` or `cr withdraw` has moved its record |
@@ -309,35 +310,29 @@ Each of these is measured rather than wished for: the evidence is a run that had
   completeness all exist; what is missing is the one command that walks the mechanical half.
 
 *Five small items the v0.6.0 QA pass found against `deligoez/cr-qa` and `cr-qa-go`, 2026-09-22, in
-the order cr-research ranked them. None lets a wrong assertion reach an author.*
+the order cr-research ranked them. None let a wrong assertion reach an author, and* **all five
+shipped in v0.6.2**, *each inside `spec/0.6.0.md` with no normative change. What is left of that
+conversation is v0.7.0: §0's reconciliation, whichever reading the user picks, since both change
+normative text. The driver stays out of it.*
 
-**v0.6.2's scope, agreed with cr-research on 2026-09-22: these five and §2's reconcile measurement,
-with no spec change.** Each fits inside `spec/0.6.0.md` only when cut as written here. `cr test`'s
-JSON is §5.2.4's run record, with the counts left out rather than `null` when they cannot be
-derived. `cr config --resolved` keeps the key-pattern row, because §2.7 says to annotate *every*
-setting, and adds that the pattern is not in force under `github`; leaving the row out would need a
-normative change. The head check is a disclosure naming both SHAs, since making it a refusal would
-add an exit-4 condition. v0.7.0 is §0's reconciliation, whichever reading the user picks: both
-change normative text. The driver stays out of it.
-
-- **`cr test --json` carries no counts.** v0.6.0's occurrence mode is checked on one's own repository
-  by running `cr test`, and its JSON shows no `tests_run` or `tests_failed`; the counts land only in
-  `runs.ndjson`, under `~/.cr`, which the skill does not point at. So the feature cannot be checked
-  from the command that runs it. The run's counts belong in its output.
-- **A pull request whose head shares no history with its base fails on a raw error.** `cr brief`
-  surfaced git's `merge-base` failure as `exit status 1` with no hint, against the convention that
-  every error names the next step. The hint: the head shares no history with the base, and GitHub
-  will not merge it as it stands.
-- **`cr config --resolved` shows the Jira key pattern beside `intent.tracker: github`.** The pattern
-  is not in force under that tracker — `owner.repo#n` is — so the resolved view discloses a rule
-  cr does not apply. Show the effective pattern, or leave the row out.
-- **A pull request that closes two issues needs `--issue` on every brief.** The refusal is right
-  (§3.2 picks no key on its own); its hint could name the candidate keys so the operator copies one.
-- **GitHub reports the old head for a few seconds after a push.** Measured during the QA: a `cr
-  brief` run straight after a push stayed in the old round, and the next one opened the new round.
-  cr's stale refusal catches any write, so the cost is a wasted fan-out, not a wrong comment. A cheap
-  mitigation is one read beside gh's: `git ls-remote origin refs/pull/<n>/head`, and a refusal naming
-  both heads when they differ. The skill says to wait meanwhile.
+- ~~**`cr test --json` carries no counts.**~~ v0.6.0's occurrence mode is checked by running
+  `cr test`, and the counts reached only `runs.ndjson` under `~/.cr`, so the feature could not be
+  checked from the command that runs it. The output now carries §5.2.4's `tests_run`,
+  `tests_failed` and §5.2.5's `passed`, the counts left out rather than zeroed when the profile's
+  patterns derive neither.
+- ~~**A pull request whose head shares no history with its base fails on a raw error.**~~ `git
+  merge-base` answers that with exit 1 and an empty stderr, so cr surfaced `exit status 1` and named
+  no step. It is now `git.NoMergeBaseError`, and the hint says the head was not branched from the
+  base.
+- ~~**`cr config --resolved` shows the Jira key pattern beside `intent.tracker: github`.**~~ The row
+  stays, because §2.7 annotates every setting, and it now says it is not in force and why — as does
+  `intent.cmd`, which that tracker also never starts.
+- ~~**A pull request that closes two issues needs `--issue` on every brief.**~~ The refusal was
+  right and its hint named no candidate: `AmbiguousIssueError` carried a hint that did, and `hintFor`
+  never read it. It is read now, and names every candidate as the flag to pass.
+- ~~**GitHub reports the old head for a few seconds after a push.**~~ `cr brief` now reads the
+  remote's `refs/pull/<n>/head` beside gh's answer and discloses both commits when they differ. A
+  disclosure and not a refusal, which would be an exit-4 condition §9.3.2 does not have.
 
 ### 2. Measure what is still unmeasured
 
