@@ -84,6 +84,10 @@ and a number that is a pull request is refused as not an issue:
 {"intent.tracker": "github"}
 ```
 
+Under that tracker `cr config --resolved` still lists `intent.cmd` and
+`intent.key_pattern`, each annotated `not in force`: cr forms the key itself and
+reads the issue through gh, so neither setting is consulted.
+
 ## The loop
 
 brief → review fan-out → merge → record → probe → draft → **human read** → post
@@ -538,6 +542,15 @@ cr probe run 1 --kind mutation --patch mutation.diff --filter TestDiscount --pat
   "warnings": ["the probe lock covers cr's own runs only, per §5.6.3: …"],
   "honesty": []
 }
+```
+
+`cr test` reports what the run measured — `tests_run`, `tests_failed` and
+§5.2.5's `passed` — beside its exit code, and leaves the two counts out when the
+profile's patterns derive neither. That is where you check a profile's count
+mode against your own suite:
+
+```json
+{"run": "r3", "exit_code": 1, "tests_run": 3, "tests_failed": 1, "passed": false, …}
 ```
 
 `--path` is repeatable and narrows the run to a path inside the sandbox,
@@ -1058,8 +1071,9 @@ record; v0.5.1 fixes it.)
 
 GitHub can report the old head for a few seconds after a push: measured during
 the v0.6.0 QA, a `cr brief` run straight after the push stayed in the old round
-and the next one opened the new round. When `head` in the brief is not the
-commit the author just pushed, wait and brief again before fanning out.
+and the next one opened the new round. `cr brief` reads the remote's
+`refs/pull/<pr>/head` beside gh's answer and discloses both commits when they
+differ; brief again before fanning out when it does.
 
 ```bash
 cr recheck 1
