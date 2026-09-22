@@ -29,6 +29,22 @@ func Remotes(dir string) ([]Remote, error) {
 	return parseRemotes(listing)
 }
 
+// PullHead returns the commit the remote's `refs/pull/<pr>/head` names, read
+// with `git ls-remote`, and an empty string when the remote holds no such ref.
+//
+// It is a network read and writes nothing, not even the clone's refs. It is
+// read beside gh's answer because the two can disagree: measured 2026-09-22 on
+// deligoez/cr-qa, GitHub's API reported the pre-push head for a few seconds
+// after a push while the pushed commit was already on the remote.
+func PullHead(dir, remote string, pr int) (string, error) {
+	out, err := run(dir, "ls-remote", "--end-of-options", remote, fmt.Sprintf("refs/pull/%d/head", pr))
+	if err != nil {
+		return "", err
+	}
+	sha, _, _ := strings.Cut(strings.TrimSpace(out), "\t")
+	return sha, nil
+}
+
 // parseRemotes reads `git remote -v` lines: `<name>\t<url> (fetch|push)`.
 func parseRemotes(listing string) ([]Remote, error) {
 	remotes := make([]Remote, 0)
