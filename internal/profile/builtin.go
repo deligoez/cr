@@ -38,6 +38,33 @@ const genericID = "generic"
 //go:embed builtin/generic.json
 var generic string
 
+// goID is the id, and therefore the file stem, of the profile §2.4.5 ships for
+// a Go module.
+const goID = "go"
+
+// goProfile is the shipped Go profile, embedded like laravelPest.
+//
+// Three of its fields are what `go test` needs and Pest does not, each measured
+// against go1.27.1 on 2026-09-22 (testdata/go holds the captured output):
+//
+//   - `tests.count_mode` is `occurrences`, because `go test -v` prints one
+//     `--- PASS:` or `--- FAIL:` line per test and no recap line with a number
+//     on it, so there is nothing for §5.2.1's sum to read.
+//   - The patterns are anchored at `^`, because a subtest's line is indented
+//     under its parent's: the anchor counts the top-level tests, the ones
+//     `-run` selects. SKIP is not counted, for the reason laravel-pest does
+//     not count skipped tests: a run of nothing but skips must not read as a
+//     run where nothing failed.
+//   - `tests.paths_default` is `./...`, because a bare `go test` tests the
+//     package in the current directory and nothing else, and `tests.paths_arg`
+//     prefixes `./` so a path names a package rather than an import path.
+//
+// `tests.probe_path_template` uses `<target-dir>`, because a Go test is
+// compiled into the package it tests (§5.4.2).
+//
+//go:embed builtin/go.json
+var goProfile string
+
 // Builtins returns the profile files cr ships, keyed by profile id, for `cr
 // init` to write into the profiles directory of §2.2. The values are file
 // contents, not parsed profiles, because writing them out is the whole purpose
@@ -47,6 +74,7 @@ var generic string
 func Builtins() map[string]string {
 	return map[string]string{
 		laravelPestID: laravelPest,
+		goID:          goProfile,
 		genericID:     generic,
 	}
 }

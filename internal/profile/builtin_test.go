@@ -67,8 +67,7 @@ func TestTheShippedLaravelPestProfileFillsEveryFieldItNeeds(t *testing.T) {
 	assert.Equal(t, "php", p.Symbols.Lang)
 }
 
-// §2.4.5: "v0.3 MUST ship two profiles: laravel-pest and generic, each with an
-// empty sandbox.require."
+// §2.4.5: every shipped profile carries an empty sandbox.require.
 //
 // Empty rather than absent is the whole point, and the two are the same fact
 // here: §2.4 normalises an absent list to an empty one, so neither shipped file
@@ -80,7 +79,7 @@ func TestTheShippedLaravelPestProfileFillsEveryFieldItNeeds(t *testing.T) {
 // A profile that resolved this field as nil rather than as an empty list would
 // pass §5.1.8 the same way and serialise as null, which §12.3 refuses, so the
 // assertion is on the value and not on its length.
-func TestBothShippedProfilesRequireNoSandboxPath(t *testing.T) {
+func TestNoShippedProfileRequiresASandboxPath(t *testing.T) {
 	for id, content := range Builtins() {
 		t.Run(id, func(t *testing.T) {
 			p, err := Parse(id+fileExt, []byte(content))
@@ -89,7 +88,7 @@ func TestBothShippedProfilesRequireNoSandboxPath(t *testing.T) {
 				"§2.4.5: the shipped profiles require no sandbox path")
 		})
 	}
-	assert.Len(t, Builtins(), 2, "§2.4.5: v0.3 ships laravel-pest and generic")
+	assert.Len(t, Builtins(), 3, "§2.4.5: v0.6 ships laravel-pest, go and generic")
 }
 
 // §5.4.2 places a gap probe's test at tests.probe_path_template and then runs

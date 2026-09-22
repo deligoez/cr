@@ -24,15 +24,15 @@ func shippedProfilesDir(t *testing.T) string {
 	return dir
 }
 
-// §2.4.5 fixes the shipped set at two profiles, and the exact set is the
-// assertion rather than the presence of each. A third profile shipped by
-// accident is a candidate in every repository §2.4.2 then has to count against
-// the others, and a missing one leaves a whole class of repository unreviewable:
-// without generic there is nothing to name when no language profile fits.
-func TestV01ShipsExactlyTheTwoProfilesOf245(t *testing.T) {
+// §2.4.5's table is the shipped set, and the exact set is the assertion rather
+// than the presence of each. A profile shipped by accident is a candidate in
+// every repository §2.4.2 then has to count against the others, and a missing
+// one leaves a whole class of repository unreviewable: without generic there is
+// nothing to name when no language profile fits.
+func TestCrShipsExactlyTheProfilesOf245sTable(t *testing.T) {
 	shipped := Builtins()
 
-	assert.Equal(t, []string{genericID, laravelPestID}, slices.Sorted(maps.Keys(shipped)))
+	assert.Equal(t, []string{genericID, goID, laravelPestID}, slices.Sorted(maps.Keys(shipped)))
 	for id, content := range shipped {
 		// A profile cr ships and then refuses would abort with exit
 		// code 3 every command that reads it.

@@ -1,0 +1,27 @@
+{
+  "id": "go",
+  "match": {
+    "files": ["go.mod"],
+    "globs": ["**/*.go"]
+  },
+  "axes": {
+    "intent": true,
+    "correctness": true,
+    "convention": true,
+    "test": true
+  },
+  "tests": {
+    "cmd": ["go", "test", "-v", "-count=1"],
+    "globs": ["**/*_test.go"],
+    "filter_flag": "-run",
+    "paths_arg": ["./{path}"],
+    "paths_default": ["./..."],
+    "count_mode": "occurrences",
+    "count_pattern": "(?m)^--- (?:PASS|FAIL): ",
+    "failed_pattern": "(?m)^--- FAIL: ",
+    "probe_path_template": "<target-dir>/cr_probe_<probe-id>_test.go"
+  },
+  "symbols": {
+    "lang": "go"
+  }
+}
