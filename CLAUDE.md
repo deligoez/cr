@@ -190,6 +190,16 @@ Two rules that make the phase-boundary run worth doing:
    `post.Review.Payload` a day before. So when a task wires a MUST, prove the
    wiring with a test that drives the command, not with a quiet deadcode run —
    `git grep` the call from non-test code is the cheap cross-check.
+
+   **A third instance, and the first where the unwired thing was a sentence a
+   human reads.** Measured 2026-09-22: `intent.AmbiguousIssueError.Hint()` names
+   the candidate issue keys and `cli.hintFor` never called it, so a pull request
+   closing two issues was refused with the table row's generic step instead.
+   The type's own test asserted that hint and passed; nothing asserted what the
+   command printed. All three instances — `CommentCap.Err()`,
+   `post.Review.Payload`, and this one — were found by driving the command, none
+   by reading the code and none by `deadcode`, which lists neither a method a
+   test calls nor one an exported type carries.
 2. **A surviving mutant is not a score to drive down.** Classify them: an
    equivalent mutant nothing can observe, an undocumented boundary, or a
    documented contract with no boundary test. The last is always worth acting
