@@ -65,7 +65,8 @@ var (
 	StateAddressed = State{"addressed"}
 	// StateWithdrawn is a posted record the reviewer retracted (§9.6.2).
 	StateWithdrawn = State{"withdrawn"}
-	// StateStale was abandoned unposted when the head moved (§9.3.4).
+	// StateStale was abandoned unposted when the head moved and §9.4 did not
+	// carry it (§9.3.4).
 	StateStale = State{"stale"}
 )
 

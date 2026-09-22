@@ -32,6 +32,8 @@ var specTransitions = []struct{ from, to, by string }{
 	{"queued", "discarded", "cr post --confirm"},
 	{"queued", "posted", "cr post --confirm"},
 	{"queued", "posted", "cr post --reconcile"},
+	{"draft", "draft", "cr brief"},
+	{"queued", "draft", "cr brief"},
 	{"draft", "stale", "cr brief"},
 	{"queued", "stale", "cr brief"},
 	{"posted", "answered", "cr verify"},

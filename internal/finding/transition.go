@@ -159,6 +159,7 @@ var table = []row{
 	{from: []From{Existing(StateDraft)}, to: []State{StateQueued}, by: []Actor{ActorDraft}},
 	{from: []From{Existing(StateQueued)}, to: []State{StateDiscarded}, by: []Actor{ActorDraft, ActorPostConfirm}},
 	{from: []From{Existing(StateQueued)}, to: []State{StatePosted}, by: []Actor{ActorPostConfirm, ActorPostReconcile}},
+	{from: []From{Existing(StateDraft), Existing(StateQueued)}, to: []State{StateDraft}, by: []Actor{ActorBrief}},
 	{from: []From{Existing(StateDraft), Existing(StateQueued)}, to: []State{StateStale}, by: []Actor{ActorBrief}},
 	{from: []From{Existing(StatePosted)}, to: []State{StateAnswered, StateAddressed}, by: []Actor{ActorVerify}},
 	{from: []From{Existing(StatePosted)}, to: []State{StateWithdrawn}, by: []Actor{ActorWithdrawConfirm}},

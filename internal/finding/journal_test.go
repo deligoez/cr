@@ -40,7 +40,7 @@ func TestEveryTransitionOfTheTableLeavesExactlyOneJournalEntry(t *testing.T) {
 		}
 		moves++
 	}
-	assert.Equal(t, 13, moves, "§9.1's eight rows expand to thirteen moves")
+	assert.Equal(t, 15, moves, "§9.1's nine rows expand to fifteen moves")
 
 	refused := NewJournal(ActorDraft, head, at)
 	require.Error(t, refused.Move("f1", Existing(StatePosted), StateQueued))
