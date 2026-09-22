@@ -53,6 +53,26 @@ func TestAUniqueContentHashMovesTheAnchor(t *testing.T) {
 	assert.Equal(t, 1, outcome.Candidates)
 }
 
+// A placed outcome carries the new anchor in §9.2's own fields, which is what
+// §9.4.5's carry writes back onto the record; a decline carries none.
+func TestAPlacedOutcomeCarriesTheNewAnchorsFields(t *testing.T) {
+	lines := []string{"func Discount(price int) int {", "\treturn price / 2"}
+	anchor := anchored(t, nil, lines, nil)
+
+	moved := Anchor("f1", anchor, []File{{
+		Path:  "order.go",
+		Lines: append([]string{"package shop", "", "// added above"}, lines...),
+	}})
+	assert.Equal(t, "order.go", moved.Path)
+	assert.Equal(t, 4, moved.StartLine)
+	assert.Equal(t, 5, moved.Line)
+
+	gone := Anchor("f1", anchor, []File{{Path: "order.go", Lines: []string{"package shop"}}})
+	assert.False(t, gone.Placed)
+	assert.Zero(t, gone.StartLine)
+	assert.Empty(t, gone.Path)
+}
+
 // §9.4.4: the same lines appear twice, so the content hash alone settles
 // nothing and the recorded window is what tells the two apart.
 //
