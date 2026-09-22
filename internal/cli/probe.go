@@ -1053,14 +1053,16 @@ func underProbeDirectory(paths []string, placement string) error {
 }
 
 // probeRunPath is the path §5.4.2 gives the probe's own run: the directory the
-// placed file sits in, or the file itself when the template puts it at the
-// repository root and there is no directory to name.
+// placed file sits in, `.` included.
+//
+// The repository root is a directory like any other, and §5.4.2 makes no
+// exception for it. Measured 2026-09-22 on a Go module whose package is at the
+// root: v0.6.0 handed the root-placed file itself to `go test`, which compiled
+// it alone as `command-line-arguments`, failed on the undefined function it
+// tested, and left every such gap probe `inconclusive` — measurement 4's
+// symptom again, one directory up. `go test ./.` runs the root package.
 func probeRunPath(placement string) string {
-	dir := path.Dir(placement)
-	if dir == "." || dir == "/" {
-		return placement
-	}
-	return dir
+	return path.Dir(placement)
 }
 
 // finishedProbe is what a probe's locked half hands to its report: the stored
