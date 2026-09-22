@@ -68,17 +68,24 @@ func TestAMigrationReadsTheHeadThePushMovedTo(t *testing.T) {
 
 	printed, err := runCLIPrinting(t, "recheck", fixturePR, "--repo", fixtureSlug)
 	require.NoError(t, err)
+	// §9.5.7: the head has moved past the round, so this is the preview of
+	// what `cr brief` would do, and nothing is written.
 	var report struct {
-		Migrated []struct {
+		Preview []struct {
 			Record string `json:"record"`
 			From   string `json:"from"`
 			To     string `json:"to"`
 			Placed bool   `json:"placed"`
-		} `json:"migrated"`
+		} `json:"preview"`
+		Migrated []any `json:"migrated"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(printed), &report))
-	require.Len(t, report.Migrated, 1)
-	assert.Equal(t, "lib.go:4", report.Migrated[0].From)
-	assert.Equal(t, "lib.go:7", report.Migrated[0].To, "§9.4.2: the anchored line is where the push moved it")
-	assert.True(t, report.Migrated[0].Placed)
+	require.Len(t, report.Preview, 1)
+	assert.Equal(t, "lib.go:4", report.Preview[0].From)
+	assert.Equal(t, "lib.go:7", report.Preview[0].To, "§9.4.2: the anchored line is where the push moved it")
+	assert.True(t, report.Preview[0].Placed)
+	assert.Empty(t, report.Migrated, "no brief has opened the round the move belongs to")
+	migrations, err := os.ReadFile(layout.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileMigrations))
+	require.NoError(t, err)
+	assert.Empty(t, strings.TrimSpace(string(migrations)), "§9.5.7: a preview writes nothing")
 }

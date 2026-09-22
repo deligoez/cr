@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -48,8 +49,15 @@ type recheckResult struct {
 	// `posting` declares, and a second field spelling it would make two
 	// different questions look like one in a payload.
 	Concerns []postedState `json:"concerns"`
-	// Migrated is §9.4.7's line per anchor cr moved or declined to move.
-	Migrated []migrate.Outcome `json:"migrated"`
+	// Migrated is §9.5.7's report of the migrations.ndjson lines `cr brief`
+	// wrote when it opened this round: every record §9.4 migrated, and
+	// whether §9.4.5 carried it.
+	Migrated []migrate.Record `json:"migrated"`
+	// Preview is what §9.4 would place at the current head while that head
+	// differs from the round's, and is empty otherwise. It is computed and
+	// written nowhere: the move is `cr brief`'s to make, and until then no
+	// record has moved.
+	Preview []migrate.Outcome `json:"preview"`
 	// Honesty carries §9.3.1's head comparison.
 	Honesty []string `json:"honesty"`
 }
@@ -70,14 +78,26 @@ func (r *recheckResult) Text(w *writer) string {
 		}
 	}
 	for _, one := range r.Migrated {
-		text += "\n  " + w.accent(one.Record) + " " + one.From
-		if one.Placed {
-			text += " → " + one.To + " (" + one.Key + ")"
-			continue
+		text += "\n  " + w.accent(one.Record) + " " + migrationText(&one.Outcome)
+		if one.Carried {
+			text += ", carried from round " + strconv.Itoa(one.FromRound)
+		} else {
+			text += ", staled"
 		}
-		text += " unplaced: " + strconv.Itoa(one.Candidates) + " candidate(s) by " + one.Key
+	}
+	for _, one := range r.Preview {
+		text += "\n  " + w.accent(one.Record) + " " + migrationText(&one) + ", if briefed now"
 	}
 	return text + w.disclose("\n", "", r.Honesty...)
+}
+
+// migrationText is one §9.4.7 line: where the anchor was, and where it went or
+// why it did not.
+func migrationText(one *migrate.Outcome) string {
+	if one.Placed {
+		return one.From + " → " + one.To + " (" + one.Key + ")"
+	}
+	return one.From + " unplaced: " + strconv.Itoa(one.Candidates) + " candidate(s) by " + one.Key
 }
 
 // newRecheckCmd reports what came back (§9.5).
@@ -105,7 +125,8 @@ func newRecheckCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			round, err := briefedRound(layout, owner, repo, pr)
+			var opened gh.PullRequest
+			round, err := briefedRound(layout, owner, repo, pr, &opened)
 			if err != nil {
 				return err
 			}
@@ -117,7 +138,7 @@ func newRecheckCmd(out *writer) *cobra.Command {
 			if err := refuseUnresolvedPost(&round.Meta); err != nil {
 				return err
 			}
-			report, err := recheckRound(layout, owner, repo, pr, &round)
+			report, err := recheckRound(layout, owner, repo, pr, &round, opened.Base)
 			if err != nil {
 				// §9.4.2's read is of the head's tree, so a clone
 				// that never received it fails here rather than
@@ -130,9 +151,12 @@ func newRecheckCmd(out *writer) *cobra.Command {
 	}
 }
 
-// recheckRound assembles §9.5's report and §9.4's migrations.
+// recheckRound assembles §9.5's report: the posted concerns, and §9.5.7's
+// migrations — the ones `cr brief` made for this round, or, while the head has
+// moved past it, the ones it would make. base is the pull request's base, which
+// the preview's diff is taken against.
 func recheckRound(
-	l state.Layout, owner, repo string, pr int, round *state.Round,
+	l state.Layout, owner, repo string, pr int, round *state.Round, base string,
 ) (*recheckResult, error) {
 	records, err := state.ReadStamped[*finding.Finding](
 		l, owner, repo, pr, state.FileFindings, round.Round)
@@ -158,7 +182,8 @@ func recheckRound(
 	report := &recheckResult{
 		Round:    round.Round,
 		Concerns: make([]postedState, 0),
-		Migrated: make([]migrate.Outcome, 0),
+		Migrated: make([]migrate.Record, 0),
+		Preview:  make([]migrate.Outcome, 0),
 		Honesty:  []string{round.Disclosure()},
 	}
 	for _, record := range posted {
@@ -171,16 +196,19 @@ func recheckRound(
 		}
 		report.Concerns = append(report.Concerns, postedOf(record, thread))
 	}
-	for _, record := range records {
-		// §9.4.1 migrates what cr owns, which is every non-terminal
-		// record other than a posted one: GitHub holds a posted
-		// record's place and reports it above.
-		if record.State.Unsent() && record.Anchor.Path != "" {
-			outcome, err := migrateOne(round, record)
-			if err != nil {
-				return nil, err
-			}
-			report.Migrated = append(report.Migrated, outcome)
+	if round.Stale() {
+		if report.Preview, err = previewMigrations(round, base, records); err != nil {
+			return nil, err
+		}
+		return report, nil
+	}
+	migrated, err := state.ReadRecords[migrate.Record](l, owner, repo, pr, state.FileMigrations)
+	if err != nil {
+		return nil, err
+	}
+	for i := range migrated {
+		if migrated[i].Round == round.Round {
+			report.Migrated = append(report.Migrated, migrated[i])
 		}
 	}
 	return report, nil
@@ -201,29 +229,82 @@ func postedOf(record *finding.Finding, thread *gh.Thread) postedState {
 	}
 }
 
-// migrateOne runs §9.4 for one record against the current head.
+// previewMigrations is §9.5.7's second half: while the current head differs
+// from the round's, what §9.4 would place at it for each of the round's unsent
+// records, written nowhere.
 //
-// The files it searches are the record's own and every file the head carries
-// under the paths the round's units name, which is §9.4.3's order. Reading the
-// head rather than the worktree is §9.4.2's constraint in its practical form:
-// the superseded commit is not required and is never asked for.
-func migrateOne(round *state.Round, record *finding.Finding) (migrate.Outcome, error) {
+// The files searched are §9.4.3's: the record's own, then every file the diff
+// at the current head touches, which is the diff `cr brief` would take. Every
+// file is read at round.Current rather than the recorded head: the recorded
+// head is the commit the record was stamped against, and a migration read from
+// it finds every anchor exactly where it was. Measured 2026-09-22 on
+// deligoez/cr-qa#24: three lines inserted above a queued record reported
+// `33 → 33` against the recorded head.
+func previewMigrations(round *state.Round, base string, records []*finding.Finding) ([]migrate.Outcome, error) {
+	preview := make([]migrate.Outcome, 0)
+	unsent := make([]*finding.Finding, 0, len(records))
+	for _, record := range records {
+		// §9.4.1 migrates `draft` and `queued` and never a posted
+		// record: GitHub holds a posted record's place and reports it.
+		if record.State.Unsent() && record.Anchor.Side == git.Right {
+			unsent = append(unsent, record)
+		}
+	}
+	if len(unsent) == 0 {
+		return preview, nil
+	}
 	dir, err := repoDir()
 	if err != nil {
-		return migrate.Outcome{}, err
+		return nil, err
 	}
-	// round.Current, not round.Head: Head is the commit the round was opened
-	// at, which is the commit the record was stamped against, and a
-	// migration read from it finds every anchor exactly where it was.
-	// Measured 2026-09-22 on deligoez/cr-qa#24: three lines inserted above a
-	// queued record reported `33 → 33` against the recorded head.
-	lines, exists, err := git.FileAtRevision(dir, round.Current, record.Anchor.Path)
-	if err != nil {
-		return migrate.Outcome{}, err
+	touched := make([]string, 0)
+	if base != "" {
+		mergeBase, err := git.MergeBase(dir, base, round.Current)
+		if err != nil {
+			return nil, err
+		}
+		changed, err := git.ChangedFiles(dir, mergeBase, round.Current)
+		if err != nil {
+			return nil, err
+		}
+		for _, file := range changed {
+			if file.Changed && !file.Binary {
+				touched = append(touched, file.Path)
+			}
+		}
 	}
-	files := make([]migrate.File, 0, 1)
-	if exists {
-		files = append(files, migrate.File{Path: record.Anchor.Path, Lines: lines})
+	read := make(map[string]*migrate.File)
+	fileAt := func(path string) (*migrate.File, error) {
+		if held, done := read[path]; done {
+			return held, nil
+		}
+		lines, exists, err := git.FileAtRevision(dir, round.Current, path)
+		if err != nil {
+			return nil, err
+		}
+		var file *migrate.File
+		if exists {
+			file = &migrate.File{Path: path, Lines: lines}
+		}
+		read[path] = file
+		return file, nil
 	}
-	return migrate.Anchor(record.ID, &record.Anchor, files), nil
+	for _, record := range unsent {
+		paths := append([]string{record.Anchor.Path}, touched...)
+		files := make([]migrate.File, 0, len(paths))
+		for i, path := range paths {
+			if slices.Contains(paths[:i], path) {
+				continue
+			}
+			file, err := fileAt(path)
+			if err != nil {
+				return nil, err
+			}
+			if file != nil {
+				files = append(files, *file)
+			}
+		}
+		preview = append(preview, migrate.Anchor(record.ID, &record.Anchor, files))
+	}
+	return preview, nil
 }
