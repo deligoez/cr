@@ -292,6 +292,12 @@ Each of these is measured rather than wished for: the evidence is a run that had
 
 ### 2. Measure what is still unmeasured
 
+**After v0.6.0 the next step is a decision, not work.** The driver above, real use below, and the
+honest AACR-Bench instrument are one activity — running rounds on real pull requests — and the
+driver's shape should come from those rounds rather than from a guess. What it waits on is the
+user's: which pull requests, under whose name the output is posted, and the budget for a benchmark
+slice. Agreed with cr-research, 2026-09-22.
+
 M1 and M3 answered two of this item's three slices. What is left has no data at all:
 
 - **Real use.** Review real pull requests with cr, posting only what the reviewer would have posted anyway,
@@ -300,10 +306,16 @@ M1 and M3 answered two of this item's three slices. What is left has no data at 
   trial. It is the same question the volume question below asks, from the other end. **Blocked on a decision,
   not on work:** which real pull requests cr is pointed at, and whether its output is posted under the
   reviewer's name. Both are the user's to make, and nothing here proceeds until they are made.
-- **AACR-Bench as an instrument.** Its 640 negatives are a straight binary test of whether cr's grade ladder
-  and §6.3's question-forcing separate wrong from right, with no matcher needed and no scoring script (which
-  is unpublished). cr's own false-assertion denominators are 6 and 9; this one is 640. Recall over its 245
-  Go rows is a second, larger slice, conditional on the first and on the Go profile.
+- **AACR-Bench as an instrument.** *This entry said its 640 negatives were a binary test of the grade
+  ladder "with no matcher needed", and that was wrong; cr-research, whose sentence it was, corrected
+  it on 2026-09-22.* cr grades its own records from their anchor, citations, probe and containment
+  (§6.2.1); a benchmark comment carries none of them, so handed to the ladder it grades `argued`,
+  positives and negatives alike, and the "test" reports that both were forced to questions — zero
+  separation by construction. The honest instrument runs cr's roles over the benchmark's pull
+  requests and scores cr's own records, which needs a matcher (unpublished) or expert judgement,
+  runnable repositories, and roles per pull request: measurement 1 was 123 prompts and $89 for one
+  pull request, so a 20-PR Go slice is of the order of $1,500. That is a budget decision, and it
+  needed the Go profile, which v0.6.0 ships.
 
 ### 3. Scenario coverage
 
