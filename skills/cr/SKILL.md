@@ -1056,6 +1056,11 @@ posted record of the pull request, and `cr verify`, `cr resolve` and
 only the current round, so after a push none of the four could see a posted
 record; v0.5.1 fixes it.)
 
+GitHub can report the old head for a few seconds after a push: measured during
+the v0.6.0 QA, a `cr brief` run straight after the push stayed in the old round
+and the next one opened the new round. When `head` in the brief is not the
+commit the author just pushed, wait and brief again before fanning out.
+
 ```bash
 cr recheck 1
 ```
