@@ -183,16 +183,18 @@ func TestTheKeyIsThePullRequestTheRoundAndTheRecord(t *testing.T) {
 		"three occasions, and a raise and an outcome that never overwrite each other")
 }
 
-// §7.3.1 calls the five action names the complete vocabulary its statistics are
-// computed from, so a sixth is refused rather than written: §7.3.2 and §7.3.4
-// read the file by name, and an action neither counts would leave a raise with
-// no outcome while the file looked full.
-func TestTheVocabularyIsFiveNamesAndAnOutcomeIsFourOfThem(t *testing.T) {
+// §7.3.1 calls the seven action names the complete vocabulary its statistics
+// are computed from, so an eighth is refused rather than written: §7.3.2 and
+// §7.3.4 read the file by name, and an action neither counts would leave a
+// raise with no outcome while the file looked full.
+func TestTheVocabularyIsSevenNamesAndAnOutcomeIsSixOfThem(t *testing.T) {
 	assert.Equal(t,
-		[]TriageAction{"raised", "kept", "softened", "discarded-not-here", "discarded-wrong"},
+		[]TriageAction{"raised", "kept", "softened", "discarded-not-here", "discarded-wrong",
+			"withdrawn-not-here", "withdrawn-wrong"},
 		TriageActions())
 	for _, outcome := range []Outcome{
 		OutcomeKept, OutcomeSoftened, OutcomeDiscardedNotHere, OutcomeDiscardedWrong,
+		OutcomeWithdrawnNotHere, OutcomeWithdrawnWrong,
 	} {
 		assert.True(t, TriageAction(outcome).Valid(), outcome)
 	}

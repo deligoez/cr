@@ -27,8 +27,8 @@ type Sample struct {
 	MinSamples int
 }
 
-// DemotionRate is §7.3.4's rate for one class: `(discarded-wrong + softened) /
-// raised`.
+// DemotionRate is §7.3.4's rate for one class: `(discarded-wrong +
+// withdrawn-wrong + softened) / raised`.
 //
 // `not-here` is absent from the numerator by construction rather than by a
 // subtraction, because §7.3.4 excludes it for a reason that is not arithmetic:
@@ -66,6 +66,10 @@ func (c TriageCounts) of(outcome Outcome) int {
 		return c.DiscardedNotHere
 	case OutcomeDiscardedWrong:
 		return c.DiscardedWrong
+	case OutcomeWithdrawnNotHere:
+		return c.WithdrawnNotHere
+	case OutcomeWithdrawnWrong:
+		return c.WithdrawnWrong
 	default:
 		return 0
 	}

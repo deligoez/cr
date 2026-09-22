@@ -1,7 +1,8 @@
 package finding
 
 // NotHereRate is §7.3.6's rate for one class: the share of its raises the
-// reviewer discarded as `not-here`.
+// reviewer discarded or withdrew as `not-here`. Outcome.NotHere is the one place
+// that set is spelled, and this reads it rather than restating it.
 //
 // It is the complement of nothing. §7.3.4's rate and this one are computed over
 // the same denominator and share no outcome at all, because the two dispositions
@@ -13,7 +14,14 @@ func (c TriageCounts) NotHereRate() float64 {
 	if c.Raised == 0 {
 		return 0
 	}
-	return float64(c.DiscardedNotHere) / float64(c.Raised)
+	counted := 0
+	for _, action := range TriageActions() {
+		outcome := Outcome(action)
+		if action != ActionRaised && outcome.NotHere() {
+			counted += c.of(outcome)
+		}
+	}
+	return float64(counted) / float64(c.Raised)
 }
 
 // VolumeCandidate is one class §7.3.6 lists: accurate, and rarely worth

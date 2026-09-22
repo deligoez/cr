@@ -6,10 +6,11 @@ import (
 	"slices"
 )
 
-// TriageCounts is §7.3.2's five counts over one subject's triage events:
-// raised, kept, softened, discarded as `not-here`, and discarded as `wrong`.
+// TriageCounts is §7.3.2's seven counts over one subject's triage events:
+// raised, kept, softened, discarded as `not-here` and as `wrong`, and
+// withdrawn as `not-here` and as `wrong`.
 //
-// The five are §7.3.1's complete action vocabulary and nothing else, so a
+// The seven are §7.3.1's complete action vocabulary and nothing else, so a
 // subject's counts are a partition of its events rather than a selection from
 // them. That is what lets §7.3.4 divide by Raised and know the denominator is
 // the whole of what was raised.
@@ -17,11 +18,16 @@ type TriageCounts struct {
 	// Raised is §7.3.1's `raised`: a record `cr draft` queued.
 	Raised int `json:"raised"`
 	// Kept, Softened, DiscardedNotHere and DiscardedWrong are the four
-	// outcomes, in the order §7.3.2 names them.
+	// outcomes triage settles, in the order §7.3.2 names them.
 	Kept             int `json:"kept"`
 	Softened         int `json:"softened"`
 	DiscardedNotHere int `json:"discarded_not_here"`
 	DiscardedWrong   int `json:"discarded_wrong"`
+	// WithdrawnNotHere and WithdrawnWrong are §9.6.2's retractions. Each
+	// replaces the `kept` its record was posted under (§7.3.1), so a raise
+	// still has one outcome and the seven still partition the events.
+	WithdrawnNotHere int `json:"withdrawn_not_here"`
+	WithdrawnWrong   int `json:"withdrawn_wrong"`
 }
 
 // count adds one action to the tally, and refuses one outside §7.3.1's five.
@@ -44,9 +50,13 @@ func (c *TriageCounts) count(action TriageAction) error {
 		c.DiscardedNotHere++
 	case TriageAction(OutcomeDiscardedWrong):
 		c.DiscardedWrong++
+	case TriageAction(OutcomeWithdrawnNotHere):
+		c.WithdrawnNotHere++
+	case TriageAction(OutcomeWithdrawnWrong):
+		c.WithdrawnWrong++
 	default:
 		return fmt.Errorf(
-			"triage event: %q is not one of §7.3.1's five action names", action)
+			"triage event: %q is not one of §7.3.1's seven action names", action)
 	}
 	return nil
 }

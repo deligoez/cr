@@ -79,14 +79,14 @@ func (r *statsResult) Text(w *writer) string {
 	var out strings.Builder
 	out.WriteString(w.accent(r.Repo) + ": " + strconv.Itoa(r.Events) +
 		" triage event(s) over " + strconv.Itoa(len(r.Classes)) + " class(es)")
-	out.WriteString("\nper class (raised/kept/softened/not-here/wrong)")
+	out.WriteString("\nper class (raised/kept/softened/not-here/wrong/withdrawn-not-here/withdrawn-wrong)")
 	if len(r.Classes) == 0 {
 		out.WriteString("\n  none")
 	}
 	for _, class := range r.Classes {
 		out.WriteString("\n  " + w.accent(class.Class) + " " + countsLine(class.TriageCounts))
 	}
-	out.WriteString("\nper rule (raised/kept/softened/not-here/wrong)")
+	out.WriteString("\nper rule (raised/kept/softened/not-here/wrong/withdrawn-not-here/withdrawn-wrong)")
 	if len(r.Rules) == 0 {
 		out.WriteString("\n  none")
 	}
@@ -154,7 +154,7 @@ func statsSample(l state.Layout, owner, repo string) (finding.Sample, error) {
 	}, nil
 }
 
-// countsLine renders §7.3.2's five counts in the order the section names them,
+// countsLine renders §7.3.2's seven counts in the order the section names them,
 // which is also the order the heading above spells out.
 func countsLine(counts finding.TriageCounts) string {
 	return strings.Join([]string{
@@ -163,6 +163,8 @@ func countsLine(counts finding.TriageCounts) string {
 		strconv.Itoa(counts.Softened),
 		strconv.Itoa(counts.DiscardedNotHere),
 		strconv.Itoa(counts.DiscardedWrong),
+		strconv.Itoa(counts.WithdrawnNotHere),
+		strconv.Itoa(counts.WithdrawnWrong),
 	}, "/")
 }
 
@@ -204,9 +206,9 @@ func newStatsCmd(out *writer) *cobra.Command {
 			}
 			report, err := finding.Tally(events)
 			if err != nil {
-				// §7.3.1's vocabulary is closed at five action
+				// §7.3.1's vocabulary is closed at seven action
 				// names and the ledger is a file under ~/.cr a
-				// user can open, so a sixth is the ledger cr
+				// user can open, so an eighth is the ledger cr
 				// found and cannot use — the shape
 				// state.ContextStoreError already takes, which
 				// §11.2 codes 3. Measured 2026-09-12: a

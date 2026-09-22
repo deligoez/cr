@@ -8,9 +8,9 @@ import (
 	"github.com/deligoez/cr/internal/state"
 )
 
-// TriageAction is one of §7.3.1's five action names, which the section calls
+// TriageAction is one of §7.3.1's seven action names, which the section calls
 // the complete vocabulary its statistics are computed from: the raise, and the
-// four outcomes Outcome already holds.
+// six outcomes Outcome already holds.
 //
 // It is a type of its own rather than a fifth Outcome because the raise is not
 // an outcome. §7.3.4 divides by the raises and counts two of the outcomes into
@@ -22,8 +22,8 @@ type TriageAction string
 // once per record and never replaced by an outcome.
 const ActionRaised TriageAction = "raised"
 
-// TriageActions returns §7.3.1's five action names, the raise first and then
-// the four outcomes in the order §7.3.2 reports them. The result is a copy, so
+// TriageActions returns §7.3.1's seven action names, the raise first and then
+// the six outcomes in the order §7.3.2 reports them. The result is a copy, so
 // a caller can neither widen the vocabulary nor reorder it.
 func TriageActions() []TriageAction {
 	return []TriageAction{
@@ -32,10 +32,12 @@ func TriageActions() []TriageAction {
 		TriageAction(OutcomeSoftened),
 		TriageAction(OutcomeDiscardedNotHere),
 		TriageAction(OutcomeDiscardedWrong),
+		TriageAction(OutcomeWithdrawnNotHere),
+		TriageAction(OutcomeWithdrawnWrong),
 	}
 }
 
-// Valid reports whether the action is one of the five.
+// Valid reports whether the action is one of the seven.
 func (a TriageAction) Valid() bool {
 	return slices.Contains(TriageActions(), a)
 }
@@ -144,7 +146,7 @@ func (e *TriageEvent) key() triageKey {
 type Settled struct {
 	// Record is the record the outcome belongs to.
 	Record *Finding
-	// Outcome is one of §7.3.1's four outcome actions.
+	// Outcome is one of §7.3.1's six outcome actions.
 	Outcome Outcome
 }
 
@@ -183,7 +185,7 @@ func RecordOutcomes(
 		action := TriageAction(one.Outcome)
 		if action == ActionRaised || !action.Valid() {
 			return fmt.Errorf(
-				"record %s: %q is not one of §7.3.1's four outcome actions",
+				"record %s: %q is not one of §7.3.1's six outcome actions",
 				one.Record.ID, one.Outcome)
 		}
 		written = append(written, on.event(action, one.Record))
