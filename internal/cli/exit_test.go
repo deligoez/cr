@@ -106,6 +106,17 @@ func TestAPullRequestWithNoMergeBaseNamesTheStep(t *testing.T) {
 	assert.Contains(t, hintFor(err), "not branched from its base")
 }
 
+// A pull request closing two issues is refused with both candidates in the
+// hint, spelled as the flag to pass. v0.6.0's table row took the hint's place,
+// so the step never named either key.
+func TestAnAmbiguousIssueHintNamesEveryCandidate(t *testing.T) {
+	err := fmt.Errorf("resolving the key: %w",
+		&intent.AmbiguousIssueError{Keys: []string{"acme.web#3", "acme.web#8"}})
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Equal(t, "pass --issue naming the one to review against: --issue acme.web#3 or --issue acme.web#8",
+		hintFor(err))
+}
+
 // gh is the third of those tools, and §3.5's ingestion is the first thing that
 // drives it. A GraphQL error arrives as a refusal like any other — gh exits
 // non-zero with the message on stderr — so it maps onto the same code, and the
