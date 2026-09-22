@@ -48,7 +48,8 @@ func TestAPushCarriesTheRecordWhoseCodeMovedAndStalesTheOneWhoseCodeIsGone(t *te
 		`{"path":"order.go","line":3,"content_hash":"` + hashOf(t, total) + `"}]`
 	stamp := `"head":"` + first + `","round":1`
 	record := func(id, state, anchor, extra string) string {
-		return `{"id":"` + id + `","kind":"finding","role":"correctness","class":"unchecked-error",` +
+		return `{"id":"` + id + `","kind":"finding","role":"correctness","axis":"correctness",` +
+			`"class":"unchecked-error","grade":"probed",` +
 			`"severity":"high","unit":"u1","summary":"s","evidence":"e","state":"` + state + `",` +
 			`"anchor":` + anchor + `,` + extra + stamp + `}`
 	}
@@ -92,6 +93,9 @@ func TestAPushCarriesTheRecordWhoseCodeMovedAndStalesTheOneWhoseCodeIsGone(t *te
 	require.Len(t, carried.Citations, 2)
 	assert.NotEmpty(t, carried.Citations[0].ContentHash, "line 1 still holds what it was stamped with")
 	assert.Empty(t, carried.Citations[1].ContentHash, "line 3 now holds a comment, so the stamp is gone")
+	assert.Equal(t, finding.GradeArgued, carried.Grade,
+		"§9.4.8: graded again without the probe; the citation that still resolves lies inside the "+
+			"new unit (lines 1–5), which §6.2's `cited` row does not count, so `probed` falls to `argued`")
 
 	assert.Equal(t, `"stale"`, string(stored[1]["state"]))
 	assert.Equal(t, `"posted"`, string(stored[2]["state"]), "§9.4.1: a posted record's place is GitHub's")
