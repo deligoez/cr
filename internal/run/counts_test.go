@@ -193,6 +193,61 @@ func TestAnUncompilablePatternIsReportedAndNamesItsField(t *testing.T) {
 	assert.Contains(t, err.Error(), "tests.failed_pattern")
 }
 
+// §5.2.1's occurrence mode: each count is the number of matches, and a zero is
+// the count 0 only when the runner exited 0.
+//
+// The exit is the whole of the second half. A runner that did not build prints
+// no test line and exits non-zero, and a filter that selected nothing prints
+// no test line and exits 0; only the exit tells them apart, and the first read
+// as zero would name a broken tree `no-tests-selected`. A zero failed count
+// beside a non-zero executed one is still zero whatever the exit, because the
+// run did report its tests: §5.3.4 reads that exit itself.
+func TestOccurrencesCountTheMatchesAndAZeroNeedsACleanExit(t *testing.T) {
+	const (
+		ran    = `(?m)^--- (?:PASS|FAIL): `
+		broken = `(?m)^--- FAIL: `
+	)
+	cases := map[string]struct {
+		output   string
+		exit     int
+		executed string
+		failed   string
+	}{
+		"two passing and one failing": {
+			output: "--- PASS: TestA (0.00s)\n--- FAIL: TestB (0.00s)\n    --- FAIL: TestB/x (0.00s)\n--- PASS: TestC (0.00s)\n",
+			exit:   1, executed: "3", failed: "1",
+		},
+		"all passing": {
+			output: "--- PASS: TestA (0.00s)\nok  \tpkg\t0.1s\n",
+			exit:   0, executed: "1", failed: "0",
+		},
+		"nothing selected, clean exit": {
+			output: "testing: warning: no tests to run\nPASS\n",
+			exit:   0, executed: "0", failed: "0",
+		},
+		"nothing printed, failing exit": {
+			output: "FAIL\tpkg [build failed]\n",
+			exit:   1, executed: "undetermined", failed: "undetermined",
+		},
+		"tests printed, some package failed to build": {
+			output: "--- PASS: TestA (0.00s)\nFAIL\tother [build failed]\n",
+			exit:   1, executed: "1", failed: "0",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			counter, err := NewCounter(ran, broken, true)
+			require.NoError(t, err)
+			_, err = counter.Write([]byte(tc.output))
+			require.NoError(t, err)
+
+			executed, failed := counter.Counts(tc.exit)
+			assert.Equal(t, tc.executed, shown(executed), "executed count")
+			assert.Equal(t, tc.failed, shown(failed), "failed count")
+		})
+	}
+}
+
 // shown renders one of §5.2.4's optional counts, so a test can say what it
 // expects without a pointer comparison and an absent count reads as the answer
 // it is.
