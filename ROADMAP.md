@@ -342,6 +342,20 @@ driver's shape should come from those rounds rather than from a guess. What it w
 user's: which pull requests, under whose name the output is posted, and the budget for a benchmark
 slice. Agreed with cr-research, 2026-09-22.
 
+- **`TestAStoppedProbeLeavesNoRunnerAndTheNextRunStartsClean/terminated` failed once, under the
+  full `-race` run, and has not been reproduced.** 2026-09-22, during v0.6.2's gate: `cr probe run`
+  reached the state on disk 591ms after it started, and process group 81149 was still alive 15
+  seconds after the signal, so the test reported that cr had exited leaving its runner running. The
+  load at the moment of the failure was **not recorded**; the box read 3.07/2.58/2.27 afterwards,
+  which is the wrong figure for the failing run and is written here only so nobody mistakes it for
+  one. Two re-runs of that test alone and a second full `-race` run were clean. It is entered here
+  rather than dismissed because the path it exercises is invariant 6 — a probe reverts even when the
+  run fails, times out or panics — and a one-off there is either a test whose wait is shaped wrong
+  or a real race in the kill-and-verify sequence that only appears under load. Raised by
+  cr-research, 2026-09-22. **When it next fires, record the load (the fifteen-minute figure) and the
+  process's state, and put the second data point here**; if it never fires again, that is this
+  entry's answer.
+
 M1 and M3 answered two of this item's three slices. What is left has no data at all:
 
 - **Real use.** Review real pull requests with cr, posting only what the reviewer would have posted anyway,
