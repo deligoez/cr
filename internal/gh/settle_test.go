@@ -59,22 +59,35 @@ func TestAResolveIsOnlyARresolutionWhenGitHubSaysSo(t *testing.T) {
 }
 
 // The resolve is a GraphQL mutation and travels as one, with the thread id in
-// variables rather than interpolated into the query.
+// the variable the mutation declares rather than interpolated into the query.
 //
 // Interpolating it would work and is the thing not to do: the id comes from
 // GitHub's own answer, but a query built by concatenation is a query whose
 // shape depends on its data, and cr sends the same mutation every time.
-func TestTheResolveSendsItsThreadIdAsAVariable(t *testing.T) {
+//
+// The variable is asserted as the one argument `-f thread=<id>`, which is the
+// shape `gh api graphql` turns into `$thread`. v0.5.0's `variables={...}`
+// passed this test's previous assertion and reached GitHub as a variable named
+// `variables`, leaving `$thread` null, so what is pinned now is the argument gh
+// reads and not an encoding that merely contains the id.
+func TestTheResolveSendsItsThreadIdAsTheThreadVariable(t *testing.T) {
 	sent := filepath.Join(t.TempDir(), "argv")
-	stubGh(t, `echo "$@" > `+sent+`
+	stubGh(t, `for argument in "$@"; do printf '%s\n' "$argument"; done > `+sent+`
 echo '{"data":{"resolveReviewThread":{"thread":{"id":"T1","isResolved":true}}}}'`)
 
 	require.NoError(t, Confirm(true).ResolveThread("PRRT_kwDOabc"))
 
 	argv, err := os.ReadFile(sent)
 	require.NoError(t, err)
-	assert.Contains(t, string(argv), "api graphql")
-	assert.Contains(t, string(argv), `variables={"thread":"PRRT_kwDOabc"}`)
+	arguments := strings.Split(strings.TrimSuffix(string(argv), "\n"), "\n")
+	require.GreaterOrEqual(t, len(arguments), 2)
+	assert.Equal(t, []string{"api", "graphql"}, arguments[:2])
+	assert.Contains(t, arguments, "thread=PRRT_kwDOabc",
+		"gh fills $thread from a field named thread and from nothing else")
+	for _, argument := range arguments {
+		assert.False(t, strings.HasPrefix(argument, "variables="),
+			"gh sends a field named variables as a variable named variables")
+	}
 	assert.True(t, strings.Contains(string(argv), "resolveReviewThread"),
 		"the mutation cr sends is the one in settle.go")
 	assert.NotContains(t, string(argv), `threadId:"PRRT_kwDOabc"`,
