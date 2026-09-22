@@ -37,18 +37,20 @@ const (
 // all when no `tests.count_pattern` is configured, because no amount of output
 // can determine a count there is no pattern for.
 type Counter struct {
-	count  *regexp.Regexp
-	failed *regexp.Regexp
-	held   strings.Builder
+	count       *regexp.Regexp
+	failed      *regexp.Regexp
+	occurrences bool
+	held        strings.Builder
 }
 
 // NewCounter compiles a profile's `tests.count_pattern` and
-// `tests.failed_pattern`.
+// `tests.failed_pattern`, read in the `tests.count_mode` occurrences names.
 //
-// Both are already held to exactly one capture group by internal/profile, and
-// an empty `tests.count_pattern` is §2.4's absent one: the counter then
-// retains nothing and reports both counts undetermined, which is what §5.2.1
-// means by recording the counts "when `tests.count_pattern` is configured".
+// Both are already held to the arity the mode needs by internal/profile —
+// exactly one capture group to sum, none to count — and an empty
+// `tests.count_pattern` is §2.4's absent one: the counter then retains nothing
+// and reports both counts undetermined, which is what §5.2.1 means by
+// recording the counts "when `tests.count_pattern` is configured".
 //
 // A `tests.count_pattern` with no `tests.failed_pattern` beside it is given
 // the same answer rather than an error. §2.4 requires the pair together and
@@ -56,7 +58,7 @@ type Counter struct {
 // here that way; undetermined is the reading that cannot invent a clean run
 // out of a missing pattern, since a failed count is otherwise zero whenever
 // nothing matches.
-func NewCounter(countPattern, failedPattern string) (*Counter, error) {
+func NewCounter(countPattern, failedPattern string, occurrences bool) (*Counter, error) {
 	if countPattern == "" || failedPattern == "" {
 		return &Counter{}, nil
 	}
@@ -68,7 +70,7 @@ func NewCounter(countPattern, failedPattern string) (*Counter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tests.failed_pattern: %w", err)
 	}
-	return &Counter{count: count, failed: failed}, nil
+	return &Counter{count: count, failed: failed, occurrences: occurrences}, nil
 }
 
 // Write retains the output when there is a pattern to match against it, and
@@ -87,6 +89,7 @@ func (c *Counter) Write(p []byte) (int, error) {
 }
 
 // Counts is §5.2.1's pair, nil for a count the output does not determine.
+// exitCode is the runner's, which only the occurrence mode reads.
 //
 // The two travel together on every failure, because §5.2.1 says they do: a
 // `tests.count_pattern` that never matches and a group that does not parse
@@ -95,11 +98,14 @@ func (c *Counter) Write(p []byte) (int, error) {
 // a runner that prints a status only when its count is non-zero prints nothing
 // at all for no failures, and an all-passing Pest run never writes the word
 // failed.
-func (c *Counter) Counts() (executed, failed *int) {
+func (c *Counter) Counts(exitCode int) (executed, failed *int) {
 	if c.count == nil {
 		return nil, nil
 	}
 	output := c.held.String()
+	if c.occurrences {
+		return c.occurrenceCounts(output, exitCode)
+	}
 	ran, matched, ok := sum(c.count, output)
 	if !matched || !ok {
 		return nil, nil
@@ -108,6 +114,26 @@ func (c *Counter) Counts() (executed, failed *int) {
 	if !ok {
 		return nil, nil
 	}
+	return &ran, &broke
+}
+
+// occurrenceCounts is §5.2.1's occurrence mode: each count is how many times
+// its pattern matches, for a runner that prints one line per test and no recap.
+//
+// No match is the count zero only when the runner exited 0. A runner that did
+// not build the code prints no test line either — `go test` writes
+// `FAIL <pkg> [build failed]` and exits 1 — and reading its silence as zero
+// tests would put §5.3.4's and §5.4.3's ladders on `no-tests-selected`, the
+// answer for a filter that matched nothing, about a tree that did not compile.
+// So a zero from a non-zero exit is undetermined, which is where the sum mode
+// already lands: a runner that crashes before its recap leaves count_pattern
+// unmatched.
+func (c *Counter) occurrenceCounts(output string, exitCode int) (executed, failed *int) {
+	ran := len(c.count.FindAllStringIndex(output, -1))
+	if ran == 0 && exitCode != 0 {
+		return nil, nil
+	}
+	broke := len(c.failed.FindAllStringIndex(output, -1))
 	return &ran, &broke
 }
 

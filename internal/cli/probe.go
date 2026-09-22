@@ -275,7 +275,8 @@ func (s *suite) perform(filter string, paths []string) (*measuredRun, error) {
 		return nil, err
 	}
 	tail := run.NewTail(s.profile.Tests.OutputTailBytes)
-	counter, err := run.NewCounter(s.profile.Tests.CountPattern, s.profile.Tests.FailedPattern)
+	counter, err := run.NewCounter(
+		s.profile.Tests.CountPattern, s.profile.Tests.FailedPattern, s.profile.CountsOccurrences())
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +314,7 @@ func (s *suite) perform(filter string, paths []string) (*measuredRun, error) {
 		// refuse to grade on.
 		unstarted, detail = true, unrunnable.Error()
 	}
-	executed, failed := counter.Counts()
+	executed, failed := counter.Counts(exit.Code)
 	record := &run.Record{
 		Filter:      filter,
 		Paths:       paths,

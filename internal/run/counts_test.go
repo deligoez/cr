@@ -102,14 +102,14 @@ func TestEveryMatchOfEachPatternIsSummedRatherThanTheLastOneWinning(t *testing.T
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			counter, err := NewCounter(countPattern, failedPattern)
+			counter, err := NewCounter(countPattern, failedPattern, false)
 			require.NoError(t, err)
 			written, err := counter.Write([]byte(tc.output))
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.output), written,
 				"the whole of what the caller wrote is accepted")
 
-			executed, failed := counter.Counts()
+			executed, failed := counter.Counts(0)
 			assert.Equal(t, tc.executed, shown(executed), "executed count")
 			assert.Equal(t, tc.failed, shown(failed), "failed count")
 		})
@@ -121,12 +121,12 @@ func TestEveryMatchOfEachPatternIsSummedRatherThanTheLastOneWinning(t *testing.T
 // from the total — which is what a signed parse would have done, and what
 // would let a runner's own output talk a failed count down to zero.
 func TestANegativeCaptureIsNotACount(t *testing.T) {
-	counter, err := NewCounter(`ran (-?\d+)`, `failed (-?\d+)`)
+	counter, err := NewCounter(`ran (-?\d+)`, `failed (-?\d+)`, false)
 	require.NoError(t, err)
 	_, err = counter.Write([]byte("ran 4\nfailed 2\nfailed -2\n"))
 	require.NoError(t, err)
 
-	executed, failed := counter.Counts()
+	executed, failed := counter.Counts(0)
 	assert.Nil(t, executed, "§5.2.1: a group that does not parse leaves both undetermined")
 	assert.Nil(t, failed)
 }
@@ -136,14 +136,14 @@ func TestANegativeCaptureIsNotACount(t *testing.T) {
 // still sums. The counter is an io.Writer for exactly this reason: it is teed
 // off the merged stream as it is produced.
 func TestOutputArrivingInPiecesIsCountedAsOneStream(t *testing.T) {
-	counter, err := NewCounter(countPattern, failedPattern)
+	counter, err := NewCounter(countPattern, failedPattern, false)
 	require.NoError(t, err)
 	for _, piece := range []string{"Tests:  2 fail", "ed, 4 pas", "sed\n"} {
 		_, err := counter.Write([]byte(piece))
 		require.NoError(t, err)
 	}
 
-	executed, failed := counter.Counts()
+	executed, failed := counter.Counts(0)
 	assert.Equal(t, "6", shown(executed))
 	assert.Equal(t, "2", shown(failed))
 }
@@ -165,12 +165,12 @@ func TestAProfileWithNoCountPatternDeterminesNothingAndKeepsNothing(t *testing.T
 		"only a count pattern": {countPattern, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
-			counter, err := NewCounter(patterns[0], patterns[1])
+			counter, err := NewCounter(patterns[0], patterns[1], false)
 			require.NoError(t, err)
 			_, err = counter.Write([]byte("Tests:  4 passed\n"))
 			require.NoError(t, err)
 
-			executed, failed := counter.Counts()
+			executed, failed := counter.Counts(0)
 			assert.Nil(t, executed)
 			assert.Nil(t, failed)
 			assert.Zero(t, counter.held.Len(),
@@ -184,11 +184,11 @@ func TestAProfileWithNoCountPatternDeterminesNothingAndKeepsNothing(t *testing.T
 // this unreachable through a loaded profile, which validates both patterns;
 // what it must not become is a run that quietly counts nothing.
 func TestAnUncompilablePatternIsReportedAndNamesItsField(t *testing.T) {
-	_, err := NewCounter(`(\d+`, failedPattern)
+	_, err := NewCounter(`(\d+`, failedPattern, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tests.count_pattern")
 
-	_, err = NewCounter(countPattern, `(\d+`)
+	_, err = NewCounter(countPattern, `(\d+`, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tests.failed_pattern")
 }

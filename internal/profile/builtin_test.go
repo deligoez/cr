@@ -135,13 +135,13 @@ func TestTheLaravelPestProbePathSatisfiesItsTestGlobs(t *testing.T) {
 // written out here, because summing the patterns was §5.2.1's implementation
 // and did not exist yet; a copy kept now would be a second implementation of
 // the rule that can agree with the spec while the one cr ships does not.
-func counted(t *testing.T, p *Profile, output string) (executed, failed string) {
+func counted(t *testing.T, p *Profile, output string, exitCode int) (executed, failed string) {
 	t.Helper()
-	counter, err := run.NewCounter(p.Tests.CountPattern, p.Tests.FailedPattern)
+	counter, err := run.NewCounter(p.Tests.CountPattern, p.Tests.FailedPattern, p.CountsOccurrences())
 	require.NoError(t, err)
 	_, err = counter.Write([]byte(output))
 	require.NoError(t, err)
-	ran, broke := counter.Counts()
+	ran, broke := counter.Counts(exitCode)
 	return shown(ran), shown(broke)
 }
 
@@ -188,7 +188,7 @@ func TestTheLaravelPestPatternsCountCapturedPestOutput(t *testing.T) {
 			output, err := os.ReadFile("testdata/pest/" + tc.file)
 			require.NoError(t, err)
 
-			executed, failed := counted(t, &p, string(output))
+			executed, failed := counted(t, &p, string(output), 0)
 			assert.Equal(t, tc.executed, executed, "executed count")
 			assert.Equal(t, tc.failed, failed, "failed count")
 		})

@@ -262,7 +262,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			// summed over every match and a truncated view loses
 			// matches silently.
 			counter, err := run.NewCounter(
-				resolved.Tests.CountPattern, resolved.Tests.FailedPattern)
+				resolved.Tests.CountPattern, resolved.Tests.FailedPattern, resolved.CountsOccurrences())
 			if err != nil {
 				return err
 			}
@@ -311,7 +311,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			executed, failed := counter.Counts()
+			executed, failed := counter.Counts(code)
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
 			recorded, err := recordRun(layout, owner, repo, pr, stamp, &run.Record{
 				Filter:       filter,
