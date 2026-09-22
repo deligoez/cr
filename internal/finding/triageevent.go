@@ -156,11 +156,31 @@ type Settled struct {
 //
 // A second run of the same round overwrites each event rather than appending
 // one, so §7.1.6's regeneration cannot inflate §7.3.4's denominator.
+//
+// A record the pull request already holds a `raised` event for is not raised
+// again, in any round. §9.3.4 carries a queued record into the next round, and
+// the round is part of the event's key, so without this the carried record
+// would be raised twice and §7.3.4's rate would divide by a record counted
+// twice. Before v0.7.0 no record could reach a second round's draft, so the
+// rule changes nothing that happened earlier.
 func RecordRaised(
 	l state.Layout, owner, repo string, raised []*Finding, on *TriageOccasion,
 ) error {
+	held, err := TriageEvents(l, owner, repo)
+	if err != nil {
+		return err
+	}
+	already := make(map[string]bool)
+	for i := range held {
+		if held[i].Action == ActionRaised && held[i].PR == on.PR && held[i].Round != on.Round {
+			already[held[i].Record] = true
+		}
+	}
 	written := make([]TriageEvent, 0, len(raised))
 	for _, record := range raised {
+		if already[record.ID] {
+			continue
+		}
 		written = append(written, on.event(ActionRaised, record))
 	}
 	return writeTriageEvents(l, owner, repo, written)

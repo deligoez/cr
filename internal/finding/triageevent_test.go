@@ -179,8 +179,8 @@ func TestTheKeyIsThePullRequestTheRoundAndTheRecord(t *testing.T) {
 			[]Settled{{Record: record, Outcome: OutcomeKept}}, on))
 	}
 
-	assert.Len(t, eventsFor(t, layout), 6,
-		"three occasions, and a raise and an outcome that never overwrite each other")
+	assert.Len(t, eventsFor(t, layout), 5,
+		"three outcomes that never overwrite each other, and one raise per pull request")
 }
 
 // §7.3.1 calls the seven action names the complete vocabulary its statistics
