@@ -350,11 +350,18 @@ slice. Agreed with cr-research, 2026-09-22.
   which is the wrong figure for the failing run and is written here only so nobody mistakes it for
   one. Two re-runs of that test alone and a second full `-race` run were clean. It is entered here
   rather than dismissed because the path it exercises is invariant 6 — a probe reverts even when the
-  run fails, times out or panics — and a one-off there is either a test whose wait is shaped wrong
-  or a real race in the kill-and-verify sequence that only appears under load. Raised by
-  cr-research, 2026-09-22. **When it next fires, record the load (the fifteen-minute figure) and the
-  process's state, and put the second data point here**; if it never fires again, that is this
-  entry's answer.
+  run fails, times out or panics. Raised by cr-research, 2026-09-22, who also read the evidence:
+  **a wait shaped wrong fails by checking early, and this one did not.** `awaitRunnerGroupGone`
+  polls every 20ms against a 15-second deadline, so the group was still there after fifteen seconds
+  of asking. That leaves two readings of the mechanism and one of the instrument. The mechanism:
+  the signal did not land, or it landed on a group the runner's descendants had already left — the
+  M-1.6 tail v0.3.2 shipped the survivor disclosure for. The instrument: `runnerGroupAlive` asks
+  `kill(-group, 0)`, which succeeds for a zombie as well as for a live process, and the helper's own
+  comment says a loaded machine may reap late — so a killed runner nobody had reaped yet reads
+  exactly like one that never died. **When it next fires, capture the group's process tree at the
+  moment of the check** — `ps -o pid,pgid,ppid,stat,comm -g <group>` — **and the fifteen-minute
+  load.** Whether the survivors still share the group, have re-parented, or sit in `Z` decides
+  between all three in one line. If it never fires again, that is this entry's answer.
 
 M1 and M3 answered two of this item's three slices. What is left has no data at all:
 
