@@ -292,12 +292,7 @@ func assemble(src *Sources) (*Brief, error) {
 	if err != nil {
 		return nil, err
 	}
-	resolved, err := intent.Resolve(intent.KeySources{
-		Flag:   src.IssueFlag,
-		Branch: pr.HeadRefName,
-		Title:  pr.Title,
-		Body:   pr.Body,
-	}, src.Config.String("intent.key_pattern"), src.Intent)
+	resolved, err := resolveIntent(src, &pr)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +574,8 @@ func refuseRekey(src *Sources, recorded, key string) error {
 		PR:       src.PR,
 		Recorded: recorded,
 		Resolved: key,
-		Pattern:  src.Config.String("intent.key_pattern"),
+		Pattern: intent.KeyPattern(
+			src.Config.String(intent.TrackerSetting), src.Config.String(keyPatternSetting)),
 		StateDir: src.Layout.PRDir(src.Owner, src.Repo, src.PR),
 	}
 }
