@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.6.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.7.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -509,6 +509,23 @@ a real `cr brief` over a real second commit; overlaid onto v0.5.0's three comman
 files it goes red at `cr recheck`'s concern list and at `cr withdraw`. Test a
 lifecycle across the event that ends the round, not inside one round.
 
+**v0.7 carries an unsent record across a push, and it moves the line rather
+than copying it.** §9.3.4 used to stale every `draft` and `queued` record, which
+made §9.4's migration of them persist nothing; `cr brief` now migrates each one
+(`internal/brief/carry.go`) and carries the ones that place inside a new unit,
+rewriting the record's own line into the new round with `state.RewriteStamped`
+— the one writer that changes a line's round and head. The copy that is wrong for
+a posted record (above) is wrong here for the same id reason: `finding.MoveSent`
+refuses an id two lines carry, and `sentRecord` would silently return the first
+of them, the stale one. Three things ride with it, each
+because the carry made a count or a grade wrong otherwise: the probe is cleared
+and a citation whose line changed loses its stamp (§9.4.8), a record is raised
+once per pull request (`RecordRaised`), and a re-raise of a held record is its
+duplicate (`markHeldDuplicates`). Measured on `deligoez/cr-qa#23`, 2026-09-22:
+two comment lines pushed above three queued records carried all three two lines
+down, `cr recheck`'s preview agreed with the brief beforehand, the round's first
+`cr draft` rendered the edited body, and the ledger held one `raised` per record.
+
 **A shim that answers whatever it is sent proves nothing about what was sent.**
 v0.5.0 and v0.5.1 shipped a `cr resolve --confirm` and `cr withdraw --confirm`
 that GitHub refused every time: `internal/gh/settle.go` passed the mutation's
@@ -620,7 +637,8 @@ spec/
   0.4.1.md           Normative v0.4.1 contract
   0.5.0.md           Normative v0.5 contract
   0.5.1.md           Normative v0.5.1 contract
-  0.6.0.md           Normative v0.6 contract, the current one
+  0.6.0.md           Normative v0.6 contract
+  0.7.0.md           Normative v0.7 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
@@ -1085,7 +1103,7 @@ because they hold for the next pass:
 | Suggestions | An out-of-hunk suggestion blocks posting with the record id named |
 | Posting | No network write without `--confirm`; all comments land in one review; a posted round refuses a second |
 | Unknown outcome | A 5xx or timeout exits 4; `cr draft`, `cr post --confirm` and a moved-head `cr brief` refuse until `cr post --reconcile` |
-| Moved head | `cr brief` opens a new round with open records stale; anchors are not migrated (v0.4) |
+| Moved head | `cr brief` opens a new round; a draft or queued record whose code moved is carried to its new line with its edited body, one whose code is gone is stale |
 | Dedup | A finding matching an existing human thread is suppressed |
 | Honesty | A disabled axis appears in the report with its reason |
 | Nil slices | Empty collections serialise as `[]`, never `null` |
