@@ -52,6 +52,13 @@ type Outcome struct {
 	// concern whose code is gone, the second a concern whose code is now
 	// in several places.
 	Candidates int `json:"candidates"`
+	// Path, StartLine and Line are where a placed anchor now sits, in the
+	// fields §9.2 gives an anchor, and zero on a decline. To says the same
+	// thing for a reader; these are what §9.4.5's carry writes back onto
+	// the record, so the location is never re-parsed out of a string.
+	Path      string `json:"-"`
+	StartLine int    `json:"-"`
+	Line      int    `json:"-"`
 }
 
 // File is one file of the head as migration reads it: its path and its lines in
@@ -203,6 +210,7 @@ func order(path string, files []File) []File {
 func placed(outcome *Outcome, ordered []File, one candidate) Outcome {
 	outcome.Placed = true
 	outcome.To = ordered[one.file].Path + ":" + strconv.Itoa(one.end+1)
+	outcome.Path, outcome.StartLine, outcome.Line = ordered[one.file].Path, one.start+1, one.end+1
 	outcome.Candidates = 1
 	return *outcome
 }
