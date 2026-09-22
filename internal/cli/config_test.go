@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,6 +102,27 @@ func TestTheResolvedAnnotationFollowsAKeyBetweenLayers(t *testing.T) {
 	assert.Equal(t, resolvedSetting{
 		Value: float64(5), From: "environment", Source: "CR_POST_MAX_COMMENTS",
 	}, fromEnv["post.max_comments"])
+}
+
+// Under the GitHub tracker the key pattern and the tracker command are still
+// listed, as §2.7 lists every setting, and each says it is not in force.
+// Measured 2026-09-22 against deligoez/cr-qa: v0.6.0 listed the Jira pattern
+// beside `intent.tracker: github` with nothing to say that §3.2 held keys to
+// owner.repo#n instead.
+func TestTheResolvedListingSaysWhichIntentSettingsTheGitHubTrackerIgnores(t *testing.T) {
+	root := crHome(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "repos", "acme", "web"), 0o700))
+
+	command := resolvedConfig(t)
+	assert.Empty(t, command["intent.key_pattern"].Inert, "the command tracker holds keys to the pattern")
+
+	require.NoError(t, os.WriteFile(filepath.Join(root, "config.json"),
+		[]byte(`{"intent": {"tracker": "github"}}`), 0o600))
+	github := resolvedConfig(t)
+	assert.Equal(t, "built-in default", github["intent.key_pattern"].From, "the row and its layer stay")
+	assert.Contains(t, github["intent.key_pattern"].Inert, intent.GitHubKeyPattern)
+	assert.Contains(t, github["intent.cmd"].Inert, "not in force")
+	assert.Empty(t, github["intent.tracker"].Inert)
 }
 
 // The annotated listing and the plain one report the same values, for every
