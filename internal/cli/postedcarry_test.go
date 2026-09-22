@@ -76,6 +76,23 @@ func TestAPostedConcernOutlivesThePushThatMovesTheHead(t *testing.T) {
 	assert.ElementsMatch(t, []string{"f3", "f4"}, reported,
 		"§9.5.2 reports every posted record, and the push did not settle either")
 
+	// §10.1.9: `cr status` reports the same concerns in the round the push
+	// opened, with the round that posted each, rather than a round with
+	// nothing outstanding.
+	printed, err = runCLIPrinting(t, "status", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	var status struct {
+		Concerns []struct {
+			ID    string `json:"id"`
+			Round int    `json:"round"`
+		} `json:"posted_concerns"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &status))
+	require.Len(t, status.Concerns, 2)
+	for _, concern := range status.Concerns {
+		assert.Equal(t, 1, concern.Round, "%s was posted in round 1", concern.ID)
+	}
+
 	_, err = runCLIPrinting(t, "withdraw", fixturePR, "f4", "not-here", "--repo", fixtureSlug)
 	require.NoError(t, err, "§9.6.2 reaches the posted record from the round the push opened")
 	_, err = runCLIPrinting(t, "resolve", fixturePR, "f3", "--repo", fixtureSlug)
