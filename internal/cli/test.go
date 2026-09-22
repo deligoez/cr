@@ -64,6 +64,19 @@ type testRunResult struct {
 	// A reader told only `exit -1` would have to guess which happened, and
 	// §5.3.4 puts the two on different rungs.
 	TimedOut bool `json:"timed_out"`
+	// TestsRun and TestsFailed are the counts §5.2.4 stored, absent when
+	// the profile's patterns could not derive them, and Passed is §5.2.5's
+	// verdict on the run.
+	//
+	// They are printed because this command is where an operator checks
+	// what a profile's count mode reads from their own suite. Measured
+	// 2026-09-22 against deligoez/cr-qa-go: v0.6.0 printed neither, and
+	// the counts reached only runs.ndjson under the state root, so the
+	// occurrence mode v0.6.0 shipped could not be checked from the command
+	// that runs it.
+	TestsRun    *int `json:"tests_run,omitempty"`
+	TestsFailed *int `json:"tests_failed,omitempty"`
+	Passed      bool `json:"passed"`
 	// Contaminated is why §5.1.6's check failed after the run, and empty
 	// when it passed. A run it names measured a sandbox that had drifted
 	// from the head under it, so §5.2.5's verdict on it is `false`
@@ -100,6 +113,8 @@ func (r *testRunResult) Text(w *writer) string {
 	fmt.Fprintf(&out, "  filter  %s\n", listedOrNone(r.Filter))
 	fmt.Fprintf(&out, "  paths   %s\n", listed(r.Paths))
 	fmt.Fprintf(&out, "  exit    %d\n", r.ExitCode)
+	fmt.Fprintf(&out, "  counts  %s\n", countsText(r.TestsRun, r.TestsFailed))
+	fmt.Fprintf(&out, "  passed  %t\n", r.Passed)
 	if r.TimedOut {
 		// §5.2.3's outcome, said in words, because the exit code
 		// beside it is the platform's number for a killed process and
@@ -117,6 +132,15 @@ func (r *testRunResult) Text(w *writer) string {
 	}
 	out.WriteString(w.disclose("\n", "", r.Honesty...))
 	return out.String()
+}
+
+// countsText renders the run's counts, and says so when the profile's patterns
+// could not derive them rather than printing a zero nothing measured.
+func countsText(executed, failed *int) string {
+	if executed == nil || failed == nil {
+		return "not derived"
+	}
+	return fmt.Sprintf("%d ran, %d failed", *executed, *failed)
 }
 
 // listedOrNone renders an optional single value the way listed renders an
@@ -313,7 +337,7 @@ func newTestCmd(out *writer) *cobra.Command {
 			}
 			executed, failed := counter.Counts(code)
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
-			recorded, err := recordRun(layout, owner, repo, pr, stamp, &run.Record{
+			stored := &run.Record{
 				Filter:       filter,
 				Paths:        paths,
 				ExitCode:     code,
@@ -324,7 +348,8 @@ func newTestCmd(out *writer) *cobra.Command {
 				OutputTail:   tail.String(),
 				Contaminated: contaminated != "",
 				Sandbox:      ready.Generation,
-			})
+			}
+			recorded, err := recordRun(layout, owner, repo, pr, stamp, stored)
 			if err != nil {
 				return err
 			}
@@ -336,6 +361,9 @@ func newTestCmd(out *writer) *cobra.Command {
 				Paths:        paths,
 				ExitCode:     code,
 				TimedOut:     timedOut,
+				TestsRun:     stored.TestsRun,
+				TestsFailed:  stored.TestsFailed,
+				Passed:       stored.Passed,
 				Contaminated: contaminated,
 				Warnings:     []string{probe.CollisionWarning()},
 				Honesty: append(append(append(recreationNotice(ready), survivorNotice(lingering)...),
