@@ -15,7 +15,6 @@ func TestAGitHubIssueFlagNormalisesToARepositoryQualifiedKey(t *testing.T) {
 	for flag, want := range map[string]string{
 		"12":          "acme.shop#12",
 		"#12":         "acme.shop#12",
-		" 12 ":        "acme.shop#12",
 		"other/lib#5": "other.lib#5",
 		"https://github.com/other/lib.go/issues/5":  "other.lib.go#5",
 		"https://github.com/other/lib.go/issues/5/": "other.lib.go#5",
@@ -28,6 +27,10 @@ func TestAGitHubIssueFlagNormalisesToARepositoryQualifiedKey(t *testing.T) {
 			assert.True(t, CheckKey(key, GitHubKeyPattern) == nil, "the key matches its own pattern whole")
 		})
 	}
+
+	padded, err := GitHubIssueFlag("\t12\n", "acme", "shop")
+	require.NoError(t, err, "a flag value carrying whitespace is read as the number it holds")
+	assert.Equal(t, "acme.shop#12", padded)
 
 	for _, wrong := range []string{"", "0", "#", "CR-12", "https://gitlab.com/a/b/issues/1", "a/b"} {
 		_, err := GitHubIssueFlag(wrong, "acme", "shop")

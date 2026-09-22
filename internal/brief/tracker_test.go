@@ -34,9 +34,9 @@ func githubRunner(closing string, issues map[string]string, called *[]string) gh
 	}
 }
 
-// ref is one closing reference as GitHub answers it.
-func ref(owner, repo string, number string) string {
-	return `{"number":` + number + `,"repository":{"name":"` + repo + `","owner":{"login":"` + owner + `"}}}`
+// ref is one closing reference to an issue of acme/shop, as GitHub answers it.
+func ref(number string) string {
+	return `{"number":` + number + `,"repository":{"name":"shop","owner":{"login":"acme"}}}`
 }
 
 // §3.2 for a `github` tracker: the key is the one issue GitHub links the pull
@@ -46,7 +46,7 @@ func ref(owner, repo string, number string) string {
 func TestAGitHubTrackerTakesTheKeyFromTheClosingLink(t *testing.T) {
 	var called []string
 	src := &Sources{
-		GH: gh.WithRunner(githubRunner(ref("acme", "shop", "12"),
+		GH: gh.WithRunner(githubRunner(ref("12"),
 			map[string]string{"repos/acme/shop/issues/12": `{"title":"Retry on 5xx","body":"Bounded at three."}`},
 			&called)),
 		Config: githubTracker(t), Owner: "acme", Repo: "shop", PR: 7,
@@ -69,7 +69,7 @@ func TestAGitHubTrackerTakesTheKeyFromTheClosingLink(t *testing.T) {
 func TestAnIssueFlagOverridesTheClosingLink(t *testing.T) {
 	var called []string
 	src := &Sources{
-		GH: gh.WithRunner(githubRunner(ref("acme", "shop", "12"),
+		GH: gh.WithRunner(githubRunner(ref("12"),
 			map[string]string{"repos/acme/shop/issues/40": `{"title":"Other","body":"x"}`}, &called)),
 		Config: githubTracker(t), Owner: "acme", Repo: "shop", PR: 7, IssueFlag: "#40",
 	}
@@ -87,7 +87,7 @@ func TestAnIssueFlagOverridesTheClosingLink(t *testing.T) {
 func TestTheClosingLinkIsTakenOnlyWhenThereIsExactlyOne(t *testing.T) {
 	var called []string
 	two := &Sources{
-		GH:     gh.WithRunner(githubRunner(ref("acme", "shop", "12")+","+ref("acme", "shop", "13"), nil, &called)),
+		GH:     gh.WithRunner(githubRunner(ref("12")+","+ref("13"), nil, &called)),
 		Config: githubTracker(t), Owner: "acme", Repo: "shop", PR: 7,
 	}
 	pr, err := two.GH.PullRequest("acme", "shop", 7)
