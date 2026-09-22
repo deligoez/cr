@@ -42,6 +42,28 @@ func TestCrShipsExactlyTheProfilesOf245sTable(t *testing.T) {
 	}
 }
 
+// §2.4.5 pins a property rather than a count: every shipped profile other than
+// generic carries what the probe machinery needs to work at all. A profile
+// missing one of these does not fail loudly — it answers every probe
+// `inconclusive` or refuses every filter — so the property is checked on every
+// shipped profile, the next one included, rather than trusted to review.
+func TestEveryShippedLanguageProfileCanRunAProbe(t *testing.T) {
+	for id, content := range Builtins() {
+		if id == genericID {
+			continue
+		}
+		t.Run(id, func(t *testing.T) {
+			p, err := Parse(id+fileExt, []byte(content))
+			require.NoError(t, err)
+			assert.NotEmpty(t, p.Tests.Cmd, "tests.cmd")
+			assert.NotEmpty(t, p.Tests.CountPattern, "tests.count_pattern")
+			assert.NotEmpty(t, p.Tests.FailedPattern, "tests.failed_pattern")
+			assert.NotEmpty(t, p.Tests.FilterFlag, "tests.filter_flag")
+			assert.NotEmpty(t, p.Tests.ProbePathTemplate, "tests.probe_path_template")
+		})
+	}
+}
+
 // §2.4.3 keeps generic out of automatic selection, and the empty `match.files`
 // on the shipped file is the entire mechanism. It is asserted against the file
 // cr writes and through Select rather than against either alone, because a
