@@ -120,6 +120,25 @@ func TestAReadIgnoresTheAmbientGitEnvironment(t *testing.T) {
 	assert.NotContains(t, changed.Patch, "an external differ ran")
 }
 
+// Two histories with no common ancestor are answered as a *NoMergeBaseError,
+// not the CommandError git's silent exit 1 would be. Measured 2026-09-22: git
+// writes nothing to stderr there, so the CommandError read `exit status 1`.
+func TestUnrelatedHistoriesHaveNoMergeBase(t *testing.T) {
+	dir := fixtureRepo(t)
+	fixtureGit(t, dir, "commit", "--quiet", "--allow-empty", "-m", "base")
+	fixtureGit(t, dir, "checkout", "--quiet", "--orphan", "unrelated")
+	fixtureGit(t, dir, "commit", "--quiet", "--allow-empty", "-m", "head")
+
+	_, err := MergeBase(dir, "main", "unrelated")
+
+	var none *NoMergeBaseError
+	require.ErrorAs(t, err, &none)
+	assert.Equal(t, "main", none.Base)
+	assert.Equal(t, "unrelated", none.Head)
+	var refused *CommandError
+	assert.False(t, errors.As(err, &refused), "it replaces git's silent refusal rather than wrapping it")
+}
+
 // §3.1.3 fixes what an external command does when it refuses: the command's
 // stderr reaches the user, and §11.2 codes it 3. git is one such command, so a
 // failed read carries the command that ran, what git said about it, and the
