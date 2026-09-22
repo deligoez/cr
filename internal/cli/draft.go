@@ -206,6 +206,10 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
+	// §7.1.7: a carried record keeps the body it was edited to.
+	if triage.Preserved, err = seedCarried(l, owner, repo, pr, round, triage.Preserved); err != nil {
+		return err
+	}
 	// §6.2 over every record the triage moved, before §6.3's forcing reads
 	// its grade: a record moved off its probe's target no longer asserts.
 	grading, err := regradeMoved(l, owner, repo, pr, round, &triage)
