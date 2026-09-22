@@ -85,6 +85,32 @@ func keyOf(t *testing.T, record *Finding) WaiverKey {
 	return key
 }
 
+// §9.2.4: the key hash StampAnchor stores is the one WaiverKeyOf reads the tree
+// for, byte for byte, so a waiver keyed from either matches a waiver keyed from
+// the other — every waiver and posted-index entry written before the hash was
+// stored still matches the records written after it. And a stored hash is
+// used as it stands: a record keyed without a tree must not need one.
+func TestTheStampedKeyHashIsTheKeyTheTreeGives(t *testing.T) {
+	for _, at := range []int{1, 7, 12} {
+		record := Finding{Class: "unguarded-discount", Anchor: Anchor{Path: "app/Order.php", Side: "RIGHT"}}
+		anchoredAt(t, &record, at)
+		require.NotEmpty(t, record.Anchor.ContextHash, "StampAnchor stores the key hash")
+
+		stamped := keyOf(t, &record)
+		unstamped := record
+		unstamped.Anchor.ContextHash = ""
+
+		assert.Equal(t, keyOf(t, &unstamped), stamped, "line %d: a key from the tree is the stamped key", at)
+	}
+
+	record := Finding{Class: "unguarded-discount", Anchor: Anchor{Path: "app/Order.php", Side: "RIGHT"}}
+	anchoredAt(t, &record, 7)
+	noTree := Trees{}
+	key, err := WaiverKeyOf(noTree, &record)
+	require.NoError(t, err, "a stamped record is keyed without reading a tree")
+	assert.Equal(t, record.Anchor.ContextHash, key.ContentHash)
+}
+
 // anchoredAt moves record's anchor to the three lines from at and stamps it
 // against orderTrees, as `cr record` stamps an anchor against the round's head.
 func anchoredAt(t *testing.T, record *Finding, at int) {
