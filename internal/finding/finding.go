@@ -206,6 +206,12 @@ type Anchor struct {
 	// ContextAfter up to three below, recorded for the same reason.
 	ContextBefore []string `json:"context_before,omitempty"`
 	ContextAfter  []string `json:"context_after,omitempty"`
+	// ContextHash is §7.4.1's key hash over the context before, the
+	// anchored lines and the context after, stamped with the rest of the
+	// anchor (§9.2.4). The anchored lines are stored only as ContentHash,
+	// so without it every later key would have to read the tree again. It
+	// is empty on a record an earlier release stamped.
+	ContextHash string `json:"context_hash,omitempty"`
 }
 
 // Finding is one record of findings.ndjson: a finding or a question in any of

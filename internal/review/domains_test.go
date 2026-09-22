@@ -103,6 +103,7 @@ func TestTheContractStatesTheValuesARecordIsHeldTo(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"path": "required", "side": "required", "start_line": "required", "line": "required",
 		"content_hash": "optional", "context_before": "optional", "context_after": "optional",
+		"context_hash": "optional",
 	}, anchor)
 	assert.Contains(t, text, "\n  - start_line: required; an integer, 1 or greater, the first line of the range\n")
 	assert.Contains(t, text, "\n  - context_before: optional; up to 3 lines above the range, "+

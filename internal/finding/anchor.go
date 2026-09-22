@@ -215,6 +215,7 @@ func AnchorFields() []AnchorField {
 		{Field{Name: "context_after", Requirement: Optional}, fmt.Sprintf(
 			"up to %d lines below the range, which cr records from the same tree", contextWindow,
 		)},
+		{Field{Name: "context_hash", Requirement: Optional}, "cr records it from the lines and their context"},
 	}
 }
 
@@ -357,5 +358,11 @@ func StampAnchor(trees Trees, file string, line int, anchor *Anchor) error {
 	anchor.ContentHash = hash
 	anchor.ContextBefore = append([]string{}, lines[max(0, anchor.StartLine-1-contextWindow):anchor.StartLine-1]...)
 	anchor.ContextAfter = append([]string{}, lines[anchor.Line:min(len(lines), anchor.Line+contextWindow)]...)
-	return nil
+	// §9.2.4: the waiver key is stamped here, where the anchored lines are
+	// in hand, because the record keeps only their hash. Its pre-image is
+	// the one WaiverKeyOf reads the tree for, so a key stamped here and a
+	// key read later from the same tree are the same value.
+	anchor.ContextHash, err = ContextKeyHash(
+		anchor.ContextBefore, lines[anchor.StartLine-1:anchor.Line], anchor.ContextAfter)
+	return err
 }

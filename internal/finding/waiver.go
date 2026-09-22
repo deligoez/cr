@@ -84,11 +84,7 @@ type WaiverKey struct {
 // The record is taken by pointer because it is a wide struct and nothing here
 // writes to it.
 func WaiverKeyOf(trees Trees, record *Finding) (WaiverKey, error) {
-	anchored, err := anchoredLines(trees, &record.Anchor)
-	if err != nil {
-		return WaiverKey{}, err
-	}
-	hash, err := ContextKeyHash(record.Anchor.ContextBefore, anchored, record.Anchor.ContextAfter)
+	hash, err := contextHashOf(trees, &record.Anchor)
 	if err != nil {
 		return WaiverKey{}, err
 	}
@@ -98,6 +94,26 @@ func WaiverKeyOf(trees Trees, record *Finding) (WaiverKey, error) {
 		Class:       record.Class,
 		ContentHash: hash,
 	}, nil
+}
+
+// contextHashOf is the anchor's §7.4.1 key hash: the one StampAnchor stored,
+// or, for a record an earlier release stamped without it, the same hash taken
+// from the tree the anchor's side names.
+//
+// The stored value is preferred rather than checked against the tree, because
+// needing no tree is the reason it is stored: a withdrawal can come after a
+// force-push, and the commit the record was stamped against may then be absent
+// from the clone. The pre-image is the same either way, so a waiver keyed from
+// one matches a waiver keyed from the other.
+func contextHashOf(trees Trees, anchor *Anchor) (string, error) {
+	if anchor.ContextHash != "" {
+		return anchor.ContextHash, nil
+	}
+	anchored, err := anchoredLines(trees, anchor)
+	if err != nil {
+		return "", err
+	}
+	return ContextKeyHash(anchor.ContextBefore, anchored, anchor.ContextAfter)
 }
 
 // WaiverScope is which of §7.4.4's two files a waiver lives in, and so how far

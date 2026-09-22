@@ -96,9 +96,11 @@ func anchoredAt(t *testing.T, record *Finding, at int) {
 // keyFields are the fields of §6.1's table §7.4.1's key is made of, in the
 // dotted form fieldsInCommon reports: §7.4.1's path and class, the anchored code
 // with the context window around it, plus the `anchor.side` round 8's finding
-// side-omitted-from-identity-keys adds.
+// side-omitted-from-identity-keys adds. `anchor.context_hash` is the same
+// code's key hash stamped in advance (§9.2.4), so the same code agrees on it.
 var keyFields = []string{
 	"Class", "Anchor.Path", "Anchor.Side", "Anchor.ContentHash", "Anchor.ContextBefore", "Anchor.ContextAfter",
+	"Anchor.ContextHash",
 }
 
 // §7.4.1 excludes the summary from the key in as many words, and gives the
