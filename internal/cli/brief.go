@@ -68,10 +68,11 @@ type briefResult struct {
 // coverage.Lenses they come from is the one `cr review` and `cr status` report,
 // and a wording built at the call site would be a second answer that can
 // disagree with the data beside it.
-func newBriefResult(assembled *brief.Brief) *briefResult {
+func newBriefResult(assembled *brief.Brief, lag ...string) *briefResult {
 	disclosed := assembled.Disclosures()
 	closure := closureDisclosure(assembled.Owner, assembled.Repo, assembled.PR, assembled.PullRequest())
-	honesty := append(make([]string, 0, len(closure)+len(disclosed)), closure...)
+	honesty := append(make([]string, 0, len(closure)+len(lag)+len(disclosed)), closure...)
+	honesty = append(honesty, lag...)
 	for _, entry := range disclosed {
 		honesty = append(honesty, entry.Disclosure())
 	}
@@ -385,7 +386,8 @@ func newBriefCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return headNotFetched(cmd, owner, repo, pr, unsettledBrief(err))
 			}
-			return out.emit(newBriefResult(assembled))
+			lag := headLag(owner, repo, pr, assembled.Head, remotePullHead(dir, owner, repo, pr))
+			return out.emit(newBriefResult(assembled, lag...))
 		},
 	}
 	cmd.Flags().StringVar(&issue, "issue", "",
