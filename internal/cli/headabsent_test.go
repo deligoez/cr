@@ -271,9 +271,10 @@ func headRuns(t *testing.T) map[string]headRun {
 			"resolve", fixturePR, "f1", "--repo", fixtureSlug),
 		"withdraw": exempt("retracts a record and resolves its thread, and reads no revision",
 			"withdraw", fixturePR, "f1", "wrong", "--repo", fixtureSlug),
-		// §9.4.2 has the migration read the current head's tree and
-		// never the superseded commit, so `cr recheck` reaches the
-		// head alone — a clone lacking it cannot place an anchor.
+		// §9.5.7's preview reads the current head's tree and the
+		// merge base its diff is taken from, never the superseded
+		// commit (§9.4.2); the prepare below moves the head past the
+		// round so the preview runs.
 		"recheck": routed("recheck", fixturePR, "--repo", fixtureSlug),
 		"claims record": exempt("validates claims against the issue text, and reads no revision",
 			"claims", "record", fixturePR, empty, "--intent-file", issue, "--repo", fixtureSlug),
@@ -330,6 +331,29 @@ func headRuns(t *testing.T) map[string]headRun {
 		run.prepare = testProfiled
 		runs[name] = run
 	}
+	// §9.5.7: `cr recheck` reads the clone only to preview a migration,
+	// which it does while the head has moved past the round. The round is
+	// recorded at a head GitHub no longer reports, so the preview reads the
+	// current head and the merge base — and a clone lacking either fails.
+	recheck := runs["recheck"]
+	recheck.prepare = func(t *testing.T, layout state.Layout, _ string) {
+		t.Helper()
+		meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+		require.NoError(t, err)
+		meta.Head = "0000000000000000000000000000000000000000"
+		held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+		require.NoError(t, err)
+		require.NoError(t, held.WriteMeta(&meta))
+		require.NoError(t, held.Unlock())
+		// GitHub's own answer, through the fixture's gh, rather than the
+		// seam that echoes the recorded head: the head it reports is the
+		// one the clone lacks, and the base is the one a moved-base
+		// fixture moved.
+		restore := currentPullRequest
+		currentPullRequest = githubPullRequest
+		t.Cleanup(func() { currentPullRequest = restore })
+	}
+	runs["recheck"] = recheck
 	return runs
 }
 
@@ -549,7 +573,7 @@ func TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails(t *testing.T) {
 		}
 	}
 	require.Equal(t,
-		[]string{"probe run", "proposals record", "recheck", "sandbox create", "test"}, headOnly)
+		[]string{"probe run", "proposals record", "sandbox create", "test"}, headOnly)
 	for _, name := range headOnly {
 		t.Run(name, func(t *testing.T) {
 			run := headRuns(t)[name]
