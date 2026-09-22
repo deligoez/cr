@@ -65,8 +65,8 @@ func SplitGitHubKey(key string) (owner, repo string, number int, ok bool) {
 
 // The spellings `--issue` may take for a `github` tracker, besides a key.
 var (
-	issueNumber = regexp.MustCompile(`^#?([1-9][0-9]*)$`)
-	issueRef    = regexp.MustCompile(`^([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)#([1-9][0-9]*)$`)
+	issueNumber = regexp.MustCompile(`^#?([1-9]\d*)$`)
+	issueRef    = regexp.MustCompile(`^([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)#([1-9]\d*)$`)
 	issueURL    = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/issues/([1-9][0-9]*)/?$`)
 )
 
