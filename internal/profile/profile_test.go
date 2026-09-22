@@ -330,6 +330,51 @@ func TestACountPatternMustCaptureExactlyOneGroup(t *testing.T) {
 	}
 }
 
+// §2.4's `tests.count_mode` decides the arity: `occurrences` counts matches, so
+// both patterns carry no capture group, and a group left in one would be a
+// pattern written for the other mode. An unknown mode is refused rather than
+// read as either, because the two turn the same output into different numbers.
+func TestTheCountModeDecidesHowManyGroupsAPatternCarries(t *testing.T) {
+	profileWith := func(mode, count, failed string) string {
+		return fmt.Sprintf(`{
+			"id": "generic",
+			"match": {"files": [], "globs": ["**/*"]},
+			"axes": {"test": true},
+			"tests": {"count_mode": %q, "count_pattern": %q, "failed_pattern": %q}
+		}`, mode, count, failed)
+	}
+
+	t.Run("occurrences with no group", func(t *testing.T) {
+		p, err := Load(write(t, "generic", profileWith("occurrences", `^--- PASS: `, `^--- FAIL: `)))
+		require.NoError(t, err)
+		assert.True(t, p.CountsOccurrences())
+	})
+	t.Run("occurrences with a group", func(t *testing.T) {
+		_, err := Load(write(t, "generic", profileWith("occurrences", `(\d+) passed`, `^--- FAIL: `)))
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Equal(t, "tests.count_pattern", malformed.Field)
+		assert.Contains(t, err.Error(), "exactly 0")
+	})
+	t.Run("an absent mode is the sum", func(t *testing.T) {
+		p, err := Load(write(t, "generic", `{
+			"id": "generic",
+			"match": {"files": [], "globs": ["**/*"]},
+			"axes": {"test": true},
+			"tests": {"count_pattern": "(\\d+) passed", "failed_pattern": "(\\d+) failed"}
+		}`))
+		require.NoError(t, err)
+		assert.Equal(t, CountModeSum, p.Tests.CountMode)
+		assert.False(t, p.CountsOccurrences())
+	})
+	t.Run("an unknown mode", func(t *testing.T) {
+		_, err := Load(write(t, "generic", profileWith("lines", `^ok`, `^FAIL`)))
+		var malformed *MalformedError
+		require.ErrorAs(t, err, &malformed)
+		assert.Equal(t, "tests.count_mode", malformed.Field)
+	})
+}
+
 // §2.4 makes tests.failed_pattern required exactly when tests.count_pattern is
 // present, and §5.2.1 says what rests on it: a failed pattern that never
 // matches yields zero rather than nothing, so a profile configuring only the
