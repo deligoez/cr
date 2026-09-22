@@ -69,6 +69,9 @@ const refusingTracker = "#!/bin/sh\n" +
 // A process started with runAsCR set is not a test run at all: it is cr, and
 // TestMain hands it straight to Execute. See spawnProbe for why.
 func TestMain(m *testing.M) {
+	// The fixtures' remotes name github.com repositories the suite must not
+	// reach, so the remote's head is fenced the way gh is below.
+	remotePullHead = func(string, string, string, int) string { return "" }
 	if os.Getenv(runAsCR) != "" {
 		Execute()
 		os.Exit(ExitOK)
