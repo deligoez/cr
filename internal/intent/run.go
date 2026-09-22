@@ -242,8 +242,13 @@ type Source struct {
 	// When it is set, intent.cmd is not expanded, not validated, and not
 	// started, so it need not name a program that exists.
 	File string
-	// Cmd is `intent.cmd` as configured, read only when File is empty.
+	// Cmd is `intent.cmd` as configured, read only when File and Fetch are
+	// empty.
 	Cmd []string
+	// Fetch reads the issue text for a key itself, and is set for a
+	// `github` tracker (§3.1.8), whose text comes through cr's gh door and
+	// not through a command. File still bypasses it, per §3.1.4.
+	Fetch func(key string) (string, error)
 	// Extra is §3.1.5's extra intent files, in the order their texts are
 	// appended: the `--intent-extra` paths, then the `intent.extra_files`
 	// paths, each path once, as intent.ExtraFiles orders them.
@@ -361,6 +366,9 @@ func Read(source Source, key string) (Reading, error) {
 func firstPart(source Source, key string) (string, error) {
 	if source.File != "" {
 		return readFile(source.File, "")
+	}
+	if source.Fetch != nil {
+		return source.Fetch(key)
 	}
 	expanded, err := expand(source.Cmd, key)
 	if err != nil {

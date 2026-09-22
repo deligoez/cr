@@ -94,6 +94,14 @@ func (i Intent) Unavailability() (Unavailable, bool) {
 	if i.Key.Origin != KeyAbsent {
 		return Unavailable{}, false
 	}
+	if i.Pattern == GitHubKeyPattern {
+		return Unavailable{
+			Axis: axis.Intent,
+			Reason: "GitHub links this pull request to no issue it closes, and a " + TrackerGitHub +
+				" tracker reads no key out of the branch, the title or the body; pass --issue <number>, " +
+				"or link the issue with a closing keyword such as `Closes #12`",
+		}, true
+	}
 	return Unavailable{
 		Axis: axis.Intent,
 		Reason: "no issue key matched " + keyPatternField + " " + strconv.Quote(i.Pattern) +

@@ -30,6 +30,9 @@ const (
 	KeyFromTitle KeyOrigin = "title"
 	// KeyFromBody is the PR body, §3.2 item 4.
 	KeyFromBody KeyOrigin = "body"
+	// KeyFromClosingReference is the one issue GitHub links the pull
+	// request to as closing, a `github` tracker's second source (§3.2).
+	KeyFromClosingReference KeyOrigin = "closing-reference"
 	// KeyRecorded is a key read back out of §2.3's state rather than
 	// resolved from a source. meta.json records the key and not where it
 	// came from, so a round read off disk can say that a key resolved and
