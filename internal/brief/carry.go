@@ -10,7 +10,9 @@ import (
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/migrate"
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/unit"
 )
 
 // carrier is §9.4's migration as §9.3.4's increment runs it: every file of the
@@ -88,14 +90,14 @@ func contains(paths []string, path string) bool {
 // unitFor is the new round's RIGHT unit holding the whole of a migrated
 // anchor, and "" when none does. A comment outside the diff cannot be posted,
 // so §9.4.5 carries no record there.
-func (c *carrier) unitFor(path string, start, line int) string {
+func (c *carrier) unitFor(path string, start, line int) *unit.Unit {
 	for i := range c.assembled.Units {
 		candidate := &c.assembled.Units[i]
 		if candidate.Side == git.Right && candidate.Contains(path, start) && candidate.Contains(path, line) {
-			return candidate.ID
+			return candidate
 		}
 	}
-	return ""
+	return nil
 }
 
 // editedBodies are the agent regions a round's draft held that differ from
@@ -163,8 +165,8 @@ func (c *carrier) carry(record *finding.Finding) (migrate.Record, *finding.Findi
 	if !line.Placed {
 		return line, nil, nil
 	}
-	unit := c.unitFor(line.Path, line.StartLine, line.Line)
-	if unit == "" {
+	holding := c.unitFor(line.Path, line.StartLine, line.Line)
+	if holding == nil {
 		return line, nil, nil
 	}
 
@@ -189,8 +191,16 @@ func (c *carrier) carry(record *finding.Finding) (migrate.Record, *finding.Findi
 	if err := c.restamp(moved.Citations); err != nil {
 		return migrate.Record{}, nil, err
 	}
-	moved.Unit = unit
+	moved.Unit = holding.ID
 	line.Probe, moved.Probe = record.Probe, ""
+	// §6.2 again, at the new head, over what the carry left: no probe, the
+	// citations that still read what they were stamped with, and the unit
+	// the anchor now sits in. Through the ratchet, so a grade can only
+	// fall. `cr draft` regrades only the records a triage moved (§7.2.2
+	// leaves the rest to `cr post`), so without this the draft would show
+	// the reviewer an assertion whose evidence the carry had just cleared.
+	finding.Regrade(&moved, finding.Resolved(
+		holding, &moved.Anchor, nil, c.assembled.Head, probe.Baseline{}, probe.ClaimMapping{}))
 	bodies, err := c.editedBodies(record.Round)
 	if err != nil {
 		return migrate.Record{}, nil, err

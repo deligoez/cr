@@ -254,7 +254,7 @@ func decodeSwept(fields map[string]json.RawMessage) (*finding.Finding, error) {
 func carried(fields map[string]json.RawMessage, moved *finding.Finding, assembled *Brief) error {
 	set := map[string]any{
 		"round": assembled.Round, "head": assembled.Head,
-		"unit": moved.Unit, "anchor": moved.Anchor, fieldState: finding.StateDraft,
+		"unit": moved.Unit, "anchor": moved.Anchor, "grade": moved.Grade, fieldState: finding.StateDraft,
 	}
 	if moved.Citations != nil {
 		set["citations"] = moved.Citations
