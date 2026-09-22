@@ -355,6 +355,11 @@ M1 and M3 answered two of this item's three slices. What is left has no data at 
   runnable repositories, and roles per pull request: measurement 1 was 123 prompts and $89 for one
   pull request, so a 20-PR Go slice is of the order of $1,500. That is a budget decision, and it
   needed the Go profile, which v0.6.0 ships.
+- **`cr post --reconcile` has never run against a real unknown outcome.** The v0.6.0 QA pass drove
+  every other network write against GitHub, and this one only through the unit suite's shim. A
+  measurement gap, not a known defect: the method is the one that found v0.5.0's resolve mutation —
+  a `gh` shim on `PATH` that answers the review POST with a 5xx or hangs, then `cr post --reconcile`
+  against the review GitHub actually holds.
 
 ### 3. Scenario coverage
 
