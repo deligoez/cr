@@ -108,13 +108,14 @@ func (c *carrier) editedBodies(round int) (map[string]string, error) {
 	edited := make(map[string]string)
 	c.bodies[round] = edited
 	layout, owner, repo, pr := c.src.Layout, c.src.Owner, c.src.Repo, c.src.PR
-	file := layout.RoundFile(owner, repo, pr, round, state.FileDraft)
-	if info, err := os.Stat(file); errors.Is(err, fs.ErrNotExist) || (err == nil && info.Size() == 0) {
+	written, err := os.ReadFile(layout.RoundFile(owner, repo, pr, round, state.FileDraft))
+	if errors.Is(err, fs.ErrNotExist) || (err == nil && len(written) == 0) {
 		return edited, nil
 	} else if err != nil {
 		return nil, err
 	}
-	bodies, err := draft.Bodies(file)
+	// Bodies reads a draft's text, not its path.
+	bodies, err := draft.Bodies(string(written))
 	if err != nil {
 		return nil, err
 	}
