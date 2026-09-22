@@ -499,6 +499,22 @@ a real `cr brief` over a real second commit; overlaid onto v0.5.0's three comman
 files it goes red at `cr recheck`'s concern list and at `cr withdraw`. Test a
 lifecycle across the event that ends the round, not inside one round.
 
+**A shim that answers whatever it is sent proves nothing about what was sent.**
+v0.5.0 and v0.5.1 shipped a `cr resolve --confirm` and `cr withdraw --confirm`
+that GitHub refused every time: `internal/gh/settle.go` passed the mutation's
+variable as `--raw-field variables={"thread":…}`, and `gh api graphql` turns
+every field but `query` into a variable of the field's name, so `$thread`
+arrived null. Measured 2026-09-22 with a thread id that does not exist, which
+changes nothing: the v0.5 shape answers `Variable $thread of type ID! was
+provided invalid value`, the fixed `-f thread=<id>` answers `Could not resolve
+to a node with the global id of '…'`. The package test asserted the broken argv
+as correct, with a stub that answered `isResolved: true` to any call. So a shim
+for a write answers only the argv the real service accepts —
+`resolvingGh` in `internal/cli/withdrawal_test.go` resolves only when it is
+handed `thread=<id>`, and overlaid onto v0.5's `settle.go` it goes red with
+GitHub's own error. A write cr cannot perform for real in a test is checked
+against the real service with an input that cannot change anything.
+
 **cr still forms no opinion about whether a concern was addressed.** §9.5.6 is
 explicit: an outdated thread, a probe that stopped reproducing and an author
 writing "fixed" are each as consistent with a concern that was addressed as
