@@ -139,7 +139,11 @@ Each of these is measured rather than wished for: the evidence is a run that had
   So **house style has to come from the team**, by definition, and the remedy is seeding a corpus from a
   team's own code and review history. Discharged when a team can seed one without writing every file by
   hand, and `cr rules suggest` harvests from something other than posted rounds.
-- **A withdrawal collects the best false-positive signal cr has and throws it away.** §9.6 moves a
+- ~~**A withdrawal collects the best false-positive signal cr has and throws it away.**~~ *Shipped in
+  v0.6.0 as the three parts below, and discharged against its own criterion: a confirmed
+  `withdraw … wrong` writes `withdrawn-wrong` over the posting's `kept`, which §7.3.4 counts against
+  the class (`TestAConfirmedWithdrawalWaivesTheConcernAndReplacesItsKeptOutcome`).*
+  **A withdrawal collects the best false-positive signal cr has and throws it away.** §9.6 moves a
   retracted record to `withdrawn` and resolves its thread, and that is all. A concern the author saw
   and the reviewer then took back is the strongest evidence a class is wrong that cr can ever get —
   stronger than a `wrong` in triage, because the author read it — and §7.3 exists to act on exactly
@@ -167,7 +171,11 @@ Each of these is measured rather than wished for: the evidence is a run that had
   rules, with attribution, as a corpus intake and not as an adoption of their selector. It pairs with
   profiles rather than with house style. Discharged when a shipped profile other than `laravel-pest`
   carries a corpus.
-- **Two profiles is not a tool.** Only `laravel-pest` and `generic` ship, so on any other stack the
+- **Two profiles is not a tool.** *Half discharged in v0.6.0: `go` ships, with the occurrence mode
+  and `tests.paths_default` below, measured against captured go1.27.1 output, and §2.4.5 now pins the
+  property rather than the count, so the next profile is a commit. TypeScript and Python are what is
+  left; pytest needs the occurrence mode too, jest needs `--json` with the sum.* Before it, only
+  `laravel-pest` and `generic` shipped, so on any other stack the
   reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template.
   TypeScript and Python follow the Go one.
 
@@ -269,7 +277,9 @@ Each of these is measured rather than wished for: the evidence is a run that had
   the right three and Java is fourth. Per-language precision from the same dataset says which will be
   hardest to make trustworthy: C# 0.87, JavaScript 0.79, Java 0.78, Python 0.75, PHP 0.73,
   TypeScript 0.72, Go 0.71, C 0.67, Rust 0.64, C++ 0.60.
-- **Every non-Jira team writes configuration before its first review.** `intent.cmd` defaults to a `jira`
+- **Every non-Jira team writes configuration before its first review.** *Discharged for GitHub Issues
+  in v0.6.0: `intent.tracker: github` reads the issue through the gh cr already requires, keyed from
+  the pull request's closing link, with no command to write.* `intent.cmd` defaults to a `jira`
   binary (§3.1.2), and the intent axis is the one P1 calls the authority, so a team on GitHub Issues or
   Linear cannot run a first round as shipped: it configures a tracker command or passes `--intent-file` by
   hand. Ship the two commands. This is a tracker, not a profile, and it is listed on its own because the
