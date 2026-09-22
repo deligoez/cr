@@ -1,9 +1,30 @@
 package git
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 	"strings"
 )
+
+// NoMergeBaseError reports a base and a head that share no history, so the
+// pull request has no merge base to diff from.
+//
+// It is its own type rather than the CommandError git's refusal would be,
+// because git says nothing: measured 2026-09-22, `git merge-base` on two
+// unrelated histories exits 1 and writes nothing to standard error, so the
+// CommandError read `exit status 1` and named no next step. An unknown
+// revision is a different refusal, exit 128 with a message, and stays a
+// CommandError.
+type NoMergeBaseError struct {
+	// Base and Head are the two revisions that were asked.
+	Base, Head string
+}
+
+func (e *NoMergeBaseError) Error() string {
+	return fmt.Sprintf("%s and %s share no history, so there is no merge base to review the change against",
+		e.Base, e.Head)
+}
 
 // diffArgs are the flags every diff carries. They pin the shape of the output
 // against configuration and environment that would otherwise change it, so
@@ -86,10 +107,18 @@ func DiffAgainstMergeBase(dir, base, head string) (Diff, error) {
 // MergeBase returns the best common ancestor of base and head.
 //
 // Two histories with no common ancestor have no merge base, and git reports
-// that as a non-zero exit like any other failure, which §3.1.3 turns into
+// that as exit 1 with nothing on stderr, which is answered as a
+// *NoMergeBaseError. Every other failure is the CommandError §3.1.3 turns into
 // exit code 3 carrying the command's stderr.
 func MergeBase(dir, base, head string) (string, error) {
 	out, err := run(dir, "merge-base", "--end-of-options", base, head)
+	var failed *CommandError
+	if errors.As(err, &failed) && failed.Stderr == "" {
+		var exited exitCoder
+		if errors.As(failed.Err, &exited) && exited.ExitCode() == 1 {
+			return "", &NoMergeBaseError{Base: base, Head: head}
+		}
+	}
 	if err != nil {
 		return "", err
 	}
