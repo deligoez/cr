@@ -27,6 +27,27 @@ func TestRemotesListsEachRemoteOnceByItsFetchURL(t *testing.T) {
 	}, remotes)
 }
 
+// PullHead reads the commit a remote's refs/pull/<n>/head names, and answers
+// empty for a pull request the remote holds no ref for. The remote here is a
+// local repository, so the read reaches no network.
+func TestPullHeadReadsTheRemotesPullRef(t *testing.T) {
+	upstream := fixtureRepo(t)
+	fixtureGit(t, upstream, "commit", "--quiet", "--allow-empty", "-m", "pushed")
+	pushed := fixtureGit(t, upstream, "rev-parse", "HEAD")
+	fixtureGit(t, upstream, "update-ref", "refs/pull/7/head", pushed)
+
+	clone := fixtureRepo(t)
+	fixtureGit(t, clone, "remote", "add", "origin", upstream)
+
+	head, err := PullHead(clone, "origin", 7)
+	require.NoError(t, err)
+	assert.Equal(t, pushed, head)
+
+	absent, err := PullHead(clone, "origin", 8)
+	require.NoError(t, err)
+	assert.Empty(t, absent)
+}
+
 // A listing that is not name, URL and direction is refused rather than read as
 // fewer remotes.
 func TestParseRemotesRefusesALineItCannotRead(t *testing.T) {
