@@ -116,7 +116,11 @@ func (e *AmbiguousIssueError) Error() string {
 
 // Hint is §12.4's next actionable step.
 func (e *AmbiguousIssueError) Hint() string {
-	return "pass --issue naming the one to review against, e.g. --issue " + e.Keys[0]
+	flags := make([]string, 0, len(e.Keys))
+	for _, key := range e.Keys {
+		flags = append(flags, "--issue "+key)
+	}
+	return "pass --issue naming the one to review against: " + strings.Join(flags, " or ")
 }
 
 // LinkedKey is §3.2's second source for a `github` tracker: the one issue
