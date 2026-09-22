@@ -48,6 +48,23 @@ type PullRequest struct {
 	// closed and merged, as it writes them, and empty while it has not.
 	ClosedAt string `json:"closed_at"`
 	MergedAt string `json:"merged_at"`
+	// ClosingIssues are the issues GitHub links the pull request to as the
+	// ones it closes — its `closingIssuesReferences` — which §3.2 reads for
+	// a `github` tracker instead of matching a pattern over the body.
+	//
+	// GitHub's parser, not cr's, decides what counts: measured 2026-09-22,
+	// a body line `Closes #1484.` is a reference and a body that mentions
+	// `#1535` with no closing keyword is not, which is the distinction a
+	// regex over the body cannot make.
+	ClosingIssues []IssueRef `json:"closing_issues"`
+}
+
+// IssueRef names one issue by its repository and number. The repository is
+// carried because a pull request can close an issue in another repository.
+type IssueRef struct {
+	Owner  string `json:"owner"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
 }
 
 // The PullRequestState values GitHub answers for a pull request that is no
@@ -106,6 +123,7 @@ const pullRequestQuery = `query($owner:String!,$repo:String!,$number:Int!){
     pullRequest(number:$number){
       number title body headRefName headRefOid baseRefName baseRefOid author{login}
       state closedAt mergedAt
+      closingIssuesReferences(first:10){ nodes { number repository { name owner { login } } } }
     }
   }
 }`
@@ -129,6 +147,17 @@ type pullRequestNode struct {
 	Author *struct {
 		Login string `json:"login"`
 	} `json:"author"`
+	ClosingIssuesReferences struct {
+		Nodes []struct {
+			Number     int `json:"number"`
+			Repository struct {
+				Name  string `json:"name"`
+				Owner struct {
+					Login string `json:"login"`
+				} `json:"owner"`
+			} `json:"repository"`
+		} `json:"nodes"`
+	} `json:"closingIssuesReferences"`
 }
 
 // pullRequestResponse wraps that node the way the API answers it. The pull
@@ -191,6 +220,13 @@ func (c Client) PullRequest(owner, repo string, number int) (PullRequest, error)
 		State:       node.State,
 		ClosedAt:    node.ClosedAt,
 		MergedAt:    node.MergedAt,
+		// A nil list would print as null (§12.3).
+		ClosingIssues: make([]IssueRef, 0, len(node.ClosingIssuesReferences.Nodes)),
+	}
+	for _, closing := range node.ClosingIssuesReferences.Nodes {
+		opened.ClosingIssues = append(opened.ClosingIssues, IssueRef{
+			Owner: closing.Repository.Owner.Login, Repo: closing.Repository.Name, Number: closing.Number,
+		})
 	}
 	if node.Author != nil {
 		opened.Author = node.Author.Login
