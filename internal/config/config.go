@@ -41,6 +41,14 @@ const EnvPrefix = "CR_"
 // profileSetting is §2.4.1's override: the id of the profile to load.
 const profileSetting = "profile"
 
+// trackerSetting is §3.1.8's `intent.tracker`, and trackers its closed
+// domain. They are spelled here rather than imported from internal/intent,
+// which this package sits below; TestTheTrackerDomainIsIntents holds the two
+// spellings together.
+const trackerSetting = "intent.tracker"
+
+var trackers = []string{"command", "github"}
+
 // setting is one configurable key together with its built-in default, the
 // lowest layer of §2.7. This table is the whole configuration surface: a name
 // absent from it is not a setting, and no layer can introduce one.
@@ -62,6 +70,10 @@ var settings = []setting{
 	// §3.1.4 produced and nothing else.
 	{"intent.extra_files", []string{}},
 	{"intent.key_pattern", `[A-Z][A-Z0-9]+-[0-9]+`},
+	// §3.1.8's tracker: `command` reads the issue through intent.cmd,
+	// `github` through cr's own gh door, with the key taken from GitHub's
+	// closing link rather than from intent.key_pattern.
+	{trackerSetting, "command"},
 	{"post.max_comments", 20},
 	// The cap on the probe input §8.1.7's evidence region carries, which
 	// round 9's unverifiable-evidence-region names and gives no default.
@@ -411,6 +423,14 @@ func Resolve(src Sources) (Config, error) {
 	// command would read, and the layer named is the one that supplied it.
 	if _, err := render.ParseLang(resolved.String(render.Setting)); err != nil {
 		return Config{}, &LayerError{Origin: origins[render.Setting], Key: render.Setting, Err: err}
+	}
+	// §3.1.8's tracker is a closed domain like the language: a value naming
+	// neither would be read as the command tracker by every caller that
+	// compares against `github`, and the run would quietly shell out to a
+	// jira the user never configured.
+	if tracker := resolved.String(trackerSetting); !slices.Contains(trackers, tracker) {
+		return Config{}, &LayerError{Origin: origins[trackerSetting], Key: trackerSetting, Err: fmt.Errorf(
+			"%q is not a tracker: §3.1.8 admits %s", tracker, strings.Join(trackers, " or "))}
 	}
 	// `profile` is joined into a profile file's path before that profile is
 	// loaded and its tests.cmd run, so a value that is not one file stem is
