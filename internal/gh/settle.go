@@ -55,14 +55,20 @@ func (e *NotResolvedError) Error() string {
 // one door, and resolving a thread is a change other people see. An unconfirmed
 // run reaches Write and is refused there, so the gate is not re-implemented
 // here.
+//
+// The thread is passed as its own field, `-f thread=<id>`, which is how
+// `gh api graphql` fills a GraphQL variable: every field but `query` and
+// `operationName` becomes the variable it names. v0.5.0 passed one field named
+// `variables` holding a JSON object, which gh sends as a variable called
+// `variables`, so `$thread` arrived null and GitHub refused every resolution —
+// measured 2026-09-22 with a read query of the same shape, which returned
+// "Variable $login of type String! was provided invalid value", while `-f
+// login=…` returned the user. The shim the v0.5 tests used answered whatever
+// it was sent, so nothing but a real GitHub could have shown it.
 func (c Confirmation) ResolveThread(thread string) error {
-	variables, err := json.Marshal(map[string]string{"thread": thread})
-	if err != nil {
-		return err
-	}
 	out, err := c.Write(nil, "api", "graphql",
 		"-f", "query="+resolveMutation,
-		"--raw-field", "variables="+string(variables))
+		"-f", "thread="+thread)
 	if err != nil {
 		return err
 	}
