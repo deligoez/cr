@@ -2,6 +2,7 @@ package finding
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
@@ -49,6 +50,36 @@ func actionsOf(events []TriageEvent) []string {
 		named = append(named, events[i].Record+":"+string(events[i].Action))
 	}
 	return named
+}
+
+// §7.3.1: a record the pull request already raised is not raised again when
+// §9.3.4 carries it into the next round and that round's draft queues it. A
+// same-round regeneration still overwrites its own event, and a record raised
+// on another pull request is a different record.
+func TestACarriedRecordIsRaisedOncePerPullRequest(t *testing.T) {
+	layout := waiverHome(t)
+	first := anOccasion()
+	require.NoError(t, RecordRaised(layout, waiverOwner, waiverRepo, []*Finding{anEvented("f1")}, first))
+	require.NoError(t, RecordRaised(layout, waiverOwner, waiverRepo, []*Finding{anEvented("f1")}, first))
+
+	carried := anOccasion()
+	carried.Round = first.Round + 1
+	require.NoError(t, RecordRaised(layout, waiverOwner, waiverRepo,
+		[]*Finding{anEvented("f1"), anEvented("f2")}, carried))
+
+	elsewhere := anOccasion()
+	elsewhere.PR = first.PR + 1
+	require.NoError(t, RecordRaised(layout, waiverOwner, waiverRepo, []*Finding{anEvented("f1")}, elsewhere))
+
+	raises := make([]string, 0)
+	for _, event := range eventsFor(t, layout) {
+		raises = append(raises, fmt.Sprintf("%s pr%d round%d", event.Record, event.PR, event.Round))
+	}
+	assert.ElementsMatch(t, []string{
+		fmt.Sprintf("f1 pr%d round3", first.PR),
+		fmt.Sprintf("f2 pr%d round4", first.PR),
+		fmt.Sprintf("f1 pr%d round3", elsewhere.PR),
+	}, raises, "one raise per record per pull request, at the round that first raised it")
 }
 
 // §7.3.1's event carries everything the section names, so a report can be cut
@@ -164,7 +195,10 @@ func TestARetriedPostLeavesOneOutcomeAgainstOneRaise(t *testing.T) {
 
 // The raise is keyed apart from the outcome, and the pull request and the round
 // are both in the key: the same record id in another round or another pull
-// request is another event, because §7.3.4 counts over the whole repository.
+// request is another outcome event, because §7.3.4 counts over the whole
+// repository. The raise is the exception since v0.7.0: §7.3.1 raises a record
+// once per pull request, so the next round's raise of the same id — which only
+// §9.3.4's carry can produce — is not written.
 func TestTheKeyIsThePullRequestTheRoundAndTheRecord(t *testing.T) {
 	layout := waiverHome(t)
 	record := anEvented("f1")
