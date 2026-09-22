@@ -354,6 +354,8 @@ var gitReads = map[string]string{
 	"ls-files":   "§5.1.6's question of whether a file under the leftover glob is tracked, and the clone root's gitignored `.env*` names the experiment header lists",
 	"check-attr": "§3.4.7's question of whether the head declares a file generated",
 	"remote":     "§11.1's repository detection, which reads `git remote -v` and nothing else",
+	"ls-remote": "the commit the remote names as the pull request's head, read beside gh's answer; " +
+		"it asks the remote and writes nothing, not even a ref of the clone",
 }
 
 // gitSourceFiles parses internal/git's own source, tests excluded.
