@@ -119,6 +119,10 @@ func (r *briefResult) identity(w *writer, out *strings.Builder) {
 	fmt.Fprintf(out, "  head       %s\n", r.Head)
 	// §9.3.4's sweep, said where the round it opened is: a reader shown
 	// round 2 is told in the same place which records the move closed.
+	if len(r.Carried) > 0 {
+		fmt.Fprintf(out, "  carried    %d record(s) back to draft at their migrated anchors, per §9.4.5: %s\n",
+			len(r.Carried), strings.Join(r.Carried, ", "))
+	}
 	if len(r.Staled) > 0 {
 		fmt.Fprintf(out, "  staled     %d open record(s) moved to stale, per §9.3.4: %s\n",
 			len(r.Staled), strings.Join(r.Staled, ", "))
