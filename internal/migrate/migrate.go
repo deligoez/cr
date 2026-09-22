@@ -25,6 +25,9 @@ const (
 	KeyContent = "content"
 	// KeyContext is §9.4.4's: the content hash plus the recorded window.
 	KeyContext = "context"
+	// KeyLeft names no key: §9.4.2 reads only the head's tree, and a LEFT
+	// anchor names a line of the merge base, so it is never tried.
+	KeyLeft = "left"
 )
 
 // Outcome says what §9.4 did with one record's anchor, and is what §9.4.7
