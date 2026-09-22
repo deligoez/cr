@@ -40,11 +40,11 @@ func newCarrier(src *Sources, assembled *Brief) *carrier {
 
 // read is the new head's tree, which is the only tree §9.4.2 lets a migration
 // read.
-func (c *carrier) read(path string) ([]string, bool, error) {
+func (c *carrier) read(path string) (lines []string, exists bool, err error) {
 	if held, read := c.files[path]; read {
 		return held.lines, held.exists, nil
 	}
-	lines, exists, err := git.FileAtRevision(c.src.RepoDir, c.assembled.Head, path)
+	lines, exists, err = git.FileAtRevision(c.src.RepoDir, c.assembled.Head, path)
 	if err != nil {
 		return nil, false, err
 	}
@@ -182,11 +182,13 @@ func (c *carrier) carry(record *finding.Finding) (migrate.Record, *finding.Findi
 	if err := finding.StampAnchor(trees, state.FileFindings, 0, &moved.Anchor); err != nil {
 		return migrate.Record{}, nil, err
 	}
-	citations, err := c.restamp(record.Citations)
-	if err != nil {
+	// The citations are the agent's (§2.1.3), and the carry leaves every
+	// entry the agent wrote; what it re-reads is the hash cr stamped on
+	// each. moved shares its entries with record, which is the sweep's own
+	// decoding of the line and read for nothing after this.
+	if err := c.restamp(moved.Citations); err != nil {
 		return migrate.Record{}, nil, err
 	}
-	moved.Citations = citations
 	moved.Unit = unit
 	line.Probe, moved.Probe = record.Probe, ""
 	bodies, err := c.editedBodies(record.Round)
@@ -203,14 +205,9 @@ func (c *carrier) carry(record *finding.Finding) (migrate.Record, *finding.Findi
 // content that hash was taken from. Any other entry loses the hash, which §6.2's
 // `cited` row reads as a citation no resolution reached — so a grade can rest
 // on it no longer.
-func (c *carrier) restamp(citations []finding.Citation) ([]finding.Citation, error) {
-	if citations == nil {
-		return nil, nil
-	}
-	out := make([]finding.Citation, len(citations))
-	copy(out, citations)
-	for i := range out {
-		entry := &out[i]
+func (c *carrier) restamp(citations []finding.Citation) error {
+	for i := range citations {
+		entry := &citations[i]
 		if entry.ContentHash == "" {
 			continue
 		}
@@ -218,7 +215,7 @@ func (c *carrier) restamp(citations []finding.Citation) ([]finding.Citation, err
 		entry.ContentHash = ""
 		lines, exists, err := c.read(entry.Path)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if !exists || entry.Line < 1 || entry.Line > len(lines) {
 			continue
@@ -228,5 +225,5 @@ func (c *carrier) restamp(citations []finding.Citation) ([]finding.Citation, err
 			entry.ContentHash = stamped
 		}
 	}
-	return out, nil
+	return nil
 }

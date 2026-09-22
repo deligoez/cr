@@ -173,35 +173,7 @@ func sweepOpenRecords(held *state.Lock, journal *finding.Journal, carrier *carri
 			if !finding.ValidID(id) {
 				return false, unusable(fieldID, &storedIDError{written: fields[fieldID]})
 			}
-			record, err := decodeSwept(fields)
-			if err != nil {
-				return false, err
-			}
-			if record.Round == carrier.assembled.Round {
-				return false, nil
-			}
-			line, moved, err := carrier.carry(record)
-			if err != nil {
-				return false, err
-			}
-			out.migrations = append(out.migrations, line)
-			if moved != nil {
-				if err := journal.Move(id, finding.Existing(current), finding.StateDraft); err != nil {
-					return false, err
-				}
-				out.carried = append(out.carried, id)
-				return true, carried(fields, moved, carrier.assembled)
-			}
-			if err := journal.Move(id, finding.Existing(current), finding.StateStale); err != nil {
-				return false, err
-			}
-			stale, err := json.Marshal(finding.StateStale)
-			if err != nil {
-				return false, err
-			}
-			fields[fieldState] = stale
-			out.staled = append(out.staled, id)
-			return true, nil
+			return out.move(fields, id, current, journal, carrier)
 		},
 		// The journal is appended once every move is decided and before
 		// findings.ndjson is published, so an append that fails leaves
@@ -222,6 +194,44 @@ func sweepOpenRecords(held *state.Lock, journal *finding.Journal, carrier *carri
 		return swept{}, err
 	}
 	return out, nil
+}
+
+// move is one open record's half of the sweep: carried to `draft` in the new
+// round when §9.4.5 carries it, staled otherwise, and journalled and reported
+// either way.
+func (out *swept) move(
+	fields map[string]json.RawMessage, id string, current finding.State,
+	journal *finding.Journal, carrier *carrier,
+) (bool, error) {
+	record, err := decodeSwept(fields)
+	if err != nil {
+		return false, err
+	}
+	if record.Round == carrier.assembled.Round {
+		return false, nil
+	}
+	line, moved, err := carrier.carry(record)
+	if err != nil {
+		return false, err
+	}
+	out.migrations = append(out.migrations, line)
+	if moved != nil {
+		if err := journal.Move(id, finding.Existing(current), finding.StateDraft); err != nil {
+			return false, err
+		}
+		out.carried = append(out.carried, id)
+		return true, carried(fields, moved, carrier.assembled)
+	}
+	if err := journal.Move(id, finding.Existing(current), finding.StateStale); err != nil {
+		return false, err
+	}
+	stale, err := json.Marshal(finding.StateStale)
+	if err != nil {
+		return false, err
+	}
+	fields[fieldState] = stale
+	out.staled = append(out.staled, id)
+	return true, nil
 }
 
 // decodeSwept reads a whole record out of the fields the sweep was handed, the
