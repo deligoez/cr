@@ -212,7 +212,12 @@ func migrateOne(round *state.Round, record *finding.Finding) (migrate.Outcome, e
 	if err != nil {
 		return migrate.Outcome{}, err
 	}
-	lines, exists, err := git.FileAtRevision(dir, round.Head, record.Anchor.Path)
+	// round.Current, not round.Head: Head is the commit the round was opened
+	// at, which is the commit the record was stamped against, and a
+	// migration read from it finds every anchor exactly where it was.
+	// Measured 2026-09-22 on deligoez/cr-qa#24: three lines inserted above a
+	// queued record reported `33 → 33` against the recorded head.
+	lines, exists, err := git.FileAtRevision(dir, round.Current, record.Anchor.Path)
 	if err != nil {
 		return migrate.Outcome{}, err
 	}
