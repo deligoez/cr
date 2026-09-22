@@ -93,6 +93,23 @@ func TestAnEditedDraftSurvivesThePushThatMovesItsCode(t *testing.T) {
 	require.Equal(t, 2, briefed.Round)
 	require.Equal(t, []string{"f1"}, briefed.Carried, "§9.4.5: the code moved, so the record follows it")
 
+	// §9.5.7: with the heads agreeing again, `cr recheck` reports the
+	// migration the brief wrote.
+	reported, err := runCLIPrinting(t, "recheck", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	var rechecked struct {
+		Migrated []struct {
+			Record  string `json:"record"`
+			To      string `json:"to"`
+			Carried bool   `json:"carried"`
+		} `json:"migrated"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(reported), &rechecked))
+	require.Len(t, rechecked.Migrated, 1)
+	assert.Equal(t, "f1", rechecked.Migrated[0].Record)
+	assert.Equal(t, "lib.go:7", rechecked.Migrated[0].To)
+	assert.True(t, rechecked.Migrated[0].Carried)
+
 	_, err = runCLIPrinting(t, "draft", fixturePR, "--repo", fixtureSlug)
 	require.NoError(t, err)
 	drafted, err := os.ReadFile(layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 2, state.FileDraft))
