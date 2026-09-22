@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -10,18 +11,25 @@ import (
 	"github.com/deligoez/cr/internal/state"
 )
 
-// notSettledError reports a resolve asked for a record nobody has settled.
+// notSettledError reports a record in a state §9.6's command does not act on:
+// a resolve asked for a record nobody has settled, or a withdrawal for one
+// that is not posted.
 //
-// §9.6.1 refuses it because resolving is how a thread stops being visible, and
-// a thread resolved over an open concern is the concern hidden rather than
-// answered — the one outcome worse than leaving it open, because nobody will
-// look again.
+// §9.6.1 refuses the first because resolving is how a thread stops being
+// visible, and a thread resolved over an open concern is the concern hidden
+// rather than answered — the one outcome worse than leaving it open, because
+// nobody will look again.
 type notSettledError struct {
-	// ID is the record, and State where it actually stands.
-	ID, State string
+	// ID is the record, State where it actually stands, and Action the
+	// command that refused it.
+	ID, State, Action string
 }
 
 func (e *notSettledError) Error() string {
+	if e.Action == "withdraw" {
+		return "record " + e.ID + " is " + e.State +
+			", and §9.6.2 withdraws only a record in posted"
+	}
 	return "record " + e.ID + " is " + e.State +
 		", and §9.6.1 resolves a thread only for a record in answered or addressed"
 }
@@ -40,6 +48,10 @@ type settleResult struct {
 	Thread string `json:"thread"`
 	// Action is `resolve` or `withdraw`.
 	Action string `json:"action"`
+	// Disposition is the verb a withdrawal was given, and Scope the file
+	// of §7.4.4 its waiver is written to. Both are empty for a resolution.
+	Disposition string `json:"disposition,omitempty"`
+	Scope       string `json:"scope,omitempty"`
 	// posting is §12.6's pair, embedded rather than restated: §9.6's two
 	// commands can perform a network write, so their payload reports
 	// whether one happened and whether `--confirm` was given, in the field
@@ -51,6 +63,9 @@ type settleResult struct {
 
 func (r *settleResult) Text(w *writer) string {
 	text := w.accent(r.ID) + " " + r.Action + " on thread " + r.Thread
+	if r.Disposition != "" {
+		text += " as " + r.Disposition + ", waived for the " + r.Scope
+	}
 	if !r.Posted {
 		return text + "\nnot sent: §8.5 requires --confirm"
 	}
@@ -74,6 +89,20 @@ func newResolveCmd(out *writer) *cobra.Command {
 	return cmd
 }
 
+// withdrawalVerbs are §9.6.2's two dispositions, spelled as `cr triage`
+// spells them, so one decision has one word whichever side of posting it is
+// made on.
+var withdrawalVerbs = map[string]finding.Disposition{
+	"wrong":    finding.DispositionWrong,
+	"not-here": finding.DispositionNotHere,
+}
+
+// errWithdrawalVerb is §9.6.2's refusal of a withdrawal that does not say
+// which it is. It is left unmapped, so §11.2 codes it 2.
+var errWithdrawalVerb = errors.New(
+	"a withdrawal names its disposition, wrong or not-here: §9.6.2 cannot tell a false concern " +
+		"from a true one not worth the comment, and the two are waived and counted differently")
+
 // newWithdrawCmd retracts a posted concern and resolves its thread (§9.6.2).
 //
 // It posts no prose, and §9.6.3 says why that is a constraint rather than a
@@ -81,15 +110,24 @@ func newResolveCmd(out *writer) *cobra.Command {
 // carrying text to GitHub would be a second. The reviewer who wants to tell
 // the author why writes that reply themselves, exactly as §7.2.3 already has
 // them write every comment cr does not compose.
+//
+// The disposition is positional and required. A retraction is the strongest
+// evidence about a class cr can collect, because the author read the concern,
+// and whether it says "this was false" or "this was not worth saying" is the
+// reviewer's knowledge and never something cr could infer.
 func newWithdrawCmd(out *writer) *cobra.Command {
 	var confirm bool
 	cmd := &cobra.Command{
-		Use:   "withdraw " + prPlaceholder + " <record-id>",
-		Short: "Retract a posted concern and resolve its thread",
-		Args:  prArgs(2),
+		Use:   "withdraw " + prPlaceholder + " <record-id> wrong|not-here",
+		Short: "Retract a posted concern, waive it, and resolve its thread",
+		Args:  prArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			disposition, named := withdrawalVerbs[args[2]]
+			if !named {
+				return errWithdrawalVerb
+			}
 			return settleRecord(out, cmd, args, settling{
-				action: "withdraw", confirm: confirm,
+				action: "withdraw", confirm: confirm, disposition: disposition,
 			})
 		},
 	}
@@ -99,8 +137,9 @@ func newWithdrawCmd(out *writer) *cobra.Command {
 
 // settling is what the two commands differ by.
 type settling struct {
-	action  string
-	confirm bool
+	action      string
+	confirm     bool
+	disposition finding.Disposition
 }
 
 // settleRecord is §9.6's shared half: find the record and its thread, hold it
@@ -138,10 +177,10 @@ func settleRecord(out *writer, cmd *cobra.Command, args []string, how settling) 
 	}
 	if how.action == "resolve" &&
 		held.State != finding.StateAnswered && held.State != finding.StateAddressed {
-		return &notSettledError{ID: held.ID, State: held.State.String()}
+		return &notSettledError{ID: held.ID, State: held.State.String(), Action: how.action}
 	}
 	if how.action == "withdraw" && held.State != finding.StatePosted {
-		return &notSettledError{ID: held.ID, State: held.State.String()}
+		return &notSettledError{ID: held.ID, State: held.State.String(), Action: how.action}
 	}
 
 	result := &settleResult{
@@ -149,34 +188,95 @@ func settleRecord(out *writer, cmd *cobra.Command, args []string, how settling) 
 		State:   held.State.String(),
 		posting: posting{ConfirmGiven: how.confirm},
 	}
+	var retraction *withdrawal
+	if how.action == "withdraw" {
+		// Formed before anything is sent, dry run included: a key that
+		// cannot be formed refuses here, with nothing on GitHub changed,
+		// rather than after the thread is already resolved.
+		retraction, err = withdrawalOf(owner, repo, pr, held, how.disposition)
+		if err != nil {
+			return err
+		}
+		result.Disposition, result.Scope = string(how.disposition), retraction.scope.String()
+	}
 	if !how.confirm {
 		return out.emit(result)
 	}
-	return sendSettlement(out, layout, owner, repo, pr, &round, held, how, result)
+	return sendSettlement(out, layout, owner, repo, pr, &round, held, retraction, result)
 }
 
-// sendSettlement performs §9.6's writes: the reply when there is one, the
-// resolution, and then the record's own move.
+// withdrawal is what §9.6.2 records beside the move: the waiver and the
+// outcome the disposition names.
+type withdrawal struct {
+	waiver  finding.Waiver
+	scope   finding.WaiverScope
+	outcome finding.Outcome
+}
+
+// withdrawalOf forms a retraction's waiver and outcome, and writes nothing.
+//
+// The key is the one the record stamped when it was recorded (§9.2.4), so a
+// withdrawal after a force-push needs no commit the clone may have lost. A
+// record an earlier release stamped carries no stamped key, and only then is
+// the head it was produced against read, lazily, through keyTrees.
+func withdrawalOf(
+	owner, repo string, pr int, held *finding.Finding, d finding.Disposition,
+) (*withdrawal, error) {
+	outcome, err := finding.WithdrawalOutcome(d)
+	if err != nil {
+		return nil, err
+	}
+	waiver, err := finding.WaiverForWithdrawal(keyTrees(owner, repo, pr, held.Head), held, d)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := waiver.Scope()
+	if err != nil {
+		return nil, err
+	}
+	return &withdrawal{waiver: waiver, scope: scope, outcome: outcome}, nil
+}
+
+// sendSettlement performs §9.6's writes: the resolution, and for a
+// withdrawal the waiver, the outcome and then the record's own move.
 //
 // The order is what §8.4's unknown outcome makes it. GitHub is written first
 // and cr's state second, so a run that dies between them leaves a thread
 // resolved and a record still posted — which `cr recheck` reads back and a
 // human can settle. The reverse order would leave a record marked withdrawn
 // over a thread still open on the pull request, and nothing would ever look at
-// it again.
+// it again. Among cr's own writes the move is last: the waiver and the outcome
+// event are both idempotent, so a run that dies before the move leaves a
+// record still posted that the same command can finish, and none that dies
+// after it can leave a withdrawn record with no waiver.
 func sendSettlement(
 	out *writer, l state.Layout, owner, repo string, pr int, round *state.Round,
-	held *finding.Finding, how settling, result *settleResult,
+	held *finding.Finding, retraction *withdrawal, result *settleResult,
 ) error {
 	if err := gh.Confirm(true).ResolveThread(held.ThreadID); err != nil {
 		return err
 	}
 	result.Posted = true
-	if how.action != "withdraw" {
+	if retraction == nil {
 		result.State = held.State.String()
 		return out.emit(result)
 	}
 
+	// §7.4.8's provenance and §7.3.1's key are the posting's: a posted
+	// record stays in the round that posted it, so its own round and head
+	// are that round's, and the outcome event replaces the `kept` the
+	// posting wrote rather than joining it.
+	if _, err := finding.Waive(l, owner, repo, &retraction.waiver, finding.WaiverProvenance{
+		Round: held.Round, PR: pr, Head: held.Head, Reason: finding.WithdrawalReason,
+	}); err != nil {
+		return err
+	}
+	if err := finding.RecordOutcomes(l, owner, repo,
+		[]finding.Settled{{Record: held, Outcome: retraction.outcome}},
+		&finding.TriageOccasion{PR: pr, Round: held.Round, Head: held.Head, At: time.Now()},
+	); err != nil {
+		return err
+	}
 	journal := finding.NewJournal(finding.ActorWithdrawConfirm, round.Head, time.Now())
 	if err := journal.Move(held.ID, finding.Existing(held.State), finding.StateWithdrawn); err != nil {
 		return err

@@ -234,7 +234,7 @@ func movedHeadRuns(dir string) map[string]section93 {
 		"verify": refusesTheWrite("verify", fixturePR, "f3", "standing",
 			"--evidence", "the reply asks for time"),
 		"resolve":  refusesTheWrite("resolve", fixturePR, "f3"),
-		"withdraw": refusesTheWrite("withdraw", fixturePR, "f3"),
+		"withdraw": refusesTheWrite("withdraw", fixturePR, "f3", "wrong"),
 		"answer": disclosesTheMove("answer", fixturePR, "f3", "the retry is deliberate",
 			"--source", "chat"),
 		// `cr status` counts §10.1's report out of files other commands

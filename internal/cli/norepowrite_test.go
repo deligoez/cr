@@ -923,7 +923,7 @@ func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole,
 			"--evidence", "the reply asks for time", "--repo", fixtureSlug,
 		},
 		"resolve":  {"resolve", fixturePR, "f9", "--repo", fixtureSlug},
-		"withdraw": {"withdraw", fixturePR, "f8", "--repo", fixtureSlug},
+		"withdraw": {"withdraw", fixturePR, "f8", "wrong", "--repo", fixtureSlug},
 		// `cr claims set-aside` writes intent-gaps.ndjson and reads the
 		// §3.6 store, both under the state root, and reaches the
 		// repository not at all. It runs last: §4.1.7 derives the entry
@@ -1069,6 +1069,7 @@ func seedSettledRecords(t *testing.T, prepared state.Layout) {
 
 	settled := func(id, recordState, thread string) string {
 		return `{"id":"` + id + `","kind":"question","role":"correctness","unit":"u1",` +
+			`"class":"unbounded-retry","anchor":` + stampedAnchor + `,` +
 			`"state":"` + recordState + `","thread_id":"` + thread + `",` +
 			`"head":"` + round.Head + `","round":` + strconv.Itoa(round.Round) + `}` + "\n"
 	}

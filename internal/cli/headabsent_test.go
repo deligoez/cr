@@ -270,7 +270,7 @@ func headRuns(t *testing.T) map[string]headRun {
 		"resolve": exempt("resolves a thread GitHub holds, and reads no revision",
 			"resolve", fixturePR, "f1", "--repo", fixtureSlug),
 		"withdraw": exempt("retracts a record and resolves its thread, and reads no revision",
-			"withdraw", fixturePR, "f1", "--repo", fixtureSlug),
+			"withdraw", fixturePR, "f1", "wrong", "--repo", fixtureSlug),
 		// §9.4.2 has the migration read the current head's tree and
 		// never the superseded commit, so `cr recheck` reaches the
 		// head alone — a clone lacking it cannot place an anchor.

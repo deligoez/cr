@@ -46,9 +46,9 @@ func findingLines(t *testing.T, l state.Layout) map[string]map[string]any {
 func TestAPostedConcernOutlivesThePushThatMovesTheHead(t *testing.T) {
 	layout, recorded, moved := aRoundTheHeadOutran(t)
 	holdRecords(t, layout, fixtureOwner, fixtureProject, fixturePRNumber,
-		`{"id":"f3","kind":"question","summary":"why is the retry unbounded?",`+
+		`{"id":"f3","kind":"question","summary":"why is the retry unbounded?","anchor":`+stampedAnchor+`,`+
 			`"state":"posted","thread_id":"PRRT_q","head":"`+recorded+`","round":1}`,
-		`{"id":"f4","kind":"finding","summary":"the retry never stops",`+
+		`{"id":"f4","kind":"finding","summary":"the retry never stops","anchor":`+stampedAnchor+`,`+
 			`"state":"posted","thread_id":"PRRT_f","head":"`+recorded+`","round":1}`)
 	issue := filepath.Join(t.TempDir(), "issue.txt")
 	require.NoError(t, os.WriteFile(issue, []byte("Retry on 5xx.\n"), 0o600))
@@ -76,7 +76,7 @@ func TestAPostedConcernOutlivesThePushThatMovesTheHead(t *testing.T) {
 	assert.ElementsMatch(t, []string{"f3", "f4"}, reported,
 		"§9.5.2 reports every posted record, and the push did not settle either")
 
-	_, err = runCLIPrinting(t, "withdraw", fixturePR, "f4", "--repo", fixtureSlug)
+	_, err = runCLIPrinting(t, "withdraw", fixturePR, "f4", "not-here", "--repo", fixtureSlug)
 	require.NoError(t, err, "§9.6.2 reaches the posted record from the round the push opened")
 	_, err = runCLIPrinting(t, "resolve", fixturePR, "f3", "--repo", fixtureSlug)
 	require.Error(t, err, "f3 is not settled yet, so §9.6.1 refuses — on its state, not on its round")

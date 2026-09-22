@@ -21,9 +21,16 @@ import (
 // `cr recheck` writes.
 func settledRecord(id, kind, recordState, thread string) string {
 	return `{"id":"` + id + `","kind":"` + kind + `","role":"correctness","unit":"u1",` +
+		`"class":"unbounded-retry","anchor":` + stampedAnchor + `,` +
 		`"summary":"is the retry unbounded?","state":"` + recordState + `",` +
 		`"thread_id":"` + thread + `","head":"0f1e2d3","round":1}`
 }
+
+// stampedAnchor is an anchor as `cr record` stores it since §9.2.4, carrying
+// the waiver key's hash, so a withdrawal forms its waiver without reading a
+// tree — which is the case a withdrawal after a force-push is in.
+const stampedAnchor = `{"path":"lib.go","side":"RIGHT","start_line":4,"line":4,` +
+	`"content_hash":"0123456789abcdef","context_hash":"fedcba9876543210"}`
 
 // settledHead is the head the round below is opened at, and the one every
 // seeded record carries. crHome's default currentPullRequest echoes the
@@ -178,6 +185,15 @@ func TestResolveRefusesARecordNobodySettled(t *testing.T) {
 	assert.Contains(t, err.Error(), "resolves a thread only for a record in answered or addressed")
 }
 
+// settlingArgv is one of §9.6's two commands over one record, a withdrawal
+// carrying the disposition §9.6.2 requires.
+func settlingArgv(command, id string) []string {
+	if command == "withdraw" {
+		return []string{command, answeredPR, id, "wrong"}
+	}
+	return []string{command, answeredPR, id}
+}
+
 // §9.6: a record that never reached GitHub has no thread to act on, and both
 // commands say so rather than reaching for one.
 func TestSettlingARecordWithNoThreadIsRefused(t *testing.T) {
@@ -186,7 +202,7 @@ func TestSettlingARecordWithNoThreadIsRefused(t *testing.T) {
 			settlingHome(t, `{"id":"f5","kind":"question","summary":"unposted",`+
 				`"state":"queued","head":"0f1e2d3","round":1}`)
 
-			_, err := runIn(t, command, answeredPR, "f5", "--repo", answeredSlug)
+			_, err := runIn(t, append(settlingArgv(command, "f5"), "--repo", answeredSlug)...)
 
 			require.Error(t, err)
 			assert.Equal(t, ExitState, exitCodeFor(err))
@@ -208,7 +224,7 @@ func TestNeitherSettlingCommandWritesWithoutConfirm(t *testing.T) {
 				settledRecord("f3", "question", "posted", "PRRT_a"),
 				settledRecord("f6", "question", "addressed", "PRRT_b"))
 
-			out, err := runIn(t, command, answeredPR, id, "--repo", answeredSlug)
+			out, err := runIn(t, append(settlingArgv(command, id), "--repo", answeredSlug)...)
 
 			require.NoError(t, err)
 			assert.Contains(t, out, `"posted": false`, "§12.6: nothing was sent")
