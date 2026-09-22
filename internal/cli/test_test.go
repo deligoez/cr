@@ -327,6 +327,63 @@ func TestTheStoredCountsAreSummedOverTheWholeMergedStream(t *testing.T) {
 		"§5.2.5: exit 0, a derivable executed count above zero, and no failures")
 }
 
+// The counts reach the command's own output, not only runs.ndjson. Measured
+// 2026-09-22 against deligoez/cr-qa-go: v0.6.0's `cr test --json` carried
+// neither count nor verdict, so a profile's count mode could not be checked
+// from the command that runs it.
+func TestTheTestCommandPrintsTheCountsItStored(t *testing.T) {
+	fixture := fixtureRepository(t)
+	root := crHome(t)
+	head := strings.TrimSpace(mustGit(t, fixture, "rev-parse", fixtureHeadBranch))
+
+	runner := filepath.Join(t.TempDir(), "runner.sh")
+	require.NoError(t, os.WriteFile(runner, []byte(
+		"#!/bin/sh\necho 'Tests:  2 passed' >&2\necho 'Tests:  1 failed' >&2\nexit 1\n"), 0o700))
+
+	prepared := state.New(root)
+	require.NoError(t, prepared.Init())
+	require.NoError(t, prepared.EnsureProfile("qa", `{"id":"qa",`+
+		`"match":{"files":[],"globs":[]},"axes":{"test":true},`+
+		`"tests":{"cmd":["`+runner+`"],"globs":["*_test.txt"],`+
+		`"count_pattern":"Tests:\\s+(\\d+)\\s+(?:failed|passed)\\b",`+
+		`"failed_pattern":"Tests:\\s+(\\d+)\\s+failed\\b"}}`))
+	require.NoError(t, prepared.EnsurePR(fixtureOwner, fixtureProject, fixturePRNumber))
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&state.Meta{
+		Owner: fixtureOwner, Repo: fixtureProject, PR: fixturePRNumber,
+		IssueKey: fixtureIssue, ProfileID: "qa", Round: 1, Head: head,
+	}))
+	require.NoError(t, held.Unlock())
+
+	restore := repoDir
+	repoDir = func() (string, error) { return fixture, nil }
+	t.Cleanup(func() { repoDir = restore })
+
+	stdout, _ := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	var printed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &printed))
+
+	assert.Equal(t, float64(3), printed["tests_run"], "the executed count §5.2.4 stored")
+	assert.Equal(t, float64(1), printed["tests_failed"], "the failed count §5.2.4 stored")
+	assert.Equal(t, false, printed["passed"], "§5.2.5's verdict on a run that failed one test")
+}
+
+// A count the patterns could not derive is left out of the output and said in
+// words in the rendering, never printed as a zero nothing measured.
+func TestTheTestRenderingSaysWhenTheCountsWereNotDerived(t *testing.T) {
+	three, one := 3, 1
+	derived := (&testRunResult{TestsRun: &three, TestsFailed: &one}).Text(&writer{})
+	assert.Contains(t, derived, "counts  3 ran, 1 failed")
+
+	underived := (&testRunResult{}).Text(&writer{})
+	assert.Contains(t, underived, "counts  not derived")
+
+	encoded, err := json.Marshal(&testRunResult{})
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "tests_run", "absent rather than null when underivable")
+}
+
 // §5.2.3 through the command: the budget the run is bounded by is the
 // profile's `tests.timeout_seconds`, and a run that exceeds it is killed and
 // recorded as a timeout.
