@@ -2,14 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.6.0.** The release implements the contract in
+> **Status: v0.6.1.** The release implements the contract in
 > [`spec/0.6.0.md`](spec/0.6.0.md): a `go` profile beside `laravel-pest`, GitHub
 > Issues as a tracker with no command to configure, a `cr withdraw` whose
 > retraction is waived and counted against its class, and a `cr status` that
-> lists posted concerns from every round. It also fixes `cr resolve --confirm`
-> and `cr withdraw --confirm`, which v0.5 sent to GitHub in a shape GitHub
-> refused. Its notes are in
-> [`spec/0.6.0-release-notes.md`](spec/0.6.0-release-notes.md).
+> lists posted concerns from every round. v0.6.1 fixes two defects a QA pass
+> found on real pull requests: `cr recheck` reporting moved code as unmoved, and
+> a Go gap probe at the repository root coming back `inconclusive`. Its notes
+> are in [`spec/0.6.1-release-notes.md`](spec/0.6.1-release-notes.md).
 >
 > v0.5 closed the loop. Every version through
 > v0.4 ended at posting; v0.5 reads back what came back. `posted` stops being a
