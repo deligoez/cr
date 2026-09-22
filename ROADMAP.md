@@ -307,6 +307,28 @@ Each of these is measured rather than wished for: the evidence is a run that had
   operator's to build rather than cr's. §7.3's statistics, the probe cap's report, and the round's
   completeness all exist; what is missing is the one command that walks the mechanical half.
 
+*Five small items the v0.6.0 QA pass found against `deligoez/cr-qa` and `cr-qa-go`, 2026-09-22, in
+the order cr-research ranked them. None lets a wrong assertion reach an author.*
+
+- **`cr test --json` carries no counts.** v0.6.0's occurrence mode is checked on one's own repository
+  by running `cr test`, and its JSON shows no `tests_run` or `tests_failed`; the counts land only in
+  `runs.ndjson`, under `~/.cr`, which the skill does not point at. So the feature cannot be checked
+  from the command that runs it. The run's counts belong in its output.
+- **A pull request whose head shares no history with its base fails on a raw error.** `cr brief`
+  surfaced git's `merge-base` failure as `exit status 1` with no hint, against the convention that
+  every error names the next step. The hint: the head shares no history with the base, and GitHub
+  will not merge it as it stands.
+- **`cr config --resolved` shows the Jira key pattern beside `intent.tracker: github`.** The pattern
+  is not in force under that tracker — `owner.repo#n` is — so the resolved view discloses a rule
+  cr does not apply. Show the effective pattern, or leave the row out.
+- **A pull request that closes two issues needs `--issue` on every brief.** The refusal is right
+  (§3.2 picks no key on its own); its hint could name the candidate keys so the operator copies one.
+- **GitHub reports the old head for a few seconds after a push.** Measured during the QA: a `cr
+  brief` run straight after a push stayed in the old round, and the next one opened the new round.
+  cr's stale refusal catches any write, so the cost is a wasted fan-out, not a wrong comment. A cheap
+  mitigation is one read beside gh's: `git ls-remote origin refs/pull/<n>/head`, and a refusal naming
+  both heads when they differ. The skill says to wait meanwhile.
+
 ### 2. Measure what is still unmeasured
 
 **After v0.6.0 the next step is a decision, not work.** The driver above, real use below, and the
