@@ -129,6 +129,55 @@ func TestAPushCarriesTheRecordWhoseCodeMovedAndStalesTheOneWhoseCodeIsGone(t *te
 	assert.Equal(t, finding.StateDraft, moved[0].To, "§9.1: queued → draft by cr brief")
 }
 
+// §9.4.3 through the carry: code the push moved into another file the diff
+// touches is found there, and the record follows it into that file's unit.
+// v0.6's migration searched the anchor's own file only.
+func TestAPushThatMovesCodeToAnotherFileCarriesTheRecordThere(t *testing.T) {
+	dir, first, base := repository(t)
+	src := sources(t, dir, answering(first, base, oneThread))
+	_, err := Run(src)
+	require.NoError(t, err)
+
+	total := "func Total() int { return subtotal() + shipping() }"
+	encoded, err := json.Marshal(finding.Anchor{
+		Path: "order.go", Side: "RIGHT", StartLine: 3, Line: 3,
+		ContentHash: hashOf(t, total), ContextBefore: []string{"package shop", ""}, ContextAfter: []string{},
+	})
+	require.NoError(t, err)
+	held, err := src.Layout.LockPR(testOwner, testRepo, testPR)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings, []byte(
+		`{"id":"f1","kind":"question","role":"correctness","class":"c","severity":"low","unit":"u1",`+
+			`"summary":"s","evidence":"e","state":"draft","anchor":`+string(encoded)+`,`+
+			`"head":"`+first+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "order.go"), []byte("package shop\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "total.go"), []byte("package shop\n\n"+total+"\n"), 0o600))
+	runGit(t, dir, "add", "order.go", "total.go")
+	runGit(t, dir, "commit", "--quiet", "-m", "move the total")
+	src.GH = answeringGH(runGit(t, dir, "rev-parse", "HEAD"), base)
+
+	briefed, err := Run(src)
+	require.NoError(t, err)
+	require.Equal(t, []string{"f1"}, briefed.Carried)
+	require.Len(t, briefed.Migrations, 1)
+	assert.Equal(t, "total.go:3", briefed.Migrations[0].To)
+
+	var carried finding.Finding
+	raw, err := json.Marshal(lines(t, src, state.FileFindings)[0])
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &carried))
+	assert.Equal(t, "total.go", carried.Anchor.Path)
+	var unitPath string
+	for _, formed := range briefed.Units {
+		if formed.ID == carried.Unit {
+			unitPath = formed.Path
+		}
+	}
+	assert.Equal(t, "total.go", unitPath, "§9.4.5: the unit that contains the migrated anchor")
+}
+
 // answeringGH is answering at a moved head, with no threads.
 func answeringGH(head, base string) gh.Client {
 	return gh.WithRunner(answering(head, base, noThreads))
