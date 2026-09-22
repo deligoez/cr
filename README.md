@@ -2,15 +2,18 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.6.2.** The release implements the contract in
-> [`spec/0.6.0.md`](spec/0.6.0.md): a `go` profile beside `laravel-pest`, GitHub
-> Issues as a tracker with no command to configure, a `cr withdraw` whose
-> retraction is waived and counted against its class, and a `cr status` that
-> lists posted concerns from every round. v0.6.1 fixed two defects a QA pass
-> found on real pull requests, and v0.6.2 is what the same pass left: `cr test`
-> prints the counts it stored, a brief discloses a head GitHub still reports
-> after a push, and three refusals name the step they had left out. Its notes
-> are in [`spec/0.6.2-release-notes.md`](spec/0.6.2-release-notes.md).
+> **Status: v0.7.0.** The release implements the contract in
+> [`spec/0.7.0.md`](spec/0.7.0.md). v0.7 changes one thing: what an author's push
+> does to the comments you have drafted but not yet sent. Until v0.6 every one of
+> them went stale. Now `cr brief` finds each one's lines at the new head and
+> carries it there — new line, same id, the body you edited — and stales only
+> the ones whose code is gone. A carried comment re-reads its evidence at the new
+> head, so nothing it asserts rests on code the push changed. Its notes are in
+> [`spec/0.7.0-release-notes.md`](spec/0.7.0-release-notes.md).
+>
+> v0.6 added a `go` profile beside `laravel-pest`, GitHub Issues as a tracker,
+> a `cr withdraw` whose retraction is waived and counted against its class, and a
+> `cr status` that lists posted concerns from every round.
 >
 > v0.5 closed the loop. Every version through
 > v0.4 ended at posting; v0.5 reads back what came back. `posted` stops being a
@@ -34,9 +37,9 @@ Code review lifecycle manager for AI coding agents.
 `cr` reviews a pull request someone else wrote. It reads the intent from your
 tracker, proves that every changed unit was examined, grades every finding by
 the evidence behind it, and hands you a draft to edit before anything is posted.
-v0.3 ends at posting: when the pull request's head moves, the round goes stale
-and `cr brief` opens a new one. Following the conversation after posting, and
-migrating anchors across a head change, is a later release.
+After posting it follows the conversation: when the author pushes, `cr brief`
+opens a new round, carries the comments you have not sent yet to the lines their
+code moved to, and `cr recheck` reads back what happened to the ones you did.
 
 `cr` never calls a language model. It fetches, executes, validates and records;
 the agent driving it forms the judgements. Read [`VISION.md`](VISION.md) for the

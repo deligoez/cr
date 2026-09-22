@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.7.0 | A push carries the draft: `cr brief` migrates every unsent record to the new head, searching its own file and every file the new diff touches, and carries each one that places inside a new unit — same id, new line and round, back to `draft`, with the body the reviewer edited — while one whose code is gone goes stale. A carried record re-reads its evidence (its probe cleared, a citation whose line changed unstamped), is raised once per pull request, and absorbs its own re-raise as a duplicate. `cr recheck` reports the round's migrations, or previews them while the head has moved |
 | v0.6.2 | The rest of the v0.6.0 QA pass: `cr test` prints the counts and verdict it stored, a brief discloses a head GitHub still reports after a push against the remote's own `refs/pull/<n>/head`, and three refusals that named no step now name one — a base with no shared history, the intent settings the GitHub tracker leaves inert, and a pull request closing two issues. `cr post --reconcile` was measured against a real lost answer for the first time |
 | v0.6.1 | Two defects the v0.6.0 QA pass found on real pull requests: `cr recheck` migrated an anchor against the head the record was made at rather than the one the push moved to, and so reported code that had moved as unmoved; and a gap probe whose template places its test at the repository root ran on no directory and came back `inconclusive` |
 | v0.6.0 | A `go` profile, with an occurrence count mode for a runner that prints one line per test and a zero read only from a clean exit, and §2.4.5 pinning what a shipped profile carries rather than how many; GitHub Issues as a tracker, keyed `owner.repo#n` from the pull request's closing link and read through cr's own gh door; `cr withdraw … wrong\|not-here` writing the waiver its disposition scopes and a `withdrawn-*` outcome that replaces the posting's `kept`, with the waiver key's hash stamped at record time; `cr status` listing posted concerns from every round; and `cr resolve`/`cr withdraw --confirm` fixed, which GitHub had refused since v0.5.0 |
@@ -44,7 +45,12 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-- **§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.** Found by the
+*Empty.*
+
+- ~~**§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.**~~ *Shipped in
+  v0.7.0 as reading (i), `spec/0.7.0.md` §9.3.4 and §9.4.5–§9.4.8, and measured on `deligoez/cr-qa#23`:
+  a push that moved three queued records two lines down carried all three, and the edited body
+  survived into the next round's draft.* Found by the
   v0.6.0 QA pass, 2026-09-22, and read against `spec/0.6.0.md` with cr-research. §9.4.1 migrates
   every record that is not terminal and never a posted one, so its domain is `draft` and `queued`.
   §9.3.2 refuses every per-PR write while the head has moved, which is the only time a migration
@@ -315,9 +321,9 @@ Each of these is measured rather than wished for: the evidence is a run that had
 
 *Five small items the v0.6.0 QA pass found against `deligoez/cr-qa` and `cr-qa-go`, 2026-09-22, in
 the order cr-research ranked them. None let a wrong assertion reach an author, and* **all five
-shipped in v0.6.2**, *each inside `spec/0.6.0.md` with no normative change. What is left of that
-conversation is v0.7.0: §0's reconciliation, whichever reading the user picks, since both change
-normative text. The driver stays out of it.*
+shipped in v0.6.2**, *each inside `spec/0.6.0.md` with no normative change. The rest of that
+conversation was v0.7.0, §0's reconciliation, which shipped as reading (i). The driver stayed out
+of it.*
 
 - ~~**`cr test --json` carries no counts.**~~ v0.6.0's occurrence mode is checked by running
   `cr test`, and the counts reached only `runs.ndjson` under `~/.cr`, so the feature could not be
