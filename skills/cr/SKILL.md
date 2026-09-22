@@ -1061,8 +1061,9 @@ concern does not block completeness.
 ### 8. Recheck, and settle what came back
 
 Once the author has replied or pushed, `cr brief` opens the new round — posted
-records survive it, only unsent ones go stale — and `cr recheck` reads back what
-changed. It performs no network write, moves no record, and reaches no verdict.
+records survive it, unsent ones are carried or go stale (see *A moved head*) —
+and `cr recheck` reads back what changed. It performs no network write, moves no
+record, and reaches no verdict.
 A posted record stays in the round that posted it: `cr recheck` lists every
 posted record of the pull request, and `cr verify`, `cr resolve` and
 `cr withdraw` find a record by its id in whichever round holds it. (v0.5.0 read
@@ -1089,11 +1090,18 @@ cr recheck 1
   ],
   "migrated": [
     {"record": "f5", "from": "order.go:12", "to": "order.go:31",
-     "placed": true, "key": "content", "candidates": 1}
+     "placed": true, "key": "content", "candidates": 1,
+     "carried": true, "from_round": 1, "round": 2, "head": "…"}
   ],
+  "preview": [],
   "honesty": []
 }
 ```
+
+`migrated` is what `cr brief` did when it opened this round, read back from
+`migrations.ndjson`. While the head has moved past the round and no brief has
+run, `migrated` is empty and `preview` says what the next brief would place, and
+nothing is written.
 
 `outdated` is GitHub's own answer, and `line: 0` beside `original_line: 6` is
 what an outdated thread looks like: the head no longer carries the code, and
@@ -1155,9 +1163,32 @@ except `cr post --reconcile` refuses with exit 4:
 
 `cr status 1` on a moved head names both heads and `cr brief`, and leaves out the
 reinvention and symbol halves and the file counts, which it would have to read at
-the old head. `cr brief 1` opens round 2: open records move to `stale`, units are
-recomputed, round 2 starts with no mapping (earlier rounds' units and mapping
-stay in state), claims carry forward. Anchors are never migrated; that is v0.3.
+the old head. `cr brief 1` opens round 2: units are recomputed, round 2 starts
+with no mapping (earlier rounds' units and mapping stay in state), claims carry
+forward, and every `draft` or `queued` record is migrated.
+
+**A record whose code moved is carried; one whose code is gone goes stale.**
+Since v0.7 the brief looks for each unsent record's anchored lines at the new
+head — in its own file, then in every file the new diff touches — and a RIGHT
+anchor found in exactly one place inside a unit of the new round is carried
+there: same id, the new round, the new line and unit, back to `draft`, and with
+the body you had edited it to (the round's first `cr draft` renders it). A LEFT
+anchor, code that is gone or now in two places, or a line the new diff does not
+cover goes `stale` as before. The brief reports both:
+
+```json
+{"round": 2, "carried_records": ["f3", "f301"], "staled_records": ["f7"],
+ "migrations": [{"record": "f301", "from": "src/Order.php:28", "to": "src/Order.php:30",
+                 "placed": true, "carried": true, "from_round": 1, "probe": "p2", …}]}
+```
+
+**A carried record asserts nothing it proved at the old head.** Its probe is
+cleared (the migration line names it, so you can run it again), and a citation
+whose line changed loses the hash cr stamped, so it no longer counts towards
+`cited`. A carried `probed` finding therefore falls to `cited` or `argued` — and
+an `argued` one is a question again — until you re-run the experiment. It is raised once in `cr stats`, not
+once per round, and if the new round's roles raise the same concern again at the
+same line and class, `cr record` stores that as a duplicate of the carried one.
 Re-run the loop for the new round.
 
 ## The argued rule
