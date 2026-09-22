@@ -255,6 +255,13 @@ var codes = []mapped{
 	{is[*git.MissingCommitError](), ExitFile,
 		"run `git fetch` in the repository under review so it holds the commit the message names " +
 			"(`git fetch origin pull/<pr>/head` for a pull request from a fork), then run the command again"},
+	// A pull request whose head shares no history with its base. git's
+	// refusal is exit 1 with nothing on stderr, so the general git row
+	// below would name no step; the code stays that row's 3.
+	{is[*git.NoMergeBaseError](), ExitFile,
+		"the pull request's head was not branched from its base, so there is no diff to review; " +
+			"rebase the head onto the base, or point the pull request at the base it was branched from, " +
+			"then run the command again"},
 	// §3.1.3 codes a non-zero exit from an external command 3 and surfaces
 	// its stderr. It fixes that for the tracker command, and git is one of
 	// the same three external tools, so it fails through the same mapping
