@@ -98,6 +98,14 @@ func TestAFailedGitCommandExitsWithTheFileCode(t *testing.T) {
 	assert.Equal(t, ExitFile, exitCodeFor(fmt.Errorf("ingesting the diff: %w", err)))
 }
 
+// A head that shares no history with its base keeps the file code and names
+// the step git's silent refusal left out.
+func TestAPullRequestWithNoMergeBaseNamesTheStep(t *testing.T) {
+	err := fmt.Errorf("ingesting the diff: %w", &git.NoMergeBaseError{Base: "main", Head: "feature"})
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Contains(t, hintFor(err), "not branched from its base")
+}
+
 // gh is the third of those tools, and §3.5's ingestion is the first thing that
 // drives it. A GraphQL error arrives as a refusal like any other — gh exits
 // non-zero with the message on stderr — so it maps onto the same code, and the
