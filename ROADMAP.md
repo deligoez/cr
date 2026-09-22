@@ -63,6 +63,10 @@ paragraphs of this file used to carry is the Shipped table below.
   sentence is reworded. cr-research leans to (i), the only reading under which §9.4.5, §9.6 and
   v0.6.1's migration fix all mean something. Either changes what a round holds, so it is the user's.
 
+  **Decided 2026-09-22: reading (i), as v0.7.0.** The user chose it on the recommendation above.
+  v0.7.0's spec settles §9.3.4 and §9.4 together — which records a push carries and which it stales,
+  who writes `migrations.ndjson`, and what §9.4.5's refusal guards — and nothing else rides with it.
+
 - ~~**A run that did not compile is disclosed as `no-tests-selected`.**~~ *Closed in `spec/0.5.0.md`:
   §5.3.4's and §5.4.3's zero-count rungs now carry a `reason` naming the exit code when it is not 0,
   and §5.5's table gains the `reason` row the implementation had been writing without one.*
