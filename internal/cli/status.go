@@ -107,6 +107,15 @@ type statusResult struct {
 	Skipped []coverage.SkippedRole `json:"skipped_roles"`
 	// Records is §10.1.4.
 	Records recordReport `json:"records"`
+	// Concerns is §10.1.9: every record of the pull request still in
+	// `posted`, whichever round posted it.
+	//
+	// Records counts this round's records alone, and a posted record stays
+	// in the round that posted it, so from the second round on a report of
+	// Records only would show nothing outstanding while `cr recheck` listed
+	// concerns awaiting a verdict. It reports and does not block: §10.2.4
+	// keeps a posted record out of completeness on purpose.
+	Concerns []postedConcern `json:"posted_concerns"`
 	// Probes is §10.1.5.
 	Probes probeReport `json:"probes"`
 	// Proposals is §10.1.8: §5.7's proposals of this round by state.
@@ -191,6 +200,7 @@ func (r *statusResult) Text(w *writer) string {
 	}
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
 	out.WriteString(r.recordLines())
+	out.WriteString(r.concernLines())
 	out.WriteString(r.noteLines())
 	out.WriteString(notesAfterLines("", "\n", r.NotesAfterPrompts))
 	out.WriteString(w.disclose("", "\n", r.Honesty...))
@@ -212,6 +222,43 @@ func (r *statusResult) recordLines() string {
 	out.WriteString(tallyLine("grade", r.Records.ByGrade) + "\n")
 	out.WriteString("probes: " + strconv.Itoa(r.Probes.Run) + " run, " +
 		strconv.Itoa(r.Probes.Graded) + " standing behind a graded record\n")
+	return out.String()
+}
+
+// postedConcern is one line of §10.1.9: a record still in `posted`, and the
+// round that posted it.
+type postedConcern struct {
+	ID     string `json:"id"`
+	Round  int    `json:"round"`
+	Kind   string `json:"kind"`
+	Thread string `json:"thread"`
+}
+
+// postedConcernsOf is §10.1.9 over every round, read through postedConcerns
+// for the reason `cr recheck` reads through it.
+func postedConcernsOf(l state.Layout, owner, repo string, pr int) ([]postedConcern, error) {
+	posted, err := postedConcerns(l, owner, repo, pr)
+	if err != nil {
+		return nil, err
+	}
+	concerns := make([]postedConcern, 0, len(posted))
+	for _, record := range posted {
+		concerns = append(concerns, postedConcern{
+			ID: record.ID, Round: record.Round, Kind: string(record.Kind), Thread: record.ThreadID,
+		})
+	}
+	return concerns, nil
+}
+
+// concernLines is §10.1.9 for the terminal, the count always and a line per
+// concern, so a round with none says so rather than printing nothing.
+func (r *statusResult) concernLines() string {
+	var out strings.Builder
+	out.WriteString("posted concerns awaiting a verdict: " + strconv.Itoa(len(r.Concerns)) + "\n")
+	for _, concern := range r.Concerns {
+		out.WriteString("  " + concern.ID + " (" + concern.Kind + ", posted in round " +
+			strconv.Itoa(concern.Round) + ")\n")
+	}
 	return out.String()
 }
 
@@ -300,6 +347,9 @@ func newStatusCmd(out *writer) *cobra.Command {
 				return err
 			}
 			if report.NotesAfterPrompts, err = roundNotesAfter(layout, &round.Meta); err != nil {
+				return err
+			}
+			if report.Concerns, err = postedConcernsOf(layout, owner, repo, pr); err != nil {
 				return err
 			}
 			// A closed or merged pull request is said first, before the
@@ -398,6 +448,7 @@ func assembleStatus(
 		Axes:         parts.axes,
 		Skipped:      parts.lenses.Roles,
 		Records:      recordTalliesOf(parts.records),
+		Concerns:     make([]postedConcern, 0),
 		Probes:       probesOf(parts.probes, parts.records),
 		Proposals:    proposed,
 		Unstanding:   parts.unstanding,
