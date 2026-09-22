@@ -1,0 +1,19 @@
+=== RUN   TestAddPasses
+--- PASS: TestAddPasses (0.00s)
+=== RUN   TestAddSubtests
+=== RUN   TestAddSubtests/zero
+=== RUN   TestAddSubtests/broken
+    a_test.go:19: two and two is not five
+--- FAIL: TestAddSubtests (0.00s)
+    --- PASS: TestAddSubtests/zero (0.00s)
+    --- FAIL: TestAddSubtests/broken (0.00s)
+=== RUN   TestAddSkipped
+    a_test.go:24: not today
+--- SKIP: TestAddSkipped (0.00s)
+FAIL
+FAIL	example.com/m/a	0.211s
+=== RUN   TestMul
+--- PASS: TestMul (0.00s)
+PASS
+ok  	example.com/m/b	0.110s
+FAIL

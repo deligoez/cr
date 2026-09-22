@@ -1,0 +1,4 @@
+# example.com/m/b [example.com/m/b.test]
+b/b.go:3:37: undefined: undefinedName
+FAIL	example.com/m/b [build failed]
+FAIL

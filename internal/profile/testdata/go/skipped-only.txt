@@ -1,0 +1,5 @@
+=== RUN   TestAddSkipped
+    a_test.go:24: not today
+--- SKIP: TestAddSkipped (0.00s)
+PASS
+ok  	example.com/m/a	0.116s

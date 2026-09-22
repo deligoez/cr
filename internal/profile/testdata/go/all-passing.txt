@@ -1,0 +1,4 @@
+=== RUN   TestMul
+--- PASS: TestMul (0.00s)
+PASS
+ok  	example.com/m/b	0.312s

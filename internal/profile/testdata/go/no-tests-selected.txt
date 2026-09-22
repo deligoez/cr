@@ -1,0 +1,6 @@
+testing: warning: no tests to run
+PASS
+ok  	example.com/m/a	0.113s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	example.com/m/b	0.112s [no tests to run]
