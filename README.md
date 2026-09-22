@@ -2,8 +2,16 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.5.0.** The release implements the contract in
-> [`spec/0.5.0.md`](spec/0.5.0.md) and closes the loop. Every version through
+> **Status: v0.6.0.** The release implements the contract in
+> [`spec/0.6.0.md`](spec/0.6.0.md): a `go` profile beside `laravel-pest`, GitHub
+> Issues as a tracker with no command to configure, a `cr withdraw` whose
+> retraction is waived and counted against its class, and a `cr status` that
+> lists posted concerns from every round. It also fixes `cr resolve --confirm`
+> and `cr withdraw --confirm`, which v0.5 sent to GitHub in a shape GitHub
+> refused. Its notes are in
+> [`spec/0.6.0-release-notes.md`](spec/0.6.0-release-notes.md).
+>
+> v0.5 closed the loop. Every version through
 > v0.4 ended at posting; v0.5 reads back what came back. `posted` stops being a
 > terminal state, `cr recheck` reports thread state, replies and the anchors cr
 > migrated, `cr verify` records the judgement **you** make about each posted
@@ -76,7 +84,8 @@ go install github.com/deligoez/cr/cmd/cr@latest  # or Go
 `cr` needs `git`, `gh` authenticated through its own configuration under `HOME`
 (`cr` does not pass `GH_TOKEN` to it), and a tracker command
 (`intent.cmd`, default `jira issue view {key} --plain`) unless the issue text is
-passed with `--intent-file`. State lives under `~/.cr/` (`CR_HOME` overrides it);
+passed with `--intent-file` or `intent.tracker` is `github`, which reads the
+issue the pull request closes through `gh` itself. State lives under `~/.cr/` (`CR_HOME` overrides it);
 `cr` never writes inside the repository under review. Beside each round's
 `rounds/<n>/summary.json`, `rounds/<n>/intake.json` holds the record ids and
 §6.4.1 identities `cr merge` and `cr record` dropped, which the summary counts
@@ -157,7 +166,7 @@ already have posted.
 | `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors |
 | `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <text>` | Record the agent's judgement about one posted record |
 | `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread |
-| `cr withdraw <pr> <record-id> [--confirm]` | Retract a posted concern and resolve its thread |
+| `cr withdraw <pr> <record-id> wrong\|not-here [--confirm]` | Retract a posted concern, waive it by its disposition, and resolve its thread |
 | `cr answer <pr> <record-id> <text> [--source <s>]` | Store the answer to a posted question as a note |
 | `cr note <ISSUE-KEY> <text> --pr <n> [--source <s>]` | Store an out-of-band fact |
 | `cr note --remove <note-id>` | Retract a note |
