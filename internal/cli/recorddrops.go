@@ -129,6 +129,11 @@ func settleStates(
 	l state.Layout, owner, repo string, round *state.Meta, formed []roundUnit, evidence *roundEvidence,
 	orphans, records []*finding.Finding, journal *finding.Journal,
 ) error {
+	// §6.4.5: a record the round already holds absorbs its re-raise, which
+	// is a `duplicate_of` the walk below reads like §6.4.3's.
+	if err := markHeldDuplicates(l, owner, repo, round.PR, round.Round, records); err != nil {
+		return err
+	}
 	gradeRecords(round, formed, evidence, records)
 	// §4.1.4: an intent-axis record on a unit the round's mapping maps to no
 	// claim is a question, never a finding. It reads the axis stamped earlier

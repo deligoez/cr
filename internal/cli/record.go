@@ -562,10 +562,6 @@ func acceptRecords(
 	if err != nil {
 		return nil, nil, recordDrops{}, nil, err
 	}
-	// §6.4.5: a record the round already holds absorbs its re-raise.
-	if err := markHeldDuplicates(l, owner, repo, pr, round.Round, records); err != nil {
-		return nil, nil, recordDrops{}, nil, err
-	}
 	// §6.2, last of them all, because it rests on what the others
 	// established: the citations are resolved and stamped, the axis is
 	// computed, and §5.4's bounds have already refused what they refuse.

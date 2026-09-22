@@ -7,9 +7,24 @@ import (
 	"os"
 	"strings"
 
+	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/migrate"
 	"github.com/deligoez/cr/internal/state"
 )
+
+// ingestRound is ingestDraft for `cr draft`, with §7.1.7's carried bodies
+// seeded into what it preserved.
+func ingestRound(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, records []*finding.Finding,
+	journal *finding.Journal,
+) (triaged, error) {
+	triage, err := ingestDraft(l, owner, repo, pr, round, records, journal)
+	if err != nil {
+		return triaged{}, err
+	}
+	triage.Preserved, err = seedCarried(l, owner, repo, pr, round, triage.Preserved)
+	return triage, err
+}
 
 // seedCarried is §7.1.7: a record §9.3.4 carried is rendered with the body the
 // reviewer had edited it to in the round it came from, which `cr brief` kept on
