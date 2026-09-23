@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.10.0 | The next step: `cr next <pr>` reports every step the round still owes, in §10.4's order, with who takes each — cr, the agent, or the human — and the exact commands, read from state and never judged; the draft step never prints `--confirm` |
 | v0.9.0 | Jest, and a zero read only from a clean exit: a `jest` profile summing `--json`'s passed and failed keys; both JavaScript profiles select on their tools' own files rather than on `package.json`, and run `npx --no -- <runner>` so npx reads none of the runner's flags; and §5.2.1's sum mode, like the occurrence mode, leaves a zero executed count from a failing exit undetermined, so a suite that did not load is never `no-tests-selected` |
 | v0.8.0 | Two more languages: a `typescript` profile running Vitest and a `rust` profile running `cargo test`, each counting per-test lines measured on captured output, and symbol scanners for TypeScript, JavaScript and Vue (arrow functions, options-API methods) and for Rust (a lifetime's quote opens no string, a method's `self` is not a parameter); `go` names `go.sum` beside `go.mod` so a Go module with a `package.json` is no tie |
 | v0.7.1 | What the first real round measured: §4.3.1's symbol index read every source file of the head through its own `git cat-file` process, 8,895 of them on a Laravel repository, and now reads them through one `cat-file --batch` — `cr status` from 57–82 s to 3.8 s with byte-identical output, and `brief`, `review` and `record` with it |
@@ -342,11 +343,20 @@ Each of these is measured rather than wished for: the evidence is a run that had
   Linear cannot run a first round as shipped: it configures a tracker command or passes `--intent-file` by
   hand. Ship the two commands. This is a tracker, not a profile, and it is listed on its own because the
   file's opening rule forbids riders.
-- **A driver for the mechanical steps.** A round is ten commands of which three need the agent's judgement.
+- **A driver for the mechanical steps.** *Half discharged in v0.10.0: `cr next <pr>` reads the
+  sequence out of state — each owed step in order, who takes it, and the exact commands — and walks
+  none of it. Its first run, on tarfin-labs/backend#6292, found three proposals files a hand-kept
+  round had never recorded, which is the whole case for the command in one measurement. What is
+  left is the other half, and it is a decision rather than work: whether cr should also run the
+  steps whose actor is cr (`record`), or whether printing them is where a tool that forms no opinion
+  stops. The roles still write their cells wherever the operator tells them, because no prompt
+  names a cells path; a per-unit cells file in the fan-out would let `cr next` find unrecorded cells
+  the way it finds unrecorded records.* A round is ten commands of which three need the agent's
+  judgement.
   Measured: the orchestration was written three separate times for the three measurement passes, and every
   time the plumbing — which prompts to run, where their output goes, collecting the cells — was the
   operator's to build rather than cr's. §7.3's statistics, the probe cap's report, and the round's
-  completeness all exist; what is missing is the one command that walks the mechanical half.
+  completeness all exist; what was missing is the one command that walks the mechanical half.
 
 *Five small items the v0.6.0 QA pass found against `deligoez/cr-qa` and `cr-qa-go`, 2026-09-22, in
 the order cr-research ranked them. None let a wrong assertion reach an author, and* **all five
