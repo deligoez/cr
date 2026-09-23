@@ -2,11 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.8.0.** The release implements the contract in
-> [`spec/0.8.0.md`](spec/0.8.0.md). v0.8 adds two languages: a `typescript`
-> profile (Vitest, with Vue and React code indexed for the reinvention search) and
-> a `rust` profile (`cargo test`). Its notes are in
-> [`spec/0.8.0-release-notes.md`](spec/0.8.0-release-notes.md).
+> **Status: v0.9.0.** The release implements the contract in
+> [`spec/0.9.0.md`](spec/0.9.0.md). v0.9 adds a `jest` profile for React and
+> React Native projects, and reads a test run that executed nothing and failed
+> as undetermined in every profile. Its notes are in
+> [`spec/0.9.0-release-notes.md`](spec/0.9.0-release-notes.md).
+>
+> v0.8 added two languages: a `typescript` profile (Vitest, with Vue and React
+> code indexed for the reinvention search) and a `rust` profile (`cargo test`).
 >
 > v0.7 changed one thing: what an author's push
 > does to the comments you have drafted but not yet sent. Until v0.6 every one of
