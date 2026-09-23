@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.11.0 | What a three-agent QA pass over v0.8–v0.10 found, fixed: the JavaScript profiles copy `node_modules` into the sandbox, where no test could run before; a TypeScript project configuring Jest selects `jest` through a new `match.unless` rather than tying; `cr recheck` reads GitHub's threads live rather than the brief's copy; a record hardened in the draft is stored as the finding it was posted as; `cr next` reads every role file of a unit and quotes what it prints; the TypeScript and Rust scanners read private names, JSX apostrophes, raw strings and generic commas as the languages do; JSON writes `<` and `&` as themselves |
 | v0.10.0 | The next step: `cr next <pr>` reports every step the round still owes, in §10.4's order, with who takes each — cr, the agent, or the human — and the exact commands, read from state and never judged; the draft step never prints `--confirm` |
 | v0.9.0 | Jest, and a zero read only from a clean exit: a `jest` profile summing `--json`'s passed and failed keys; both JavaScript profiles select on their tools' own files rather than on `package.json`, and run `npx --no -- <runner>` so npx reads none of the runner's flags; and §5.2.1's sum mode, like the occurrence mode, leaves a zero executed count from a failing exit undetermined, so a suite that did not load is never `no-tests-selected` |
 | v0.8.0 | Two more languages: a `typescript` profile running Vitest and a `rust` profile running `cargo test`, each counting per-test lines measured on captured output, and symbol scanners for TypeScript, JavaScript and Vue (arrow functions, options-API methods) and for Rust (a lifetime's quote opens no string, a method's `self` is not a parameter); `go` names `go.sum` beside `go.mod` so a Go module with a `package.json` is no tie |
@@ -49,7 +50,27 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-*Empty.*
+- **§9.5.4 has never been implemented.** Found by the QA pass of 2026-09-23 on `deligoez/cr-qa#25`:
+  §9.5.4 says `cr recheck` MUST report whether a posted record's probe still reproduces at the
+  current head, by re-running it under §5.6's lock and budget, and `cr recheck` has never run a probe —
+  since v0.5.0 its output carried no probe report at all, silently. v0.11.0 makes the gap visible
+  rather than closing it: a record naming a probe gets a disclosure saying the re-run was not done.
+  The fix is not small, and it is not only code: a re-run executes the suite from `cr recheck`, a
+  command a reviewer runs believing it only reads, and on a repository like tarfin's backend a suite
+  run reaches a local database. Whether the re-run belongs in `recheck` or behind a flag of its own
+  is the decision to make first.
+
+*Left from the same QA pass, each judged not worth a fix yet and written here so it is not rediscovered:*
+- `--repo Deligoez/CR-QA-GO` finds a round opened as `deligoez/cr-qa-go` on macOS only, because the
+  state path inherits the filesystem's case-insensitivity; on Linux the same command says no round is
+  open. `--repo owner/repo.git` is accepted and reports no round. Normalising the slug is the fix.
+- Jest's counts are read from the merged stdout and stderr, so a test that logs
+  `{"numFailedTests":1}` would add to the failed count. No real suite was seen doing it.
+- The TypeScript and Rust scanners still miss (never invent) a method whose parameters span lines, a
+  nested generic in an arrow's parameter list, a decorator on the declaration's line, `*gen()` methods,
+  prototype and `exports.` assignments, `fn r#match`, and `#[inline] pub fn` on one line.
+- `cr next` does not point back to `cr review --axis intent` when the mapping left a unit unmapped;
+  its `review` step lists the missing `intent-coverage` cells, which `cr review` emits.
 
 - ~~**§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.**~~ *Shipped in
   v0.7.0 as reading (i), `spec/0.7.0.md` §9.3.4 and §9.4.5–§9.4.8, and measured on `deligoez/cr-qa#23`:
