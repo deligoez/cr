@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.9.0 | Jest, and a zero read only from a clean exit: a `jest` profile summing `--json`'s passed and failed keys; both JavaScript profiles select on their tools' own files rather than on `package.json`, and run `npx --no -- <runner>` so npx reads none of the runner's flags; and §5.2.1's sum mode, like the occurrence mode, leaves a zero executed count from a failing exit undetermined, so a suite that did not load is never `no-tests-selected` |
 | v0.8.0 | Two more languages: a `typescript` profile running Vitest and a `rust` profile running `cargo test`, each counting per-test lines measured on captured output, and symbol scanners for TypeScript, JavaScript and Vue (arrow functions, options-API methods) and for Rust (a lifetime's quote opens no string, a method's `self` is not a parameter); `go` names `go.sum` beside `go.mod` so a Go module with a `package.json` is no tie |
 | v0.7.1 | What the first real round measured: §4.3.1's symbol index read every source file of the head through its own `git cat-file` process, 8,895 of them on a Laravel repository, and now reads them through one `cat-file --batch` — `cr status` from 57–82 s to 3.8 s with byte-identical output, and `brief`, `review` and `record` with it |
 | v0.7.0 | A push carries the draft: `cr brief` migrates every unsent record to the new head, searching its own file and every file the new diff touches, and carries each one that places inside a new unit — same id, new line and round, back to `draft`, with the body the reviewer edited — while one whose code is gone goes stale. A carried record re-reads its evidence (its probe cleared, a citation whose line changed unstamped), is raised once per pull request, and absorbs its own re-raise as a duplicate. `cr recheck` reports the round's migrations, or previews them while the head has moved |
@@ -214,14 +215,22 @@ Each of these is measured rather than wished for: the evidence is a run that had
   `--reporter=json` would fill it with one JSON document, and cargo's `test … ... ok|FAILED` lines
   survive a build failure as silence plus exit 101 — undetermined, never zero. Cargo needs
   `--no-fail-fast`, measured: without it the run stops at the first failing test binary and the
-  counts cover the binaries before it. Two gaps remain inside the target set.*
-  1. *A React project whose runner is Jest, such as tarfin's `mobile`, selects `typescript` and runs
-     `npx --no vitest`, which exits 1 with no test line: every run is undetermined, honestly and
-     uselessly. A `jest` profile would need its own marker to win §2.4.2 against `typescript` and the
-     `--json` sum the table below measured.*
-  2. *`go` gained `go.sum` as a second marker so a Go module carrying a `package.json` selects `go`;
-     one that also carries a `tsconfig.json` is a §2.4.2 tie, which cr names and a per-repository
-     `profile` settles.*
+  counts cover the binaries before it.*
+  *v0.9.0 closed the two gaps v0.8.0 left inside the target set, so this entry is discharged for
+  every language the user named.*
+  1. *~~A React project whose runner is Jest selects `typescript` and reads every run as
+     undetermined.~~ `jest` ships, summing `--json`'s two keys, measured on captured Jest 30.5.2
+     output. Two things were learned doing it. **npx reads a runner's flags as its own**: `npx --no
+     jest --json` printed npm's verbose log and never reached Jest, so both JavaScript profiles now
+     run `npx --no -- <runner>`. And **the sum mode read a zero from a failing exit**: a Jest suite
+     that throws on import reports zero passed and zero failed and exits 1, which §5.3.4 would have
+     called `no-tests-selected`; §5.2.1 now reads a zero only from a clean exit in both modes.*
+  2. *~~`typescript` named `package.json`~~, so every JavaScript repository scored one for it and a
+     second JavaScript profile would have tied everywhere. Both now name only their tools' files;
+     measured on tarfin's repositories, the Vue app selects `typescript`, the React Native app
+     `jest`, and the Laravel apps stay on `laravel-pest`. A repository holding a `package.json` and
+     nothing else selects no profile, and one configuring Jest only inside `package.json` names
+     `jest` with the `profile` setting.*
 
   Before it, only
   `laravel-pest` and `generic` shipped, so on any other stack the
