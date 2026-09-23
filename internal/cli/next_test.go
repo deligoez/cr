@@ -222,3 +222,49 @@ func TestAPrintedPathIsOneShellWord(t *testing.T) {
 	require.Equal(t, "record", report.Steps[0].Step)
 	assert.Contains(t, report.Steps[0].Commands[0], "'"+filepath.Clean(moved)+"'")
 }
+
+// A role that appended new records to a file the round already recorded
+// leaves a file `cr merge` refuses whole, naming an id already held; the
+// record step says so rather than printing a command that fails (QA,
+// 2026-09-23).
+func TestAFileMixingHeldAndNewIDsIsNamed(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings, []byte(
+		`{"id":"f1","state":"queued","head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+	written := roleWrote(t, finding.FanOutFile("correctness"),
+		`{"id":"f1","kind":"question"}`+"\n"+`{"id":"f2","kind":"question"}`+"\n")
+
+	report := nextOfFixture(t)
+
+	require.Equal(t, "record", report.Steps[0].Step)
+	assert.Contains(t, report.Steps[0].Why, written+" also hold ids the round already holds")
+}
+
+// §2.4.6: `cr next` loads the round's profile, so a profile file an earlier
+// release shipped is reported as every other command reports it.
+func TestNextReportsAProfileAnEarlierReleaseShipped(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	old, err := os.ReadFile(filepath.Join("..", "profile", "builtin", "shipped", "v0.7.1", "go.json"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(layout.Profile("go"), old, 0o600))
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	meta.ProfileID = "go"
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Unlock())
+
+	report := nextOfFixture(t)
+
+	assert.Contains(t, strings.Join(report.Honesty, "\n"), "is the go profile cr v0.7.1 shipped")
+}
