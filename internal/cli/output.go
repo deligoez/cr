@@ -178,7 +178,7 @@ func (w *writer) emit(r result) error {
 		if err != nil {
 			return err
 		}
-		encoded, err := json.MarshalIndent(payload, "", "  ")
+		encoded, err := indented(payload)
 		if err != nil {
 			return err
 		}
@@ -187,6 +187,22 @@ func (w *writer) emit(r result) error {
 	}
 	_, err := fmt.Fprintln(w.out, r.Text(w))
 	return err
+}
+
+// indented is §12.2's rendering of a value: two-space indentation, and `<`,
+// `>` and `&` written as themselves. encoding/json escapes those three for
+// embedding in HTML by default, as a backslash-u escape of their code point,
+// so every hint's `<owner/repo>` reached a human reading piped output as six
+// escape characters on each side — valid JSON, and not the text the hint says.
+func indented(v any) ([]byte, error) {
+	var out bytes.Buffer
+	encoder := json.NewEncoder(&out)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(out.Bytes(), []byte("\n")), nil
 }
 
 // document is the value emit encodes: §12.3's filled slices always, and
@@ -508,7 +524,7 @@ func reportFailure(stdout, stderr io.Writer, args []string, err error) error {
 		_, werr := fmt.Fprintf(stderr, "error: %s\nhint: %s\n", reported.Error, reported.Hint)
 		return werr
 	}
-	encoded, merr := json.MarshalIndent(reported, "", "  ")
+	encoded, merr := indented(reported)
 	if merr != nil {
 		return merr
 	}
