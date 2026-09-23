@@ -1046,6 +1046,9 @@ func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole,
 		// else there. It sorts after `cr brief`, so the round it counts
 		// has been opened.
 		"status": {"status", fixturePR, "--repo", fixtureSlug},
+		// `cr next` reads the round's state and the fan-out under the
+		// state root, and the repository not at all.
+		"next": {"next", fixturePR, "--repo", fixtureSlug},
 		// `cr waivers list` reads §7.4.4's two files, both under the state
 		// root, and with `--pr` reaches GitHub for §9.3.1's head and the
 		// repository not at all. `--pr` is given so the run reads the pull

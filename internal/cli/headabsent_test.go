@@ -254,6 +254,8 @@ func headRuns(t *testing.T) map[string]headRun {
 		"note": exempt("stores a fact in the context store under the state root", "note", fixtureIssue, "a fact",
 			"--source", "chat", "--pr", fixturePR, "--repo", fixtureSlug),
 		"context": exempt("prints the context store under the state root", "context", fixtureIssue),
+		"next": exempt("reads the round's state and the fan-out under the state root, and no revision",
+			"next", fixturePR, "--repo", fixtureSlug),
 		"answer": exempt("files a note against a record the round holds, and reads no revision",
 			"answer", fixturePR, "f1", "the retry is deliberate", "--source", "chat", "--repo", fixtureSlug),
 		// §9.5.5 moves a record between states and stores the

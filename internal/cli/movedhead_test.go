@@ -243,6 +243,10 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// moved most needs — it is what they decide the next round on —
 		// so §9.3.1's disclosure is the whole of what §9.3 owes it.
 		"status": disclosesTheMove("status", fixturePR),
+		// `cr next` reads the round and writes nothing, and §10.4.1 makes
+		// a moved head the one step it owes; §9.3.1's disclosure is
+		// what §9.3 owes it beside that.
+		"next": disclosesTheMove("next", fixturePR),
 		// `cr waivers list --pr` reads that pull request's waivers.ndjson,
 		// which §2.3's table makes per-PR state, and writes nothing. §9.3.5
 		// exempts waivers from being scoped to the current round and from
