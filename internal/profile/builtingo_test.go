@@ -27,7 +27,8 @@ func TestTheShippedGoProfileFillsEveryFieldItNeeds(t *testing.T) {
 	p := loadGo(t)
 
 	assert.Equal(t, goID, p.ID)
-	assert.Equal(t, []string{"go.mod"}, p.Match.Files)
+	assert.Equal(t, []string{"go.mod", "go.sum"}, p.Match.Files,
+		"§2.4.5: two markers, so a Go module carrying a package.json is not a §2.4.2 tie with typescript")
 	for _, id := range axis.IDs() {
 		assert.True(t, p.Axes[id], "axes must enable %s", id)
 	}
