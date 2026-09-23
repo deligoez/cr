@@ -20,6 +20,14 @@ type rule struct {
 	// opening paren, and false for a declaration that carries none.
 	signature bool
 	re        *regexp.Regexp
+	// rest, when set, must match the line from the end of re's match, and
+	// a line it does not match is not this rule's declaration. It is what
+	// tells `const f = (a) => a` from `const f = (a + b)`, and a method
+	// from a call, where the part of the line up to the paren reads alike.
+	rest *regexp.Regexp
+	// reserved names are words the pattern's position admits and no
+	// declaration can carry, such as the `if` of `if (ready) {`.
+	reserved map[string]bool
 }
 
 // language is the rule set one `symbols.lang` value scans with, together with
@@ -41,18 +49,31 @@ type language struct {
 	// symbol. §4.3.2 ranks on the comparison name and the parameter count,
 	// neither of which this touches.
 	classScoped bool
-	// constructor is the method name a classScoped language declares a
-	// class's parameters in, so §4.3.2's "for a class it is the parameter
-	// count of its constructor" is filled in as the scan passes it.
+	// constructor is the method name a language declares a class's
+	// parameters in, so §4.3.2's "for a class it is the parameter count of
+	// its constructor" is filled in as the scan passes it.
 	constructor string
+	// receiver matches the start of a parameter list whose first parameter
+	// is the receiver, which is then not counted. Go writes its receiver
+	// outside the list and PHP never writes one, so without this a Rust
+	// method would declare one parameter more than the same method in
+	// either, and §4.3.2's exact match would drop it.
+	receiver *regexp.Regexp
+	// lifetimes is true for a language where a single quote not closed a
+	// character later is a lifetime, `'a`, rather than the start of a
+	// string: read as a string, Rust's `&'a str` would swallow every comma
+	// and brace after it.
+	lifetimes bool
 }
 
 // languages is every `symbols.lang` value cr can build an index for. A profile
 // naming anything else gets §4.3.1's unavailability, which is the honest answer
 // and the reason Supported exists.
 var languages = map[string]language{
-	"go":  goLanguage(),
-	"php": phpLanguage(),
+	"go":         goLanguage(),
+	"php":        phpLanguage(),
+	"typescript": typescriptLanguage(),
+	"rust":       rustLanguage(),
 }
 
 // goLanguage scans Go.
@@ -99,6 +120,75 @@ func phpLanguage() language {
 			{kind: Function, signature: true, re: regexp.MustCompile(
 				`^\s*(?:(?:public|protected|private|static|final|abstract|readonly)\s+)*` +
 					`function\s*&?\s*(` + ident + `)\s*\(`)},
+		},
+	}
+}
+
+// typescriptLanguage scans TypeScript and JavaScript, and a Vue single-file
+// component's script block, which is the same language between two tags: the
+// template's lines match none of the rules.
+//
+// A method has no keyword of its own, so it is recognised by shape — an
+// indented name, a parameter list that holds no nested paren, and a body
+// opened on the same line — and the shape is shared with a call handed a
+// callback and with `if (ready) {`. rest turns the first away, since a
+// callback's list holds a paren, and reserved the second. What the shape
+// misses is a method whose parameters span lines or carry a call as a default,
+// and a private `#name(`, which reads as a comment: a symbol absent from the
+// index, never one invented.
+//
+// An arrow function is a function when a `const` or `let` binds it and the
+// line goes on to its `=>`. One whose parameters span lines is missed for the
+// same reason.
+func typescriptLanguage() language {
+	methodOpens := regexp.MustCompile(`^[^()]*\)[^;=(]*\{\s*$`)
+	return language{
+		constructor: "constructor",
+		rules: []rule{
+			{kind: Class, re: regexp.MustCompile(
+				`^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?` +
+					`(?:class|interface|enum)\s+(` + ident + `)`)},
+			{kind: Function, signature: true, re: regexp.MustCompile(
+				`^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?` +
+					`function\s*\*?\s*(` + ident + `)\s*(?:<[^>]*>\s*)?\(`)},
+			{kind: Function, signature: true, rest: regexp.MustCompile(`=>`), re: regexp.MustCompile(
+				`^\s*(?:export\s+)?(?:const|let)\s+(` + ident + `)\s*(?::[^=]*)?=\s*(?:async\s+)?` +
+					`(?:<[^>]*>\s*)?\(`)},
+			{kind: Method, signature: true, rest: methodOpens, reserved: jsReserved, re: regexp.MustCompile(
+				`^\s+(?:(?:public|private|protected|static|async|readonly|override|abstract|get|set)\s+)*` +
+					`(` + ident + `)\s*(?:<[^>]*>\s*)?\(`)},
+		},
+	}
+}
+
+// jsReserved are the words that open a line the way a method does, `name(...)
+// {`, and are control flow rather than a declaration.
+var jsReserved = map[string]bool{
+	"if": true, "for": true, "while": true, "switch": true, "catch": true,
+	"with": true, "function": true, "return": true, "await": true, "new": true,
+	"typeof": true, "do": true, "else": true,
+}
+
+// rustLanguage scans Rust.
+//
+// A `fn` at column zero is a function and an indented one is a method. That
+// reads a function nested in another, or declared inside `mod tests`, as a
+// method, which mislabels a Kind and loses nothing, as PHP's classScoped
+// heuristic does. A `struct`, `enum`, `trait` or `union` is indexed as a Class
+// with no parameters, for the reason a Go type is: Rust has no constructors.
+func rustLanguage() language {
+	const qualifiers = `(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|extern\s+"[^"]*")\s+)*`
+	// The generic list is matched lazily up to the `>` the parameter list
+	// follows, so `<T: Into<String>>` is read whole.
+	const signature = `fn\s+(` + ident + `)\s*(?:<.*?>\s*)?\(`
+	return language{
+		lifetimes: true,
+		receiver:  regexp.MustCompile(`^\s*(?:&\s*(?:'` + ident + `\s+)?)?(?:mut\s+)?self\b`),
+		rules: []rule{
+			{kind: Class, re: regexp.MustCompile(
+				`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union)\s+(` + ident + `)`)},
+			{kind: Function, signature: true, re: regexp.MustCompile(`^` + qualifiers + signature)},
+			{kind: Method, signature: true, re: regexp.MustCompile(`^\s+` + qualifiers + signature)},
 		},
 	}
 }

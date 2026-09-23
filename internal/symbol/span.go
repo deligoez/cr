@@ -23,10 +23,10 @@ type span struct {
 // fallthrough costs the reader a differently shaped unit; a span that ran past
 // the body would instead name a symbol for hunks it does not contain, which is
 // the one thing a unit formed `by symbol` asserts.
-func (x *Index) cover(file File, decls []Decl) {
+func (x *Index) cover(file File, decls []Decl, lifetimes bool) {
 	x.files[file.Path] = true
 	for _, decl := range decls {
-		if end, bounded := bodyEnd(file.Lines, decl.Line-1); bounded {
+		if end, bounded := bodyEnd(file.Lines, decl.Line-1, lifetimes); bounded {
 			x.spans[file.Path] = append(x.spans[file.Path], span{
 				start: decl.Line, end: end, key: decl.Name + "@" + strconv.Itoa(decl.Line),
 			})
@@ -76,8 +76,8 @@ func (x *Index) Enclosing(path string, line int) (string, bool) {
 // opening brace gives up at a blank line or past signatureLines, since no
 // signature holds either, and a brace found beyond them would be the next
 // declaration's.
-func bodyEnd(lines []string, at int) (int, bool) {
-	s := braceScanner{}
+func bodyEnd(lines []string, at int, lifetimes bool) (int, bool) {
+	s := braceScanner{lifetimes: lifetimes}
 	for row := at; row < len(lines); row++ {
 		if !s.opened && (row >= at+signatureLines || strings.TrimSpace(lines[row]) == "") {
 			return 0, false
@@ -109,6 +109,8 @@ type braceScanner struct {
 	escaped bool
 	// block is whether the scan is inside a block comment.
 	block bool
+	// lifetimes is the language's, see language.lifetimes.
+	lifetimes bool
 }
 
 // consume walks one line, stopping at the byte that closes the body.
@@ -131,6 +133,8 @@ func (s *braceScanner) consume(text string) {
 			return
 		case c == '/' && next == '*':
 			s.block, i = true, i+1
+		case c == '\'' && s.lifetimes && !charLiteral(text, i):
+			// A lifetime, which opens nothing.
 		case c == '\'' || c == '"' || c == '`':
 			s.quote = c
 		default:

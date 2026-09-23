@@ -1,6 +1,9 @@
 package symbol
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // signatureLines bounds how far past a declaration the parameter scan reads.
 //
@@ -44,14 +47,21 @@ func (l language) match(file File, at int) (Decl, bool) {
 		if found == nil {
 			continue
 		}
+		name := text[found[2]:found[3]]
+		if r.reserved[name] || (r.rest != nil && !r.rest.MatchString(text[found[1]:])) {
+			continue
+		}
 		decl := Decl{
 			Path: file.Path,
 			Line: at + 1,
-			Name: text[found[2]:found[3]],
+			Name: name,
 			Kind: r.kind,
 		}
 		if r.signature {
-			decl.Params = countParams(file.Lines, at, found[1])
+			decl.Params = countParams(file.Lines, at, found[1], l.lifetimes)
+			if l.receiver != nil && decl.Params > 0 && l.receiver.MatchString(text[found[1]:]) {
+				decl.Params--
+			}
 		}
 		return decl, true
 	}
@@ -68,7 +78,7 @@ func (l language) place(decls []Decl, decl Decl, lastClass int) (placed []Decl, 
 	if l.classScoped && decl.Kind == Function && lastClass >= 0 {
 		decl.Kind = Method
 	}
-	if l.classScoped && decl.Name == l.constructor && lastClass >= 0 {
+	if l.constructor != "" && decl.Name == l.constructor && lastClass >= 0 {
 		decls[lastClass].Params = decl.Params
 	}
 	decls = append(decls, decl)
@@ -102,8 +112,8 @@ func commented(text string) bool {
 // qualified. Depth and quotes are tracked for the mirror reason, because a
 // default of `','` and a type of `map[string]int` each carry a comma that
 // separates nothing.
-func countParams(lines []string, at, from int) int {
-	s := paramScanner{depth: 1}
+func countParams(lines []string, at, from int, lifetimes bool) int {
+	s := paramScanner{depth: 1, lifetimes: lifetimes}
 	for row := at; row < len(lines) && row < at+signatureLines && !s.done; row++ {
 		text := lines[row]
 		if row == at {
@@ -136,13 +146,37 @@ type paramScanner struct {
 	escaped bool
 	// done is whether the list has closed.
 	done bool
+	// lifetimes is the language's, see language.lifetimes.
+	lifetimes bool
 }
 
 // consume walks one line of the signature.
 func (s *paramScanner) consume(text string) {
 	for at := 0; at < len(text) && !s.done; at++ {
+		if s.lifetime(text, at) {
+			s.segment = true
+			continue
+		}
 		s.step(text[at])
 	}
+}
+
+// lifetime reports whether the byte at text[at] is the quote of a lifetime,
+// which is content of the parameter rather than the start of a string.
+func (s *paramScanner) lifetime(text string, at int) bool {
+	return s.lifetimes && s.quote == 0 && !s.escaped && text[at] == '\'' && !charLiteral(text, at)
+}
+
+// charLiteral reports whether the single quote at text[at] opens a character
+// literal: an escape, or one character and the quote that closes it. Anything
+// else, in a language with lifetimes, is one.
+func charLiteral(text string, at int) bool {
+	rest := text[at+1:]
+	if strings.HasPrefix(rest, `\`) {
+		return true
+	}
+	_, size := utf8.DecodeRuneInString(rest)
+	return size > 0 && size < len(rest) && rest[size] == '\''
 }
 
 // step advances the scan by one byte.
