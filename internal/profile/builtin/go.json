@@ -1,7 +1,7 @@
 {
   "id": "go",
   "match": {
-    "files": ["go.mod"],
+    "files": ["go.mod", "go.sum"],
     "globs": ["**/*.go"]
   },
   "axes": {
