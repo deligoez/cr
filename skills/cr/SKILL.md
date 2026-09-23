@@ -1397,14 +1397,20 @@ capture group each in the default `sum` mode, none in `occurrences` mode),
 counts matches, for a runner that prints one line per test and no recap),
 `tests.paths_default` (argv appended when no `--path` is given),
 `tests.probe_path_template`, `rules`, `symbols.lang`. cr ships `laravel-pest`,
-`go`, `typescript`, `rust` and `generic`, all requiring nothing. The one with
-the most marker files present at the clone's root wins: `go` names `go.mod` and
-`go.sum`, `typescript` `package.json`, `tsconfig.json` and `vite.config.{ts,js}`,
-`rust` `Cargo.toml` and `Cargo.lock`, `laravel-pest` its four. A tie exits 3
-naming the tied profiles; set `profile` in the per-repository config to settle
-it. `typescript` runs the repository's own Vitest (`npx --no vitest run
---reporter=verbose`) and counts its ` ✓ `/` × ` lines, so a repository whose
-runner is Jest reads every run as undetermined — set its own `tests.cmd`.
+`go`, `typescript`, `jest`, `rust` and `generic`, all requiring nothing. The
+one with the most marker files present at the clone's root wins: `go` names
+`go.mod` and `go.sum`, `typescript` `tsconfig.json`, `vite.config.{ts,js}` and
+`vitest.config.{ts,js}`, `jest` its `jest.config.*` and `jest.setup.*` files,
+`rust` `Cargo.toml` and `Cargo.lock`, `laravel-pest` its four. No profile names
+`package.json`, so a repository holding nothing else selects none. A tie exits
+3 naming the tied profiles; set `profile` in the per-repository config to
+settle it — and to pick `jest` for a project that configures Jest only inside
+`package.json`. `typescript` runs the repository's own Vitest (`npx --no --
+vitest run --reporter=verbose`) and counts its ` ✓ `/` × ` lines. `jest` runs
+`npx --no -- jest --json` and sums `numPassedTests` and `numFailedTests`; a
+skipped or todo test is not counted. Both read a run that executed nothing and
+exited non-zero — a suite that threw on import — as undetermined, never as a
+filter that selected nothing.
 `rust` runs `cargo test --no-fail-fast`, counts `test … ... ok|FAILED` lines,
 takes `--filter` after `--`, refuses `--path` (cargo selects targets by name),
 and places a gap probe as an integration test under `tests/`. `go` runs `go test -v -count=1`, adds
