@@ -1060,3 +1060,15 @@ func TestEveryPlaceAnIngestedThreadKeepsABodyIsOmitted(t *testing.T) {
 	require.ElementsMatch(t, []string{"comment", "replies"}, holders,
 		"a thread's comments are the whole of where its bodies are; a walk finding none proves nothing")
 }
+
+// §12.2's JSON writes `<`, `>` and `&` as themselves. encoding/json escapes
+// them for HTML by default, which is how every hint naming `<owner/repo>`
+// reached a reader of piped output as escape sequences (QA, 2026-09-23).
+func TestJSONWritesAnglesAndAmpersandsAsThemselves(t *testing.T) {
+	encoded, err := indented(map[string]string{"hint": "pass --repo <owner/repo> & retry"})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(encoded), "pass --repo <owner/repo> & retry")
+	assert.Equal(t, "{\n  \"hint\": \"pass --repo <owner/repo> & retry\"\n}", string(encoded),
+		"§12.2's two-space indentation, and no trailing newline for Fprintln to double")
+}
