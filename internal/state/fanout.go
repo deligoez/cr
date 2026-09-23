@@ -1,6 +1,9 @@
 package state
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -73,3 +76,39 @@ func (k *Lock) EnsureFanOut(round int, units []string) error {
 	}
 	return makeDirs(dirs)
 }
+
+// FanOutIDs reads the `id` of every line of a file a role wrote, in order, and
+// reports whether any line did not decode. It is the read §10.4.4 asks — which
+// record or proposal ids a file holds — and nothing more: the recording
+// commands validate every other field, and a line that does not decode is
+// theirs to refuse by line, so it is reported rather than skipped. Blank lines
+// are no record. The read takes no lock, per §2.3.2.
+func FanOutIDs(path string) (ids []string, malformed bool, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = file.Close() }()
+	ids = make([]string, 0)
+	lines := bufio.NewScanner(file)
+	lines.Buffer(make([]byte, 0, 64*1024), maxFanOutLine)
+	for lines.Scan() {
+		line := bytes.TrimSpace(lines.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var record struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(line, &record) != nil || record.ID == "" {
+			malformed = true
+			continue
+		}
+		ids = append(ids, record.ID)
+	}
+	return ids, malformed, lines.Err()
+}
+
+// maxFanOutLine bounds one line of a role's file. A record carrying evidence
+// and citations runs to a few kilobytes; a line past this is not a record.
+const maxFanOutLine = 16 * 1024 * 1024
