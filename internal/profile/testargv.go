@@ -69,6 +69,14 @@ func (e *UnavailableError) Hint() string {
 				"profiles directory of cr's state root, select it with match.files or the `profile` "+
 				"configuration key, and run `cr brief <pr>` so the round records it", e.Field)
 	}
+	if e.Field == testPathsArgField {
+		// A runner can select tests by name and not by file, as cargo
+		// does, and a shipped profile leaves the field unset on purpose
+		// then: declaring it would not make --path mean anything.
+		return fmt.Sprintf(
+			"run without --path, or narrow the run with --filter; declare %s in the profile file %s "+
+				"only if its test runner can select tests by path", e.Field, e.File)
+	}
 	return fmt.Sprintf(
 		"declare %s in the profile file %s, which is the profile this round resolved; "+
 			"`cr config --resolved` does not show profile fields", e.Field, e.File)
