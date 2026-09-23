@@ -51,11 +51,49 @@ func awaitRunnerGroupGone(t *testing.T, group int, what string) {
 	deadline := time.Now().Add(15 * time.Second)
 	for runnerGroupAlive(t, group) {
 		if time.Now().After(deadline) {
+			evidence := groupEvidence(group)
 			_ = syscall.Kill(-group, syscall.SIGKILL)
-			require.FailNow(t, what, "process group %d was still alive after 15s", group)
+			require.FailNow(t, what, "process group %d was still alive after 15s\n%s", group, evidence)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+// groupEvidence is what the ROADMAP entry for this test's one unreproduced
+// failure asks to be captured when it next fires: the group's processes with
+// their state, and the load averages. `kill(-group, 0)` succeeds for a zombie
+// as for a live process, so whether the survivors sit in `Z`, have left the
+// group's parent, or are running decides between the readings in one line.
+// It is gathered before the SIGKILL that cleans up, and it never fails the
+// test itself: an instrument that cannot run says so in its own line.
+func groupEvidence(group int) string {
+	var b strings.Builder
+	out, err := exec.Command("ps", "-A", "-o", "pid=,pgid=,ppid=,stat=,comm=").Output()
+	if err != nil {
+		b.WriteString("ps: " + err.Error() + "\n")
+	}
+	b.WriteString("pid pgid ppid stat comm\n")
+	for line := range strings.Lines(string(out)) {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[1] == strconv.Itoa(group) {
+			b.WriteString(line)
+		}
+	}
+	b.WriteString("load: " + loadAverages() + "\n")
+	return b.String()
+}
+
+// loadAverages reads the one-, five- and fifteen-minute load, where the
+// fifteen-minute figure is the one CLAUDE.md trusts.
+func loadAverages() string {
+	if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	out, err := exec.Command("sysctl", "-n", "vm.loadavg").Output()
+	if err != nil {
+		return "unread: " + err.Error()
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // QA D-S06-5: a `cr probe run` that is stopped while its runner runs leaves no
