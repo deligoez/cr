@@ -108,6 +108,10 @@ func Select(profilesDir, repoRoot, configured string) (Selection, error) {
 	for i := range candidates {
 		matched := markersPresent(repoRoot, candidates[i].Match.Files)
 		switch {
+		case markersPresent(repoRoot, candidates[i].Match.Unless) > 0:
+			// §2.4.2: a file the profile names in `match.unless` is
+			// present, so the repository is one it does not fit.
+			continue
 		case matched == 0:
 			// No marker of this profile is present, which includes the
 			// profile that declares none: §2.4.3 rests on an empty

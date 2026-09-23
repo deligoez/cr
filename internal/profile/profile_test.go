@@ -18,6 +18,7 @@ var specFields = []string{
 	"id",
 	"match.files",
 	"match.globs",
+	"match.unless",
 	"axes",
 	"sandbox.copy",
 	"sandbox.setup",

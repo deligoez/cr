@@ -116,6 +116,10 @@ type Match struct {
 	Files []string `json:"files"`
 	// Globs are the source globs this profile owns.
 	Globs []string `json:"globs"`
+	// Unless are marker files whose presence keeps this profile out of
+	// automatic selection (§2.4.2): a TypeScript project that configures Jest
+	// is not a Vitest project, whatever else it shares with one.
+	Unless []string `json:"unless"`
 }
 
 // Sandbox prepares the probe worktree of §5.
@@ -212,8 +216,9 @@ type wire struct {
 }
 
 type wireMatch struct {
-	Files []string `json:"files"`
-	Globs []string `json:"globs"`
+	Files  []string `json:"files"`
+	Globs  []string `json:"globs"`
+	Unless []string `json:"unless"`
 }
 
 type wireSandbox struct {
@@ -532,7 +537,7 @@ func validatePattern(path, field, what, pattern string, groups int) error {
 func (w *wire) resolve(probeTemplate string) Profile {
 	p := Profile{
 		ID:    w.ID,
-		Match: Match{Files: list(w.Match.Files), Globs: list(w.Match.Globs)},
+		Match: Match{Files: list(w.Match.Files), Globs: list(w.Match.Globs), Unless: list(w.Match.Unless)},
 		Axes:  make(map[string]bool, len(w.Axes)),
 		Tests: Tests{
 			Cmd:             []string{},
