@@ -85,8 +85,12 @@ const typescriptID = "typescript"
 //     npx takes `--verbose`, `--json` and `--version` as npm's own flags and
 //     the runner never sees them.
 //   - `match.files` names no `package.json`, which every JavaScript
-//     repository carries, so a Jest repository is not a §2.4.2 tie with this
-//     one on it (§2.4.5).
+//     repository carries, and `match.unless` names jest's configuration
+//     files, so a TypeScript project that configures Jest is a Jest project
+//     rather than a §2.4.2 tie with this one (§2.4.5).
+//   - `sandbox.copy` brings `node_modules` into the sandbox, which is a fresh
+//     worktree where the ignored directory is absent and `npx --no` would
+//     find no runner, as laravel-pest brings `vendor`.
 //   - `tests.paths_arg` is the path itself, which Vitest reads as a file
 //     filter, and a path that selects no file exits 1 the same way.
 //

@@ -12,6 +12,15 @@
       "**/*.mjs",
       "**/*.cjs",
       "**/*.vue"
+    ],
+    "unless": [
+      "jest.config.js",
+      "jest.config.ts",
+      "jest.config.mjs",
+      "jest.config.cjs",
+      "jest.config.json",
+      "jest.setup.js",
+      "jest.setup.ts"
     ]
   },
   "axes": {
