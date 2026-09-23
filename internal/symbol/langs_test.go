@@ -157,3 +157,22 @@ func TestARustLifetimeDoesNotMoveTheEndOfABody(t *testing.T) {
 	_, found = index.Enclosing("src/cart.rs", 9)
 	assert.False(t, found, "the impl block is no declaration, so its closing brace belongs to none")
 }
+
+// A lifetime can end its line, as a `where` bound's does, and the quote is
+// then the last byte but one: nothing follows the character after it to close
+// a literal, so it is a lifetime, and the body after it is still bounded.
+func TestALifetimeEndingItsLineIsStillALifetime(t *testing.T) {
+	index, built := Build("rust", []File{fileOf("src/keep.rs", `pub fn keep<'a, T>(value: T) -> T
+where
+    T: 'a
+{
+    value
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, []Decl{{Path: "src/keep.rs", Line: 1, Name: "keep", Kind: Function, Params: 1}}, index.Decls)
+	keep, found := index.Enclosing("src/keep.rs", 5)
+	require.True(t, found)
+	assert.Equal(t, "keep@1", keep)
+}
