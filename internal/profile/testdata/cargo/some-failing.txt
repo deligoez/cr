@@ -1,0 +1,42 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/debug/deps/cargo_probe-3e432a4146d29bac)
+
+running 3 tests
+test tests::is_ignored ... ignored
+test tests::adds_two_numbers ... ok
+test tests::fails_on_purpose ... FAILED
+
+failures:
+
+---- tests::fails_on_purpose stdout ----
+
+thread 'tests::fails_on_purpose' (190298386) panicked at src/lib.rs:31:9:
+assertion `left == right` failed
+  left: 4
+ right: 5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::fails_on_purpose
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`
+     Running tests/integration.rs (target/debug/deps/integration-3905fe2c82e1488c)
+
+running 1 test
+test integration_adds ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests cargo_probe
+
+running 1 test
+test src/lib.rs - add (line 3) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.70s; merged doctests compilation took 0.41s
+error: 1 target failed:
+    `--lib`

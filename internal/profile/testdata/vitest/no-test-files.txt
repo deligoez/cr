@@ -1,0 +1,9 @@
+
+ RUN  v5.0.1 /private/tmp/claude-501/-Users-deligoez-Developer-deligoez-projects-cr/ab43de41-7948-4a07-bc9b-b5622c5ddeda/scratchpad/vitest-probe
+
+No test files found, exiting with code 1
+
+filter: src/nothing
+include: **/*.{test,spec}.?(c|m)[jt]s?(x)
+exclude:  **/node_modules/**, **/.git/**
+

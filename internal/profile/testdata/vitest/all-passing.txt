@@ -1,0 +1,12 @@
+
+ RUN  v5.0.1 /private/tmp/claude-501/-Users-deligoez-Developer-deligoez-projects-cr/ab43de41-7948-4a07-bc9b-b5622c5ddeda/scratchpad/vitest-probe
+
+ ✓ src/math.test.ts > add > adds two numbers 0ms
+ ✓ src/math.test.ts > add > adds zero 0ms
+ ↓ src/math.test.ts > add > is skipped
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 1 skipped (3)
+   Start at  14:40:19
+   Duration  58ms (transform 56%, import 27%, worker 9%, tests 8%)
+
