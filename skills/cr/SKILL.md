@@ -1397,7 +1397,17 @@ capture group each in the default `sum` mode, none in `occurrences` mode),
 counts matches, for a runner that prints one line per test and no recap),
 `tests.paths_default` (argv appended when no `--path` is given),
 `tests.probe_path_template`, `rules`, `symbols.lang`. cr ships `laravel-pest`,
-`go` and `generic`, all requiring nothing. `go` runs `go test -v -count=1`, adds
+`go`, `typescript`, `rust` and `generic`, all requiring nothing. The one with
+the most marker files present at the clone's root wins: `go` names `go.mod` and
+`go.sum`, `typescript` `package.json`, `tsconfig.json` and `vite.config.{ts,js}`,
+`rust` `Cargo.toml` and `Cargo.lock`, `laravel-pest` its four. A tie exits 3
+naming the tied profiles; set `profile` in the per-repository config to settle
+it. `typescript` runs the repository's own Vitest (`npx --no vitest run
+--reporter=verbose`) and counts its ` ✓ `/` × ` lines, so a repository whose
+runner is Jest reads every run as undetermined — set its own `tests.cmd`.
+`rust` runs `cargo test --no-fail-fast`, counts `test … ... ok|FAILED` lines,
+takes `--filter` after `--`, refuses `--path` (cargo selects targets by name),
+and places a gap probe as an integration test under `tests/`. `go` runs `go test -v -count=1`, adds
 `./...` when no path is given, counts the top-level `--- PASS:`/`--- FAIL:` lines
 (skips are not executed tests), and places a gap probe beside its target, since
 a Go test compiles into the package it tests. A tree that does not build prints
