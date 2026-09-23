@@ -176,3 +176,121 @@ where
 	require.True(t, found)
 	assert.Equal(t, "keep@1", keep)
 }
+
+// enclosing is the name Enclosing gives a line, or "" when none encloses it.
+func enclosing(t *testing.T, index *Index, path string, line int) string {
+	t.Helper()
+	key, found := index.Enclosing(path, line)
+	if !found {
+		return ""
+	}
+	return key
+}
+
+// `#` opens a private name in TypeScript and a comment only in PHP. Read as a
+// comment, `this.#count += by; }` lost its closing brace, the method's body
+// ran past the class field below it, and a line in the field's arrow was
+// attributed to the method (QA, 2026-09-23).
+func TestAPrivateNameDoesNotMoveTheEndOfATypeScriptBody(t *testing.T) {
+	index, built := Build("typescript", []File{fileOf("src/c.ts", `class C {
+  inc(by: number) {
+    if (by) { this.#count += by; }
+  }
+
+  handler = () => {
+    work();
+  };
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, "inc@2", enclosing(t, index, "src/c.ts", 3))
+	assert.Equal(t, "C@1", enclosing(t, index, "src/c.ts", 7),
+		"the field's arrow is no declaration, so its line is the class's, not inc's")
+}
+
+// A single- or double-quoted string cannot span a line in TypeScript, so an
+// apostrophe in JSX text closes at the line's end instead of swallowing the
+// next function (QA, 2026-09-23: Hello's span was 1–7 and World had none).
+func TestAnApostropheInJSXTextDoesNotSwallowTheNextFunction(t *testing.T) {
+	index, built := Build("typescript", []File{fileOf("src/hello.tsx", `export function Hello() {
+  return <p>Don't do it {name}</p>;
+}
+
+export function World() {
+  return <p>It's fine</p>;
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, "Hello@1", enclosing(t, index, "src/hello.tsx", 2))
+	assert.Equal(t, "World@5", enclosing(t, index, "src/hello.tsx", 6))
+}
+
+// A Rust raw string is read verbatim to its closing quote and hashes, so a
+// quote or a brace inside it counts for nothing.
+func TestARustRawStringDoesNotMoveTheEndOfABody(t *testing.T) {
+	index, built := Build("rust", []File{fileOf("src/t.rs", `fn quoted() -> &'static str { r#"a "quoted" { brace"# }
+
+fn after() {
+    work();
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, "quoted@1", enclosing(t, index, "src/t.rs", 1))
+	assert.Empty(t, enclosing(t, index, "src/t.rs", 2), "quoted's body closed on its own line")
+	assert.Equal(t, "after@3", enclosing(t, index, "src/t.rs", 4))
+}
+
+// A comma inside a generic type separates no parameter, and a generic bound
+// holding an arrow type is read whole. §4.3.2 matches the count exactly, so
+// each of these dropped a real candidate (QA, 2026-09-23).
+func TestAGenericTypesCommasSeparateNoParameter(t *testing.T) {
+	ts, built := Build("typescript", []File{fileOf("src/m.ts", `export function merge(a: Map<string, number>, b: Array<[string, number]>) {
+}
+
+export const pick = <T extends Record<string, unknown>>(obj: T, key: string) => obj[key]
+
+export function apply(cb: (x: number) => void, n: number) {
+}
+`)})
+	require.True(t, built)
+	assert.Equal(t, []Decl{
+		{Path: "src/m.ts", Line: 1, Name: "merge", Kind: Function, Params: 2},
+		{Path: "src/m.ts", Line: 4, Name: "pick", Kind: Function, Params: 2},
+		{Path: "src/m.ts", Line: 6, Name: "apply", Kind: Function, Params: 2},
+	}, ts.Decls)
+
+	rs, built := Build("rust", []File{fileOf("src/g.rs", `fn group(m: HashMap<String, Vec<u8>>, n: usize) {
+}
+
+fn bounded<F: Fn() -> ()>(f: F, g: u8) {
+}
+`)})
+	require.True(t, built)
+	assert.Equal(t, []Decl{
+		{Path: "src/g.rs", Line: 1, Name: "group", Kind: Function, Params: 2},
+		{Path: "src/g.rs", Line: 4, Name: "bounded", Kind: Function, Params: 2},
+	}, rs.Decls)
+}
+
+// An arrow function is one whose parameter list is followed by its arrow. A
+// parenthesised expression whose line reaches an arrow later is not one, and
+// a constructor with an empty body on its own line is still a declaration.
+func TestOnlyAParameterListFollowedByItsArrowIsAnArrowFunction(t *testing.T) {
+	index, built := Build("typescript", []File{fileOf("src/a.ts", `const toIds = (items ?? []).map((i) => i.id)
+const typed = (a: number): number => a + 1
+
+class Cart {
+  constructor(private items: Array<[string, number]>) {}
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, []Decl{
+		{Path: "src/a.ts", Line: 2, Name: "typed", Kind: Function, Params: 1},
+		{Path: "src/a.ts", Line: 4, Name: "Cart", Kind: Class, Params: 1},
+		{Path: "src/a.ts", Line: 5, Name: "constructor", Kind: Method, Params: 1},
+	}, index.Decls)
+}
