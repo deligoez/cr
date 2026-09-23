@@ -178,7 +178,7 @@ func charLiteral(text string, at int) bool {
 		return true
 	}
 	_, size := utf8.DecodeRuneInString(rest)
-	return size > 0 && size < len(rest) && rest[size] == '\''
+	return size < len(rest) && rest[size] == '\''
 }
 
 // step advances the scan by one byte.
