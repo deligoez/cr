@@ -2,10 +2,13 @@ package profile
 
 import (
 	"bytes"
+	"cmp"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -25,7 +28,12 @@ func TestTheEmbeddedReleasesAreExactlyThePinnedOnes(t *testing.T) {
 		require.True(t, entry.IsDir(), "builtin/shipped holds one directory per release, not %s", entry.Name())
 		embedded = append(embedded, entry.Name())
 	}
-	assert.Equal(t, shippedReleases, embedded)
+	// The directory lists in name order, where v0.10.0 sorts before v0.2.0,
+	// so the two are compared as sets and the list's own order is held to
+	// the version order StandingOf walks it backwards in.
+	assert.ElementsMatch(t, shippedReleases, embedded)
+	assert.True(t, slices.IsSortedFunc(shippedReleases, compareReleases),
+		"shippedReleases is oldest first, by version rather than by name: %v", shippedReleases)
 
 	for _, release := range shippedReleases {
 		files, err := fs.ReadDir(shipped, path.Join("builtin/shipped", release))
@@ -83,6 +91,19 @@ func TestEveryReleaseTagCarryingABuiltinProfileIsCovered(t *testing.T) {
 		}
 	}
 	assert.Positive(t, covered, "no tag reachable from HEAD carried a builtin profile")
+}
+
+// compareReleases orders two `v<major>.<minor>.<patch>` tags by version.
+func compareReleases(a, b string) int {
+	pa, pb := strings.Split(strings.TrimPrefix(a, "v"), "."), strings.Split(strings.TrimPrefix(b, "v"), ".")
+	for i := range min(len(pa), len(pb)) {
+		na, _ := strconv.Atoi(pa[i])
+		nb, _ := strconv.Atoi(pb[i])
+		if c := cmp.Compare(na, nb); c != 0 {
+			return c
+		}
+	}
+	return cmp.Compare(len(pa), len(pb))
 }
 
 // repositoryGit runs one git read in the repository this package lives in, with
