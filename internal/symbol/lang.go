@@ -59,11 +59,37 @@ type language struct {
 	// method would declare one parameter more than the same method in
 	// either, and §4.3.2's exact match would drop it.
 	receiver *regexp.Regexp
+	// syntax is what the byte scanners need to know about the language's
+	// strings and comments.
+	syntax
+}
+
+// syntax is the lexical difference between the languages the byte scanners of
+// scan.go and span.go walk. Each flag is one way a scanner that did not know
+// it would read a string or a comment as code, or code as one — and a brace or
+// a comma read wrongly moves a body's end past the next declaration or
+// miscounts a parameter list.
+type syntax struct {
+	// hashComments is true where `#` opens a line comment (PHP). In
+	// TypeScript it opens a private name and in Rust an attribute or a raw
+	// string, so reading it as a comment there skips the braces after it.
+	hashComments bool
+	// lineQuotes is true where a single- or double-quoted string cannot span
+	// a line (TypeScript and JavaScript), so a quote left open at a line's
+	// end — an apostrophe in JSX text — closes there instead of swallowing
+	// the code below it.
+	lineQuotes bool
+	// rawStrings is true for Rust's `r"…"` and `r#"…"#`, whose contents are
+	// read verbatim until the quote and the same number of `#`.
+	rawStrings bool
 	// lifetimes is true for a language where a single quote not closed a
 	// character later is a lifetime, `'a`, rather than the start of a
 	// string: read as a string, Rust's `&'a str` would swallow every comma
 	// and brace after it.
 	lifetimes bool
+	// angles is true where a parameter's type nests in `<>`
+	// (`Map<string, number>`), so a comma inside one separates nothing.
+	angles bool
 }
 
 // languages is every `symbols.lang` value cr can build an index for. A profile
@@ -114,6 +140,7 @@ func phpLanguage() language {
 	return language{
 		classScoped: true,
 		constructor: "__construct",
+		syntax:      syntax{hashComments: true},
 		rules: []rule{
 			{kind: Class, re: regexp.MustCompile(
 				`^\s*(?:(?:abstract|final|readonly)\s+)*(?:class|interface|trait|enum)\s+(` + ident + `)`)},
@@ -134,29 +161,36 @@ func phpLanguage() language {
 // callback and with `if (ready) {`. rest turns the first away, since a
 // callback's list holds a paren, and reserved the second. What the shape
 // misses is a method whose parameters span lines or carry a call as a default,
-// and a private `#name(`, which reads as a comment: a symbol absent from the
-// index, never one invented.
+// and a private `#name(`: a symbol absent from the index, never one invented.
 //
-// An arrow function is a function when a `const` or `let` binds it and the
-// line goes on to its `=>`. One whose parameters span lines is missed for the
-// same reason.
+// An arrow function is a function when a `const` or `let` binds it and its
+// parameter list is followed by its `=>`, a return type allowed between. A
+// parenthesised expression that merely reaches an arrow later on the line,
+// `const ids = (items ?? []).map((i) => i.id)`, is not one. One whose
+// parameters span lines is missed.
+//
+// A generic list is matched lazily up to a `>` no `=` or `-` stands before,
+// so a constraint holding an arrow type or a nested generic is read whole.
 func typescriptLanguage() language {
-	methodOpens := regexp.MustCompile(`^[^()]*\)[^;=(]*\{\s*$`)
+	methodOpens := regexp.MustCompile(`^[^()]*\)[^;=(]*\{\s*\}?\s*$`)
+	arrowFollows := regexp.MustCompile(`^(?:[^()]|\([^()]*\))*\)\s*(?::[^=]*)?=>`)
+	const generic = `(?:<.*?[^=-]>\s*)?`
 	return language{
 		constructor: "constructor",
+		syntax:      syntax{lineQuotes: true, angles: true},
 		rules: []rule{
 			{kind: Class, re: regexp.MustCompile(
 				`^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?` +
 					`(?:class|interface|enum)\s+(` + ident + `)`)},
 			{kind: Function, signature: true, re: regexp.MustCompile(
 				`^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?` +
-					`function\s*\*?\s*(` + ident + `)\s*(?:<[^>]*>\s*)?\(`)},
-			{kind: Function, signature: true, rest: regexp.MustCompile(`=>`), re: regexp.MustCompile(
+					`function\s*\*?\s*(` + ident + `)\s*` + generic + `\(`)},
+			{kind: Function, signature: true, rest: arrowFollows, re: regexp.MustCompile(
 				`^\s*(?:export\s+)?(?:const|let)\s+(` + ident + `)\s*(?::[^=]*)?=\s*(?:async\s+)?` +
-					`(?:<[^>]*>\s*)?\(`)},
+					generic + `\(`)},
 			{kind: Method, signature: true, rest: methodOpens, reserved: jsReserved, re: regexp.MustCompile(
 				`^\s+(?:(?:public|private|protected|static|async|readonly|override|abstract|get|set)\s+)*` +
-					`(` + ident + `)\s*(?:<[^>]*>\s*)?\(`)},
+					`(` + ident + `)\s*` + generic + `\(`)},
 		},
 	}
 }
@@ -178,12 +212,13 @@ var jsReserved = map[string]bool{
 // with no parameters, for the reason a Go type is: Rust has no constructors.
 func rustLanguage() language {
 	const qualifiers = `(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|extern\s+"[^"]*")\s+)*`
-	// The generic list is matched lazily up to the `>` the parameter list
-	// follows, so `<T: Into<String>>` is read whole.
-	const signature = `fn\s+(` + ident + `)\s*(?:<.*?>\s*)?\(`
+	// The generic list is matched lazily up to a `>` the parameter list
+	// follows and no `-` stands before, so `<T: Into<String>>` and
+	// `<F: Fn() -> ()>` are each read whole.
+	const signature = `fn\s+(` + ident + `)\s*(?:<.*?[^-]>\s*)?\(`
 	return language{
-		lifetimes: true,
-		receiver:  regexp.MustCompile(`^\s*(?:&\s*(?:'` + ident + `\s+)?)?(?:mut\s+)?self\b`),
+		syntax:   syntax{rawStrings: true, lifetimes: true, angles: true},
+		receiver: regexp.MustCompile(`^\s*(?:&\s*(?:'` + ident + `\s+)?)?(?:mut\s+)?self\b`),
 		rules: []rule{
 			{kind: Class, re: regexp.MustCompile(
 				`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union)\s+(` + ident + `)`)},

@@ -18,15 +18,15 @@ const signatureLines = 40
 // commentPrefixes begin a line no declaration is written on. The Go rules are
 // anchored at column zero and need none of this; PHP's are not, so a docblock's
 // ` * function handle(` would otherwise be indexed as a method that does not
-// exist.
-var commentPrefixes = []string{"//", "/*", "*", "#"}
+// exist. `#` begins one only where hashComments says so.
+var commentPrefixes = []string{"//", "/*", "*"}
 
 // scan reads one file's declarations, in the order the file writes them.
 func (l language) scan(file File) []Decl {
 	decls := make([]Decl, 0, 8)
 	lastClass := -1
 	for at, text := range file.Lines {
-		if commented(text) {
+		if l.commented(text) {
 			continue
 		}
 		decl, matched := l.match(file, at)
@@ -58,7 +58,7 @@ func (l language) match(file File, at int) (Decl, bool) {
 			Kind: r.kind,
 		}
 		if r.signature {
-			decl.Params = countParams(file.Lines, at, found[1], l.lifetimes)
+			decl.Params = countParams(file.Lines, at, found[1], l.syntax)
 			// A receiver is written on the declaration's own line, so the
 			// count already holds it and cannot fall below zero.
 			if l.receiver != nil && l.receiver.MatchString(text[found[1]:]) {
@@ -92,8 +92,11 @@ func (l language) place(decls []Decl, decl Decl, lastClass int) (placed []Decl, 
 
 // commented reports whether a line begins a comment, so a declaration written
 // inside one is not indexed as a declaration.
-func commented(text string) bool {
+func (s syntax) commented(text string) bool {
 	trimmed := strings.TrimLeft(text, " \t")
+	if s.hashComments && strings.HasPrefix(trimmed, "#") {
+		return true
+	}
 	for _, prefix := range commentPrefixes {
 		if strings.HasPrefix(trimmed, prefix) {
 			return true
@@ -114,8 +117,8 @@ func commented(text string) bool {
 // qualified. Depth and quotes are tracked for the mirror reason, because a
 // default of `','` and a type of `map[string]int` each carry a comma that
 // separates nothing.
-func countParams(lines []string, at, from int, lifetimes bool) int {
-	s := paramScanner{depth: 1, lifetimes: lifetimes}
+func countParams(lines []string, at, from int, syn syntax) int {
+	s := paramScanner{depth: 1, syntax: syn}
 	for row := at; row < len(lines) && row < at+signatureLines && !s.done; row++ {
 		text := lines[row]
 		if row == at {
@@ -148,8 +151,14 @@ type paramScanner struct {
 	escaped bool
 	// done is whether the list has closed.
 	done bool
-	// lifetimes is the language's, see language.lifetimes.
-	lifetimes bool
+	// angle is how many `<` of a generic type are open, where the language
+	// nests types in them.
+	angle int
+	// prev is the byte before the one being read, so the `>` of `=>` and
+	// `->` is not read as closing a generic.
+	prev byte
+	// syntax is the language's, see language.syntax.
+	syntax
 }
 
 // consume walks one line of the signature.
@@ -159,8 +168,30 @@ func (s *paramScanner) consume(text string) {
 			s.segment = true
 			continue
 		}
-		s.step(text[at])
+		if !s.generic(text[at]) {
+			s.step(text[at])
+		}
+		s.prev = text[at]
 	}
+}
+
+// generic reads one byte as a generic type's bracket, and reports whether it
+// was one: a `<` opens, and a `>` closes one that is open unless it ends an
+// arrow. Inside a string or where the language has no generics, nothing is.
+func (s *paramScanner) generic(c byte) bool {
+	if !s.angles || s.quote != 0 || s.escaped {
+		return false
+	}
+	switch {
+	case c == '<':
+		s.angle++
+	case c == '>' && s.angle > 0 && s.prev != '=' && s.prev != '-':
+		s.angle--
+	default:
+		return false
+	}
+	s.segment = true
+	return true
 }
 
 // lifetime reports whether the byte at text[at] is the quote of a lifetime,
@@ -194,7 +225,7 @@ func (s *paramScanner) step(c byte) {
 		s.depth, s.segment = s.depth+1, true
 	case c == ')' || c == ']' || c == '}':
 		s.closeBracket()
-	case c == ',' && s.depth == 1:
+	case c == ',' && s.depth == 1 && s.angle == 0:
 		s.separate()
 	case c != ' ' && c != '\t':
 		s.segment = true

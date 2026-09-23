@@ -23,10 +23,10 @@ type span struct {
 // fallthrough costs the reader a differently shaped unit; a span that ran past
 // the body would instead name a symbol for hunks it does not contain, which is
 // the one thing a unit formed `by symbol` asserts.
-func (x *Index) cover(file File, decls []Decl, lifetimes bool) {
+func (x *Index) cover(file File, decls []Decl, syn syntax) {
 	x.files[file.Path] = true
 	for _, decl := range decls {
-		if end, bounded := bodyEnd(file.Lines, decl.Line-1, lifetimes); bounded {
+		if end, bounded := bodyEnd(file.Lines, decl.Line-1, syn); bounded {
 			x.spans[file.Path] = append(x.spans[file.Path], span{
 				start: decl.Line, end: end, key: decl.Name + "@" + strconv.Itoa(decl.Line),
 			})
@@ -76,8 +76,8 @@ func (x *Index) Enclosing(path string, line int) (string, bool) {
 // opening brace gives up at a blank line or past signatureLines, since no
 // signature holds either, and a brace found beyond them would be the next
 // declaration's.
-func bodyEnd(lines []string, at int, lifetimes bool) (int, bool) {
-	s := braceScanner{lifetimes: lifetimes}
+func bodyEnd(lines []string, at int, syn syntax) (int, bool) {
+	s := braceScanner{syntax: syn}
 	for row := at; row < len(lines); row++ {
 		if !s.opened && (row >= at+signatureLines || strings.TrimSpace(lines[row]) == "") {
 			return 0, false
@@ -109,30 +109,48 @@ type braceScanner struct {
 	escaped bool
 	// block is whether the scan is inside a block comment.
 	block bool
-	// lifetimes is the language's, see language.lifetimes.
-	lifetimes bool
+	// raw is the closing sequence of the Rust raw string the scan is
+	// inside, `"` and as many `#` as opened it, or empty.
+	raw string
+	// syntax is the language's, see language.syntax.
+	syntax
 }
 
 // consume walks one line, stopping at the byte that closes the body.
 func (s *braceScanner) consume(text string) {
+	if s.lineQuotes && (s.quote == '\'' || s.quote == '"') {
+		// The line ended inside a quote the language cannot carry across
+		// one, so it was no string: an apostrophe in JSX text.
+		s.quote, s.escaped = 0, false
+	}
 	for i := 0; i < len(text) && !s.closed && !s.bodiless; i++ {
 		c, next := text[i], byte(0)
 		if i+1 < len(text) {
 			next = text[i+1]
 		}
 		switch {
+		case s.raw != "":
+			end := strings.Index(text[i:], s.raw)
+			if end < 0 {
+				return
+			}
+			i, s.raw = i+end+len(s.raw)-1, ""
 		case s.block:
 			if c == '*' && next == '/' {
 				s.block, i = false, i+1
 			}
 		case s.quote != 0:
 			s.inQuote(c)
-		case c == '#' && next != '[' || c == '/' && next == '/':
+		case s.hashComments && c == '#' && next != '[' || c == '/' && next == '/':
 			// A line comment, and not PHP 8's `#[` attribute, which
 			// can sit inside a signature.
 			return
 		case c == '/' && next == '*':
 			s.block, i = true, i+1
+		case s.rawStrings && c == 'r' && rawOpens(text, i):
+			hashes := strings.IndexByte(text[i+1:], '"')
+			s.raw = `"` + text[i+1:i+1+hashes]
+			i += 1 + hashes
 		case c == '\'' && s.lifetimes && !charLiteral(text, i):
 			// A lifetime, which opens nothing.
 		case c == '\'' || c == '"' || c == '`':
@@ -141,6 +159,26 @@ func (s *braceScanner) consume(text string) {
 			s.bracket(c)
 		}
 	}
+}
+
+// rawOpens reports whether the `r` at text[at] opens a Rust raw string: it
+// begins a token, or follows the `b` of a byte string that does, and only `#`
+// stand between it and a `"`.
+func rawOpens(text string, at int) bool {
+	start := at
+	if start > 0 && text[start-1] == 'b' {
+		start--
+	}
+	if start > 0 && identByte(text[start-1]) {
+		return false
+	}
+	rest := strings.TrimLeft(text[at+1:], "#")
+	return strings.HasPrefix(rest, `"`)
+}
+
+// identByte reports whether c can continue an identifier.
+func identByte(c byte) bool {
+	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80
 }
 
 // inQuote advances the scan by one byte inside a string. A Go raw string has

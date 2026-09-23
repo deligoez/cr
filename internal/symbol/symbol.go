@@ -117,7 +117,7 @@ func Build(lang string, files []File) (*Index, bool) {
 	for _, file := range files {
 		found := rules.scan(file)
 		index.Decls = append(index.Decls, found...)
-		index.cover(file, found, rules.lifetimes)
+		index.cover(file, found, rules.syntax)
 	}
 	slices.SortStableFunc(index.Decls, func(a, b Decl) int {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line))

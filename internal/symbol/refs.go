@@ -38,8 +38,9 @@ func (i *Index) Referenced(path string, lines []string) []string {
 	}
 	named := make([]string, 0)
 	seen := make(map[string]bool)
+	syn := languages[i.Lang].syntax
 	for at, text := range lines {
-		if commented(text) {
+		if syn.commented(text) {
 			continue
 		}
 		for _, name := range identifier.FindAllString(text, -1) {
