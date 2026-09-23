@@ -1,7 +1,7 @@
 {
   "id": "typescript",
   "match": {
-    "files": ["package.json", "tsconfig.json", "vite.config.ts", "vite.config.js"],
+    "files": ["tsconfig.json", "vite.config.ts", "vite.config.js", "vitest.config.ts", "vitest.config.js"],
     "globs": [
       "**/*.ts",
       "**/*.tsx",
@@ -21,7 +21,7 @@
     "test": true
   },
   "tests": {
-    "cmd": ["npx", "--no", "vitest", "run", "--reporter=verbose"],
+    "cmd": ["npx", "--no", "--", "vitest", "run", "--reporter=verbose"],
     "globs": [
       "**/*.test.ts",
       "**/*.test.tsx",

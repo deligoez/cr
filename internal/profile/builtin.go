@@ -80,7 +80,13 @@ const typescriptID = "typescript"
 //     counted, for the reason laravel-pest and go do not count one.
 //   - `npx --no` runs the repository's own Vitest and never installs one: a
 //     repository without it exits 1 with no test line, which §5.2.1 reads as
-//     undetermined rather than as a run of nothing.
+//     undetermined rather than as a run of nothing. The `--` after it is
+//     what hands every later argument to the runner: measured 2026-09-23,
+//     npx takes `--verbose`, `--json` and `--version` as npm's own flags and
+//     the runner never sees them.
+//   - `match.files` names no `package.json`, which every JavaScript
+//     repository carries, so a Jest repository is not a §2.4.2 tie with this
+//     one on it (§2.4.5).
 //   - `tests.paths_arg` is the path itself, which Vitest reads as a file
 //     filter, and a path that selects no file exits 1 the same way.
 //
