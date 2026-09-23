@@ -2,6 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -114,5 +116,22 @@ func TestThePinsHaveBeenReviewedRecently(t *testing.T) {
 	for _, workflow := range []string{".github/workflows/ci.yml", ".github/workflows/release.yml"} {
 		assert.Contains(t, string(repoFile(t, workflow)), pinReview,
 			"%s no longer names the review date the pins are held to", workflow)
+	}
+}
+
+// Every shell script under scripts/ is executable, because the gate and the
+// mutation run invoke them by path. An editor that rewrites a file can drop
+// the bit without a diff a reviewer reads: measured 2026-09-23, an edit of
+// scripts/mutation-run.sh turned 100755 into 100644, shipped in v0.11.0, and
+// the next run exited 126 before doing anything. The same loss on deadcode.sh
+// would break the gate itself.
+func TestEveryShellScriptIsExecutable(t *testing.T) {
+	scripts, err := filepath.Glob(filepath.Join("..", "..", "scripts", "*.sh"))
+	require.NoError(t, err)
+	require.NotEmpty(t, scripts, "scripts/ holds the gate's deadcode.sh")
+	for _, script := range scripts {
+		info, err := os.Stat(script)
+		require.NoError(t, err)
+		assert.NotZero(t, info.Mode().Perm()&0o111, "%s is not executable", filepath.Base(script))
 	}
 }
