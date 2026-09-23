@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 
@@ -28,10 +29,13 @@ type postedState struct {
 	// Resolved reports a thread already closed on GitHub, which cr may not
 	// have been the one to close.
 	Resolved bool `json:"resolved"`
-	// Line is where GitHub places the thread now, and zero when it places
-	// it nowhere. OriginalLine survives that, per §9.5.2.
-	Line         int `json:"line"`
-	OriginalLine int `json:"original_line"`
+	// StartLine and Line are where GitHub places the thread now, and zero
+	// when it places it nowhere. OriginalStartLine and OriginalLine
+	// survive that, per §9.5.2.
+	StartLine         int `json:"start_line"`
+	Line              int `json:"line"`
+	OriginalStartLine int `json:"original_start_line"`
+	OriginalLine      int `json:"original_line"`
 	// Replies are the comments in the thread after the opening one,
 	// offered as candidate context notes per §9.5.3.
 	Replies []gh.Comment `json:"replies"`
@@ -171,7 +175,10 @@ func recheckRound(
 	if err != nil {
 		return nil, err
 	}
-	threads, err := state.ReadRecords[gh.Thread](l, owner, repo, pr, state.FileThreads)
+	// §9.5.2: what GitHub says now, read through §3.5's ingestion. The
+	// threads `cr brief` stored are what GitHub said when the round opened,
+	// before the review this report is about was posted at all.
+	threads, err := ghClient().Threads(owner, repo, pr)
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +203,12 @@ func recheckRound(
 			thread = &gh.Thread{}
 		}
 		report.Concerns = append(report.Concerns, postedOf(record, thread))
+		if record.Probe != "" {
+			report.Honesty = append(report.Honesty, fmt.Sprintf(
+				"record %s names probe %s, and §9.5.4's re-run of it at the current head is not "+
+					"implemented in this release: whether it still reproduces was not read",
+				record.ID, record.Probe))
+		}
 	}
 	if round.Stale() {
 		if report.Preview, err = previewMigrations(round, base, records); err != nil {
@@ -225,7 +238,8 @@ func postedOf(record *finding.Finding, thread *gh.Thread) postedState {
 	return postedState{
 		ID: record.ID, Thread: record.ThreadID, Kind: string(record.Kind),
 		Outdated: thread.Outdated, Resolved: thread.Resolved,
-		Line: thread.Anchor.Line, OriginalLine: thread.Anchor.OriginalLine,
+		StartLine: thread.Anchor.StartLine, Line: thread.Anchor.Line,
+		OriginalStartLine: thread.Anchor.OriginalStartLine, OriginalLine: thread.Anchor.OriginalLine,
 		Replies: thread.Replies,
 	}
 }
