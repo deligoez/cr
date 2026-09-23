@@ -378,9 +378,38 @@ M1 and M3 answered two of this item's three slices. What is left has no data at 
 - **Real use.** Review real pull requests with cr, posting only what the reviewer would have posted anyway,
   and record per round: comments kept, softened, deleted, marked `wrong`; author replies; wall clock and
   token cost. §7.3's triage statistics exist for exactly this and hold one round's data from one field
-  trial. It is the same question the volume question below asks, from the other end. **Blocked on a decision,
-  not on work:** which real pull requests cr is pointed at, and whether its output is posted under the
-  reviewer's name. Both are the user's to make, and nothing here proceeds until they are made.
+  trial. It is the same question the volume question below asks, from the other end. *Unblocked
+  2026-09-23: the user chose the pull requests awaiting their review, output under their own name, and
+  nothing posted without their explicit approval of the exact payload.*
+
+  **Round 1, tarfin-labs/backend#6292 (WB-3242, +341/−19, 15 files), 2026-09-23.** 7 claims from the
+  Jira issue, 20 units, 4 roles, 80 cells complete, every claim mapped. 9 records, **all questions**
+  (5 `cited`, 4 `argued`), 0 findings, no sandbox or probe (the suite would run against the
+  reviewer's local database, so experiments wait for their say). Two questions were checked by hand
+  against the code before the draft reached the reviewer and held: a car-sales retailer is never
+  *created* as `CAR_SALES` anywhere in the application, so the PR's `creating()` default may never
+  fire outside tests; and the guard's wiring into the machine is exercised on its passing side only.
+  **The triage is not in yet** — the reviewer has not read the draft — so kept / softened / deleted
+  counts are owed here when they are. What the round measured about cr itself:
+  - **Speed was the blocker, and is fixed in v0.7.1.** `cr status` took 57–82 s and `cr record` over
+    five minutes, because §4.3.1's symbol index started one `git cat-file blob` per source file of the
+    head: 8,895 of `cr status`'s 8,913 git processes. One `cat-file --batch` brings `cr status` to
+    3.8 s and `cr brief` to 5.8 s with byte-identical output.
+  - **The orchestration was all by hand**, and it is the driver item's first measurement: extract the
+    claims, record them, emit the intent pass, run a role, record its cells and the mapping, emit the
+    other three axes, run three roles, record their cells, merge, record, draft — about fifteen
+    commands and four agent runs, the only judgement being the claims, the roles' own and the draft.
+    One role agent per axis over all 20 prompts worked: the intent pass took 4 minutes, convention and
+    test-adequacy 32 each, and correctness stalled twice on the harness's stream watchdog, was resumed,
+    and finished its cells and records before stalling a second time.
+  - **One concern arrived twice from two roles at two lines** — the `,00` in the rendered amount, from
+    intent-coverage on the translation line and correctness on the code line. `cr merge` listed them as
+    a possible duplicate (shared citation) and left both, which is §6.4.1's key doing what it says;
+    whether the draft should fold such pairs is a question for more rounds, not this one.
+  - **The draft's bodies are English and the team writes Turkish.** §6.1.1 stores findings in English
+    and §8.1 renders reader-facing prose at draft time, but only the labels are rendered; the bodies
+    are the roles' English. Every kept comment will be rewritten by hand before posting — to be
+    counted once the triage is in.
 - **AACR-Bench as an instrument.** *This entry said its 640 negatives were a binary test of the grade
   ladder "with no matcher needed", and that was wrong; cr-research, whose sentence it was, corrected
   it on 2026-09-22.* cr grades its own records from their anchor, citations, probe and containment
