@@ -1,7 +1,9 @@
 package git
 
 import (
+	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -54,6 +56,52 @@ func BlobLines(dir, object string) ([]string, error) {
 		return nil, err
 	}
 	return splitLines(content), nil
+}
+
+// BlobsLines returns the lines of every object asked for, keyed by object id and
+// split as BlobLines splits one, read through a single `git cat-file --batch`.
+//
+// It is BlobLines for a whole index at once. §4.3.1's symbol index reads every
+// source file of a head, and one process per file is what that cost: measured
+// 2026-09-23 on tarfin-labs/backend#6292, `cr status` started 8,913 git
+// processes, 8,895 of them `cat-file blob`, and took 82 seconds, 30 of them in
+// the kernel.
+//
+// An object the repository does not hold is refused, as BlobLines refuses it:
+// the ids come from a listing git just made, so a missing one is a repository
+// that changed under the read.
+func BlobsLines(dir string, objects []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(objects))
+	if len(objects) == 0 {
+		return out, nil
+	}
+	content, err := runInput(dir, strings.Join(objects, "\n")+"\n", "cat-file", "--batch")
+	if err != nil {
+		return nil, err
+	}
+	for rest := content; rest != ""; {
+		header, body, found := strings.Cut(rest, "\n")
+		if !found {
+			return nil, fmt.Errorf("cat-file --batch: a header with no body: %q", header)
+		}
+		fields := strings.Fields(header)
+		if len(fields) != 3 {
+			return nil, fmt.Errorf("cat-file --batch: %q", header)
+		}
+		size, err := strconv.Atoi(fields[2])
+		if err != nil || size < 0 || size+1 > len(body) {
+			return nil, fmt.Errorf("cat-file --batch: object %s: size %q does not fit the output", fields[0], fields[2])
+		}
+		out[fields[0]] = splitLines(body[:size])
+		// The object's bytes are followed by one newline of the batch's own.
+		rest = body[size+1:]
+	}
+	for _, object := range objects {
+		if _, read := out[object]; !read {
+			return nil, fmt.Errorf("cat-file --batch: object %s was not returned", object)
+		}
+	}
+	return out, nil
 }
 
 // parseBlobs reads an `ls-tree -r -z` listing into its blob entries.
