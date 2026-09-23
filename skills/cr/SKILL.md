@@ -1115,7 +1115,8 @@ cr recheck 1
   "round": 2,
   "concerns": [
     {"id": "f2", "thread": "PRRT_kwDO…", "kind": "finding", "outdated": true,
-     "resolved": false, "line": 0, "original_line": 6,
+     "resolved": false, "start_line": 0, "line": 0,
+     "original_start_line": 5, "original_line": 6,
      "replies": [{"author": "the-author", "body": "Fixed in 49d8bca."}]}
   ],
   "migrated": [
@@ -1138,6 +1139,14 @@ what an outdated thread looks like: the head no longer carries the code, and
 `original_line` survives so the thread still names a place. cr reads
 `line`/`original_line` and never REST's `position`, which is not a location —
 three comments at different lines all report `position: 1` once the head moves.
+
+**The thread state is read from GitHub on every run**, not from the copy
+`cr brief` stored when the round opened: until v0.11.0 a recheck straight after
+`cr post --confirm` reported `line: 0`, no replies and not resolved while GitHub
+held the thread on its line. A record naming a probe gets an `honesty` line
+saying the probe was **not** re-run: §9.5.4's re-run at the current head is not
+implemented yet, so whether it still reproduces is unknown — run
+`cr probe run` yourself if it matters.
 
 **Anchors cr owns are migrated; a posted record's place is GitHub's.** A
 migration matches the record's stored `content_hash` against the head, widens to
@@ -1432,7 +1441,11 @@ one with the most marker files present at the clone's root wins: `go` names
 `go.mod` and `go.sum`, `typescript` `tsconfig.json`, `vite.config.{ts,js}` and
 `vitest.config.{ts,js}`, `jest` its `jest.config.*` and `jest.setup.*` files,
 `rust` `Cargo.toml` and `Cargo.lock`, `laravel-pest` its four. No profile names
-`package.json`, so a repository holding nothing else selects none. A tie exits
+`package.json`, so a repository holding nothing else selects none. A profile's
+`match.unless` names files that take it out of selection: `typescript` names
+`jest`'s configuration files, so a TypeScript project that configures Jest is a
+`jest` project. Both JavaScript profiles copy `node_modules` into the sandbox,
+which is a fresh worktree without it. A tie exits
 3 naming the tied profiles; set `profile` in the per-repository config to
 settle it — and to pick `jest` for a project that configures Jest only inside
 `package.json`. `typescript` runs the repository's own Vitest (`npx --no --
