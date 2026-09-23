@@ -3,6 +3,7 @@ package profile
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -88,6 +89,8 @@ func TestTheTypescriptJestAndRustArgvNarrowTheWayTheirRunnersDo(t *testing.T) {
 	var unavailable *UnavailableError
 	require.ErrorAs(t, err, &unavailable)
 	assert.Equal(t, testPathsArgField, unavailable.Field)
+	assert.True(t, strings.HasPrefix(unavailable.Hint(), "run without --path"),
+		"cargo selects no test by file, so declaring tests.paths_arg is not the step (QA, 2026-09-23)")
 }
 
 // §2.4's table: each shipped profile's probe path matches its own test globs,
