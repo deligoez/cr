@@ -392,6 +392,11 @@ slice. Agreed with cr-research, 2026-09-22.
   moment of the check** — `ps -o pid,pgid,ppid,stat,comm -g <group>` — **and the fifteen-minute
   load.** Whether the survivors still share the group, have re-parented, or sit in `Z` decides
   between all three in one line. If it never fires again, that is this entry's answer.
+  *Since 2026-09-23 the test captures both itself: `awaitRunnerGroupGone` prints the group's
+  `pid pgid ppid stat comm` rows and the load averages into its failure message before it kills
+  the group, and `TestGroupEvidenceListsTheGroupsProcesses` checks the instrument finds a live
+  group — a filter matching nothing would print a header that reads like an empty group. So the
+  next failure's log is the evidence; nobody has to be watching.*
 
 M1 and M3 answered two of this item's three slices. What is left has no data at all:
 
