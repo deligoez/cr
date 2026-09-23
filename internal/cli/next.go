@@ -111,8 +111,10 @@ func nextOf(l state.Layout, owner, repo string, pr int) (*nextResult, error) {
 		return nil, err
 	}
 	// §9.3.1: the comparison is disclosed, and a moved head is also the one
-	// step owed.
-	disclosed := []string{round.Disclosure()}
+	// step owed. §2.4.6 has every command that loads a profile report one an
+	// earlier release shipped, and the steps read the round's axes out of it.
+	disclosed := append(append([]string{round.Disclosure()},
+		staleProfile(l.Profile(round.ProfileID))...), staleRoles(l, owner, repo)...)
 	if round.Stale() {
 		// §10.4.1: nothing else the round owes is owed at a head that has
 		// moved, and §9.3.2 refuses the writes the other steps would make.
@@ -298,9 +300,10 @@ func prTarget(owner, repo string, pr int) string {
 	return strconv.Itoa(pr) + " --repo " + shellWord(owner+"/"+repo)
 }
 
-// pendingFiles are the fan-out files §10.4.4 names, by kind.
+// pendingFiles are the fan-out files §10.4.4 names, by kind, and those of them
+// that also hold ids the round already holds.
 type pendingFiles struct {
-	reviews, proposals []string
+	reviews, proposals, mixed []string
 }
 
 // recordStep is §10.4.4: merging and recording what the roles wrote. The merged
@@ -322,9 +325,16 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 	for _, file := range pending.proposals {
 		commands = append(commands, "cr proposals record "+target+" "+shellWord(file))
 	}
+	why := "the roles wrote records or proposals this round does not hold yet"
+	if len(pending.mixed) > 0 {
+		// A role that appended to a file already recorded leaves one
+		// the commands refuse as a whole, naming an id already held.
+		why += "; " + strings.Join(pending.mixed, ", ") + " also hold ids the round already holds, " +
+			"which the recording commands refuse, so move each file's new lines to a file of their own first"
+	}
 	return nextStep{
 		Step: "record", Actor: actorCr,
-		Why:      "the roles wrote records or proposals this round does not hold yet",
+		Why:      why,
 		Commands: commands,
 		Items:    append(slices.Clone(pending.reviews), pending.proposals...),
 	}
@@ -336,7 +346,7 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 // waived or already posted, which the round holds no line for — and a
 // proposals file holding a proposal id the round does not hold.
 func unrecordedFiles(l state.Layout, owner, repo string, pr, round int) (pendingFiles, error) {
-	pending := pendingFiles{reviews: make([]string, 0), proposals: make([]string, 0)}
+	pending := pendingFiles{reviews: make([]string, 0), proposals: make([]string, 0), mixed: make([]string, 0)}
 	dir := filepath.Join(l.PRDir(owner, repo, pr), state.DirFanOut, strconv.Itoa(round))
 	units, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -380,16 +390,22 @@ func (p *pendingFiles) scanUnit(dir string, held map[string]bool, intake time.Ti
 		if !review && !isProposals {
 			continue
 		}
-		unheld, err := holdsUnheld(path, held)
+		unheld, mixed, err := holdsUnheld(path, held)
 		if err != nil {
 			return state.FileFailure("read", path, fanOutReadHint, err)
 		}
 		switch {
 		case !unheld:
+			continue
 		case isProposals:
 			p.proposals = append(p.proposals, path)
 		case writtenAfter(path, intake):
 			p.reviews = append(p.reviews, path)
+		default:
+			continue
+		}
+		if mixed {
+			p.mixed = append(p.mixed, path)
 		}
 	}
 	return nil
@@ -436,12 +452,14 @@ func heldIDs(l state.Layout, owner, repo string, pr, round int) (map[string]bool
 // does not. A line that does not decode counts as unheld: `cr merge` and the
 // recording commands are what refuse it by line, and a step that names the
 // file sends the reader to that refusal rather than hiding it.
-func holdsUnheld(path string, held map[string]bool) (bool, error) {
+func holdsUnheld(path string, held map[string]bool) (unheld, mixed bool, err error) {
 	ids, malformed, err := state.FanOutIDs(path)
-	if err != nil || malformed {
-		return malformed, err
+	if err != nil {
+		return false, false, err
 	}
-	return slices.ContainsFunc(ids, func(id string) bool { return !held[id] }), nil
+	heldAny := slices.ContainsFunc(ids, func(id string) bool { return held[id] })
+	unheld = malformed || slices.ContainsFunc(ids, func(id string) bool { return !held[id] })
+	return unheld, unheld && heldAny, nil
 }
 
 // lastIntake is when the round's last `cr merge` or `cr record` wrote
