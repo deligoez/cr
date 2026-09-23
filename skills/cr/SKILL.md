@@ -117,7 +117,9 @@ cr next 6298 --repo acme/shop
 }
 ```
 
-The steps, in §10.4's order: `brief` (no round, or the head moved — then it is
+The steps, in §10.4's order: `reconcile` (the last `cr post --confirm` lost its
+outcome — then it is the only step, since everything else refuses until
+`cr post --reconcile` has run), `brief` (no round, or the head moved — then it is
 the only step), `claims` and `intent` (the intent pass), `record` (a role's
 `review-*.ndjson` or `proposals-*.ndjson` in the fan-out holding ids the round
 does not, unless the round's last merge or record ran after the file was
