@@ -261,7 +261,7 @@ func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nex
 func briefStep(owner, repo string, pr int, meta *state.Meta, why string) nextStep {
 	command := "cr brief " + prTarget(owner, repo, pr)
 	if meta != nil && meta.IssueKey != "" {
-		command += " --issue " + meta.IssueKey
+		command += " --issue " + shellWord(meta.IssueKey)
 	}
 	if meta != nil {
 		command += intentFileFlag(meta)
@@ -275,13 +275,27 @@ func intentFileFlag(meta *state.Meta) string {
 	if meta.IntentFile == "" {
 		return ""
 	}
-	return " --intent-file " + meta.IntentFile
+	return " --intent-file " + shellWord(meta.IntentFile)
 }
+
+// shellWord is one argument spelled so a POSIX shell reads it back as that one
+// argument: as it is when it holds nothing a shell treats specially, and in
+// single quotes otherwise. §10.4 prints commands to be pasted, and a path under
+// a home directory with a space in it would otherwise paste as two.
+func shellWord(word string) string {
+	if word != "" && strings.Trim(word, safeShellBytes) == "" {
+		return word
+	}
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
+}
+
+// safeShellBytes are the bytes no POSIX shell gives a meaning to inside a word.
+const safeShellBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"
 
 // prTarget is a command's pull request and repository, spelled out so a
 // command runs the same from any directory.
 func prTarget(owner, repo string, pr int) string {
-	return strconv.Itoa(pr) + " --repo " + owner + "/" + repo
+	return strconv.Itoa(pr) + " --repo " + shellWord(owner+"/"+repo)
 }
 
 // pendingFiles are the fan-out files §10.4.4 names, by kind.
@@ -296,13 +310,17 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 	target := prTarget(owner, repo, pr)
 	commands := make([]string, 0, 2+len(pending.proposals))
 	if len(pending.reviews) > 0 {
-		merged := filepath.Join(l.PRDir(owner, repo, pr), state.DirFanOut, strconv.Itoa(round), "merged.ndjson")
+		merged := shellWord(filepath.Join(l.PRDir(owner, repo, pr), state.DirFanOut, strconv.Itoa(round), "merged.ndjson"))
+		files := make([]string, 0, len(pending.reviews))
+		for _, file := range pending.reviews {
+			files = append(files, shellWord(file))
+		}
 		commands = append(commands,
-			fmt.Sprintf("cr merge %s -o %s --repo %s/%s --pr %d", strings.Join(pending.reviews, " "), merged, owner, repo, pr),
+			fmt.Sprintf("cr merge %s -o %s --repo %s --pr %d", strings.Join(files, " "), merged, shellWord(owner+"/"+repo), pr),
 			"cr record "+target+" "+merged)
 	}
 	for _, file := range pending.proposals {
-		commands = append(commands, "cr proposals record "+target+" "+file)
+		commands = append(commands, "cr proposals record "+target+" "+shellWord(file))
 	}
 	return nextStep{
 		Step: "record", Actor: actorCr,
