@@ -13,10 +13,14 @@ set -u
 out=${1:?usage: scripts/mutation-run.sh <out-dir>}
 mkdir -p "$out"
 cd "$(dirname "$0")/.."
-go clean -testcache
 pkgs=$(cd internal && ls -d */ | tr -d / | grep -v '^cli$')
 for p in $pkgs cli; do
   if [ -s "$out/$p.json" ]; then echo "skip $p (done)"; continue; fi
+  # Before every package, not once: the previous package's run fills the test
+  # cache again, and gremlins then gathers its baseline from a cached result
+  # near zero and times out every slow mutant — measured 2026-09-18 on
+  # internal/proposal as 16 TIMED OUT of 18 in 2.3 seconds, a fake 100%.
+  go clean -testcache
   # internal/cli's suite is tens of seconds and spawns processes per test, so it
   # runs at two workers and the tree coefficient; every other package is
   # sub-second, where coefficient 5 reports the instrument's own timeouts.
