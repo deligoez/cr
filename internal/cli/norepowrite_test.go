@@ -509,15 +509,26 @@ const unreadableSubcommand = "a subcommand named at run time"
 // runs one at all.
 func gitSubcommand(values map[string]ast.Expr, within *ast.FuncDecl, call *ast.CallExpr) (string, bool) {
 	fun, ok := call.Fun.(*ast.Ident)
-	if !ok || fun.Name != "run" {
+	if !ok || (fun.Name != "run" && fun.Name != "runInput") {
 		return "", false
 	}
 	// The directory first, then the argument list, whose head is the
-	// subcommand.
-	if len(call.Args) < 2 {
+	// subcommand. runInput carries standard input between the two, so its
+	// subcommand is one argument further on.
+	at := 1
+	if fun.Name == "runInput" {
+		// run's own body forwards every call it is handed to runInput,
+		// and those calls are read where run is called; the forward
+		// names no subcommand of its own.
+		if within != nil && within.Name.Name == "run" {
+			return "", false
+		}
+		at = 2
+	}
+	if len(call.Args) <= at {
 		return unreadableSubcommand, true
 	}
-	if name, resolved := firstElement(values, within, call.Args[1], 0); resolved {
+	if name, resolved := firstElement(values, within, call.Args[at], 0); resolved {
 		return name, true
 	}
 	return unreadableSubcommand, true

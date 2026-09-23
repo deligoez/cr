@@ -129,6 +129,15 @@ func environ() []string {
 
 // run executes one git read inside dir and returns its standard output.
 func run(dir string, args ...string) (string, error) {
+	return runInput(dir, "", args...)
+}
+
+// runInput is run with input on git's standard input, for the one read that
+// takes its requests there: `cat-file --batch`, which reads any number of
+// objects in one process where `cat-file blob` would start one per object.
+// Its subcommand is the first of args, exactly as run's is, so the guard over
+// internal/git's verbs reads both the same way.
+func runInput(dir, input string, args ...string) (string, error) {
 	full := []string{"-C", dir}
 	for _, setting := range pinnedConfig {
 		full = append(full, "-c", setting)
@@ -138,6 +147,9 @@ func run(dir string, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("git", full...)
 	cmd.Env = environ()
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
