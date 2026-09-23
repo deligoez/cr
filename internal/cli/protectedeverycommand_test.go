@@ -114,6 +114,8 @@ func TestAProfileFieldAddressingAProtectedDecisionIsRefused(t *testing.T) {
 		"forcing":              `"forcing":false`,
 		"post.confirm":         `"post":{"confirm":true}`,
 		"tests.question_label": `"tests":{"question_label":"Note"}`,
+		// Inside a list: a rule object is read key by key like any other.
+		"rules[0].forcing": `"rules":[{"forcing":false}]`,
 	} {
 		t.Run(field, func(t *testing.T) {
 			layout := gradedHome(t)
