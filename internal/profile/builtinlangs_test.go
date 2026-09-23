@@ -43,7 +43,12 @@ func TestTheShippedTypescriptJestAndRustProfilesFillEveryFieldTheyNeed(t *testin
 	for _, p := range []Profile{ts, js} {
 		assert.NotContains(t, p.Match.Files, "package.json", p.ID)
 		assert.Equal(t, "typescript", p.Symbols.Lang, p.ID)
+		// The sandbox is a fresh worktree and node_modules is ignored, so
+		// without the copy `npx --no` finds no runner (QA, 2026-09-23).
+		assert.Equal(t, []string{"node_modules"}, p.Sandbox.Copy, p.ID)
 	}
+	assert.ElementsMatch(t, js.Match.Files, ts.Match.Unless,
+		"§2.4.5: a file that selects jest keeps typescript out of automatic selection")
 
 	rs := loadShipped(t, rustID)
 	assert.Equal(t, []string{"Cargo.toml", "Cargo.lock"}, rs.Match.Files)
@@ -174,13 +179,16 @@ func TestJavaScriptRepositoriesSelectByTheirToolsNotByPackageJSON(t *testing.T) 
 		selected string
 		tied     []string
 	}{
-		"a Vue app on Vite":            {[]string{"package.json", "vite.config.js"}, typescriptID, nil},
-		"a React Native app on Jest":   {[]string{"package.json", "tsconfig.json", "jest.config.js", "jest.setup.js", "babel.config.js"}, jestID, nil},
-		"an Astro site":                {[]string{"package.json", "tsconfig.json"}, typescriptID, nil},
-		"a Laravel app with Vite":      {[]string{"artisan", "composer.json", "phpunit.xml", "tests/Pest.php", "package.json", "vite.config.js"}, laravelPestID, nil},
-		"a Go module with a frontend":  {[]string{"go.mod", "go.sum", "package.json", "tsconfig.json"}, goID, nil},
-		"a package.json alone":         {[]string{"package.json"}, "", nil},
-		"a Jest config and a tsconfig": {[]string{"jest.config.ts", "tsconfig.json"}, "", []string{jestID, typescriptID}},
+		"a Vue app on Vite":           {[]string{"package.json", "vite.config.js"}, typescriptID, nil},
+		"a React Native app on Jest":  {[]string{"package.json", "tsconfig.json", "jest.config.js", "jest.setup.js", "babel.config.js"}, jestID, nil},
+		"an Astro site":               {[]string{"package.json", "tsconfig.json"}, typescriptID, nil},
+		"a Laravel app with Vite":     {[]string{"artisan", "composer.json", "phpunit.xml", "tests/Pest.php", "package.json", "vite.config.js"}, laravelPestID, nil},
+		"a Go module with a frontend": {[]string{"go.mod", "go.sum", "package.json", "tsconfig.json"}, goID, nil},
+		"a package.json alone":        {[]string{"package.json"}, "", nil},
+		// match.unless: a TypeScript project that configures Jest is a
+		// Jest project, not a tie (QA, 2026-09-23).
+		"a Jest config and a tsconfig":           {[]string{"jest.config.ts", "tsconfig.json"}, jestID, nil},
+		"React on Vite with Jest and a tsconfig": {[]string{"package.json", "tsconfig.json", "vite.config.ts", "jest.config.js"}, jestID, nil},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
