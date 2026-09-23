@@ -2,8 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.10.0.** The release implements the contract in
-> [`spec/0.10.0.md`](spec/0.10.0.md). v0.10 adds `cr next`, which reads what a
+> **Status: v0.11.0.** The release implements the contract in
+> [`spec/0.11.0.md`](spec/0.11.0.md). v0.11 is what a QA pass over v0.8–v0.10
+> found: the JavaScript profiles now run their tests in the sandbox, a
+> TypeScript project configuring Jest selects `jest`, and `cr recheck` reads
+> GitHub's threads live. Its notes are in
+> [`spec/0.11.0-release-notes.md`](spec/0.11.0-release-notes.md).
+>
+> v0.10 added `cr next`, which reads what a
 > round still owes out of state — each step, who takes it, and the exact
 > commands — so nobody keeps the sequence by hand. Its notes are in
 > [`spec/0.10.0-release-notes.md`](spec/0.10.0-release-notes.md).
