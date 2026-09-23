@@ -35,16 +35,23 @@ func Head(dir, rev string, p *profile.Profile) (*Index, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	files := make([]File, 0, len(blobs))
+	owned := make([]git.Blob, 0, len(blobs))
+	objects := make([]string, 0, len(blobs))
 	for _, blob := range blobs {
-		if !glob.MatchAny(p.Match.Globs, blob.Path) {
-			continue
+		if glob.MatchAny(p.Match.Globs, blob.Path) {
+			owned = append(owned, blob)
+			objects = append(objects, blob.Object)
 		}
-		lines, err := git.BlobLines(dir, blob.Object)
-		if err != nil {
-			return nil, false, err
-		}
-		files = append(files, File{Path: blob.Path, Lines: lines})
+	}
+	// One git process for the whole index, not one per file: see
+	// git.BlobsLines for what the per-file read cost.
+	read, err := git.BlobsLines(dir, objects)
+	if err != nil {
+		return nil, false, err
+	}
+	files := make([]File, 0, len(owned))
+	for _, blob := range owned {
+		files = append(files, File{Path: blob.Path, Lines: read[blob.Object]})
 	}
 	index, built := Build(p.Symbols.Lang, files)
 	return index, built, nil
