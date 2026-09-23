@@ -123,6 +123,7 @@ const jestID = "jest"
 //     `package.json`, for the reason typescript's names none. A project that
 //     configures Jest only inside `package.json` does not select this
 //     profile and names it with the `profile` setting.
+//   - `sandbox.copy` brings `node_modules`, for the reason typescript's does.
 //
 // `tests.probe_path_template` places a `.test.js` beside its target, which
 // Jest's default `testMatch` collects whether or not the project transforms

@@ -28,6 +28,9 @@
     "convention": true,
     "test": true
   },
+  "sandbox": {
+    "copy": ["node_modules"]
+  },
   "tests": {
     "cmd": ["npx", "--no", "--", "jest", "--json"],
     "globs": [

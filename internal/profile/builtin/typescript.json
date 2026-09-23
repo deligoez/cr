@@ -29,6 +29,9 @@
     "convention": true,
     "test": true
   },
+  "sandbox": {
+    "copy": ["node_modules"]
+  },
   "tests": {
     "cmd": ["npx", "--no", "--", "vitest", "run", "--reporter=verbose"],
     "globs": [
