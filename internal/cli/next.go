@@ -115,8 +115,19 @@ func nextOf(l state.Layout, owner, repo string, pr int) (*nextResult, error) {
 	// earlier release shipped, and the steps read the round's axes out of it.
 	disclosed := append(append([]string{round.Disclosure()},
 		staleProfile(l.Profile(round.ProfileID))...), staleRoles(l, owner, repo)...)
+	if round.PostUnresolved {
+		// §10.4.1: every other step refuses until §8.4.4's reconciliation
+		// has run, including the brief a moved head would ask for.
+		return owed(round.Round, round.Head, []nextStep{{
+			Step: "reconcile", Actor: actorCr,
+			Why: "cr never learned whether the last `cr post --confirm` reached GitHub, and every other " +
+				"step refuses until the pull request's reviews say which",
+			Commands: []string{"cr post " + prTarget(owner, repo, pr) + " --reconcile"},
+			Items:    make([]string, 0),
+		}}, disclosed), nil
+	}
 	if round.Stale() {
-		// §10.4.1: nothing else the round owes is owed at a head that has
+		// §10.4.2: nothing else the round owes is owed at a head that has
 		// moved, and §9.3.2 refuses the writes the other steps would make.
 		return owed(round.Round, round.Head, []nextStep{briefStep(owner, repo, pr, &round.Meta,
 			fmt.Sprintf("the pull request's head is %s and round %d was recorded at %s", round.Current, round.Round, round.Head))},
@@ -138,7 +149,7 @@ func owed(round int, head string, steps []nextStep, disclosed []string) *nextRes
 	return result
 }
 
-// roundSteps are §10.4.2 through §10.4.8 for a round whose head has not moved.
+// roundSteps are §10.4.3 through §10.4.9 for a round whose head has not moved.
 func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([]nextStep, error) {
 	steps := make([]nextStep, 0, 8)
 	axes, _, err := lensesWith(l, owner, repo, meta, noHalves)
@@ -189,7 +200,7 @@ func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([
 	return recordsSteps(l, owner, repo, pr, meta.Round, steps)
 }
 
-// intentSteps are §10.4.2 and §10.4.3: the claims the agent extracts from the
+// intentSteps are §10.4.3 and §10.4.4: the claims the agent extracts from the
 // issue, and the intent pass that maps them.
 func intentSteps(target string, meta *state.Meta, claimsHeld, mapped bool) []nextStep {
 	steps := make([]nextStep, 0, 2)
@@ -216,7 +227,7 @@ func intentSteps(target string, meta *state.Meta, claimsHeld, mapped bool) []nex
 	return steps
 }
 
-// recordsSteps are §10.4.7 and §10.4.8, over the round's records and every
+// recordsSteps are §10.4.8 and §10.4.9, over the round's records and every
 // posted one of the pull request.
 func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nextStep) ([]nextStep, error) {
 	records, err := roundFindingsOf(l, owner, repo, pr, round)
@@ -258,7 +269,7 @@ func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nex
 	return steps, nil
 }
 
-// briefStep is §10.4.1, carrying forward the issue key and intent file the
+// briefStep is §10.4.2, carrying forward the issue key and intent file the
 // round was briefed with, so the command is the one that reproduces it.
 func briefStep(owner, repo string, pr int, meta *state.Meta, why string) nextStep {
 	command := "cr brief " + prTarget(owner, repo, pr)
@@ -300,13 +311,13 @@ func prTarget(owner, repo string, pr int) string {
 	return strconv.Itoa(pr) + " --repo " + shellWord(owner+"/"+repo)
 }
 
-// pendingFiles are the fan-out files §10.4.4 names, by kind, and those of them
+// pendingFiles are the fan-out files §10.4.5 names, by kind, and those of them
 // that also hold ids the round already holds.
 type pendingFiles struct {
 	reviews, proposals, mixed []string
 }
 
-// recordStep is §10.4.4: merging and recording what the roles wrote. The merged
+// recordStep is §10.4.5: merging and recording what the roles wrote. The merged
 // file goes beside the round's fan-out, which holds the agent's files rather
 // than cr's, so the command writes nowhere §2.3 fences.
 func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendingFiles) nextStep {
@@ -329,8 +340,8 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 	if len(pending.mixed) > 0 {
 		// A role that appended to a file already recorded leaves one
 		// the commands refuse as a whole, naming an id already held.
-		why += "; " + strings.Join(pending.mixed, ", ") + " also hold ids the round already holds, " +
-			"which the recording commands refuse, so move each file's new lines to a file of their own first"
+		why += "; each of " + strings.Join(pending.mixed, ", ") + " also holds ids the round already holds, " +
+			"which the recording commands refuse, so move its new lines to a file of their own first"
 	}
 	return nextStep{
 		Step: "record", Actor: actorCr,
@@ -340,7 +351,7 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 	}
 }
 
-// unrecordedFiles finds §10.4.4's files in the round's fan-out: a review file
+// unrecordedFiles finds §10.4.5's files in the round's fan-out: a review file
 // holding a record id the round does not hold, unless the round's last merge
 // or record ran after the file was last written — a record either dropped as
 // waived or already posted, which the round holds no line for — and a
