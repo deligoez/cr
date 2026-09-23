@@ -62,3 +62,15 @@ func TestAFileNamingNoHeadSymbolReferencesNothing(t *testing.T) {
 	require.NotNil(t, named)
 	assert.Empty(t, named)
 }
+
+// Every identifier on a line is read, not only the first. A test asserting on
+// two calls at once references both, and a line opening with a name the head
+// does not declare still references what follows it.
+func TestEveryNameOnALineIsAReference(t *testing.T) {
+	index, built := Build("go", []File{{Path: "lib.go", Lines: []string{"func Load() {}", "func Parse() {}"}}})
+	require.True(t, built)
+
+	named := index.Referenced("lib_test.go", []string{"\tassert(Load(), Parse())"})
+
+	assert.Equal(t, []string{"Load", "Parse"}, named)
+}
