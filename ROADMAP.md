@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.8.0 | Two more languages: a `typescript` profile running Vitest and a `rust` profile running `cargo test`, each counting per-test lines measured on captured output, and symbol scanners for TypeScript, JavaScript and Vue (arrow functions, options-API methods) and for Rust (a lifetime's quote opens no string, a method's `self` is not a parameter); `go` names `go.sum` beside `go.mod` so a Go module with a `package.json` is no tie |
 | v0.7.1 | What the first real round measured: §4.3.1's symbol index read every source file of the head through its own `git cat-file` process, 8,895 of them on a Laravel repository, and now reads them through one `cat-file --batch` — `cr status` from 57–82 s to 3.8 s with byte-identical output, and `brief`, `review` and `record` with it |
 | v0.7.0 | A push carries the draft: `cr brief` migrates every unsent record to the new head, searching its own file and every file the new diff touches, and carries each one that places inside a new unit — same id, new line and round, back to `draft`, with the body the reviewer edited — while one whose code is gone goes stale. A carried record re-reads its evidence (its probe cleared, a citation whose line changed unstamped), is raised once per pull request, and absorbs its own re-raise as a duplicate. `cr recheck` reports the round's migrations, or previews them while the head has moved |
 | v0.6.2 | The rest of the v0.6.0 QA pass: `cr test` prints the counts and verdict it stored, a brief discloses a head GitHub still reports after a push against the remote's own `refs/pull/<n>/head`, and three refusals that named no step now name one — a base with no shared history, the intent settings the GitHub tracker leaves inert, and a pull request closing two issues. `cr post --reconcile` was measured against a real lost answer for the first time |
@@ -204,7 +205,25 @@ Each of these is measured rather than wished for: the evidence is a run that had
 - **Two profiles is not a tool.** *Half discharged in v0.6.0: `go` ships, with the occurrence mode
   and `tests.paths_default` below, measured against captured go1.27.1 output, and §2.4.5 now pins the
   property rather than the count, so the next profile is a commit. TypeScript and Python are what is
-  left; pytest needs the occurrence mode too, jest needs `--json` with the sum.* Before it, only
+  left; pytest needs the occurrence mode too, jest needs `--json` with the sum.*
+  *v0.8.0 ships `typescript` and `rust`, and the target set is now closed at the user's word,
+  2026-09-23: Go, Rust, PHP with Laravel and Pest, TypeScript with Vue and React. **Python is out of
+  scope until that changes.** Both new profiles count occurrences rather than a recap, measured on
+  captured Vitest 5.0.1 and cargo 1.98.1 output (`internal/profile/testdata/{vitest,cargo}`): Vitest's
+  verbose reporter prints one ` ✓ `/` × ` line per test, which keeps the output tail readable where
+  `--reporter=json` would fill it with one JSON document, and cargo's `test … ... ok|FAILED` lines
+  survive a build failure as silence plus exit 101 — undetermined, never zero. Cargo needs
+  `--no-fail-fast`, measured: without it the run stops at the first failing test binary and the
+  counts cover the binaries before it. Two gaps remain inside the target set.*
+  1. *A React project whose runner is Jest, such as tarfin's `mobile`, selects `typescript` and runs
+     `npx --no vitest`, which exits 1 with no test line: every run is undetermined, honestly and
+     uselessly. A `jest` profile would need its own marker to win §2.4.2 against `typescript` and the
+     `--json` sum the table below measured.*
+  2. *`go` gained `go.sum` as a second marker so a Go module carrying a `package.json` selects `go`;
+     one that also carries a `tsconfig.json` is a §2.4.2 tie, which cr names and a per-repository
+     `profile` settles.*
+
+  Before it, only
   `laravel-pest` and `generic` shipped, so on any other stack the
   reinvention lens is off, the test axis needs a hand-written `tests.cmd`, and probes have no template.
   TypeScript and Python follow the Go one.
