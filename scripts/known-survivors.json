@@ -231,6 +231,13 @@
       "column": 20,
       "type": "CONDITIONALS_NEGATION",
       "reason": "triageKey.raised is read by nothing: key() builds it, and mergeTriageEvents uses the whole struct only as a map key, where equality is the one thing asked of it. Negating `e.Action == ActionRaised` flips the bool for every event at once, so two events share a key under the mutant exactly when they share one under the original, and the merge overwrites and appends the same events at the same positions. Verified by hand on 2026-09-13 -- applied `!=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green over a raise beside a retried outcome for one record in one round, a rewritten event, and keys differing in pull request, round and record. It would become observable the moment anything reads the field as a fact rather than as part of an identity, such as a key serialised or compared against an action."
+    },
+    {
+      "file": "profile/shipped.go",
+      "line": 88,
+      "column": 18,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "Unobservable but not equivalent. `len(changed) >= 0` would turn the stale notice's \"has changed since\" into \"has since changed \" with nothing after it, which needs a stale file -- byte-equal to an archived release and not to the current profile -- whose every field value equals the current profile's. Measured 2026-09-23 over all fifteen archives under builtin/shipped: the three generic.json are byte-equal to the current generic, so they are current and never stale, and the five go.json and seven laravel-pest.json each differ from the current profile in at least one field. The archive is embedded, so no test can inject another. It becomes observable the day a release reformats a shipped profile without changing a value, and that release's archive is the fixture that kills it."
     }
   ]
 }
