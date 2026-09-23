@@ -1,0 +1,25 @@
+{
+  "id": "rust",
+  "match": {
+    "files": ["Cargo.toml", "Cargo.lock"],
+    "globs": ["**/*.rs"]
+  },
+  "axes": {
+    "intent": true,
+    "correctness": true,
+    "convention": true,
+    "test": true
+  },
+  "tests": {
+    "cmd": ["cargo", "test", "--no-fail-fast"],
+    "globs": ["tests/**/*.rs"],
+    "filter_flag": "--",
+    "count_mode": "occurrences",
+    "count_pattern": "(?m)^test .+ \\.\\.\\. (?:ok|FAILED)$",
+    "failed_pattern": "(?m)^test .+ \\.\\.\\. FAILED$",
+    "probe_path_template": "tests/cr_probe_<probe-id>.rs"
+  },
+  "symbols": {
+    "lang": "rust"
+  }
+}

@@ -65,6 +65,57 @@ const goID = "go"
 //go:embed builtin/go.json
 var goProfile string
 
+// typescriptID is the id, and therefore the file stem, of the profile §2.4.5
+// ships for a TypeScript or JavaScript repository, Vue and React included.
+const typescriptID = "typescript"
+
+// typescriptProfile is the shipped TypeScript profile, embedded like
+// laravelPest. Its runner is Vitest, measured at v5.0.1 on 2026-09-23
+// (testdata/vitest holds the captured output):
+//
+//   - `tests.count_mode` is `occurrences` over the verbose reporter's
+//     one-line-per-test ` ✓ ` and ` × `, not a sum over its `Tests` recap,
+//     because the recap spells its counts `1 failed | 3 passed` and one
+//     capture group cannot read both. A skipped test prints ` ↓ ` and is not
+//     counted, for the reason laravel-pest and go do not count one.
+//   - `npx --no` runs the repository's own Vitest and never installs one: a
+//     repository without it exits 1 with no test line, which §5.2.1 reads as
+//     undetermined rather than as a run of nothing.
+//   - `tests.paths_arg` is the path itself, which Vitest reads as a file
+//     filter, and a path that selects no file exits 1 the same way.
+//
+// `tests.probe_path_template` uses `<target-dir>`, so a gap probe's test sits
+// beside the module it imports, and `.test.ts` is inside Vitest's default
+// include.
+//
+//go:embed builtin/typescript.json
+var typescriptProfile string
+
+// rustID is the id, and therefore the file stem, of the profile §2.4.5 ships
+// for a Cargo package.
+const rustID = "rust"
+
+// rustProfile is the shipped Rust profile, embedded like laravelPest. Its
+// runner is `cargo test`, measured at cargo 1.98.1 on 2026-09-23
+// (testdata/cargo holds the captured output):
+//
+//   - `--no-fail-fast`, because without it cargo stops at the first test
+//     binary that fails and the counts cover only the binaries before it.
+//   - `tests.count_mode` is `occurrences` over libtest's `test <name> ... ok`
+//     and `... FAILED` lines. Each binary's `test result:` recap gives
+//     passed and failed as two numbers on one line, which one capture group
+//     cannot read. An ignored test prints `... ignored` and is not counted.
+//   - `tests.filter_flag` is `--`, which hands the expression to libtest as
+//     its name filter. No `tests.paths_arg` is set, because cargo selects a
+//     test target by name and not by file, so `--path` is refused.
+//
+// A build failure prints no test line and exits 101, which is undetermined.
+// `tests.probe_path_template` is an integration test under `tests/`, the one
+// place cargo compiles a new file without a `mod` declaration naming it.
+//
+//go:embed builtin/rust.json
+var rustProfile string
+
 // Builtins returns the profile files cr ships, keyed by profile id, for `cr
 // init` to write into the profiles directory of §2.2. The values are file
 // contents, not parsed profiles, because writing them out is the whole purpose
@@ -75,6 +126,8 @@ func Builtins() map[string]string {
 	return map[string]string{
 		laravelPestID: laravelPest,
 		goID:          goProfile,
+		typescriptID:  typescriptProfile,
+		rustID:        rustProfile,
 		genericID:     generic,
 	}
 }
