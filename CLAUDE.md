@@ -956,7 +956,12 @@ Mirrors tp so the experience transfers.
   GitHub's API can report the pre-push head for a few seconds, measured
   2026-09-22 on `deligoez/cr-qa`, and a brief then fans out against the old
   head. That read asks the remote and writes nothing, not even a ref of the
-  clone. **A test fixture's remote is a github.com URL**, so the suite fences
+  clone. v0.7.1 added a second door, `runInput`, for the one read that takes
+  its requests on standard input (`cat-file --batch`); the guard reads its verb
+  one argument further on, so it is held to the same list. **Read many files
+  through `git.BlobsLines`, never one `FileAtRevision` per file**: measured on
+  tarfin-labs/backend#6292, a per-file read of the head was 8,895 git
+  processes and a minute of `cr status`. **A test fixture's remote is a github.com URL**, so the suite fences
   the read the way it fences gh — `remotePullHead` is a variable, stubbed in
   `TestMain` — or every brief in the suite would reach the network.
 - **The review request body is the payload alone.** `cr post --confirm` hands gh
