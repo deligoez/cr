@@ -210,6 +210,15 @@ func (s *sending) markPosted(keys *sendKeys, reviewID string) error {
 			return err
 		}
 		record.State = finding.StatePosted
+		// The register the author received is the one the record now
+		// holds: §7.2's softening and hardening reached the payload as
+		// copies, and a record posted as a finding and stored as a
+		// question would take §9.5.5's `answered`, which a finding may
+		// not. §8.4.4's adoption stores the same kind through
+		// settleAsSent.
+		if sent := recordOf(s.queued, record.ID); sent != nil {
+			record.Kind = sent.Kind
+		}
 	}
 	for i := range keys.index {
 		keys.index[i].Review = reviewID
