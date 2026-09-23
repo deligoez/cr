@@ -32,7 +32,7 @@ func shippedProfilesDir(t *testing.T) string {
 func TestCrShipsExactlyTheProfilesOf245sTable(t *testing.T) {
 	shipped := Builtins()
 
-	assert.Equal(t, []string{genericID, goID, laravelPestID, rustID, typescriptID}, slices.Sorted(maps.Keys(shipped)))
+	assert.Equal(t, []string{genericID, goID, jestID, laravelPestID, rustID, typescriptID}, slices.Sorted(maps.Keys(shipped)))
 	for id, content := range shipped {
 		// A profile cr ships and then refuses would abort with exit
 		// code 3 every command that reads it.

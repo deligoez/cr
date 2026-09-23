@@ -1,0 +1,20 @@
+FAIL src/broken.test.js
+  ● Test suite failed to run
+
+    Cannot find module './missing' from 'src/broken.test.js'
+
+    > 1 | const { gone } = require('./missing')
+        |                  ^
+      2 |
+      3 | it('never loads', () => {
+      4 |   expect(gone()).toBe(1)
+
+      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/index.js:1031:11)
+      at Object.require (src/broken.test.js:1:18)
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        0.092 s
+Ran all test suites matching src/broken.
+{"numFailedTestSuites":1,"numFailedTests":0,"numPassedTestSuites":0,"numPassedTests":0,"numPendingTestSuites":0,"numPendingTests":0,"numRuntimeErrorTestSuites":1,"numTodoTests":0,"numTotalTestSuites":1,"numTotalTests":0,"openHandles":[],"snapshot":{"added":0,"didUpdate":false,"failure":false,"filesAdded":0,"filesRemoved":0,"filesRemovedList":[],"filesUnmatched":0,"filesUpdated":0,"matched":0,"total":0,"unchecked":0,"uncheckedKeysByFile":[],"unmatched":0,"updated":0},"startTime":1790169059215,"success":false,"testResults":[{"assertionResults":[],"coverage":{},"endTime":1790169059307,"message":"  ● Test suite failed to run\n\n    Cannot find module './missing' from 'src/broken.test.js'\n\n    > 1 | const { gone } = require('./missing')\n        |                  ^\n      2 |\n      3 | it('never loads', () => {\n      4 |   expect(gone()).toBe(1)\n\n      at Resolver._throwModNotFoundError (node_modules/jest-resolve/build/index.js:1031:11)\n      at Object.require (src/broken.test.js:1:18)\n","name":"/private/tmp/claude-501/-Users-deligoez-Developer-deligoez-projects-cr/ab43de41-7948-4a07-bc9b-b5622c5ddeda/scratchpad/jest-probe/src/broken.test.js","startTime":1790169059307,"status":"failed","summary":""}],"wasInterrupted":false}

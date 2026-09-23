@@ -1,0 +1,8 @@
+No tests found, exiting with code 1
+Run with `--passWithNoTests` to exit with code 0
+In /private/tmp/claude-501/-Users-deligoez-Developer-deligoez-projects-cr/ab43de41-7948-4a07-bc9b-b5622c5ddeda/scratchpad/jest-probe
+  6 files checked.
+  testMatch: **/__tests__/**/*.?([mc])[jt]s?(x), **/?(*.)+(spec|test).?([mc])[jt]s?(x) - 3 matches
+  testPathIgnorePatterns: /node_modules/ - 6 matches
+  testRegex:  - 0 matches
+Pattern: src/nothing - 0 matches
