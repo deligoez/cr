@@ -89,7 +89,7 @@ func (c *Counter) Write(p []byte) (int, error) {
 }
 
 // Counts is §5.2.1's pair, nil for a count the output does not determine.
-// exitCode is the runner's, which only the occurrence mode reads.
+// exitCode is the runner's.
 //
 // The two travel together on every failure, because §5.2.1 says they do: a
 // `tests.count_pattern` that never matches and a group that does not parse
@@ -98,43 +98,38 @@ func (c *Counter) Write(p []byte) (int, error) {
 // a runner that prints a status only when its count is non-zero prints nothing
 // at all for no failures, and an all-passing Pest run never writes the word
 // failed.
+//
+// An executed count of zero is read only from a run that exited 0, in both
+// modes. A runner that did not build or load the code runs nothing and fails:
+// `go test` writes `FAIL <pkg> [build failed]` with no test line, and Jest's
+// JSON reporter writes `"numPassedTests":0` and `"numFailedTests":0` beside a
+// suite that threw on import, both exiting 1. Reading either as zero tests
+// would put §5.3.4's and §5.4.3's ladders on `no-tests-selected`, the answer
+// for a filter that matched nothing, about code that never ran.
 func (c *Counter) Counts(exitCode int) (executed, failed *int) {
 	if c.count == nil {
 		return nil, nil
 	}
-	output := c.held.String()
-	if c.occurrences {
-		return c.occurrenceCounts(output, exitCode)
-	}
-	ran, matched, ok := sum(c.count, output)
-	if !matched || !ok {
-		return nil, nil
-	}
-	broke, _, ok := sum(c.failed, output)
-	if !ok {
+	ran, broke, ok := c.read(c.held.String())
+	if !ok || ran == 0 && exitCode != 0 {
 		return nil, nil
 	}
 	return &ran, &broke
 }
 
-// occurrenceCounts is §5.2.1's occurrence mode: each count is how many times
-// its pattern matches, for a runner that prints one line per test and no recap.
-//
-// No match is the count zero only when the runner exited 0. A runner that did
-// not build the code prints no test line either — `go test` writes
-// `FAIL <pkg> [build failed]` and exits 1 — and reading its silence as zero
-// tests would put §5.3.4's and §5.4.3's ladders on `no-tests-selected`, the
-// answer for a filter that matched nothing, about a tree that did not compile.
-// So a zero from a non-zero exit is undetermined, which is where the sum mode
-// already lands: a runner that crashes before its recap leaves count_pattern
-// unmatched.
-func (c *Counter) occurrenceCounts(output string, exitCode int) (executed, failed *int) {
-	ran := len(c.count.FindAllStringIndex(output, -1))
-	if ran == 0 && exitCode != 0 {
-		return nil, nil
+// read takes both counts out of output in the profile's mode, and reports
+// false when the output does not determine them.
+func (c *Counter) read(output string) (ran, broke int, ok bool) {
+	if c.occurrences {
+		// For a runner that prints one line per test and no recap.
+		return len(c.count.FindAllStringIndex(output, -1)), len(c.failed.FindAllStringIndex(output, -1)), true
 	}
-	broke := len(c.failed.FindAllStringIndex(output, -1))
-	return &ran, &broke
+	ran, matched, ok := sum(c.count, output)
+	if !matched || !ok {
+		return 0, 0, false
+	}
+	broke, _, ok = sum(c.failed, output)
+	return ran, broke, ok
 }
 
 // sum adds up the single capture group of every match of re in output, which
