@@ -76,6 +76,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newDraftCmd(out))
 	root.AddCommand(newTriageCmd(out))
 	root.AddCommand(newStatusCmd(out))
+	root.AddCommand(newNextCmd(out))
 	// The rest of §11's table. Each was registered with its argument shape
 	// and its flags before its behaviour was built, because the surface is
 	// the half a caller writes a script against: a command that is absent is
