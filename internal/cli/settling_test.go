@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -246,6 +247,7 @@ func TestRecheckReportsPostedRecordsAndJudgesNothing(t *testing.T) {
 	layout := settlingHome(t,
 		settledRecord("f3", "question", "posted", "PRRT_a"),
 		settledRecord("f6", "finding", "addressed", "PRRT_b"))
+	threadsAnswering(t, liveThread)
 
 	out, err := runIn(t, "recheck", answeredPR, "--repo", answeredSlug)
 
@@ -273,4 +275,73 @@ func TestASettledRecordTakesNoSecondVerdict(t *testing.T) {
 	var illegal *finding.IllegalTransitionError
 	require.ErrorAs(t, err, &illegal)
 	assert.Equal(t, "f6", illegal.Record)
+}
+
+// liveThread is PRRT_a as GitHub holds it after the review was posted: on
+// lines 17–20 now, first written at 16–19, and answered once.
+const liveThread = `{"id":"PRRT_a","isResolved":false,"isOutdated":false,"path":"lib.go",` +
+	`"line":20,"startLine":17,"originalLine":19,"originalStartLine":16,"diffSide":"RIGHT",` +
+	`"comments":{"pageInfo":{"hasNextPage":false,"endCursor":""},"nodes":[` +
+	`{"id":"PRRC_open","url":"https://example.invalid/1","body":"is the retry unbounded?",` +
+	`"createdAt":"2026-09-01T10:00:00Z","author":{"__typename":"User","login":"reviewer"}},` +
+	`{"id":"PRRC_reply","url":"https://example.invalid/2","body":"bounded at three",` +
+	`"createdAt":"2026-09-01T11:00:00Z","author":{"__typename":"User","login":"author"}}]}}`
+
+// threadsAnswering installs a `gh` whose reviewThreads page is the nodes given.
+func threadsAnswering(t *testing.T, nodes ...string) {
+	t.Helper()
+	page := `{"data":{"repository":{"pullRequest":{"reviewThreads":{` +
+		`"pageInfo":{"hasNextPage":false,"endCursor":""},"nodes":[` + strings.Join(nodes, ",") + `]}}}}}`
+	restore := ghClient
+	ghClient = func() gh.Client {
+		return gh.WithRunner(func(_ ...string) (string, error) { return page, nil })
+	}
+	t.Cleanup(func() { ghClient = restore })
+}
+
+// §9.5.2 and §9.5.3: `cr recheck` reports what GitHub says now, every line of
+// it, and not what `cr brief` stored when the round opened. Measured before
+// the fix on deligoez/cr-qa#25: straight after `cr post --confirm`, recheck
+// printed line 0, no replies and not resolved, while GitHub held line 20, and
+// start lines were never printed at all.
+func TestRecheckReadsWhatGitHubSaysNow(t *testing.T) {
+	settlingHome(t, settledRecord("f3", "question", "posted", "PRRT_a"))
+	threadsAnswering(t, liveThread)
+
+	out, err := runIn(t, "recheck", answeredPR, "--repo", answeredSlug)
+
+	require.NoError(t, err)
+	var report struct {
+		Concerns []struct {
+			ID                string `json:"id"`
+			StartLine         int    `json:"start_line"`
+			Line              int    `json:"line"`
+			OriginalStartLine int    `json:"original_start_line"`
+			OriginalLine      int    `json:"original_line"`
+			Replies           []struct {
+				Body string `json:"body"`
+			} `json:"replies"`
+		} `json:"concerns"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &report))
+	require.Len(t, report.Concerns, 1)
+	concern := report.Concerns[0]
+	assert.Equal(t, [4]int{17, 20, 16, 19},
+		[4]int{concern.StartLine, concern.Line, concern.OriginalStartLine, concern.OriginalLine})
+	require.Len(t, concern.Replies, 1)
+	assert.Equal(t, "bounded at three", concern.Replies[0].Body)
+}
+
+// §9.5.4's re-run is not implemented, and a record naming a probe says so
+// rather than reading as though the probe had been looked at.
+func TestRecheckSaysAProbeWasNotReRun(t *testing.T) {
+	probed := strings.Replace(settledRecord("f3", "question", "posted", "PRRT_a"),
+		`"summary"`, `"probe":"p1","summary"`, 1)
+	settlingHome(t, probed)
+	threadsAnswering(t, liveThread)
+
+	out, err := runIn(t, "recheck", answeredPR, "--repo", answeredSlug)
+
+	require.NoError(t, err)
+	assert.Contains(t, out, "record f3 names probe p1, and §9.5.4's re-run")
 }
