@@ -88,7 +88,7 @@ func TestNoShippedProfileRequiresASandboxPath(t *testing.T) {
 				"§2.4.5: the shipped profiles require no sandbox path")
 		})
 	}
-	assert.Len(t, Builtins(), 3, "§2.4.5: v0.6 ships laravel-pest, go and generic")
+	assert.Len(t, Builtins(), 5, "§2.4.5: v0.8 ships laravel-pest, go, typescript, rust and generic")
 }
 
 // §5.4.2 places a gap probe's test at tests.probe_path_template and then runs
