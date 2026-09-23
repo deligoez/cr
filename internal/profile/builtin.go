@@ -97,6 +97,36 @@ const typescriptID = "typescript"
 //go:embed builtin/typescript.json
 var typescriptProfile string
 
+// jestID is the id, and therefore the file stem, of the profile §2.4.5 ships
+// for a JavaScript or TypeScript repository whose runner is Jest, the usual
+// one for React and React Native.
+const jestID = "jest"
+
+// jestProfile is the shipped Jest profile, embedded like laravelPest. Its
+// runner is Jest, measured at v30.5.2 on 2026-09-23 (testdata/jest holds the
+// captured output):
+//
+//   - `tests.count_mode` is `sum` over `--json`'s `numPassedTests` and
+//     `numFailedTests`, because Jest printed no line per test to count, not
+//     even under `--verbose`, measured through a pipe as cr reads it. The keys are
+//     read with their closing quote, so `numFailedTestSuites` matches neither.
+//     A skipped or todo test is `numPendingTests` or `numTodoTests`, and is
+//     not counted.
+//   - A suite that throws on import reports both counts as zero and exits 1,
+//     which §5.2.1 reads as undetermined; a path selecting no file prints no
+//     JSON at all and exits 1, which is undetermined too.
+//   - `match.files` names Jest's own configuration files and no
+//     `package.json`, for the reason typescript's names none. A project that
+//     configures Jest only inside `package.json` does not select this
+//     profile and names it with the `profile` setting.
+//
+// `tests.probe_path_template` places a `.test.js` beside its target, which
+// Jest's default `testMatch` collects whether or not the project transforms
+// TypeScript.
+//
+//go:embed builtin/jest.json
+var jestProfile string
+
 // rustID is the id, and therefore the file stem, of the profile §2.4.5 ships
 // for a Cargo package.
 const rustID = "rust"
@@ -133,6 +163,7 @@ func Builtins() map[string]string {
 		laravelPestID: laravelPest,
 		goID:          goProfile,
 		typescriptID:  typescriptProfile,
+		jestID:        jestProfile,
 		rustID:        rustProfile,
 		genericID:     generic,
 	}
