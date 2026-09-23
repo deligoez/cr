@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.9.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.10.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -472,6 +472,7 @@ source of truth; this table is a map, not a promise.
 | `cr waivers list\|remove [--repo <r>] [--pr <n>]` | Inspect and edit waivers in either scope |
 | `cr stats [--repo <r>]` | Triage statistics, demotion and volume candidates |
 | `cr status <pr>` | Coverage, states, and completeness |
+| `cr next <pr>` | The steps the round still owes, who takes each, and the exact commands (§10.4); writes nothing |
 | `cr config [--resolved]` | Effective configuration and its layers |
 
 **v0.5 closes the loop, and `posted` stopping being terminal is the whole of
@@ -640,7 +641,8 @@ spec/
   0.6.0.md           Normative v0.6 contract
   0.7.0.md           Normative v0.7 contract
   0.8.0.md           Normative v0.8 contract
-  0.9.0.md           Normative v0.9 contract, the current one
+  0.9.0.md           Normative v0.9 contract
+  0.10.0.md          Normative v0.10 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
