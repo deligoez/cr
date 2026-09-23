@@ -2,11 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.9.0.** The release implements the contract in
-> [`spec/0.9.0.md`](spec/0.9.0.md). v0.9 adds a `jest` profile for React and
-> React Native projects, and reads a test run that executed nothing and failed
-> as undetermined in every profile. Its notes are in
-> [`spec/0.9.0-release-notes.md`](spec/0.9.0-release-notes.md).
+> **Status: v0.10.0.** The release implements the contract in
+> [`spec/0.10.0.md`](spec/0.10.0.md). v0.10 adds `cr next`, which reads what a
+> round still owes out of state — each step, who takes it, and the exact
+> commands — so nobody keeps the sequence by hand. Its notes are in
+> [`spec/0.10.0-release-notes.md`](spec/0.10.0-release-notes.md).
+>
+> v0.9 added a `jest` profile for React and React Native projects, and reads a
+> test run that executed nothing and failed as undetermined in every profile.
 >
 > v0.8 added two languages: a `typescript` profile (Vitest, with Vue and React
 > code indexed for the reinvention search) and a `rust` profile (`cargo test`).
@@ -191,6 +194,7 @@ already have posted.
 | `cr waivers remove <id> [--pr <n>]` | Remove a waiver |
 | `cr stats` | Triage statistics, demotion and volume candidates |
 | `cr status <pr>` | Coverage, record states, and completeness |
+| `cr next <pr>` | The steps the round still owes, who takes each, and the exact commands |
 | `cr config [--resolved]` | Effective configuration and the layer of each setting |
 
 Global flags: `--json`, `--compact`, `--quiet`, `--no-color`,
