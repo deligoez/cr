@@ -59,7 +59,9 @@ func (l language) match(file File, at int) (Decl, bool) {
 		}
 		if r.signature {
 			decl.Params = countParams(file.Lines, at, found[1], l.lifetimes)
-			if l.receiver != nil && decl.Params > 0 && l.receiver.MatchString(text[found[1]:]) {
+			// A receiver is written on the declaration's own line, so the
+			// count already holds it and cannot fall below zero.
+			if l.receiver != nil && l.receiver.MatchString(text[found[1]:]) {
 				decl.Params--
 			}
 		}
