@@ -257,3 +257,46 @@ func shown(n *int) string {
 	}
 	return strconv.Itoa(*n)
 }
+
+// §5.2.1 since v0.9: the sum mode reads a zero executed count only from a clean
+// exit too. Jest's JSON reporter writes both counts as zero beside a suite that
+// threw on import and exits 1; read as zero tests, that run would be a filter
+// that selected nothing. The counts beside it are still read when the run did
+// execute something, whatever the exit, because §5.3.4 reads the exit itself.
+func TestASummedZeroNeedsACleanExitToo(t *testing.T) {
+	const (
+		ran    = `"num(?:Passed|Failed)Tests":(\d+)`
+		broken = `"numFailedTests":(\d+)`
+	)
+	cases := map[string]struct {
+		output   string
+		exit     int
+		executed string
+		failed   string
+	}{
+		"a filter matching nothing": {
+			output: `{"numFailedTests":0,"numPassedTests":0,"numPendingTests":6}`,
+			exit:   0, executed: "0", failed: "0",
+		},
+		"a suite that did not load": {
+			output: `{"numFailedTests":0,"numPassedTests":0,"numRuntimeErrorTestSuites":1}`,
+			exit:   1, executed: "undetermined", failed: "undetermined",
+		},
+		"a failing run": {
+			output: `{"numFailedTests":1,"numPassedTests":3}`,
+			exit:   1, executed: "4", failed: "1",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			counter, err := NewCounter(ran, broken, false)
+			require.NoError(t, err)
+			_, err = counter.Write([]byte(tc.output))
+			require.NoError(t, err)
+
+			executed, failed := counter.Counts(tc.exit)
+			assert.Equal(t, tc.executed, shown(executed), "executed count")
+			assert.Equal(t, tc.failed, shown(failed), "failed count")
+		})
+	}
+}
