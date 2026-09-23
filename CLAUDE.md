@@ -465,7 +465,7 @@ source of truth; this table is a map, not a promise.
 | `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <t>` | Record the agent's judgement about one posted record (§9.5.5) |
 | `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread (§9.6.1) |
 | `cr withdraw <pr> <record-id> wrong\|not-here [--confirm]` | Retract a posted concern, waive it by its disposition, and resolve its thread (§9.6.2) |
-| `cr answer <pr> <record-id> <text>` | Store the answer to a posted question as a note |
+| `cr answer <pr> <record-id> <text> --source <s>` | Store the answer to a posted question as a note; `--source` is required |
 | `cr note <ISSUE-KEY> <text> --pr <n>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
 | `cr rules list\|check\|suggest` | Inspect, run, and harvest project rules |
