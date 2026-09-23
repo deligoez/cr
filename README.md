@@ -2,8 +2,13 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.7.1.** The release implements the contract in
-> [`spec/0.7.0.md`](spec/0.7.0.md). v0.7 changes one thing: what an author's push
+> **Status: v0.8.0.** The release implements the contract in
+> [`spec/0.8.0.md`](spec/0.8.0.md). v0.8 adds two languages: a `typescript`
+> profile (Vitest, with Vue and React code indexed for the reinvention search) and
+> a `rust` profile (`cargo test`). Its notes are in
+> [`spec/0.8.0-release-notes.md`](spec/0.8.0-release-notes.md).
+>
+> v0.7 changed one thing: what an author's push
 > does to the comments you have drafted but not yet sent. Until v0.6 every one of
 > them went stale. Now `cr brief` finds each one's lines at the new head and
 > carries it there — new line, same id, the body you edited — and stales only
