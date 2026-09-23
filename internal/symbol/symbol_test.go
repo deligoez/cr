@@ -28,7 +28,7 @@ func TestALanguageCrCannotReadBuildsNoIndexAtAll(t *testing.T) {
 	assert.False(t, Supported("cobol"))
 	assert.False(t, Supported(""), "a profile declaring no symbols.lang names no language")
 
-	for _, lang := range []string{"go", "php"} {
+	for _, lang := range []string{"go", "php", "typescript", "rust"} {
 		assert.True(t, Supported(lang), "%s ships a scanner", lang)
 	}
 }
