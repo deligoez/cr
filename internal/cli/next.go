@@ -343,7 +343,7 @@ func unrecordedFiles(l state.Layout, owner, repo string, pr, round int) (pending
 		return pending, nil
 	}
 	if err != nil {
-		return pending, err
+		return pending, state.FileFailure("read", dir, fanOutReadHint, err)
 	}
 	held, err := heldIDs(l, owner, repo, pr, round)
 	if err != nil {
@@ -361,24 +361,31 @@ func unrecordedFiles(l state.Layout, owner, repo string, pr, round int) (pending
 	return pending, nil
 }
 
-// scanUnit adds one unit directory's unrecorded files.
+// scanUnit adds one unit directory's unrecorded files. Every file is looked at:
+// one with nothing owed says nothing about the file beside it.
 func (p *pendingFiles) scanUnit(dir string, held map[string]bool, intake time.Time) error {
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return err
+		return state.FileFailure("read", dir, fanOutReadHint, err)
 	}
 	for _, file := range files {
+		if file.IsDir() {
+			// A role writes files; a directory under a unit is nobody's
+			// output, whatever it is named.
+			continue
+		}
 		path := filepath.Join(dir, file.Name())
 		_, review := finding.RoleForFile(path)
-		isProposals := strings.HasPrefix(file.Name(), strings.TrimSuffix(proposal.FanOutFile(""), ".ndjson"))
+		isProposals := proposalsFile(file.Name())
 		if !review && !isProposals {
 			continue
 		}
 		unheld, err := holdsUnheld(path, held)
-		if err != nil || !unheld {
-			return err
+		if err != nil {
+			return state.FileFailure("read", path, fanOutReadHint, err)
 		}
 		switch {
+		case !unheld:
 		case isProposals:
 			p.proposals = append(p.proposals, path)
 		case writtenAfter(path, intake):
@@ -386,6 +393,23 @@ func (p *pendingFiles) scanUnit(dir string, held map[string]bool, intake time.Ti
 		}
 	}
 	return nil
+}
+
+// fanOutReadHint is §12.4's next step for a fan-out file or directory `cr next`
+// could not read.
+const fanOutReadHint = "a role's file under the round's fan-out could not be read; " +
+	"make it readable, or remove it if no role wrote it, and run `cr next` again"
+
+// proposalsFile reports whether name is the §5.7 file a role writes its
+// proposals to: `proposals-<role>.ndjson`, not anything that merely opens so.
+func proposalsFile(name string) bool {
+	prefix, suffix, _ := strings.Cut(proposal.FanOutFile("\x00"), "\x00")
+	role, found := strings.CutPrefix(name, prefix)
+	if !found {
+		return false
+	}
+	role, found = strings.CutSuffix(role, suffix)
+	return found && role != ""
 }
 
 // heldIDs are the record and proposal ids the round's own lines hold.
