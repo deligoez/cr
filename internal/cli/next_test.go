@@ -77,7 +77,7 @@ func TestNextNamesEveryStepTheRoundOwesInOrder(t *testing.T) {
 		"#c2 is set aside on a standing note, so only #c3 blocks §10.2.3")
 }
 
-// §10.4.4's exception: a file whose records a later merge or record already
+// §10.4.5's exception: a file whose records a later merge or record already
 // read — and dropped, as waived or already posted — is not owed again.
 func TestAFileTheLastRecordReadIsNotOwedAgain(t *testing.T) {
 	statusHome(t)
@@ -95,7 +95,7 @@ func TestAFileTheLastRecordReadIsNotOwedAgain(t *testing.T) {
 	assert.Equal(t, []string{"review", "settle"}, stepNames(&report))
 }
 
-// §10.4.7: records in draft or queued are the human's step, and the report's
+// §10.4.8: records in draft or queued are the human's step, and the report's
 // commands stop at the dry run — the one command that sends is never printed.
 func TestTheDraftStepNeverCarriesTheConfirmation(t *testing.T) {
 	statusHome(t)
@@ -117,12 +117,12 @@ func TestTheDraftStepNeverCarriesTheConfirmation(t *testing.T) {
 	assert.Equal(t, []string{"f1"}, draft.Items)
 	for i := range report.Steps {
 		for _, command := range report.Steps[i].Commands {
-			assert.NotContains(t, command, "--confirm", "§10.4.7")
+			assert.NotContains(t, command, "--confirm", "§10.4.8")
 		}
 	}
 }
 
-// §10.4.1: a pull request no brief has opened owes the brief, and nothing else
+// §10.4.2: a pull request no brief has opened owes the brief, and nothing else
 // can be read about it.
 func TestAnUnbriefedPullRequestOwesTheBrief(t *testing.T) {
 	require.NoError(t, state.New(crHome(t)).Init())
@@ -133,7 +133,7 @@ func TestAnUnbriefedPullRequestOwesTheBrief(t *testing.T) {
 	assert.Equal(t, []string{"cr brief " + fixturePR + " --repo " + fixtureSlug}, report.Steps[0].Commands)
 }
 
-// §10.4.1: a round whose head moved owes the brief alone, carrying the issue
+// §10.4.2: a round whose head moved owes the brief alone, carrying the issue
 // key it was briefed with, because §9.3.2 refuses every write the other steps
 // would make.
 func TestAMovedHeadOwesOnlyTheBrief(t *testing.T) {
@@ -151,7 +151,7 @@ func TestAMovedHeadOwesOnlyTheBrief(t *testing.T) {
 	assert.Equal(t, []string{want}, report.Steps[0].Commands)
 }
 
-// §10.4.4 looks at every file of a unit: an empty file, a fully recorded one,
+// §10.4.5 looks at every file of a unit: an empty file, a fully recorded one,
 // or a proposals file sorting first says nothing about the file beside it.
 // Measured before the fix: any of the three hid the unrecorded file after it.
 func TestEveryFileOfAUnitIsLookedAt(t *testing.T) {
@@ -244,7 +244,7 @@ func TestAFileMixingHeldAndNewIDsIsNamed(t *testing.T) {
 	report := nextOfFixture(t)
 
 	require.Equal(t, "record", report.Steps[0].Step)
-	assert.Contains(t, report.Steps[0].Why, written+" also hold ids the round already holds")
+	assert.Contains(t, report.Steps[0].Why, "each of "+written+" also holds ids the round already holds")
 }
 
 // §2.4.6: `cr next` loads the round's profile, so a profile file an earlier
@@ -267,4 +267,26 @@ func TestNextReportsAProfileAnEarlierReleaseShipped(t *testing.T) {
 	report := nextOfFixture(t)
 
 	assert.Contains(t, strings.Join(report.Honesty, "\n"), "is the go profile cr v0.7.1 shipped")
+}
+
+// §10.4.1: a send whose outcome cr never learned owes its reconciliation
+// alone, because every other step refuses until it has run (QA, 2026-09-23:
+// `cr next` offered `settle` and `draft`, and `cr draft` exited 4).
+func TestAnUnresolvedSendOwesOnlyItsReconciliation(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	meta.PostUnresolved = true
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Unlock())
+
+	report := nextOfFixture(t)
+
+	assert.Equal(t, []string{"reconcile"}, stepNames(&report))
+	assert.Equal(t, []string{"cr post " + fixturePR + " --repo " + fixtureSlug + " --reconcile"},
+		report.Steps[0].Commands)
 }
