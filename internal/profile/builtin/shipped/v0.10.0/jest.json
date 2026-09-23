@@ -1,0 +1,56 @@
+{
+  "id": "jest",
+  "match": {
+    "files": [
+      "jest.config.js",
+      "jest.config.ts",
+      "jest.config.mjs",
+      "jest.config.cjs",
+      "jest.config.json",
+      "jest.setup.js",
+      "jest.setup.ts"
+    ],
+    "globs": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.mts",
+      "**/*.cts",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.vue"
+    ]
+  },
+  "axes": {
+    "intent": true,
+    "correctness": true,
+    "convention": true,
+    "test": true
+  },
+  "tests": {
+    "cmd": ["npx", "--no", "--", "jest", "--json"],
+    "globs": [
+      "**/*.test.js",
+      "**/*.test.jsx",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.js",
+      "**/*.spec.jsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "**/__tests__/**/*.js",
+      "**/__tests__/**/*.jsx",
+      "**/__tests__/**/*.ts",
+      "**/__tests__/**/*.tsx"
+    ],
+    "filter_flag": "-t",
+    "paths_arg": ["{path}"],
+    "count_pattern": "\"num(?:Passed|Failed)Tests\":(\\d+)",
+    "failed_pattern": "\"numFailedTests\":(\\d+)",
+    "probe_path_template": "<target-dir>/cr_probe_<probe-id>.test.js"
+  },
+  "symbols": {
+    "lang": "typescript"
+  }
+}

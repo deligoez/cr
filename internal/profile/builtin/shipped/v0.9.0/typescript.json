@@ -1,0 +1,49 @@
+{
+  "id": "typescript",
+  "match": {
+    "files": ["tsconfig.json", "vite.config.ts", "vite.config.js", "vitest.config.ts", "vitest.config.js"],
+    "globs": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.mts",
+      "**/*.cts",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.vue"
+    ]
+  },
+  "axes": {
+    "intent": true,
+    "correctness": true,
+    "convention": true,
+    "test": true
+  },
+  "tests": {
+    "cmd": ["npx", "--no", "--", "vitest", "run", "--reporter=verbose"],
+    "globs": [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.test.js",
+      "**/*.test.jsx",
+      "**/*.test.mts",
+      "**/*.test.mjs",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "**/*.spec.js",
+      "**/*.spec.jsx",
+      "**/*.spec.mts",
+      "**/*.spec.mjs"
+    ],
+    "filter_flag": "-t",
+    "paths_arg": ["{path}"],
+    "count_mode": "occurrences",
+    "count_pattern": "(?m)^ (?:✓|×) ",
+    "failed_pattern": "(?m)^ × ",
+    "probe_path_template": "<target-dir>/cr_probe_<probe-id>.test.ts"
+  },
+  "symbols": {
+    "lang": "typescript"
+  }
+}
