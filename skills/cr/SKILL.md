@@ -99,6 +99,36 @@ after the author replies or pushes is read, migrate and record — it still
 reaches no verdict about whether a concern was addressed, because that is a
 judgement and §9.5.6 leaves it to you.
 
+**Ask cr what is next instead of keeping the sequence yourself.** `cr next <pr>`
+reads the round's state and prints every step it still owes, in order, with who
+takes it and the exact commands. It writes nothing and judges nothing:
+
+```bash
+cr next 6298 --repo acme/shop
+```
+
+```json
+{
+  "round": 1,
+  "next": {"step": "record", "actor": "cr", "why": "the roles wrote records or proposals this round does not hold yet",
+           "commands": ["cr proposals record 6298 --repo acme/shop …/fanout/1/u2/proposals-test-adequacy.ndjson"], "items": ["…"]},
+  "steps": [{"step": "record", …}, {"step": "draft", "actor": "human", "commands": ["cr draft 6298 --repo acme/shop", "cr post 6298 --repo acme/shop"], "items": ["f5001", …]}],
+  "honesty": ["§9.3.1: round 1 was opened at head …"]
+}
+```
+
+The steps, in §10.4's order: `brief` (no round, or the head moved — then it is
+the only step), `claims` and `intent` (the intent pass), `record` (a role's
+`review-*.ndjson` or `proposals-*.ndjson` in the fan-out holding ids the round
+does not, unless the round's last merge or record ran after the file was
+written), `review` (the missing cells, by `unit/role`), `settle` (claims mapped
+to no unit), `draft` (records in draft or queued; the human's step) and
+`recheck` (posted records awaiting a verdict). `claims`, `intent`, `review` and
+`settle` are yours, because they need judgement. **The `draft` step never
+prints `--confirm`**: sending stays the human's act. Measured on its first run
+against tarfin-labs/backend#6292: it found three proposals files a hand-kept
+round had never recorded.
+
 ### 1. Brief
 
 ```bash
