@@ -673,10 +673,23 @@ func probeDocument(t *testing.T, shown string) map[string]any {
 	document := strings.Index(shown, "{\n")
 	require.GreaterOrEqual(t, document, 0, "the command printed no document: %q", shown)
 
+	decoder := json.NewDecoder(strings.NewReader(shown[document:]))
 	var reported map[string]any
-	require.NoError(t, json.Unmarshal([]byte(shown[document:]), &reported))
+	require.NoError(t, decoder.Decode(&reported))
+	// A binary built for coverage, as gremlins builds every test binary,
+	// writes Go's own warning on exit when GOCOVERDIR is unset. It follows
+	// the document on stderr and is the toolchain's, so it is the one thing
+	// allowed after it; anything else there is output cr should not print.
+	trailing := strings.TrimSpace(shown[document+int(decoder.InputOffset()):])
+	if trailing != coverageWarning {
+		assert.Empty(t, trailing, "nothing follows the document")
+	}
 	return reported
 }
+
+// coverageWarning is what a coverage-instrumented Go binary prints on exit when
+// GOCOVERDIR is unset.
+const coverageWarning = "warning: GOCOVERDIR not set, no coverage data emitted"
 
 // The gap probe fixture: where §2.4's template puts the file, the test file
 // §5.4.1 has the agent supply, and a runner that prints whether it could see
