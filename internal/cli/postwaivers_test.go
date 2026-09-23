@@ -95,3 +95,29 @@ func TestPostConfirmStoresEachPostedRecordsThreadID(t *testing.T) {
 	assert.Equal(t, map[string]string{"f1": threadIDFor(0), "f2": threadIDFor(1)}, threads,
 		"§6.1: each posted record carries the thread its comment became")
 }
+
+// §7.2's `kind` row through `cr post --confirm`: a question the reviewer
+// hardened into a finding is stored as the finding the author received, so
+// §9.5.5 refuses `answered` on it. Measured before the fix on
+// deligoez/cr-qa#25: f1701 posted as a finding stayed a question in
+// findings.ndjson, and `cr verify … answered` then exited 0.
+func TestAPostedRecordHoldsTheKindItWasPostedAs(t *testing.T) {
+	asked := aCitedRecord("f1")
+	asked.Kind = finding.KindQuestion
+	asked.Summary = "Does the caller ever see the error Decode returns?"
+	layout := draftedHome(t, asked)
+	redraft(t)
+	writeDraft(t, layout,
+		markerEdit(t, readDraft(t, layout), "f1", `kind="question"`, `kind="finding"`))
+	ghShimming(t, builtPayload(t))
+
+	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.NoError(t, err)
+
+	stored, err := state.ReadStamped[finding.Finding](
+		layout, draftOwner, draftRepo, draftPRNum, state.FileFindings, draftRound)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	assert.Equal(t, finding.StatePosted, stored[0].State)
+	assert.Equal(t, finding.KindFinding, stored[0].Kind, "the register the author received")
+}
