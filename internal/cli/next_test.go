@@ -34,12 +34,13 @@ func stepNames(report *nextResult) []string {
 	return names
 }
 
-// roleWrote writes one role's file into the fixture round's fan-out.
-func roleWrote(t *testing.T, unit, name, body string) string {
+// roleWrote writes one role's file into the fan-out of the fixture round's
+// unit u2, the unit statusHome leaves without cells.
+func roleWrote(t *testing.T, name, body string) string {
 	t.Helper()
 	layout, err := state.Default()
 	require.NoError(t, err)
-	dir := layout.FanOutDir(fixtureOwner, fixtureProject, fixturePRNumber, 1, unit)
+	dir := layout.FanOutDir(fixtureOwner, fixtureProject, fixturePRNumber, 1, "u2")
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	path := filepath.Join(dir, name)
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
@@ -51,7 +52,7 @@ func roleWrote(t *testing.T, unit, name, body string) string {
 // each naming what it is owed for.
 func TestNextNamesEveryStepTheRoundOwesInOrder(t *testing.T) {
 	statusHome(t)
-	written := roleWrote(t, "u2", finding.FanOutFile("correctness"), `{"id":"f1","kind":"question"}`+"\n")
+	written := roleWrote(t, finding.FanOutFile("correctness"), `{"id":"f1","kind":"question"}`+"\n")
 
 	report := nextOfFixture(t)
 
@@ -80,7 +81,7 @@ func TestNextNamesEveryStepTheRoundOwesInOrder(t *testing.T) {
 // read — and dropped, as waived or already posted — is not owed again.
 func TestAFileTheLastRecordReadIsNotOwedAgain(t *testing.T) {
 	statusHome(t)
-	written := roleWrote(t, "u2", finding.FanOutFile("correctness"), `{"id":"f1","kind":"question"}`+"\n")
+	written := roleWrote(t, finding.FanOutFile("correctness"), `{"id":"f1","kind":"question"}`+"\n")
 	layout, err := state.Default()
 	require.NoError(t, err)
 	intake := layout.RoundFile(fixtureOwner, fixtureProject, fixturePRNumber, 1, state.FileIntake)
@@ -148,4 +149,76 @@ func TestAMovedHeadOwesOnlyTheBrief(t *testing.T) {
 		want += " --issue " + meta.IssueKey
 	}
 	assert.Equal(t, []string{want}, report.Steps[0].Commands)
+}
+
+// §10.4.4 looks at every file of a unit: an empty file, a fully recorded one,
+// or a proposals file sorting first says nothing about the file beside it.
+// Measured before the fix: any of the three hid the unrecorded file after it.
+func TestEveryFileOfAUnitIsLookedAt(t *testing.T) {
+	for name, first := range map[string]struct{ file, body string }{
+		"an empty file":           {finding.FanOutFile("convention"), ""},
+		"an empty proposals file": {"proposals-correctness.ndjson", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			statusHome(t)
+			roleWrote(t, first.file, first.body)
+			written := roleWrote(t, finding.FanOutFile("correctness"), `{"id":"f1","kind":"question"}`+"\n")
+
+			report := nextOfFixture(t)
+
+			require.Equal(t, "record", report.Steps[0].Step)
+			assert.Equal(t, []string{written}, report.Steps[0].Items)
+		})
+	}
+}
+
+// A file only opening with `proposals-` is not a §5.7 file, and a directory
+// named like a role's file is nobody's output.
+func TestOnlyARolesFilesAreOwed(t *testing.T) {
+	statusHome(t)
+	roleWrote(t, "proposals-notes.txt", `{"id":"x1"}`+"\n")
+	roleWrote(t, "proposals-x.ndjson.bak", `{"id":"x1"}`+"\n")
+	layout, err := state.Default()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(
+		layout.FanOutDir(fixtureOwner, fixtureProject, fixturePRNumber, 1, "u2"), finding.FanOutFile("x")), 0o700))
+
+	report := nextOfFixture(t)
+
+	assert.Equal(t, []string{"review", "settle"}, stepNames(&report))
+}
+
+// A file `cr next` cannot read is §11.2's file failure, exit 3, naming the
+// file — not a malformed invocation.
+func TestAnUnreadableRoleFileIsAFileFailure(t *testing.T) {
+	statusHome(t)
+	written := roleWrote(t, finding.FanOutFile("correctness"), `{"id":"f1"}`+"\n")
+	require.NoError(t, os.Chmod(written, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(written, 0o600) })
+
+	_, err := runCLIPrinting(t, "next", fixturePR, "--repo", fixtureSlug)
+
+	require.Error(t, err)
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Contains(t, err.Error(), written)
+}
+
+// §10.4 prints commands to be pasted, so a path holding a space or a quote is
+// one shell word in them.
+func TestAPrintedPathIsOneShellWord(t *testing.T) {
+	assert.Equal(t, "/tmp/plain.ndjson", shellWord("/tmp/plain.ndjson"))
+	assert.Equal(t, "'/tmp/home dir/it'\\''s.ndjson'", shellWord("/tmp/home dir/it's.ndjson"))
+	assert.Equal(t, "''", shellWord(""))
+
+	statusHome(t)
+	written := roleWrote(t, finding.FanOutFile("correctness"), `{"id":"f1"}`+"\n")
+	spaced := filepath.Join(filepath.Dir(written), "..", "u 3")
+	require.NoError(t, os.MkdirAll(spaced, 0o700))
+	moved := filepath.Join(spaced, finding.FanOutFile("correctness"))
+	require.NoError(t, os.Rename(written, moved))
+
+	report := nextOfFixture(t)
+
+	require.Equal(t, "record", report.Steps[0].Step)
+	assert.Contains(t, report.Steps[0].Commands[0], "'"+filepath.Clean(moved)+"'")
 }
