@@ -2,14 +2,15 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.7.0.** The release implements the contract in
+> **Status: v0.7.1.** The release implements the contract in
 > [`spec/0.7.0.md`](spec/0.7.0.md). v0.7 changes one thing: what an author's push
 > does to the comments you have drafted but not yet sent. Until v0.6 every one of
 > them went stale. Now `cr brief` finds each one's lines at the new head and
 > carries it there — new line, same id, the body you edited — and stales only
 > the ones whose code is gone. A carried comment re-reads its evidence at the new
-> head, so nothing it asserts rests on code the push changed. Its notes are in
-> [`spec/0.7.0-release-notes.md`](spec/0.7.0-release-notes.md).
+> head, so nothing it asserts rests on code the push changed. v0.7.1 makes the
+> commands fast on a large repository. Its notes are in
+> [`spec/0.7.1-release-notes.md`](spec/0.7.1-release-notes.md).
 >
 > v0.6 added a `go` profile beside `laravel-pest`, GitHub Issues as a tracker,
 > a `cr withdraw` whose retraction is waived and counted against its class, and a
