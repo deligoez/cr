@@ -167,3 +167,23 @@ func TestAStoppedProbeLeavesNoRunnerAndTheNextRunStartsClean(t *testing.T) {
 		})
 	}
 }
+
+// The evidence a failed wait prints is only worth waiting for if it finds the
+// group: a filter matching nothing would print a header and the load, which
+// reads exactly like a group that had emptied. So the instrument is checked on
+// a group known to hold one sleeping process.
+func TestGroupEvidenceListsTheGroupsProcesses(t *testing.T) {
+	sleeper := exec.Command("sleep", "30")
+	sleeper.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	require.NoError(t, sleeper.Start())
+	t.Cleanup(func() {
+		_ = sleeper.Process.Kill()
+		_ = sleeper.Wait()
+	})
+	group := sleeper.Process.Pid
+
+	evidence := groupEvidence(group)
+
+	assert.Regexp(t, `(?m)^\s*`+strconv.Itoa(group)+`\s+`+strconv.Itoa(group)+`\s+\d+\s+\S+\s+\S*sleep`, evidence)
+	assert.Regexp(t, `(?m)^load: \S`, evidence)
+}
