@@ -50,6 +50,42 @@ func TestBlobsAreReadFromTheCommitAndNotFromTheWorktree(t *testing.T) {
 	assert.Equal(t, []string{"package app", "", "func Retry() {}"}, lines)
 }
 
+// One `cat-file --batch` reads every object asked for, each split exactly as
+// BlobLines splits it: a file with no final newline, an empty file, a file whose
+// content is itself a batch-shaped line, and the same object asked twice all
+// come back as a per-object read would give them. An object the repository does
+// not hold is refused rather than read as empty.
+func TestBlobsLinesReadsEveryObjectAsBlobLinesWould(t *testing.T) {
+	dir := committed(t, map[string]string{
+		"app.go":     "package app\n\nfunc Retry() {}\n",
+		"no-eol.txt": "last line has no newline",
+		"empty.txt":  "",
+		"header.txt": "0123456789abcdef0123456789abcdef01234567 blob 3\nabc\n",
+	})
+	blobs, err := BlobsAtRevision(dir, "HEAD")
+	require.NoError(t, err)
+	objects := make([]string, 0, len(blobs)+1)
+	for _, blob := range blobs {
+		objects = append(objects, blob.Object)
+	}
+	objects = append(objects, blobs[0].Object)
+
+	read, err := BlobsLines(dir, objects)
+	require.NoError(t, err)
+	for _, blob := range blobs {
+		one, err := BlobLines(dir, blob.Object)
+		require.NoError(t, err)
+		assert.Equal(t, one, read[blob.Object], "%s reads as BlobLines reads it", blob.Path)
+	}
+
+	_, err = BlobsLines(dir, []string{"0000000000000000000000000000000000000001"})
+	assert.Error(t, err, "an object the repository does not hold is refused")
+
+	none, err := BlobsLines(dir, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
 // A revision that does not resolve is git refusing, which §3.1.3 makes an exit
 // code 3 rather than an empty listing that reads as a head holding no files.
 func TestARevisionThatDoesNotResolveIsAnError(t *testing.T) {
