@@ -146,7 +146,7 @@ func newDraftCmd(out *writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := refuseUnresolvedPost(&round.Meta); err != nil {
+			if err := refuseUnresolvedPost(&round.Meta, draftUnresolvedWhy); err != nil {
 				return err
 			}
 			// §9.3.2: this command moves records into `queued` and
@@ -160,8 +160,10 @@ func newDraftCmd(out *writer) *cobra.Command {
 	}
 }
 
-// refuseUnresolvedPost is §8.4.4's UnresolvedPostError for `cr draft`, over a
-// round whose send cr never learned the outcome of.
+// refuseUnresolvedPost is §8.4.4's UnresolvedPostError over a round whose send
+// cr never learned the outcome of, led by why the calling command cannot run
+// until it is reconciled: `cr draft` and `cr recheck` refuse for different
+// reasons, and each says its own.
 //
 // That send carried the round's queued records, and a draft moves them: a
 // deleted block or a `wrong` would store `discarded` for a record the review
@@ -170,16 +172,22 @@ func newDraftCmd(out *writer) *cobra.Command {
 // It is refused as `cr post --confirm` is, before the draft is read and before
 // anything is written, and the way forward is the same reconciliation. A round
 // whose posting is settled drafts as it always did.
-func refuseUnresolvedPost(round *state.Meta) error {
+func refuseUnresolvedPost(round *state.Meta, why string) error {
 	if !round.PostUnresolved {
 		return nil
 	}
-	return fmt.Errorf(
-		"cr draft moves the round's records, and a send whose outcome cr never learned "+
-			"may already have posted them: %w",
+	return fmt.Errorf("%s: %w", why,
 		&UnresolvedPostError{Owner: round.Owner, Repo: round.Repo, PR: round.PR, Round: round.Round},
 	)
 }
+
+// The two commands' reasons for refusing a round whose send is unresolved.
+const (
+	draftUnresolvedWhy = "cr draft moves the round's records, and a send whose outcome cr never learned " +
+		"may already have posted them"
+	recheckUnresolvedWhy = "cr recheck reads back what a posted review received, and a send whose outcome " +
+		"cr never learned may or may not have posted one"
+)
 
 // produceDraft renders the round's draft, regenerating the one already there.
 //

@@ -140,7 +140,7 @@ func newRecheckCmd(out *writer) *cobra.Command {
 			// records is one where "what came back" cannot be read: a
 			// record reported as posted-with-no-replies and a record
 			// that never went out look identical from here.
-			if err := refuseUnresolvedPost(&round.Meta); err != nil {
+			if err := refuseUnresolvedPost(&round.Meta, recheckUnresolvedWhy); err != nil {
 				return err
 			}
 			report, err := recheckRound(layout, owner, repo, pr, &round, opened.Base)
