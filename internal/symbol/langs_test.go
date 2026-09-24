@@ -390,3 +390,10 @@ func TestAnRContinuingAnIdentifierOpensNoRawString(t *testing.T) {
 		assert.True(t, rawOpens(before+`r"x"`, len(before)), "%q ends one", before)
 	}
 }
+
+// A raw C string, `cr"…"`, is raw the way a raw byte string is: its `r` opens
+// a raw string when the `c` begins a token, and not when the `c` continues one.
+func TestARawCStringIsRaw(t *testing.T) {
+	assert.True(t, rawOpens(` cr#"x\"#`, 2))
+	assert.False(t, rawOpens(` xcr"x"`, 3))
+}
