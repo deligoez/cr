@@ -149,3 +149,14 @@ func TestOnlyAClientErrorIsARejection(t *testing.T) {
 		})
 	}
 }
+
+// Lines names a range as `33-35` and a single line as `35`, and a start that is
+// no earlier than the line names that one line rather than a range of one.
+//
+// gremlins found both halves open: every refusal fixture's comment was on one
+// line, which Build leaves without a start line, so nothing printed a range.
+func TestLinesNamesARangeByBothEndsAndOneLineByItself(t *testing.T) {
+	assert.Equal(t, "33-35", Lines(33, 35))
+	assert.Equal(t, "35", Lines(0, 35))
+	assert.Equal(t, "35", Lines(35, 35))
+}
