@@ -85,3 +85,32 @@ func TestBothIntentSourcesAreCleanedAlike(t *testing.T) {
 	assert.Equal(t, Reading{Text: "CR-1: pay now\nfooter\n", asRead: printed}, fromFile)
 	assert.Equal(t, fromFile, fromCommand)
 }
+
+// Each byte range stripControlSequences names is read to its edge: a CSI
+// sequence's parameter and intermediate bytes run from 0x20 through 0x3F and
+// its final byte from 0x40 through 0x7E, any other escape's intermediates from
+// 0x20 through 0x2F and its final byte from 0x30 through 0x7E. A byte on an
+// edge read as outside the range stays in the text a reader is shown, and a
+// sequence the text ends inside is removed without reading past the end.
+//
+// gremlins found every edge open: each fixture's sequences used bytes well
+// inside the ranges, and none ended the text.
+func TestCleanReadsEveryEdgeByteOfAnEscapeSequenceAsPartOfIt(t *testing.T) {
+	for name, pair := range map[string]struct{ raw, cleaned string }{
+		"a CSI intermediate SPACE":       {raw: "a\x1b[2 qb", cleaned: "ab"},
+		"a CSI private parameter ?":      {raw: "a\x1b[?25lb", cleaned: "ab"},
+		"a CSI final @":                  {raw: "a\x1b[2@b", cleaned: "ab"},
+		"a CSI final ~":                  {raw: "a\x1b[3~b", cleaned: "ab"},
+		"a CSI the text ends inside":     {raw: "a\x1b[1", cleaned: "a"},
+		"an OSC the text ends inside":    {raw: "a\x1b]0;title", cleaned: "a"},
+		"an escape's intermediate SPACE": {raw: "a\x1b Fb", cleaned: "ab"},
+		"an escape's intermediate /":     {raw: "a\x1b/Ab", cleaned: "ab"},
+		"an escape's final 0":            {raw: "a\x1b(0b", cleaned: "ab"},
+		"an escape's final ~":            {raw: "a\x1b~b", cleaned: "ab"},
+		"an escape the text ends inside": {raw: "a\x1b(", cleaned: "a"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, pair.cleaned, Clean(pair.raw))
+		})
+	}
+}
