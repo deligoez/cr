@@ -122,3 +122,22 @@ func TestCopyIntoSandboxReplacesWhatTheSandboxAlreadyHolds(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "autoload.php", pointsAt)
 }
+
+// A copied path nested under directories the sandbox does not hold arrives
+// under them: the parents are made, rather than the copy failing on a
+// directory the checkout of the head never had.
+func TestCopyIntoSandboxMakesTheDirectoriesAboveANestedPath(t *testing.T) {
+	l := New(filepath.Join(t.TempDir(), ".cr"))
+	checkout := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(checkout, "config", "local"), 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(checkout, "config", "local", "app.php"), []byte("the checkout's\n"), 0o600))
+
+	copied, err := l.CopyIntoSandbox("acme", "web", 42, checkout, filepath.Join("config", "local", "app.php"))
+	require.NoError(t, err)
+	assert.True(t, copied)
+
+	body, err := os.ReadFile(filepath.Join(l.Sandbox("acme", "web", 42), "config", "local", "app.php"))
+	require.NoError(t, err)
+	assert.Equal(t, "the checkout's\n", string(body))
+}
