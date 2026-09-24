@@ -283,3 +283,23 @@ func TestAProposalIDAlreadyStoredIsRefused(t *testing.T) {
 	assert.Contains(t, err.Error(), mustJSON(t, at.FirstP)+" is already held by the proposal stored in round ")
 	assert.Len(t, storedRecords(t, prepared, state.FileProposals), 1)
 }
+
+// `cr proposals record` reports the proposals it stored, in file order, and
+// the round they stand in.
+func TestRecordingProposalsReportsWhatItStored(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+
+	printed, err := runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, ""), "--repo", fixtureSlug)
+
+	require.NoError(t, err)
+	var reported struct {
+		Recorded []struct {
+			ID string `json:"id"`
+		} `json:"recorded"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &reported))
+	require.Len(t, reported.Recorded, 1)
+	assert.Equal(t, at.FirstP, reported.Recorded[0].ID)
+}
