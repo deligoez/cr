@@ -292,6 +292,25 @@ func TestACellNamesItsUnitItsRoleAndOneOfTheFourVerdicts(t *testing.T) {
 	}
 }
 
+// A `note_id` is held to the round's notes and a cell without one is not: a
+// cell citing no note records, and one citing a note the issue does not hold
+// is refused on that field.
+func TestOnlyACellCitingANoteIsHeldToTheNotes(t *testing.T) {
+	notes := &Notes{IssueKey: "CR-1"}
+
+	cells, err := DecodeInRound(cellsFile, []byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"),
+		units(), active(), nil, nil, notes)
+	require.NoError(t, err)
+	assert.Len(t, cells, 1)
+
+	_, err = DecodeInRound(cellsFile,
+		[]byte(`{"unit":"u1","role":"correctness","result":"pass","note_id":"CR-1#n9"}`+"\n"),
+		units(), active(), nil, nil, notes)
+	var rejected *RejectedCellError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, "note_id", rejected.Field)
+}
+
 // §4.5.6's two rejections: a cell naming an unknown unit id, and a cell naming
 // an inactive role.
 //
