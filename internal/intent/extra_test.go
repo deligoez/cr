@@ -106,6 +106,17 @@ func TestExtraFilesOrdersTheFlagsFirstAndCountsEachPathOnce(t *testing.T) {
 	assert.Equal(t, []string{}, ExtraFiles(nil, nil))
 }
 
+// The configured list may be longer than the flag list, and either may be
+// empty: each sizes nothing on its own.
+//
+// gremlins found the sizing open: every fixture gave both lists the same length
+// or gave neither, so a difference in place of the sum sized a slice of zero
+// and never the negative one that panics.
+func TestExtraFilesTakesAConfiguredListLongerThanTheFlags(t *testing.T) {
+	assert.Equal(t, []string{"shared.md", "api.md"}, ExtraFiles(nil, []string{"shared.md", "api.md"}))
+	assert.Equal(t, []string{"design.md"}, ExtraFiles([]string{"design.md"}, nil))
+}
+
 // §3.3.1 through DecodeClaims: a span must lie wholly inside one part.
 //
 // The four claims are the partition's corners — a claim of the first part, a
