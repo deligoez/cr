@@ -16,9 +16,11 @@ import (
 	"github.com/deligoez/cr/internal/brief"
 	"github.com/deligoez/cr/internal/config"
 	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -295,6 +297,29 @@ func TestAnAxisNarrowsTheFanOutToItsRoles(t *testing.T) {
 	for _, prompt := range fan.Prompts {
 		assert.Equal(t, axis.Intent, prompt.Axis)
 	}
+}
+
+// §4.5.4 over a pull request that deletes a test file under a profile that
+// indexes the head: the reinvention half ran, the symbol half cannot read the
+// deleted file at the head, and the halves report that one lens alone.
+func TestTheHalvesReportAnUnreadTestFileBesideAReinventionHalfThatRan(t *testing.T) {
+	dir, head, _ := shop(t)
+	layout := state.New(filepath.Join(t.TempDir(), ".cr"))
+	require.NoError(t, layout.Init())
+	cfg, err := config.Resolve(config.Sources{})
+	require.NoError(t, err)
+	src := &Sources{Layout: layout, Config: cfg, Owner: runOwner, Repo: runRepo, PR: runPR, RepoDir: dir}
+	p := &profile.Profile{
+		ID: "shop", Match: profile.Match{Globs: []string{"**/*.go"}}, Symbols: profile.Symbols{Lang: "go"},
+		Tests: profile.Tests{Globs: []string{"**/*_test.go"}},
+	}
+	deleted := []git.Hunk{{Path: "gone_test.go", BaseStart: 1, BaseLines: 3, Side: git.Left}}
+
+	halves, err := (&Round{Head: head}).attach(src, p, deleted)
+	require.NoError(t, err)
+
+	require.Len(t, halves, 1)
+	assert.Contains(t, halves[0].Disclosure(), "cr could not read gone_test.go at the head")
 }
 
 // §4.6.5's two passes, driven in order over one round.
