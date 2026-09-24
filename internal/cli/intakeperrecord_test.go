@@ -430,3 +430,24 @@ func TestNothingColleagueFacingReadsTheIntakeKeys(t *testing.T) {
 		}
 	}
 }
+
+// A share intake.json holds no keys for is added by count, and its already
+// posted drops count as well as its waived ones: toward already posted, and
+// toward raised beside the waived.
+func TestAShareKeptWithoutKeysAddsItsAlreadyPostedDropsByCount(t *testing.T) {
+	in := &roundIntake{
+		merge: mergeIntake{Records: []string{}},
+		recorded: map[string]recordIntake{"0123456789abcdef": {intakeDrops: intakeDrops{
+			Waived:        finding.Drops{Dropped: 1, Waivers: []string{"wr1"}},
+			AlreadyPosted: finding.PostedDrops{Dropped: 2, Posted: []string{"f7"}},
+		}}},
+		recordKeys: map[string]intakeKeys{},
+		mergedHash: "merged",
+	}
+
+	raised, waived, posted := intakeTotals(in, nil)
+
+	assert.Equal(t, 3, raised, "one waived and two already posted, each raised before it was dropped")
+	assert.Equal(t, finding.Drops{Dropped: 1, Waivers: []string{"wr1"}}, waived)
+	assert.Equal(t, finding.PostedDrops{Dropped: 2, Posted: []string{"f7"}}, posted)
+}
