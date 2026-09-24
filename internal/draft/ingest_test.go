@@ -309,3 +309,21 @@ func TestAQuestionMarkerOnAFindingSoftensIt(t *testing.T) {
 	assert.Equal(t, finding.OutcomeKept, triage.Outcome(asked))
 	assert.Empty(t, triage.Preserved, "a marker edit alone is no edit of the body")
 }
+
+// §7.2's immutable `id`, read off the body where the markers cannot tell the
+// records apart: f1 and f2 sit on one line at one severity and grade, f2's
+// block is gone, and f1's block holds what cr rendered for f2. That is f2's
+// block renamed, and it is refused naming the id to restore.
+func TestABlockHoldingAnotherRecordsBodyIsThatRecordRenamed(t *testing.T) {
+	records := fourRecords()[:2]
+	file, entries := renderedRound(t, records...)
+	file = strings.Replace(file, entries["f1"], entries["f2"], 1)
+	file = withoutBlock(t, file, "f2")
+
+	_, err := ingested(records, file, entries)
+
+	var moved *MarkerIDEditError
+	require.ErrorAs(t, err, &moved)
+	assert.Equal(t, "f1", moved.ID)
+	assert.Equal(t, "f2", moved.Restore)
+}
