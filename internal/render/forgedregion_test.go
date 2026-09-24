@@ -90,6 +90,19 @@ func TestCountIsCompletePairsAndNothingElse(t *testing.T) {
 	assert.Equal(t, 0, ownedRegions[1].count(label.wrap("x")), "each pair counts only its own name")
 }
 
+// A region the reviewer emptied in the draft, its opening marker directly
+// against its closing one, is still one complete region, and a second one after
+// it is a second: the scan resumes past the closing marker, never inside it.
+//
+// gremlins found the resumption open: every fixture's region held content longer
+// than a marker, so a scan resuming a marker's length early still landed past
+// the opening one. On an empty region it resumes before it, which panics.
+func TestCountReadsARegionTheReviewerEmptied(t *testing.T) {
+	label := ownedRegions[0]
+	assert.Equal(t, 1, label.count(labelOpen+labelClose))
+	assert.Equal(t, 2, label.count(labelOpen+labelClose+labelOpen+labelClose))
+}
+
 // §8.1.3 through the door cr is handed a body at rather than reads one back
 // from: the sequence is refused in the bytes the caller wrote, whether it
 // forms a well-formed pair or stands alone, and an ordinary body passes.
