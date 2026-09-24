@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,4 +42,30 @@ func TestARecordTheRoundAlreadyHoldsAbsorbsItsReRaise(t *testing.T) {
 	assert.Equal(t, "f1", byID["f2"].DuplicateOf)
 	assert.Equal(t, finding.StateDraft, byID["f3"].State, "another line is another record")
 	assert.Empty(t, byID["f3"].DuplicateOf)
+}
+
+// §6.4.5 holds a `queued` record as it holds a `draft` one: the reviewer has
+// approved it, and a re-raise beside it would be a second comment on its line.
+func TestARecordHeldQueuedAbsorbsItsReRaise(t *testing.T) {
+	layout := recordedHome(t)
+	_, err := runRecord(t, recordPR, writeRecordFile(t, "first.ndjson", aRecord("f1", "u1")), "--repo", recordSlug)
+	require.NoError(t, err)
+	path := filepath.Join(layout.PRDir(recordOwner, recordRepo, recordPRNum), state.FileFindings)
+	body, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(string(body), `"state":"draft"`))
+	held, err := layout.LockPR(recordOwner, recordRepo, recordPRNum)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings,
+		[]byte(strings.Replace(string(body), `"state":"draft"`, `"state":"queued"`, 1))))
+	require.NoError(t, held.Unlock())
+
+	_, err = runRecord(t, recordPR, writeRecordFile(t, "second.ndjson", aRecord("f2", "u1")), "--repo", recordSlug)
+	require.NoError(t, err)
+
+	stored, err := state.ReadRecords[finding.Finding](layout, recordOwner, recordRepo, recordPRNum, state.FileFindings)
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+	assert.Equal(t, finding.StateDuplicate, stored[1].State, "§6.4.5: the re-raise of a queued record is a duplicate")
+	assert.Equal(t, "f1", stored[1].DuplicateOf)
 }
