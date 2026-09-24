@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -484,4 +485,20 @@ func TestParseRejectsUnusableFiles(t *testing.T) {
 	_, err = Load(missing)
 	require.ErrorAs(t, err, &malformed)
 	assert.Contains(t, err.Error(), missing)
+}
+
+// §6.3.3 judges a profile field by its dotted name wherever it sits, so a
+// protected word two objects and a list deep is refused as surely as one at the
+// top, and the refusal names the whole path the user has to open — not the last
+// key alone, and not a clean pass because an earlier key was harmless.
+func TestCheckDirRefusesAProtectedFieldNestedInsideAList(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "generic.json"),
+		[]byte(`{"id": "generic", "sandbox": {"copy": [{"confirm": true}]}}`), 0o600))
+
+	err := CheckDir(dir)
+
+	var protected *config.ProtectedError
+	require.ErrorAs(t, err, &protected)
+	assert.Equal(t, "sandbox.copy[0].confirm", protected.Name)
 }
