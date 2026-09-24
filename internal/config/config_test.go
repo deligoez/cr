@@ -317,3 +317,18 @@ func TestTheProtectedScanReadsKeysAtEveryDepth(t *testing.T) {
 	require.ErrorAs(t, err, &protected)
 	assert.Equal(t, "post.gate.seconds", protected.Name)
 }
+
+// `profile` is joined into a profile file's path, so a value that is not one
+// file stem is refused naming the layer, and one that is resolves as given.
+func TestAProfileThatIsNotOneFileStemIsRefusedNamingTheLayer(t *testing.T) {
+	resolved, err := Resolve(Sources{Flags: map[string]any{profileSetting: "shop"}})
+	require.NoError(t, err)
+	assert.Equal(t, "shop", resolved.String(profileSetting))
+
+	_, err = Resolve(Sources{Flags: map[string]any{profileSetting: "../shop"}})
+
+	var refused *LayerError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, profileSetting, refused.Key)
+	assert.Contains(t, err.Error(), "../shop")
+}
