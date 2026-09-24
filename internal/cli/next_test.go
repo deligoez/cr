@@ -313,3 +313,32 @@ func TestUnrecordedProposalsAloneOweTheirRecording(t *testing.T) {
 	assert.Equal(t, want, record.Commands)
 	assert.Equal(t, "the roles wrote records or proposals this round does not hold yet", record.Why)
 }
+
+// A round that owes nothing says so with no steps and no next one, rather than
+// a review of no cells or a settling of no claims.
+func TestACompleteRoundOwesNothing(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	var cells strings.Builder
+	for _, cell := range []struct{ unit, hash string }{{"u1", "h1"}, {"u2", "h2"}} {
+		for _, role := range []string{"convention", "correctness", "intent-coverage"} {
+			cells.WriteString(`{"unit":"` + cell.unit + `","role":"` + role + `","result":"pass","unit_hash":"` +
+				cell.hash + `","head":"` + meta.Head + `","round":1}` + "\n")
+		}
+	}
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileCoverage, []byte(cells.String())))
+	require.NoError(t, held.Write(state.FileIntentGaps, []byte(
+		`{"claim":"`+fixtureIssue+`#c2","set_aside_note":"`+fixtureIssue+`#n1","head":"`+meta.Head+`","round":1}`+"\n"+
+			`{"claim":"`+fixtureIssue+`#c3","set_aside_note":"`+fixtureIssue+`#n1","head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	report := nextOfFixture(t)
+
+	assert.Empty(t, report.Steps)
+	assert.Nil(t, report.Next)
+}
