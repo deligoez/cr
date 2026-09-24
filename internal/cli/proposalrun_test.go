@@ -267,3 +267,19 @@ func TestAProposalIDOutsideItsBlockIsRefused(t *testing.T) {
 	assert.Contains(t, err.Error(), mustJSON(t, outside.FirstP)+" lies outside "+at.FirstP+"..")
 	assert.Empty(t, storedRecords(t, prepared, state.FileProposals))
 }
+
+// §5.7.1: a proposal whose id a stored proposal already holds is refused,
+// naming the round that holds it.
+func TestAProposalIDAlreadyStoredIsRefused(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	file := proposalFile(t, at, "")
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR, file, "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	err = runCLI(t, "proposals", "record", fixturePR, file, "--repo", fixtureSlug)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), mustJSON(t, at.FirstP)+" is already held by the proposal stored in round ")
+	assert.Len(t, storedRecords(t, prepared, state.FileProposals), 1)
+}
