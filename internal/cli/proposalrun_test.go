@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -248,4 +249,21 @@ func TestStatusReportsTheRoundsProposals(t *testing.T) {
 		Total: 1, Open: 1, OpenIDs: []string{at.FirstP},
 		Unrunnables: []unrunnableProposal{},
 	}, report.Proposals)
+}
+
+// §5.7.1: a proposal whose id lies outside the block §4.6.2 gave its role on
+// its unit is refused once `cr review` has emitted that block.
+func TestAProposalIDOutsideItsBlockIsRefused(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	first, ok := proposal.IDSuffix(at.FirstP)
+	require.True(t, ok)
+	outside := at
+	outside.FirstP = proposal.IDOf(first + 1000)
+
+	err := runCLI(t, "proposals", "record", fixturePR, proposalFile(t, outside, ""), "--repo", fixtureSlug)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), mustJSON(t, outside.FirstP)+" lies outside "+at.FirstP+"..")
+	assert.Empty(t, storedRecords(t, prepared, state.FileProposals))
 }
