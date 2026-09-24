@@ -626,3 +626,35 @@ func TestARunReturnsThoughASurvivorOutsideTheGroupHoldsThePipe(t *testing.T) {
 		t.Fatal("the run is still waiting on a pipe a process outside the killed group holds")
 	}
 }
+
+// heldChildEnv marks a test binary started by the test below, which must not
+// start another: were the hold ever skipped, the child would run this package's
+// tests instead, this one among them.
+const heldChildEnv = "SANDBOX_TEST_HELD_CHILD"
+
+// A process started under heldRunner that is never released runs nothing and
+// exits heldRunnerAbandoned, whatever runner it was given — including a runner
+// whose argv is its program name alone, the shortest argv a hold carries. A
+// hold that let such a process fall through would run cr itself, or here this
+// test binary, in the runner's place.
+func TestAHeldRunnerThatIsNeverReleasedRunsNothing(t *testing.T) {
+	if os.Getenv(heldChildEnv) != "" {
+		t.Skip("started as a held runner's stand-in")
+	}
+	self, err := os.Executable()
+	require.NoError(t, err)
+	release, released, err := os.Pipe()
+	require.NoError(t, err)
+	require.NoError(t, released.Close(), "a release pipe whose writer is gone is a cr that never released")
+	defer func() { _ = release.Close() }()
+
+	cmd := exec.Command(self)
+	cmd.Args = []string{heldRunner, "/bin/echo", "echo"}
+	cmd.Env = append(os.Environ(), heldChildEnv+"=1")
+	cmd.ExtraFiles = []*os.File{release}
+	out, err := cmd.CombinedOutput()
+
+	var exit *exec.ExitError
+	require.ErrorAsf(t, err, &exit, "the held process exited 0, so it ran something: %s", out)
+	assert.Equal(t, heldRunnerAbandoned, exit.ExitCode(), "%s", out)
+}
