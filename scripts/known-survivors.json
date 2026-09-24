@@ -28,15 +28,15 @@
       "column": 32,
       "type": "CONDITIONALS_BOUNDARY",
       "reason": "baseOf takes the highest suffix an earlier round stored with `id.n > base`; `>=` assigns the value already held and changes nothing, which is the shape finding/id.go's NextID carries and says so in a comment. Verified by hand on 2026-09-18 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/review` stayed green."
-   },
-   {
+    },
+    {
       "file": "proposal/proposal.go",
       "line": 128,
       "column": 21,
       "type": "CONDITIONALS_BOUNDARY",
       "reason": "parseID refuses `n <= 0` after `strings.HasPrefix(rest, \"0\")` has already refused every spelling of zero, so `<` and `<=` differ only at n == 0, which cannot reach the comparison; a negative spelling (x-1) is refused by both. Verified by hand on 2026-09-18 -- applied `<` through `go test -overlay`, `go test -count=1 ./internal/proposal` stayed green."
-   },
-   {
+    },
+    {
       "file": "cli/anchorunit.go",
       "line": 75,
       "column": 30,
@@ -93,27 +93,6 @@
       "reason": "rank cuts the qualified list with `qualified = qualified[:limit]`, and `>` against `>=` differs only when len(qualified) == limit, where the cut is `s = s[:len(s)]`: same length, same elements, and only the elements are copied out after it. limit is max(MaxCandidates, 0), so no negative bound reaches the slice. Verified by hand on 2026-09-11 -- applied `>=`, `go test -count=1 ./internal/reinvention` stayed green. The fixtures reach len < limit (4 against 5) and len > limit (4 against 3, 1 against 0 and -1) but not len == limit; that case is the identity reslice above, which the language fixes rather than a fixture."
     },
     {
-      "file": "render/comment.go",
-      "line": 100,
-      "column": 48,
-      "type": "ARITHMETIC_BASE",
-      "reason": "Comment.String allocates `make([]string, 0, len(ownedRegions)+1)`, and `-1` changes only the capacity hint from 4 to 2: append grows the slice and the joined text is identical. The operand is not an input: ownedRegions is an unexported package var holding exactly the three owned regions of §8.1.3 and nothing appends to it, so the capacity is 2 on every call and never reaches the negative value that panics `make`. Verified by hand on 2026-09-11 -- applied `-1`, `go test -count=1 ./internal/render/` and `./internal/draft/` stayed green."
-    },
-    {
-      "file": "render/comment.go",
-      "line": 142,
-      "column": 13,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "withoutRegion computes `length := strings.Index(text[start:], region.close)` where text[start:] begins with region.open, and `< 0` against `<= 0` differs only when length == 0, i.e. when the close marker matches at the very position the open marker starts. No input reaches that: each pair is `<!-- cr:NAME -->` against `<!-- cr:/NAME -->`, which differ at byte 8 ('/' against the name's first letter), inside both markers, so a string opening with one cannot open with the other. Verified by hand on 2026-09-11 -- applied `<= 0`, `go test -count=1 ./internal/render/` and `./internal/draft/` stayed green. The equivalence rests on that byte: a future region whose close marker is a prefix of its open marker would make the mutant observable."
-    },
-    {
-      "file": "state/rulestats.go",
-      "line": 67,
-      "column": 36,
-      "type": "CONDITIONALS_NEGATION",
-      "reason": "NOT equivalent -- unobservable, and entered as such. The guard is `released := held.Unlock(); err == nil && released != nil`, and the mutant `err != nil` differs only when Unlock itself fails: then the original reports the release error after a good write and keeps the write error after a bad one, while the mutant does the reverse. gofrs/flock v0.13.0 returns an error from Unlock only when flock(LOCK_UN) fails on a descriptor it holds open and locked, and held is a local with no seam to inject that. Verified by hand on 2026-09-11 -- applied `err != nil`, `go test -count=1 ./internal/state` stayed green. Reaching it needs a seam in a closed task's production code for an error path the lock does not produce in practice; not worth that change. Revisit if the ledger's lock ever gains an injectable interface. Re-pointed from line 55 on 2026-09-13: 386cb5c moved the body into updateRepoStore, shared with triage.ndjson, and the guard and its column are unchanged there. Re-verified by hand the same day -- applied `err != nil` through `go test -overlay`, `go test -count=1 ./internal/state` stayed green; the lock is still a local `flock.New(lock)` and go.mod still pins gofrs/flock v0.13.0."
-    },
-    {
       "file": "cli/context.go",
       "line": 48,
       "column": 30,
@@ -128,13 +107,6 @@
       "reason": "The `+1` on the same line, turned into `-1`: `2*len(r.Notes)-1`. Past the early return above, len is at least 1, so the capacity is at least 1 and never the negative value `make` panics on; beyond that it is only a hint. Verified by hand on 2026-09-12 beside its neighbour -- applied `-`, `go test -count=1 ./internal/cli` stayed green."
     },
     {
-      "file": "config/config.go",
-      "line": 190,
-      "column": 17,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "words flushes a word on `word.Len() > 0`, and `>= 0` flushes at every separator too, appending empty strings to the result. words has exactly one caller, checkProtected, which asks two questions of each word: whether `carriers[word]` equals a protected token, and whether the word contains one. Neither is ever true of \"\" -- carriers has no empty key, and every protected token is a non-empty string that \"\" cannot contain -- so the deny-list verdict is identical for every name. Verified by hand on 2026-09-12 -- applied `>= 0`, `go test -count=1 ./internal/config` stayed green over names with separators (post.gate_timeout_seconds, CR_HOME_LABEL), without them (postconfirm), and nested three deep (a.b.c). Re-pointed from line 179 on 2026-09-13: 81b058c added seven lines to the settings table above it and 594b281 added `force` to the protected tokens and three carriers, and the one-package run of that day reported the mutant LIVED at 190:17. The argument survives both additions -- every token, `force` included, is still non-empty and no carrier key is empty. Re-verified by hand the same day -- applied `>= 0` through `go test -overlay`, `go test -count=1 ./internal/config` stayed green over the same names plus the force-named ones (post.force_findings) and the new carriers (rules.enforce_min, stats.workforce)."
-    },
-    {
       "file": "finding/fields.go",
       "line": 128,
       "column": 40,
@@ -142,67 +114,11 @@
       "reason": "reservedFields sizes its buffer `len(fields)+len(claimHashes)`, and `-` cannot drive that negative: both operands are package-level literals in this file, `fields` carries the whole of the section 6.1 table and `claimHashes` exactly two names, and nothing appends to either at runtime. The difference is a large positive number on every call, so the capacity stays a hint and the names returned are the same. Verified by hand on 2026-09-12 -- applied `-`, `go test -count=1 ./internal/finding` stayed green. This is render/comment.go's case: the operand is not an input."
     },
     {
-      "file": "finding/grade.go",
-      "line": 224,
-      "column": 47,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "notAbove returns the computed grade when `settled >= standing`, and `>` changes only the tie. gradeStrength holds section 6.2's three grades once each, and rankIn answers with an index into it or with its length for a value it does not list. The clause before this one has already returned when standing is that length, so in the tie standing indexes a real element and `settled == standing` means both ranks index the same one -- which means computed and held are the same Grade, and returning either returns the same value. Verified by hand on 2026-09-12 -- applied `>`, `go test -count=1 ./internal/finding` stayed green, and grade_test.go drives every ordered pair of the three grades, the equal ones included. A gradeStrength that listed a value twice would make it observable. Re-pointed from line 212 on 2026-09-13: 4f1c9c2 added twelve lines in one hunk near line 54, and notAbove itself is unchanged. Re-verified by hand the same day -- applied `>` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green, and dedup.go still holds gradeStrength as the three grades once each."
-    },
-    {
-      "file": "finding/state.go",
-      "line": 126,
-      "column": 38,
-      "type": "ARITHMETIC_BASE",
-      "reason": "OpenStates sizes its buffer `len(states)-len(terminal)` and `+` only makes it larger, which append never notices. Both operands are package-level literals in this file, so no input reaches the arithmetic and the capacity cannot go negative in either direction. Verified by hand on 2026-09-12 -- applied `+`, `go test -count=1 ./internal/finding` stayed green."
-    },
-    {
-      "file": "finding/state.go",
-      "line": 126,
-      "column": 38,
-      "type": "INVERT_NEGATIVES",
-      "reason": "The same byte as the ARITHMETIC_BASE entry above, reported under a second mutator name: gremlins maps token.SUB to token.ADD for both, so the two records describe one edit. The single hand-applied `+` on 2026-09-12 verified both."
-    },
-    {
-      "file": "finding/waiverstore.go",
-      "line": 424,
-      "column": 62,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "The id allocator keeps the highest number seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. It is finding/id.go:54's entry in another file, and the comment two lines above says as much. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/finding` stayed green."
-    },
-    {
       "file": "note/note.go",
       "line": 246,
       "column": 58,
       "type": "CONDITIONALS_BOUNDARY",
       "reason": "The same allocator in note: `n > highest` against `n >= highest` assigns the value already held on equality. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/note` stayed green."
-    },
-    {
-      "file": "probe/record.go",
-      "line": 203,
-      "column": 48,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "The same allocator in probe: `n > highest` against `n >= highest` assigns the value already held on equality. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/probe` stayed green."
-    },
-    {
-      "file": "run/run.go",
-      "line": 276,
-      "column": 48,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "The same allocator in run: `n > highest` against `n >= highest` assigns the value already held on equality. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/run` stayed green."
-    },
-    {
-      "file": "run/run.go",
-      "line": 332,
-      "column": 12,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "Tail.Write truncates what it is handed with `if len(p) > t.limit { p = p[len(p)-t.limit:] }`, and `>=` differs only at equality, where the reslice is `p[0:]`: same length, same bytes, same backing array. No negative limit reaches the index -- NewTail clamps with max(limit, 0), Tail's fields are unexported, and nothing in the tree builds one any other way. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/run` stayed green over writes below, at and above the limit."
-    },
-    {
-      "file": "run/run.go",
-      "line": 336,
-      "column": 17,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "The second half of the same function: `if len(t.held) > t.limit` trims what is retained, and `>=` differs only at equality, where `append(t.held[:0], t.held[0:]...)` copies the held bytes onto themselves. Same length, same bytes. Verified by hand on 2026-09-12 beside its neighbour -- applied `>=`, `go test -count=1 ./internal/run` stayed green."
     },
     {
       "file": "symbol/span.go",
@@ -219,25 +135,221 @@
       "reason": "The tie-break on the same line, `spans[i].start > spans[found].start` against `>=`. Equality would need two spans of one file declared on the same line, which the scan cannot produce: match returns at most one declaration per line. The two comparisons therefore agree on every input, for the reason and on the evidence of the entry above. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/symbol` stayed green."
     },
     {
+      "file": "intent/extra.go",
+      "line": 72,
+      "column": 41,
+      "type": "ARITHMETIC_BASE",
+      "reason": "ExtraFiles sizes its seen set with `make(map[string]bool, len(flag)+len(configured))`, and `-` changes only that size hint. Unlike a slice's capacity, a map's hint is not checked for sign: a negative hint allocates the default table rather than panicking, so the set holds the same keys and ExtraFiles returns the same paths. The slice sized by the same sum on the line above is not equivalent and is killed by TestExtraFilesTakesAConfiguredListLongerThanTheFlags, which drives the negative case. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay`, `go test -count=1 ./internal/intent` stayed green, TestExtraFilesTakesAConfiguredListLongerThanTheFlags included."
+    },
+    {
+      "file": "render/comment.go",
+      "line": 90,
+      "column": 13,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "ownedRegion.count computes `length := strings.Index(text[start:], r.close)` where text[start:] begins with r.open, and `< 0` against `<= 0` differs only when length == 0, i.e. when the close marker matches at the very position the open marker starts. No input reaches that: each pair is `<!-- cr:NAME -->` against `<!-- cr:/NAME -->`, which differ at byte 8 ('/' against the name's first letter), inside both markers, so a string opening with one cannot open with the other. This is the argument withoutRegion's identical comparison carries. Verified by hand on 2026-09-24 -- applied `<= 0` through `go test -overlay`, `go test -count=1 ./internal/render` stayed green. The equivalence rests on that byte: a future region whose close marker is a prefix of its open marker would make the mutant observable."
+    },
+    {
+      "file": "render/comment.go",
+      "line": 127,
+      "column": 48,
+      "type": "ARITHMETIC_BASE",
+      "reason": "Comment.String allocates `make([]string, 0, len(ownedRegions)+1)`, and `-1` changes only the capacity hint from 4 to 2: append grows the slice and the joined text is identical. The operand is not an input: ownedRegions is an unexported package var holding exactly the three owned regions of §8.1.3 and nothing appends to it, so the capacity is 2 on every call and never reaches the negative value that panics `make`. Verified by hand on 2026-09-24 -- applied `-1` through `go test -overlay`, `go test -count=1 ./internal/render` stayed green. Re-pointed from line 100 on 2026-09-24."
+    },
+    {
+      "file": "render/comment.go",
+      "line": 169,
+      "column": 13,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "withoutRegion computes `length := strings.Index(text[start:], region.close)` where text[start:] begins with region.open, and `< 0` against `<= 0` differs only when length == 0, i.e. when the close marker matches at the very position the open marker starts. No input reaches that: each pair is `<!-- cr:NAME -->` against `<!-- cr:/NAME -->`, which differ at byte 8 ('/' against the name's first letter), inside both markers, so a string opening with one cannot open with the other. Verified by hand on 2026-09-24 -- applied `<= 0` through `go test -overlay`, `go test -count=1 ./internal/render` stayed green. The equivalence rests on that byte: a future region whose close marker is a prefix of its open marker would make the mutant observable. Re-pointed from line 142 on 2026-09-24."
+    },
+    {
+      "file": "config/config.go",
+      "line": 211,
+      "column": 17,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "words flushes a word on `word.Len() > 0`, and `>= 0` flushes at every separator too, appending empty strings to the result. words has exactly one caller, checkProtected, which asks two questions of each word: whether `carriers[word]` equals a protected token, and whether the word contains one. Neither is ever true of \"\" -- carriers has no empty key, and every protected token is a non-empty string that \"\" cannot contain -- so the deny-list verdict is identical for every name. Verified by hand on 2026-09-12 -- applied `>= 0`, `go test -count=1 ./internal/config` stayed green over names with separators (post.gate_timeout_seconds, CR_HOME_LABEL), without them (postconfirm), and nested three deep (a.b.c). Re-pointed from line 179 on 2026-09-13: 81b058c added seven lines to the settings table above it and 594b281 added `force` to the protected tokens and three carriers, and the one-package run of that day reported the mutant LIVED at 190:17. The argument survives both additions -- every token, `force` included, is still non-empty and no carrier key is empty. Re-verified by hand the same day -- applied `>= 0` through `go test -overlay`, `go test -count=1 ./internal/config` stayed green over the same names plus the force-named ones (post.force_findings) and the new carriers (rules.enforce_min, stats.workforce). Re-pointed from line 190 on 2026-09-24: the same `if word.Len() > 0` in words' flush, moved down 21 lines, and the argument is unchanged. Verified by hand on 2026-09-24 -- applied `>= 0` through `go test -overlay`, `go test -count=1 ./internal/config` stayed green."
+    },
+    {
       "file": "draft/ingest.go",
-      "line": 253,
+      "line": 289,
       "column": 61,
       "type": "CONDITIONALS_BOUNDARY",
-      "reason": "refuseUnknownBlocks keeps the earliest block naming a record the round does not hold with `at < firstAt`, and `<=` differs only when two such blocks sit on the same line. None can: blocksOf is the only producer of the map and refuseUnknownBlocks' only source, it walks the draft one line at a time and adds at most one block per line with `at: i + 1`, and a second block for an id it already holds is refused with MalformedMarkerError before the map is returned. Every `at` in the map is therefore distinct, and the tie the mutant changes never arises. Verified by hand on 2026-09-13 -- applied `<=` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green over one unknown block and over two, the second case added the same day as TestTheEarliestUnknownBlockIsTheOneNamed and run 50 times under the mutant and green each time, since Go randomises the map order the two blocks are read in; the same test failed 50 of 50 under the `>=` negation on the same byte. A block producer that could place two blocks on one line would make it observable."
+      "reason": "refuseUnknownBlocks keeps the earliest block naming a record the round does not hold with `at < firstAt`, and `<=` differs only when two such blocks sit on the same line. None can: blocksOf is the only producer of the map and refuseUnknownBlocks' only source, it walks the draft one line at a time and adds at most one block per line with `at: i + 1`, and a second block for an id it already holds is refused with MalformedMarkerError before the map is returned. Every `at` in the map is therefore distinct, and the tie the mutant changes never arises. Verified by hand on 2026-09-13 -- applied `<=` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green over one unknown block and over two, the second case added the same day as TestTheEarliestUnknownBlockIsTheOneNamed and run 50 times under the mutant and green each time, since Go randomises the map order the two blocks are read in; the same test failed 50 of 50 under the `>=` negation on the same byte. A block producer that could place two blocks on one line would make it observable. Re-pointed from line 253 on 2026-09-24: the same `at < firstAt` in refuseUnknownBlocks, moved down 36 lines, and the argument is unchanged. Verified by hand on 2026-09-24 -- applied `<=` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/ingest.go",
+      "line": 279,
+      "column": 44,
+      "type": "ARITHMETIC_BASE",
+      "reason": "`len(queued)+len(posted)` is only the size hint of `make(map[string]bool, ...)`, and `-` changes the hint and nothing the map holds. Unlike a slice's capacity, a map's hint may be negative without a panic -- the runtime reads it as no hint -- so even a draft with more posted records than queued ones, where the mutant's hint is negative, reads the same. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green, including a probe test (not kept) that ingested a draft of two posted blocks beside no queued record, a hint of -2."
+    },
+    {
+      "file": "draft/promptnotes.go",
+      "line": 36,
+      "column": 8,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "WithPromptNotes inserts before the first `\\n-->\\n` and returns the file unchanged when there is none (`at < 0`); `<= 0` also returns it unchanged when that closing sits at offset 0. Its one caller, cli's withPromptNotes, hands it the file draft.File rendered, which opens with headerOpen (`<!-- cr:summary`), so the closing line is never at offset 0 and the two conditions agree on every file cr passes. Verified by hand on 2026-09-24 -- applied `<= 0` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/sent.go",
+      "line": 43,
+      "column": 46,
+      "type": "ARITHMETIC_BASE",
+      "reason": "`len(lines)-at-1` is only the capacity hint of the suggestion's `make([]string, 0, ...)`; `len(lines)+at-1` is larger and never negative (len(lines) >= 1, at >= 0), and append grows the slice past either, so the lines returned are the same. Verified by hand on 2026-09-24 -- applied `len(lines)+at-1` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/sent.go",
+      "line": 43,
+      "column": 46,
+      "type": "INVERT_NEGATIVES",
+      "reason": "The same byte as the ARITHMETIC_BASE mutant at 43:46, the binary `-` of the suggestion's capacity hint turned to `+`, and equivalent for the same reason: `len(lines)+at-1` is a larger, never negative capacity and the lines returned are the same. Verified by hand on 2026-09-24 -- applied `len(lines)+at-1` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/sent.go",
+      "line": 43,
+      "column": 49,
+      "type": "ARITHMETIC_BASE",
+      "reason": "`len(lines)-at-1` is only the capacity hint of the suggestion's `make([]string, 0, ...)`; `len(lines)-at+1` is two larger and at least 2, since at < len(lines), and append grows the slice past either, so the lines returned are the same. Verified by hand on 2026-09-24 -- applied `len(lines)-at+1` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/sent.go",
+      "line": 43,
+      "column": 49,
+      "type": "INVERT_NEGATIVES",
+      "reason": "The same byte as the ARITHMETIC_BASE mutant at 43:49, the second `-` of the suggestion's capacity hint turned to `+`, and equivalent for the same reason: the capacity is two larger and never negative, and the lines returned are the same. Verified by hand on 2026-09-24 -- applied `len(lines)-at+1` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/verb.go",
+      "line": 205,
+      "column": 17,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "withAgentRegion calls gap(cursor, span.Start) when a span starts past the cursor; `>=` also calls it when the span starts exactly at the cursor, and gap over an empty range trims to \"\" and returns without recording a stretch. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/verb.go",
+      "line": 208,
+      "column": 34,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "belowAt takes the start of the first evidence span with `belowAt < 0`; `<= 0` differs only when that span starts at offset 0 of the block's text and a later evidence span follows. The text is never so placed: Triaged hands withAgentRegion `file[lineEnd:end]`, where lineEnd is the end of the marker line without its line feed (readBlocks splits on \"\\n\"), so the text is empty or opens with that line feed, and no owned span can start at 0. Verified by hand on 2026-09-24 -- applied `<= 0` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/verb.go",
+      "line": 226,
+      "column": 20,
+      "type": "ARITHMETIC_BASE",
+      "reason": "The fallback that places a body in a block with no agent region and no owned region counts the block's leading line feeds as `len(text) - len(strings.TrimLeft(text, \"\\n\"))`. It is reached only when gap found no stretch holding more than line feeds and OwnedSpans found no span, which is a text made of line feeds alone, so TrimLeft leaves \"\" and `+` and `-` add and subtract zero. Verified by hand on 2026-09-24 -- applied `+` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "draft/verb.go",
+      "line": 226,
+      "column": 20,
+      "type": "INVERT_NEGATIVES",
+      "reason": "The same byte as the ARITHMETIC_BASE mutant at 226:20, the `-` of the leading-line-feed count turned to `+`, and equivalent for the same reason: the fallback is reached only over a text of line feeds alone, where the trimmed length is zero. Verified by hand on 2026-09-24 -- applied `+` through `go test -overlay`, `go test -count=1 ./internal/draft` stayed green."
+    },
+    {
+      "file": "finding/grade.go",
+      "line": 243,
+      "column": 47,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "notAbove returns the computed grade when `settled >= standing`, and `>` changes only the tie. gradeStrength holds section 6.2's three grades once each, and rankIn answers with an index into it or with its length for a value it does not list. The clause before this one has already returned when standing is that length, so in the tie standing indexes a real element and `settled == standing` means both ranks index the same one -- which means computed and held are the same Grade, and returning either returns the same value. Verified by hand on 2026-09-12 -- applied `>`, `go test -count=1 ./internal/finding` stayed green, and grade_test.go drives every ordered pair of the three grades, the equal ones included. A gradeStrength that listed a value twice would make it observable. Re-pointed from line 212 on 2026-09-13: 4f1c9c2 added twelve lines in one hunk near line 54, and notAbove itself is unchanged. Re-verified by hand the same day -- applied `>` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green, and dedup.go still holds gradeStrength as the three grades once each. Re-pointed from line 224 on 2026-09-24: notAbove itself is unchanged. Verified by hand on 2026-09-24 -- applied `>` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green, and dedup.go still holds gradeStrength as the three grades once each."
+    },
+    {
+      "file": "finding/state.go",
+      "line": 151,
+      "column": 38,
+      "type": "ARITHMETIC_BASE",
+      "reason": "OpenStates sizes its buffer `len(states)-len(terminal)` and `+` only makes it larger, which append never notices. Both operands are package-level literals in this file, so no input reaches the arithmetic and the capacity cannot go negative in either direction. Verified by hand on 2026-09-12 -- applied `+`, `go test -count=1 ./internal/finding` stayed green. Re-pointed from line 126 on 2026-09-24: OpenStates itself is unchanged. Verified by hand on 2026-09-24 -- applied `+` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green."
+    },
+    {
+      "file": "finding/state.go",
+      "line": 151,
+      "column": 38,
+      "type": "INVERT_NEGATIVES",
+      "reason": "The same byte as the ARITHMETIC_BASE entry above, reported under a second mutator name: gremlins maps token.SUB to token.ADD for both, so the two records describe one edit. The single hand-applied `+` on 2026-09-12 verified both. Re-pointed from line 126 on 2026-09-24, and verified by hand the same day with the same `+` through `go test -overlay`, `go test -count=1 ./internal/finding` staying green."
+    },
+    {
+      "file": "finding/state.go",
+      "line": 177,
+      "column": 40,
+      "type": "ARITHMETIC_BASE",
+      "reason": "UnsentStates sizes its buffer `len(states)-len(terminal)`, OpenStates' capacity hint repeated, and `+` only makes it larger, which append never notices. Both operands are package-level literals in this file, so no input reaches the arithmetic and the capacity cannot go negative in either direction. Verified by hand on 2026-09-24 -- applied `+` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green."
+    },
+    {
+      "file": "finding/state.go",
+      "line": 177,
+      "column": 40,
+      "type": "INVERT_NEGATIVES",
+      "reason": "The same byte as the ARITHMETIC_BASE entry above, reported under a second mutator name: gremlins maps token.SUB to token.ADD for both, so the two records describe one edit. Verified by hand on 2026-09-24 -- applied `+` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green."
     },
     {
       "file": "finding/triageevent.go",
-      "line": 142,
+      "line": 140,
       "column": 20,
       "type": "CONDITIONALS_NEGATION",
-      "reason": "triageKey.raised is read by nothing: key() builds it, and mergeTriageEvents uses the whole struct only as a map key, where equality is the one thing asked of it. Negating `e.Action == ActionRaised` flips the bool for every event at once, so two events share a key under the mutant exactly when they share one under the original, and the merge overwrites and appends the same events at the same positions. Verified by hand on 2026-09-13 -- applied `!=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green over a raise beside a retried outcome for one record in one round, a rewritten event, and keys differing in pull request, round and record. It would become observable the moment anything reads the field as a fact rather than as part of an identity, such as a key serialised or compared against an action."
+      "reason": "triageKey.raised is read by nothing: key() builds it, and mergeTriageEvents uses the whole struct only as a map key, where equality is the one thing asked of it. Negating `e.Action == ActionRaised` flips the bool for every event at once, so two events share a key under the mutant exactly when they share one under the original, and the merge overwrites and appends the same events at the same positions. Verified by hand on 2026-09-13 -- applied `!=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green over a raise beside a retried outcome for one record in one round, a rewritten event, and keys differing in pull request, round and record. It would become observable the moment anything reads the field as a fact rather than as part of an identity, such as a key serialised or compared against an action. Re-pointed from line 142 on 2026-09-24: key() and triageKey are unchanged. Verified by hand on 2026-09-24 -- applied `!=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green."
+    },
+    {
+      "file": "finding/waiverstore.go",
+      "line": 425,
+      "column": 62,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "The id allocator keeps the highest number seen, so `n > highest` and `n >= highest` assign the same value: on equality the assignment writes back what is already held. It is finding/id.go:54's entry in another file, and the comment two lines above says as much. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/finding` stayed green. Re-pointed from line 424 on 2026-09-24. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/finding` stayed green."
+    },
+    {
+      "file": "probe/record.go",
+      "line": 224,
+      "column": 48,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "The same allocator in probe: `n > highest` against `n >= highest` assigns the value already held on equality. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/probe` stayed green. Re-pointed from line 203 on 2026-09-24. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/probe` stayed green, and the instrument was checked first: `highest-1` at line 228 overlaid the same way turned the package red."
     },
     {
       "file": "profile/shipped.go",
-      "line": 88,
+      "line": 89,
       "column": 18,
       "type": "CONDITIONALS_BOUNDARY",
-      "reason": "Unobservable but not equivalent. `len(changed) >= 0` would turn the stale notice's \"has changed since\" into \"has since changed \" with nothing after it, which needs a stale file -- byte-equal to an archived release and not to the current profile -- whose every field value equals the current profile's. Measured 2026-09-23 over all fifteen archives under builtin/shipped: the three generic.json are byte-equal to the current generic, so they are current and never stale, and the five go.json and seven laravel-pest.json each differ from the current profile in at least one field. The archive is embedded, so no test can inject another. It becomes observable the day a release reformats a shipped profile without changing a value, and that release's archive is the fixture that kills it."
+      "reason": "Unobservable but not equivalent. `len(changed) >= 0` would turn the stale notice's \"has changed since\" into \"has since changed \" with nothing after it, which needs a stale file -- byte-equal to an archived release and not to the current profile -- whose every field value equals the current profile's. The archive is embedded, so no test can inject another. It becomes observable the day a release reformats a shipped profile without changing a value, and that release's archive is the fixture that kills it. Re-pointed from line 88 on 2026-09-24, and the archive re-measured the same day because it had grown: of the twenty files under builtin/shipped, the three generic.json are byte-equal to the current generic, so they are current and never stale, and every other one -- five go.json, seven laravel-pest.json, three typescript.json and two jest.json -- decodes to a value different from the current profile's. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/profile` stayed green."
+    },
+    {
+      "file": "role/shipped.go",
+      "line": 101,
+      "column": 77,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "Unobservable but not equivalent, profile/shipped.go's entry for roles. `len(changed) >= 0` would turn the stale notice's \"has changed since\" into \"has since changed \" with nothing after it, which needs a stale role file -- byte-equal to an archived release and not to the current role -- whose every field value equals the current role's. Measured 2026-09-24 over all eight archives under role/builtin/shipped: the correctness.json and test-adequacy.json of v0.1.0, v0.2.0, v0.2.1 and v0.2.2 each differ from the current role in `instructions`. The archive is embedded, so no test can inject another; a release that reformats a shipped role without changing a value makes it observable, and that archive is the fixture that kills it. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/role` stayed green, and the instrument was checked first: removing the `!` of `!standing.Stale()` at line 97 the same way turned the package red."
+    },
+    {
+      "file": "role/shipped.go",
+      "line": 131,
+      "column": 44,
+      "type": "ARITHMETIC_BASE",
+      "reason": "union sizes its map `len(was)+len(is)`, and `-` changes only the size hint a map is made with. Unlike a slice's capacity, a negative map hint does not panic: measured 2026-09-24 on this toolchain, `make(map[string]struct{}, n)` with n = -4 at run time returned an empty map. So a current role carrying more keys than an archived one, where the difference goes negative, allocates less and inserts the same keys. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay`, `go test -count=1 ./internal/role` stayed green."
+    },
+    {
+      "file": "run/run.go",
+      "line": 301,
+      "column": 48,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "The same allocator in run: `n > highest` against `n >= highest` assigns the value already held on equality. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/run` stayed green. Re-pointed from line 276 on 2026-09-24. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/run` stayed green, and the instrument was checked first: `highest-1` at line 305 overlaid the same way turned the package red."
+    },
+    {
+      "file": "run/run.go",
+      "line": 357,
+      "column": 12,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "Tail.Write truncates what it is handed with `if len(p) > t.limit { p = p[len(p)-t.limit:] }`, and `>=` differs only at equality, where the reslice is `p[0:]`: same length, same bytes, same backing array. No negative limit reaches the index -- NewTail clamps with max(limit, 0), Tail's fields are unexported, and nothing in the tree builds one any other way. Verified by hand on 2026-09-12 -- applied `>=`, `go test -count=1 ./internal/run` stayed green over writes below, at and above the limit. Re-pointed from line 332 on 2026-09-24: Tail.Write and NewTail's clamp are unchanged. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/run` stayed green."
+    },
+    {
+      "file": "run/run.go",
+      "line": 361,
+      "column": 17,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "The second half of the same function: `if len(t.held) > t.limit` trims what is retained, and `>=` differs only at equality, where `append(t.held[:0], t.held[0:]...)` copies the held bytes onto themselves. Same length, same bytes. Verified by hand on 2026-09-12 beside its neighbour -- applied `>=`, `go test -count=1 ./internal/run` stayed green. Re-pointed from line 336 on 2026-09-24. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay`, `go test -count=1 ./internal/run` stayed green."
+    },
+    {
+      "file": "state/rulestats.go",
+      "line": 69,
+      "column": 36,
+      "type": "CONDITIONALS_NEGATION",
+      "reason": "NOT equivalent -- unobservable, and entered as such. The guard is `released := held.Unlock(); err == nil && released != nil`, and the mutant `err != nil` differs only when Unlock itself fails: then the original reports the release error after a good write and keeps the write error after a bad one, while the mutant does the reverse. gofrs/flock v0.13.0 returns an error from Unlock only when flock(LOCK_UN) fails on a descriptor it holds open and locked, and held is a local with no seam to inject that. Verified by hand on 2026-09-11 -- applied `err != nil`, `go test -count=1 ./internal/state` stayed green. Reaching it needs a seam in a closed task's production code for an error path the lock does not produce in practice; not worth that change. Revisit if the ledger's lock ever gains an injectable interface. Re-pointed from line 55 on 2026-09-13: 386cb5c moved the body into updateRepoStore, shared with triage.ndjson, and the guard and its column are unchanged there. Re-verified by hand the same day -- applied `err != nil` through `go test -overlay`, `go test -count=1 ./internal/state` stayed green; the lock is still a local `flock.New(lock)` and go.mod still pins gofrs/flock v0.13.0. Re-pointed from line 67 on 2026-09-24: updateRepoStore's guard is unchanged. Verified by hand on 2026-09-24 -- applied `err != nil` through `go test -overlay`, `go test -count=1 ./internal/state` stayed green; the lock is still a local `flock.New(lock)` and go.mod still pins gofrs/flock v0.13.0."
     }
   ]
 }
