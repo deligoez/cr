@@ -303,3 +303,26 @@ func TestRecordingProposalsReportsWhatItStored(t *testing.T) {
 	require.Len(t, reported.Recorded, 1)
 	assert.Equal(t, at.FirstP, reported.Recorded[0].ID)
 }
+
+// §5.7.5: a proposal recorded in a round whose profile gives cr no test runner
+// is stored `unrunnable` with the reason, which says no profile was resolved.
+func TestAProposalWithNoRunnerIsStoredUnrunnable(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	meta, err := prepared.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	meta.ProfileID = ""
+	held, err := prepared.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Unlock())
+
+	_, err = runCLIPrinting(t, "proposals", "record", fixturePR, proposalFile(t, at, ""), "--repo", fixtureSlug)
+
+	require.NoError(t, err)
+	stored := storedRecords(t, prepared, state.FileProposals)
+	require.Len(t, stored, 1)
+	assert.Equal(t, "unrunnable", stored[0]["state"])
+	assert.Equal(t, "the resolved profile (none: no profile matched this repository) declares no tests.cmd, "+
+		"so §5.2.1 has no runner to perform this experiment", stored[0]["reason"])
+}
