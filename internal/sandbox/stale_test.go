@@ -54,3 +54,23 @@ func TestACopiedFileStandsOnlyWhenTheSandboxHoldsTheCheckoutsBytes(t *testing.T)
 		})
 	}
 }
+
+// The post-setup baseline records apart the `sandbox.copy` entries the setup
+// left different from the checkout and those it removed, and records neither
+// for an entry the setup left as the copy made it. Mixing them up would have
+// §5.1.6 rebuild a sandbox before every run, or keep one that lost a file.
+func TestTheBaselineSeparatesWhatTheSetupChangedFromWhatItRemoved(t *testing.T) {
+	checkout, sandbox := t.TempDir(), t.TempDir()
+	for _, name := range []string{"kept.txt", "rewritten.txt", "removed.txt"} {
+		placed(t, checkout, name, []byte("the checkout's\n"))
+	}
+	placed(t, sandbox, "kept.txt", []byte("the checkout's\n"))
+	placed(t, sandbox, "rewritten.txt", []byte("the setup's\n"))
+
+	changed, removed, err := (&Sources{RepoDir: checkout}).setupChanged(sandbox,
+		[]string{"kept.txt", "rewritten.txt", "removed.txt"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"rewritten.txt"}, changed)
+	assert.Equal(t, []string{"removed.txt"}, removed)
+}
