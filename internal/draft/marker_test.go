@@ -201,3 +201,13 @@ func TestTheLineNumbersParseAsNumbers(t *testing.T) {
 	assert.Equal(t, 1000000, got.Line)
 	assert.Contains(t, want.String(), ` line="`+strconv.Itoa(want.Line)+`"`)
 }
+
+// A malformed marker's message names the record only once the line got as far
+// as naming one, so a line with no id reads without an empty record clause.
+func TestAMalformedMarkerNamesItsRecordOnlyWhenItHasOne(t *testing.T) {
+	named := &MalformedMarkerError{At: 7, ID: "f1", Line: "x", Problem: "p"}
+	unnamed := &MalformedMarkerError{At: 7, Line: "x", Problem: "p"}
+
+	assert.True(t, strings.HasPrefix(named.Error(), "draft line 7, record f1, is a malformed record marker: p\n"))
+	assert.True(t, strings.HasPrefix(unnamed.Error(), "draft line 7 is a malformed record marker: p\n"))
+}
