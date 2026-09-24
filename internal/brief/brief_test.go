@@ -187,6 +187,21 @@ func TestAFirstBriefOpensRoundOneAndRecordsTheDerivedInputs(t *testing.T) {
 	assert.Len(t, assembled.Threads, 1)
 }
 
+// A brief that resolved an issue key stores the issue text it read, stamped
+// with its round, for `cr status` to read without the tracker.
+func TestABriefStoresTheIssueTextItRead(t *testing.T) {
+	dir, head, base := repository(t)
+	src := sources(t, dir, answering(head, base, noThreads))
+
+	_, err := Run(src)
+	require.NoError(t, err)
+
+	text, stored, err := intent.StoredIssueText(src.Layout, testOwner, testRepo, testPR, 1)
+	require.NoError(t, err)
+	require.True(t, stored)
+	assert.Contains(t, text, "The order total sums the subtotal and the shipping.")
+}
+
 // §3.7.5's notes are the issue key's, and §3.7.2's second half is the reason
 // there is no key.
 //
