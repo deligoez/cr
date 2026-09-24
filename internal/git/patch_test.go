@@ -89,6 +89,18 @@ func TestParsePatchReportsTheSideAFileIsAbsentOn(t *testing.T) {
 	assert.Empty(t, files[1].HeadPath)
 }
 
+// Each file names the +++ header that opened it, one-based, so a refusal of
+// the path the header names can point the reader at the line to correct.
+func TestParsePatchNamesTheLineOfEachFileHeader(t *testing.T) {
+	files, err := ParsePatch(
+		"--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-one\n+ONE\n" +
+			"--- a/b.txt\n+++ b/b.txt\n@@ -2 +2 @@\n-two\n+TWO\n")
+	require.NoError(t, err)
+	require.Len(t, files, 2)
+	assert.Equal(t, 2, files[0].HeaderLine)
+	assert.Equal(t, 7, files[1].HeaderLine)
+}
+
 // A patch that is not a patch is refused, rather than half-read.
 //
 // §5.3.4's first rung answers a patch that does not apply, and this is the step
