@@ -226,3 +226,16 @@ func TestALineThatIsNotASeparatorIsPartOfItsParagraph(t *testing.T) {
 		assert.False(t, IsSeparator(line), "%q is not §3.1.5's separator line", line)
 	}
 }
+
+// IsSeparator reads every line Separator writes, the shortest included: with no
+// path between them the prefix's trailing space and the suffix's leading one
+// abut, and the line is still the shape §3.1.5 fixes rather than a line one
+// byte too short to hold both.
+//
+// gremlins found the length bound open: every fixture's line either named a path
+// or fell short of the bound, so nothing stood exactly on it.
+func TestIsSeparatorReadsEveryLineSeparatorWrites(t *testing.T) {
+	for _, path := range []string{"", "a", "design.md"} {
+		assert.True(t, IsSeparator(Separator(path)), "%q", Separator(path))
+	}
+}
