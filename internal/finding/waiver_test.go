@@ -597,3 +597,27 @@ func TestAKeyIsRefusedForAnAnchorItsTreeCannotGiveLinesFor(t *testing.T) {
 		})
 	}
 }
+
+// The refusal above is for a range the tree cannot give, and only for that: a
+// single-line anchor and one ending on the file's last line are ranges the tree
+// holds, and each is keyed over exactly its own lines. Refusing either would
+// leave the most common anchor, and every one at the end of a file, unwaivable.
+func TestAKeyIsFormedForAnAnchorOnOneLineOrEndingOnTheLastLine(t *testing.T) {
+	lines := orderFile()
+	for name, span := range map[string][2]int{
+		"one line":                {guardAt, guardAt},
+		"ending on the last line": {len(lines) - 1, len(lines)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			record, _ := theSameDefectAtTheSameCode(t)
+			record.Anchor.StartLine, record.Anchor.Line = span[0], span[1]
+
+			key, err := WaiverKeyOf(orderTrees(), &record)
+
+			require.NoError(t, err)
+			want, err := ContextKeyHash(record.Anchor.ContextBefore, lines[span[0]-1:span[1]], record.Anchor.ContextAfter)
+			require.NoError(t, err)
+			assert.Equal(t, want, key.ContentHash)
+		})
+	}
+}
