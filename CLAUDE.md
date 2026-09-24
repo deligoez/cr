@@ -405,6 +405,17 @@ Two rules that make the phase-boundary run worth doing:
    kill would lose one package, not the run. The per-package coefficient follows
    rule 5's small-package measurement: default for sub-second packages, 5 for
    `internal/cli`.
+
+   **`internal/cli` now dominates the run by an order of magnitude, so a full
+   pass is a once-per-release decision, not a verification step.** Measured
+   2026-09-24 on v0.11.0: the same invocation took **12h46m** (45,957s) for
+   2,027 mutants, with coverage gathering at 5m07s, while the other 30 packages
+   finished in well under an hour. Verify a new test against its survivor with
+   `go test -overlay` — red under the mutant, green without — and do not rerun
+   the pass to confirm it. While that run was live, classification units ran
+   `go test` beside it at `GOMAXPROCS=2` one command at a time, and the run's
+   TIMED OUT count held at 2 throughout: the signal to watch when sharing the
+   box.
 8. **`--diff` does not work in v0.6.0.** Measured: `-D main` while on `main`
    should mutate nothing and mutated 116; a `-D HEAD~6` run mutated files absent
    from that diff and took *longer* than the unscoped run. Upstream has three
