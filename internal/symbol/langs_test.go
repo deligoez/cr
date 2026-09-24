@@ -340,3 +340,18 @@ fn after() {
 	assert.Equal(t, "hashed@5", enclosing(t, index, "src/raw.rs", 6))
 	assert.Equal(t, "after@9", enclosing(t, index, "src/raw.rs", 10))
 }
+
+// A line of a Rust body may begin with `r` at its first byte, and the scan asks
+// whether it opens a raw string without reading the byte before the line.
+//
+// gremlins found the guard open: every fixture's body was indented, so no `r`
+// the scan met stood at the start of its line.
+func TestAnRAtTheStartOfARustLineIsReadInsideTheLine(t *testing.T) {
+	index, built := Build("rust", []File{fileOf("src/early.rs", `fn early() -> u8 {
+return 1;
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, "early@1", enclosing(t, index, "src/early.rs", 2))
+}
