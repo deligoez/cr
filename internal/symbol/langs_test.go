@@ -375,3 +375,18 @@ fn after() {
 	assert.Equal(t, "bytes@1", enclosing(t, index, "src/bytes.rs", 2))
 	assert.Equal(t, "after@5", enclosing(t, index, "src/bytes.rs", 6))
 }
+
+// An `r` that continues an identifier opens no raw string, and one after any
+// other byte does. The identifier bytes are ASCII letters, digits and `_`, and
+// every byte of a UTF-8 multi-byte character; each is tried at the edges of its
+// range, against the bytes just outside them.
+//
+// gremlins found every edge open: the fixtures' raw strings all followed a space.
+func TestAnRContinuingAnIdentifierOpensNoRawString(t *testing.T) {
+	for _, before := range []string{"_", "0", "9", "a", "z", "A", "Z", "À"} {
+		assert.False(t, rawOpens(before+`r"x"`, len(before)), "%q continues an identifier", before)
+	}
+	for _, before := range []string{" ", "(", "/", ":", "@", "[", "^", "~"} {
+		assert.True(t, rawOpens(before+`r"x"`, len(before)), "%q ends one", before)
+	}
+}
