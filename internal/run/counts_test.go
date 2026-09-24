@@ -248,6 +248,21 @@ func TestOccurrencesCountTheMatchesAndAZeroNeedsACleanExit(t *testing.T) {
 	}
 }
 
+// Occurrence mode counts every failing line, not the first one found: a run
+// with two failing tests reports two, or §5.3.4's ladder would read a suite
+// broken in several places as one broken in a single place.
+func TestOccurrencesCountEveryFailingLine(t *testing.T) {
+	counter, err := NewCounter(`(?m)^--- (?:PASS|FAIL): `, `(?m)^--- FAIL: `, true)
+	require.NoError(t, err)
+	_, err = counter.Write([]byte("--- FAIL: TestA (0.00s)\n--- PASS: TestB (0.00s)\n--- FAIL: TestC (0.00s)\n"))
+	require.NoError(t, err)
+
+	executed, failed := counter.Counts(1)
+
+	assert.Equal(t, "3", shown(executed))
+	assert.Equal(t, "2", shown(failed))
+}
+
 // shown renders one of §5.2.4's optional counts, so a test can say what it
 // expects without a pointer comparison and an absent count reads as the answer
 // it is.
