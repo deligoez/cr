@@ -191,6 +191,36 @@ func TestTheSymbolHalfIsMarkedUnavailableRatherThanLeftEmpty(t *testing.T) {
 	})
 }
 
+// The author's wording of the partial state agrees in number with the files it
+// names: one unread test file is "it" and "that test", several are "them" and
+// "those tests". A colleague reads this sentence in the review body, so a
+// singular claim about two files is a wrong sentence cr put under their name.
+func TestTheUnreadFilesSentenceAgreesInNumberWithTheFilesItNames(t *testing.T) {
+	p := laravelPest(t)
+	for name, tc := range map[string]struct {
+		read   index
+		author string
+	}{
+		"one file": {
+			index{"tests/Feature/OrderTest.php": {"Order"}, "tests/Unit/PricingTest.php": {"Pricing"}},
+			"lens test/symbols did not look at tests/Feature/LegacyTest.php: cr could not read it, " +
+				"so it did not read which code that test exercises",
+		},
+		"two files": {
+			index{"tests/Feature/OrderTest.php": {"Order"}},
+			"lens test/symbols did not look at tests/Unit/PricingTest.php, tests/Feature/LegacyTest.php: " +
+				"cr could not read them, so it did not read which code those tests exercise",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			attached := Attach(&p, tc.read, hunks(t))
+
+			require.Len(t, attached.Unavailable, 1)
+			assert.Equal(t, tc.author, attached.Unavailable[0].AuthorDisclosure())
+		})
+	}
+}
+
 // Each state that leaves the symbol half without an index is its own reason,
 // naming what would make the half run, and the whole reason is asserted
 // because a reader acts on all of it.
