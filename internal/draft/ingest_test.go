@@ -117,6 +117,27 @@ func TestABlockWithNoEntryKeepsItsBody(t *testing.T) {
 	assert.Equal(t, map[string]string{"f1": body(record)}, triage.Preserved)
 }
 
+// drift counts the location, severity and grade fields of a marker that read
+// otherwise than the record's own, one per field, so a record's own marker
+// drifts by none.
+func TestDriftCountsEachFieldThatDiffers(t *testing.T) {
+	record := aRecord("f1")
+	own := markerOf(record)
+	assert.Zero(t, drift(&own, record))
+	for field, edit := range map[string]func(*Marker){
+		"path":       func(m *Marker) { m.Path = "other.go" },
+		"side":       func(m *Marker) { m.Side = "LEFT" },
+		"start_line": func(m *Marker) { m.StartLine++ },
+		"line":       func(m *Marker) { m.Line++ },
+		"severity":   func(m *Marker) { m.Severity = string(finding.SeverityLow) },
+		"grade":      func(m *Marker) { m.Grade = string(finding.GradeArgued) },
+	} {
+		edited := own
+		edit(&edited)
+		assert.Equal(t, 1, drift(&edited, record), field)
+	}
+}
+
 // lineOf is the one-based line of a draft on which needle first appears.
 func lineOf(t *testing.T, file, needle string) int {
 	t.Helper()
