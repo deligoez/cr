@@ -451,3 +451,28 @@ func TestAFailedRoundSummaryWriteIsReportedRatherThanSwallowed(t *testing.T) {
 	require.NoError(t, readErr)
 	assert.Len(t, stored, 1, "the append before the summary landed, so the summary is what refused")
 }
+
+// The same for §6.3.1's forced ids, the last thing `cr record` keeps: the ids
+// already kept are read again under the lock, and a round summary whose forced
+// section does not decode as a list of ids is cr's own state gone unusable,
+// which the caller is told about rather than a round reported recorded with
+// its forcing kept nowhere.
+//
+// gremlins found this. Negating the guard on keepForced's error left the
+// command succeeding. `cr record` reads that section nowhere else, and every
+// write before it leaves a field it does not own byte for byte, so the
+// section's read is the one step that refuses.
+func TestAnUnreadableForcedSectionIsReportedRatherThanSwallowed(t *testing.T) {
+	layout := recordedHome(t)
+	held, err := layout.LockPR(recordOwner, recordRepo, recordPRNum)
+	require.NoError(t, err)
+	require.NoError(t, state.UpdateRoundSection(held, recordRound, state.FileSummary, summaryForcedRecords, 5))
+	require.NoError(t, held.Unlock())
+
+	_, err = runRecord(t, recordPR, writeRecordFile(t, "merged.ndjson", aRecord("f1", "u1")), "--repo", recordSlug)
+
+	require.Error(t, err, "a round whose forcing reached no file was not wholly recorded")
+	assert.Contains(t, err.Error(),
+		layout.RoundFile(recordOwner, recordRepo, recordPRNum, recordRound, state.FileSummary))
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+}
