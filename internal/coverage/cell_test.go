@@ -414,3 +414,21 @@ func TestAPassCellIsRefusedWhereItsRoleRaisedARecord(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, cells, 2)
 }
+
+// The refusal says what each verdict claims: a `pass` says the role found
+// nothing, an `na` that it had nothing to say, and each is contradicted in its
+// own words by the records at its seat.
+func TestARefusedVerdictIsContradictedInItsOwnWords(t *testing.T) {
+	raised := Raised{{Unit: "u1", Role: "correctness"}: {"f1"}}
+	for result, said := range map[string]string{
+		`"result":"pass"`:                         "did not find nothing",
+		`"result":"na","reason":"generated code"`: "had something to say about it",
+	} {
+		_, err := Decode(cellsFile, []byte(`{"unit":"u1","role":"correctness",`+result+`}`+"\n"),
+			units(), active(), raised)
+
+		var rejected *RejectedCellError
+		require.ErrorAs(t, err, &rejected, result)
+		assert.Contains(t, rejected.Problem, said, result)
+	}
+}
