@@ -219,3 +219,28 @@ func TestARoundWithNothingDisabledSaysSoInBothRenderings(t *testing.T) {
 	assert.Contains(t, printed, "axes active: intent, correctness, convention, test")
 	assert.Contains(t, printed, "every axis of §1.5 ran; nothing was disabled or unavailable")
 }
+
+// §9.3.4's sweep is named beside the round only when it moved something: a
+// round that carried one record says so and says nothing about staling, and a
+// round that did neither prints neither line.
+func TestTheIdentityNamesOnlyTheSweepsThatMovedARecord(t *testing.T) {
+	render := func(assembled *brief.Brief) string {
+		t.Helper()
+		var printed bytes.Buffer
+		out := &writer{out: &printed, mode: ModeText}
+		require.NoError(t, out.emit(newBriefResult(assembled)))
+		return printed.String()
+	}
+
+	carried := briefedPayload()
+	carried.Carried, carried.Staled = []string{"f1"}, []string{}
+	printed := render(carried)
+	assert.Contains(t, printed, "  carried    1 record(s) back to draft at their migrated anchors, per §9.4.5: f1\n")
+	assert.NotContains(t, printed, "staled")
+
+	quiet := briefedPayload()
+	quiet.Carried, quiet.Staled = []string{}, []string{}
+	printed = render(quiet)
+	assert.NotContains(t, printed, "carried")
+	assert.NotContains(t, printed, "staled")
+}
