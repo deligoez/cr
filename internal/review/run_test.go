@@ -218,6 +218,17 @@ func TestAnEmittedPromptCarriesAllSevenAttachments(t *testing.T) {
 	}
 }
 
+// A file with no outdated or file-level human thread says so in its own
+// section, rather than opening a list with nothing in it (§3.5.1).
+func TestAFileWithNoUnplacedThreadSaysSo(t *testing.T) {
+	fan, err := Run(briefed(t))
+	require.NoError(t, err)
+
+	text := promptOf(t, fan, "correctness", "u1")
+	assert.Contains(t, text, "No human thread on order.go is outdated or file-level.")
+	assert.NotContains(t, text, "These threads name no current line")
+}
+
 // A hit's standard names the file the rule is written in — for a rule the
 // profile ships, the profile's own file — because rule.Resolved's Path is the
 // file a user opens to change the standard. The case above asserts the rule
