@@ -355,3 +355,23 @@ return 1;
 
 	assert.Equal(t, "early@1", enclosing(t, index, "src/early.rs", 2))
 }
+
+// A Rust byte raw string opens at its `b`, so `br"\"` is a raw string holding a
+// backslash and not a byte string whose closing quote the backslash escapes.
+//
+// gremlins found the `b` step open: no fixture held a byte raw string, and what
+// separates the two readings is a backslash before the closing quote.
+func TestARustByteRawStringIsRawToo(t *testing.T) {
+	index, built := Build("rust", []File{fileOf("src/bytes.rs", `fn bytes() -> &'static [u8] {
+    br"\"
+}
+
+fn after() {
+    work();
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, "bytes@1", enclosing(t, index, "src/bytes.rs", 2))
+	assert.Equal(t, "after@5", enclosing(t, index, "src/bytes.rs", 6))
+}
