@@ -207,6 +207,13 @@ func TestFoldedFieldsKeyALineTheWayTheDecodeBindsIt(t *testing.T) {
 	assert.Error(t, err, "a line that is not an object has no fields to key")
 }
 
+// Every ASCII capital folds, the last letter of the alphabet included, so two
+// spellings of a key that differ only in a Z are one key given twice.
+func TestAKeyFoldsItsCapitalZ(t *testing.T) {
+	_, err := FoldedFields([]byte(`{"zone":"a","Zone":"b"}`))
+	assert.Equal(t, &RepeatedKeyError{Key: "zone"}, err)
+}
+
 // A line giving one key twice, under one spelling or under two the decode binds
 // alike, is refused naming the file, the line and the key. The decode keeps
 // parts of both copies — a later null leaves a string as the earlier copy set
