@@ -370,6 +370,26 @@ func TestTheMappingRefusalNamesTheScopeThatWasAskedFor(t *testing.T) {
 	assert.NotContains(t, refusal.Error(), "the remaining axes")
 }
 
+// A round holding no claims is refused the remaining axes for the mapping they
+// wait on, not for the claims: §4.6.5's claims refusal is the intent pass's
+// own, and an invocation that did not ask for that pass is not told to record
+// claims for it.
+func TestTheClaimsRefusalIsTheIntentPassAlone(t *testing.T) {
+	src, head := briefedWithoutMapping(t)
+	held, err := src.Layout.LockPR(runOwner, runRepo, runPR)
+	require.NoError(t, err)
+	require.NoError(t, state.ReplaceStamped(held, state.FileClaims, state.Stamp{Head: head, Round: 1}, []*intent.Claim{}))
+	require.NoError(t, held.Unlock())
+
+	for _, only := range []string{"", axis.Correctness} {
+		src.Axis = only
+		_, err = Run(src)
+
+		var required *MappingRequiredError
+		require.ErrorAsf(t, err, &required, "--axis %q", only)
+	}
+}
+
 // §4.6.4: a role the corpus resolves and the round did not activate reaches the
 // fan-out as a skipped role, in the report and among the honesty lines.
 //
