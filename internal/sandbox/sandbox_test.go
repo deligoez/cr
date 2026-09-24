@@ -658,3 +658,41 @@ func TestAHeldRunnerThatIsNeverReleasedRunsNothing(t *testing.T) {
 	require.ErrorAsf(t, err, &exit, "the held process exited 0, so it ran something: %s", out)
 	assert.Equal(t, heldRunnerAbandoned, exit.ExitCode(), "%s", out)
 }
+
+// §5.3.3: a runner an earlier cr left alive in the sandbox — its runner lock
+// still held, its owner lock free, its group recorded — is killed before the
+// next run does anything there, and the run reports the group it stopped.
+//
+// The earlier cr is played by hand: the runner lock is taken and the group
+// written into it, the descriptor is handed to a sleeping process in a group
+// of its own, and this test's copy is closed, so the sleeper alone holds it.
+func TestARunnerAnEarlierRunLeftAliveIsKilledBeforeTheNextRun(t *testing.T) {
+	src, _, _ := sandboxed(t)
+	path := src.Layout.RunnerLockFile(fixtureOwner, fixtureRepo, fixturePR)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	require.NoError(t, err)
+	require.NoError(t, syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
+
+	left := exec.Command("sleep", "60")
+	left.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	left.ExtraFiles = []*os.File{lock}
+	require.NoError(t, left.Start())
+	exited := make(chan struct{})
+	go func() { _ = left.Wait(); close(exited) }()
+	t.Cleanup(func() { _ = syscall.Kill(-left.Process.Pid, syscall.SIGKILL); <-exited })
+	_, err = lock.WriteString(strconv.Itoa(left.Process.Pid))
+	require.NoError(t, err)
+	require.NoError(t, lock.Close())
+
+	ready, err := Ensure(src, fixtureLeftoverGlob)
+
+	require.NoError(t, err)
+	require.NotNil(t, ready.Stopped, "the runner an earlier run left behind was not stopped")
+	assert.Equal(t, left.Process.Pid, ready.Stopped.Group)
+	select {
+	case <-exited:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the runner an earlier run left behind is still running")
+	}
+}
