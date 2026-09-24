@@ -268,6 +268,26 @@ func TestAWrongMarkerDiscardsWhetherOrNotTheBodyRemains(t *testing.T) {
 	}
 }
 
+// A reviewer who deletes one block and lowers the severity of another has moved
+// no id: the edited marker reads as neither record's, which is a retriage of its
+// own record rather than a block carried over from the deleted one.
+func TestDeletingOneBlockAndRetriagingAnotherMovesNoID(t *testing.T) {
+	records := fourRecords()[:2]
+	file, entries := renderedRound(t, records...)
+	marker := markerOf(records[0])
+	lowered := marker
+	lowered.Severity = string(finding.SeverityLow)
+	file = strings.Replace(file, marker.String(), lowered.String(), 1)
+	file = withoutBlock(t, file, "f2")
+
+	triage, err := ingested(records, file, entries)
+	require.NoError(t, err)
+
+	assert.Equal(t, []*finding.Finding{records[1]}, triage.Deleted)
+	require.Len(t, triage.Retriaged, 1)
+	assert.Equal(t, records[0], triage.Retriaged[0].Record)
+}
+
 // §7.2: changing `kind=finding` to `kind=question` softens the record. The same
 // marker on a record that already was a question asks for nothing and is kept,
 // so only a change the reviewer made is read as one.
