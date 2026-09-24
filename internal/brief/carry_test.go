@@ -274,3 +274,14 @@ func TestAPushCarriesTheBodyTheReviewerEdited(t *testing.T) {
 	require.Len(t, briefed.Migrations, 1)
 	assert.Equal(t, edited, briefed.Migrations[0].Body)
 }
+
+// A closing round's draft cr cannot read stops the carry rather than carrying
+// the record with no body, which would drop an edit the reviewer made. A
+// directory where draft.md belongs is a read that fails with nothing read.
+func TestADraftCrCannotReadStopsTheCarry(t *testing.T) {
+	_, _, err := pushOverOneRecord(t, "RIGHT", "", func(src *Sources) {
+		require.NoError(t, os.MkdirAll(src.Layout.RoundFile(testOwner, testRepo, testPR, 1, state.FileDraft), 0o700))
+	})
+
+	require.Error(t, err)
+}
