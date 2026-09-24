@@ -89,6 +89,18 @@ func TestAReviewEmittingNoPromptWritesNoEmission(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+// An emission cr cannot append fails the review rather than being dropped:
+// the lines are how `cr draft` and `cr status` tell which prompts a note
+// postdates, so a run that lost them would report a prompt as carrying notes
+// it never saw. A directory where the file belongs makes the append fail.
+func TestAnEmissionThatCannotBeAppendedFailsTheReview(t *testing.T) {
+	src := briefed(t)
+	require.NoError(t, os.MkdirAll(src.Layout.PRFile(runOwner, runRepo, runPR, state.FileEmissions), 0o700))
+	r := &Round{Round: 1, Head: "h"}
+
+	require.Error(t, r.recordEmissions(src, []Prompt{{Role: "correctness", Unit: "u1", Axis: axis.Correctness}}))
+}
+
 // emission is one line of role over unit, in round 1 at head h, emitted at
 // the minute given and carrying the notes given.
 func emission(pass, role, unitID string, minute int, notes ...string) Emission {
