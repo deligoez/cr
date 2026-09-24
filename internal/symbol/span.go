@@ -162,11 +162,11 @@ func (s *braceScanner) consume(text string) {
 }
 
 // rawOpens reports whether the `r` at text[at] opens a Rust raw string: it
-// begins a token, or follows the `b` of a byte string that does, and only `#`
-// stand between it and a `"`.
+// begins a token, or follows the `b` of a byte string or the `c` of a C string
+// that does, and only `#` stand between it and a `"`.
 func rawOpens(text string, at int) bool {
 	start := at
-	if start > 0 && text[start-1] == 'b' {
+	if start > 0 && (text[start-1] == 'b' || text[start-1] == 'c') {
 		start--
 	}
 	if start > 0 && identByte(text[start-1]) {
