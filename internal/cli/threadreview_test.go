@@ -3,6 +3,8 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -132,4 +134,41 @@ func TestAThreadAnEarlierRoundOpenedIsNotClaimedForThisRound(t *testing.T) {
 			assert.Equal(t, map[string]string{"f1": threadIDFor(0)}, posted)
 		})
 	}
+}
+
+// §6.1's `thread_id` is a write of its own after the review was created, and a
+// caller has to be told when it fails: `cr post --confirm` that stored no thread
+// id on the record it posted has not done everything it reports.
+//
+// gremlins found this. Negating the guard on storeThreadIDs' write left the
+// send succeeding with findings.ndjson carrying no thread id. The shim makes
+// the pull request's directory read-only as it answers the thread query, which
+// is the last read before that write: the review is created, the records are
+// already posted, and posted.json, which lives in the round's own directory,
+// still takes the ids — only findings.ndjson refuses.
+func TestAFailedThreadIDWriteIsReportedRatherThanSwallowed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through a read-only directory")
+	}
+	layout := draftedHome(t, aCitedRecord("f1"))
+	redraft(t)
+	ghShimming(t, builtPayload(t))
+	answering, err := exec.LookPath("gh")
+	require.NoError(t, err)
+	dir := filepath.Dir(layout.PRFile(draftOwner, draftRepo, draftPRNum, state.FileFindings))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	sealing := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sealing, "gh"), []byte(
+		"#!/bin/sh\n"+
+			"case \"$*\" in\n"+
+			"  *reviewThreads*) chmod 500 '"+dir+"' ;;\n"+
+			"esac\n"+
+			"exec '"+answering+"' \"$@\"\n"), 0o700))
+	t.Setenv("PATH", sealing+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, err = runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+
+	require.Error(t, err, "a record left without its thread id was not wholly posted")
+	assert.Contains(t, err.Error(), dir, "the refusal names where the write failed")
+	assert.Equal(t, ExitFile, exitCodeFor(err))
 }
