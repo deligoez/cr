@@ -648,10 +648,18 @@ func TestAHeldRunnerThatIsNeverReleasedRunsNothing(t *testing.T) {
 	require.NoError(t, released.Close(), "a release pipe whose writer is gone is a cr that never released")
 	defer func() { _ = release.Close() }()
 
+	// The release pipe goes where a hold puts it, descriptor 4, behind a
+	// stand-in for the runner lock at 3. Left at 3, the child reads whatever
+	// descriptor 4 its parent had: measured on CI's Linux, the held process
+	// exited 0, having run echo, while macOS gave 125.
+	lock, err := os.Open(os.DevNull)
+	require.NoError(t, err)
+	defer func() { _ = lock.Close() }()
+
 	cmd := exec.Command(self)
 	cmd.Args = []string{heldRunner, "/bin/echo", "echo"}
 	cmd.Env = append(os.Environ(), heldChildEnv+"=1")
-	cmd.ExtraFiles = []*os.File{release}
+	cmd.ExtraFiles = []*os.File{lock, release}
 	out, err := cmd.CombinedOutput()
 
 	var exit *exec.ExitError
