@@ -1,6 +1,8 @@
 package git
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,6 +86,23 @@ func TestBlobsLinesReadsEveryObjectAsBlobLinesWould(t *testing.T) {
 	none, err := BlobsLines(dir, nil)
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+// A batch whose object is not followed by the newline cat-file writes after
+// every object is output cut short, and it is refused as a size that does not
+// fit rather than read: the next header would start past the end of it. git
+// never writes one, so a stand-in on PATH does.
+func TestABatchCutShortAfterAnObjectIsRefused(t *testing.T) {
+	bin := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "git"),
+		[]byte("#!/bin/sh\nprintf 'abc blob 5\\nabcde'\n"), 0o755)) //nolint:gosec // an executable stand-in
+	t.Setenv("PATH", bin)
+
+	read, err := BlobsLines(t.TempDir(), []string{"abc"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not fit the output")
+	assert.Nil(t, read)
 }
 
 // A revision that does not resolve is git refusing, which §3.1.3 makes an exit
