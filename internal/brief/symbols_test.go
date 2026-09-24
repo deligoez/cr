@@ -11,7 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/git"
+	"github.com/deligoez/cr/internal/profile"
+	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/state"
+	"github.com/deligoez/cr/internal/symbol"
 	"github.com/deligoez/cr/internal/unit"
 )
 
@@ -91,4 +95,20 @@ func TestTwoHunksInsideOneFunctionAreOneUnitBySymbol(t *testing.T) {
 	for i := range plain {
 		assert.Equal(t, unit.ByAdjacency, plain[i].Formation)
 	}
+}
+
+// §4.5.4 over a pull request that deletes a test file under a profile whose
+// reinvention half ran: the symbol half cannot read that file at the head and
+// says so, and the halves report that one lens and nothing else.
+func TestHalvesReportAnUnreadTestFileBesideAReinventionHalfThatRan(t *testing.T) {
+	dir, head, _ := repository(t)
+	p := &profile.Profile{ID: "shop", Symbols: profile.Symbols{Lang: "go"},
+		Tests: profile.Tests{Globs: []string{"*_test.go"}}}
+	deleted := []git.Hunk{{Path: "order_test.go", BaseStart: 1, BaseLines: 3, Side: git.Left}}
+
+	halves, err := Halves(dir, head, p, &symbol.Index{Lang: "go"}, deleted, nil, reinvention.Ranking{})
+	require.NoError(t, err)
+
+	require.Len(t, halves, 1)
+	assert.Contains(t, halves[0].Disclosure(), "cr could not read order_test.go at the head")
 }
