@@ -37,34 +37,6 @@
       "reason": "parseID refuses `n <= 0` after `strings.HasPrefix(rest, \"0\")` has already refused every spelling of zero, so `<` and `<=` differ only at n == 0, which cannot reach the comparison; a negative spelling (x-1) is refused by both. Verified by hand on 2026-09-18 -- applied `<` through `go test -overlay`, `go test -count=1 ./internal/proposal` stayed green."
     },
     {
-      "file": "cli/anchorunit.go",
-      "line": 75,
-      "column": 30,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "anchorInsideUnit walks start+1..end after checking Contains(start) and Contains(end); `<=` adds only line end, already answered true two lines up, and when start >= end neither form iterates. Contains is a pure lookup. Verified by hand on 2026-09-13 -- applied `<=`, `go test -count=1 ./internal/cli` stayed green."
-    },
-    {
-      "file": "cli/record.go",
-      "line": 115,
-      "column": 32,
-      "type": "ARITHMETIC_BASE",
-      "reason": "newRecordResult sizes honesty `2+len(found.unmappable)`; `2-len` would panic only past 2 entries, and resolveGapSupport, the only producer, appends to unmappable at most once (one GapUnmappable naming every unmapped probe), so the capacity is 2 or 1 and only a hint. Verified by hand on 2026-09-13 -- applied `-`, `go test -count=1 ./internal/cli` stayed green."
-    },
-    {
-      "file": "cli/recorddrops.go",
-      "line": 76,
-      "column": 44,
-      "type": "ARITHMETIC_BASE",
-      "reason": "orphaned sizes a map `len(kept)+len(stored)`; `-` goes negative when the round already stores more records than the file keeps, but a map size hint below zero is treated as zero -- measured on go1.26.5, `make(map[string]bool, -4)` does not panic -- so contents and lookups are unchanged. Verified by hand on 2026-09-13 -- applied `-`, the full `./internal/cli` suite stayed green, and a direct orphaned call with 2 kept and 5 stored returned the right orphan."
-    },
-    {
-      "file": "cli/recorddrops.go",
-      "line": 112,
-      "column": 18,
-      "type": "CONDITIONALS_BOUNDARY",
-      "reason": "NOT equivalent -- unobservable. `>= 0` makes settleStates resolve the role corpus and call MarkDuplicates on every run; MarkDuplicates over no orphans is a no-op, and the resolve reads the same two directories stampAxesAndClaims (record.go:451) resolved successfully earlier in the same run, so it can fail only if the corpus changes between the two lock-free reads. No seam injects that. Verified by hand on 2026-09-13 -- applied `>=`, `go test -count=1 ./internal/cli` stayed green."
-    },
-    {
       "file": "cli/waivers.go",
       "line": 65,
       "column": 30,
@@ -350,6 +322,104 @@
       "column": 36,
       "type": "CONDITIONALS_NEGATION",
       "reason": "NOT equivalent -- unobservable, and entered as such. The guard is `released := held.Unlock(); err == nil && released != nil`, and the mutant `err != nil` differs only when Unlock itself fails: then the original reports the release error after a good write and keeps the write error after a bad one, while the mutant does the reverse. gofrs/flock v0.13.0 returns an error from Unlock only when flock(LOCK_UN) fails on a descriptor it holds open and locked, and held is a local with no seam to inject that. Verified by hand on 2026-09-11 -- applied `err != nil`, `go test -count=1 ./internal/state` stayed green. Reaching it needs a seam in a closed task's production code for an error path the lock does not produce in practice; not worth that change. Revisit if the ledger's lock ever gains an injectable interface. Re-pointed from line 55 on 2026-09-13: 386cb5c moved the body into updateRepoStore, shared with triage.ndjson, and the guard and its column are unchanged there. Re-verified by hand the same day -- applied `err != nil` through `go test -overlay`, `go test -count=1 ./internal/state` stayed green; the lock is still a local `flock.New(lock)` and go.mod still pins gofrs/flock v0.13.0. Re-pointed from line 67 on 2026-09-24: updateRepoStore's guard is unchanged. Verified by hand on 2026-09-24 -- applied `err != nil` through `go test -overlay`, `go test -count=1 ./internal/state` stayed green; the lock is still a local `flock.New(lock)` and go.mod still pins gofrs/flock v0.13.0."
+    },
+    {
+      "file": "cli/anchorunit.go",
+      "line": 179,
+      "column": 30,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "anchorInsideUnit walks start+1..end after checking Contains(start) and Contains(end); `<=` adds only line end, already answered true two lines up, and when start >= end neither form iterates. Contains is a pure lookup. Verified by hand on 2026-09-13 -- applied `<=`, `go test -count=1 ./internal/cli` stayed green. Re-pointed from line 75 on 2026-09-24 -- applied `<=` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/intake.go",
+      "line": 225,
+      "column": 43,
+      "type": "ARITHMETIC_BASE",
+      "reason": "intakeTotals sizes its key set `len(stored)+len(in.merge.Records)`; `-` goes negative when the merge output holds more ids than the round stores, but a map size hint below zero is treated as zero -- `make(map[string]bool, -4)` does not panic, measured on go1.26.5 for cli/recorddrops.go -- so the set's contents are unchanged. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/next.go",
+      "line": 452,
+      "column": 44,
+      "type": "ARITHMETIC_BASE",
+      "reason": "heldIDs sizes its map `len(records)+len(proposals)`; `-` is only a size hint, and a negative hint is treated as zero rather than panicking, so the held set is unchanged. Same shape as cli/recorddrops.go:76. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/carriedbodies.go",
+      "line": 57,
+      "column": 12,
+      "type": "CONDITIONALS_NEGATION",
+      "reason": "seedCarried's `seeded == nil` guard. Its only caller, ingestRound, passes ingestDraft's Preserved, which every success path builds with make (regenerate.go's early return and draft.Ingest's Triage literal), so the clone is never nil; and line 57 is reached only when draft.md is blank, where no block exists to preserve, so the clone is always empty. `!=` therefore swaps an empty map for an empty map. Verified by hand on 2026-09-24 -- applied `!=` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/merge.go",
+      "line": 91,
+      "column": 47,
+      "type": "ARITHMETIC_BASE",
+      "reason": "newMergeResult sizes honesty `len(disclosures)+len(roles)` with three disclosures; `3-len(roles)` would panic in make only past three stale ejected roles. A role is stale only when role.StandingOf finds an earlier release's shipped file for its id, role.Resolve keeps one entry per id, and builtin/shipped holds history for two ids (correctness, test-adequacy), so roles has at most 2 entries and the capacity stays at least 1 -- a hint append outgrows. Equivalent for this build; it becomes a crash only once a fourth role id gains shipped history. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/posted.go",
+      "line": 85,
+      "column": 9,
+      "type": "CONDITIONALS_NEGATION",
+      "reason": "NOT equivalent -- unobservable. recordSentDiscards' `err != nil` after state.UpdateRoundSection: on success `==` unlocks and returns the nil err, which is what `return held.Unlock()` returns; it differs only when the write to posted.json fails, where it would swallow the error. writePosted writes the same posted.json earlier in the same send, so no fixture can make this write fail while that one succeeds, and no seam injects it. Verified by hand on 2026-09-24 -- applied `==` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/posted.go",
+      "line": 132,
+      "column": 9,
+      "type": "CONDITIONALS_NEGATION",
+      "reason": "NOT equivalent -- unobservable. recordSentOutcomes' `err != nil` after state.UpdateRoundSection, the same shape as line 85: on success `==` returns the nil err after unlocking, identical to `return held.Unlock()`, and it differs only when the posted.json write fails after the send's earlier writes of that file succeeded, which no seam injects. Verified by hand on 2026-09-24 -- applied `==` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/probeproposal.go",
+      "line": 195,
+      "column": 13,
+      "type": "INVERT_NEGATIVES",
+      "reason": "NOT equivalent -- unobservable. settleProposal starts `settled := -1` and refuses with UnknownProposalError when no stored proposal of the round has the id; `1` skips that refusal. loadProposal already refused an unknown id and runnableNow one of another round or head, so settleProposal is reached only for an id the round holds, and the loop overwrites the sentinel. The two differ only if the round's proposals change between loadProposal's read and settleProposal's, two lock-free reads around the probe run, which no seam injects. Verified by hand on 2026-09-24 -- applied `settled := 1` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/probeproposal.go",
+      "line": 195,
+      "column": 13,
+      "type": "ARITHMETIC_BASE",
+      "reason": "NOT equivalent -- unobservable. The same `-1` read by ARITHMETIC_BASE as `+1`, which is the same program as its INVERT_NEGATIVES neighbour: `settled := 1`, reachable only through a change to the round's proposals between loadProposal and settleProposal. Verified by hand on 2026-09-24 beside its neighbour -- applied `settled := 1` through `go test -overlay`, `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/record.go",
+      "line": 127,
+      "column": 32,
+      "type": "ARITHMETIC_BASE",
+      "reason": "newRecordResult sizes honesty `2+len(found.unmappable)`; `2-len` would panic only past 2 entries, and resolveGapSupport, the only producer, appends to unmappable at most once (one GapUnmappable naming every unmapped probe, gapsupport.go:111, outside its loop), so the capacity is 2 or 1 and only a hint. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay` (GOFLAGS=-overlay, so crBinary's build is mutated too), `go test -count=1 ./internal/cli` stayed green. Re-pointed from line 115 on 2026-09-24."
+    },
+    {
+      "file": "cli/recorddrops.go",
+      "line": 101,
+      "column": 44,
+      "type": "ARITHMETIC_BASE",
+      "reason": "orphaned sizes a map `len(kept)+len(stored)`; `-` goes negative when the round already stores more records than the file keeps, but a map size hint below zero is treated as zero -- measured on go1.26.5 and again on go1.27.1, `make(map[string]bool, -4)` does not panic -- so contents and lookups are unchanged. Verified by hand on 2026-09-24 -- applied `-` through `go test -overlay` (GOFLAGS=-overlay, so crBinary's build is mutated too), `go test -count=1 ./internal/cli` stayed green. Re-pointed from line 76 on 2026-09-24."
+    },
+    {
+      "file": "cli/recorddrops.go",
+      "line": 142,
+      "column": 18,
+      "type": "CONDITIONALS_BOUNDARY",
+      "reason": "NOT equivalent -- unobservable. `>= 0` makes settleStates resolve the role corpus and call MarkDuplicates on every run; MarkDuplicates over no orphans is a no-op, and the resolve reads the same two directories stampAxesAndClaims (called at record.go:548) and freeIDs.block (recordids.go:111) resolved successfully earlier in the same run, so it can fail only if the corpus changes between the two lock-free reads. No seam injects that. Verified by hand on 2026-09-24 -- applied `>=` through `go test -overlay` (GOFLAGS=-overlay, so crBinary's build is mutated too), `go test -count=1 ./internal/cli` stayed green. Re-pointed from line 112 on 2026-09-24."
+    },
+    {
+      "file": "cli/status.go",
+      "line": 537,
+      "column": 32,
+      "type": "ARITHMETIC_BASE",
+      "reason": "statusHonesty sizes honesty `2+len(moved)+len(unresolved)+len(said)`; `2-len(moved)` cannot go negative, because headReport returns one sentence for a current head and two for a moved one, so the capacity stays at least `len(unresolved)+len(said)` and is only a hint: append grows past it and the contents are unchanged. Verified by hand on 2026-09-24 -- applied `2-len(moved)` through `go test -overlay` (GOFLAGS=-overlay, so crBinary's build is mutated too), `go test -count=1 ./internal/cli` stayed green."
+    },
+    {
+      "file": "cli/status.go",
+      "line": 537,
+      "column": 43,
+      "type": "ARITHMETIC_BASE",
+      "reason": "statusHonesty sizes honesty `2+len(moved)+len(unresolved)+len(said)`; `-len(unresolved)` cannot go negative, because unresolvedDisclosure returns at most one sentence and headReport at least one, so the capacity stays at least `2+len(said)` and is only a hint: append grows past it and the contents are unchanged. Verified by hand on 2026-09-24 -- applied `-len(unresolved)` through `go test -overlay` (GOFLAGS=-overlay, so crBinary's build is mutated too), `go test -count=1 ./internal/cli` stayed green."
     }
   ]
 }
