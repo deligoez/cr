@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,44 @@ func hashOf(t *testing.T, lines ...string) string {
 	hash, err := finding.AnchorContentHash(lines)
 	require.NoError(t, err)
 	return hash
+}
+
+// pushOverOneRecord stores one draft record at order.go:3 in round 1, on the
+// anchor side given and with the extra fields given, lets prepare touch the
+// state before the push, and briefs a push that writes two comment lines above
+// the code, which moves it to line 5, the file's last.
+func pushOverOneRecord(t *testing.T, side, extra string, prepare func(src *Sources)) (*Brief, *Sources, error) {
+	t.Helper()
+	dir, first, base := repository(t)
+	src := sources(t, dir, answering(first, base, oneThread))
+	_, err := Run(src)
+	require.NoError(t, err)
+
+	total := "func Total() int { return subtotal() + shipping() }"
+	encoded, err := json.Marshal(finding.Anchor{
+		Path: "order.go", Side: "RIGHT", StartLine: 3, Line: 3,
+		ContentHash: hashOf(t, total), ContextBefore: []string{"package shop", ""}, ContextAfter: []string{},
+	})
+	require.NoError(t, err)
+	anchor := strings.Replace(string(encoded), `"RIGHT"`, `"`+side+`"`, 1)
+	held, err := src.Layout.LockPR(testOwner, testRepo, testPR)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings, []byte(
+		`{"id":"f1","kind":"question","role":"correctness","class":"c","severity":"low","unit":"u1",`+
+			`"summary":"s","evidence":"e","state":"draft","anchor":`+anchor+`,`+extra+
+			`"head":"`+first+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+	if prepare != nil {
+		prepare(src)
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "order.go"), []byte(
+		"package shop\n\n// Total sums the order.\n// It adds shipping.\n"+total+"\n"), 0o600))
+	runGit(t, dir, "add", "order.go")
+	runGit(t, dir, "commit", "--quiet", "-m", "document the total")
+	src.GH = answeringGH(runGit(t, dir, "rev-parse", "HEAD"), base)
+	briefed, err := Run(src)
+	return briefed, src, err
 }
 
 // §9.3.4 and §9.4.5 on one push: the author adds two lines above the code a
@@ -131,6 +170,17 @@ func TestAPushCarriesTheRecordWhoseCodeMovedAndStalesTheOneWhoseCodeIsGone(t *te
 	require.Len(t, moved, 2)
 	assert.Equal(t, "f1", moved[0].Record)
 	assert.Equal(t, finding.StateDraft, moved[0].To, "§9.1: queued → draft by cr brief")
+}
+
+// §9.4.2 reads only the head's tree, so a record anchored on the LEFT side is
+// not placed, and its migration line says why with the `left` key.
+func TestALeftSideRecordIsReportedUnderTheLeftKey(t *testing.T) {
+	briefed, _, err := pushOverOneRecord(t, "LEFT", "", nil)
+	require.NoError(t, err)
+
+	assert.Empty(t, briefed.Carried)
+	require.Len(t, briefed.Migrations, 1)
+	assert.Equal(t, migrate.KeyLeft, briefed.Migrations[0].Key)
 }
 
 // §9.4.3 through the carry: code the push moved into another file the diff
