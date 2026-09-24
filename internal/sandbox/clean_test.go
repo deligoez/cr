@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -319,4 +320,34 @@ func TestDifferingNamesThePathsWhenTheDeviationSetShrinks(t *testing.T) {
 		"the path that stopped deviating is the one that changed")
 	assert.Equal(t, []string{"b.txt", "c.txt"}, differing(nil, []string{"b.txt", "c.txt"}),
 		"a sandbox back at HEAD still names what the baseline listed")
+}
+
+// A baseline an earlier cr recorded names no generation, and no run could be
+// tied to the sandbox it describes, so an otherwise clean sandbox is recreated
+// and the reason says why. What comes back is the recreated sandbox's own
+// generation, the one its new baseline records, because every run in it is
+// stamped with that value and an empty one would tie the run to nothing.
+func TestASandboxWhoseBaselineNamesNoGenerationIsRecreatedWithOne(t *testing.T) {
+	src, path, sentinel := sandboxed(t)
+	file := src.Layout.PRFile(fixtureOwner, fixtureRepo, fixturePR, state.FileSandboxBaseline)
+	body, err := os.ReadFile(file)
+	require.NoError(t, err)
+	var recorded map[string]any
+	require.NoError(t, json.Unmarshal(body, &recorded))
+	delete(recorded, "generation")
+	body, err = json.Marshal(recorded)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, body, 0o600))
+
+	ready, err := Ensure(src, fixtureLeftoverGlob)
+
+	require.NoError(t, err)
+	require.NotNil(t, ready.Recreated, "a baseline naming no generation was admitted")
+	assert.Contains(t, ready.Recreated.Reason, "names no sandbox generation")
+	assert.NoFileExists(t, sentinel)
+	assert.Equal(t, path, ready.Path)
+	rebuilt, err := ReadBaseline(src.Layout, src.Owner, src.Repo, src.PR)
+	require.NoError(t, err)
+	require.NotEmpty(t, rebuilt.Generation)
+	assert.Equal(t, rebuilt.Generation, ready.Generation)
 }
