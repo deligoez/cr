@@ -244,3 +244,18 @@ func TestTheIdentityNamesOnlyTheSweepsThatMovedARecord(t *testing.T) {
 	assert.NotContains(t, printed, "carried")
 	assert.NotContains(t, printed, "staled")
 }
+
+// A head the remote reports ahead of GitHub's API is disclosed on a round with
+// nothing else to disclose, and is then the whole of the report.
+func TestAHeadLagIsTheWholeReportOfARoundWithNothingElseToDisclose(t *testing.T) {
+	complete := briefedPayload()
+	complete.Axes = activation.Activation{
+		Active:      axis.IDs(),
+		Disabled:    []activation.Disabled{},
+		Unavailable: []intent.Unavailable{},
+	}
+
+	result := newBriefResult(complete, "the remote's head is ahead of the one GitHub reported")
+
+	assert.Equal(t, []string{"the remote's head is ahead of the one GitHub reported"}, result.Honesty)
+}
