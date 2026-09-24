@@ -294,3 +294,23 @@ class Cart {
 		{Path: "src/a.ts", Line: 5, Name: "constructor", Kind: Method, Params: 1},
 	}, index.Decls)
 }
+
+// Only a single- or double-quoted string ends at its line in TypeScript. A
+// template literal runs across lines, so a brace inside one counts for nothing
+// however many lines below its backtick it stands.
+//
+// gremlins found the quote test open: the one multi-line fixture was JSX text,
+// so ending every open string at its line, the template literal's too, changed
+// nothing any fixture read.
+func TestATypeScriptTemplateLiteralRunsAcrossLines(t *testing.T) {
+	index, built := Build("typescript", []File{fileOf("src/banner.ts", "export function banner() {\n"+
+		"  const text = `\n"+
+		"  }\n"+
+		"  `;\n"+
+		"  return text;\n"+
+		"}\n")})
+	require.True(t, built)
+
+	assert.Equal(t, "banner@1", enclosing(t, index, "src/banner.ts", 5),
+		"the brace inside the template literal closed nothing")
+}
