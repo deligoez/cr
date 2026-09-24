@@ -290,3 +290,26 @@ func TestAnUnresolvedSendOwesOnlyItsReconciliation(t *testing.T) {
 	assert.Equal(t, []string{"cr post " + fixturePR + " --repo " + fixtureSlug + " --reconcile"},
 		report.Steps[0].Commands)
 }
+
+// §10.4.5 over proposals alone: every role's unrecorded proposals file is one
+// `cr proposals record` in the record step, with no merge of review files
+// nobody wrote and nothing said about ids the round already holds.
+func TestUnrecordedProposalsAloneOweTheirRecording(t *testing.T) {
+	statusHome(t)
+	written := make([]string, 0, 3)
+	for _, role := range []string{"convention", "correctness", "intent-coverage"} {
+		written = append(written, roleWrote(t, "proposals-"+role+".ndjson", `{"id":"p1"}`+"\n"))
+	}
+
+	report := nextOfFixture(t)
+
+	require.Equal(t, "record", report.Steps[0].Step)
+	record := report.Steps[0]
+	assert.Equal(t, written, record.Items)
+	want := make([]string, 0, len(written))
+	for _, file := range written {
+		want = append(want, "cr proposals record "+fixturePR+" --repo "+fixtureSlug+" "+file)
+	}
+	assert.Equal(t, want, record.Commands)
+	assert.Equal(t, "the roles wrote records or proposals this round does not hold yet", record.Why)
+}
