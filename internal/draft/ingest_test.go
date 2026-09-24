@@ -180,6 +180,23 @@ func TestASecondBlockForOneRecordStopsTheIngest(t *testing.T) {
 	assert.Contains(t, malformed.Problem, fmt.Sprintf("line %d", first), "and the first is named beside it")
 }
 
+// Two blocks under one id are judged against the record that id names: f2's
+// block renamed f1 reads as f2's rather than f1's, so it is the edited marker,
+// and f1's untouched block is the one kept.
+func TestARenamedBlockIsJudgedAgainstTheRecordItsIDNames(t *testing.T) {
+	records := fourRecords()[:2]
+	records[1].Anchor.StartLine, records[1].Anchor.Line = 50, 52
+	file, entries := renderedRound(t, records...)
+	renamed := strings.Replace(file, `id="f2"`, `id="f1"`, 1)
+
+	_, err := ingested(records, renamed, entries)
+
+	var moved *MarkerIDEditError
+	require.ErrorAs(t, err, &moved)
+	assert.Equal(t, lineOf(t, file, `id="f2"`), moved.At, "the renamed marker is the edited one")
+	assert.Equal(t, lineOf(t, file, `id="f1"`), moved.Kept)
+}
+
 // §7.2's `id` row: a block naming a record the draft was not rendered for
 // aborts, naming the id, rather than being adopted.
 //
