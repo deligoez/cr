@@ -191,6 +191,33 @@ func TestARoundCrReviewHasNotEmittedHoldsNoRecordToABlock(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
 }
 
+// The block's last id is one of its own: with f201..f299 carried by the input,
+// the refusal of a record outside the block names f300 as the free id rather
+// than calling the block full.
+//
+// gremlins found this. Walking the block up to but not past its last id left
+// f300 unread and sent the role to a block it could still write in as though
+// none were left.
+func TestTheLastIDOfABlockIsNamedWhenItIsTheOnlyOneFree(t *testing.T) {
+	layout := recordedHome(t)
+	ensureRecordFanOut(t, layout)
+	records := []map[string]any{aRoleRecord("f2", "correctness", "missing-test", "u1")}
+	for n := 201; n < 300; n++ {
+		records = append(records, aRoleRecord(finding.IDOf(n), "correctness", "unchecked-error", "u1"))
+	}
+	file := writeRecordFile(t, "crowded.ndjson", records...)
+
+	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+
+	var rejected *finding.RejectedRecordError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, finding.RejectedRecordError{
+		File: file, Line: 1, Field: "id",
+		Problem: outsideBlock("f2", recordRound,
+			&review.Prompt{Role: "correctness", Unit: "u1", FirstID: "f201", LastID: "f300"}, "f300"),
+	}, *rejected)
+}
+
 // A fan-out directory cr cannot inspect is a file failure, coded 3, rather than
 // a round read as never reviewed.
 func TestAFanOutDirectoryCrCannotInspectIsAFileFailure(t *testing.T) {
