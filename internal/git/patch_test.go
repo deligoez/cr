@@ -162,6 +162,24 @@ func TestParsePatchRefusesWhatItCannotRead(t *testing.T) {
 	}
 }
 
+// A line outside every hunk that is no file header is refused where it stands,
+// and only in a patch that names a file. Output with no file header at all is
+// what a configured diff.external writes in a diff's place, and it comes back
+// as no files and no error, so the caller's no-hunk refusal can name the flag
+// that fixes it instead of this line.
+func TestParsePatchRefusesAStrayLineOnlyInAPatchThatNamesAFile(t *testing.T) {
+	files, err := ParsePatch("--- a/a.txt\n+++ b/a.txt\nrename from a.txt\n@@ -1 +1 @@\n-one\n+ONE\n")
+	var malformed *MalformedPatchError
+	require.ErrorAs(t, err, &malformed)
+	assert.Nil(t, files)
+	assert.Equal(t, 3, malformed.Line)
+	assert.Contains(t, malformed.Problem, "rename, copy or mode header")
+
+	files, err = ParsePatch("Only in left: a.txt\nFiles differ\n")
+	require.NoError(t, err)
+	assert.Empty(t, files)
+}
+
 // Apply rewrites the file the way the patch says, and only there.
 func TestApplyRewritesWhatThePatchNames(t *testing.T) {
 	for name, tc := range map[string]struct {
