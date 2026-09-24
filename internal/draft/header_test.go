@@ -115,6 +115,28 @@ func TestAValueOutsideTheVocabularyIsCountedNotDropped(t *testing.T) {
 	assert.Contains(t, header, "\nseverity: critical 0, high 1, medium 0, low 0, urgent 1\n")
 }
 
+// §7.1.4's body lines each name what they count and appear only when there is
+// something to name: a question whose body holds no "?", and a body past
+// longBody characters — one at exactly longBody is not past it.
+func TestTheBodyLinesNameOnlyTheBodiesTheyCount(t *testing.T) {
+	asked, unasked := aRecord("q1"), aRecord("q2")
+	asked.Kind, unasked.Kind = finding.KindQuestion, finding.KindQuestion
+	atLimit, pastLimit := aRecord("f1"), aRecord("f2")
+	preserved := map[string]string{
+		"q1": "Does the retry back off?",
+		"q2": "The retry does not back off.",
+		"f1": strings.Repeat("a", longBody),
+		"f2": strings.Repeat("a", longBody+1),
+	}
+
+	assert.Empty(t, bodyLines([]*finding.Finding{asked, atLimit}, preserved),
+		"an asked question and a body at the limit name nothing")
+	assert.Equal(t, []string{
+		"questions without \"?\": 1, which `cr post` refuses (§8.1.5): q2",
+		"long bodies: 1 over 1200 characters: f2",
+	}, bodyLines([]*finding.Finding{asked, unasked, atLimit, pastLimit}, preserved))
+}
+
 // A record the renderer refuses stops the file, header and all, exactly as it
 // stops Render: nothing is half-written.
 func TestARefusedRecordStopsTheWholeFile(t *testing.T) {
