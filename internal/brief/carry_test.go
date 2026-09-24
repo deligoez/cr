@@ -232,6 +232,24 @@ func TestAPushThatMovesCodeToAnotherFileCarriesTheRecordThere(t *testing.T) {
 	assert.Equal(t, "total.go", unitPath, "§9.4.5: the unit that contains the migrated anchor")
 }
 
+// §9.4.8's re-reading reaches the file's last line: a citation of the line the
+// push left as the last one, still holding what it was stamped with, keeps its
+// stamp.
+func TestACitationOfTheLastLineKeepsItsStamp(t *testing.T) {
+	total := "func Total() int { return subtotal() + shipping() }"
+	briefed, src, err := pushOverOneRecord(t, "RIGHT",
+		`"citations":[{"path":"order.go","line":5,"content_hash":"`+hashOf(t, total)+`"}],`, nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"f1"}, briefed.Carried)
+
+	var carried finding.Finding
+	raw, err := json.Marshal(lines(t, src, state.FileFindings)[0])
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &carried))
+	require.Len(t, carried.Citations, 1)
+	assert.NotEmpty(t, carried.Citations[0].ContentHash, "line 5 still holds the total")
+}
+
 // answeringGH is answering at a moved head, with no threads.
 func answeringGH(head, base string) gh.Client {
 	return gh.WithRunner(answering(head, base, noThreads))
