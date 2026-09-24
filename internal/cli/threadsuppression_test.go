@@ -226,6 +226,29 @@ func TestRecordRefusesASuppressedByNamingNoIngestedThread(t *testing.T) {
 	}
 }
 
+// The refusal holds when every record in the file names a thread, not only when
+// some record beside the mistyped one names none. A file of suppressions alone
+// is the ordinary shape of a round whose findings the humans already raised, and
+// a check that only woke up for a mixed file would let every one of them retire
+// on an id nobody verified.
+func TestRecordRefusesAMistypedSuppressedByWhenEveryRecordNamesAThread(t *testing.T) {
+	layout := recordedHome(t)
+	ingestThreads(t, layout, ingestedThread)
+	named := aRecord("f1", "u2")
+	named["suppressed_by"] = ingestedThread
+	mistyped := aRecord("f2", "u2")
+	mistyped["suppressed_by"] = "PRRT_kwDOA1b2c"
+	file := writeRecordFile(t, "merged.ndjson", named, mistyped)
+
+	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+	require.Error(t, err)
+	var rejected *finding.RejectedRecordError
+	require.ErrorAs(t, err, &rejected)
+	assert.Equal(t, 2, rejected.Line, "the refusal names the line the mistyped id sits on")
+	assert.Equal(t, "suppressed_by", rejected.Field)
+	assert.Equal(t, []string{}, storedRound(t, layout), "and nothing of the file is stored")
+}
+
 // A finding whose summary repeats an ingested thread word for word is drafted
 // like any other when the agent did not name that thread.
 //
