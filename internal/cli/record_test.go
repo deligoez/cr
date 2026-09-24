@@ -408,6 +408,12 @@ func TestAFailedAppendIsReportedRatherThanSwallowed(t *testing.T) {
 	_, err := runRecord(t, recordPR, file, "--repo", recordSlug)
 	require.Error(t, err, "a round that reached no file was not recorded")
 	assert.Contains(t, err.Error(), dir, "the refusal names where the write failed")
+	// The journal is the append's first file. A later write in the same
+	// directory refuses too, so naming the directory alone would pass with the
+	// append's failure swallowed and a later write's reported in its place.
+	assert.Contains(t, err.Error(),
+		layout.PRFile(recordOwner, recordRepo, recordPRNum, state.FileTransitions),
+		"the refusal is the append's own")
 
 	_, again := runRecord(t, recordPR, file, "--repo", recordSlug)
 	require.Error(t, again, "the lock was released, so the second run reaches the write too")
