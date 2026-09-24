@@ -282,6 +282,35 @@ func TestNotesAreLoadedForTheResolvedKeyAndForNoKeyAtAll(t *testing.T) {
 	})
 }
 
+// meta.json names the intent file absolute, so a later command finds it from any
+// directory, and names none when the brief read the issue through the tracker
+// command instead.
+func TestMetaNamesTheIntentFileAbsoluteAndNoneWithoutOne(t *testing.T) {
+	dir, head, base := repository(t)
+	work := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(work, "issue.txt"),
+		[]byte("The order total sums the subtotal and the shipping.\n"), 0o600))
+	t.Chdir(work)
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	relative := sources(t, dir, answering(head, base, noThreads))
+	relative.Intent.File = "issue.txt"
+	_, err = Run(relative)
+	require.NoError(t, err)
+	meta, err := relative.Layout.ReadMeta(testOwner, testRepo, testPR)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(cwd, "issue.txt"), meta.IntentFile)
+
+	tracked := sources(t, dir, answering(head, base, noThreads))
+	tracked.Intent = intent.Source{Cmd: []string{"echo", "{key}: the order total sums the subtotal and the shipping."}}
+	_, err = Run(tracked)
+	require.NoError(t, err)
+	meta, err = tracked.Layout.ReadMeta(testOwner, testRepo, testPR)
+	require.NoError(t, err)
+	assert.Empty(t, meta.IntentFile)
+}
+
 // rendered is a brief's disclosures as the sentences a reader is shown.
 func rendered(b *Brief) []string {
 	disclosed := b.Disclosures()
