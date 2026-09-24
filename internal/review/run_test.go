@@ -550,3 +550,20 @@ func TestAFanOutDirectoryThatCannotBeCreatedFailsTheReview(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, fan)
 }
+
+// §2.5.2 through the fan-out: an ejected role file byte-equal to the role an
+// earlier release shipped is reported beside the prompts it framed, because
+// every prompt carries that role's instructions and focus.
+func TestAFanOutReportsAnEjectedRoleAnEarlierReleaseShipped(t *testing.T) {
+	src := briefed(t)
+	previous, err := os.ReadFile(filepath.Join("..", "role", "builtin", "shipped", "v0.2.2", "correctness.json"))
+	require.NoError(t, err)
+	file := filepath.Join(src.Layout.RolesDir(), "correctness.json")
+	require.NoError(t, os.WriteFile(file, previous, 0o600))
+
+	fan, err := Run(src)
+	require.NoError(t, err)
+
+	require.Len(t, fan.Honesty, 1)
+	assert.Contains(t, fan.Honesty[0], file)
+}
