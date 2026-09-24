@@ -168,6 +168,7 @@ func TestTheBriefPrintsAllSixItemsOfSection37(t *testing.T) {
 
 		assert.Contains(t, printed, "claims 1 recorded; issue text has drifted")
 		assert.Contains(t, printed, "CR-7#c1  span no longer occurs in the issue text")
+		assert.Contains(t, printed, "issue paragraphs: 0 total, 0 overlapped by no claim span")
 
 		assert.Contains(t, printed, "units 1")
 		assert.Contains(t, printed, "u1  src/Order.php RIGHT  27-46  38372bc96eb4010e  by adjacency")
