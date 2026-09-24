@@ -254,3 +254,23 @@ func TestACitationOfTheLastLineKeepsItsStamp(t *testing.T) {
 func answeringGH(head, base string) gh.Client {
 	return gh.WithRunner(answering(head, base, noThreads))
 }
+
+// §7.1.7 through the carry: a body the reviewer edited in the closing round's
+// draft travels with the record, and the migration line carries it. No
+// rendered.json stands beside the draft here, so every body in it reads as
+// edited.
+func TestAPushCarriesTheBodyTheReviewerEdited(t *testing.T) {
+	const edited = "Does the total count the shipping twice?"
+	briefed, _, err := pushOverOneRecord(t, "RIGHT", "", func(src *Sources) {
+		draftFile := src.Layout.RoundFile(testOwner, testRepo, testPR, 1, state.FileDraft)
+		require.NoError(t, os.MkdirAll(filepath.Dir(draftFile), 0o700))
+		require.NoError(t, os.WriteFile(draftFile, []byte(`<!-- cr:record id="f1" kind="question" `+
+			`path="order.go" side="RIGHT" start_line="3" line="3" severity="low" grade="argued" `+
+			`disposition="" -->`+"\n\n"+edited+"\n"), 0o600))
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"f1"}, briefed.Carried)
+	require.Len(t, briefed.Migrations, 1)
+	assert.Equal(t, edited, briefed.Migrations[0].Body)
+}
