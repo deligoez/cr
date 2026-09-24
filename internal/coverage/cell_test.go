@@ -371,6 +371,26 @@ func TestACellNamingAnUnknownUnitOrAnInactiveRoleIsRejected(t *testing.T) {
 	})
 }
 
+// §4.6.5 holds a round with no mapping at its intent pass: a cell of the
+// intent axis records, and a cell of any other axis is refused naming the
+// round and head that wait for the mapping.
+func TestARoundWithNoMappingRecordsOnlyIntentCells(t *testing.T) {
+	roles := append(active(), role.Role{ID: "intent-coverage", Title: "Intent", Axis: axis.Intent})
+	unmapped := &Unmapped{Round: 2, Head: "abc123"}
+
+	cells, err := DecodeInRound(cellsFile, []byte(`{"unit":"u1","role":"intent-coverage","result":"pass"}`+"\n"),
+		units(), roles, nil, unmapped, nil)
+	require.NoError(t, err)
+	assert.Len(t, cells, 1)
+
+	_, err = DecodeInRound(cellsFile, []byte(`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"),
+		units(), roles, nil, unmapped, nil)
+	var waiting *MappingRequiredError
+	require.ErrorAs(t, err, &waiting)
+	assert.Equal(t, "correctness", waiting.Role)
+	assert.Equal(t, 2, waiting.Round)
+}
+
 // A `pass` cell is refused at a seat where the round holds a record from that
 // role on that unit, naming the line, the field and the records; and only
 // there. A `finding` cell at that seat, and a `pass` at a seat no record was
