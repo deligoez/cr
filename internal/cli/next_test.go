@@ -342,3 +342,23 @@ func TestACompleteRoundOwesNothing(t *testing.T) {
 	assert.Empty(t, report.Steps)
 	assert.Nil(t, report.Next)
 }
+
+// §10.4.4: a round whose intent axis is active and whose mapping is not
+// recorded owes the intent pass before anything else.
+func TestAnUnmappedRoundOwesTheIntentPassFirst(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	meta.MappingRound, meta.MappingHead = 0, ""
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.WriteMeta(&meta))
+	require.NoError(t, held.Unlock())
+
+	report := nextOfFixture(t)
+
+	require.NotEmpty(t, report.Steps)
+	assert.Equal(t, "intent", report.Steps[0].Step)
+}
