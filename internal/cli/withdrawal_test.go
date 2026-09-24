@@ -119,6 +119,34 @@ func TestAConfirmedWithdrawalWaivesTheConcernAndReplacesItsKeptOutcome(t *testin
 	}
 }
 
+// The record's own move is §9.6.2's last write, and a caller has to be told
+// when it fails: a withdrawal whose record is still `posted` was not made,
+// whatever the thread and the waiver say.
+//
+// gremlins found this. Negating the guard on MoveSent's error left `cr
+// withdraw --confirm` reporting the record withdrawn over a findings.ndjson
+// that still held it posted. The pull request's directory is made read-only
+// after the fixture is written, so the thread is resolved and the `wrong`
+// waiver and outcome, which live beside the repository and not under the pull
+// request, still land; only the move refuses.
+func TestAFailedWithdrawalMoveIsReportedRatherThanSwallowed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through a read-only directory")
+	}
+	layout := settlingHome(t, settledRecord("f3", "question", "posted", "PRRT_a"))
+	resolvingGh(t, "PRRT_a")
+	dir := filepath.Dir(layout.PRFile(answeredOwner, answeredRepo, answeredPRNum, state.FileFindings))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	require.NoError(t, os.Chmod(dir, 0o500))
+
+	_, err := runIn(t, "withdraw", answeredPR, "f3", "wrong", "--confirm", "--repo", answeredSlug)
+
+	require.Error(t, err, "a record still posted was not withdrawn")
+	assert.Contains(t, err.Error(), dir, "the refusal names where the write failed")
+	assert.Equal(t, ExitFile, exitCodeFor(err))
+	assert.Equal(t, "posted", settledAs(t, layout, "f3")["state"])
+}
+
 // §9.6.2 takes the disposition from the reviewer and from nowhere else: a
 // withdrawal that does not say which it is, or names neither, is refused as
 // the malformed invocation it is, before anything is read or sent.
