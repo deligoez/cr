@@ -259,3 +259,26 @@ func TestAHeadLagIsTheWholeReportOfARoundWithNothingElseToDisclose(t *testing.T)
 
 	assert.Equal(t, []string{"the remote's head is ahead of the one GitHub reported"}, result.Honesty)
 }
+
+// A link in the issue text is disclosed under the issue, and it is not a lens
+// that did not run: a round where every axis ran still says so beneath the axes.
+func TestAnIssueLinkDoesNotHideThatEveryAxisRan(t *testing.T) {
+	complete := briefedPayload()
+	complete.Axes = activation.Activation{
+		Active:      axis.IDs(),
+		Disabled:    []activation.Disabled{},
+		Unavailable: []intent.Unavailable{},
+	}
+	linked := &briefResult{
+		Brief:   complete,
+		Honesty: []string{intent.LinkDisclosure("https://example.com/spec")},
+		links:   1,
+	}
+
+	var printed bytes.Buffer
+	out := &writer{out: &printed, mode: ModeText}
+	require.NoError(t, out.emit(linked))
+
+	assert.Contains(t, printed.String(), "https://example.com/spec")
+	assert.Contains(t, printed.String(), "every axis of §1.5 ran; nothing was disabled or unavailable")
+}
