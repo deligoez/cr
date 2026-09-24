@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -325,4 +326,53 @@ func TestAProposalWithNoRunnerIsStoredUnrunnable(t *testing.T) {
 	assert.Equal(t, "unrunnable", stored[0]["state"])
 	assert.Equal(t, "the resolved profile (none: no profile matched this repository) declares no tests.cmd, "+
 		"so §5.2.1 has no runner to perform this experiment", stored[0]["reason"])
+}
+
+// §5.7.6 through `cr status`: the round's open proposals are disclosed when
+// they outnumber the executions `probe.max_per_round` still leaves, and only
+// then.
+//
+// One probe has already run, so the executions left are the cap less one and
+// not the cap itself; a disclosure that added the spent probes instead would
+// read the same only while nothing had run. The second case sits on the
+// boundary: one open proposal and one execution left is a round that can still
+// answer every ask, and saying otherwise is a notice a reader learns to skip.
+func TestStatusDisclosesOpenProposalsOnlyPastTheProbesLeft(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		capped string
+		want   []string
+	}{
+		{name: "one open proposal and no execution left", capped: "1", want: []string{
+			"§5.7.6: the round holds 1 open proposal(s) and probe.max_per_round leaves 0 execution(s) " +
+				"of its 1, so not every experiment the roles asked for can be run in this round",
+		}},
+		{name: "one open proposal and one execution left", capped: "2", want: []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+			at := briefedForProposals(t, prepared)
+			_, err := runCLIPrinting(t, "proposals", "record", fixturePR,
+				proposalFile(t, at, ""), "--repo", fixtureSlug)
+			require.NoError(t, err)
+			require.NoError(t, runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+				"--kind", "mutation", "--patch", writePatch(t, fixtureDiff)))
+			require.NoError(t, os.WriteFile(prepared.RepoConfig(fixtureOwner, fixtureProject),
+				[]byte(`{"profile":"qa","probe":{"max_per_round":`+tc.capped+`}}`), 0o600))
+
+			printed, err := runCLIPrinting(t, "status", fixturePR, "--repo", fixtureSlug)
+			require.NoError(t, err)
+			var report struct {
+				Honesty []string `json:"honesty"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(printed), &report))
+			disclosed := make([]string, 0)
+			for _, line := range report.Honesty {
+				if strings.HasPrefix(line, "§5.7.6") {
+					disclosed = append(disclosed, line)
+				}
+			}
+			assert.Equal(t, tc.want, disclosed)
+		})
+	}
 }
