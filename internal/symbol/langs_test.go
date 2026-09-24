@@ -314,3 +314,29 @@ func TestATypeScriptTemplateLiteralRunsAcrossLines(t *testing.T) {
 	assert.Equal(t, "banner@1", enclosing(t, index, "src/banner.ts", 5),
 		"the brace inside the template literal closed nothing")
 }
+
+// A Rust raw string ends at its own closing quote and hashes, even when that
+// closer stands directly after the opening quote, and a content that opens with
+// a `#` is content: the `"#` the opening quote forms with it closes nothing.
+//
+// gremlins found both edges open: the one raw string fixture held content that
+// neither was empty nor began with `#`.
+func TestARustRawStringEndsAtItsOwnCloserAndNoEarlier(t *testing.T) {
+	index, built := Build("rust", []File{fileOf("src/raw.rs", `fn empty() -> &'static str {
+    r""
+}
+
+fn hashed() -> &'static str {
+    r#"#{"#
+}
+
+fn after() {
+    work();
+}
+`)})
+	require.True(t, built)
+
+	assert.Equal(t, "empty@1", enclosing(t, index, "src/raw.rs", 2))
+	assert.Equal(t, "hashed@5", enclosing(t, index, "src/raw.rs", 6))
+	assert.Equal(t, "after@9", enclosing(t, index, "src/raw.rs", 10))
+}
