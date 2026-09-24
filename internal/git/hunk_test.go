@@ -371,6 +371,23 @@ func TestAHunkAnswersForItsInsertionPointsAndItsRemovedLines(t *testing.T) {
 	}
 }
 
+// A hunk of context alone adds nothing and removes nothing. git does not write
+// one, but the parser reads it, and it has no removed line to take an
+// insertion point or a LEFT range from — so both answers fall back to the
+// header's head range rather than reaching for a removal that is not there.
+func TestAHunkOfContextAloneAnswersWithItsHeaderRange(t *testing.T) {
+	hunks, err := ParseHunks("--- a/still.txt\n+++ b/still.txt\n@@ -4,2 +4,2 @@\n four\n five\n")
+	require.NoError(t, err)
+	require.Len(t, hunks, 1)
+	require.Equal(t, Left, hunks[0].Side)
+	require.Empty(t, hunks[0].Removed)
+
+	start, end := hunks[0].HeadRange()
+	assert.Equal(t, [2]int{4, 5}, [2]int{start, end})
+	start, end = hunks[0].SideRange()
+	assert.Equal(t, [2]int{4, 5}, [2]int{start, end})
+}
+
 // The parser and the diff flags of diffArgs are one contract, and a patch that
 // breaks it is not quietly read as something else. Every one of these shapes
 // would otherwise slide a changed line onto the wrong number or the wrong side.
