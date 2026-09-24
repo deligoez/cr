@@ -242,6 +242,22 @@ func TestAHitsStandardNamesTheProfileFileItShipsIn(t *testing.T) {
 	assert.Contains(t, promptOf(t, fan, "correctness", "u1"), "\n  from "+src.Layout.Profile("shop")+"\n")
 }
 
+// A hit whose rule carries a fix shows the suggestion that fix gives, under
+// the hit, before the agent decides to confirm it (§2.6.2.4).
+func TestAHitShowsTheSuggestionItsRulesFixGives(t *testing.T) {
+	src := briefed(t)
+	withFix := strings.Replace(shopProfile, `"mode":"regex"}`,
+		`"mode":"regex"},"fix":{"replace":"shipping\\(\\)","with":"quote.Shipping"}`, 1)
+	require.NotEqual(t, shopProfile, withFix)
+	require.NoError(t, os.WriteFile(src.Layout.Profile("shop"), []byte(withFix), 0o600))
+
+	fan, err := Run(src)
+	require.NoError(t, err)
+
+	assert.Contains(t, promptOf(t, fan, "correctness", "u1"),
+		"fix: replacing `shipping\\(\\)` with `quote.Shipping` gives the suggestion below")
+}
+
 // The round's active roles each get a prompt for each unit, and the halves that
 // could not run are reported beside them rather than left out.
 func TestRunEmitsEveryActiveRoleOverEveryUnitOfTheRound(t *testing.T) {
