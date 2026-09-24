@@ -89,3 +89,26 @@ func TestARecordedRoundWithoutAMomentIsOrderedAtItsBound(t *testing.T) {
 	assert.True(t, two.Full)
 	assert.Equal(t, map[string]string{"no-todo": "global"}, layersOf(two.Dead))
 }
+
+// A pull request's first round is a round like any other: recorded, with no
+// rule hit and no triage event of its own, it enters the window dated by its
+// recording.
+//
+// gremlins found this. Listing round directories from 2 up rather than from 1
+// left every recorded first round out of the window unless a ledger dated it,
+// so a repository's opening rounds could not count toward calling a rule dead.
+func TestARecordedFirstRoundEntersTheDeadWindow(t *testing.T) {
+	layout := recordedHome(t)
+	recorded := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	held, err := layout.LockPR(recordOwner, recordRepo, recordPRNum)
+	require.NoError(t, err)
+	require.NoError(t, state.UpdateRoundSection(held, 1, state.FileSummary, summaryDeduplicated, 0))
+	require.NoError(t, state.UpdateRoundSection(held, 1, state.FileSummary, summarySuppressedByThread, 0))
+	require.NoError(t, state.UpdateRoundSection(held, 1, state.FileSummary, summaryRecordedAt, recorded))
+	require.NoError(t, held.Unlock())
+
+	var printed rulesDeadResult
+	listRules(t, &printed, "--dead")
+
+	assert.Equal(t, []rule.LedgerRound{{PR: recordPRNum, Round: 1, At: recorded, Dated: true}}, printed.Window)
+}
