@@ -70,3 +70,31 @@ func TestASpanRecordedBeforeCleaningCoversOnlyItsOwnParagraph(t *testing.T) {
 		{StartLine: 3, EndLine: 4, Text: "An order under 50 TL pays shipping.\nView this issue on Jira"},
 	}}, UncoveredParagraphs(cleaned, slices.Values(claims)))
 }
+
+// A paragraph is covered by a span that overlaps one of its bytes, and the line
+// break after a paragraph or before the next is a byte of neither: a span that
+// opens on the break below one paragraph, or closes on the break above the
+// next, covers only the paragraph it reaches into. A span the text opens with
+// covers the first paragraph like any other occurrence.
+//
+// gremlins found both edges open, and the first occurrence at offset zero:
+// every fixture's spans began and ended inside a paragraph, and none began the
+// text.
+func TestASpanCoversOnlyTheParagraphsWhoseBytesItOverlaps(t *testing.T) {
+	issue := "First.\n\nSecond.\n\nThird."
+	claims := []Claim{
+		{ID: "CR-1#c1", Source: ClaimFromDescription, Span: "\n\nSecond"},
+		{ID: "CR-1#c2", Source: ClaimFromDescription, Span: "Second.\n\n"},
+	}
+
+	assert.Equal(t, Paragraphs{Total: 3, Uncovered: []Paragraph{
+		{StartLine: 1, EndLine: 1, Text: "First."},
+		{StartLine: 5, EndLine: 5, Text: "Third."},
+	}}, UncoveredParagraphs(issue, slices.Values(claims)))
+
+	opening := []Claim{{ID: "CR-1#c1", Source: ClaimFromDescription, Span: "First."}}
+	assert.Equal(t, Paragraphs{Total: 3, Uncovered: []Paragraph{
+		{StartLine: 3, EndLine: 3, Text: "Second."},
+		{StartLine: 5, EndLine: 5, Text: "Third."},
+	}}, UncoveredParagraphs(issue, slices.Values(opening)))
+}
