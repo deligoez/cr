@@ -197,6 +197,23 @@ Each of these is measured rather than wished for: the evidence is a run that had
   So **house style has to come from the team**, by definition, and the remedy is seeding a corpus from a
   team's own code and review history. Discharged when a team can seed one without writing every file by
   hand, and `cr rules suggest` harvests from something other than posted rounds.
+
+  **The seeding half shipped in v0.13.0** (`spec/0.13.0.md` §2.6.3.5–§2.6.3.9). `cr rules suggest
+  --from-history` reads the repository's review comments through gh, newest first over a `created_at`
+  window, and reports the human ones for the agent; `cr rules add` validates the rule the agent drafts
+  from them and stores it in the per-repository layer, a `source`-carrying rule only as a question. The
+  design measurement stands behind the split: over 993 human opening comments of 2025, no mechanical key
+  turned history into rules (exact bodies gave three keys reaching three pull requests, all spellings of one
+  sentence), so
+  cr buckets and the agent judges. Dogfooded read-only on `tarfin-labs/backend`, 2025-01-01 to
+  2025-03-01 at `--limit 200`: 318 comments read in 2m16s, 200 included, 118 replies excluded and 112 of them attached, no bot and
+  no pull-request author among the opening comments, the limit cutting the window at 2025-01-30, and
+  month medians of 89 and 30 characters. **What is still unmeasured is the point of it**: whether a
+  corpus seeded this way recovers what M3 missed. That is the M3 re-run — seed from history strictly
+  before #3757's first review, with the `laravel-pest` rules drawn from M3's own answers removed, in a
+  fresh `claude -p` clone with the memory plugin off; rerun M3's recipe on #3757; score H1, H8, H11, H12,
+  H15, H18 and H21 against zero rule-sourced false assertions, beside an empty-corpus control. Until
+  that run, v0.13.0 is a way to seed a corpus, not evidence that seeding works.
 - ~~**A withdrawal collects the best false-positive signal cr has and throws it away.**~~ *Shipped in
   v0.6.0 as the three parts below, and discharged against its own criterion: a confirmed
   `withdraw … wrong` writes `withdrawn-wrong` over the posting's `kept`, which §7.3.4 counts against
