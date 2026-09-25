@@ -50,3 +50,13 @@ func TestTheDraftStepOfAMergedPullRequestProposesNoPost(t *testing.T) {
 	assert.Equal(t, []string{"f1"}, step.Items)
 }
 
+// The control: an open pull request's draft step still lists `cr post`.
+func TestTheDraftStepOfAnOpenPullRequestListsThePost(t *testing.T) {
+	stateHome(t, "OPEN")
+	queueARecord(t)
+
+	assert.Equal(t, []string{
+		"cr draft " + fixturePR + " --repo " + fixtureSlug,
+		"cr post " + fixturePR + " --repo " + fixtureSlug,
+	}, draftStepOf(t).Commands)
+}
