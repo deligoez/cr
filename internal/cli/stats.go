@@ -79,14 +79,14 @@ func (r *statsResult) Text(w *writer) string {
 	var out strings.Builder
 	out.WriteString(w.accent(r.Repo) + ": " + strconv.Itoa(r.Events) +
 		" triage event(s) over " + strconv.Itoa(len(r.Classes)) + " class(es)")
-	out.WriteString("\nper class (raised/kept/softened/not-here/wrong/withdrawn-not-here/withdrawn-wrong)")
+	out.WriteString("\nper class (raised/kept/softened/not-here/wrong/withdrawn-not-here/withdrawn-wrong/unedited/edit-unknown)")
 	if len(r.Classes) == 0 {
 		out.WriteString("\n  none")
 	}
 	for _, class := range r.Classes {
 		out.WriteString("\n  " + w.accent(class.Class) + " " + countsLine(class.TriageCounts))
 	}
-	out.WriteString("\nper rule (raised/kept/softened/not-here/wrong/withdrawn-not-here/withdrawn-wrong)")
+	out.WriteString("\nper rule (raised/kept/softened/not-here/wrong/withdrawn-not-here/withdrawn-wrong/unedited/edit-unknown)")
 	if len(r.Rules) == 0 {
 		out.WriteString("\n  none")
 	}
@@ -155,7 +155,8 @@ func statsSample(l state.Layout, owner, repo string) (finding.Sample, error) {
 }
 
 // countsLine renders §7.3.2's seven counts in the order the section names them,
-// which is also the order the heading above spells out.
+// then how many of the kept and softened were posted unedited and how many
+// carry no mark either way, which is the order the heading above spells out.
 func countsLine(counts finding.TriageCounts) string {
 	return strings.Join([]string{
 		strconv.Itoa(counts.Raised),
@@ -165,6 +166,8 @@ func countsLine(counts finding.TriageCounts) string {
 		strconv.Itoa(counts.DiscardedWrong),
 		strconv.Itoa(counts.WithdrawnNotHere),
 		strconv.Itoa(counts.WithdrawnWrong),
+		strconv.Itoa(counts.Unedited),
+		strconv.Itoa(counts.EditUnknown),
 	}, "/")
 }
 
