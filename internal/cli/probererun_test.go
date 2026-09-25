@@ -111,3 +111,37 @@ func TestAGapReRunUsesTheStoredTestAndTarget(t *testing.T) {
 		"the stored test was placed where the new id puts it, and the suite read it")
 }
 
+// §5.5.4: every input flag beside `--rerun` aborts with exit code 2, before
+// anything runs. The stored probe carries every input, so a flag beside it
+// would run an experiment other than the one `rerun_of` would name.
+func TestEveryInputFlagBesideAReRunIsRefused(t *testing.T) {
+	patch := writePatch(t, fixtureDiff)
+	supplied := writeProbeTest(t)
+
+	for flag, value := range map[string]string{
+		"--proposal": "x1",
+		"--kind":     "mutation",
+		"--patch":    patch,
+		"--test":     supplied,
+		"--target":   "app.go:3",
+		"--filter":   "Retry",
+		"--path":     "app.go",
+	} {
+		t.Run(flag, func(t *testing.T) {
+			prepared, _, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+			seedProbes(t, prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileProbes),
+				seededMutation())
+
+			err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug,
+				"--rerun", "p1", flag, value)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), flag+" is rejected beside --rerun")
+			assert.Contains(t, err.Error(), "§5.5.4")
+			assert.Equal(t, ExitUsage, exitCodeFor(err))
+			assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+			assert.Len(t, storedRecords(t, prepared, state.FileProbes), 1, "nothing was recorded")
+		})
+	}
+}
+
