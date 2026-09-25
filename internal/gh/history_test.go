@@ -1,0 +1,41 @@
+package gh
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// §2.6.3.5 reads a repository's review comments newest first through the REST
+// listing, a GET the read boundary admits, and tags the author the way §3.5.2
+// tags a thread's: `bot` for GitHub's `Bot` type, `human` for everything else,
+// a gone account included.
+func TestReviewCommentsAreReadNewestFirstThroughTheReadBoundary(t *testing.T) {
+	var called []string
+	comments, last, err := WithRunner(answering(`[
+		{"id":2,"html_url":"https://github.com/acme/shop/pull/7#discussion_r2",
+		 "pull_request_url":"https://api.github.com/repos/acme/shop/pulls/7","created_at":"2025-02-02T00:00:00Z",
+		 "path":"a.go","line":null,"original_line":9,"side":"RIGHT","body":"why?","in_reply_to_id":1,
+		 "user":{"login":"Copilot","type":"Bot"}},
+		{"id":1,"html_url":"https://github.com/acme/shop/pull/7#discussion_r1",
+		 "pull_request_url":"https://api.github.com/repos/acme/shop/pulls/7","created_at":"2025-02-01T00:00:00Z",
+		 "path":"a.go","line":4,"side":"RIGHT","body":"rename","user":null}]`, &called)).
+		ReviewCommentsPage("acme", "shop", 3)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"api", "repos/acme/shop/pulls/comments?sort=created&direction=desc&per_page=100&page=3"},
+		called)
+	read, why := readOnly(called)
+	assert.True(t, read, why)
+	assert.True(t, last, "a page shorter than the page size is the last")
+	assert.Equal(t, []HistoryComment{
+		{ID: 2, PR: 7, URL: "https://github.com/acme/shop/pull/7#discussion_r2", Author: "Copilot",
+			AuthorType: AuthorBot, CreatedAt: "2025-02-02T00:00:00Z", Path: "a.go", Line: 9, Side: "RIGHT",
+			Body: "why?", InReplyTo: 1},
+		{ID: 1, PR: 7, URL: "https://github.com/acme/shop/pull/7#discussion_r1", AuthorType: AuthorHuman,
+			CreatedAt: "2025-02-01T00:00:00Z", Path: "a.go", Line: 4, Side: "RIGHT", Body: "rename"},
+	}, comments)
+}
+
