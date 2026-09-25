@@ -10,7 +10,7 @@
 //
 // A rule file is project-owned and hand-edited, so it is untrusted input, and
 // the defence is the same one §2.5 gets: the struct below carries exactly the
-// twelve rows of §2.6's table, and every key outside that table is refused by
+// thirteen rows of §2.6's table, and every key outside that table is refused by
 // name rather than ignored. A silently dropped key leaves its author believing
 // it took effect, which for a rule means believing a standard is being enforced
 // when nothing is enforcing it.
@@ -68,7 +68,7 @@ var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 var (
 	fields = []string{
 		"id", "title", "rationale", "axis", "class", "severity", "kind",
-		"detect", "fix", "globs", "exempt", "profiles",
+		"detect", "fix", "globs", "exempt", "profiles", "source",
 	}
 	detectFields = []string{"pattern", "mode"}
 	fixFields    = []string{"replace", "with"}
@@ -157,6 +157,10 @@ type Rule struct {
 	Exempt []string `json:"exempt"`
 	// Profiles names the profiles the rule applies to. Empty means all.
 	Profiles []string `json:"profiles"`
+	// Source names the URLs of the review comments the rule was drawn
+	// from (§2.6.3.9). It is for the agent and the reviewer, and omitted
+	// when empty, so a rule written before v0.13 serialises as it did.
+	Source []string `json:"source,omitempty"`
 }
 
 // MalformedError reports a rule file cr cannot use. It carries the file so the
