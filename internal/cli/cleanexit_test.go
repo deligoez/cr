@@ -149,6 +149,29 @@ func TestAnUndeterminedCountNamesItsRung(t *testing.T) {
 	}
 }
 
+// §5.2.1 through `cr probe run`: a probe run that exits 0 with its executed
+// count undetermined is disclosed under honesty, beside the `inconclusive`
+// the ladder gives it; the control, a probe run printing its recap, is not.
+func TestACleanExitWithNoCountIsDisclosedByTheProbe(t *testing.T) {
+	for _, tc := range []struct {
+		name, then string
+		disclosed  bool
+	}{
+		{name: "no recap", then: "  echo 'no recap'\n  exit 0\n", disclosed: true},
+		{name: "a recap", then: "  echo 'Tests:  4 passed'\n  exit 0\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probeFixture(t, onlyWhenMutated(tc.then), gapProbeTemplate)
+			shown := runProbe(t, writePatch(t, fixtureDiff))
+			if tc.disclosed {
+				assert.Contains(t, shown["honesty"], uncountedSentence)
+				return
+			}
+			assert.NotContains(t, shown["honesty"], uncountedSentence)
+		})
+	}
+}
+
 // assertReason holds the command's document and the stored probe record to the
 // same reason, and to none at all where want is empty.
 func assertReason(t *testing.T, want string, shown, stored map[string]any) {
