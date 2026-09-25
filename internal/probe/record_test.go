@@ -39,6 +39,7 @@ var specFields = []field{
 	{Name: "target"},
 	{Name: "duration_ms"},
 	{Name: "output_tail"},
+	{Name: "rerun_of"},
 }
 
 // §5.5's table is what a reader of probes.ndjson is promised, so the table cr
@@ -78,6 +79,7 @@ func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 		Target:      "app.go:3",
 		DurationMS:  12,
 		OutputTail:  "Tests:  4 passed\n",
+		RerunOf:     "p1",
 	}
 	named := make([]string, 0, len(specFields))
 	for _, row := range specFields {
@@ -89,13 +91,16 @@ func TestEveryRowOfTheTableReachesTheWire(t *testing.T) {
 	sparse := *filled
 	sparse.Result, sparse.Reason = resultNoTestFailed, ""
 	sparse.Filter, sparse.Paths, sparse.TestsRun, sparse.TestsFailed = "", nil, nil, nil
+	sparse.RerunOf = ""
 	assert.ElementsMatch(t,
 		slices.DeleteFunc(named, func(name string) bool {
 			return name == "filter" || name == "paths" ||
-				name == "tests_run" || name == "tests_failed" || name == "reason"
+				name == "tests_run" || name == "tests_failed" || name == "reason" ||
+				name == "rerun_of"
 		}),
 		wireKeys(t, &sparse),
-		"§5.5: the four rows the Required column answers no, and reason, are the ones that may be absent")
+		"§5.5: the four rows the Required column answers no, reason, and the computed "+
+			"rerun_of of a probe that re-ran nothing are the ones that may be absent")
 }
 
 // wireKeys is the keys of one record as probes.ndjson holds them.
