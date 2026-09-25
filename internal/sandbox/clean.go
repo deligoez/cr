@@ -75,17 +75,21 @@ func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 	if err != nil {
 		return nil, err
 	}
-	// A sandbox clean against its baseline can still lack a file §5.1.2
-	// copies, or hold an older copy of one. The check runs here and not in
-	// Unclean, because §5.1.7's post-run check reads Unclean and a run does
-	// not make a copied file stale.
+	// A sandbox clean against its baseline can still have been built under
+	// another profile, lack a file §5.1.2 copies, or hold an older copy of
+	// one. These checks run here and not in Unclean, because §5.1.7's
+	// post-run check reads Unclean and a run changes none of them. The
+	// profile is asked first: under another profile the copy list the other
+	// checks read is not the one the sandbox was built from.
 	if reason == "" {
 		recorded, err := ReadBaseline(src.Layout, src.Owner, src.Repo, src.PR)
 		if err != nil {
 			return nil, err
 		}
-		if reason, err = stale(src, recorded); err != nil {
-			return nil, err
+		if reason = profileChanged(recorded.Profile, src.Profile); reason == "" {
+			if reason, err = stale(src, recorded); err != nil {
+				return nil, err
+			}
 		}
 		// A baseline an earlier cr recorded names no generation, so no
 		// run could be tied to the sandbox it describes.
@@ -103,6 +107,30 @@ func Ensure(src *Sources, leftoverGlob string) (*Ready, error) {
 	return &Ready{
 		Path: path, Generation: generation, Recreated: &Recreated{Path: path, Reason: reason}, Stopped: stopped,
 	}, nil
+}
+
+// profileChanged is §5.1.6's profile check: a sandbox is built by one profile's
+// `sandbox.copy` and `sandbox.setup`, so one built under a profile other than
+// the round's holds what that other profile brought, and lacks what the round's
+// would. It returns the empty string when the two agree.
+func profileChanged(recorded *string, round string) string {
+	switch {
+	case recorded == nil:
+		return "its post-setup baseline names no profile, so what it was built with is unknown"
+	case *recorded != round:
+		return fmt.Sprintf("it was built under profile %s, and the round's is %s",
+			profileName(*recorded), profileName(round))
+	}
+	return ""
+}
+
+// profileName is a profile id as a reader is told it, with §2.4.4's empty id
+// said in words rather than printed as nothing.
+func profileName(id string) string {
+	if id == "" {
+		return "none (no profile matched)"
+	}
+	return id
 }
 
 // Unclean reports why the pull request's sandbox cannot be run in, and the
