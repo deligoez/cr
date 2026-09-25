@@ -58,6 +58,9 @@ type Unit struct {
 	Formation Formation `json:"formation"`
 	// Oversized marks §3.4.5's one exception, per Cluster.Oversized.
 	Oversized bool `json:"oversized"`
+	// TwinOf is the earlier unit of the round this one is §4.6.8's twin
+	// of, per MarkTwins, and empty for a unit that repeats none.
+	TwinOf string `json:"twin_of,omitempty"`
 }
 
 // Units records §3.4.6's fields for the units §3.4.5 left, numbering them `u1`
