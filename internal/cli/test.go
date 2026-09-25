@@ -367,7 +367,8 @@ func newTestCmd(out *writer) *cobra.Command {
 				Contaminated: contaminated,
 				Warnings:     []string{probe.CollisionWarning()},
 				Honesty: append(append(append(append(recreationNotice(ready), survivorNotice(lingering)...),
-					uncopied...), resolved.StaleDisclosures()...), stored.Uncounted()...),
+					uncopied...), resolved.StaleDisclosures()...),
+					stored.Uncounted(resolved.Tests.CountPattern)...),
 			})
 		},
 	}

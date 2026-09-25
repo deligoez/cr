@@ -1210,7 +1210,7 @@ func probeDisclosures(setup *probeSetup, finished *finishedProbe) []string {
 		disclosed = append(disclosed, spent.Disclosure())
 	}
 	if measured := finished.performed.underProbe; measured != nil {
-		disclosed = append(disclosed, measured.Uncounted()...)
+		disclosed = append(disclosed, measured.Uncounted(setup.tests.profile.Tests.CountPattern)...)
 	}
 	return append(disclosed, survivorNotice(setup.tests.lingering)...)
 }
