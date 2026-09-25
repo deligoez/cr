@@ -86,6 +86,10 @@ var crossRoundReaders = map[string]string{
 		"id, which §6.1 keeps stable for the life of the pull request, and it lives in the round that " +
 		"posted it.",
 	"internal/cli/test.go: appendRun": "run.NextID, for the reason probe.NextID is.",
+	"internal/cli/probererun.go: storedProbe": "§5.5.4 re-runs a posted record's probe after a push, " +
+		"and the probe was recorded in the round that posted the record, not the round the push opened.",
+	"internal/cli/recheck.go: recheckRound": "§9.5.4 finds the re-run of a probe recorded in an " +
+		"earlier round, and holds it to the round's head itself rather than to the round.",
 	"internal/cli/probeproposal.go: loadProposal": "§5.7.3 names a proposal by id and refuses one of " +
 		"another round itself, naming the round it was proposed in; a read scoped to the current round " +
 		"would answer that with \"no such proposal\", which is the wrong sentence and the wrong code.",
