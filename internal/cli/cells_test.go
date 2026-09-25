@@ -88,16 +88,18 @@ func elementNamesCell(named ast.Expr) bool {
 	return false
 }
 
-// Nothing in cr builds a coverage cell.
+// Nothing in cr builds a coverage cell but §4.6.7's and §4.6.8's two.
 //
 // §4.5.6 says cr "MUST NOT invent a cell for a unit no role reported on — an
 // unfilled cell is a coverage gap per §10.1.1, not something for cr to
 // complete", and this is that sentence made structural rather than tested by
 // example. A test can only show that the cells cr wrote this time came from the
 // agent's file; this shows there is no expression anywhere in cr that could
-// produce a cell at all. Every Cell that exists was allocated by
-// state.DecodeStamped out of a line an agent wrote, through the one generic
-// call that names the type as a type argument and never as a value.
+// produce a cell except the two constructors v0.16 added, each resting on a
+// fact other than cr's reading of the code: coverage.KindCell on the profile's
+// declaration that a role does not read a kind of unit, coverage.TwinCell on a
+// role's own cell at the unit a twin repeats. Every other Cell was allocated by
+// state.DecodeStamped out of a line an agent wrote.
 //
 // The stakes are invariant 1 and P6 together. A cr-invented `pass` would be cr
 // forming a judgement about code no role looked at, and §10.2.2 would count it
@@ -121,15 +123,23 @@ func invent() []*coverage.Cell {
 	require.Len(t, cellConstructions(guilty), 2,
 		"the detector must see both ways a cell can be constructed")
 
+	derived := filepath.Join("internal", "coverage", "derived.go")
 	var found []string
+	constructors := 0
 	eachSourceFile(t, func(rel string, file *ast.File) {
-		for _, built := range cellConstructions(file) {
-			found = append(found, rel+" "+built)
+		built := cellConstructions(file)
+		if rel == derived {
+			constructors = len(built)
+			return
+		}
+		for _, one := range built {
+			found = append(found, rel+" "+one)
 		}
 	})
 
 	assert.Empty(t, found,
-		"§4.5.6: cr may not invent a cell, so nothing in cr may construct one")
+		"§4.5.6: cr may not invent a cell, so nothing in cr but §4.6.7's and §4.6.8's constructors may construct one")
+	assert.Equal(t, 2, constructors, "derived.go holds KindCell's literal and TwinCell's, and no third")
 }
 
 // The pull request the recording tests below run against.
