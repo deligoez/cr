@@ -208,7 +208,7 @@ already have posted.
 | `cr waivers list [--pr <n>]` | List waivers, repository-wide and for a pull request |
 | `cr waivers remove <id> [--pr <n>]` | Remove a waiver |
 | `cr stats` | Triage statistics, demotion and volume candidates |
-| `cr status <pr>` | Coverage, record states, and completeness |
+| `cr status <pr>` | Coverage, record states, completeness, and the sandbox's size and age |
 | `cr next <pr>` | The steps the round still owes, who takes each, and the exact commands |
 | `cr config [--resolved]` | Effective configuration and the layer of each setting |
 
