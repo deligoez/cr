@@ -35,7 +35,8 @@ type probeRunResult struct {
 	// the command line supplied.
 	Proposal string `json:"proposal,omitempty"`
 	// Regraded is §5.7.4's recomputation, absent when the run executed no
-	// proposal or the proposal named no record.
+	// proposal or the proposal named no record. Its `kept` says the record
+	// kept its probe and grade over a result that established nothing.
 	Regraded *Regraded `json:"regraded,omitempty"`
 	// RerunOf is the probe §5.5.4's `--rerun` re-ran, absent for any other
 	// run. The probe it names is left as it was: a re-run changes no
@@ -1147,7 +1148,7 @@ func reportProbe(
 	if request.proposal != "" {
 		settled, err := settleProposal(
 			setup.layout, request.owner, request.repo, request.pr,
-			&setup.round, request.proposal, finished.probeID)
+			&setup.round, request.proposal, finished.probeID, finished.outcome.Result())
 		if err != nil {
 			return err
 		}
@@ -1171,9 +1172,18 @@ func reportProbe(
 		Run:         finished.runID,
 		Voided:      finished.unclean,
 		Warnings:    []string{warning},
-		Honesty: append(append(probeDisclosures(setup, finished), setup.uncopied...),
-			setup.tests.profile.StaleDisclosures()...),
+		Honesty: append(append(append(probeDisclosures(setup, finished), keptNotice(regraded)...),
+			setup.uncopied...), setup.tests.profile.StaleDisclosures()...),
 	})
+}
+
+// keptNotice is §5.7.4's report that the record a proposal named kept its probe
+// and grade, as a list of none or one, so it sits beside the other disclosures.
+func keptNotice(regraded *Regraded) []string {
+	if kept := regraded.Disclosure(); kept != "" {
+		return []string{kept}
+	}
+	return nil
 }
 
 // probeDisclosures is what §11.1 exempts from `--quiet` on a probe run: §5.1.6's

@@ -206,14 +206,23 @@ func fillFromProposal(held *proposal.Proposal, request *probeRequest) error {
 }
 
 // settleProposal is §5.7.4: the executed proposal becomes `run` and names the
-// probe, and the record it named is re-graded against that probe.
+// probe, and the record it named is re-graded against that probe — unless the
+// probe's result is unsettled, in which case the record keeps its probe and
+// grade, and the answer says it did.
+//
+// The exception is measured. On tarfin-labs/backend#6328 with cr 0.14.0,
+// f4201 stood on p3, a `no-test-failed` over a passing baseline; proposal
+// x4202, naming it, ran twice with a filter selecting no test and came back
+// `inconclusive` both times, and each run moved f4201 onto the new probe,
+// dropping it to `argued` and taking its evidence out of the draft. A run that
+// established nothing is not evidence against the one that did.
 //
 // The two writes are one step because they are one fact. A proposal that ran
 // and a record that still reads `argued` over the experiment that settled it
 // would be the round saying two things, and the reader has no way to tell which
 // is current.
 func settleProposal(
-	l state.Layout, owner, repo string, pr int, round *state.Meta, id, probeID string,
+	l state.Layout, owner, repo string, pr int, round *state.Meta, id, probeID string, result probe.Result,
 ) (*Regraded, error) {
 	// The round's own proposals: loadProposal already refused one of
 	// another round, and ReplaceStamped keeps every earlier round's line
@@ -252,6 +261,9 @@ func settleProposal(
 	if stored[settled].Finding == "" {
 		return nil, nil
 	}
+	if result.Unsettled() {
+		return keptProbe(l, owner, repo, pr, round, stored[settled].Finding, probeID, result)
+	}
 	return regradeFromProbe(l, owner, repo, pr, round, stored[settled].Finding, probeID)
 }
 
@@ -265,6 +277,51 @@ type Regraded struct {
 	// changed nothing is an answer, and one the reader has to be told.
 	Was finding.Grade `json:"was"`
 	Now finding.Grade `json:"now"`
+	// Kept says the record kept its probe and grade because the probe just
+	// written came back `inconclusive`, `error` or `timeout`, and is absent
+	// when §5.7.4's recomputation ran. Holds is the probe the record still
+	// names then, absent when it names none.
+	Kept  bool   `json:"kept,omitempty"`
+	Holds string `json:"holds,omitempty"`
+	// result is the unsettled result that kept the record, for Disclosure.
+	result probe.Result
+}
+
+// Disclosure is the sentence §5.7.4 has cr report when the record kept its
+// probe and grade, and empty when the recomputation ran: that one the `was`
+// and `now` grades already report.
+func (r *Regraded) Disclosure() string {
+	if r == nil || !r.Kept {
+		return ""
+	}
+	holds := "no probe"
+	if r.Holds != "" {
+		holds = "probe " + r.Holds
+	}
+	return fmt.Sprintf("record %s keeps %s and grade %s, per §5.7.4: probe %s came back %s, "+
+		"which establishes nothing, so it moves no record's probe", r.Record, holds, r.Now, r.Probe, r.result)
+}
+
+// keptProbe is §5.7.4's other branch: the named record is left exactly as it
+// stands, and what it stands on is reported. Nothing is written.
+func keptProbe(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, recordID, probeID string, result probe.Result,
+) (*Regraded, error) {
+	records, err := roundFindingsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range records {
+		if record.ID == recordID {
+			return &Regraded{
+				Record: recordID, Probe: probeID, Was: record.Grade, Now: record.Grade,
+				Kept: true, Holds: record.Probe, result: result,
+			}, nil
+		}
+	}
+	// As in regradeFromProbe: a round re-recorded since may no longer hold
+	// the record, and the probe stands on its own.
+	return nil, nil
 }
 
 // regradeFromProbe writes the probe onto the record the proposal named and
