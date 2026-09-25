@@ -20,3 +20,13 @@ func TestAPathShapeIsItsDirectoryAndExtension(t *testing.T) {
 	}
 }
 
+// §2.6.3.8's code spans are the distinct inline spans of a body; a fenced
+// block, a suggestion among them, is code the comment proposes and is skipped.
+func TestCodeSpansAreTheInlineSpansOutsideFences(t *testing.T) {
+	body := "Use `Rule::enum` here, and `Rule::enum` there, not ` `.\n" +
+		"```suggestion\n$x = `inside`;\n```\n" +
+		"Also `value`."
+
+	assert.Equal(t, []string{"Rule::enum", "value"}, CodeSpans(body))
+}
+
