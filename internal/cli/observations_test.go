@@ -117,3 +117,24 @@ func TestAnObservationWithoutALineNamesTheFile(t *testing.T) {
 	assert.Equal(t, "lib.go", recorded.Recorded[0].Location())
 }
 
+// §10.4.5: an observations file a role wrote after the round's last
+// `cr observations record` is owed a recording, and the record step names the
+// command; once it is recorded, the step no longer names it.
+func TestNextOwesAnObservationsFileUntilItIsRecorded(t *testing.T) {
+	statusHome(t)
+	written := roleWrote(t, observation.FanOutFile("correctness"),
+		`{"path":"lib.go","line":4,"text":"The sibling loader repeats the defect."}`+"\n")
+
+	report := nextOfFixture(t)
+	record := stepNamed(t, &report, "record")
+	assert.Contains(t, record.Commands, "cr observations record "+fixturePR+" --repo "+fixtureSlug+" "+written)
+	assert.Contains(t, record.Items, written)
+
+	_, err := runCLIPrinting(t, "observations", "record", fixturePR, written, "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	after := nextOfFixture(t)
+	for i := range after.Steps {
+		assert.NotContains(t, after.Steps[i].Items, written, "a recorded observations file is owed nothing")
+	}
+}
