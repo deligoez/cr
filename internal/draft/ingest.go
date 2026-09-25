@@ -97,6 +97,11 @@ type Triage struct {
 	// one in place of the body cr would render. A discarded record has
 	// none, since it is not rendered again.
 	Preserved map[string]string
+	// Regions are the agent regions of every block kept or softened, keyed
+	// by record id, whether or not they differ from rendered.json: the
+	// bodies a send would post, which §7.3.2 compares against the ones the
+	// round's last `cr draft` wrote.
+	Regions map[string]string
 }
 
 // Outcome is §7.3.1's outcome action for one record the triage read, and so
@@ -178,6 +183,7 @@ func Ingest(queued []*finding.Finding, in *Draft) (Triage, error) {
 		Deleted: make([]*finding.Finding, 0), Wrong: make([]*finding.Finding, 0),
 		Softened: make([]*finding.Finding, 0), Hardened: make([]*finding.Finding, 0),
 		Retriaged: make([]Retriage, 0), Preserved: make(map[string]string),
+		Regions: make(map[string]string),
 	}
 	for _, record := range queued {
 		found, held := blocks[record.ID]
@@ -196,6 +202,7 @@ func Ingest(queued []*finding.Finding, in *Draft) (Triage, error) {
 			return Triage{}, err
 		}
 		region := render.AgentRegion(found.text)
+		triage.Regions[record.ID] = region
 		if entry, known := in.Rendered[record.ID]; !known || region != entry {
 			triage.Preserved[record.ID] = region
 		}
