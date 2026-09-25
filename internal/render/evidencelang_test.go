@@ -89,6 +89,21 @@ func TestTheStandInRowsUnderTurkishAreTurkish(t *testing.T) {
 	assert.NotContains(t, region, "input:")
 }
 
+// §5.4.4's limit on a gap probe is a row of the region too, so under `tr` it is
+// Turkish and the comment carries no English line an author would edit out.
+func TestAGapRegionUnderTurkishStatesItsLimitInTurkish(t *testing.T) {
+	region, err := ProbeEvidence(LangTR, "f1", &probe.Record{
+		Kind: probe.Gap, Target: "src/Refund.php:12", Result: "failed", Input: "<?php\n",
+	}, inputCap, "", nil)
+	require.NoError(t, err)
+
+	assert.Contains(t, region, "sonuç: failed\n"+
+		"sınır: `gap` türündeki bir deneyin başarısız olması ya davranışın ya da verilen testin yanlış "+
+		"olduğunu gösterir; cr bu ikisini birbirinden ayıramaz\n"+
+		"girdi:\n")
+	assert.NotContains(t, region, "limit:")
+}
+
 // A cited record's region under `tr` names each citation `kaynak`, and English
 // keeps the field names §5.5 and §6.1 give.
 func TestACitedRegionNamesItsCitationsInRenderLang(t *testing.T) {
