@@ -28,3 +28,43 @@ func TestEveryLanguageCarriesBuiltInEvidenceFieldNames(t *testing.T) {
 	}
 }
 
+// §8.1.7 under render.lang `tr`: every field name of a probed record's region
+// is Turkish, and every value beneath it — the probe's kind, its target, its
+// `result` and the runner's output — is written as the record holds it.
+//
+// Measured with cr 0.15.0 on a real pull request on a private Laravel
+// repository: the region read `kind:`, `target:`, `paths:`, `result:` and
+// `input:` in an otherwise Turkish comment.
+func TestAProbedRegionUnderTurkishNamesItsFieldsInTurkish(t *testing.T) {
+	region, err := ProbeEvidence(LangTR, "f1", &probe.Record{
+		ID:         "p1",
+		Kind:       probe.Mutation,
+		Target:     "src/Order.php:34",
+		Filter:     "charges shipping",
+		Paths:      []string{"tests/Feature"},
+		Result:     "no-test-failed",
+		Input:      aPatch,
+		OutputTail: "  Tests:  1 passed (1 assertions)\n",
+	}, inputCap, "", []*probe.Record{{ID: "p2", Result: "test-failed"}})
+	require.NoError(t, err)
+
+	assert.Equal(t, strings.Join([]string{
+		"<!-- cr:evidence -->",
+		"tür: mutation",
+		"hedef: src/Order.php:34",
+		"filtre: charges shipping",
+		"yollar: tests/Feature",
+		"sonuç: no-test-failed",
+		"girdi:",
+		"```",
+		strings.TrimSuffix(aPatch, "\n"),
+		"```",
+		"test çıktısı:",
+		"```",
+		"  Tests:  1 passed (1 assertions)",
+		"```",
+		"yeniden koşu: p2, sonuç: test-failed",
+		"<!-- cr:/evidence -->",
+	}, "\n"), region)
+}
+
