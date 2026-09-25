@@ -200,3 +200,24 @@ func TestEachExclusionIsCountedByReason(t *testing.T) {
 	assert.Equal(t, 1, reads, "§2.6.3.6's author read is one per pull request")
 }
 
+// §2.6.3.6: a reply is reported under the comment it answers, oldest first,
+// and not as a comment of its own.
+func TestAReplyIsReportedUnderTheCommentItAnswers(t *testing.T) {
+	historyHome(t)
+	historyGH(t, map[int]string{7: "author"}, []aHistoryComment{
+		{id: 3, pr: 7, login: "author", created: "2025-02-03T00:00:00Z", body: "Updated.", replyTo: 1},
+		{id: 2, pr: 7, login: "ayse", created: "2025-02-02T00:00:00Z", body: "Why?", replyTo: 1},
+		{id: 1, pr: 7, login: "ayse", created: "2025-02-01T00:00:00Z", body: "Rename `total`."},
+	})
+
+	report := fromHistory(t)
+
+	require.Len(t, report.Comments, 1)
+	assert.Equal(t, []rule.HistoryReply{
+		{URL: "https://github.com/acme/api/pull/7#discussion_r2", Author: "ayse",
+			CreatedAt: "2025-02-02T00:00:00Z", Body: "Why?"},
+		{URL: "https://github.com/acme/api/pull/7#discussion_r3", Author: "author",
+			CreatedAt: "2025-02-03T00:00:00Z", Body: "Updated."},
+	}, report.Comments[0].Replies)
+}
+
