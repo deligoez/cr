@@ -96,6 +96,9 @@ var specSurface = []surfaceRow{
 		// §5.7.3's own flag: the proposal supplies every input above,
 		// and giving one beside it is refused with code 2.
 		"proposal": "§5.7.3",
+		// §5.5.4's own flag: the stored probe supplies every input,
+		// the proposal included, and each beside it is refused with 2.
+		"rerun": "§5.5.4",
 	}},
 	{path: []string{"proposals", "record"}, use: "record <pr> <file>"},
 	{path: []string{"draft"}, use: "draft <pr>"},
