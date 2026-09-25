@@ -85,6 +85,10 @@ paragraphs of this file used to carry is the Shipped table below.
 - The `laravel-pest` name sits on a suite of PHPUnit-class tests.
 - Identical sibling units are not flagged as duplicates.
 - The rules-without-detector sections do not say which rule reaches which role.
+- Candidate: `cr sandbox prune`, removing the sandboxes of every pull request the last brief found
+  merged or closed. v0.15.0 has `cr next` name such a sandbox one pull request at a time
+  (§10.4.10) and `cr status` report its size; a 439 MB one holding copies of `.env` and Passport's
+  keys outlived its merged pull request.
 
 - ~~**§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.**~~ *Shipped in
   v0.7.0 as reading (i), `spec/0.7.0.md` §9.3.4 and §9.4.5–§9.4.8, and measured on `deligoez/cr-qa#23`:
