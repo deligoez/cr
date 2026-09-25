@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/note"
 	"github.com/deligoez/cr/internal/review"
 )
 
@@ -113,6 +115,47 @@ func TestATerminalReviewMarksRecordedAndStaleCells(t *testing.T) {
 		"§4.6.1: the note postdates u1's prompts, so they are emitted again")
 	assert.Equal(t, []string{"u2", "u2", "u2"}, promptUnits(fanoutOf(t).Prompts),
 		"and the run that carried it leaves them held again")
+}
+
+// §4.6.1's note condition leaves alone a held cell that cites the note in
+// `note_id`: the note §4.1.5 has the agent record to explain a unit is the one
+// that cell already weighed.
+//
+// Measured on tarfin-labs/backend#6328 with cr 0.13.0: after `cr note WB-3295
+// ... --pr 6328`, a note linked to no claim and so on every unit, and u3's
+// intent cell re-recorded with note_id WB-3295#n1, bare `cr review` emitted all
+// thirteen intent prompts again, u3's among them.
+func TestACellCitingTheNoteIsNotMadeStaleByIt(t *testing.T) {
+	statusHome(t)
+	_, err := runCLIPrinting(t, "review", fixturePR, "--repo", fixtureSlug, "--all")
+	require.NoError(t, err)
+
+	out, err := runCLIPrinting(t, "note", fixtureIssue, "u1 only moves code the issue already has.",
+		"--source", "chat", "--pr", fixturePR, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	var printed struct {
+		Note note.Note `json:"note"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &printed))
+	cited := writeCellsInput(t,
+		`{"unit":"u1","role":"intent-coverage","result":"pass","note_id":"`+printed.Note.ID+`"}`)
+	_, err = runCLIPrinting(t, "cells", "record", fixturePR, cited, "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	lines := terminalLines(t, throughATerminal(t, "review", fixturePR, "--repo", fixtureSlug, "--units", "u2"))
+	assert.Contains(t, lines, "  u1 intent-coverage (recorded)", "the cell cites the note it postdates")
+	assert.Contains(t, lines, "  u1 convention (recorded) (stale by note)",
+		"the control: a cell of the same unit that does not cite the note is stale by it")
+	assert.Equal(t, []string{"convention", "correctness"}, promptRoles(fanoutOf(t, "--units", "u1").Prompts))
+}
+
+// promptRoles is the role of each prompt, in the order they were emitted.
+func promptRoles(prompts []review.Prompt) []string {
+	roles := make([]string, 0, len(prompts))
+	for i := range prompts {
+		roles = append(roles, prompts[i].Role)
+	}
+	return roles
 }
 
 // terminalLines splits what a command printed at a terminal into lines.
