@@ -117,6 +117,11 @@ type Record struct {
 	// OutputTail is the runner's output truncated to
 	// `tests.output_tail_bytes`, per §5.5. §12.5 has `--compact` omit it.
 	OutputTail string `json:"output_tail"`
+	// RerunOf is §5.5's computed `rerun_of`: the id of the probe this one
+	// re-ran per §5.5.4, absent for a probe the command line or a proposal
+	// supplied. `cr recheck` reads it to report a posted record's probe at
+	// the current head, which it never runs itself.
+	RerunOf string `json:"rerun_of,omitempty"`
 }
 
 // field is one row of §5.5's table, by the name it goes by on the wire.
@@ -152,6 +157,7 @@ var fields = []field{
 	{Name: "target"},
 	{Name: "duration_ms"},
 	{Name: "output_tail"},
+	{Name: "rerun_of"},
 }
 
 // The check runs at package initialisation, so a Record that has drifted from
