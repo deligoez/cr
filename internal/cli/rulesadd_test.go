@@ -150,3 +150,15 @@ func TestAnIdThatIsNotTheFileStemIsRefused(t *testing.T) {
 	assert.Equal(t, ExitValidation, exitCodeFor(err))
 }
 
+// An `axis` outside §1.5's set is the loader's *axis.InvalidError, which the
+// corpus codes 3; handed to `cr rules add` it is input data, code 1.
+func TestAnUnknownAxisInAHandedRuleIsCodedOne(t *testing.T) {
+	crHome(t)
+	handed := handedRule(t, houseRuleID,
+		`{"id":"`+houseRuleID+`","title":"t","rationale":"r","class":"test-name","axis":"style"}`)
+
+	_, err := added(t, handed)
+
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+}
