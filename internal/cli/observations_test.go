@@ -102,3 +102,18 @@ func TestAnObservationThatDoesNotResolveIsRefusedWithExitOne(t *testing.T) {
 	}
 }
 
+// §4.6.9 allows an observation about a file as a whole: `line` left out, the
+// path held to the head alone.
+func TestAnObservationWithoutALineNamesTheFile(t *testing.T) {
+	statusHome(t)
+
+	printed, err := runCLIPrinting(t, "observations", "record", fixturePR,
+		observationsFile(t, `{"path":"lib.go","text":"The loader has no test."}`+"\n"), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	var recorded observationsRecordResult
+	require.NoError(t, json.Unmarshal([]byte(printed), &recorded))
+	require.Len(t, recorded.Recorded, 1)
+	assert.Equal(t, "lib.go", recorded.Recorded[0].Location())
+}
+
