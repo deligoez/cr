@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.11.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.12.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -469,10 +469,11 @@ source of truth; this table is a map, not a promise.
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
 | `cr test <pr> [--filter] [--path <path>]...` | Run the suite inside the sandbox, scoped to the given paths |
 | `cr probe run <pr> --kind <kind> ...` | Execute and record a mutation or gap probe |
+| `cr probe run <pr> --rerun <probe-id>` | Re-run a stored probe at the round's head, recording `rerun_of` (§5.5.4) |
 | `cr draft <pr>` | Render the editable draft |
 | `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <f>\|-]` | Apply one triage verb to the draft, as the hand edit would (§7.2.4) |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the round's one review; settle an unknown outcome |
-| `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors (§9.5) |
+| `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors, and the re-runs of posted records' probes; runs no test (§9.5) |
 | `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <t>` | Record the agent's judgement about one posted record (§9.5.5) |
 | `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread (§9.6.1) |
 | `cr withdraw <pr> <record-id> wrong\|not-here [--confirm]` | Retract a posted concern, waive it by its disposition, and resolve its thread (§9.6.2) |
@@ -654,7 +655,8 @@ spec/
   0.8.0.md           Normative v0.8 contract
   0.9.0.md           Normative v0.9 contract
   0.10.0.md          Normative v0.10 contract
-  0.11.0.md          Normative v0.11 contract, the current one
+  0.11.0.md          Normative v0.11 contract
+  0.12.0.md          Normative v0.12 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
