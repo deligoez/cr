@@ -807,10 +807,10 @@ cr is built with tp, the same way tp builds itself.
   messages, closure reasons, release notes. Author thinking may be in any
   language; nothing in the repository may be. Rendered review comments are
   Turkish, but they live in `~/.cr/` state, never in this repository. The
-  exceptions are §8.1.4's question labels and §8.4.3's review body framing: the
-  spec requires both **built in** and non-configurable, so `internal/render`'s
-  `tr` label strings and `tr` review body framing are Turkish and belong in the
-  tree. They are the only ones.
+  exceptions are §8.1.4's question labels, §8.4.3's review body framing and
+  §8.1.7's evidence field names: the spec requires all three **built in** and
+  non-configurable, so `internal/render`'s `tr` tables for them are Turkish and
+  belong in the tree. They are the only ones.
 
 ### Dogfooding
 
