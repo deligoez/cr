@@ -162,3 +162,46 @@ func TestAReRunOfAProbeThePullRequestDoesNotHoldIsRefused(t *testing.T) {
 	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
 }
 
+// §5.5.4 and §9.5.4 together, across the push that makes a re-run worth
+// having: a posted record names a probe of round 1, `cr probe run --rerun`
+// repeats it in round 2, and `cr recheck` reports that re-run and its result —
+// without starting the suite itself, and without the re-run having touched the
+// record's `probe` or grade.
+func TestRecheckReportsTheReRunAndRunsNothing(t *testing.T) {
+	prepared, _, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	seedProbes(t, prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileProbes),
+		seededMutation())
+	posted := strings.Replace(settledRecord("f3", "finding", "posted", "PRRT_a"),
+		`"summary"`, `"probe":"p1","grade":"probed","summary"`, 1)
+	holdRecords(t, prepared, fixtureOwner, fixtureProject, fixturePRNumber, posted)
+	findings := prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileFindings)
+	before, err := os.ReadFile(findings)
+	require.NoError(t, err)
+
+	probeDocument(t, throughAPipe(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--rerun", "p1"))
+
+	after, err := os.ReadFile(findings)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after), "§5.5.4: a re-run changes no record's probe or grade")
+	require.NoError(t, os.Remove(log))
+
+	threadsAnswering(t)
+	printed, err := runCLIPrinting(t, "recheck", fixturePR, "--repo", fixtureSlug)
+
+	require.NoError(t, err)
+	assert.NoFileExists(t, log, "§9.5.4: `cr recheck` MUST NOT run a probe")
+	var report struct {
+		Concerns []struct {
+			ID    string         `json:"id"`
+			Rerun map[string]any `json:"rerun"`
+		} `json:"concerns"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(printed), &report))
+	require.Len(t, report.Concerns, 1)
+	rerun := report.Concerns[0].Rerun
+	head := storedRecords(t, prepared, state.FileProbes)[1]["head"]
+	assert.Equal(t, map[string]any{
+		"of": "p1", "head": head, "ran": true, "probe": "p2", "result": "no-test-failed",
+		"command": "cr probe run " + fixturePR + " --repo " + fixtureSlug + " --rerun p1",
+	}, rerun)
+}
