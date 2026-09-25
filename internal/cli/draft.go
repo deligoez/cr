@@ -353,9 +353,16 @@ func renderDraft(
 	if err != nil {
 		return drafted{}, err
 	}
+	// §4.6.9: every observation of the round, in the header the human
+	// reads and nothing posts.
+	observed, err := roundObservationsOf(l, owner, repo, pr, round.Round)
+	if err != nil {
+		return drafted{}, err
+	}
 	file, err := draft.File(queued, settings.lang, sources, preserved, draft.HeaderFacts{
-		MaxComments: settings.maxComments,
-		Coverage:    rows,
+		MaxComments:  settings.maxComments,
+		Coverage:     rows,
+		Observations: observed,
 	})
 	if err != nil {
 		return drafted{}, err
