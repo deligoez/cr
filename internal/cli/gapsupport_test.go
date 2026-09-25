@@ -421,3 +421,54 @@ func TestATerminalRecordNamesWhatTheGapProbeSupports(t *testing.T) {
 	assert.Contains(t, out, "gap probe support unavailable",
 		"§11.1 exempts the disclosure from every flag, so a terminal gets it as well")
 }
+
+// §6.2.2 and §5.2.6 through the command: a failed gap probe that would
+// otherwise support its record does not when its target lies outside the
+// record's RIGHT anchor, or when no stored run is its baseline — and the reason
+// is the one sentence that names which, with the target and the anchor, or the
+// baseline id it could not resolve. A probe from another head never reaches
+// this answer: `cr record` refuses the reference first, per §6.2.2.
+func TestAGapProbeThatCannotGradeTheRecordSaysWhy(t *testing.T) {
+	start := recordUnitStart[gapUnit]
+	for name, tc := range map[string]struct {
+		change func(*probe.Record)
+		reason string
+	}{
+		"a target outside the record's anchor": {
+			func(p *probe.Record) { p.Target = recordPath + ":" + strconv.Itoa(start+20) },
+			"the probe's target " + recordPath + ":" + strconv.Itoa(start+20) + " does not fall within the " +
+				"record's RIGHT anchor " + recordPath + ":" + strconv.Itoa(start+2) + "-" + strconv.Itoa(start+4) +
+				"; §6.2.2 lets a probe support only a record whose RIGHT anchor range holds its target, " +
+				"so the record stays argued (§6.2) and is asked as a question (§6.3)",
+		},
+		"a baseline no stored run is": {
+			func(p *probe.Record) { p.Baseline = "r9" },
+			"§5.2.6 admits no stored run as this probe's baseline r9, so §5.4.4's first condition cannot be read",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			layout := probedHome(t, gapFixture{result: "failed", passed: true, mapped: true, issue: gapIssue})
+			stored, err := state.ReadRecords[probe.Record](
+				layout, recordOwner, recordRepo, recordPRNum, state.FileProbes)
+			require.NoError(t, err)
+			require.Len(t, stored, 1)
+			tc.change(&stored[0])
+			held, err := layout.LockPR(recordOwner, recordRepo, recordPRNum)
+			require.NoError(t, err)
+			require.NoError(t, held.Write(state.FileProbes, ndjson(t, stored[0])))
+			require.NoError(t, held.Unlock())
+			file := writeRecordFile(t, "merged.ndjson", atMostMedium(aProbedRecord(gapClaim)))
+
+			printed, err := runRecord(t, recordPR, file, "--repo", recordSlug)
+
+			require.NoError(t, err)
+			var payload struct {
+				Probes []probeAnswer `json:"probes"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(printed), &payload))
+			require.Len(t, payload.Probes, 1)
+			assert.False(t, payload.Probes[0].Supports)
+			assert.Equal(t, tc.reason, payload.Probes[0].Reason)
+		})
+	}
+}
