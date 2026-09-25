@@ -182,10 +182,11 @@ already have posted.
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
 | `cr test <pr> [--filter <f>] [--path <path>]...` | Run the profile's test command inside the sandbox, narrowed to the paths through `tests.paths_arg` |
 | `cr probe run <pr> --kind mutation\|gap ...` | Execute and record a probe (`--patch`, `--test`, `--target`, `--filter`, `--path`), over a baseline of the same filter and paths |
+| `cr probe run <pr> --rerun <probe-id>` | Re-run a stored probe at the current head, recording the new probe's `rerun_of` |
 | `cr draft <pr>` | Render the editable draft and read back its triage |
 | `cr triage <pr> <record-id> not-here\|wrong\|soften\|keep [--body-file <path>\|-]` | Apply one triage verb to the draft, as the hand edit would; `soften` exits 1 on a block already `kind="question"`, which §6.3's forcing makes every `argued` record, so `keep --body-file` is the verb for rewording one |
 | `cr post <pr> [--confirm] [--reconcile]` | Validate and post the review; resolve an unknown outcome |
-| `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors |
+| `cr recheck <pr>` | Report what came back: thread state, replies, migrated anchors, and each posted record's probe re-run or the command that performs one; it runs no test |
 | `cr verify <pr> <record-id> answered\|addressed\|standing --evidence <text>` | Record the agent's judgement about one posted record |
 | `cr resolve <pr> <record-id> [--confirm]` | Resolve a settled record's thread |
 | `cr withdraw <pr> <record-id> wrong\|not-here [--confirm]` | Retract a posted concern, waive it by its disposition, and resolve its thread |
