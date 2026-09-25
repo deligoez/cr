@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/deligoez/cr/internal/reinvention"
 	"github.com/deligoez/cr/internal/review"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/sandbox"
 	"github.com/deligoez/cr/internal/state"
 	"github.com/deligoez/cr/internal/symbol"
 	"github.com/deligoez/cr/internal/unit"
@@ -145,6 +147,10 @@ type statusResult struct {
 	// there is no way to print the claim without printing the list that
 	// qualifies it.
 	Completeness coverage.Completeness `json:"completeness"`
+	// Sandbox is the pull request's sandbox on disk — its path, size and
+	// age — and absent when there is none. It keeps a checkout and the
+	// copies of gitignored files until `cr sandbox destroy` removes it.
+	Sandbox *sandbox.Footprint `json:"sandbox,omitempty"`
 	// Honesty carries §9.3.1's comparison of the round's head against the
 	// pull request's current one, then §10.2's verdict together with every
 	// entry of §4.5.4's report, and then §10.1.6's waiver and duplicate
@@ -203,6 +209,10 @@ func (r *statusResult) Text(w *writer) string {
 	out.WriteString(r.concernLines())
 	out.WriteString(r.noteLines())
 	out.WriteString(notesAfterLines("", "\n", r.NotesAfterPrompts))
+	if r.Sandbox != nil {
+		out.WriteString("sandbox: " + r.Sandbox.Path + ", " + strconv.FormatInt(r.Sandbox.Bytes, 10) +
+			" bytes, built " + (time.Duration(r.Sandbox.AgeSeconds) * time.Second).String() + " ago\n")
+	}
 	out.WriteString(w.disclose("", "\n", r.Honesty...))
 	return strings.TrimRight(out.String(), "\n")
 }
@@ -350,6 +360,9 @@ func newStatusCmd(out *writer) *cobra.Command {
 				return err
 			}
 			if report.Concerns, err = postedConcernsOf(layout, owner, repo, pr); err != nil {
+				return err
+			}
+			if report.Sandbox, err = sandbox.FootprintOf(layout, owner, repo, pr, time.Now()); err != nil {
 				return err
 			}
 			// A closed or merged pull request is said first, before the
