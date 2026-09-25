@@ -203,6 +203,8 @@ already have posted.
 | `cr rules list [--dead]` | Effective rules and the layer each came from |
 | `cr rules check <pr>` | Run mechanical rule detection over the diff |
 | `cr rules suggest` | Propose rules from recurring comment history |
+| `cr rules suggest --from-history [--since <date>] [--until <date>] [--limit <n>]` | Report the repository's human review comments, excluded and grouped, for the agent to draw rules from |
+| `cr rules add <file> [--replace]` | Validate and store one rule in the per-repository layer |
 | `cr waivers list [--pr <n>]` | List waivers, repository-wide and for a pull request |
 | `cr waivers remove <id> [--pr <n>]` | Remove a waiver |
 | `cr stats` | Triage statistics, demotion and volume candidates |
