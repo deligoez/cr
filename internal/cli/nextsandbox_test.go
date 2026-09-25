@@ -47,3 +47,13 @@ func TestNextNamesTheSandboxAMergedPullRequestLeaves(t *testing.T) {
 	}
 }
 
+// The control: an open pull request's sandbox is the one its runs need, and
+// `cr next` owes no step for it.
+func TestNextOwesNoSandboxStepForAnOpenPullRequest(t *testing.T) {
+	stateHome(t, "OPEN")
+	require.NoError(t, os.MkdirAll(
+		state.New(crHomeOf(t)).Sandbox(fixtureOwner, fixtureProject, fixturePRNumber), 0o700))
+	for _, step := range nextSteps(t) {
+		assert.NotEqual(t, "sandbox", step.Step)
+	}
+}
