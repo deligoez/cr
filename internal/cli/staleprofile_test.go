@@ -16,12 +16,23 @@ import (
 
 // staleTestRun runs `cr test` on a round whose laravel-pest profile file holds
 // the given bytes, and returns the printed payload's honesty and the file.
+func staleTestRun(t *testing.T, onDisk []byte) (honesty []any, file string) {
+	t.Helper()
+	printed, file := laravelPestTestRun(t, onDisk)
+	honesty, ok := printed["honesty"].([]any)
+	require.True(t, ok, "§11.1's disclosures are a field on the payload")
+	return honesty, file
+}
+
+// laravelPestTestRun runs `cr test` with flags on a round whose laravel-pest
+// profile file holds the given bytes, and returns the printed payload and the
+// file.
 //
 // The profile's `composer install` and `./vendor/bin/pest` are the shipped
 // ones, so a composer shim on PATH answers the setup by writing a pest that
 // exits 0 into the sandbox: the run completes and the payload is printed, which
 // is all the notice needs.
-func staleTestRun(t *testing.T, onDisk []byte) (honesty []any, file string) {
+func laravelPestTestRun(t *testing.T, onDisk []byte, flags ...string) (printed map[string]any, file string) {
 	t.Helper()
 	fixture := fixtureRepository(t)
 	root := crHome(t)
@@ -50,15 +61,12 @@ func staleTestRun(t *testing.T, onDisk []byte) (honesty []any, file string) {
 	repoDir = func() (string, error) { return fixture, nil }
 	t.Cleanup(func() { repoDir = restore })
 
-	var printed map[string]any
 	require.NoError(t, json.Unmarshal([]byte(afterHeader(t, throughAPipe(t,
-		"test", fixturePR, "--repo", fixtureSlug))), &printed))
-	honesty, ok := printed["honesty"].([]any)
-	require.True(t, ok, "§11.1's disclosures are a field on the payload")
+		append([]string{"test", fixturePR, "--repo", fixtureSlug}, flags...)...))), &printed))
 	after, err := os.ReadFile(file)
 	require.NoError(t, err)
 	assert.Equal(t, onDisk, after, "loading a profile writes nothing back")
-	return honesty, file
+	return printed, file
 }
 
 // A command that loads a profile file byte-equal to one an earlier release
