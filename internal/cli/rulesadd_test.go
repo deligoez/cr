@@ -104,3 +104,20 @@ func TestAnIdTheLayerHoldsIsRefusedWithoutReplace(t *testing.T) {
 	assert.Equal(t, houseRuleJSON, string(body))
 }
 
+// §2.6.3.9: with --replace the same id is overwritten, and the report says it
+// replaced one.
+func TestReplaceOverwritesTheStoredRule(t *testing.T) {
+	layout := state.New(crHome(t))
+	_, err := added(t, handedRule(t, houseRuleID, houseRuleJSON))
+	require.NoError(t, err)
+	second := `{"id":"` + houseRuleID + `","title":"Another standard.","rationale":"r","class":"test-name"}`
+
+	printed, err := added(t, handedRule(t, houseRuleID, second), "--replace")
+
+	require.NoError(t, err)
+	assert.True(t, printed.Replaced)
+	body, readErr := os.ReadFile(layout.RepoRule(harvestOwner, harvestRepo, houseRuleID))
+	require.NoError(t, readErr)
+	assert.Equal(t, second, string(body))
+}
+
