@@ -136,3 +136,17 @@ func TestRepoOverridesRepositoryDetection(t *testing.T) {
 	assert.Equal(t, "tr", printed["render.lang"],
 		"§11.1: the repository cr was standing in contributed a layer of its own")
 }
+
+// GitHub names one repository by every spelling of its slug, so `--repo`
+// reaches the same state whatever its case and with or without `.git`. The
+// comparison is on splitRepo's answer rather than on a lookup, because a lookup
+// on macOS folds case in the filesystem and would pass without the fold.
+func TestEverySpellingOfASlugNamesOneRepository(t *testing.T) {
+	for _, spelled := range []string{"acme/web", "Acme/Web", "ACME/WEB", "acme/web.git", "Acme/Web.git"} {
+		owner, name, err := splitRepo(spelled)
+		require.NoError(t, err, spelled)
+		assert.Equal(t, []string{"acme", "web"}, []string{owner, name}, spelled)
+	}
+	_, _, err := splitRepo("acme/.git")
+	assert.Error(t, err, "a name that is only the suffix names no repository")
+}
