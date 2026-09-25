@@ -57,3 +57,30 @@ func TestAProfileWithoutKindsResolvesAnEmptyList(t *testing.T) {
 	assert.False(t, found)
 }
 
+// §2.4's `units.kinds` is refused with the entry and the field named when an
+// entry cannot be applied: no kind, a kind named twice, no glob, or no roles
+// list, so a typo is not read as a kind that matches nothing.
+func TestAMalformedUnitKindIsRefusedNamingTheField(t *testing.T) {
+	for name, tc := range map[string]struct{ kinds, field string }{
+		"no kind": {`[{"globs": ["a/**"], "roles": []}]`, "units.kinds[0].kind"},
+		"a repeated kind": {`[{"kind": "k", "globs": ["a/**"], "roles": []}, {"kind": "k", "globs": ["b/**"], "roles": []}]`,
+			"units.kinds[1].kind"},
+		"no glob":       {`[{"kind": "k", "globs": [], "roles": []}]`, "units.kinds[0].globs"},
+		"an empty glob": {`[{"kind": "k", "globs": [""], "roles": []}]`, "units.kinds[0].globs"},
+		"no roles":      {`[{"kind": "k", "globs": ["a/**"]}]`, "units.kinds[0].roles"},
+		"an empty role": {`[{"kind": "k", "globs": ["a/**"], "roles": [""]}]`, "units.kinds[0].roles"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			content := `{
+	"id": "laravel-pest",
+	"match": {"files": ["artisan"], "globs": ["app/**/*.php"]},
+	"axes": {"intent": true},
+	"units": {"kinds": ` + tc.kinds + `}
+}`
+			_, err := Parse(write(t, "laravel-pest", content), []byte(content))
+			var malformed *MalformedError
+			require.ErrorAs(t, err, &malformed)
+			assert.Equal(t, tc.field, malformed.Field)
+		})
+	}
+}
