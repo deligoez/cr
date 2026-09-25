@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"slices"
 	"strconv"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/deligoez/cr/internal/gh"
 	"github.com/deligoez/cr/internal/git"
 	"github.com/deligoez/cr/internal/migrate"
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -39,6 +39,52 @@ type postedState struct {
 	// Replies are the comments in the thread after the opening one,
 	// offered as candidate context notes per §9.5.3.
 	Replies []gh.Comment `json:"replies"`
+	// Rerun is §9.5.4's report on the probe the record names, absent when
+	// it names none.
+	Rerun *probeRerun `json:"rerun,omitempty"`
+}
+
+// probeRerun is §9.5.4's answer for one posted record's probe: the latest
+// re-run of it at the round's head and what it produced, or that none has run.
+//
+// It is read and never produced here. `cr recheck` runs no probe, because a
+// command a reviewer runs believing it only reads must not execute the suite —
+// which on a real repository can reach a local database. The command that
+// performs the re-run is named instead, and it is the one that says it executes.
+type probeRerun struct {
+	// Of is the probe the posted record names.
+	Of string `json:"of"`
+	// Head is the head the re-run was looked for at: the round's.
+	Head string `json:"head"`
+	// Ran reports whether a probe at Head names Of as its `rerun_of`.
+	Ran bool `json:"ran"`
+	// Probe, Result and Reason are the latest such probe's id, `result` and
+	// `reason`, absent when none has run.
+	Probe  string `json:"probe,omitempty"`
+	Result string `json:"result,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// Command is the invocation that performs a re-run, named whether or
+	// not one has run: a re-run at an earlier head is not an answer here.
+	Command string `json:"command"`
+}
+
+// rerunOf is §9.5.4 over the pull request's probes: the latest probe at head
+// whose `rerun_of` names of. probes is every round's, because the re-run is
+// performed in the round a push opened and the probe it re-runs was recorded
+// in the round that posted the record; the file's order is the order they ran.
+func rerunOf(owner, repo string, pr int, head, of string, probes []probe.Record) *probeRerun {
+	report := &probeRerun{
+		Of: of, Head: head,
+		Command: "cr probe run " + prTarget(owner, repo, pr) + " --rerun " + shellWord(of),
+	}
+	for i := range probes {
+		if probes[i].RerunOf == of && probes[i].Head == head {
+			report.Ran = true
+			report.Probe = probes[i].ID
+			report.Result, report.Reason = string(probes[i].Result), probes[i].Reason
+		}
+	}
+	return report
 }
 
 // recheckResult is §9.5's report. It carries no verdict and no recommendation:
@@ -80,6 +126,9 @@ func (r *recheckResult) Text(w *writer) string {
 		if len(one.Replies) > 0 {
 			text += ", " + strconv.Itoa(len(one.Replies)) + " repl(ies)"
 		}
+		if one.Rerun != nil {
+			text += "\n    " + rerunText(one.Rerun)
+		}
 	}
 	for i := range r.Migrated {
 		one := &r.Migrated[i]
@@ -94,6 +143,19 @@ func (r *recheckResult) Text(w *writer) string {
 		text += "\n  " + w.accent(one.Record) + " " + migrationText(&one) + ", if briefed now"
 	}
 	return text + w.disclose("\n", "", r.Honesty...)
+}
+
+// rerunText is one §9.5.4 line: the re-run and its result, or the command that
+// would perform one.
+func rerunText(one *probeRerun) string {
+	if !one.Ran {
+		return "probe " + one.Of + " has not been re-run at head " + one.Head + "; `" + one.Command + "` re-runs it"
+	}
+	text := "probe " + one.Of + " re-run at head " + one.Head + " as " + one.Probe + ": " + one.Result
+	if one.Reason != "" {
+		text += " (" + one.Reason + ")"
+	}
+	return text
 }
 
 // migrationText is one §9.4.7 line: where the anchor was, and where it went or
@@ -175,6 +237,11 @@ func recheckRound(
 	if err != nil {
 		return nil, err
 	}
+	// §9.5.4 reads the probes `cr probe run --rerun` wrote and runs none.
+	probes, err := state.ReadRecords[probe.Record](l, owner, repo, pr, state.FileProbes)
+	if err != nil {
+		return nil, err
+	}
 	// §9.5.2: what GitHub says now, read through §3.5's ingestion. The
 	// threads `cr brief` stored are what GitHub said when the round opened,
 	// before the review this report is about was posted at all.
@@ -202,13 +269,11 @@ func recheckRound(
 		if thread == nil {
 			thread = &gh.Thread{}
 		}
-		report.Concerns = append(report.Concerns, postedOf(record, thread))
+		concern := postedOf(record, thread)
 		if record.Probe != "" {
-			report.Honesty = append(report.Honesty, fmt.Sprintf(
-				"record %s names probe %s, and §9.5.4's re-run of it at the current head is not "+
-					"implemented in this release: whether it still reproduces was not read",
-				record.ID, record.Probe))
+			concern.Rerun = rerunOf(owner, repo, pr, round.Head, record.Probe, probes)
 		}
+		report.Concerns = append(report.Concerns, concern)
 	}
 	if round.Stale() {
 		if report.Preview, err = previewMigrations(round, base, records); err != nil {
