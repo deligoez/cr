@@ -46,3 +46,14 @@ func TestKindOfTakesTheFirstKindEveryPathMatches(t *testing.T) {
 	assert.False(t, found, "a unit with no path is of no kind")
 }
 
+// A profile that declares no kinds resolves an empty list, never null, and
+// gives every unit no kind.
+func TestAProfileWithoutKindsResolvesAnEmptyList(t *testing.T) {
+	p, err := Parse(write(t, "laravel-pest", wellFormed), []byte(wellFormed))
+	require.NoError(t, err)
+
+	assert.Equal(t, []UnitKind{}, p.Units.Kinds)
+	_, found := p.KindOf("changelogs/a.yml")
+	assert.False(t, found)
+}
+
