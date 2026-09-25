@@ -255,9 +255,13 @@ func TestEveryPromptNamesItsOutputAndTheContractFile(t *testing.T) {
 
 		_, tail, found := strings.Cut(prompt.Text, "\n## Output (§4.6.2)\n\n")
 		require.True(t, found, "%s on %s", prompt.Role, prompt.Unit)
-		section, proposals, proposed := strings.Cut(tail, "\n## Proposed experiments (§5.7)\n\n")
+		section, afterSection, celled := strings.Cut(tail, "\n## Coverage cell (§4.5.5)\n\n")
+		require.True(t, celled, "§4.6.2 gives every prompt its cell's file: %s on %s", prompt.Role, prompt.Unit)
+		assert.Equal(t, "/state/pr-7/fanout/1/"+prompt.Unit+"/cells-"+prompt.Role+".ndjson", prompt.Cells)
+		cell, proposals, proposed := strings.Cut(afterSection, "\n## Proposed experiments (§5.7)\n\n")
 		require.True(t, proposed, "§4.6.2 gives every prompt §5.7's file too: %s on %s",
 			prompt.Role, prompt.Unit)
+		assert.Contains(t, cell, "    "+prompt.Cells+"\n")
 		assert.Equal(t, "Write this role's records for this unit, one JSON object per line, to:\n\n"+
 			"    "+prompt.Output+"\n\n"+
 			"The file's name binds every record in it to role "+prompt.Role+": cr merge attributes a record to "+
