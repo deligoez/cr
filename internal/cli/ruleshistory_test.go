@@ -242,3 +242,36 @@ func TestEachMonthReportsItsMedianBodyLength(t *testing.T) {
 	}, report.Months)
 }
 
+// §2.6.3.8: a group is reported when it spans `rules.harvest_min` distinct pull
+// requests. A code span repeated five times on one pull request is one
+// migration and is not reported; one written once on each of three is.
+func TestGroupsCountDistinctPullRequests(t *testing.T) {
+	historyHome(t)
+	listing := make([]aHistoryComment, 0)
+	for i := range 5 {
+		listing = append(listing, aHistoryComment{id: int64(20 + i), pr: 9, login: "ayse",
+			created: fmt.Sprintf("2025-02-%02dT00:00:00Z", 20-i), body: "drop the `->value`", path: "app/Enums/Kind.php"})
+	}
+	for i, pr := range []int{7, 8, 10} {
+		listing = append(listing, aHistoryComment{id: int64(10 + i), pr: pr, login: "ayse",
+			created: fmt.Sprintf("2025-02-%02dT00:00:00Z", 10-i), body: "Testi yazılabilir\n`Rule::enum`",
+			path: "app/Models/User.php"})
+	}
+	historyGH(t, map[int]string{7: "a", 8: "a", 9: "a", 10: "a"}, listing)
+
+	report := fromHistory(t)
+
+	assert.Equal(t, []rule.HistoryGroup{{
+		Key: "Rule::enum", PRs: []int{7, 8, 10}, DistinctPRs: 3, Occurrences: 3,
+		Comments: []string{
+			"https://github.com/acme/api/pull/7#discussion_r10", "https://github.com/acme/api/pull/8#discussion_r11",
+			"https://github.com/acme/api/pull/10#discussion_r12",
+		},
+	}}, report.Groups.ByCodeSpan)
+	require.Len(t, report.Groups.ByPath, 1)
+	assert.Equal(t, "app/Models/*.php", report.Groups.ByPath[0].Key)
+	require.Len(t, report.Groups.ByBody, 1)
+	assert.Equal(t, "Testi yazılabilir\n`Rule::enum`", report.Groups.ByBody[0].Key)
+	assert.Equal(t, 3, report.Min)
+}
+
