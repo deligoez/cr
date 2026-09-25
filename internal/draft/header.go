@@ -7,6 +7,7 @@ import (
 
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/observation"
 	"github.com/deligoez/cr/internal/render"
 )
 
@@ -20,6 +21,9 @@ type HeaderFacts struct {
 	MaxComments int
 	// Coverage is the round's coverage state, counted per §10.1.1.
 	Coverage coverage.Rows
+	// Observations are every observation of the round (§4.6.9), which the
+	// header shows the human and no block carries.
+	Observations []observation.Observation
 }
 
 // The delimiters of the header. It is one HTML comment, so nothing inside it
@@ -80,7 +84,36 @@ func header(queued []*finding.Finding, preserved map[string]string, facts Header
 		waiverLine,
 	}
 	lines = append(lines, bodyLines(queued, preserved)...)
+	lines = append(lines, observationLines(facts.Observations)...)
 	return strings.Join(append(lines, headerClose), "\n") + "\n"
+}
+
+// observationLines is §4.6.9 in the header: every observation of the round,
+// one line each under a count, and nothing for a round that holds none, as the
+// body lines say nothing about bodies with nothing to warn of.
+//
+// The header is the one place of the draft a human reads that nothing posts,
+// which is exactly where §4.6.9 puts an observation: it is not a record, so it
+// has no block, and the human decides what, if anything, it becomes.
+func observationLines(observed []observation.Observation) []string {
+	if len(observed) == 0 {
+		return nil
+	}
+	lines := []string{fmt.Sprintf("observations: %d outside the round's units, shown here and never posted (§4.6.9)",
+		len(observed))}
+	for i := range observed {
+		lines = append(lines, "  "+headerSafe(observed[i].Location()+": "+observed[i].Text))
+	}
+	return lines
+}
+
+// headerSafe keeps a role's text from ending the header or opening a marker of
+// cr's inside it: the text is folded onto one line, and a comment's opening
+// and closing sequences are broken apart. The header is one HTML comment, and
+// its end is the first line that closes it.
+func headerSafe(said string) string {
+	flat := strings.Join(strings.Fields(said), " ")
+	return strings.NewReplacer("<!--", "<! --", "-->", "-- >").Replace(flat)
 }
 
 // The §6.1 vocabularies the header counts by, each in the order §6.1 gives
