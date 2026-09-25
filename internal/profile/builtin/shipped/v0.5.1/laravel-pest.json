@@ -25,7 +25,6 @@
     "cmd": ["./vendor/bin/pest", "--colors=never"],
     "globs": ["tests/**/*Test.php"],
     "filter_flag": "--filter",
-    "paths_arg": ["{path}"],
     "count_pattern": "(?:Tests:|,)\\s+(\\d+)\\s+(?:deprecated|failed|warning|risky|incomplete|notice|passed)\\b",
     "failed_pattern": "(?:Tests:|,)\\s+(\\d+)\\s+failed\\b",
     "probe_path_template": "tests/Feature/cr_probe_<probe-id>Test.php"
