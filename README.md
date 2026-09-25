@@ -142,6 +142,7 @@ cr map record 1 pairs.ndjson
 cr review 1 --axis intent                         # §4.6.5's unmapped-unit re-emission
 cr review 1                                       # per-role, per-unit prompts
 cr cells record 1 cells.ndjson
+cr observations record 1 observations.ndjson       # what the roles saw outside their units
 cr merge ~/.cr/state/acme/shop/pr-1/fanout/1/*/review-*.ndjson -o merged.ndjson --pr 1
 cr record 1 merged.ndjson
 cr sandbox create 1
@@ -160,7 +161,11 @@ apply to that re-emission. `cr review` otherwise emits a prompt only for a cell
 the round does not hold or a standing note has outdated, marking every cell it
 expects in `expected_cells` with `"recorded"` and `"stale_by_note"`; `--all`
 emits the whole round again. So the fan-out hands you exactly the prompts that
-are open, several to a sub-agent, and no filtering of your own is needed. A note
+are open, several to a sub-agent, and no filtering of your own is needed. A
+unit of a kind the profile declares, such as `laravel-pest`'s changelog and
+translation files, is read only by the roles its kind lists, and cr records the
+other cells `na` itself; a unit that repeats an earlier one's hunks line for line
+is its twin, gets no prompt, and takes the earlier unit's cells. A note
 recorded after
 the prompts were emitted is reported, never refused: `cr note` names the passes
 it postdates, `cr record` and `cr status` name the records written from a prompt
@@ -182,7 +187,8 @@ already have posted.
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
 | `cr review <pr> [--axis <id>] [--units <ids>\| --shard <k/n>] [--all]` | Emit per-role, per-unit prompts and output paths, by default only for a cell the round does not hold or a note has outdated; write the round's record contract |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
-| `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
+| `cr cells record <pr> <file>` | Store the coverage cells the roles filled, and the same result at each twin of their units (§4.6.8) |
+| `cr observations record <pr> <file>` | Store what the roles saw outside their units; `cr draft` and `cr status` show it, and nothing posts it (§4.6.9) |
 | `cr merge <files...> -o <out> --pr <n>` | Merge and deduplicate per-role findings; list record pairs a shared citation or a citation inside the other's anchor joins, dropping none |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
