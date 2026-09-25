@@ -1155,10 +1155,27 @@ three comments at different lines all report `position: 1` once the head moves.
 **The thread state is read from GitHub on every run**, not from the copy
 `cr brief` stored when the round opened: until v0.11.0 a recheck straight after
 `cr post --confirm` reported `line: 0`, no replies and not resolved while GitHub
-held the thread on its line. A record naming a probe gets an `honesty` line
-saying the probe was **not** re-run: §9.5.4's re-run at the current head is not
-implemented yet, so whether it still reproduces is unknown — run
-`cr probe run` yourself if it matters.
+held the thread on its line.
+
+**A posted record's probe is re-run on request, never by `cr recheck`.** For
+every posted record naming a probe, `rerun` reports the latest probe at the
+round's head whose `rerun_of` names it, with its `result` (and `reason`), or
+`"ran": false` and the command that performs one. `cr recheck` never starts the
+suite: on a real repository a test run can reach a local database, and a
+command you run believing it only reads must not. Re-run it yourself when it
+matters:
+
+```bash
+cr probe run 1 --rerun p3
+```
+
+```json
+"rerun": {"of": "p3", "head": "49d8bca", "ran": true, "probe": "p7",
+          "result": "test-failed", "command": "cr probe run 1 --repo acme/web --rerun p3"}
+```
+
+A probe that no longer reproduces is evidence, not a verdict: §5.3.5 and §5.4.4
+still decide what a result establishes, and `cr verify` records your judgement.
 
 **Anchors cr owns are migrated; a posted record's place is GitHub's.** A
 migration matches the record's stored `content_hash` against the head, widens to
