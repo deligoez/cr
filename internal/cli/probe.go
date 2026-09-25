@@ -37,6 +37,10 @@ type probeRunResult struct {
 	// Regraded is §5.7.4's recomputation, absent when the run executed no
 	// proposal or the proposal named no record.
 	Regraded *Regraded `json:"regraded,omitempty"`
+	// RerunOf is the probe §5.5.4's `--rerun` re-ran, absent for any other
+	// run. The probe it names is left as it was: a re-run changes no
+	// record's `probe` and no grade.
+	RerunOf string `json:"rerun_of,omitempty"`
 	// Kind is the sort of probe that ran (§5.5).
 	Kind string `json:"kind"`
 	// Sandbox is the worktree the experiment was performed in.
@@ -362,7 +366,7 @@ func newProbeCmd(out *writer) *cobra.Command {
 // that cr is still alive to prevent, and an undo written after the run would be
 // one `return err` away from being skipped.
 func newProbeRunCmd(out *writer) *cobra.Command {
-	var kind, patchFile, testFile, filter, target, fromProposal string
+	var kind, patchFile, testFile, filter, target, fromProposal, rerun string
 	var paths []string
 	cmd := &cobra.Command{
 		Use:   "run " + prPlaceholder,
@@ -391,7 +395,7 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 			ran, err := performProbe(cmd, out, request, &probeFlags{
 				kind: kind, patchFile: patchFile, testFile: testFile,
 				target: target, filter: filter, paths: paths,
-				fromProposal: fromProposal,
+				fromProposal: fromProposal, rerun: rerun,
 			})
 			if err != nil {
 				return err
@@ -418,6 +422,9 @@ func newProbeRunCmd(out *writer) *cobra.Command {
 			"rejected for a mutation probe, which derives it (§5.3.2)")
 	cmd.Flags().StringVar(&fromProposal, "proposal", "",
 		"run the experiment a role proposed, by its x<n> id (§5.7.3); "+
+			"every other input flag is rejected beside it")
+	cmd.Flags().StringVar(&rerun, "rerun", "",
+		"re-run a stored probe at the current head, by its p<n> id (§5.5.4); "+
 			"every other input flag is rejected beside it")
 	return cmd
 }
@@ -456,20 +463,31 @@ type probeFlags struct {
 	// fromProposal is §5.7.3's `--proposal`, empty for a run the command
 	// line supplied whole.
 	fromProposal string
+	// rerun is §5.5.4's `--rerun`, empty for a run that re-runs nothing.
+	rerun string
 }
 
 // performProbe resolves the run's inputs and performs it, returning what the
 // probe run reported so the caller can route a git failure through
 // headNotFetched.
 //
-// §5.7.3's proposal supplies every input, so the two input readers are skipped
-// for it: they hold a command line to the flags its kind takes, and §5.7.3
-// admitted none.
+// §5.7.3's proposal and §5.5.4's re-run supply every input, so the two input
+// readers are skipped for them: they hold a command line to the flags its kind
+// takes, and §5.7.3 and §5.5.4 admit none.
 func performProbe(
 	cmd *cobra.Command, out *writer, request *probeRequest, flags *probeFlags,
 ) (ran, refused error) {
 	kind := flags.kind
-	if flags.fromProposal != "" {
+	switch {
+	case flags.rerun != "":
+		// Asked first, so `--proposal` beside `--rerun` is refused as
+		// one of the flags §5.5.4 rejects rather than run as a proposal.
+		rerunKind, err := rerunRun(request, flags)
+		if err != nil {
+			return nil, err
+		}
+		kind = rerunKind
+	case flags.fromProposal != "":
 		proposed, err := proposedRun(
 			request.owner, request.repo, request.pr, flags.fromProposal, request,
 			flags.kind, flags.patchFile, flags.testFile, flags.target, flags.filter, flags.paths)
@@ -478,7 +496,7 @@ func performProbe(
 		}
 		kind = proposed
 	}
-	fromFlags := request.proposal == ""
+	fromFlags := request.proposal == "" && request.rerunOf == ""
 	switch probe.Kind(kind) {
 	case probe.Mutation:
 		if fromFlags {
@@ -649,6 +667,9 @@ type probeRequest struct {
 	// proposal is the §5.7 proposal this run executes, empty for a run the
 	// command line supplied. §5.7.4 settles it once the probe is written.
 	proposal string
+	// rerunOf is the probe §5.5.4's `--rerun` re-runs, empty otherwise,
+	// and the record's `rerun_of`.
+	rerunOf string
 }
 
 // probeSetup is the round, the profile, and the sandbox one probe run works
@@ -900,6 +921,7 @@ func runMutationProbe(cmd *cobra.Command, out *writer, request *probeRequest) er
 				Baseline:    performed.baseline.ID(),
 				DurationMS:  performed.durationMS,
 				OutputTail:  performed.outputTail,
+				RerunOf:     request.rerunOf,
 			},
 		})
 	})
@@ -969,6 +991,7 @@ func runGapProbe(cmd *cobra.Command, out *writer, request *probeRequest) error {
 			Baseline:    performed.baseline.ID(),
 			DurationMS:  performed.durationMS,
 			OutputTail:  performed.outputTail,
+			RerunOf:     request.rerunOf,
 		}
 		return storeProbe(setup, request, &finishedProbe{
 			performed: performed, record: record, outcome: outcome, unclean: unclean,
@@ -1132,6 +1155,7 @@ func reportProbe(
 	return out.emit(&probeRunResult{
 		Proposal:    request.proposal,
 		Regraded:    regraded,
+		RerunOf:     request.rerunOf,
 		Probe:       finished.probeID,
 		Kind:        string(finished.record.Kind),
 		Sandbox:     setup.ready.Path,

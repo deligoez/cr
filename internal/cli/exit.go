@@ -474,6 +474,11 @@ var codes = []mapped{
 	// well-formed and the value in it is not there.
 	{is[*UnknownProposalError](), ExitValidation,
 		"`cr status` lists the round's open proposals with their ids"},
+	// §5.5.4's `--rerun` naming no probe of the pull request, code 1 for
+	// the reason an unknown proposal is.
+	{is[*UnknownProbeError](), ExitValidation,
+		"`cr recheck` names the probe each posted record carries; probes.ndjson holds " +
+			"every probe of the pull request"},
 	// §5.7.3 refuses a proposal of another round or head, and §5.7.4 one
 	// already run, both with code 4. Nothing about the input is wrong;
 	// what refuses is where the proposal stands, which retyping cannot
