@@ -221,3 +221,24 @@ func TestAReplyIsReportedUnderTheCommentItAnswers(t *testing.T) {
 	}, report.Comments[0].Replies)
 }
 
+// §2.6.3.7: each included comment carries its length in characters, and each
+// month of the window its median; an even month is the mean of the middle two.
+func TestEachMonthReportsItsMedianBodyLength(t *testing.T) {
+	historyHome(t)
+	historyGH(t, map[int]string{7: "author"}, []aHistoryComment{
+		{id: 5, pr: 7, login: "ayse", created: "2025-02-02T00:00:00Z", body: strings.Repeat("ğ", 31)},
+		{id: 4, pr: 7, login: "ayse", created: "2025-02-01T00:00:00Z", body: strings.Repeat("a", 10)},
+		{id: 3, pr: 7, login: "ayse", created: "2025-01-03T00:00:00Z", body: strings.Repeat("a", 40)},
+		{id: 2, pr: 7, login: "ayse", created: "2025-01-02T00:00:00Z", body: strings.Repeat("a", 10)},
+		{id: 1, pr: 7, login: "ayse", created: "2025-01-01T00:00:00Z", body: strings.Repeat("a", 20)},
+	})
+
+	report := fromHistory(t)
+
+	assert.Equal(t, 31, report.Comments[0].BodyChars, "a length is counted in characters, not bytes")
+	assert.Equal(t, []rule.MonthMedian{
+		{Month: "2025-01", Comments: 3, MedianBodyChars: 20},
+		{Month: "2025-02", Comments: 2, MedianBodyChars: 20.5},
+	}, report.Months)
+}
+
