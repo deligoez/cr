@@ -124,7 +124,7 @@ func TestTheTestHeaderListsTheCopiedEnvFiles(t *testing.T) {
 	envLines := "  env files  .env, .env.testing gitignored at the clone root\n" +
 		"  in sandbox .env, .env.testing\n"
 	assert.Equal(t, opening+"  recreated  per §5.1.6: there is no sandbox at that path\n"+envLines+recapLine, stderr)
-	assert.Equal(t, []string{"command", "exit_code", "honesty", "passed", "run", "sandbox",
+	assert.Equal(t, []string{"command", "exit_code", "honesty", "output_tail", "passed", "run", "sandbox",
 		"tests_failed", "tests_run", "timed_out", "warnings"},
 		documentKeys(t, stdout))
 
