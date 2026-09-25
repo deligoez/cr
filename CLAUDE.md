@@ -788,6 +788,15 @@ cr is built with tp, the same way tp builds itself.
 - **No Claude or Anthropic attribution** in any outward-facing artifact: no
   session links, no `Co-Authored-By: Claude`, no generated-with footers, in
   commits, PR bodies, comments, or release notes.
+- **A commit message names no pull request or issue of a non-public
+  repository** — no `owner/repo#N`, no `github.com/owner/repo/pull/N`. GitHub
+  turns each one in a pushed commit of this public repository into a timeline
+  event on that pull request, which nobody but GitHub Support can delete: on
+  2026-09-25 thirteen commits had put their titles under a private work pull
+  request. Write "a real pull request on a private Laravel repository"
+  instead. A local `.git/hooks/pre-push` refuses a push whose messages name a
+  repository `gh api` does not report public; the same rule holds for release
+  notes, which also name no private project at all.
 - **Never post to GitHub without explicit approval of the exact content.** Draft
   it, show it, wait. This applies to PR comments, reviews, and review replies
   even when asked to "address" a reviewer's note.
