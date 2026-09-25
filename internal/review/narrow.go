@@ -91,7 +91,8 @@ func (r *Round) holds(roleID, unitID string) bool {
 
 // staleByNote is §4.6.1's note condition for one cell: its latest line in
 // emissions.ndjson precedes a standing note of the issue key that the line does
-// not carry and that is on the cell's unit.
+// not carry, that the held cell does not cite in `note_id`, and that is on the
+// cell's unit.
 //
 // The latest line and the notes it missed are read the way NotesAfter reads a
 // record's prompt, and the note's place is the same link read at the unit
@@ -102,10 +103,25 @@ func (r *Round) staleByNote(roleID, unitID string) bool {
 	if line == nil {
 		return false
 	}
+	cited := r.citedNote(roleID, unitID)
 	records := r.roundRecords()
 	return len(missedNotes(line, r.Notes, func(recorded *note.Note) bool {
-		return linkOf(recorded, r.Claims, records, r.PR).onUnit(unitID, r.Pairs, r.Round)
+		return recorded.ID != cited &&
+			linkOf(recorded, r.Claims, records, r.PR).onUnit(unitID, r.Pairs, r.Round)
 	})) > 0
+}
+
+// citedNote is the `note_id` of the latest line the round holds for the cell
+// at its head, and empty when that line cites no note or there is none.
+func (r *Round) citedNote(roleID, unitID string) string {
+	cited := ""
+	for i := range r.Cells {
+		held := &r.Cells[i]
+		if held.Unit == unitID && held.Role == roleID && held.Head == r.Head {
+			cited = held.NoteID
+		}
+	}
+	return cited
 }
 
 // roundRecords is the stored records of the round, which a note answering a
