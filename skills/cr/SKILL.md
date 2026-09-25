@@ -346,6 +346,29 @@ the fields the agent may not write. It also holds §4.5.5's coverage cell schema
 and §5.7's proposal schema. Read it once per round; the prompts carry the output
 paths, the id blocks and the fence, and no longer repeat the schemas.
 
+**Unit kinds (§4.6.7).** A profile's `units.kinds` names kinds of unit and the
+roles that read them: `{"kind": "changelog", "globs": ["changelogs/**"], "roles":
+["intent-coverage"]}`. A unit every path of which matches a kind's globs gets
+prompts only for the roles the kind lists; `cr review` records every other
+active role's cell there itself, as `na` with a reason naming the kind
+(`unit kind changelog: …`), so `expected_cells` shows them `recorded` and
+`cr status` counts the row as any other. `--all` does not bring those prompts
+back. `laravel-pest` declares `changelog` (`changelogs/**`) and `translation`
+(`resources/lang/**`, `lang/**`), each read by `intent-coverage` alone. Measured
+on a real pull request on a private Laravel repository: 52 prompts, of which some
+15 carried meaning, with changelog and translation units among the rest.
+
+**Twins (§4.6.8).** A unit whose hunks equal an earlier unit's line for line,
+after §1.4's normalisation and ignoring the hunk headers, is that unit's twin:
+`cr brief` prints `twin of u9 per §4.6.8` on the unit's line and records
+`"twin_of": "u9"` on it. `cr review` emits no prompt for a twin; the earlier
+unit's prompts name it under *Twins of this unit*. Whenever a cell of the earlier
+unit is recorded, cr records the same `result` at the twin, with a reason
+naming the earlier unit, and `cr cells record` reports those under `twinned`. A
+record or a mapping pair that holds for the twin is still the role's to write,
+naming the twin's unit. Measured case: two event-test files that received the
+identical change (`u9`/`u11`, `u10`/`u12`) were each read by every role.
+
 Each prompt's findings go, one JSON record per line, to the `output` path the
 prompt names, and nothing else. Each record takes
 its `id` from the prompt's own block, `first_id` through `last_id` in order: no
@@ -365,6 +388,7 @@ cr cells record 1 cells.ndjson
 ```json
 {
   "recorded": [{"unit": "u2", "role": "convention", "result": "pass", "unit_hash": "676014eb06ee8adb", "head": "…", "round": 2}, …],
+  "twinned": [{"unit": "u4", "role": "convention", "result": "pass", "reason": "twin of u2: …", "unit_hash": "…", "head": "…", "round": 2}],
   "round": 2,
   "honesty": []
 }
@@ -389,7 +413,8 @@ A file moved with too much of it changed for git to pair the two paths (under
 units: a `LEFT` unit on the old path and a `RIGHT` unit on the new one. When the
 move changes no behaviour, a role with nothing to raise on either unit files a
 `pass` cell on each (a test-axis cell still carries its `coverage`); cr fills
-no cell for you, so leaving them out is a coverage gap.
+no cell for you, apart from a unit kind's `na` cells and a twin's copies, so
+leaving them out is a coverage gap.
 
 On the test axis, adequacy is judged at the code under test (§4.4.1). A record
 saying a production line has no test is raised from the cell of the unit
@@ -1545,7 +1570,8 @@ capture group each in the default `sum` mode, none in `occurrences` mode),
 `tests.count_mode` (`sum` adds the groups over every match; `occurrences`
 counts matches, for a runner that prints one line per test and no recap),
 `tests.paths_default` (argv appended when no `--path` is given),
-`tests.probe_path_template`, `rules`, `symbols.lang`. cr ships `laravel-pest`,
+`tests.probe_path_template`, `rules`, `symbols.lang`, `units.kinds` (see
+*Unit kinds* under the fan-out). cr ships `laravel-pest`,
 `go`, `typescript`, `jest`, `rust` and `generic`, all requiring nothing. The
 one with the most marker files present at the clone's root wins: `go` names
 `go.mod` and `go.sum`, `typescript` `tsconfig.json`, `vite.config.{ts,js}` and
@@ -1583,7 +1609,7 @@ current or edited file:
 ```json
 {
   "honesty": [
-    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed rules, sandbox.copy, tests.paths_arg; cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"
+    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed rules, sandbox.copy, tests.paths_arg, units; cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"
   ]
 }
 ```
