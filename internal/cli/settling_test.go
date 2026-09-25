@@ -11,6 +11,7 @@ import (
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -332,16 +333,67 @@ func TestRecheckReadsWhatGitHubSaysNow(t *testing.T) {
 	assert.Equal(t, "bounded at three", concern.Replies[0].Body)
 }
 
-// §9.5.4's re-run is not implemented, and a record naming a probe says so
-// rather than reading as though the probe had been looked at.
-func TestRecheckSaysAProbeWasNotReRun(t *testing.T) {
-	probed := strings.Replace(settledRecord("f3", "question", "posted", "PRRT_a"),
+// probedPosted is f3 posted and naming probe p1.
+func probedPosted() string {
+	return strings.Replace(settledRecord("f3", "question", "posted", "PRRT_a"),
 		`"summary"`, `"probe":"p1","summary"`, 1)
-	settlingHome(t, probed)
+}
+
+// recheckedRerun is the §9.5.4 report `cr recheck` printed for its one concern.
+func recheckedRerun(t *testing.T, out string) map[string]any {
+	t.Helper()
+	var report struct {
+		Concerns []struct {
+			Rerun map[string]any `json:"rerun"`
+		} `json:"concerns"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &report))
+	require.Len(t, report.Concerns, 1)
+	return report.Concerns[0].Rerun
+}
+
+// §9.5.4: a posted record naming a probe no re-run has repeated at the round's
+// head is reported as not re-run, with the exact command that would re-run it —
+// and a re-run at another head is not that answer.
+func TestRecheckNamesTheReRunCommandWhenNoneHasRun(t *testing.T) {
+	layout := settlingHome(t, probedPosted())
+	seedProbes(t, layout.PRFile(answeredOwner, answeredRepo, answeredPRNum, state.FileProbes),
+		probe.Record{ID: "p1", Kind: probe.Mutation, Stamp: state.Stamp{Head: earlierHead, Round: 1},
+			Result: "no-test-failed"},
+		probe.Record{ID: "p2", Kind: probe.Mutation, Stamp: state.Stamp{Head: earlierHead, Round: 1},
+			Result: "test-failed", RerunOf: "p1"})
 	threadsAnswering(t, liveThread)
 
 	out, err := runIn(t, "recheck", answeredPR, "--repo", answeredSlug)
 
 	require.NoError(t, err)
-	assert.Contains(t, out, "record f3 names probe p1, and §9.5.4's re-run")
+	assert.Equal(t, map[string]any{
+		"of": "p1", "head": settledHead, "ran": false,
+		"command": "cr probe run " + answeredPR + " --repo " + answeredSlug + " --rerun p1",
+	}, recheckedRerun(t, out))
+}
+
+// §9.5.4: of several re-runs, the latest one at the round's head is reported,
+// with its result and its reason.
+func TestRecheckReportsTheLatestReRunAtTheRoundsHead(t *testing.T) {
+	layout := settlingHome(t, probedPosted())
+	seedProbes(t, layout.PRFile(answeredOwner, answeredRepo, answeredPRNum, state.FileProbes),
+		probe.Record{ID: "p1", Kind: probe.Mutation, Stamp: state.Stamp{Head: earlierHead, Round: 1},
+			Result: "no-test-failed"},
+		probe.Record{ID: "p2", Kind: probe.Mutation, Stamp: state.Stamp{Head: settledHead, Round: 1},
+			Result: "no-test-failed", RerunOf: "p1"},
+		probe.Record{ID: "p3", Kind: probe.Mutation, Stamp: state.Stamp{Head: settledHead, Round: 1},
+			Result: "error", Reason: "§5.3.4's first rung: the patch did not apply", RerunOf: "p1"},
+		probe.Record{ID: "p4", Kind: probe.Mutation, Stamp: state.Stamp{Head: settledHead, Round: 1},
+			Result: "test-failed", RerunOf: "p2"})
+	threadsAnswering(t, liveThread)
+
+	out, err := runIn(t, "recheck", answeredPR, "--repo", answeredSlug)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"of": "p1", "head": settledHead, "ran": true, "probe": "p3", "result": "error",
+		"reason":  "§5.3.4's first rung: the patch did not apply",
+		"command": "cr probe run " + answeredPR + " --repo " + answeredSlug + " --rerun p1",
+	}, recheckedRerun(t, out))
 }
