@@ -53,3 +53,34 @@ func TestAConfirmedPostMarksWhetherEachKeptBodyWasEdited(t *testing.T) {
 	assert.Equal(t, map[string]string{"f1:kept": "true", "f2:kept": "false"}, editedMarks(t, layout))
 }
 
+// §7.3.2 through `cr stats`: per class and per rule, how many of the kept and
+// softened were posted unedited. An event carrying no mark, written before cr
+// recorded one, is counted apart and never as unedited.
+func TestStatsCountsTheKeptAndSoftenedPostedUnedited(t *testing.T) {
+	layout := statsHome(t)
+	edited, unedited := true, false
+	records := []*finding.Finding{
+		aTriagedRecord("f1", "unchecked-error", "no-dropped-error"),
+		aTriagedRecord("f2", "unchecked-error", "no-dropped-error"),
+		aTriagedRecord("f3", "unchecked-error", ""),
+		aTriagedRecord("f4", "unchecked-error", ""),
+		aTriagedRecord("f5", "unchecked-error", ""),
+	}
+	seedRaised(t, layout, statsFirst, 1, records...)
+	require.NoError(t, finding.RecordOutcomes(layout, statsOwner, statsRepo, []finding.Settled{
+		{Record: records[0], Outcome: finding.OutcomeKept, Edited: &unedited},
+		{Record: records[1], Outcome: finding.OutcomeSoftened, Edited: &edited},
+		{Record: records[2], Outcome: finding.OutcomeSoftened, Edited: &unedited},
+		{Record: records[3], Outcome: finding.OutcomeKept},
+		{Record: records[4], Outcome: finding.OutcomeDiscardedWrong, Edited: &unedited},
+	}, occasionOf(statsFirst, 1)))
+
+	report := statsReport(t)
+
+	assert.Equal(t, []finding.ClassTriage{{Class: "unchecked-error", TriageCounts: finding.TriageCounts{
+		Raised: 5, Kept: 2, Softened: 2, DiscardedWrong: 1, Unedited: 2, EditUnknown: 1,
+	}}}, report.Classes, "a discard is neither kept nor softened, so its mark is not counted")
+	assert.Equal(t, []finding.RuleTriage{{Rule: "no-dropped-error", TriageCounts: finding.TriageCounts{
+		Raised: 2, Kept: 1, Softened: 1, Unedited: 1,
+	}}}, report.Rules)
+}
