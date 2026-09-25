@@ -15,6 +15,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/observation"
 	"github.com/deligoez/cr/internal/post"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
@@ -485,6 +486,11 @@ var codes = []mapped{
 	{is[*proposal.RejectedError](), ExitValidation,
 		"correct the proposal the message names; §5.7's table is the whole of " +
 			"what one carries, and `cr review` gave its role the ids it may write"},
+	// §4.6.9 rejects an observation with exit code 1, for the proposal's
+	// reason: the file was read and parsed, and the agent's data is wrong.
+	{is[*observation.RejectedError](), ExitValidation,
+		"correct the observation the message names; §4.6.9's path, line and text are the whole of " +
+			"what one carries, and its path:line must resolve at the round's head"},
 	// §5.7.3's `--proposal` naming nothing the pull request holds. The id
 	// is the caller's to correct, as a record id given to `cr triage` is,
 	// so it is code 1 rather than the usage code: the command line is

@@ -48,7 +48,10 @@ var headReads = map[string][]string{
 	"test":             {readsHead},
 	"probe run":        {readsHead},
 	"proposals record": {readsHead},
-	"recheck":          {readsHead, readsBase},
+	// §4.6.9's observations resolve against the head alone, as §5.7's
+	// targets do.
+	"observations record": {readsHead},
+	"recheck":             {readsHead, readsBase},
 }
 
 // headNotFetched is the one predicate that classifies a command's git failure
