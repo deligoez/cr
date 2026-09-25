@@ -136,6 +136,9 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 	if absolute, err := filepath.Abs(intentFile); intentFile != "" && err == nil {
 		intentFile = absolute
 	}
+	// §3.7.1: the state of a pull request that is no longer open, which
+	// the brief discloses first and §10.4.10 reads back from here.
+	closed, closedAt, _ := assembled.pullRequest.Closure()
 	return &state.Meta{
 		Owner:          src.Owner,
 		Repo:           src.Repo,
@@ -151,6 +154,8 @@ func metaOf(src *Sources, assembled *Brief) (*state.Meta, error) {
 		ClaimsRound:    claimsRound,
 		ClaimsHead:     claimsHead,
 		IntentFile:     intentFile,
+		PRState:        closed,
+		PRStateAt:      closedAt,
 	}, nil
 }
 
