@@ -142,6 +142,24 @@ func TestBriefDisclosesTheTargetsOfTerminalHyperlinks(t *testing.T) {
 	assert.Equal(t, control.Honesty, unlinked.Honesty)
 }
 
+// §3.1.7 through `cr brief`: a link whose last path segment is the issue key
+// names the issue itself and is not listed as linked and not read, whatever
+// its letter case or trailing slash, while a link beside it still is.
+//
+// Measured on tarfin-labs/backend#6328 with cr 0.13.0: jira-cli prints `View
+// this issue on Jira: https://tarfin.atlassian.net/browse/WB-3295` under every
+// issue, and the brief listed that URL as a document cr did not read.
+func TestBriefDoesNotListTheIssuesOwnLink(t *testing.T) {
+	rerecordHome(t)
+	control := briefWith(t, rerecordIssue)
+	own := "https://tarfin.atlassian.net/browse/" + fixtureIssue
+	lowered := "https://tarfin.atlassian.net/browse/" + strings.ToLower(fixtureIssue) + "/"
+	briefed := briefWith(t, rerecordIssue+"Spec: "+ingestLink+"\nView this issue on Jira: "+own+
+		"\nAlso: "+lowered+"\n")
+	assert.Equal(t, append(append([]string{}, control.Honesty...), intent.LinkDisclosure(ingestLink)),
+		briefed.Honesty)
+}
+
 // Field feedback 1.2 through `cr claims record`: a span is checked verbatim
 // against the cleaned text, so the span as `cr brief` printed it is recorded
 // and one copied with the U+00A0 is refused with exit code 1; the claim's
