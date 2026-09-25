@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -72,6 +73,18 @@ func TestCrTestRefusesAPathTheProfileCannotCarry(t *testing.T) {
 	assert.Contains(t, err.Error(), prepared.Profile("qa"), "§2.4: the refusal names the profile")
 	assert.NoDirExists(t, prepared.Sandbox(fixtureOwner, fixtureProject, fixturePRNumber),
 		"a refused run builds no sandbox and executes nothing")
+}
+
+// §2.4.5 through `cr test`: the shipped laravel-pest profile sets
+// tests.paths_arg, so a `--path` reaches Pest as a bare argument after the
+// profile's own. Measured on tarfin-labs/backend: `./vendor/bin/pest
+// tests/Machines/CarSales` ran 336 tests, and cr 0.13.0's laravel-pest refused
+// every `--path` with exit 3.
+func TestTheLaravelPestProfileCarriesAPath(t *testing.T) {
+	printed, _ := laravelPestTestRun(t, []byte(profile.Builtins()["laravel-pest"]),
+		"--path", "tests/Machines/CarSales")
+	assert.Equal(t, []any{"./vendor/bin/pest", "--colors=never", "tests/Machines/CarSales"}, printed["command"])
+	assert.Equal(t, []any{"tests/Machines/CarSales"}, printed["paths"])
 }
 
 // §5.2.1: "Every `--path` MUST be relative, clean, and resolve inside the
