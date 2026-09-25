@@ -287,3 +287,25 @@ func TestTheReportListsTheResolvedRules(t *testing.T) {
 	assert.Equal(t, []string{"no-todo"}, report.Rules)
 }
 
+// §2.6.3.5: the listing is read page after page until the window ends, and no
+// page past the one that ended it is asked for.
+func TestPagesAreReadUntilTheWindowEnds(t *testing.T) {
+	historyHome(t)
+	full := make([]aHistoryComment, 0, 100)
+	for i := range 100 {
+		full = append(full, aHistoryComment{id: int64(1000 - i), pr: 7, login: "ayse",
+			created: fmt.Sprintf("2025-02-10T%02d:%02d:00Z", 23-i/60, 59-i%60), body: "page one"})
+	}
+	calls := historyGH(t, map[int]string{7: "author"}, full, []aHistoryComment{
+		{id: 2, pr: 7, login: "ayse", created: "2025-02-01T00:00:00Z", body: "page two"},
+		{id: 1, pr: 7, login: "ayse", created: "2024-12-01T00:00:00Z", body: "before"},
+	}, []aHistoryComment{{id: 0, pr: 7, login: "ayse", created: "2024-11-01T00:00:00Z", body: "page three"}})
+
+	report := fromHistory(t, "--since", "2025-01-01")
+
+	assert.Len(t, report.Comments, 101)
+	for _, call := range *calls {
+		assert.NotContains(t, call, "page=3", "the window ended on page two")
+	}
+}
+
