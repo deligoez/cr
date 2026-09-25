@@ -314,6 +314,58 @@ func TestUnrecordedProposalsAloneOweTheirRecording(t *testing.T) {
 	assert.Equal(t, "the roles wrote records or proposals this round does not hold yet", record.Why)
 }
 
+// §10.4.6: a missing intent-coverage cell is the intent pass's to fill, so the
+// review step opens with that pass's own emission, and without one it does not.
+func TestAMissingIntentCellSendsTheReviewStepThroughTheIntentPass(t *testing.T) {
+	statusHome(t)
+	intentFirst := "cr review " + fixturePR + " --repo " + fixtureSlug + " --axis intent"
+
+	report := nextOfFixture(t)
+
+	review := stepNamed(t, &report, "review")
+	require.Contains(t, review.Items, "u2/intent-coverage")
+	assert.Equal(t, []string{
+		intentFirst,
+		"cr review " + fixturePR + " --repo " + fixtureSlug,
+		"cr cells record " + fixturePR + " --repo " + fixtureSlug + " <cells.ndjson>",
+	}, review.Commands)
+
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	var cells strings.Builder
+	for _, seat := range []struct{ unit, hash, role string }{
+		{"u1", "h1", "convention"}, {"u1", "h1", "correctness"}, {"u1", "h1", "intent-coverage"},
+		{"u2", "h2", "intent-coverage"},
+	} {
+		cells.WriteString(`{"unit":"` + seat.unit + `","role":"` + seat.role + `","result":"pass","unit_hash":"` +
+			seat.hash + `","head":"` + meta.Head + `","round":1}` + "\n")
+	}
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileCoverage, []byte(cells.String())))
+	require.NoError(t, held.Unlock())
+
+	report = nextOfFixture(t)
+
+	review = stepNamed(t, &report, "review")
+	assert.Equal(t, []string{"u2/convention", "u2/correctness"}, review.Items)
+	assert.NotContains(t, review.Commands, intentFirst)
+}
+
+// stepNamed is the report's step called name, failing the test without one.
+func stepNamed(t *testing.T, report *nextResult, name string) nextStep {
+	t.Helper()
+	for _, step := range report.Steps {
+		if step.Step == name {
+			return step
+		}
+	}
+	require.Failf(t, "no such step", "the report owes no %s step: %v", name, stepNames(report))
+	return nextStep{}
+}
+
 // A round that owes nothing says so with no steps and no next one, rather than
 // a review of no cells or a settling of no claims.
 func TestACompleteRoundOwesNothing(t *testing.T) {
