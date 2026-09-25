@@ -74,3 +74,11 @@ func TestAPullRequestsAuthorIsReadThroughTheRESTEndpoint(t *testing.T) {
 	assert.True(t, read, why)
 }
 
+// An answer naming another pull request is not the one asked about.
+func TestAnAnswerForAnotherPullRequestIsRefused(t *testing.T) {
+	var called []string
+	_, err := WithRunner(answering(`{"number":8,"user":{"login":"alice"}}`, &called)).PullAuthor("acme", "shop", 7)
+
+	var refused *AnswerError
+	require.ErrorAs(t, err, &refused)
+}
