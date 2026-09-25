@@ -80,6 +80,9 @@ func (r *Round) text(lens *role.Role, at int, output string, ids IDs, proposals 
 	r.candidates(&p, u)
 	r.hits(&p, lens, at)
 	r.tests(&p, at)
+	if lens.Axis == axis.Test {
+		testLens(&p)
+	}
 	r.threads(&p, u)
 	r.unplaced(&p, u)
 	r.notes(&p)
@@ -362,6 +365,24 @@ func (r *Round) tests(p *page, at int) {
 	for _, out := range attached.Unavailable {
 		p.line("Unavailable: %s", out.Disclosure())
 	}
+}
+
+// testLens tells a test-axis role the two things its instructions leave it to
+// guess: that it runs nothing, and what a classification means on a unit that
+// is itself a test.
+//
+// Both gaps came from the first live tester's report on
+// tarfin-labs/backend#6328. The text is cr's rather than the role's, so a
+// project's own role file keeps its words and still gets these, and the
+// built-in role's bytes, which earlier releases shipped, stay as they were.
+func testLens(p *page) {
+	p.section("What this lens can run (§4.4, §5.7)")
+	p.line("You cannot run tests. The only way to show a gap by experiment is a §5.7 proposal, below, " +
+		"which `cr probe run --proposal <id>` runs.")
+	p.line("")
+	p.line("When this unit is itself a test file, its cell's classification says whether that test's own " +
+		"assertions exercise the behaviour it claims to test; where that says nothing, `na` with a reason " +
+		"is the right cell.")
 }
 
 // quotedNote tells the role how a listed thread's comments are shown: fenced,
