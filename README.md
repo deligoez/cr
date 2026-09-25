@@ -2,8 +2,14 @@
 
 Code review lifecycle manager for AI coding agents.
 
-> **Status: v0.11.0.** The release implements the contract in
-> [`spec/0.11.0.md`](spec/0.11.0.md). v0.11 is what a QA pass over v0.8–v0.10
+> **Status: v0.12.0.** The release implements the contract in
+> [`spec/0.12.0.md`](spec/0.12.0.md). v0.12 moves a posted record's probe
+> re-run out of `cr recheck`, which never runs a test, into
+> `cr probe run <pr> --rerun <probe-id>`; `cr recheck` reports the latest re-run
+> and its result, or the command that performs one. Its notes are in
+> [`spec/0.12.0-release-notes.md`](spec/0.12.0-release-notes.md).
+>
+> v0.11 is what a QA pass over v0.8–v0.10
 > found: the JavaScript profiles now run their tests in the sandbox, a
 > TypeScript project configuring Jest selects `jest`, and `cr recheck` reads
 > GitHub's threads live. Its notes are in
