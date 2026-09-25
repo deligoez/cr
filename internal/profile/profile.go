@@ -33,6 +33,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/config"
+	"github.com/deligoez/cr/internal/glob"
 )
 
 // The defaults §2.4 gives the two numeric test fields.
@@ -87,6 +88,8 @@ type Profile struct {
 	Rules []json.RawMessage `json:"rules"`
 	// Symbols hints the reinvention search of §4.3.
 	Symbols Symbols `json:"symbols"`
+	// Units carries §4.6.7's unit kinds.
+	Units Units `json:"units"`
 
 	// stale is the sentence naming the loaded file as an earlier release's
 	// shipped profile, and empty for every other file. It is unexported
@@ -182,6 +185,39 @@ type Symbols struct {
 	Lang string `json:"lang"`
 }
 
+// Units is §2.4's `units` block: the unit kinds of §4.6.7.
+type Units struct {
+	// Kinds are the declared kinds, in file order, which is the order
+	// KindOf tries them in.
+	Kinds []UnitKind `json:"kinds"`
+}
+
+// UnitKind is one entry of `units.kinds`: a unit every path of which matches
+// Globs is of Kind, and only the roles Roles names read it (§4.6.7).
+type UnitKind struct {
+	// Kind names the kind, and is what the `na` cells cr records for the
+	// roles left out give as their reason.
+	Kind string `json:"kind"`
+	// Globs are the repository-relative globs a unit's paths must all match.
+	Globs []string `json:"globs"`
+	// Roles are the ids of the roles that read a unit of this kind.
+	Roles []string `json:"roles"`
+}
+
+// KindOf is §4.6.7 for one unit: the first declared kind whose globs every one
+// of paths matches, and false when none does or the unit has no path.
+func (p *Profile) KindOf(paths ...string) (UnitKind, bool) {
+	if len(paths) == 0 {
+		return UnitKind{}, false
+	}
+	for _, kind := range p.Units.Kinds {
+		if !slices.ContainsFunc(paths, func(path string) bool { return !glob.MatchAny(kind.Globs, path) }) {
+			return kind, true
+		}
+	}
+	return UnitKind{}, false
+}
+
 // MalformedError reports a profile file cr cannot use. It carries the file so
 // the user can open it and the field so they know what to fix, which is what
 // §2.5 item 3 requires of the abort. The cli layer maps it onto exit code 3.
@@ -213,6 +249,11 @@ type wire struct {
 	Tests   *wireTests        `json:"tests"`
 	Rules   []json.RawMessage `json:"rules"`
 	Symbols *wireSymbols      `json:"symbols"`
+	Units   *wireUnits        `json:"units"`
+}
+
+type wireUnits struct {
+	Kinds []UnitKind `json:"kinds"`
 }
 
 type wireMatch struct {
@@ -406,7 +447,41 @@ func (w *wire) validate(path string) error {
 			return err
 		}
 	}
-	return w.Tests.validate(path)
+	if err := w.Tests.validate(path); err != nil {
+		return err
+	}
+	return w.Units.validate(path)
+}
+
+// validate checks §2.4's `units.kinds`: every entry names a kind no other
+// entry names, at least one glob, and a `roles` list, each id non-empty. An
+// empty `roles` is a kind no role reads, whose every cell cr records `na`.
+func (u *wireUnits) validate(path string) error {
+	if u == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(u.Kinds))
+	for i := range u.Kinds {
+		entry := &u.Kinds[i]
+		field := fmt.Sprintf("units.kinds[%d]", i)
+		switch {
+		case entry.Kind == "":
+			return &MalformedError{File: path, Field: field + ".kind", Problem: "is required"}
+		case seen[entry.Kind]:
+			return &MalformedError{File: path, Field: field + ".kind",
+				Problem: fmt.Sprintf("is %q, which an earlier entry already names", entry.Kind)}
+		case len(entry.Globs) == 0 || slices.Contains(entry.Globs, ""):
+			return &MalformedError{File: path, Field: field + ".globs",
+				Problem: "must hold at least one glob, none of them empty"}
+		case entry.Roles == nil:
+			return &MalformedError{File: path, Field: field + ".roles",
+				Problem: "is required; write [] for a kind no role reads"}
+		case slices.Contains(entry.Roles, ""):
+			return &MalformedError{File: path, Field: field + ".roles", Problem: "holds an empty role id"}
+		}
+		seen[entry.Kind] = true
+	}
+	return nil
 }
 
 // validate checks the test block. A nil block is the absent one, which §2.4
@@ -562,6 +637,12 @@ func (w *wire) resolve(probeTemplate string) Profile {
 	}
 	if w.Symbols != nil {
 		p.Symbols = Symbols{Lang: w.Symbols.Lang}
+	}
+	p.Units = Units{Kinds: make([]UnitKind, 0)}
+	if w.Units != nil {
+		for _, kind := range w.Units.Kinds {
+			p.Units.Kinds = append(p.Units.Kinds, UnitKind{Kind: kind.Kind, Globs: list(kind.Globs), Roles: list(kind.Roles)})
+		}
 	}
 	if t := w.Tests; t != nil {
 		p.Tests.Cmd = list(t.Cmd)
