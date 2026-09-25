@@ -86,3 +86,21 @@ func TestAMalformedRuleIsRefusedNamingTheField(t *testing.T) {
 	assert.NoFileExists(t, layout.RepoRule(harvestOwner, harvestRepo, houseRuleID))
 }
 
+// §2.6.3.9: an id the per-repository layer already holds is refused with exit
+// code 4, and the stored file is left as it was.
+func TestAnIdTheLayerHoldsIsRefusedWithoutReplace(t *testing.T) {
+	layout := state.New(crHome(t))
+	_, err := added(t, handedRule(t, houseRuleID, houseRuleJSON))
+	require.NoError(t, err)
+	second := `{"id":"` + houseRuleID + `","title":"Another standard.","rationale":"r","class":"test-name"}`
+
+	_, err = added(t, handedRule(t, houseRuleID, second))
+
+	require.Error(t, err)
+	assert.Equal(t, ExitState, exitCodeFor(err))
+	assert.Contains(t, hintFor(err), "--replace")
+	body, readErr := os.ReadFile(layout.RepoRule(harvestOwner, harvestRepo, houseRuleID))
+	require.NoError(t, readErr)
+	assert.Equal(t, houseRuleJSON, string(body))
+}
+
