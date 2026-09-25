@@ -2,6 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -60,26 +62,26 @@ func TestTheReviewBodyDisclosesEveryLensThatDidNotRun(t *testing.T) {
 	}
 }
 
-// The review body of §8.4.3 is English whatever render.lang says, per the
-// user's 2026-09-13 decision: `cr post` run under tr and under en prints the
-// same body, byte for byte, and it is the English framing around every kind of
-// §4.5.4's entries — a disabled axis, an unavailable axis, both unavailable lens
-// halves, and a skipped role.
+// §8.4.3 through `cr post`'s dry run: the review body's framing lines and the
+// axis names are built in per render.lang, which defaults to en and is set to
+// tr in the repository's own configuration here, and every lens's entry keeps
+// its English wording under both. The entries are those of every kind of
+// §4.5.4 — a disabled axis, an unavailable axis, both unavailable lens halves,
+// and a skipped role.
 //
-// The run under each language first proves the language took effect, by
-// reading the settings `cr post` resolves, so two equal bodies cannot come from
-// two runs that both ignored the variable.
-func TestTheReviewBodyIsTheSameEnglishUnderEitherRenderLanguage(t *testing.T) {
+// Through v0.13.0 the body was English under every render.lang, which is what
+// this test asserted until v0.14.0's §8.4.3 reversed it.
+func TestTheReviewBodyIsFramedInTheRenderLanguage(t *testing.T) {
 	bodies := make(map[string]string, 2)
-	for _, lang := range []render.Lang{render.LangTR, render.LangEN} {
-		t.Setenv("CR_RENDER_LANG", lang.String())
+	for _, lang := range []render.Lang{render.LangEN, render.LangTR} {
 		layout := draftedHome(t, aCitedRecord("f1"))
+		if lang == render.LangTR {
+			require.NoError(t, os.MkdirAll(filepath.Dir(layout.RepoConfig(draftOwner, draftRepo)), 0o700))
+			require.NoError(t, os.WriteFile(layout.RepoConfig(draftOwner, draftRepo),
+				[]byte(`{"render":{"lang":"tr"}}`), 0o600))
+		}
 		redraft(t)
 		recordedGH(t)
-
-		settings, err := resolveDraftSettings(layout, draftOwner, draftRepo)
-		require.NoError(t, err)
-		require.Equal(t, lang, settings.lang, "the run reads render.lang as %s", lang)
 
 		printed, err := runPost(t, draftPR, "--repo", draftSlug)
 		require.NoError(t, err)
@@ -89,13 +91,15 @@ func TestTheReviewBodyIsTheSameEnglishUnderEitherRenderLanguage(t *testing.T) {
 		bodies[lang.String()] = report.Payload.Body
 	}
 
-	assert.Equal(t, bodies["en"], bodies["tr"], "render.lang does not reach §8.4.3's review body")
-
-	lines := strings.Split(bodies["tr"], "\n")
+	english, turkish := strings.Split(bodies["en"], "\n"), strings.Split(bodies["tr"], "\n")
 	assert.Equal(t, []string{"**cr — review coverage**", "", "Axes reviewed: correctness, convention", "",
-		"Lenses that did not run, and why:"}, lines[:5])
-	heads := make([]string, 0, len(lines))
-	for _, line := range lines[5:] {
+		"Lenses that did not run, and why:"}, english[:5], "§8.1.1: en is the default")
+	assert.Equal(t, []string{"**cr — inceleme kapsamı**", "", "İncelenen eksenler: doğruluk, kod kuralları", "",
+		"Çalışmayan incelemeler ve nedenleri:"}, turkish[:5], "the repository's render.lang tr frames the body")
+	assert.Equal(t, english[5:], turkish[5:], "each lens's reason keeps its wording under either language")
+
+	heads := make([]string, 0, len(english))
+	for _, line := range english[5:] {
 		if entry, ok := strings.CutPrefix(line, "- "); ok {
 			head, _, _ := strings.Cut(entry, ":")
 			heads = append(heads, head)
