@@ -79,3 +79,35 @@ func TestAReRunPerformsTheStoredMutationAtTheRoundsHead(t *testing.T) {
 	assert.Equal(t, "app.go:3", rerun["target"], "§5.3.2 derives the target from the patch again")
 }
 
+// §5.5.4: a gap probe's re-run places the stored test and addresses the stored
+// target, which nothing on the command line supplies.
+func TestAGapReRunUsesTheStoredTestAndTarget(t *testing.T) {
+	const rerunPlacement = "tests/cr_probe_p2.txt"
+	prepared, _, _, _ := probeFixture(t,
+		"cat "+rerunPlacement+" 2>/dev/null || echo 'the probe file is not there'\n"+
+			"echo 'Tests:  5 passed'\n",
+		gapProbeTemplate)
+	seedProbes(t, prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileProbes),
+		probe.Record{
+			ID: "p1", Kind: probe.Gap, Stamp: state.Stamp{Head: earlierHead, Round: 1},
+			Input: gapProbeTest, Result: "failed", Baseline: "r1", Target: "app.go:3",
+		})
+
+	reported := probeDocument(t, throughAPipe(t,
+		"probe", "run", fixturePR, "--repo", fixtureSlug, "--rerun", "p1"))
+
+	assert.Equal(t, "p2", reported["probe"])
+	assert.Equal(t, "p1", reported["rerun_of"])
+	assert.Equal(t, "gap", reported["kind"])
+	assert.Equal(t, "app.go:3", reported["target"], "§5.5.4 carries a gap probe's target over")
+	assert.Equal(t, "passed", reported["result"])
+
+	probes := storedRecords(t, prepared, state.FileProbes)
+	require.Len(t, probes, 2)
+	assert.Equal(t, "p1", probes[1]["rerun_of"])
+	assert.Equal(t, gapProbeTest, probes[1]["input"])
+	assert.Equal(t, "app.go:3", probes[1]["target"])
+	assert.Contains(t, probes[1]["output_tail"], gapProbeTest,
+		"the stored test was placed where the new id puts it, and the suite read it")
+}
+
