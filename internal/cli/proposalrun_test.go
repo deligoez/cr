@@ -327,6 +327,31 @@ func TestRecordingProposalsReportsWhatItStored(t *testing.T) {
 	assert.Equal(t, at.FirstP, reported.Recorded[0].ID)
 }
 
+// §5.7.5: a proposal carrying `paths` under a profile with no tests.paths_arg
+// is stored `unrunnable` with a reason naming the field (the same proposal
+// with no paths is stored open, per TestStatusReportsTheRoundsProposals).
+// Measured on tarfin-labs/backend#6328 with cr
+// 0.13.0: such a proposal was stored open and `cr probe run --proposal` then
+// exited 3 with "tests.paths_arg is not set".
+func TestAProposalWithPathsTheProfileCannotPassIsStoredUnrunnable(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	pathed := filepath.Join(t.TempDir(), "pathed.ndjson")
+	plain, err := os.ReadFile(proposalFile(t, at, ""))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(pathed,
+		[]byte(strings.Replace(string(plain), `"kind":`, `"paths":["internal"],"kind":`, 1)), 0o600))
+
+	_, err = runCLIPrinting(t, "proposals", "record", fixturePR, pathed, "--repo", fixtureSlug)
+
+	require.NoError(t, err)
+	stored := storedRecords(t, prepared, state.FileProposals)
+	require.Len(t, stored, 1)
+	assert.Equal(t, "unrunnable", stored[0]["state"])
+	assert.Equal(t, "the proposal names paths and the resolved profile qa declares no tests.paths_arg, "+
+		"so §5.2.1 has no way to pass them to the runner", stored[0]["reason"])
+}
+
 // §5.7.5: a proposal recorded in a round whose profile gives cr no test runner
 // is stored `unrunnable` with the reason, which says no profile was resolved.
 func TestAProposalWithNoRunnerIsStoredUnrunnable(t *testing.T) {
