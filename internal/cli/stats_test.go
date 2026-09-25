@@ -126,12 +126,12 @@ func TestStatsCountsEveryActionPerClassAndPerRuleAcrossPullRequests(t *testing.T
 			Raised: 1, DiscardedNotHere: 1,
 		}},
 		{Class: "unchecked-error", TriageCounts: finding.TriageCounts{
-			Raised: 3, Kept: 1, Softened: 1, DiscardedWrong: 1,
+			Raised: 3, Kept: 1, Softened: 1, DiscardedWrong: 1, EditUnknown: 2,
 		}},
 	}, report.Classes, "§7.3.2: the five counts per class, over both pull requests")
 	assert.Equal(t, []finding.RuleTriage{
 		{Rule: "no-dropped-error", TriageCounts: finding.TriageCounts{
-			Raised: 2, Kept: 1, Softened: 1,
+			Raised: 2, Kept: 1, Softened: 1, EditUnknown: 2,
 		}},
 	}, report.Rules, "§7.3.2: and per rule, counting only the records a rule produced")
 }

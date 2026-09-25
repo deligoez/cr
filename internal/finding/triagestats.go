@@ -28,6 +28,14 @@ type TriageCounts struct {
 	// still has one outcome and the seven still partition the events.
 	WithdrawnNotHere int `json:"withdrawn_not_here"`
 	WithdrawnWrong   int `json:"withdrawn_wrong"`
+	// Unedited is how many of the kept and softened were posted unedited:
+	// their event carries `edited: false`. It is the measure of whether a
+	// human can send a block without editing it.
+	Unedited int `json:"unedited"`
+	// EditUnknown is how many of the kept and softened carry no `edited`
+	// mark at all, having been written before cr recorded it. They are
+	// counted apart rather than as unedited, since nothing says they were.
+	EditUnknown int `json:"edit_unknown"`
 }
 
 // count adds one action to the tally, and refuses one outside §7.3.1's five.
@@ -38,7 +46,24 @@ type TriageCounts struct {
 // not know would be counted by no arm, silently shrinking a class's raises and
 // inflating its demotion rate. A report that is wrong about a class is exactly
 // what the trust economy spends its budget on, so the read stops instead.
-func (c *TriageCounts) count(action TriageAction) error {
+func (c *TriageCounts) count(event *TriageEvent) error {
+	if err := c.countAction(event.Action); err != nil {
+		return err
+	}
+	if event.Action != TriageAction(OutcomeKept) && event.Action != TriageAction(OutcomeSoftened) {
+		return nil
+	}
+	switch {
+	case event.Edited == nil:
+		c.EditUnknown++
+	case !*event.Edited:
+		c.Unedited++
+	}
+	return nil
+}
+
+// countAction adds the event's action to its one count of the seven.
+func (c *TriageCounts) countAction(action TriageAction) error {
 	switch action {
 	case ActionRaised:
 		c.Raised++
@@ -108,13 +133,13 @@ func Tally(events []TriageEvent) (TriageReport, error) {
 		return held[key]
 	}
 	for i := range events {
-		if err := at(byClass, events[i].Class).count(events[i].Action); err != nil {
+		if err := at(byClass, events[i].Class).count(&events[i]); err != nil {
 			return TriageReport{}, fmt.Errorf("record %s: %w", events[i].Record, err)
 		}
 		if events[i].Rule == "" {
 			continue
 		}
-		if err := at(byRule, events[i].Rule).count(events[i].Action); err != nil {
+		if err := at(byRule, events[i].Rule).count(&events[i]); err != nil {
 			return TriageReport{}, fmt.Errorf("record %s: %w", events[i].Record, err)
 		}
 	}

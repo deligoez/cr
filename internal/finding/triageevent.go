@@ -89,6 +89,13 @@ type TriageEvent struct {
 	// Rule is the rule id when a rule of §2.6 produced the record, which
 	// §7.3.2 reports per, and absent when none did.
 	Rule string `json:"rule,omitempty"`
+	// Edited is §7.3.2's mark on a `kept` or `softened` event: true when
+	// the body posted differs from the body the round's last `cr draft`
+	// rendered for the record, its rendered.json entry, and false when it
+	// does not. It is absent on every other action, and on an event written
+	// before cr recorded it, which is why it is a pointer: an absent mark is
+	// not the same answer as an unedited body.
+	Edited *bool `json:"edited,omitempty"`
 	// PR, Round and Head are the occasion the event was written for.
 	PR    int    `json:"pr"`
 	Round int    `json:"round"`
@@ -148,6 +155,10 @@ type Settled struct {
 	Record *Finding
 	// Outcome is one of §7.3.1's six outcome actions.
 	Outcome Outcome
+	// Edited is whether the body posted differs from the record's
+	// rendered.json entry, per §7.3.2, and nil when it is not known. It is
+	// carried onto a `kept` or `softened` event and onto no other.
+	Edited *bool
 }
 
 // RecordRaised writes one `raised` event per record, per §7.3.1's rule for
@@ -208,7 +219,11 @@ func RecordOutcomes(
 				"record %s: %q is not one of §7.3.1's six outcome actions",
 				one.Record.ID, one.Outcome)
 		}
-		written = append(written, on.event(action, one.Record))
+		event := on.event(action, one.Record)
+		if one.Outcome == OutcomeKept || one.Outcome == OutcomeSoftened {
+			event.Edited = one.Edited
+		}
+		written = append(written, event)
 	}
 	return writeTriageEvents(l, owner, repo, written)
 }
