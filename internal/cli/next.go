@@ -13,8 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/proposal"
+	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 )
 
@@ -176,15 +178,11 @@ func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([
 		return nil, err
 	}
 	if len(missing) > 0 {
-		steps = append(steps, nextStep{
-			Step: "review", Actor: actorAgent,
-			Why: fmt.Sprintf("%d cell(s) of §10.2.2 are missing; `cr review` emits the prompts for exactly those", len(missing)),
-			Commands: []string{
-				"cr review " + target,
-				"cr cells record " + target + " <cells.ndjson>",
-			},
-			Items: missing,
-		})
+		roles, err := activeRoles(l, owner, repo, meta.ActiveRoles)
+		if err != nil {
+			return nil, err
+		}
+		steps = append(steps, reviewStep(target, missing, roles))
 	}
 	if len(unsettled) > 0 {
 		steps = append(steps, nextStep{
@@ -198,6 +196,25 @@ func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([
 		})
 	}
 	return recordsSteps(l, owner, repo, pr, meta.Round, steps)
+}
+
+// reviewStep is §10.4.6, naming every missing cell. When an intent-coverage
+// cell is among them, the intent pass's own emission comes first, as §4.6.5
+// runs it before the other axes: a unit the mapping left unmapped is owed that
+// pass, and the plain `cr review` would hand it out beside every other role.
+func reviewStep(target string, missing []string, roles []role.Role) nextStep {
+	commands := make([]string, 0, 3)
+	why := fmt.Sprintf("%d cell(s) of §10.2.2 are missing; `cr review` emits the prompts for exactly those", len(missing))
+	intent := func(cell string) bool {
+		_, id, _ := strings.Cut(cell, "/")
+		return slices.ContainsFunc(roles, func(r role.Role) bool { return r.ID == id && r.Axis == axis.Intent })
+	}
+	if slices.ContainsFunc(missing, intent) {
+		commands = append(commands, "cr review "+target+" --axis intent")
+		why += "; the intent-coverage cells among them come first, through the intent pass"
+	}
+	commands = append(commands, "cr review "+target, "cr cells record "+target+" <cells.ndjson>")
+	return nextStep{Step: "review", Actor: actorAgent, Why: why, Commands: commands, Items: missing}
 }
 
 // intentSteps are §10.4.3 and §10.4.4: the claims the agent extracts from the
@@ -431,12 +448,12 @@ const fanOutReadHint = "a role's file under the round's fan-out could not be rea
 // proposals to: `proposals-<role>.ndjson`, not anything that merely opens so.
 func proposalsFile(name string) bool {
 	prefix, suffix, _ := strings.Cut(proposal.FanOutFile("\x00"), "\x00")
-	role, found := strings.CutPrefix(name, prefix)
+	id, found := strings.CutPrefix(name, prefix)
 	if !found {
 		return false
 	}
-	role, found = strings.CutSuffix(role, suffix)
-	return found && role != ""
+	id, found = strings.CutSuffix(id, suffix)
+	return found && id != ""
 }
 
 // heldIDs are the record and proposal ids the round's own lines hold.
