@@ -254,6 +254,27 @@ func sandboxSteps(l state.Layout, id string) (profile.Sandbox, string, error) {
 	return resolved.Sandbox, file, nil
 }
 
+// roundSources is the sandbox a test or probe run prepares: the round's head
+// and resolved profile, whose id §5.1.6 records in the post-setup baseline, and
+// whose copies, setup and required paths build it.
+func roundSources(
+	l state.Layout, owner, repo string, pr int, round *state.Meta, dir string, resolved *profile.Profile, file string,
+) *sandbox.Sources {
+	return &sandbox.Sources{
+		Layout:      l,
+		Owner:       owner,
+		Repo:        repo,
+		PR:          pr,
+		Head:        round.Head,
+		RepoDir:     dir,
+		Copy:        resolved.Sandbox.Copy,
+		Setup:       resolved.Sandbox.Setup,
+		Require:     resolved.Sandbox.Require,
+		Profile:     round.ProfileID,
+		ProfileFile: file,
+	}
+}
+
 // roundProfile loads the profile the round resolved and returns the file it
 // came from beside it, so a refusal can name what to open.
 //

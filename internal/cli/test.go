@@ -234,19 +234,7 @@ func resolveTestTarget(
 	return &testTarget{
 		layout: layout, owner: owner, repo: repo, pr: pr,
 		round: round, resolved: resolved, file: file, argv: argv,
-		src: &sandbox.Sources{
-			Layout:      layout,
-			Owner:       owner,
-			Repo:        repo,
-			PR:          pr,
-			Head:        round.Head,
-			RepoDir:     dir,
-			Copy:        resolved.Sandbox.Copy,
-			Setup:       resolved.Sandbox.Setup,
-			Require:     resolved.Sandbox.Require,
-			Profile:     round.ProfileID,
-			ProfileFile: file,
-		},
+		src: roundSources(layout, owner, repo, pr, &round.Meta, dir, &resolved, file),
 	}, nil
 }
 

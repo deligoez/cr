@@ -748,19 +748,7 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 	if err != nil {
 		return nil, err
 	}
-	src := &sandbox.Sources{
-		Layout:      layout,
-		Owner:       request.owner,
-		Repo:        request.repo,
-		PR:          request.pr,
-		Head:        round.Head,
-		RepoDir:     dir,
-		Copy:        resolved.Sandbox.Copy,
-		Setup:       resolved.Sandbox.Setup,
-		Require:     resolved.Sandbox.Require,
-		Profile:     round.ProfileID,
-		ProfileFile: file,
-	}
+	src := roundSources(layout, request.owner, request.repo, request.pr, &round.Meta, dir, &resolved, file)
 	glob := resolved.LeftoverGlob()
 	ready, err := sandbox.Ensure(src, glob)
 	if err != nil {
