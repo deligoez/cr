@@ -11,11 +11,11 @@
 // invariant 1 leaves cr no way to form one: this package decodes, validates,
 // and refuses, and nothing here fills in a verdict.
 //
-// That is why the type has no constructor. state.DecodeStamped allocates the
-// only Cell values cr ever holds, out of a line an agent wrote, and
-// TestNothingBuildsACoverageCellOutsideItsDecoder fences it — §4.5.6 forbids cr
-// to invent a cell for a unit no role reported on, and a structure with no
-// other way to be built cannot be invented.
+// That is why the type has two constructors and no more. state.DecodeStamped
+// allocates every Cell out of a line an agent wrote, except the two derived.go
+// builds from a fact other than cr's reading of the code — §4.6.7's kind and
+// §4.6.8's twin — and TestNothingBuildsACoverageCellOutsideItsDecoder fences
+// it: §4.5.6 forbids cr to invent a cell for a unit no role reported on.
 package coverage
 
 import (
