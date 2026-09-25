@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -102,6 +103,9 @@ func TestADraftDiscardingEveryRecordSettlesWithoutAReview(t *testing.T) {
 	assert.Equal(t, EmptyReviewError{
 		Owner: draftOwner, Repo: draftRepo, PR: draftPRNum, Round: draftRound, Discarded: 2,
 	}, *empty)
+	assert.Equal(t, fmt.Sprintf("%s/%s#%d round %d holds no queued record, so its review would carry no comment "+
+		"(0 posted, 2 discarded): §8.3.1 sends a round's comments as one review and cr sends no review without one",
+		draftOwner, draftRepo, draftPRNum, draftRound), err.Error())
 	assert.Equal(t, ExitState, exitCodeFor(err))
 	assert.Empty(t, shim.writes(t))
 }
