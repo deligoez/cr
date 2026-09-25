@@ -261,7 +261,7 @@ cr review 1 --axis intent
 ```json
 {
   "round": 1,
-  "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "first_id": "f1", "last_id": "f100", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
+  "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "first_id": "f1", "last_id": "f100", "cells": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/cells-intent-coverage.ndjson", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
   "honesty": [],
   "skipped_roles": [],
   "expected_cells": [{"unit": "u1", "role": "convention"}, {"unit": "u1", "role": "intent-coverage", "recorded": true}, …]
@@ -270,8 +270,9 @@ cr review 1 --axis intent
 
 An `expected_cells` entry carries `"recorded": true` when `coverage.ndjson`
 already holds that cell for the round and head, and `"stale_by_note": true` when
-a standing note on that cell's unit was recorded after the cell's latest prompt
-and that prompt did not carry it. An entry with neither mark is owed.
+a standing note on that cell's unit was recorded after the cell's latest prompt,
+that prompt did not carry it, and the held cell does not cite it in `note_id`.
+An entry with neither mark is owed.
 
 **`cr review` emits a prompt only for a cell that is not `recorded`, or one that
 is `stale_by_note`.** That is the default: a second run of the same round emits
@@ -298,7 +299,10 @@ re-emission to `--axis intent`: it emits one prompt per unit the mapping maps to
 no claim — §4.1.2's unmapped-unit question and §4.1.5's note check, both
 unknowable on the first pass — and §4.6.1's default narrowing does not apply to
 it, so it re-emits although the intent cells are already recorded. `cr review 1`
-on its own emits no intent prompt once those cells are in. Measured on a
+on its own emits no intent prompt once those cells are in, except for a cell a
+note recorded after its prompt makes `stale_by_note`; a cell whose `note_id`
+cites that very note is not made stale by it, so recording the note §4.1.5 asks
+for and citing it re-opens nothing. Measured on a
 two-unit pull request with `u2` mapped to no claim: the bare run gave
 `convention/u1, convention/u2, correctness/u1, correctness/u2,
 test-adequacy/u1, test-adequacy/u2`, and `cr review 1 --axis intent` gave
@@ -335,8 +339,9 @@ for k in 1 2 3 4 5; do cr review 1 --shard $k/5 > shard-$k.json; done
 Every prompt of the round names one file, `~/.cr/state/<owner>/<repo>/pr-<n>/rounds/<round>/contract.md`,
 which holds §6.1's record schema: every field with whether cr computes it, the
 values `kind`, `severity`, `class`, `suggestion_origin` and the anchor take, and
-the fields the agent may not write. Read it once per round; the prompts carry
-the output path, the id block and the fence, and no longer repeat the schema.
+the fields the agent may not write. It also holds §4.5.5's coverage cell schema
+and §5.7's proposal schema. Read it once per round; the prompts carry the output
+paths, the id blocks and the fence, and no longer repeat the schemas.
 
 Each prompt's findings go, one JSON record per line, to the `output` path the
 prompt names, and nothing else. Each record takes
@@ -345,9 +350,12 @@ other prompt of the round is given those ids, so parallel roles never write the
 same one and `cr merge` accepts their files together. cr refuses a new record
 whose id lies outside its prompt's block only once `cr review` has emitted the
 round's prompts for that record's unit. A role reports
-every unit it looked at as a coverage cell:
+every unit it looked at as a coverage cell, written to the `cells` path its
+prompt names, `fanout/<round>/<unit>/cells-<role>.ndjson` beside its records.
+`cr cells record` takes one file, so gather them first:
 
 ```bash
+cat ~/.cr/state/acme/shop/pr-1/fanout/1/*/cells-*.ndjson > cells.ndjson
 cr cells record 1 cells.ndjson
 ```
 
@@ -431,6 +439,17 @@ That writes the probe record, marks the proposal `run`, and — when the proposa
 names a `finding` of the round — sets that record's `probe`, recomputes its
 grade and re-applies §6.3's forcing. An `open` proposal never blocks a round;
 `cr status` reports the counts.
+
+**Record the finding before the proposal that names it.** A proposal whose
+`finding` names a record the round does not hold yet is refused, so the order is
+`cr record`, then `cr proposals record`.
+
+A proposal already `run` is refused with exit 4 when you run it again, unless
+its probe's `result` was `inconclusive`, `error` or `timeout`: that experiment
+settled nothing, so `cr probe run --proposal` executes it again and the
+proposal, and the record it names, move to the new probe. A proposal carrying
+`paths` under a profile with no `tests.paths_arg` is stored `unrunnable` when it
+is recorded, with a reason naming the field.
 
 **Re-running a stored probe.** `cr probe run <pr> --rerun <probe-id>` repeats a
 probe the pull request already holds — its kind, input, filter, paths and, for a
@@ -588,12 +607,23 @@ cr probe run 1 --kind mutation --patch mutation.diff --filter TestDiscount --pat
 
 `cr test` reports what the run measured — `tests_run`, `tests_failed` and
 §5.2.5's `passed` — beside its exit code, and leaves the two counts out when the
-profile's patterns derive neither. That is where you check a profile's count
-mode against your own suite:
+profile's patterns derive neither, and it carries the run's `output_tail`
+(which `--compact` omits). That is where you check a profile's count mode
+against your own suite:
 
 ```json
-{"run": "r3", "exit_code": 1, "tests_run": 3, "tests_failed": 1, "passed": false, …}
+{"run": "r3", "exit_code": 1, "tests_run": 3, "tests_failed": 1, "passed": false, "output_tail": "…", …}
 ```
+
+**The runner does not see a coding agent.** cr starts it without the variables
+coding-agent detectors read (`AI_AGENT`, `CLAUDECODE`, `CODEX_SANDBOX`,
+`CURSOR_AGENT`, `GEMINI_CLI` and the rest of the list in `internal/sandbox`),
+because a runner that detects one changes the output the counts are read from:
+Pest 4 under Claude Code printed one JSON line in place of its recap, and no
+run could pass. A run that exits 0 with no executed count still happens, for
+example with a `tests.count_pattern` that matches nothing, and `cr test` and
+`cr probe run` say so under `honesty`: such a run cannot pass or serve as a
+baseline.
 
 `--path` is repeatable and narrows the run to a path inside the sandbox,
 passed through the profile's `tests.paths_arg` once per path with every
@@ -697,7 +727,8 @@ Contents are compared in memory and never printed or stored. The header then
 goes to standard error, so a piped JSON document stays whole and `--quiet` does
 not remove it: the runner argv, the sandbox path, a `recreated` line naming the
 cause when the sandbox was rebuilt for this run, the clone root's gitignored
-`.env*` files and which of them the sandbox holds, one `not copied` line per
+`.env*` files and gitignored `storage/*.key` files (Laravel Passport's keys) and
+which of them the sandbox holds, one `not copied` line per
 such file the sandbox lacks (whether or not `sandbox.copy` names it), and, when
 a probe's §5.2.2 baseline has not run in this sandbox yet, a
 `baseline` line naming the argv that runs first. Read the header before the
@@ -751,13 +782,17 @@ cr draft 1
 The draft holds one block per record under a marker line, e.g.
 `<!-- cr:record id="f2" kind="finding" path="order.go" side="RIGHT" start_line="5" line="6" severity="high" grade="probed" disposition="" -->`,
 then the body you edit, then for a probed record a cr-owned evidence region (the
-probe's kind, target, filter, result, input and output tail).
+probe's kind, target, filter, result, input and output tail; for a
+`no-test-failed` or `passed` result only the tail's lines `tests.count_pattern`
+matches). Any record naming a probe, a question included, also carries there
+each re-run of that probe at the round's head (`rerun: p5, result: failed`).
 
 **Rewrite every kept body in `render.lang`.** Records are stored in English
 (§6.1.1), and cr renders each body from the record's `summary` and `evidence`
 without translating or composing a word (§8.1.2). Before handing the draft over,
 rewrite the body of each block you keep in the language `render.lang` names
-(default `tr`); the question label cr adds is already in it, and a body left in
+(default `en`, set per repository in `~/.cr/repos/<owner>/<repo>/config.json`,
+e.g. `{"render":{"lang":"tr"}}`); the question label cr adds is already in it, and a body left in
 English posts in English. A `kind="question"` body must ask, with a `?`.
 
 The draft opens with a header comment that is never posted: counts by kind,
@@ -898,7 +933,9 @@ finding on later pull requests too. With no `cr draft` in between,
 **`wrong` and `not-here` are different decisions.** `not-here` means the finding
 is true but not worth a comment on this pull request, the ordinary volume
 decision, and never counts against the class. `wrong` means the finding is false;
-it is the only signal that demotes a class. Never mark a true finding `wrong` to
+it is the only signal that demotes a class. A class's demotion candidacy
+(§7.3) is a report only and changes no record, so a `wrong` on an argued record
+never affects a probed record of the same class. Never mark a true finding `wrong` to
 make room.
 
 **What a waiver matches.** A waiver, and the posted index `cr merge` and
@@ -1026,9 +1063,11 @@ cr post 1 --confirm
 profile field makes it implicit. All comments go in one review, and the request
 body carries only `commit_id`, `event`, `body` and `comments`. `commit_id` is the
 round's head, so GitHub places every comment on the diff cr validated even if the
-head moves after cr compared it; `posted.json` records the same `commit_id`. The review body is written in
-English whatever `render.lang` says; `render.lang` (default `tr`) sets the
-language of the comment bodies and their question labels.
+head moves after cr compared it; `posted.json` records the same `commit_id`. `render.lang`
+(default `en`, set per repository in `~/.cr/repos/<owner>/<repo>/config.json`)
+sets the language of the comment bodies, their question labels, and the review
+body's framing lines and axis names; each lens's reason in the review body keeps
+its English wording. A team relying on the old `tr` default sets it there.
 
 **A round posts one review.** Once its review was created or adopted, another
 `cr post` on the round is refused with exit 4 ("this round is posted and takes
@@ -1476,7 +1515,8 @@ one with the most marker files present at the clone's root wins: `go` names
 `jest` project. Both JavaScript profiles copy `node_modules` into the sandbox,
 which is a fresh worktree without it. A tie exits
 3 naming the tied profiles; set `profile` in the per-repository config to
-settle it — and to pick `jest` for a project that configures Jest only inside
+settle it (a second `cr brief` at the same head picks up a changed `profile`
+setting) — and to pick `jest` for a project that configures Jest only inside
 `package.json`. `typescript` runs the repository's own Vitest (`npx --no --
 vitest run --reporter=verbose`) and counts its ` ✓ `/` × ` lines. `jest` runs
 `npx --no -- jest --json` and sums `numPassedTests` and `numFailedTests`; a
@@ -1490,8 +1530,8 @@ and places a gap probe as an integration test under `tests/`. `go` runs `go test
 (skips are not executed tests), and places a gap probe beside its target, since
 a Go test compiles into the package it tests. A tree that does not build prints
 no test line and exits non-zero, and that reads as undetermined, never as zero
-tests. `laravel-pest`
-copies `.env`, `.env.testing`
+tests. `laravel-pest` passes a `--path` to Pest as a bare argument
+(`tests.paths_arg: ["{path}"]`) and copies `.env`, `.env.testing`
 and `vendor` into the sandbox: Laravel runs tests under `APP_ENV=testing`, and
 without `.env.testing` it reads `.env`, so a suite would reach the database the
 developer's own `.env` names. A command that loads a profile file byte-equal to
@@ -1501,7 +1541,7 @@ current or edited file:
 ```json
 {
   "honesty": [
-    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed sandbox.copy; cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"
+    "/Users/you/.cr/profiles/laravel-pest.json is the laravel-pest profile cr v0.2.1 shipped, unedited, and the shipped profile has since changed rules, sandbox.copy, tests.paths_arg; cr init updates the file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"
   ]
 }
 ```
