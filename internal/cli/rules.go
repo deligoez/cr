@@ -24,7 +24,7 @@ import (
 // mechanical detection of §2.6.1, and the harvesting of §2.6.3.
 func newRulesCmd(out *writer) *cobra.Command {
 	cmd := groupCmd("rules", "Inspect, run, and harvest project rules")
-	cmd.AddCommand(newRulesListCmd(out), newRulesCheckCmd(out), newRulesSuggestCmd(out))
+	cmd.AddCommand(newRulesListCmd(out), newRulesCheckCmd(out), newRulesSuggestCmd(out), newRulesAddCmd(out))
 	return cmd
 }
 

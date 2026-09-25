@@ -102,6 +102,23 @@ func is[T error]() func(error) bool {
 // *state.FileError is last of all, being the one every other file failure may
 // carry underneath.
 var codes = []mapped{
+	// §2.6.3.9: a file handed to `cr rules add` that is not a §2.6 rule is
+	// input data, §11.2's 1, and not the malformed corpus file §2.6 item 5
+	// codes 3. It carries the loader's own error, a *rule.MalformedError or
+	// an *axis.InvalidError, so it sits above both rows that claim those.
+	{is[*RuleInputError](), ExitValidation,
+		"correct the field the message names in the rule file you handed `cr rules add`; " +
+			"§2.6's table is the whole of what a rule may carry, and its id is the file stem"},
+	// §2.6.3.9: a rule drawn from review comments carries `source` and is
+	// stored as a question. The file is input data, §11.2's 1.
+	{is[*SourcedFindingError](), ExitValidation,
+		"set `kind` to `question`, or drop `source`; a rule drawn from review comments reaches " +
+			"the finding register only by a hand edit of the stored file after the team adopts it"},
+	// §2.6.3.9: the per-repository layer already holds the id, and the
+	// command was not asked to replace it. Nothing was written; what refused
+	// is what the layer holds, §11.2's 4.
+	{is[*state.RuleExistsError](), ExitState,
+		"pass --replace to overwrite the stored rule, or give the new rule another id and file stem"},
 	// §1.5: an axis field outside the closed set is a bad configuration
 	// file, which §11.2 codes as ExitFile.
 	{is[*axis.InvalidError](), ExitFile,
