@@ -384,7 +384,7 @@ func assemble(src *Sources) (*Brief, error) {
 		skipped:        coverage.Skipped(axes, corpus, active, selection.Profile.ID),
 		staleProfile:   selection.Profile.StaleDisclosures(),
 		staleRoles:     role.StaleDisclosures(corpus),
-		issueLinks:     resolved.Reading().Links(),
+		issueLinks:     intent.LinksBesideIssue(resolved.Reading().Links(), resolved.Key.Value),
 	}, nil
 }
 

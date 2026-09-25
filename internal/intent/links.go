@@ -1,6 +1,7 @@
 package intent
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -36,6 +37,35 @@ func Links(issue string) []string {
 		found = append(found, link)
 	}
 	return found
+}
+
+// LinksBesideIssue is links without the ones that name the issue itself: a
+// link whose last path segment, a trailing slash trimmed, is the issue key in
+// any letter case (§3.1.7). An empty key keeps every link.
+//
+// Jira's command-line client prints `View this issue on Jira: <url>` under
+// every issue, so without this every Jira brief listed the issue's own page as
+// a document cr did not read.
+func LinksBesideIssue(links []string, key string) []string {
+	kept := make([]string, 0, len(links))
+	for _, link := range links {
+		if key != "" && strings.EqualFold(lastSegment(link), key) {
+			continue
+		}
+		kept = append(kept, link)
+	}
+	return kept
+}
+
+// lastSegment is the last segment of a link's path, a trailing slash trimmed,
+// and empty when the link does not parse or has no path.
+func lastSegment(link string) string {
+	parsed, err := url.Parse(link)
+	if err != nil {
+		return ""
+	}
+	trimmed := strings.TrimRight(parsed.Path, "/")
+	return trimmed[strings.LastIndex(trimmed, "/")+1:]
 }
 
 // LinkDisclosure is the honesty sentence for one link the issue text carries.
