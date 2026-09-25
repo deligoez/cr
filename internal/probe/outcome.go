@@ -18,6 +18,17 @@ type Result string
 // above the ladder and replaces whatever it produced.
 const ResultError Result = "error"
 
+// Unsettled reports a result that established nothing about the code because
+// the run itself did not finish as an answer: `inconclusive`, `error` or
+// `timeout`. §5.7.3 executes a proposal again when its probe ended on one.
+//
+// Measured on tarfin-labs/backend#6328 with cr 0.13.0: proposal x4001 ran
+// `inconclusive` under the runner that saw a coding agent, and a second
+// `--proposal x4001` was refused as already run.
+func (r Result) Unsettled() bool {
+	return r == resultInconclusive || r == ResultError || r == resultTimeout
+}
+
 // Outcome is what one probe run records: the ladder's answer, after §5.1.7's
 // override has had its say.
 //

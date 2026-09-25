@@ -137,28 +137,44 @@ func loadProposal(owner, repo string, pr int, id string, request *probeRequest) 
 		return nil, &UnknownProposalError{ID: id}
 	}
 	held := &stored[found]
-	if err := runnableNow(held, &round.Meta); err != nil {
+	probes, err := state.ReadRecords[probe.Record](layout, owner, repo, pr, state.FileProbes)
+	if err != nil {
+		return nil, err
+	}
+	if err := runnableNow(held, &round.Meta, probes); err != nil {
 		return nil, err
 	}
 	return held, fillFromProposal(held, request)
 }
 
 // runnableNow is §5.7.3's and §5.7.4's refusals of a proposal this run may not
-// execute: one of another round or head, one already run, and one §5.7.5 stored
-// with a reason.
-func runnableNow(held *proposal.Proposal, round *state.Meta) error {
+// execute: one of another round or head, one already run whose probe settled
+// something, and one §5.7.5 stored with a reason. probes are the pull
+// request's stored probe records, the one a run proposal names among them.
+func runnableNow(held *proposal.Proposal, round *state.Meta, probes []probe.Record) error {
 	switch {
 	case held.Round != round.Round || held.Head != round.Head:
 		return &StaleProposalError{
 			ID: held.ID, Round: held.Round, At: round.Round,
 			Head: held.Head, OnHead: round.Head,
 		}
-	case held.State == proposal.StateRun:
+	case held.State == proposal.StateRun && !probeUnsettled(probes, held.Probe):
 		return &ProposalSpentError{ID: held.ID, Probe: held.Probe}
 	case held.State == proposal.StateUnrunnable:
 		return &UnrunnableProposalError{ID: held.ID, Reason: held.Reason}
 	}
 	return nil
+}
+
+// probeUnsettled reports whether the probe id names ended on a result
+// §5.7.3 runs a proposal again for.
+func probeUnsettled(probes []probe.Record, id string) bool {
+	for i := range probes {
+		if probes[i].ID == id {
+			return probes[i].Result.Unsettled()
+		}
+	}
+	return false
 }
 
 // fillFromProposal puts the proposal's inputs where the two kinds read them.
