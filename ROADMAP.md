@@ -23,6 +23,8 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.11.2 | Three small things the first real rounds and the QA pass left: a repository slug is folded to lower case and loses a `.git` suffix, so `--repo` reaches the same state in every spelling on every filesystem; `cr next` sends a missing intent-coverage cell through the intent pass; and its draft step asks for the English bodies to be rewritten in `render.lang` before the human reads them, the step round 1 skipped by hand |
+| v0.11.1 | What a full mutation pass over v0.11.0 found: tests for 152 of 208 surviving mutants and the other 56 recorded as unobservable, a Rust raw C string (`cr"…"`) read as raw, and `scripts/mutation-run.sh` executable again |
 | v0.11.0 | What a three-agent QA pass over v0.8–v0.10 found, fixed: the JavaScript profiles copy `node_modules` into the sandbox, where no test could run before; a TypeScript project configuring Jest selects `jest` through a new `match.unless` rather than tying; `cr recheck` reads GitHub's threads live rather than the brief's copy; a record hardened in the draft is stored as the finding it was posted as; `cr next` reads every role file of a unit and quotes what it prints; the TypeScript and Rust scanners read private names, JSX apostrophes, raw strings and generic commas as the languages do; JSON writes `<` and `&` as themselves |
 | v0.10.0 | The next step: `cr next <pr>` reports every step the round still owes, in §10.4's order, with who takes each — cr, the agent, or the human — and the exact commands, read from state and never judged; the draft step never prints `--confirm` |
 | v0.9.0 | Jest, and a zero read only from a clean exit: a `jest` profile summing `--json`'s passed and failed keys; both JavaScript profiles select on their tools' own files rather than on `package.json`, and run `npx --no -- <runner>` so npx reads none of the runner's flags; and §5.2.1's sum mode, like the occurrence mode, leaves a zero executed count from a failing exit undetermined, so a suite that did not load is never `no-tests-selected` |
@@ -61,16 +63,17 @@ paragraphs of this file used to carry is the Shipped table below.
   is the decision to make first.
 
 *Left from the same QA pass, each judged not worth a fix yet and written here so it is not rediscovered:*
-- `--repo Deligoez/CR-QA-GO` finds a round opened as `deligoez/cr-qa-go` on macOS only, because the
-  state path inherits the filesystem's case-insensitivity; on Linux the same command says no round is
-  open. `--repo owner/repo.git` is accepted and reports no round. Normalising the slug is the fix.
+- ~~`--repo Deligoez/CR-QA-GO` finds a round opened as `deligoez/cr-qa-go` on macOS only.~~ *Shipped in
+  v0.11.2: every `owner/repo`, from `--repo` or the remote, is folded to lower case and loses a `.git`
+  suffix before it names a state directory.*
 - Jest's counts are read from the merged stdout and stderr, so a test that logs
   `{"numFailedTests":1}` would add to the failed count. No real suite was seen doing it.
 - The TypeScript and Rust scanners still miss (never invent) a method whose parameters span lines, a
   nested generic in an arrow's parameter list, a decorator on the declaration's line, `*gen()` methods,
   prototype and `exports.` assignments, `fn r#match`, and `#[inline] pub fn` on one line.
-- `cr next` does not point back to `cr review --axis intent` when the mapping left a unit unmapped;
-  its `review` step lists the missing `intent-coverage` cells, which `cr review` emits.
+- ~~`cr next` does not point back to `cr review --axis intent` when the mapping left a unit unmapped.~~
+  *Shipped in v0.11.2: a missing intent-coverage cell opens the review step with the intent pass's
+  own emission.*
 
 - ~~**§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.**~~ *Shipped in
   v0.7.0 as reading (i), `spec/0.7.0.md` §9.3.4 and §9.4.5–§9.4.8, and measured on `deligoez/cr-qa#23`:
