@@ -172,3 +172,24 @@ func TestStatsRefusesAnActionOutsideSection731sFive(t *testing.T) {
 	assert.Contains(t, err.Error(), "f1")
 	assert.Contains(t, err.Error(), "retracted")
 }
+
+// §9.6.2's retractions through `cr stats`: a posted record later withdrawn as
+// `wrong` or as `not-here` is counted under that outcome, which replaces the
+// `kept` it was posted under, so each raise still has exactly one outcome.
+func TestStatsCountsWithdrawnRecordsUnderTheirDisposition(t *testing.T) {
+	layout := statsHome(t)
+	wrong := aTriagedRecord("f1", "unchecked-error", "no-dropped-error")
+	elsewhere := aTriagedRecord("f2", "unchecked-error", "no-dropped-error")
+	seedRaised(t, layout, statsFirst, 1, wrong, elsewhere)
+	seedOutcome(t, layout, statsFirst, 1, wrong, finding.OutcomeKept)
+	seedOutcome(t, layout, statsFirst, 1, elsewhere, finding.OutcomeKept)
+	seedOutcome(t, layout, statsFirst, 1, wrong, finding.OutcomeWithdrawnWrong)
+	seedOutcome(t, layout, statsFirst, 1, elsewhere, finding.OutcomeWithdrawnNotHere)
+
+	report := statsReport(t)
+
+	assert.Equal(t, 4, report.Events, "two raises and two outcomes: each withdrawal replaced its kept")
+	counts := finding.TriageCounts{Raised: 2, WithdrawnNotHere: 1, WithdrawnWrong: 1}
+	assert.Equal(t, []finding.ClassTriage{{Class: "unchecked-error", TriageCounts: counts}}, report.Classes)
+	assert.Equal(t, []finding.RuleTriage{{Rule: "no-dropped-error", TriageCounts: counts}}, report.Rules)
+}
