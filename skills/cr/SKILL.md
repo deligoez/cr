@@ -45,7 +45,9 @@ under `~/.cr/` (override with `CR_HOME`); cr never writes inside the repository
 under review.
 
 **Repository detection.** Every PR-scoped command reads owner/repo from the
-repository's one GitHub remote. `--repo <owner/repo>` overrides it. No remote,
+repository's one GitHub remote. `--repo <owner/repo>` overrides it. Either way
+the slug is folded to lower case and loses a `.git` suffix, so every spelling
+of one repository reaches the same state. No remote,
 several remotes, a non-GitHub remote, or an owner or name that is `.` or `..`
 (from the remote or from `--repo`) is refused with exit 2:
 
