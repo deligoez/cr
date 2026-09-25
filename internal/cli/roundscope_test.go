@@ -275,11 +275,12 @@ func openSecondRound(t *testing.T, layout state.Layout) {
 func fileNamed(t *testing.T, constant string) string {
 	t.Helper()
 	named := map[string]string{
-		"FilePostedIndex": state.FilePostedIndex,
-		"FileThreads":     state.FileThreads,
-		"FileTransitions": state.FileTransitions,
-		"FileWaivers":     state.FileWaivers,
-		"FileMigrations":  state.FileMigrations,
+		"FilePostedIndex":  state.FilePostedIndex,
+		"FileThreads":      state.FileThreads,
+		"FileTransitions":  state.FileTransitions,
+		"FileWaivers":      state.FileWaivers,
+		"FileMigrations":   state.FileMigrations,
+		"FileObservations": state.FileObservations,
 	}
 	name, known := named[constant]
 	require.True(t, known, "%s is declared unstamped and this helper does not know it", constant)
