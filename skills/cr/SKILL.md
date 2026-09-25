@@ -1618,6 +1618,85 @@ rule file:
 {"harvest_min": 3, "scanned": 2, "candidates": []}
 ```
 
+### Seeding house style from review history
+
+A team's first review has no posted rounds to harvest, and house style — how a
+test is named, when a helper is extracted — is in neither the issue nor the
+diff. It is in the team's own review comments. `cr rules suggest --from-history`
+reports them; you draw the rules; `cr rules add` stores each one. cr forms no
+opinion at any step.
+
+1. **Pick a window that ends before agent-drafted review began.** cr cannot tell
+   a comment an agent drafted from one a person typed (both arrive under a
+   person's account), so it reports each month's median comment length and
+   leaves the call to you. On `tarfin-labs/backend` the median sits at roughly
+   30–100 characters a month through mid-2026 and jumps to about 580–725 in
+   2026-08, so the window there ends with `--until 2026-08-01`. Harvesting past
+   the break feeds a model's style back as the team's.
+
+   ```bash
+   cr rules suggest --repo acme/shop --from-history --since 2025-01-01 --until 2026-08-01 --limit 1000 --json
+   ```
+
+   `--since` is inclusive and `--until` exclusive, both `YYYY-MM-DD`. The read is
+   newest first and stops at `--limit` opening comments (default 1000);
+   `window.limit_cut` says whether the limit, not the window, ended it.
+
+2. **Read the report.** Bot comments, replies and comments by the pull
+   request's own author are excluded and counted under `excluded`; each reply is
+   attached under the comment it answers. Every included comment carries `pr`,
+   `url`, `author`, `created_at`, `path`, `line`, `side`, `body`, `replies` and
+   `body_chars`. `groups` buckets them by path shape (`app/Models/*.php`), by
+   backticked code span and by normalised body, keeping only groups that span
+   `rules.harvest_min` distinct pull requests — a span repeated forty times in
+   one pull request is a migration, not a standard. `resolved_rules` lists the
+   ids the corpus already holds. The groups are a map, not rules: the
+   recurrence that makes a standard is in the meaning, which is your job.
+
+   Measured on `tarfin-labs/backend` with `--since 2025-01-01 --until
+   2025-03-01 --limit 200`, abridged:
+
+   ```json
+   {"repo": "tarfin-labs/backend", "harvest_min": 3,
+    "window": {"since": "2025-01-01", "until": "2025-03-01", "limit": 200, "limit_cut": true,
+               "newest_read": "2025-02-28T13:34:04Z", "oldest_read": "2025-01-30T07:47:42Z"},
+    "read": 318, "included": 200, "excluded": {"bot": 0, "reply": 118, "pr_author": 0},
+    "months": [{"month": "2025-01", "comments": 13, "median_body_chars": 89},
+               {"month": "2025-02", "comments": 187, "median_body_chars": 30}],
+    "groups": {"by_path": [{"key": "app/Models/*.php", "prs": […], "distinct_prs": 6, "occurrences": 7, "comments": […]}, …],
+               "by_code_span": [], "by_body": [{"key": "Testi yazılabilir.", "distinct_prs": 3, "occurrences": 4, …}]},
+    "resolved_rules": [], "comments": [{"pr": 3839, "url": "…", "author": "…", "body": "…", "replies": […], "body_chars": 36}, …]}
+   ```
+
+3. **Write each rule as §2.6 JSON**, `kind` `question`, with `source` naming the
+   comment URLs it was drawn from. Say in `rationale` what the standard is, in
+   the reviewer's words rather than a link to a colleague's old comment; the
+   draft never prints `source`. A rule you can cite from one reviewer only is
+   that reviewer's standard, and a rule you cannot cite from three pull requests
+   is a guess. Add `detect` only where one line-local pattern exists.
+
+   ```json
+   {"id": "negative-test-name", "title": "A test name states the behaviour, not its negation",
+    "rationale": "The name is what a failing run prints, so it says what should happen.",
+    "class": "test-name", "kind": "question", "globs": ["tests/**/*.php"],
+    "source": ["https://github.com/acme/shop/pull/3757#discussion_r1", "https://github.com/acme/shop/pull/3801#discussion_r2"]}
+   ```
+
+4. **Store it** in the per-repository layer. The file's stem is the rule id.
+
+   ```bash
+   cr rules add --repo acme/shop negative-test-name.json
+   ```
+
+   ```json
+   {"repo": "acme/shop", "id": "negative-test-name", "path": "~/.cr/repos/acme/shop/rules/negative-test-name.json", "replaced": false}
+   ```
+
+   A malformed file is refused with exit 1 naming the field; an id the layer
+   already holds exits 4 unless you pass `--replace`; a rule carrying `source`
+   with `kind: finding` exits 1. A rule drawn from history reaches the finding
+   register only when a human edits the stored file after the team adopts it.
+
 ## Inspection
 
 ```bash
