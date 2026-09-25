@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.15.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.16.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -463,7 +463,8 @@ source of truth; this table is a map, not a promise.
 | `cr claims record <pr> <file> [--intent-file <path>] [--intent-extra <path>]...` | Store the claims extracted from the issue; like `--intent-file`, the extras are not inherited from the brief |
 | `cr map record <pr> <file>` | Store the claim-to-unit mapping |
 | `cr claims set-aside <pr> <claim-id> --note <id>` | Mark an unimplemented claim out of scope |
-| `cr cells record <pr> <file>` | Store the coverage cells the roles filled |
+| `cr cells record <pr> <file>` | Store the coverage cells the roles filled, and each twin's copy (§4.6.8) |
+| `cr observations record <pr> <file>` | Store what the roles saw outside their units; shown by `cr draft` and `cr status`, never posted (§4.6.9) |
 | `cr merge <files...> -o <out> [--repo <r>] --pr <n>` | Merge and deduplicate per-role findings |
 | `cr record <pr> <file>` | Record a round's merged findings |
 | `cr sandbox create\|destroy <pr>` | Manage the probe worktree |
@@ -626,6 +627,7 @@ internal/
   intent/            Issue text through the configured tracker command (§3.1)
   mapping/           Claim-to-unit mapping (§4.1.6)
   note/              Out-of-band context store (§3.6)
+  observation/       What a role saw outside its unit (§4.6.9)
   post/              The one review a round posts (§8.3)
   probe/             Baselines, mutation and gap probes (§5)
   profile/           Mechanical per-project configuration (§2.4)
@@ -661,7 +663,8 @@ spec/
   0.12.0.md          Normative v0.12 contract
   0.13.0.md          Normative v0.13 contract
   0.14.0.md          Normative v0.14 contract
-  0.15.0.md          Normative v0.15 contract, the current one
+  0.15.0.md          Normative v0.15 contract
+  0.16.0.md          Normative v0.16 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
