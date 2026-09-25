@@ -39,6 +39,26 @@ func TestTheRunnerDoesNotSeeACodingAgent(t *testing.T) {
 		[]any{printed["tests_run"], printed["tests_failed"], printed["passed"]})
 }
 
+// uncountedSentence is §5.2.1's disclosure of a clean exit with no count.
+const uncountedSentence = "the runner exited 0, but tests.count_pattern matched nothing in its output, so the " +
+	"executed count is undetermined and the run cannot pass or serve as a baseline (§5.2.1, §5.2.5)"
+
+// §5.2.1 through `cr test`: a run that exits 0 with its executed count
+// undetermined says so under honesty, because its exit code reads as a pass
+// and §5.2.5 makes it none. The control, the same runner printing its recap,
+// says nothing of the kind. On #6328 the two uncounted runs said nothing.
+func TestACleanExitWithNoCountIsDisclosedByTheTestCommand(t *testing.T) {
+	countedTestHome(t, "#!/bin/sh\necho 'no recap'\nexit 0\n")
+	printed := printedTestRun(t)
+	assert.Equal(t, false, printed["passed"])
+	assert.Contains(t, printed["honesty"], uncountedSentence)
+
+	countedTestHome(t, "#!/bin/sh\necho 'Tests:  2 passed'\nexit 0\n")
+	printed = printedTestRun(t)
+	assert.Equal(t, true, printed["passed"], "the control")
+	assert.NotContains(t, printed["honesty"], uncountedSentence)
+}
+
 // countedTestHome is a round whose profile runs script as its test command
 // and reads `Tests:  <n> passed` and `Tests:  <n> failed` as its counts.
 func countedTestHome(t *testing.T, script string) {
