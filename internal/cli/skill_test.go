@@ -20,7 +20,7 @@ import (
 // one line a version bump moves. The spec file is this guard's fixture: what
 // the skill and the built tree are held to is the table the release ships,
 // never a list kept in this package.
-const currentSpec = "spec/0.13.0.md"
+const currentSpec = "spec/0.14.0.md"
 
 // specCommands names every command §11's table lists, spelled as typed: the
 // words before the first positional or optional argument, with `a|b`
