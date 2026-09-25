@@ -422,6 +422,16 @@ func unitsOf(
 	if err != nil {
 		return nil, "", unit.Files{}, nil, err
 	}
+	// §4.6.8: a unit repeating an earlier one's hunks is recorded as its
+	// twin here, where the round's units are formed, so every later command
+	// reads the pairing out of units.ndjson rather than re-deriving it.
+	texts, err := git.HunkTexts(diff.Patch)
+	if err != nil {
+		return nil, "", unit.Files{}, nil, err
+	}
+	if err := unit.MarkTwins(units, hunks, texts); err != nil {
+		return nil, "", unit.Files{}, nil, err
+	}
 	paths := make([]string, 0, len(units))
 	for i := range units {
 		paths = append(paths, units[i].Path)
