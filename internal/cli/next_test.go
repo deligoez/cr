@@ -138,15 +138,15 @@ func TestTheDraftStepAsksForTheBodiesInTheRenderLanguage(t *testing.T) {
 
 	report := nextOfFixture(t)
 
-	assert.Contains(t, stepNamed(t, &report, "draft").Why, "rewrite each block's English body in render.lang `tr`")
+	assert.NotContains(t, stepNamed(t, &report, "draft").Why, "rewrite", "§8.1.1: en is the default")
 
 	config := layout.RepoConfig(fixtureOwner, fixtureProject)
 	require.NoError(t, os.MkdirAll(filepath.Dir(config), 0o700))
-	require.NoError(t, os.WriteFile(config, []byte(`{"render": {"lang": "en"}}`), 0o600))
+	require.NoError(t, os.WriteFile(config, []byte(`{"render": {"lang": "tr"}}`), 0o600))
 
 	report = nextOfFixture(t)
 
-	assert.NotContains(t, stepNamed(t, &report, "draft").Why, "rewrite")
+	assert.Contains(t, stepNamed(t, &report, "draft").Why, "rewrite each block's English body in render.lang `tr`")
 }
 
 // §10.4.2: a pull request no brief has opened owes the brief, and nothing else

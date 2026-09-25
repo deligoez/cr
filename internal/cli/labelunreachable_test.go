@@ -78,7 +78,7 @@ func refusedDraft(t *testing.T, layout state.Layout) {
 // global config each carry a name addressing it, and `cr draft` refuses before
 // rendering; and the built-in defaults hold no key for it at all. The one thing
 // a layer may say is `render.lang`, and it chooses a row of the table rather
-// than supplying text — the Turkish row by default, the English one when asked.
+// than supplying text — the English row by default, the Turkish one when asked.
 func TestTheQuestionLabelIsUnreachableFromEveryConfigurationLayer(t *testing.T) {
 	t.Run("command-line flags", func(t *testing.T) {
 		for _, name := range everyFlagInTheTree(newRootCmd()) {
@@ -89,7 +89,7 @@ func TestTheQuestionLabelIsUnreachableFromEveryConfigurationLayer(t *testing.T) 
 			layout := recordedQuestion(t)
 			drafted := draftedQuestion(t, layout, flags...)
 			assert.Contains(t, drafted, `id="f1" kind="question"`)
-			assert.Contains(t, drafted, labelFor(t, render.LangTR),
+			assert.Contains(t, drafted, labelFor(t, render.LangEN),
 				"cr draft %s carries the built-in label", flagsNamed(flags))
 		}
 	})
@@ -130,14 +130,14 @@ func TestTheQuestionLabelIsUnreachableFromEveryConfigurationLayer(t *testing.T) 
 
 	t.Run("render.lang chooses the row and never the text", func(t *testing.T) {
 		layout := recordedQuestion(t)
-		assert.Contains(t, draftedQuestion(t, layout), labelFor(t, render.LangTR),
-			"§8.1.1: tr is the default, and its row is the one drafted")
+		assert.Contains(t, draftedQuestion(t, layout), labelFor(t, render.LangEN),
+			"§8.1.1: en is the default, and its row is the one drafted")
 
 		require.NoError(t, os.WriteFile(layout.RepoConfig(fixtureOwner, fixtureProject),
-			[]byte(`{"render":{"lang":"en"}}`), 0o600))
+			[]byte(`{"render":{"lang":"tr"}}`), 0o600))
 		drafted := draftedQuestion(t, layout)
-		assert.Contains(t, drafted, labelFor(t, render.LangEN))
-		assert.NotContains(t, drafted, labelFor(t, render.LangTR),
+		assert.Contains(t, drafted, labelFor(t, render.LangTR))
+		assert.NotContains(t, drafted, labelFor(t, render.LangEN),
 			"one question, one label, in the language the layer chose")
 	})
 }

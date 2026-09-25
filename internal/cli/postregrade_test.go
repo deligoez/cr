@@ -74,7 +74,7 @@ func labelOf(body string) string {
 // render.lang.
 func arguedLabel(t *testing.T) string {
 	t.Helper()
-	label, err := render.QuestionLabelRegion(render.LangTR, finding.GradeArgued)
+	label, err := render.QuestionLabelRegion(render.LangEN, finding.GradeArgued)
 	require.NoError(t, err)
 	return label
 }

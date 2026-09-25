@@ -245,7 +245,7 @@ func writeConfig(t *testing.T, key string) string {
 	return path
 }
 
-// §8.1.1 defaults render.lang to tr, and round 8's finding
+// §8.1.1 defaults render.lang to en, and round 8's finding
 // render-lang-domain-unbounded closes its domain at the two languages §8.1.4
 // builds a question label in. A layer supplying anything else is refused at
 // resolution, naming the setting: a language cr has no label for leaves §6.3's
@@ -255,11 +255,11 @@ func writeConfig(t *testing.T, key string) string {
 // Every layer that can supply the value is exercised, because the check runs
 // once after they have all settled, and a refusal proved through one of them
 // says nothing about the other three.
-func TestRenderLangDefaultsToTurkishAndRejectsAnUnknownLanguage(t *testing.T) {
+func TestRenderLangDefaultsToEnglishAndRejectsAnUnknownLanguage(t *testing.T) {
 	defaults, err := Resolve(Sources{})
 	require.NoError(t, err)
-	assert.Equal(t, render.LangTR.String(), defaults.String(render.Setting),
-		"§8.1.1 defaults render.lang to tr")
+	assert.Equal(t, render.LangEN.String(), defaults.String(render.Setting),
+		"§8.1.1 defaults render.lang to en")
 
 	for _, lang := range render.Langs() {
 		cfg, err := Resolve(Sources{Environ: []string{"CR_RENDER_LANG=" + lang.String()}})

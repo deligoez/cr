@@ -34,7 +34,7 @@ func TestConfigCommandPrintsTheEffectiveConfiguration(t *testing.T) {
 	var printed map[string]any
 	require.NoError(t, json.Unmarshal(out.Bytes(), &printed))
 	assert.Equal(t, float64(7), printed["post.max_comments"])
-	assert.Equal(t, "tr", printed["render.lang"])
+	assert.Equal(t, "en", printed["render.lang"])
 	assert.Equal(t, []any{}, printed["ignore.globs"])
 }
 

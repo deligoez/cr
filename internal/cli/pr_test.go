@@ -119,7 +119,7 @@ func TestRepoOverridesRepositoryDetection(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(named, "config.json"),
 		[]byte(`{"post": {"max_comments": 7}}`), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(standing, "config.json"),
-		[]byte(`{"render": {"lang": "en"}}`), 0o600))
+		[]byte(`{"render": {"lang": "tr"}}`), 0o600))
 
 	t.Chdir(standingIn(t, "other/elsewhere"))
 
@@ -133,7 +133,7 @@ func TestRepoOverridesRepositoryDetection(t *testing.T) {
 	require.NoError(t, json.Unmarshal(out.Bytes(), &printed))
 	assert.Equal(t, float64(7), printed["post.max_comments"],
 		"§11.1: --repo names the repository whose layer is in force")
-	assert.Equal(t, "tr", printed["render.lang"],
+	assert.Equal(t, "en", printed["render.lang"],
 		"§11.1: the repository cr was standing in contributed a layer of its own")
 }
 

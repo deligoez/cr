@@ -18,7 +18,7 @@ func codesOf(set []Lang) []string {
 }
 
 // §8.1.1 configures the language of every author-facing body and defaults it to
-// tr; §8.1.4 has cr build the question label in per language and forbids
+// en; §8.1.4 has cr build the question label in per language and forbids
 // configuring it. The two together close the domain, which is round 8's finding
 // render-lang-domain-unbounded: a free-form value admits a language cr has no
 // built-in label for, and §6.3's forcing — which reaches the reader through that
@@ -28,8 +28,8 @@ func codesOf(set []Lang) []string {
 // membership, so a third language cannot be added without this test being read,
 // and the label table is what it then has to satisfy.
 func TestV01RendersInExactlyTurkishAndEnglish(t *testing.T) {
-	assert.Equal(t, []string{"tr", "en"}, codesOf(Langs()),
-		"§8.1.1 defaults render.lang to tr, so tr leads the set")
+	assert.Equal(t, []string{"en", "tr"}, codesOf(Langs()),
+		"§8.1.1 defaults render.lang to en, so en leads the set")
 
 	for _, lang := range Langs() {
 		parsed, err := ParseLang(lang.String())
@@ -44,13 +44,13 @@ func TestV01RendersInExactlyTurkishAndEnglish(t *testing.T) {
 	assert.Equal(t, "de", unknown.Value, "the refusal carries what was rejected")
 	assert.Contains(t, unknown.Error(), Setting,
 		"§12.4: the refusal names the setting the user has to edit")
-	assert.Contains(t, unknown.Error(), "tr and en", "and the two values it may hold")
+	assert.Contains(t, unknown.Error(), "en and tr", "and the two values it may hold")
 
 	assert.False(t, Lang{}.Valid(),
 		"a value nothing parsed names no language, and no label is built in for it")
 
 	widened := Langs()
-	widened[0] = LangEN
-	assert.Equal(t, []string{"tr", "en"}, codesOf(Langs()),
+	widened[0] = LangTR
+	assert.Equal(t, []string{"en", "tr"}, codesOf(Langs()),
 		"the set handed out is a copy: a caller can neither widen it nor reorder it")
 }

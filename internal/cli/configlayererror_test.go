@@ -60,7 +60,7 @@ func TestAConfigLayerCrCannotUseExitsThreeNamingTheFileKeyAndLayer(t *testing.T)
 			key:   "render.lang",
 			layer: config.LayerRepoConfig,
 			message: `render.lang, as the per-repository config file %s sets it, is invalid: ` +
-				`render.lang is "de", which is not a language cr renders; v0.3 has exactly tr and en, ` +
+				`render.lang is "de", which is not a language cr renders; v0.3 has exactly en and tr, ` +
 				`whose §8.1.4 question labels are built in rather than configured — set render.lang to one of them`,
 			hint: "correct render.lang in the per-repository config file %s to a value the " +
 				"message says it accepts, or remove it there so a lower layer supplies it",
