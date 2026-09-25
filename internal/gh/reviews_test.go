@@ -34,7 +34,9 @@ func reviewNode(id, body string) string {
 // argv fails the test, so a request the real service would refuse cannot pass
 // here. pages maps a cursor, empty for the first page, to its answer, and
 // each is answered once.
-func reviewsServer(t *testing.T, pages map[string]string) (func(...string) (string, error), *[][]string) {
+func reviewsServer(
+	t *testing.T, pages map[string]string,
+) (run func(...string) (string, error), asked *[][]string) {
 	t.Helper()
 	calls := make([][]string, 0)
 	return func(args ...string) (string, error) {
