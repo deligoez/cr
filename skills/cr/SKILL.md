@@ -436,9 +436,12 @@ cr probe run 1 --proposal x101
 ```
 
 That writes the probe record, marks the proposal `run`, and — when the proposal
-names a `finding` of the round — sets that record's `probe`, recomputes its
-grade and re-applies §6.3's forcing. An `open` proposal never blocks a round;
-`cr status` reports the counts.
+names a `finding` of the round and the probe's `result` is not `inconclusive`,
+`error` or `timeout` — sets that record's `probe`, recomputes its grade and
+re-applies §6.3's forcing. A result that established nothing leaves the record
+on the probe and grade it had: `regraded` then carries `"kept": true` and
+`holds`, the probe the record still names, and `honesty` says the record kept
+both. An `open` proposal never blocks a round; `cr status` reports the counts.
 
 **Record the finding before the proposal that names it.** A proposal whose
 `finding` names a record the round does not hold yet is refused, so the order is
@@ -447,7 +450,8 @@ grade and re-applies §6.3's forcing. An `open` proposal never blocks a round;
 A proposal already `run` is refused with exit 4 when you run it again, unless
 its probe's `result` was `inconclusive`, `error` or `timeout`: that experiment
 settled nothing, so `cr probe run --proposal` executes it again and the
-proposal, and the record it names, move to the new probe. A proposal carrying
+proposal moves to the new probe; the record it names moves only when the new
+probe's result settles something. A proposal carrying
 `paths` under a profile with no `tests.paths_arg` is stored `unrunnable` when it
 is recorded, with a reason naming the field.
 
