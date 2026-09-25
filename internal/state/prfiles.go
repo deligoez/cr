@@ -29,11 +29,15 @@ const (
 	FileFindings    = "findings.ndjson"
 	FileProbes      = "probes.ndjson"
 	FileProposals   = "proposals.ndjson"
-	FileCoverage    = "coverage.ndjson"
-	FileTransitions = "transitions.ndjson"
-	FileVerdicts    = "verdicts.ndjson"
-	FileMigrations  = "migrations.ndjson"
-	FileWaivers     = "waivers.ndjson"
+	// FileObservations is §4.6.9's store of what the roles saw outside
+	// their units. It is not one of §2.3.3's nine, so its lines carry the
+	// head and round `cr observations record` writes onto them itself.
+	FileObservations = "observations.ndjson"
+	FileCoverage     = "coverage.ndjson"
+	FileTransitions  = "transitions.ndjson"
+	FileVerdicts     = "verdicts.ndjson"
+	FileMigrations   = "migrations.ndjson"
+	FileWaivers      = "waivers.ndjson"
 	// FileSandboxBaseline is §5.1.6's post-setup baseline, and it is a
 	// row of this table rather than a file in the sandbox because of
 	// where the sandbox is. Round 8's unhomed-state finding is the
@@ -74,8 +78,8 @@ const (
 var prFiles = []string{
 	FileMeta, FileClaims, FileUnits, FileMapping, FilePostedIndex,
 	FileIntentGaps, FileRuns, FileThreads, FileFindings, FileProbes,
-	FileProposals, FileCoverage, FileTransitions, FileVerdicts, FileMigrations,
-	FileWaivers,
+	FileProposals, FileObservations, FileCoverage, FileTransitions, FileVerdicts,
+	FileMigrations, FileWaivers,
 }
 
 // prNamed is every name §2.3's table gives a file sitting directly in a pull
@@ -134,21 +138,22 @@ func checkPRFile(name string) error {
 // `cr record`, `cr draft`, `cr post` and `cr brief`, and every move the other
 // three journal is a move of a record `cr record` stored.
 var prFileWriter = map[string]string{
-	FileTransitions: "cr record",
-	FileMeta:        "cr brief",
-	FileUnits:       "cr brief",
-	FileThreads:     "cr brief",
-	FileClaims:      "cr claims record",
-	FileMapping:     "cr map record",
-	FileIntentGaps:  "cr map record",
-	FileCoverage:    "cr cells record",
-	FileFindings:    "cr record",
-	FileProbes:      "cr probe run",
-	FileRuns:        "cr test",
-	FilePostedIndex: "cr post --confirm",
-	FileWaivers:     "cr draft",
-	FileVerdicts:    "cr verify",
-	FileMigrations:  "cr brief",
+	FileTransitions:  "cr record",
+	FileMeta:         "cr brief",
+	FileUnits:        "cr brief",
+	FileThreads:      "cr brief",
+	FileClaims:       "cr claims record",
+	FileMapping:      "cr map record",
+	FileIntentGaps:   "cr map record",
+	FileCoverage:     "cr cells record",
+	FileFindings:     "cr record",
+	FileProbes:       "cr probe run",
+	FileObservations: "cr observations record",
+	FileRuns:         "cr test",
+	FilePostedIndex:  "cr post --confirm",
+	FileWaivers:      "cr draft",
+	FileVerdicts:     "cr verify",
+	FileMigrations:   "cr brief",
 }
 
 // readHint is §12.4's next actionable step for a file of §2.2's tree a command
