@@ -137,3 +137,16 @@ func TestASourcedRuleInTheFindingRegisterIsRefused(t *testing.T) {
 	assert.NoFileExists(t, layout.RepoRule(harvestOwner, harvestRepo, houseRuleID))
 }
 
+// §2.6's `id` row holds the handed file as it will hold the stored one: an id
+// that is not the file's stem is refused with exit code 1, naming `id`.
+func TestAnIdThatIsNotTheFileStemIsRefused(t *testing.T) {
+	crHome(t)
+
+	_, err := added(t, handedRule(t, "draft", houseRuleJSON))
+
+	var malformed *rule.MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "id", malformed.Field)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+}
+
