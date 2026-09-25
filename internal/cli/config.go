@@ -218,8 +218,15 @@ func newConfigCmd(out *writer) *cobra.Command {
 // state package unrefused. The refusal is §11.2's code 2 — the command line is
 // what is wrong — and internal/state refuses a path outside the root again for
 // any caller that did not come through here.
+//
+// Both halves are folded to lower case and a `.git` suffix is dropped, because
+// GitHub names one repository by every spelling of its slug and the state tree
+// must too. Measured before the fold: `--repo Deligoez/CR-QA-GO` found a round
+// opened as `deligoez/cr-qa-go` only because macOS's filesystem folds case, so
+// a case-sensitive one could not, and `--repo owner/repo.git` found none.
 func splitRepo(repo string) (owner, name string, err error) {
 	owner, name, ok := strings.Cut(repo, "/")
+	owner, name = strings.ToLower(owner), strings.ToLower(strings.TrimSuffix(name, ".git"))
 	if !ok || !pathSegment(owner) || !pathSegment(name) {
 		return "", "", fmt.Errorf("invalid repository %q: pass it as owner/repo, "+
 			"where neither half is . or .. or holds a separator", repo)
