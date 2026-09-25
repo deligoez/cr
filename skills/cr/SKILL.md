@@ -432,6 +432,14 @@ names a `finding` of the round — sets that record's `probe`, recomputes its
 grade and re-applies §6.3's forcing. An `open` proposal never blocks a round;
 `cr status` reports the counts.
 
+**Re-running a stored probe.** `cr probe run <pr> --rerun <probe-id>` repeats a
+probe the pull request already holds — its kind, input, filter, paths and, for a
+gap probe, its target — at the current round's head, and writes a new probe
+whose `rerun_of` names the one it re-ran. It is how a posted record's probe is
+checked after a push (see *Recheck*). Every input flag beside it, `--proposal`
+included, exits 2; an id the pull request holds no probe for exits 1. A re-run
+changes no record's `probe` and no grade.
+
 A claim with no implementation is not a finding (there is no code to anchor it
 to): it appears only in `cr status`. Take it out of scope with a note:
 
