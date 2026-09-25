@@ -98,8 +98,8 @@ func TestAGapRegionUnderTurkishStatesItsLimitInTurkish(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, region, "sonuç: failed\n"+
-		"sınır: `gap` türündeki bir deneyin başarısız olması ya davranışın ya da verilen testin yanlış "+
-		"olduğunu gösterir; cr bu ikisini birbirinden ayıramaz\n"+
+		"sınır: başarısız bir boşluk deneyi, ya davranışın ya da denenen testin hatalı olduğunu "+
+		"gösterir; cr hangisi olduğunu ayırt edemez\n"+
 		"girdi:\n")
 	assert.NotContains(t, region, "limit:")
 }

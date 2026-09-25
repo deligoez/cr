@@ -87,7 +87,7 @@ var evidenceFieldNames = []evidenceFields{
 		counted:    "test çıktısı (özet)",
 		citation:   "kaynak",
 		rerun:      "yeniden koşu",
-		limit:      "sınır: `gap` türündeki bir deneyin başarısız olması ya davranışın ya da verilen testin yanlış olduğunu gösterir; cr bu ikisini birbirinden ayıramaz",
+		limit:      "sınır: başarısız bir boşluk deneyi, ya davranışın ya da denenen testin hatalı olduğunu gösterir; cr hangisi olduğunu ayırt edemez",
 	},
 }
 
