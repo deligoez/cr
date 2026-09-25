@@ -68,3 +68,37 @@ func TestAnObservationIsStoredAndShownByStatusAndTheDraftHeader(t *testing.T) {
 	assert.Contains(t, string(drafted), "observations: 1 outside the round's units, shown here and never posted (§4.6.9)")
 }
 
+// §4.6.9 refuses, with exit code 1 and nothing stored, a line missing `path`
+// or `text`, one whose `path:line` does not resolve at the head, and — as every
+// recorded file does — a key the schema does not name, a key given twice, and
+// a `round` the agent supplied.
+func TestAnObservationThatDoesNotResolveIsRefusedWithExitOne(t *testing.T) {
+	for name, line := range map[string]string{
+		"no path":           `{"line":4,"text":"seen"}`,
+		"no text":           `{"path":"lib.go","line":4}`,
+		"a blank text":      `{"path":"lib.go","line":4,"text":"  "}`,
+		"a missing file":    `{"path":"loader.go","line":1,"text":"seen"}`,
+		"a line past it":    `{"path":"lib.go","line":40,"text":"seen"}`,
+		"a zero line":       `{"path":"lib.go","line":0,"text":"seen"}`,
+		"an unknown key":    `{"path":"lib.go","line":4,"text":"seen","severity":"high"}`,
+		"a key twice":       `{"path":"lib.go","Path":"app.go","line":4,"text":"seen"}`,
+		"a supplied round":  `{"path":"lib.go","line":4,"text":"seen","round":1}`,
+		"a missing file 2x": `{"path":"lib.go","text":"seen"}` + "\n" + `{"path":"gone.go","text":"seen"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			statusHome(t)
+
+			err := runCLI(t, "observations", "record", fixturePR, observationsFile(t, line+"\n"), "--repo", fixtureSlug)
+
+			require.Error(t, err)
+			assert.Equal(t, ExitValidation, exitCodeFor(err), err.Error())
+			layout, err := state.Default()
+			require.NoError(t, err)
+			stored, err := state.ReadRecords[observation.Observation](
+				layout, fixtureOwner, fixtureProject, fixturePRNumber, state.FileObservations)
+			require.NoError(t, err)
+			assert.Empty(t, stored, "a refused file stores nothing, the good lines above the bad one included")
+		})
+	}
+}
+
