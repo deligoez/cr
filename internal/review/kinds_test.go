@@ -149,3 +149,29 @@ func TestAUnitsKindDecidesWhichRolesReadIt(t *testing.T) {
 	}
 }
 
+// §4.6.8: two units whose hunks read the same line for line are one read. The
+// later is recorded as the earlier's twin, emits no prompt, and the earlier
+// unit's prompt names it; every prompt also names §4.6.9's observations path.
+func TestATwinEmitsNoPromptAndItsEarlierUnitNamesIt(t *testing.T) {
+	src := kindsRound(t)
+	earlier := unitAt(t, src, "orders/events_test.go")
+	twin := unitAt(t, src, "refunds/events_test.go")
+	require.Empty(t, earlier.TwinOf)
+	require.Equal(t, earlier.ID, twin.TwinOf, "§4.6.8: `cr brief` records the pairing")
+
+	fan, err := Run(src)
+	require.NoError(t, err)
+
+	for i := range fan.Prompts {
+		assert.NotEqual(t, twin.ID, fan.Prompts[i].Unit, "§4.6.8: no prompt is emitted for a twin")
+	}
+	text := promptOf(t, fan, "correctness", earlier.ID)
+	assert.Contains(t, text, "Twins of this unit (§4.6.8)")
+	assert.Contains(t, text, twin.ID+" repeat "+earlier.ID+"'s hunks line for line")
+
+	for i := range fan.Prompts {
+		prompt := &fan.Prompts[i]
+		assert.Equal(t, observation.FanOutFile(prompt.Role), filepath.Base(prompt.Observations))
+		assert.Contains(t, prompt.Text, prompt.Observations, "§4.6.9: every prompt names the observations path")
+	}
+}
