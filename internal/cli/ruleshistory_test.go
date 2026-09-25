@@ -275,3 +275,15 @@ func TestGroupsCountDistinctPullRequests(t *testing.T) {
 	assert.Equal(t, 3, report.Min)
 }
 
+// §2.6.3.8: the report lists the resolved rules, so the agent does not propose
+// one the corpus already holds.
+func TestTheReportListsTheResolvedRules(t *testing.T) {
+	layout := historyHome(t)
+	require.NoError(t, os.WriteFile(layout.Rule("no-todo"), []byte(listedRuleJSON("no-todo")), 0o600))
+	historyGH(t, nil)
+
+	report := fromHistory(t)
+
+	assert.Equal(t, []string{"no-todo"}, report.Rules)
+}
+
