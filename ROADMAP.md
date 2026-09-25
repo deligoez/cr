@@ -52,15 +52,14 @@ paragraphs of this file used to carry is the Shipped table below.
 
 ### 0. Defects (before any feature)
 
-- **§9.5.4 has never been implemented.** Found by the QA pass of 2026-09-23 on `deligoez/cr-qa#25`:
-  §9.5.4 says `cr recheck` MUST report whether a posted record's probe still reproduces at the
-  current head, by re-running it under §5.6's lock and budget, and `cr recheck` has never run a probe —
-  since v0.5.0 its output carried no probe report at all, silently. v0.11.0 makes the gap visible
-  rather than closing it: a record naming a probe gets a disclosure saying the re-run was not done.
-  The fix is not small, and it is not only code: a re-run executes the suite from `cr recheck`, a
-  command a reviewer runs believing it only reads, and on a repository like tarfin's backend a suite
-  run reaches a local database. Whether the re-run belongs in `recheck` or behind a flag of its own
-  is the decision to make first.
+- ~~**§9.5.4 has never been implemented.**~~ *Shipped in v0.12.0 as `cr probe run <pr> --rerun
+  <probe-id>`, `spec/0.12.0.md` §5.5.4 and §9.5.4.* Found by the QA pass of 2026-09-23 on
+  `deligoez/cr-qa#25`: §9.5.4 said `cr recheck` MUST re-run a posted record's probe at the current
+  head, and `cr recheck` never had. The re-run went behind a flag of its own rather than into
+  `recheck`, because a re-run executes the suite, `cr recheck` is a command a reviewer runs believing
+  it only reads, and on a repository like tarfin's backend a suite run reaches a local database. So
+  `recheck` stays read-only: it reports the latest re-run at the round's head, whose `rerun_of` names
+  the posted record's probe, with its result — or that none has run, naming the command.
 
 *Left from the same QA pass, each judged not worth a fix yet and written here so it is not rediscovered:*
 - ~~`--repo Deligoez/CR-QA-GO` finds a round opened as `deligoez/cr-qa-go` on macOS only.~~ *Shipped in
