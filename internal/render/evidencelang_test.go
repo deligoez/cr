@@ -68,3 +68,24 @@ func TestAProbedRegionUnderTurkishNamesItsFieldsInTurkish(t *testing.T) {
 	}, "\n"), region)
 }
 
+// The two rows that stand in for `input` and `output_tail` are Turkish too: a
+// cut input names the setting that cut it and both byte counts, and a run in
+// which nothing failed shows the lines tests.count_pattern matches under the
+// summary's own name.
+func TestTheStandInRowsUnderTurkishAreTurkish(t *testing.T) {
+	region, err := ProbeEvidence(LangTR, "f1", &probe.Record{
+		Kind:       probe.Mutation,
+		Target:     "src/Order.php:34",
+		Result:     "no-test-failed",
+		Input:      aPatch,
+		OutputTail: "PASS a\n  Tests:  1 passed\n",
+	}, 8, `Tests:\s+(\d+) passed`, nil)
+	require.NoError(t, err)
+
+	assert.Contains(t, region, "girdi (post.max_probe_input_bytes gereği 138 bayttan 8 bayta kısaltıldı):\n")
+	assert.Contains(t, region, "test çıktısı (özet):\n```\n  Tests:  1 passed\n```\n")
+	assert.NotContains(t, region, "output_tail")
+	assert.NotContains(t, region, "input (")
+	assert.NotContains(t, region, "input:")
+}
+
