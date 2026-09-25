@@ -37,6 +37,7 @@ var specFields = []string{
 	"tests.probe_path_template",
 	"rules",
 	"symbols.lang",
+	"units.kinds",
 }
 
 // §2.4's table is the whole profile surface, and a profile is mechanical,
