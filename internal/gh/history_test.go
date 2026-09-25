@@ -50,3 +50,14 @@ func TestAFullPageOfReviewCommentsIsNotTheLast(t *testing.T) {
 	assert.False(t, last)
 }
 
+// A comment naming no pull request can be neither grouped nor compared against
+// its author, so the read refuses it rather than inventing a number.
+func TestAReviewCommentNamingNoPullRequestIsRefused(t *testing.T) {
+	var called []string
+	_, _, err := WithRunner(answering(`[{"id":1,"pull_request_url":""}]`, &called)).
+		ReviewCommentsPage("acme", "shop", 1)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "names no pull request")
+}
+
