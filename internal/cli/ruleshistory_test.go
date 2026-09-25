@@ -309,3 +309,35 @@ func TestPagesAreReadUntilTheWindowEnds(t *testing.T) {
 	}
 }
 
+// §2.6.3.8: the report writes nothing, under the state root or anywhere else it
+// can reach.
+func TestTheHistoryReportWritesNothing(t *testing.T) {
+	layout := historyHome(t)
+	historyGH(t, map[int]string{7: "author"}, []aHistoryComment{
+		{id: 1, pr: 7, login: "ayse", created: "2025-02-01T00:00:00Z", body: "Rename `total`."},
+	})
+	before := treeOf(t, layout.Root())
+
+	fromHistory(t)
+
+	assert.Equal(t, before, treeOf(t, layout.Root()))
+}
+
+// treeOf is every path under root with its size and modification time.
+func treeOf(t *testing.T, root string) []string {
+	t.Helper()
+	entries := make([]string, 0)
+	require.NoError(t, filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		entries = append(entries, fmt.Sprintf("%s %d %d", path, info.Size(), info.ModTime().UnixNano()))
+		return nil
+	}))
+	return entries
+}
+
