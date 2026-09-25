@@ -221,10 +221,10 @@ func (r *briefResult) units(w *writer, out *strings.Builder) {
 	fmt.Fprintf(out, "\n%s %d\n", w.accent("units"), len(r.Units))
 	for i := range r.Units {
 		formed := &r.Units[i]
-		fmt.Fprintf(out, "  %s  %s %s  %s  %s  by %s%s\n",
+		fmt.Fprintf(out, "  %s  %s %s  %s  %s  by %s%s%s\n",
 			formed.ID, formed.Path, formed.Side,
 			ranges(formed.HunkRanges), formed.Hash, formed.Formation,
-			oversized(formed.Oversized))
+			oversized(formed.Oversized), twinOf(formed.TwinOf))
 	}
 	out.WriteString(filesLines(&r.Files, "  "))
 }
@@ -260,6 +260,15 @@ func oversized(flagged bool) string {
 		return ", oversized per §3.4.5"
 	}
 	return ""
+}
+
+// twinOf names the earlier unit a twin repeats, and nothing for a unit that
+// repeats none (§4.6.8).
+func twinOf(earlier string) string {
+	if earlier == "" {
+		return ""
+	}
+	return ", twin of " + earlier + " per §4.6.8: no prompt is emitted for it, and its cells follow " + earlier + "'s"
 }
 
 // threadsAndNotes is §3.7.5: the ingested threads of §3.5 and the notes of
