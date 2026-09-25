@@ -27,17 +27,6 @@ const (
 // the two cannot drift apart.
 const MaxProbeInputSetting = "post.max_probe_input_bytes"
 
-// gapLimit is what §5.4.4 concedes about a gap probe, carried into the region
-// for one: cr cannot tell a wrong behaviour from a wrong test, and the author
-// is the only one left to make that distinction. It is §5.4.4's own sentence
-// rather than one cr composed, so the region still says nothing the spec does
-// not already say cr knows — and it is English for the reason every field name
-// beside it is: it is the record's vocabulary, not reader-facing prose.
-//
-// It is one literal, not a concatenation, so no mutant can land in a constant
-// expression that no coverage block reaches.
-const gapLimit = "limit: a failed gap probe means either the behaviour is wrong or the supplied test is wrong, and cr cannot distinguish the two"
-
 // evidenceFields are the evidence region's field names in one language.
 //
 // Each is §5.5's or §6.1's field, and a Turkish name is that field's rather
@@ -60,6 +49,15 @@ type evidenceFields struct {
 	citation string
 	// rerun names a probe whose `rerun_of` names the record's probe.
 	rerun string
+	// limit is what §5.4.4 concedes about a gap probe, carried into the
+	// region for one as a whole row: cr cannot tell a wrong behaviour from a
+	// wrong test, and the author is the only one left to make that
+	// distinction. The English row is §5.4.4's own sentence rather than one
+	// cr composed, and the Turkish row says the same, so a comment in
+	// render.lang carries no English line an author would have to edit out.
+	// Each row is one literal, not a concatenation, so no mutant can land
+	// in an expression no coverage block reaches.
+	limit string
 }
 
 // evidenceFieldNames is §8.1.7's field names for every language §8.1.1
@@ -78,6 +76,7 @@ var evidenceFieldNames = []evidenceFields{
 		counted:    "output_tail, the lines tests.count_pattern matches",
 		citation:   "citation",
 		rerun:      "rerun",
+		limit:      "limit: a failed gap probe means either the behaviour is wrong or the supplied test is wrong, and cr cannot distinguish the two",
 	},
 	{
 		lang: LangTR,
@@ -88,6 +87,7 @@ var evidenceFieldNames = []evidenceFields{
 		counted:    "test çıktısı (özet)",
 		citation:   "kaynak",
 		rerun:      "yeniden koşu",
+		limit:      "sınır: `gap` türündeki bir deneyin başarısız olması ya davranışın ya da verilen testin yanlış olduğunu gösterir; cr bu ikisini birbirinden ayıramaz",
 	},
 }
 
@@ -222,7 +222,7 @@ func ProbeEvidence(
 	}
 	fmt.Fprintf(&out, "%s: %s\n", fields.result, p.Result)
 	if p.Kind == probe.Gap {
-		out.WriteString(gapLimit + "\n")
+		out.WriteString(fields.limit + "\n")
 	}
 	input, truncated := capped(p.Input, maxInput)
 	if truncated {

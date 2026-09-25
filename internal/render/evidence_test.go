@@ -198,9 +198,10 @@ func TestTheMutationPatchAndTheGapTestBothReachTheRegion(t *testing.T) {
 	assert.Contains(t, mutation, "input:\n```\n"+aPatch+"```\n", "the mutation patch, whole")
 	assert.Contains(t, gap, "input:\n```\n"+gapTest+"```\n", "the gap test file, whole")
 
-	assert.Contains(t, gap, "result: failed\n"+gapLimit+"\ninput:\n",
+	limit := fieldsIn(LangEN).limit
+	assert.Contains(t, gap, "result: failed\n"+limit+"\ninput:\n",
 		"§5.4.4's limit stands beneath the result it qualifies")
-	assert.Contains(t, gapLimit, "cr cannot distinguish the two")
+	assert.Contains(t, limit, "cr cannot distinguish the two")
 	assert.NotContains(t, mutation, "limit:", "§5.4.4 is about a gap probe alone")
 }
 
