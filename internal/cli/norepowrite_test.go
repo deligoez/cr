@@ -905,7 +905,9 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole, mergeOut, houseRule string) map[string][]string {
+func repoRuns(
+	merged, claims, issue, cells, proposals, observed, pairs, mutation, perRole, mergeOut, houseRule string,
+) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -917,8 +919,9 @@ func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole,
 			"claims", "record", fixturePR, claims,
 			"--repo", fixtureSlug, "--intent-file", issue,
 		},
-		"cells record":     {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
-		"proposals record": {"proposals", "record", fixturePR, proposals, "--repo", fixtureSlug},
+		"cells record":        {"cells", "record", fixturePR, cells, "--repo", fixtureSlug},
+		"proposals record":    {"proposals", "record", fixturePR, proposals, "--repo", fixtureSlug},
+		"observations record": {"observations", "record", fixturePR, observed, "--repo", fixtureSlug},
 		// §9.4 through §9.6 read the head's tree and write under the
 		// state root: a migration reads `git show`-style blobs and a
 		// verdict, a resolve and a retraction touch findings.ndjson,
@@ -1269,6 +1272,12 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 		`"settles":"A suite that stays green under the mutation proves the gap.",`+
 		`"input":"--- a/app.go\n+++ b/app.go\n"}`+"\n"), 0o600))
 
+	// The file `cr observations record` is pointed at, outside the
+	// repository for the same reason; its location resolves at the head.
+	observed := filepath.Join(home, "observations.ndjson")
+	require.NoError(t, os.WriteFile(observed,
+		[]byte(`{"path":"app.go","line":3,"text":"The sibling package drops the same error."}`+"\n"), 0o600))
+
 	// The file `cr map record` is pointed at. It is empty rather than a
 	// pair, because §4.1.6 checks every claim id against the round's
 	// claims and `cr claims record` sorts after `cr map record` in the run
@@ -1330,7 +1339,7 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 	houseRule := filepath.Join(home, houseRuleID+".json")
 	require.NoError(t, os.WriteFile(houseRule, []byte(houseRuleJSON), 0o600))
 
-	runs := repoRuns(merged, claims, issue, cells, proposals, pairs, mutation,
+	runs := repoRuns(merged, claims, issue, cells, proposals, observed, pairs, mutation,
 		perRole, filepath.Join(home, "merge-out.ndjson"), houseRule)
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),

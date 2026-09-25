@@ -113,7 +113,9 @@ func populatedPRState(t *testing.T) string {
 		"CR_HOME=" + root,
 	}
 
-	runs := repoRuns(merged, claims, issue, cells, proposals, pairs, mutation,
+	observed := write("observations.ndjson",
+		`{"path":"app.go","line":3,"text":"The sibling package drops the same error."}`+"\n")
+	runs := repoRuns(merged, claims, issue, cells, proposals, observed, pairs, mutation,
 		perRole, filepath.Join(home, "merge-out.ndjson"), write(houseRuleID+".json", houseRuleJSON))
 	require.ElementsMatch(t, leafCommands(t), slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")

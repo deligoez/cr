@@ -52,6 +52,9 @@ var unstampedFileConstants = map[string]bool{
 	// §9.4.7's lines carry the round they were written for as a field of
 	// their own, and each reader filters by it, as a verdict's is read.
 	"FileMigrations": true,
+	// §4.6.9's lines carry the round `cr observations record` stored them
+	// in, and roundObservationsOf filters by it.
+	"FileObservations": true,
 }
 
 // crossRoundReaders are the production reads of a §2.3.3 file that are not

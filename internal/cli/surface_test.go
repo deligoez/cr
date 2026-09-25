@@ -101,6 +101,7 @@ var specSurface = []surfaceRow{
 		"rerun": "§5.5.4",
 	}},
 	{path: []string{"proposals", "record"}, use: "record <pr> <file>"},
+	{path: []string{"observations", "record"}, use: "record <pr> <file>"},
 	{path: []string{"draft"}, use: "draft <pr>"},
 	{path: []string{"triage"}, use: "triage <pr> <record-id> not-here|wrong|soften|keep",
 		spec: []string{"body-file"}},

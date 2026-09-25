@@ -499,7 +499,7 @@ var outputStructs = []result{
 	initResult{}, configResult(nil), resolvedConfigResult(nil),
 	&noteResult{}, &retractResult{}, &answerResult{}, &contextResult{},
 	&recordResult{}, &claimsRecordResult{}, &briefResult{}, &cellsRecordResult{},
-	&proposalsRecordResult{},
+	&proposalsRecordResult{}, &observationsRecordResult{},
 	&rulesCheckResult{}, &rulesListResult{}, &rulesDeadResult{},
 	&mapRecordResult{}, &sandboxCreateResult{}, &sandboxDestroyResult{}, &testRunResult{},
 	&probeRunResult{}, &draftResult{}, &triageResult{}, &reviewResult{}, &postResult{}, &mergeResult{},

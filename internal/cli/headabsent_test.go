@@ -290,6 +290,10 @@ func headRuns(t *testing.T) map[string]headRun {
 				`"target":"money.go:12","hypothesis":"No test reads the comment.",`+
 				`"settles":"A green suite under the mutation proves the gap.",`+
 				`"input":"--- a/money.go\n+++ b/money.go\n"}`+"\n")),
+		// §4.6.9's path:line resolves against the head, as a proposal's
+		// target does.
+		"observations record": routed("observations", "record", fixturePR, file("observations.ndjson",
+			`{"path":"money.go","line":12,"text":"The sibling file repeats this comment."}`+"\n")),
 		"cells record": exempt("validates cells against the round's units under the state root, and reads no revision",
 			"cells", "record", fixturePR, empty, "--repo", fixtureSlug),
 		"map record": exempt("validates the mapping against the round's units under the state root, and reads no revision",
@@ -577,7 +581,7 @@ func TestACommandReadingTheHeadAloneReadsNothingAMovedBaseFails(t *testing.T) {
 		}
 	}
 	require.Equal(t,
-		[]string{"probe run", "proposals record", "sandbox create", "test"}, headOnly)
+		[]string{"observations record", "probe run", "proposals record", "sandbox create", "test"}, headOnly)
 	for _, name := range headOnly {
 		t.Run(name, func(t *testing.T) {
 			run := headRuns(t)[name]
