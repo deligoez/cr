@@ -338,7 +338,7 @@ func TestUnrecordedProposalsAloneOweTheirRecording(t *testing.T) {
 		want = append(want, "cr proposals record "+fixturePR+" --repo "+fixtureSlug+" "+file)
 	}
 	assert.Equal(t, want, record.Commands)
-	assert.Equal(t, "the roles wrote records or proposals this round does not hold yet", record.Why)
+	assert.Equal(t, "the roles wrote records, proposals or observations this round does not hold yet", record.Why)
 }
 
 // §10.4.6: a missing intent-coverage cell is the intent pass's to fill, so the
