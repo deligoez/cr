@@ -130,6 +130,9 @@ type Round struct {
 	// Contract is the path of the round's contract file, which every
 	// prompt names (§4.6.2).
 	Contract string
+	// Kinds are §4.6.7's unit kinds, by unit id, for the units the
+	// resolved profile gives one.
+	Kinds map[string]profile.UnitKind
 }
 
 // Prompt is one prompt §4.6.1 emits: one active role over one unit.

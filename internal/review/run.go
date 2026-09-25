@@ -287,6 +287,7 @@ func Run(src *Sources) (*Fanout, error) {
 	if r.Units, err = withHunks(src, &meta, records, hunks, texts); err != nil {
 		return nil, err
 	}
+	r.Kinds = kindsOf(p, r.Units)
 	halves, err := r.attach(src, p, hunks)
 	if err != nil {
 		return nil, err
@@ -299,6 +300,9 @@ func Run(src *Sources) (*Fanout, error) {
 		return nil, err
 	}
 	if err := r.readNarrowing(src); err != nil {
+		return nil, err
+	}
+	if err := r.recordDerived(src); err != nil {
 		return nil, err
 	}
 	prompts := Emit(r)

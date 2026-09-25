@@ -150,6 +150,9 @@ func (r *Round) roundRecords() []*finding.Finding {
 // Every other pass emits, without `--all`, only a cell the round does not hold
 // at its head or one the note condition makes stale.
 func (r *Round) emits(roleID, unitID string) bool {
+	if r.withheld(roleID, unitID) {
+		return false
+	}
 	if r.Picked != nil && !slices.Contains(r.Picked, unitID) {
 		return false
 	}

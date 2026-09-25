@@ -72,6 +72,7 @@ func (r *Round) text(
 		"and judged none of it; every verdict is yours.", r.Round, r.Head, lens.Axis)
 	persona(&p, lens)
 	hunks(&p, u)
+	twinned(&p, u.ID, r.twinsOf(u.ID))
 	r.claims(&p, u.ID)
 	if lens.Axis == axis.Intent {
 		r.unmapped(&p, u.ID)
@@ -96,6 +97,21 @@ func (r *Round) text(
 	proposalContract(&p, proposals, r.Round, asks)
 	observationContract(&p, seen)
 	return p.String()
+}
+
+// twinned tells the role reading a unit which later units repeat its hunks
+// line for line (§4.6.8): they get no prompt of their own, cr copies every cell
+// recorded here to them, and a record or a mapping pair that holds for one of
+// them is still the role's to write, naming that unit.
+func twinned(p *page, id string, twins []string) {
+	if len(twins) == 0 {
+		return
+	}
+	p.section("Twins of this unit (§4.6.8)")
+	p.line("%s repeat %s's hunks line for line, so no prompt is emitted for them: this prompt reads them "+
+		"all. cr records the result of this role's cell here for each of them too. A record, or a claim "+
+		"mapping, that holds for one of them is still yours to write, naming that unit.",
+		strings.Join(twins, ", "), id)
 }
 
 // persona writes the role's instructions verbatim and its focus questions.
