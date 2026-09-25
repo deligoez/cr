@@ -65,18 +65,25 @@ func withoutBody(body Body, within func()) {
 // body reads no language, so emptying the set leaves it byte for byte as it was.
 func TestABodyOutsideTheSetIsRenderedInNoLanguage(t *testing.T) {
 	const hash = "420012ebffc2b992"
-	before := ReviewBody(nil, nil, hash)
+	before := ReviewBody(LangEN, nil, nil, hash)
 
 	withoutBody(BodyComment, func() {
 		_, err := QuestionLabelRegion(LangEN, finding.GradeArgued)
 		assert.Equal(t, &NoLabelError{Lang: LangEN, Grade: finding.GradeArgued}, err,
 			"the comment body's label is looked up through the set")
-		assert.Equal(t, before, ReviewBody(nil, nil, hash),
-			"the review body is not language-governed, so the set does not reach it")
+		assert.Equal(t, before, ReviewBody(LangEN, nil, nil, hash),
+			"the review body is a body of its own, so the comment body's absence does not reach it")
+	})
+	withoutBody(BodyReview, func() {
+		assert.Equal(t, "\n\n\n\n"+regionSeparator+PayloadHashComment(hash), ReviewBody(LangEN, nil, nil, hash),
+			"the review body's framing is looked up through the set")
+		_, err := QuestionLabelRegion(LangEN, finding.GradeArgued)
+		assert.NoError(t, err, "and the comment body's label still is")
 	})
 
 	_, err := QuestionLabelRegion(LangEN, finding.GradeArgued)
 	require.NoError(t, err)
+	assert.Equal(t, before, ReviewBody(LangEN, nil, nil, hash))
 }
 
 // productionFiles parses every non-test Go file of this package.

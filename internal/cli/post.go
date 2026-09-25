@@ -705,7 +705,13 @@ func discloseInBody(
 	if err != nil {
 		return err
 	}
-	review.Body = render.ReviewBody(axes.Active, lenses.Disclosures(), hash)
+	// §8.4.3: the framing and the axis names are built in per render.lang,
+	// resolved the way the comments' labels are.
+	settings, err := resolveDraftSettings(l, owner, repo)
+	if err != nil {
+		return err
+	}
+	review.Body = render.ReviewBody(settings.lang, axes.Active, lenses.Disclosures(), hash)
 	return nil
 }
 

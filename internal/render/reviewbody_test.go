@@ -22,7 +22,7 @@ func (l lens) Disclosure() string { return string(l) }
 // comment above the disclosure still holds both strings, and the author reading
 // it would meet cr's bookkeeping before cr's statement about what it examined.
 func TestTheReviewBodyCarriesTheDisclosureAboveTheHash(t *testing.T) {
-	body := ReviewBody(
+	body := ReviewBody(LangEN,
 		[]string{"correctness", "convention"},
 		[]finding.HonestyDisclosure{
 			lens("axis test disabled, per §4.5.2: the profile declares no tests.cmd"),
@@ -48,7 +48,7 @@ func TestTheReviewBodyCarriesTheDisclosureAboveTheHash(t *testing.T) {
 // review and posting a second one, and a disagreement between the two spellings
 // would turn that guard into a duplicate post.
 func TestThePayloadHashReadsBackOutOfTheBodyItWasWrittenInto(t *testing.T) {
-	body := ReviewBody([]string{"correctness"}, nil, "420012ebffc2b992")
+	body := ReviewBody(LangEN, []string{"correctness"}, nil, "420012ebffc2b992")
 
 	read, found := PayloadHashIn(body)
 	assert.True(t, found)
@@ -75,5 +75,5 @@ func TestAnEmptyDisclosureIsAStatementRatherThanAnAbsence(t *testing.T) {
 		"",
 		"No lens was left unexamined.",
 	}, "\n")+regionSeparator+PayloadHashComment("420012ebffc2b992"),
-		ReviewBody(nil, nil, "420012ebffc2b992"))
+		ReviewBody(LangEN, nil, nil, "420012ebffc2b992"))
 }

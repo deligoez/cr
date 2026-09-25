@@ -244,7 +244,7 @@ func TestReconcilingARoundWithNothingUnresolvedSettlesNothing(t *testing.T) {
 // reviewBodyCarrying is a review body with §8.4.3's hash embedded in it, built
 // through render so the marker this is matched on is the marker cr writes.
 func reviewBodyCarrying(hash string) string {
-	return render.ReviewBody(nil, nil, hash)
+	return render.ReviewBody(render.LangEN, nil, nil, hash)
 }
 
 // reconcileReport reads the document `cr post --reconcile` printed.
