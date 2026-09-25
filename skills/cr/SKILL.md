@@ -112,7 +112,7 @@ cr next 6298 --repo acme/shop
 ```json
 {
   "round": 1,
-  "next": {"step": "record", "actor": "cr", "why": "the roles wrote records or proposals this round does not hold yet",
+  "next": {"step": "record", "actor": "cr", "why": "the roles wrote records, proposals or observations this round does not hold yet",
            "commands": ["cr proposals record 6298 --repo acme/shop …/fanout/1/u2/proposals-test-adequacy.ndjson"], "items": ["…"]},
   "steps": [{"step": "record", …}, {"step": "draft", "actor": "human", "commands": ["cr draft 6298 --repo acme/shop", "cr post 6298 --repo acme/shop"], "items": ["f5001", …]}],
   "honesty": ["§9.3.1: round 1 was opened at head …"]
@@ -125,7 +125,8 @@ outcome — then it is the only step, since everything else refuses until
 the only step), `claims` and `intent` (the intent pass), `record` (a role's
 `review-*.ndjson` or `proposals-*.ndjson` in the fan-out holding ids the round
 does not, unless the round's last merge or record ran after the file was
-written), `review` (the missing cells, by `unit/role`), `settle` (claims mapped
+written, and an `observations-*.ndjson` holding a line and written after the
+round's last `cr observations record`), `review` (the missing cells, by `unit/role`), `settle` (claims mapped
 to no unit), `draft` (records in draft or queued; the human's step) and
 `recheck` (posted records awaiting a verdict), then `sandbox` (the last brief
 found the pull request merged or closed and its sandbox is still on disk).
@@ -264,7 +265,7 @@ cr review 1 --axis intent
 ```json
 {
   "round": 1,
-  "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "first_id": "f1", "last_id": "f100", "cells": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/cells-intent-coverage.ndjson", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
+  "prompts": [{"role": "intent-coverage", "axis": "intent", "unit": "u1", "output": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/review-intent-coverage.ndjson", "first_id": "f1", "last_id": "f100", "cells": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/cells-intent-coverage.ndjson", "observations": "~/.cr/state/acme/shop/pr-1/fanout/1/u1/observations-intent-coverage.ndjson", "prompt": "# Intent coverage (intent-coverage) on unit u1 …"}, …],
   "honesty": [],
   "skipped_roles": [],
   "expected_cells": [{"unit": "u1", "role": "convention"}, {"unit": "u1", "role": "intent-coverage", "recorded": true}, …]
@@ -503,6 +504,37 @@ note, `cr status` leaves the claim out of `intent.set_aside`, lists it under
 `unstanding_notes`, and names it again in the §10.2.3 completeness reason. In a
 terminal its gap line reads `CR-5#c1 (set-aside note CR-5#n1 retracted)` rather
 than `(set aside by CR-5#n1)`.
+
+### Observing outside the unit
+
+A role that notices something its unit's change bears on and the unit does not
+contain — the same defect in a sibling file outside the diff, a caller the
+change breaks — writes an **observation** to the `observations` path its prompt
+names, `fanout/<round>/<unit>/observations-<role>.ndjson`: `{"path", "line",
+"text"}`, English, `line` optional for a file as a whole. A defect inside the
+unit is a record, not an observation.
+
+```bash
+cat ~/.cr/state/acme/shop/pr-1/fanout/1/*/observations-*.ndjson > observations.ndjson
+cr observations record 1 observations.ndjson
+```
+
+```json
+{
+  "recorded": [{"path": "app/Listeners/SendRefund.php", "line": 41, "text": "The same missing locale: argument the change fixes in Orders.", "head": "…", "round": 1}],
+  "round": 1
+}
+```
+
+A line missing `path` or `text`, whose `path:line` does not resolve at the
+round's head, or carrying any other key, `head` or `round` included, is refused
+with exit 1 and nothing is stored. **An observation is not a record**: it is
+never graded, posted or counted. `cr status` lists every observation of the
+round under `observations`, and `cr draft` shows them in the header it owns,
+which nothing posts. What to do with one — a comment of your own, a follow-up
+issue, nothing — is the human's call. Measured case: a role noticed the
+`locale:` bug the pull request fixed in one directory still sat in a sibling
+directory's file outside the diff, and before v0.16 it had nowhere to go.
 
 ### 3. Merge and record
 
