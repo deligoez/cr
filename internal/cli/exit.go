@@ -489,6 +489,11 @@ var codes = []mapped{
 	{is[*ProposalSpentError](), ExitState,
 		"the experiment this proposal asked for has been run; read its probe, " +
 			"and propose another if it settled nothing"},
+	// §5.7.5's `unrunnable` proposal, code 4 for the same reason: the
+	// reason it carries is what has to change, not the command line.
+	{is[*UnrunnableProposalError](), ExitState,
+		"supply what the reason names missing, then have the role propose the experiment again; " +
+			"`cr status` lists the round's unrunnable proposals with their reasons"},
 	// §9.1: a transition its table does not list MUST be rejected with exit
 	// code 4, naming the record and its current state. It is the first
 	// thing mapped onto ExitState, and it is a state conflict rather than

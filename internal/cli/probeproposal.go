@@ -66,6 +66,21 @@ func (e *ProposalSpentError) Error() string {
 		e.ID, e.Probe)
 }
 
+// UnrunnableProposalError reports a proposal §5.7.5 stored `unrunnable`, which
+// carries the reason cr cannot execute it.
+//
+// It is a state conflict for ProposalSpentError's reason: the command line is
+// well-formed and names a proposal that exists, and what refuses is where that
+// proposal stands.
+type UnrunnableProposalError struct {
+	// ID is the proposal, and Reason the one §5.7.5 stored with it.
+	ID, Reason string
+}
+
+func (e *UnrunnableProposalError) Error() string {
+	return fmt.Sprintf("proposal %s is unrunnable: %s", e.ID, e.Reason)
+}
+
 // proposedRun is §5.7.3's whole invocation: no input flag beside `--proposal`,
 // the stored proposal loaded into the request, and the kind it names returned
 // for the switch that runs it.
@@ -141,7 +156,7 @@ func runnableNow(held *proposal.Proposal, round *state.Meta) error {
 	case held.State == proposal.StateRun:
 		return &ProposalSpentError{ID: held.ID, Probe: held.Probe}
 	case held.State == proposal.StateUnrunnable:
-		return fmt.Errorf("proposal %s is unrunnable: %s", held.ID, held.Reason)
+		return &UnrunnableProposalError{ID: held.ID, Reason: held.Reason}
 	}
 	return nil
 }
