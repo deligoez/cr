@@ -703,6 +703,12 @@ seconds after the run ends, `cr test` and `cr probe run` disclose it in
 still be using the sandbox and the test database. The notice never changes the
 run's result or the probe's.
 
+**The sandbox separates files, not the test database.** A copied
+`.env.testing` still points the suite at the same database as a run in your
+clone, so do not run the suite by hand while cr runs it: §5.6.3's lock covers
+cr's own runs only, and two suites migrating and truncating one database break
+each other's results.
+
 `cr sandbox destroy 1` removes the
 worktree. `cr test` and `cr probe run` share one lock per repository root and
 profile, from any subdirectory, and exit 4 when `probe.lock_timeout_seconds`
