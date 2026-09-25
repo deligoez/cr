@@ -89,3 +89,15 @@ func TestTheStandInRowsUnderTurkishAreTurkish(t *testing.T) {
 	assert.NotContains(t, region, "input:")
 }
 
+// A cited record's region under `tr` names each citation `kaynak`, and English
+// keeps the field names §5.5 and §6.1 give.
+func TestACitedRegionNamesItsCitationsInRenderLang(t *testing.T) {
+	citations := []finding.Citation{{Path: "app/Order.php", Line: 12}}
+	turkish, err := CitedEvidence(LangTR, "f2", citations, nil)
+	require.NoError(t, err)
+	english, err := CitedEvidence(LangEN, "f2", citations, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "<!-- cr:evidence -->\nkaynak: app/Order.php:12\n<!-- cr:/evidence -->", turkish)
+	assert.Equal(t, "<!-- cr:evidence -->\ncitation: app/Order.php:12\n<!-- cr:/evidence -->", english)
+}
