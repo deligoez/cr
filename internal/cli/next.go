@@ -231,7 +231,7 @@ func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([
 			Items: unsettled,
 		})
 	}
-	return recordsSteps(l, owner, repo, pr, meta.Round, steps)
+	return recordsSteps(l, owner, repo, pr, meta, steps)
 }
 
 // rewriteBodies is the draft step's clause for the bodies' language. §6.1.1
@@ -296,8 +296,8 @@ func intentSteps(target string, meta *state.Meta, claimsHeld, mapped bool) []nex
 
 // recordsSteps are §10.4.8 and §10.4.9, over the round's records and every
 // posted one of the pull request.
-func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nextStep) ([]nextStep, error) {
-	records, err := roundFindingsOf(l, owner, repo, pr, round)
+func recordsSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta, steps []nextStep) ([]nextStep, error) {
+	records, err := roundFindingsOf(l, owner, repo, pr, meta.Round)
 	if err != nil {
 		return nil, err
 	}
@@ -313,14 +313,7 @@ func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nex
 		if err != nil {
 			return nil, err
 		}
-		steps = append(steps, nextStep{
-			Step: "draft", Actor: actorHuman,
-			Why: "these records are in draft or queued: render the draft, " + rewriteBodies(settings.lang) +
-				"read and edit every block, then validate the payload; sending it is the human's `--confirm`, " +
-				"which this report never gives",
-			Commands: []string{"cr draft " + target, "cr post " + target},
-			Items:    unsent,
-		})
+		steps = append(steps, draftStep(target, settings.lang, meta.PRState, unsent))
 	}
 	concerns, err := postedConcernsOf(l, owner, repo, pr)
 	if err != nil {
@@ -339,6 +332,31 @@ func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nex
 		})
 	}
 	return steps, nil
+}
+
+// draftStep is §10.4.8's step for the unsent records: render the draft, read
+// it, and validate the payload. When the last `cr brief` found the pull request
+// not open (prState is `merged` or `closed`), the step says so and lists no
+// `cr post`, since a review of a pull request no longer open is one nobody
+// acts on; the draft stays readable.
+func draftStep(target string, lang render.Lang, prState string, unsent []string) nextStep {
+	if prState != "" {
+		return nextStep{
+			Step: "draft", Actor: actorHuman,
+			Why: "these records are in draft or queued, but the last `cr brief` found the pull request " + prState +
+				": the draft can still be read, and nothing is proposed for posting",
+			Commands: []string{"cr draft " + target},
+			Items:    unsent,
+		}
+	}
+	return nextStep{
+		Step: "draft", Actor: actorHuman,
+		Why: "these records are in draft or queued: render the draft, " + rewriteBodies(lang) +
+			"read and edit every block, then validate the payload; sending it is the human's `--confirm`, " +
+			"which this report never gives",
+		Commands: []string{"cr draft " + target, "cr post " + target},
+		Items:    unsent,
+	}
 }
 
 // briefStep is §10.4.2, carrying forward the issue key and intent file the
