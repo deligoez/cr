@@ -96,7 +96,12 @@ func TestTheReviewBodyIsFramedInTheRenderLanguage(t *testing.T) {
 		"Lenses that did not run, and why:"}, english[:5], "§8.1.1: en is the default")
 	assert.Equal(t, []string{"**cr — inceleme kapsamı**", "", "İncelenen eksenler: doğruluk, kod kuralları", "",
 		"Çalışmayan incelemeler ve nedenleri:"}, turkish[:5], "the repository's render.lang tr frames the body")
-	assert.Equal(t, english[5:], turkish[5:], "each lens's reason keeps its wording under either language")
+	// The last line is the payload hash, which covers the comments too, and
+	// since v0.16.0 §8.1.7's evidence region beneath each comment names its
+	// fields in render.lang, so the two hashes differ.
+	require.Len(t, turkish, len(english))
+	assert.Equal(t, english[5:len(english)-1], turkish[5:len(turkish)-1],
+		"each lens's reason keeps its wording under either language")
 
 	heads := make([]string, 0, len(english))
 	for _, line := range english[5:] {
