@@ -765,6 +765,15 @@ than reusing one measured before it. A sandbox created by an earlier cr names
 no generation and is recreated once, with that reason; a run record written by
 one carries no `sandbox` and matches no generation, so it is never a baseline.
 
+The post-setup baseline also records the id of the profile the sandbox was
+built under. When the round resolves another profile — the repository's
+configuration changed and `cr brief` ran again — the next `cr test` or
+`cr probe run` recreates the sandbox under the round's profile and names both
+in the `recreated` line, so the files the new profile copies, or no longer
+copies, are the ones the run sees, and a `not copied` line appears for each
+gitignored file it lacks. A sandbox built by cr 0.14.0 or earlier records no
+profile and is recreated once, with that reason.
+
 ### 5. Draft
 
 ```bash
