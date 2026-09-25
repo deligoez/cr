@@ -3,7 +3,7 @@
 Code review lifecycle manager for AI coding agents. Go CLI tool.
 
 `VISION.md` explains why this exists and what it bets on; `ROADMAP.md` lists what cr lacks, what is
-sequenced next, and what must be measured before it is decided. `spec/0.13.0.md`
+sequenced next, and what must be measured before it is decided. `spec/0.14.0.md`
 is the normative contract, implemented. This file holds the working conventions
 and the rules that are easy to violate by accident.
 
@@ -659,7 +659,8 @@ spec/
   0.10.0.md          Normative v0.10 contract
   0.11.0.md          Normative v0.11 contract
   0.12.0.md          Normative v0.12 contract
-  0.13.0.md          Normative v0.13 contract, the current one
+  0.13.0.md          Normative v0.13 contract
+  0.14.0.md          Normative v0.14 contract, the current one
   <version>.md       One spec per version
 skills/cr/
   SKILL.md           Claude Code skill (ships with the release)
@@ -792,10 +793,11 @@ cr is built with tp, the same way tp builds itself.
 - **English in every committed artifact** — code, comments, specs, docs, commit
   messages, closure reasons, release notes. Author thinking may be in any
   language; nothing in the repository may be. Rendered review comments are
-  Turkish, but they live in `~/.cr/` state, never in this repository. The one
-  exception is §8.1.4's question labels: the spec requires them **built in** and
-  non-configurable, so `internal/render`'s `tr` label strings are Turkish and
-  belong in the tree. They are the only ones.
+  Turkish, but they live in `~/.cr/` state, never in this repository. The
+  exceptions are §8.1.4's question labels and §8.4.3's review body framing: the
+  spec requires both **built in** and non-configurable, so `internal/render`'s
+  `tr` label strings and `tr` review body framing are Turkish and belong in the
+  tree. They are the only ones.
 
 ### Dogfooding
 
