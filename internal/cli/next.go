@@ -140,7 +140,42 @@ func nextOf(l state.Layout, owner, repo string, pr int) (*nextResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return owed(round.Round, round.Head, steps, disclosed), nil
+	left, err := closedSandboxStep(l, owner, repo, pr, &round.Meta)
+	if err != nil {
+		return nil, err
+	}
+	return owed(round.Round, round.Head, append(steps, left...), disclosed), nil
+}
+
+// closedSandboxStep is §10.4.10: the sandbox a pull request the last `cr brief`
+// found not open still leaves on disk, with the command that removes it, and
+// nothing when the pull request was open or has no sandbox.
+//
+// Measured on tarfin-labs/backend#6328: a 439 MB sandbox holding copies of
+// `.env` and Passport's keys outlived its merged pull request, and nothing cr
+// printed said it was there.
+func closedSandboxStep(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([]nextStep, error) {
+	if meta.PRState == "" {
+		return nil, nil
+	}
+	path := l.Sandbox(owner, repo, pr)
+	switch _, err := os.Lstat(path); {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, fmt.Errorf("cannot inspect %s: %w", path, err)
+	}
+	at := meta.PRStateAt
+	if at == "" {
+		at = "a time GitHub did not report"
+	}
+	return []nextStep{{
+		Step: "sandbox", Actor: actorAgent,
+		Why: fmt.Sprintf("the last `cr brief` found the pull request %s at %s, and its sandbox still holds a "+
+			"checkout and the copies of its gitignored files; destroy it once no run is owed in it", meta.PRState, at),
+		Commands: []string{"cr sandbox destroy " + prTarget(owner, repo, pr)},
+		Items:    []string{path},
+	}}, nil
 }
 
 // owed wraps the steps into the document, the first of them as the next one.
