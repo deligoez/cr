@@ -757,6 +757,7 @@ func prepareProbe(cmd *cobra.Command, out *writer, request *probeRequest) (*prob
 		Copy:        resolved.Sandbox.Copy,
 		Setup:       resolved.Sandbox.Setup,
 		Require:     resolved.Sandbox.Require,
+		Profile:     round.ProfileID,
 		ProfileFile: file,
 	}
 	glob := resolved.LeftoverGlob()

@@ -133,6 +133,7 @@ func newSandboxCreateCmd(out *writer) *cobra.Command {
 				RepoDir:     dir,
 				Copy:        steps.Copy,
 				Setup:       steps.Setup,
+				Profile:     round.ProfileID,
 				ProfileFile: file,
 			}
 			created, err := sandbox.Create(src)

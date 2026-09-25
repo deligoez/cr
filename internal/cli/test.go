@@ -244,6 +244,7 @@ func resolveTestTarget(
 			Copy:        resolved.Sandbox.Copy,
 			Setup:       resolved.Sandbox.Setup,
 			Require:     resolved.Sandbox.Require,
+			Profile:     round.ProfileID,
 			ProfileFile: file,
 		},
 	}, nil
