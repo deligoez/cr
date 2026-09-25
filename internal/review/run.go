@@ -645,7 +645,7 @@ func withHunks(
 	for i := range records {
 		formed := Unit{Unit: records[i].Unit, Hunks: make([]git.Hunk, 0), Texts: make([]string, 0)}
 		for at := range hunks {
-			if belongs(&formed.Unit, &hunks[at]) {
+			if formed.Owns(&hunks[at]) {
 				formed.Hunks = append(formed.Hunks, hunks[at])
 				formed.Texts = append(formed.Texts, texts[at])
 			}
@@ -659,15 +659,6 @@ func withHunks(
 		units = append(units, formed)
 	}
 	return units, nil
-}
-
-// belongs reports whether a hunk is one of the unit's.
-func belongs(u *unit.Unit, hunk *git.Hunk) bool {
-	if hunk.Path != u.Path || hunk.Side != u.Side {
-		return false
-	}
-	start, end := hunk.SideRange()
-	return slices.Contains(u.HunkRanges, unit.Range{Start: start, End: end})
 }
 
 // fanOut gives every unit the directory §4.6.2's output files sit in, and
