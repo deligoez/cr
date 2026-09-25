@@ -441,3 +441,36 @@ func TestAnUnmappedRoundOwesTheIntentPassFirst(t *testing.T) {
 	require.NotEmpty(t, report.Steps)
 	assert.Equal(t, "intent", report.Steps[0].Step)
 }
+
+// §10.4.3 and §10.4.4: a round briefed from a file with neither claims nor a
+// mapping recorded owes the claims first, naming the file the brief read —
+// `cr claims record` does not inherit it — and then the intent pass, whose
+// three commands emit, store the mapping, and store the cells.
+func TestAnUnclaimedRoundOwesTheClaimsAndThenTheIntentPass(t *testing.T) {
+	_, issue, _ := rerecordHome(t)
+	target := fixturePR + " --repo " + fixtureSlug
+
+	report := nextOfFixture(t)
+
+	require.GreaterOrEqual(t, len(report.Steps), 2)
+	assert.Equal(t, []string{"claims", "intent"}, stepNames(&report)[:2])
+	claims := report.Steps[0]
+	assert.Equal(t, actorAgent, claims.Actor)
+	assert.Equal(t, []string{"cr claims record " + target + " <claims.ndjson> --intent-file " + issue},
+		claims.Commands)
+	intent := report.Steps[1]
+	assert.Equal(t, actorAgent, intent.Actor)
+	assert.Equal(t, []string{
+		"cr review " + target + " --axis intent",
+		"cr map record " + target + " <mapping.ndjson>",
+		"cr cells record " + target + " <cells.ndjson>",
+	}, intent.Commands)
+
+	recordClaimsFile(t, issue, rerecordClaims...)
+
+	report = nextOfFixture(t)
+
+	assert.NotContains(t, stepNames(&report), "claims", "recorded claims are owed no more")
+	require.NotEmpty(t, report.Steps)
+	assert.Equal(t, "intent", report.Steps[0].Step)
+}
