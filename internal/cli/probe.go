@@ -1209,6 +1209,9 @@ func probeDisclosures(setup *probeSetup, finished *finishedProbe) []string {
 	if spent := setup.capped.Ran(); spent.Reached() {
 		disclosed = append(disclosed, spent.Disclosure())
 	}
+	if measured := finished.performed.underProbe; measured != nil {
+		disclosed = append(disclosed, measured.Uncounted()...)
+	}
 	return append(disclosed, survivorNotice(setup.tests.lingering)...)
 }
 

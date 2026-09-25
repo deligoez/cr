@@ -278,6 +278,21 @@ func (r *Record) Verdict() bool {
 		r.TestsFailed != nil && *r.TestsFailed == 0
 }
 
+// Uncounted is §5.2.1's disclosure of a run that exited 0 with its executed
+// count undetermined, and nil for every other run.
+//
+// Such a run reads as a success at the exit code and is not one: Verdict never
+// passes it, so it is no baseline. Measured on tarfin-labs/backend#6328: two
+// runs under a coding agent exited 0, printed no recap tests.count_pattern
+// could read, and were stored `passed: false` with nothing saying why.
+func (r *Record) Uncounted() []string {
+	if r.ExitCode != 0 || r.TimedOut || r.Unstarted || r.TestsRun != nil {
+		return nil
+	}
+	return []string{"the runner exited 0, but tests.count_pattern matched nothing in its output, so the " +
+		"executed count is undetermined and the run cannot pass or serve as a baseline (§5.2.1, §5.2.5)"}
+}
+
 // idPrefix is the letter §5.2.4 gives a run record id.
 const idPrefix = "r"
 
