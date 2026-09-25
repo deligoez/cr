@@ -272,8 +272,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 	if err != nil {
 		return err
 	}
-	summary.forced, summary.moved, summary.withdrawn = forced, moved, held
-	summary.bodies = rendered.written
+	summary.forced, summary.moved, summary.withdrawn, summary.bodies = forced, moved, held, rendered.written
 	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary, journal); err != nil {
 		return err
 	}

@@ -52,23 +52,14 @@ func ingestDraft(
 	if len(rendered) == 0 {
 		return triaged{Triage: draft.Triage{Preserved: make(map[string]string)}}, nil
 	}
-	file, err := l.ReadRound(owner, repo, pr, round.Round, state.FileDraft)
-	if err != nil {
-		return triaged{}, err
-	}
-	stored, err := l.ReadRound(owner, repo, pr, round.Round, state.FileRendered)
-	if err != nil {
-		return triaged{}, err
-	}
-	entries, err := draft.DecodeRendered(
-		l.RoundFile(owner, repo, pr, round.Round, state.FileRendered), stored)
+	read, err := readDrafted(l, owner, repo, pr, round.Round)
 	if err != nil {
 		return triaged{}, err
 	}
 	triage, err := draft.Ingest(rendered, &draft.Draft{
 		Name:        l.RoundFile(owner, repo, pr, round.Round, state.FileDraft),
-		Body:        string(file),
-		Rendered:    entries,
+		Body:        read.file,
+		Rendered:    read.rendered,
 		Trees:       anchorTrees(owner, repo, pr, round.Head),
 		AnchorRules: anchorRules(l, owner, repo, pr, round),
 		Posted:      posted,
@@ -97,12 +88,29 @@ func ingestDraft(
 		}
 	}
 	applyRetriage(triage.Retriaged)
-	written, _, err := state.ReadRoundSection[map[string]string](
-		l, owner, repo, pr, round.Round, state.FileSummary, summaryDraftedBodies)
+	return triaged{Triage: triage, read: rendered, written: read.written}, nil
+}
+
+// readDrafted reads what the round's last `cr draft` left for a triage to
+// read against: draft.md as it now stands, §7.1.5's rendered.json entries, and
+// summaryDraftedBodies, which is nil for a round no draft of this version
+// wrote.
+func readDrafted(l state.Layout, owner, repo string, pr, round int) (drafted, error) {
+	file, err := l.ReadRound(owner, repo, pr, round, state.FileDraft)
 	if err != nil {
-		return triaged{}, err
+		return drafted{}, err
 	}
-	return triaged{Triage: triage, read: rendered, written: written}, nil
+	stored, err := l.ReadRound(owner, repo, pr, round, state.FileRendered)
+	if err != nil {
+		return drafted{}, err
+	}
+	entries, err := draft.DecodeRendered(l.RoundFile(owner, repo, pr, round, state.FileRendered), stored)
+	if err != nil {
+		return drafted{}, err
+	}
+	written, _, err := state.ReadRoundSection[map[string]string](
+		l, owner, repo, pr, round, state.FileSummary, summaryDraftedBodies)
+	return drafted{file: string(file), rendered: entries, written: written}, err
 }
 
 // anchorTrees are §6.1.2's two revisions for this round, each opened only when
