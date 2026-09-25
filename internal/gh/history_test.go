@@ -39,3 +39,14 @@ func TestReviewCommentsAreReadNewestFirstThroughTheReadBoundary(t *testing.T) {
 	}, comments)
 }
 
+// A full page is not the last, so the walk asks for the next one.
+func TestAFullPageOfReviewCommentsIsNotTheLast(t *testing.T) {
+	node := `{"id":1,"pull_request_url":"https://api.github.com/repos/acme/shop/pulls/7","created_at":"2025-02-01T00:00:00Z"}`
+	var called []string
+	_, last, err := WithRunner(answering("["+strings.Repeat(node+",", 99)+node+"]", &called)).
+		ReviewCommentsPage("acme", "shop", 1)
+
+	require.NoError(t, err)
+	assert.False(t, last)
+}
+
