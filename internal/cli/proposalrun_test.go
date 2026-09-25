@@ -269,6 +269,28 @@ func TestAProposalIDOutsideItsBlockIsRefused(t *testing.T) {
 	assert.Empty(t, storedRecords(t, prepared, state.FileProposals))
 }
 
+// §5.7.1 refuses an id outside "the block §4.6.2 gave", and a block is given by
+// a prompt: on a unit `cr review` has emitted nothing for, no role was told
+// which ids to write, so the same out-of-block id is stored.
+func TestAProposalIDOutsideABlockNoPromptGaveIsStored(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	meta, err := prepared.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, os.RemoveAll(prepared.FanOutDir(fixtureOwner, fixtureProject, fixturePRNumber, meta.Round, at.Unit)))
+	first, ok := proposal.IDSuffix(at.FirstP)
+	require.True(t, ok)
+	outside := at
+	outside.FirstP = proposal.IDOf(first + 1000)
+
+	_, err = runCLIPrinting(t, "proposals", "record", fixturePR, proposalFile(t, outside, ""), "--repo", fixtureSlug)
+
+	require.NoError(t, err)
+	stored := storedRecords(t, prepared, state.FileProposals)
+	require.Len(t, stored, 1)
+	assert.Equal(t, outside.FirstP, stored[0]["id"])
+}
+
 // §5.7.1: a proposal whose id a stored proposal already holds is refused,
 // naming the round that holds it.
 func TestAProposalIDAlreadyStoredIsRefused(t *testing.T) {
