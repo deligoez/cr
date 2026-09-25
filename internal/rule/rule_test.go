@@ -19,7 +19,7 @@ import (
 // judges would pass whatever the package happened to say.
 var specFields = []string{
 	"id", "title", "rationale", "axis", "class", "severity", "kind",
-	"detect", "fix", "globs", "exempt", "profiles",
+	"detect", "fix", "globs", "exempt", "profiles", "source",
 }
 
 // write puts content at a rule path with the given stem and returns it.
