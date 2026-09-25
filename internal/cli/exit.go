@@ -890,6 +890,13 @@ func hintFor(err error) string {
 	if errors.As(err, &ambiguous) && row.claims(ambiguous) {
 		return ambiguous.Hint()
 	}
+	// The lookup spans every round, so the row's "`cr brief` opens the round
+	// a newer head belongs to" sends the reader nowhere; the error's own
+	// hint names the listing that holds the posted ids.
+	var unknown *unknownRecordError
+	if errors.As(err, &unknown) && row.claims(unknown) {
+		return unknown.Hint()
+	}
 	// A zero *state.FileError built outside FileFailure carries no step of
 	// its own, and takes the floor's rather than an empty one.
 	var file *state.FileError
