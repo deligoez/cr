@@ -1,7 +1,9 @@
 package draft
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/probe"
@@ -32,12 +34,13 @@ func (e *MissingProbeError) Error() string {
 
 // evidence is §8.1.7's region for one record, asked of its grade: a `cited`
 // record lists its citations, a `probed` one carries its probe, and an
-// `argued` one — which asserts nothing, since §6.3 makes it a question — has
-// none.
+// `argued` one — which asserts nothing, since §6.3 makes it a question —
+// carries only the re-runs of the probe it names, when there are any.
 func (p *Provenances) evidence(record *finding.Finding) (string, error) {
+	reruns := p.reruns(record.Probe)
 	switch record.Grade {
 	case finding.GradeCited:
-		return render.CitedEvidence(record.ID, record.Citations)
+		return render.CitedEvidence(record.ID, record.Citations, reruns)
 	case finding.GradeProbed:
 		var held *probe.Record
 		if p != nil {
@@ -46,7 +49,25 @@ func (p *Provenances) evidence(record *finding.Finding) (string, error) {
 		if held == nil {
 			return "", &MissingProbeError{Record: record.ID, Probe: record.Probe}
 		}
-		return render.ProbeEvidence(record.ID, held, p.MaxProbeInput)
+		return render.ProbeEvidence(record.ID, held, p.MaxProbeInput, p.CountPattern, reruns)
 	}
-	return "", nil
+	return render.RerunEvidence(record.ID, reruns)
+}
+
+// reruns are the probes at the round's head whose `rerun_of` names the probe
+// id, in the order of their ids, and none when id is empty.
+func (p *Provenances) reruns(id string) []*probe.Record {
+	found := make([]*probe.Record, 0)
+	if p == nil || id == "" {
+		return found
+	}
+	for _, held := range p.Probes {
+		if held.RerunOf == id && held.Head == p.Head {
+			found = append(found, held)
+		}
+	}
+	slices.SortFunc(found, func(a, b *probe.Record) int {
+		return cmp.Or(cmp.Compare(len(a.ID), len(b.ID)), cmp.Compare(a.ID, b.ID))
+	})
+	return found
 }

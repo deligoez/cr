@@ -38,6 +38,11 @@ type Provenances struct {
 	// handed in rather than read here for the reason HeaderFacts gives its
 	// cap.
 	MaxProbeInput int
+	// CountPattern is the round's profile's tests.count_pattern, by which
+	// §8.1.7 shows a run in which nothing failed.
+	CountPattern string
+	// Head is the round's head, at which §8.1.7 looks for a probe's re-runs.
+	Head string
 }
 
 // NoteClaim is the note one note-sourced claim rests on.

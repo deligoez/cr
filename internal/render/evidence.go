@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -38,27 +39,52 @@ const MaxProbeInputSetting = "post.max_probe_input_bytes"
 const gapLimit = "limit: a failed gap probe means either the behaviour is wrong or the supplied test is wrong, and cr cannot distinguish the two"
 
 // CitedEvidence renders §8.1.7's evidence region for a record graded `cited`:
-// each stored citation as `path:line`, in the order the record holds them, and
-// nothing else.
+// each stored citation as `path:line`, in the order the record holds them,
+// then the re-runs of the probe the record names, and nothing else.
 //
 // It is template substitution, as ProbeEvidence is. The author opens each
 // location and judges whether it supports the body, which is all §6.2.4 lets a
 // citation establish; a word of cr's about what the location shows would be
 // the judgement §6.2.4 withholds.
 //
-// A record carrying no citation has no region, since the region's whole
-// content is its citations. §6.2 grades no record `cited` without one, so this
-// is a record cr did not grade rather than an assertion stripped of its
-// support.
-func CitedEvidence(record string, citations []finding.Citation) (string, error) {
+// A record carrying no citation and no re-run has no region, since the
+// region's whole content is those rows. §6.2 grades no record `cited` without
+// a citation, so this is a record cr did not grade rather than an assertion
+// stripped of its support.
+func CitedEvidence(record string, citations []finding.Citation, reruns []*probe.Record) (string, error) {
 	if len(citations) == 0 {
+		return RerunEvidence(record, reruns)
+	}
+	var out strings.Builder
+	for _, cited := range citations {
+		fmt.Fprintf(&out, "citation: %s:%d\n", cited.Path, cited.Line)
+	}
+	rerunRows(&out, reruns)
+	return evidenceRegion.checked(record, strings.TrimSuffix(out.String(), "\n"))
+}
+
+// RerunEvidence renders §8.1.7's evidence region for a record that asserts
+// nothing, `argued` among them, and is empty unless the probe the record names
+// has re-runs at the round's head.
+//
+// §8.1.7 carries the re-runs whatever the grade. Measured on
+// tarfin-labs/backend#6328 with cr 0.13.0: a question whose probe a `--rerun`
+// had since refuted by experiment reached the draft with nothing saying so.
+func RerunEvidence(record string, reruns []*probe.Record) (string, error) {
+	if len(reruns) == 0 {
 		return "", nil
 	}
-	lines := make([]string, 0, len(citations))
-	for _, cited := range citations {
-		lines = append(lines, fmt.Sprintf("citation: %s:%d", cited.Path, cited.Line))
+	var out strings.Builder
+	rerunRows(&out, reruns)
+	return evidenceRegion.checked(record, strings.TrimSuffix(out.String(), "\n"))
+}
+
+// rerunRows writes one row per re-run: its id and its `result`, under §5.5's
+// field names, in the order given.
+func rerunRows(out *strings.Builder, reruns []*probe.Record) {
+	for _, rerun := range reruns {
+		fmt.Fprintf(out, "rerun: %s, result: %s\n", rerun.ID, rerun.Result)
 	}
-	return evidenceRegion.checked(record, strings.Join(lines, "\n"))
 }
 
 // ProbeEvidence renders §8.1.7's evidence region for a record whose `probed`
@@ -82,6 +108,12 @@ func CitedEvidence(record string, citations []finding.Citation) (string, error) 
 // post.max_probe_input_bytes, and a truncated input says so on its own row, so
 // a cut never reads as the whole experiment.
 //
+// A run in which nothing failed shows, in place of its output tail, the lines
+// of it countPattern — the profile's tests.count_pattern — matches. Measured
+// on tarfin-labs/backend#6328 with cr 0.13.0: a probed comment carried sixty
+// lines of passing tests. With no pattern to match by, the tail is shown
+// whole. The probe's re-runs at the round's head follow, one row each.
+//
 // A gap probe carries §5.4.4's limit too, beneath its result: cr cannot
 // distinguish a wrong behaviour from a wrong test, and round 11's
 // undisclosed-evidence-limit has the reader told so rather than left to assume
@@ -103,7 +135,9 @@ func CitedEvidence(record string, citations []finding.Citation) (string, error) 
 // ends the region at the first closing marker it meets. So a region that would
 // carry Reserved is refused naming the record, under §8.1.3's rejection of a
 // body holding it, rather than written into a draft that reads back wrong.
-func ProbeEvidence(record string, p *probe.Record, maxInput int) (string, error) {
+func ProbeEvidence(
+	record string, p *probe.Record, maxInput int, countPattern string, reruns []*probe.Record,
+) (string, error) {
 	var out strings.Builder
 	fmt.Fprintf(&out, "kind: %s\n", p.Kind)
 	fmt.Fprintf(&out, "target: %s\n", p.Target)
@@ -125,9 +159,35 @@ func ProbeEvidence(record string, p *probe.Record, maxInput int) (string, error)
 		out.WriteString("input:\n")
 	}
 	out.WriteString(fenced(input))
-	out.WriteString("output_tail:\n")
-	out.WriteString(fenced(p.OutputTail))
+	if counted, ok := countedLines(p, countPattern); ok {
+		out.WriteString("output_tail, the lines tests.count_pattern matches:\n")
+		out.WriteString(fenced(counted))
+	} else {
+		out.WriteString("output_tail:\n")
+		out.WriteString(fenced(p.OutputTail))
+	}
+	rerunRows(&out, reruns)
 	return evidenceRegion.checked(record, out.String())
+}
+
+// countedLines is the lines of the probe's output tail countPattern matches,
+// and whether §8.1.7 shows them in place of the tail: only for a run in which
+// nothing failed, and only with a pattern that compiles.
+func countedLines(p *probe.Record, countPattern string) (string, bool) {
+	if !p.Result.NothingFailed() || countPattern == "" {
+		return "", false
+	}
+	pattern, err := regexp.Compile(countPattern)
+	if err != nil {
+		return "", false
+	}
+	var kept strings.Builder
+	for line := range strings.Lines(p.OutputTail) {
+		if pattern.MatchString(line) {
+			kept.WriteString(line)
+		}
+	}
+	return kept.String(), true
 }
 
 // capped is input cut to at most limit bytes, and whether anything was cut.

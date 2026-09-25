@@ -50,9 +50,9 @@ func TestEveryAssertingGradeCarriesItsEvidenceBeneathTheBody(t *testing.T) {
 	rendered, err := Render(records, render.LangEN, withProbe(), nil)
 	require.NoError(t, err)
 
-	cited, err := render.CitedEvidence("f1", records[0].Citations)
+	cited, err := render.CitedEvidence("f1", records[0].Citations, nil)
 	require.NoError(t, err)
-	probed, err := render.ProbeEvidence("f2", aProbe(), 4096)
+	probed, err := render.ProbeEvidence("f2", aProbe(), 4096, "", nil)
 	require.NoError(t, err)
 
 	assert.Contains(t, rendered, markerOf(records[0]).String()+"\n\n"+body(records[0])+"\n\n"+cited+"\n",

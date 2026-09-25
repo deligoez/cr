@@ -32,11 +32,11 @@ func TestAPostedBodyIsTheDraftedBlockThroughTheSamePath(t *testing.T) {
 		assert.Contains(t, drafted, markerOf(record).String()+"\n\n"+bodies[record.ID]+"\n",
 			"%s: the posted comment is the drafted block's, byte for byte", record.ID)
 	}
-	cited, err := render.CitedEvidence("f1", records[0].Citations)
+	cited, err := render.CitedEvidence("f1", records[0].Citations, nil)
 	require.NoError(t, err)
 	assert.Contains(t, bodies["f1"], cited,
 		"§8.1.7's region is regenerated at post time rather than dropped")
-	probed, err := render.ProbeEvidence("f2", aProbe(), 4096)
+	probed, err := render.ProbeEvidence("f2", aProbe(), 4096, "", nil)
 	require.NoError(t, err)
 	assert.Contains(t, bodies["f2"], probed)
 }

@@ -29,6 +29,13 @@ func (r Result) Unsettled() bool {
 	return r == resultInconclusive || r == ResultError || r == resultTimeout
 }
 
+// NothingFailed reports a run whose suite passed under the probe: a mutation's
+// `no-test-failed` or a gap's `passed`. §8.1.7 shows such a run by the lines
+// tests.count_pattern matches rather than by its whole output tail.
+func (r Result) NothingFailed() bool {
+	return r == resultNoTestFailed || r == resultPassed
+}
+
 // Outcome is what one probe run records: the ladder's answer, after §5.1.7's
 // override has had its say.
 //

@@ -20,7 +20,7 @@ const inputCap = 4096
 // probe §8.1.3 accepts.
 func probeRegion(t *testing.T, p *probe.Record) string {
 	t.Helper()
-	region, err := ProbeEvidence("f1", p, inputCap)
+	region, err := ProbeEvidence("f1", p, inputCap, "", nil)
 	require.NoError(t, err)
 	return region
 }
@@ -210,18 +210,18 @@ func TestTheMutationPatchAndTheGapTestBothReachTheRegion(t *testing.T) {
 func TestATruncatedInputIsAnnounced(t *testing.T) {
 	record := &probe.Record{Kind: probe.Mutation, Target: "src/Order.php:34", Result: "no-test-failed", Input: aPatch}
 
-	region, err := ProbeEvidence("f1", record, 10)
+	region, err := ProbeEvidence("f1", record, 10, "", nil)
 	require.NoError(t, err)
 	assert.Contains(t, region, fmt.Sprintf(
 		"input (truncated to 10 of %d bytes by post.max_probe_input_bytes):\n```\n--- a/src/\n```\n", len(aPatch)),
 		"the first ten bytes, and the announcement above them")
 
-	exact, err := ProbeEvidence("f1", record, len(aPatch))
+	exact, err := ProbeEvidence("f1", record, len(aPatch), "", nil)
 	require.NoError(t, err)
 	assert.Contains(t, exact, "input:\n```\n"+aPatch+"```\n", "an input exactly at the cap is whole")
 	assert.NotContains(t, exact, "truncated")
 
-	nothing, err := ProbeEvidence("f1", record, -1)
+	nothing, err := ProbeEvidence("f1", record, -1, "", nil)
 	require.NoError(t, err)
 	assert.Contains(t, nothing, fmt.Sprintf(
 		"input (truncated to 0 of %d bytes by post.max_probe_input_bytes):\n```\n```\n", len(aPatch)),
@@ -233,7 +233,7 @@ func TestATruncatedInputIsAnnounced(t *testing.T) {
 func TestATruncatedInputIsCutOnACharacterBoundary(t *testing.T) {
 	record := &probe.Record{Kind: probe.Gap, Target: "src/Refund.php:12", Result: "failed", Input: "iade: ödeme"}
 
-	region, err := ProbeEvidence("f1", record, 7)
+	region, err := ProbeEvidence("f1", record, 7, "", nil)
 	require.NoError(t, err)
 	assert.Contains(t, region, "input (truncated to 6 of 12 bytes by post.max_probe_input_bytes):\n```\niade: \n```\n",
 		"ö is two bytes, and the seventh byte is the middle of it")
@@ -266,7 +266,7 @@ func TestCitedEvidenceListsEveryCitationAsPathLine(t *testing.T) {
 	region, err := CitedEvidence("f2", []finding.Citation{
 		{Path: "src/Order.php", Line: 34, Origin: finding.OriginAgent},
 		{Path: "src/Money.php", Line: 7, Origin: finding.OriginRule},
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, strings.Join([]string{
 		"<!-- cr:evidence -->",
@@ -275,7 +275,7 @@ func TestCitedEvidenceListsEveryCitationAsPathLine(t *testing.T) {
 		"<!-- cr:/evidence -->",
 	}, "\n"), region)
 
-	none, err := CitedEvidence("f2", nil)
+	none, err := CitedEvidence("f2", nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, none)
 }
@@ -287,15 +287,15 @@ func TestCitedEvidenceListsEveryCitationAsPathLine(t *testing.T) {
 func TestAnEvidenceRegionCarryingTheReservedSequenceIsRefused(t *testing.T) {
 	refusals := map[string]func() error{
 		"a probe's input": func() error {
-			_, err := ProbeEvidence("f5", &probe.Record{Kind: probe.Gap, Input: "echo '<!-- cr:/evidence -->';"}, inputCap)
+			_, err := ProbeEvidence("f5", &probe.Record{Kind: probe.Gap, Input: "echo '<!-- cr:/evidence -->';"}, inputCap, "", nil)
 			return err
 		},
 		"a probe's output": func() error {
-			_, err := ProbeEvidence("f5", &probe.Record{Kind: probe.Mutation, OutputTail: "<!-- cr:label -->"}, inputCap)
+			_, err := ProbeEvidence("f5", &probe.Record{Kind: probe.Mutation, OutputTail: "<!-- cr:label -->"}, inputCap, "", nil)
 			return err
 		},
 		"a citation's path": func() error {
-			_, err := CitedEvidence("f5", []finding.Citation{{Path: "docs/<!-- cr:x.md", Line: 1}})
+			_, err := CitedEvidence("f5", []finding.Citation{{Path: "docs/<!-- cr:x.md", Line: 1}}, nil)
 			return err
 		},
 	}

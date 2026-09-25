@@ -29,11 +29,14 @@ func draftProvenances(
 		NoteClaims: make(map[string]draft.NoteClaim),
 		FileClaims: make(map[string]string),
 		Probes:     make(map[string]*probe.Record),
+		Head:       round.Head,
 	}
 	ruleCited, claimed, probed := false, false, false
 	for _, record := range queued {
 		claimed = claimed || record.Claim != ""
-		probed = probed || record.Grade == finding.GradeProbed
+		// §8.1.7 carries a probe's re-runs beneath every record naming
+		// it, whatever its grade, so any probe named is read.
+		probed = probed || record.Grade == finding.GradeProbed || record.Probe != ""
 		for at := range record.Citations {
 			ruleCited = ruleCited || record.Citations[at].Origin == finding.OriginRule
 		}
@@ -56,6 +59,13 @@ func draftProvenances(
 		if err := readProbes(l, owner, repo, pr, sources.Probes); err != nil {
 			return nil, err
 		}
+		// §8.1.7 shows a run in which nothing failed by the lines the
+		// round's profile's tests.count_pattern matches.
+		resolved, err := statusProfile(l, round.ProfileID)
+		if err != nil {
+			return nil, err
+		}
+		sources.CountPattern = resolved.Tests.CountPattern
 	}
 	return sources, nil
 }
