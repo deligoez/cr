@@ -53,3 +53,25 @@ func TestASandboxBuiltUnderAnotherProfileIsRecreated(t *testing.T) {
 	assert.Equal(t, []any{missing}, honestyList(t, stdout), "the sandbox built under plain stands")
 }
 
+// A post-setup baseline an earlier cr recorded names no profile, so what the
+// sandbox was built with is unknown, and §5.1.6 rebuilds it once.
+func TestASandboxWhoseBaselineNamesNoProfileIsRecreated(t *testing.T) {
+	_, sandboxPath, _, _ := envFixture(t, []string{".env"}, ".env")
+	streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	file := state.New(crHomeOf(t)).PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileSandboxBaseline)
+	body, err := os.ReadFile(file)
+	require.NoError(t, err)
+	var recorded map[string]any
+	require.NoError(t, json.Unmarshal(body, &recorded))
+	require.Contains(t, recorded, "profile", "the control: this cr records the profile")
+	delete(recorded, "profile")
+	legacy, err := json.Marshal(recorded)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, legacy, 0o600))
+
+	stdout, _ := streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{"sandbox " + sandboxPath + " recreated, per §5.1.6: " +
+		"its post-setup baseline names no profile, so what it was built with is unknown"}, honestyList(t, stdout))
+	stdout, _ = streams(t, "test", fixturePR, "--repo", fixtureSlug)
+	assert.Equal(t, []any{}, honestyList(t, stdout))
+}
