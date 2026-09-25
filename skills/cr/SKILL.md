@@ -93,7 +93,7 @@ reads the issue through gh, so neither setting is consulted.
 ## The loop
 
 brief → review fan-out → merge → record → probe → draft → **human read** → post
-→ **recheck** → verify → resolve or withdraw.
+→ **recheck** → verify → resolve or withdraw → destroy the sandbox.
 
 **v0.5 closes the loop.** Posting is no longer the end: a posted record stays
 open until somebody settles it, and §9.4 through §9.6 are how. What cr does
@@ -127,8 +127,11 @@ the only step), `claims` and `intent` (the intent pass), `record` (a role's
 does not, unless the round's last merge or record ran after the file was
 written), `review` (the missing cells, by `unit/role`), `settle` (claims mapped
 to no unit), `draft` (records in draft or queued; the human's step) and
-`recheck` (posted records awaiting a verdict). `claims`, `intent`, `review` and
-`settle` are yours, because they need judgement. **The `draft` step never
+`recheck` (posted records awaiting a verdict), then `sandbox` (the last brief
+found the pull request merged or closed and its sandbox is still on disk).
+`claims`, `intent`, `review` and `settle` are yours, because they need
+judgement, and so is `sandbox`, because only you know the round is done.
+**The `draft` step never
 prints `--confirm`**: sending stays the human's act. Measured on its first run
 against tarfin-labs/backend#6292: it found three proposals files a hand-kept
 round had never recorded.
@@ -1268,6 +1271,26 @@ about a class cr collects. **It posts no prose** — §8.1.2 gives cr one
 channel for a body a human wrote, the draft, and a flag here carrying text to
 GitHub would be a second; write the explanation yourself if you want the author
 to have one.
+
+### 9. Destroy the sandbox
+
+When the round is done, or the pull request is merged or closed, remove the
+sandbox:
+
+```bash
+cr sandbox destroy 1
+```
+
+The sandbox keeps a checkout of the head and the copies of the gitignored files
+`sandbox.copy` brought in, `.env` and key files such as `storage/*.key`
+included, until it is destroyed; one of 439 MB holding copies of `.env` and
+Passport's keys outlived its merged pull request on tarfin-labs/backend#6328.
+`cr status` reports the sandbox while it exists, under `sandbox` with its
+`path`, `bytes` (regular files only; a symbolic link is not followed), `since`
+and `age_seconds`, and on one `sandbox:` line of text. When the last `cr brief`
+found the pull request merged or closed and the sandbox is still there,
+`cr next` ends with a `sandbox` step, yours, naming the state and
+`cr sandbox destroy <pr>`.
 
 ### A moved head
 
