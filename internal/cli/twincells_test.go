@@ -68,3 +68,18 @@ func TestACellRecordedAtAUnitIsRecordedAtItsTwin(t *testing.T) {
 	assert.Equal(t, 1, twin.Round)
 }
 
+// A twin seat the file names itself keeps the cell the file gives it: the
+// role's own verdict about the twin is better evidence than cr's copy.
+func TestATwinSeatTheFileNamesKeepsTheFilesCell(t *testing.T) {
+	layout := twinnedForCells(t)
+
+	require.NoError(t, runCLI(t, "cells", "record", "7", cellsFileOf(t,
+		`{"unit":"u1","role":"correctness","result":"pass"}`+"\n"+
+			`{"unit":"u2","role":"correctness","result":"na","reason":"the twin is generated"}`),
+		"--repo", cellsSlug))
+
+	stored, err := state.ReadRecords[coverage.Cell](layout, cellsOwner, cellsRepo, cellsPR, state.FileCoverage)
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+	assert.Equal(t, "the twin is generated", stored[1].Reason)
+}
