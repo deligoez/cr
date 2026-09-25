@@ -159,6 +159,9 @@ type Prompt struct {
 	Proposals       string `json:"proposals"`
 	FirstProposalID string `json:"first_proposal_id"`
 	LastProposalID  string `json:"last_proposal_id"`
+	// Cells is the NDJSON path §4.6.2 has the role write its §4.5.5
+	// coverage cell for the unit to, which the text names as well.
+	Cells string `json:"cells"`
 	// Text is the prompt itself.
 	Text string `json:"prompt"`
 }
@@ -184,6 +187,7 @@ func Emit(r *Round) []Prompt {
 			}
 			output := filepath.Join(r.Units[at].FanOut, finding.FanOutFile(lens.ID))
 			proposals := filepath.Join(r.Units[at].FanOut, proposal.FanOutFile(lens.ID))
+			cells := filepath.Join(r.Units[at].FanOut, coverage.FanOutFile(lens.ID))
 			ids := r.ids(base, lens.ID, at)
 			first, last := ids.spelled()
 			asks := r.proposalIDs(lens.ID, at)
@@ -198,7 +202,8 @@ func Emit(r *Round) []Prompt {
 				Proposals:       proposals,
 				FirstProposalID: firstAsk,
 				LastProposalID:  lastAsk,
-				Text:            r.text(lens, at, output, ids, proposals, asks),
+				Cells:           cells,
+				Text:            r.text(lens, at, output, ids, proposals, asks, cells),
 			})
 		}
 	}

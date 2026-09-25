@@ -5,11 +5,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/deligoez/cr/internal/axis"
+	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
+	"github.com/deligoez/cr/internal/testadequacy"
 )
 
 // findingWords says what §6.1's Required column means to the agent writing a
@@ -66,6 +69,32 @@ func contract(p *page, lens *role.Role, output, contractFile string, round int, 
 	p.line("%s", englishLine)
 	p.line("")
 	forbiddenLine(p)
+}
+
+// cellContract writes §4.6.2's cell path: where the role writes its §4.5.5
+// coverage cell for this unit, which `cr cells record` stores.
+func cellContract(p *page, cells string) {
+	p.section("Coverage cell (§4.5.5)")
+	p.line("Write this role's coverage cell for this unit, one JSON object on one line, to:")
+	p.line("")
+	p.line("    %s", cells)
+	p.line("")
+	p.line("Write it whatever you raised: a unit with no cell is not yet covered (§10.2.2). " +
+		"Its fields are §4.5.5's cell schema, in the round's contract file, and `cr cells record` stores it.")
+}
+
+// cellSchema writes §4.5.5's cell into the round's contract file, read out of
+// the tables the cell decoder refuses by.
+func cellSchema(p *page) {
+	p.section("Coverage cell schema (§4.5.5)")
+	p.line("A cell carries %s; cr writes unit_hash, head and round itself, and a cell supplying one is "+
+		"rejected with exit code 1.", strings.Join(coverage.Fields(), ", "))
+	p.line("- result: %s", oneOf(coverage.Results()))
+	p.line("- reason: required when result is %q, and refused on any other result", coverage.ResultNA)
+	p.line("- coverage: required on a cell a role on the %s axis filled unless its result is %q, and refused "+
+		"on every other cell; an object carrying classification, %s, and test_paths, the test files the "+
+		"classification rests on (§4.4.1)", axis.Test, coverage.ResultNA, oneOf(testadequacy.Classifications()))
+	p.line("- note_id: optional; the note that explains an unmapped unit (§4.1.5)")
 }
 
 // proposalSchema writes §5.7's table into the round's contract file, beside
@@ -224,6 +253,7 @@ func Contract(round int) string {
 	p.line("%s", reservedLine())
 	p.line("")
 	forbiddenLine(&p)
+	cellSchema(&p)
 	proposalSchema(&p)
 	return p.String()
 }

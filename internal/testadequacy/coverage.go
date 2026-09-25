@@ -26,6 +26,12 @@ const (
 // no configuration key names a classification, so no layer can widen it.
 var classifications = []Classification{Covered, PartiallyCovered, Uncovered}
 
+// Classifications is the closed set, in the order §4.4.1 lists it, for the
+// round's contract file to name.
+func Classifications() []Classification {
+	return slices.Clone(classifications)
+}
+
 // Coverage is the `coverage` value §4.5.5 puts on a test-axis cell: the
 // classification the agent made, and the test paths it rested on.
 //
