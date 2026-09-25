@@ -190,6 +190,58 @@ func TestAProposalRunsOnce(t *testing.T) {
 	assert.Equal(t, ExitState, exitCodeFor(err))
 }
 
+// §5.7.3: a proposal already run whose probe ended `inconclusive` is executed
+// again, and §5.7.4 settles on the new probe — the proposal and the record it
+// names both move to it and the record is re-graded; a proposal whose probe
+// settled something is still refused with the state code.
+//
+// Measured on tarfin-labs/backend#6328 with cr 0.13.0: x4001 ran inconclusive
+// under the runner that saw a coding agent, and `--proposal x4001` was then
+// refused as "already run and produced probe p1".
+func TestAProposalWhoseProbeSettledNothingRunsAgain(t *testing.T) {
+	settled := filepath.Join(t.TempDir(), "settled")
+	prepared, _, _, _ := probeFixture(t,
+		onlyWhenMutated("  if [ ! -f '"+settled+"' ]; then echo 'no recap'; exit 0; fi\n"))
+	at := briefedForProposals(t, prepared)
+	records, recordID := recordFile(t, at)
+	_, err := runCLIPrinting(t, "record", fixturePR, records, "--repo", fixtureSlug)
+	require.NoError(t, err)
+	_, err = runCLIPrinting(t, "proposals", "record", fixturePR,
+		proposalFile(t, at, recordID), "--repo", fixtureSlug)
+	require.NoError(t, err)
+
+	first := probeRunDocument(t, at.FirstP)
+	require.Equal(t, "inconclusive", first["result"], "the control: the first run settles nothing")
+	require.NoError(t, os.WriteFile(settled, nil, 0o600))
+
+	second := probeRunDocument(t, at.FirstP)
+	assert.Equal(t, "no-test-failed", second["result"])
+	assert.NotEqual(t, first["probe"], second["probe"], "the second run is a probe of its own")
+	proposals := storedRecords(t, prepared, state.FileProposals)
+	require.Len(t, proposals, 1)
+	assert.Equal(t, []any{"run", second["probe"]}, []any{proposals[0]["state"], proposals[0]["probe"]})
+	findings := storedRecords(t, prepared, state.FileFindings)
+	require.Len(t, findings, 1)
+	assert.Equal(t, []any{second["probe"], "probed"}, []any{findings[0]["probe"], findings[0]["grade"]},
+		"§5.7.4 applies to the new probe")
+
+	err = runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", at.FirstP)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "proposal "+at.FirstP+" was already run and produced probe "+
+		second["probe"].(string))
+	assert.Equal(t, ExitState, exitCodeFor(err))
+}
+
+// probeRunDocument runs `cr probe run --proposal` and returns its document.
+func probeRunDocument(t *testing.T, proposalID string) map[string]any {
+	t.Helper()
+	printed, err := runCLIPrinting(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", proposalID)
+	require.NoError(t, err)
+	var reported map[string]any
+	require.NoError(t, json.Unmarshal([]byte(printed), &reported))
+	return reported
+}
+
 // §5.7.3 refuses every input flag beside `--proposal`, with the usage code: the
 // proposal carries the whole experiment, and a flag beside it would run
 // something the role did not propose.
