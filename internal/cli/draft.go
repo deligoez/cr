@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -272,6 +273,7 @@ func produceDraft(out *writer, l state.Layout, owner, repo string, pr int, round
 		return err
 	}
 	summary.forced, summary.moved, summary.withdrawn = forced, moved, held
+	summary.bodies = rendered.written
 	if err := publishDraft(l, owner, repo, pr, round, records, rendered, &summary, journal); err != nil {
 		return err
 	}
@@ -322,6 +324,9 @@ type drafted struct {
 	// rendered is rendered.json's entries, each record's agent region as
 	// cr generated it.
 	rendered map[string]string
+	// written is each record's agent region as draft.md holds it: the
+	// rendered entry, or the body §7.1.6 preserved in its place.
+	written map[string]string
 }
 
 // renderDraft is §7.1's draft.md and §7.1.5's rendered.json for the queued
@@ -364,7 +369,13 @@ func renderDraft(
 	if file, err = withPromptNotes(l, round, queued, file); err != nil {
 		return drafted{}, err
 	}
-	return drafted{file: file, rendered: rendered}, nil
+	written := maps.Clone(rendered)
+	for id := range written {
+		if kept, found := preserved[id]; found {
+			written[id] = kept
+		}
+	}
+	return drafted{file: file, rendered: rendered, written: written}, nil
 }
 
 // settingMaxComments is §1.6.2's cap, by the key §2.7's table holds it under.
@@ -578,6 +589,9 @@ type draftSummary struct {
 	comments summaryCap
 	// probes is §5.6.4's probe cap over the round.
 	probes summaryCap
+	// bodies is summaryDraftedBodies: each record's agent region as this
+	// run writes it into draft.md.
+	bodies map[string]string
 }
 
 // counts is the summary as the rows writeSummary takes.
@@ -588,6 +602,7 @@ func (s *draftSummary) counts() []summaryCount {
 		{key: summaryNewClasses, value: s.newClasses},
 		{key: summaryDrafted, value: s.drafted},
 		{key: summaryProbeCap, value: s.probes},
+		{key: summaryDraftedBodies, value: s.bodies},
 	}
 }
 

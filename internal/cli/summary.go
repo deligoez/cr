@@ -121,6 +121,13 @@ const (
 	// exactly as one its role wrote as a question does, and §6.3.2 counts
 	// only the first.
 	summaryForcedRecords = "forced_records"
+	// summaryDraftedBodies is the agent region of every block the round's
+	// last `cr draft` wrote into draft.md, by record id: cr's rendering, or
+	// the body §7.1.6 preserved, an agent's rewrite in render.lang
+	// included. It is not a count but the reference §7.3.2's `edited` mark
+	// is measured against, and rendered.json cannot hold it, since §7.1.5
+	// keeps a preserved body out of that file's entry.
+	summaryDraftedBodies = "drafted_bodies"
 )
 
 // summaryOwners is §10.3's writer list: every count the round summary holds,
@@ -147,6 +154,7 @@ var summaryOwners = map[string]summaryOwner{
 	summaryForcedByRetraction: ownerDraft,
 	summaryNewClasses:         ownerDraft,
 	summaryDrafted:            ownerDraft,
+	summaryDraftedBodies:      ownerDraft,
 	summaryDiscardedNotHere:   ownerDiscards,
 	summaryDiscardedWrong:     ownerDiscards,
 	summaryComments:           ownerComments,

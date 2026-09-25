@@ -122,6 +122,7 @@ func summaryShapes() map[string]func(json.RawMessage) error {
 		},
 		"new_classes":    func(raw json.RawMessage) error { return strictly[[]string](raw) },
 		"forced_records": func(raw json.RawMessage) error { return strictly[[]string](raw) },
+		"drafted_bodies": func(raw json.RawMessage) error { return strictly[map[string]string](raw) },
 		"comments":       func(raw json.RawMessage) error { return strictly[cap](raw) },
 		"probe_cap":      func(raw json.RawMessage) error { return strictly[cap](raw) },
 		"payload_hash": func(raw json.RawMessage) error {
