@@ -73,14 +73,21 @@ func (r *rulesSuggestResult) Text(w *writer) string {
 // itself, so there is no flag here that would have it do so, and nothing below
 // this line opens a file for writing.
 func newRulesSuggestCmd(out *writer) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "suggest",
 		Short: "Propose rules from recurring comment history",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			request, fromHistory, err := historyRequestOf(cmd)
+			if err != nil {
+				return err
+			}
 			owner, repo, err := repoOf(cmd)
 			if err != nil {
 				return err
+			}
+			if fromHistory {
+				return emitHistory(out, owner, repo, request)
 			}
 			layout, err := state.Default()
 			if err != nil {
@@ -103,6 +110,8 @@ func newRulesSuggestCmd(out *writer) *cobra.Command {
 			})
 		},
 	}
+	historyFlags(cmd)
+	return cmd
 }
 
 // harvestMin resolves §2.6.3.2's `rules.harvest_min`, default 3.
