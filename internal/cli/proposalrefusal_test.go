@@ -91,3 +91,25 @@ func TestAnUnrunnableProposalIsRefusedWithItsReason(t *testing.T) {
 		"`cr status` lists the round's unrunnable proposals with their reasons", hintFor(err))
 	assert.Empty(t, storedRecords(t, prepared, state.FileProbes), "a refused proposal writes no probe")
 }
+
+// A stored mutation proposal whose input is no unified diff at all runs
+// nothing: the patch is refused as malformed, naming the proposal, with the
+// validation code, before the sandbox is touched.
+func TestAMutationProposalWhoseInputHoldsNoHunkIsRefused(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR, proposalFile(t, at, ""), "--repo", fixtureSlug)
+	require.NoError(t, err)
+	rewriteStoredProposals(t, prepared, func(line map[string]any) {
+		line["input"] = "drop the retry\n"
+	})
+
+	err = runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", at.FirstP)
+
+	require.Error(t, err)
+	assert.Equal(t, at.FirstP+": holds no hunk: §5.3.1's mutation is a unified diff against a sandbox file, "+
+		"and §5.7's `input` carries it whole", err.Error())
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Empty(t, storedRecords(t, prepared, state.FileProbes), "a refused proposal writes no probe")
+	assert.Equal(t, "open", storedRecords(t, prepared, state.FileProposals)[0]["state"])
+}
