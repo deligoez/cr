@@ -24,3 +24,25 @@ func TestLaravelPestDeclaresTheChangelogAndTranslationKinds(t *testing.T) {
 	}, p.Units.Kinds)
 }
 
+// §4.6.7: a unit is of a kind when every one of its paths matches that kind's
+// globs, and the first declared kind that fits is the one it takes.
+func TestKindOfTakesTheFirstKindEveryPathMatches(t *testing.T) {
+	p := loadLaravelPest(t)
+
+	for path, want := range map[string]string{
+		"changelogs/unreleased/fix.yml":  "changelog",
+		"resources/lang/tr/messages.php": "translation",
+		"lang/en/validation.php":         "translation",
+		"app/Models/Order.php":           "",
+		"tests/lang/en/Example.php":      "",
+	} {
+		kind, found := p.KindOf(path)
+		assert.Equal(t, want != "", found, path)
+		assert.Equal(t, want, kind.Kind, path)
+	}
+	_, found := p.KindOf("changelogs/a.yml", "app/Models/Order.php")
+	assert.False(t, found, "a unit one of whose paths falls outside the globs is of no kind")
+	_, found = p.KindOf()
+	assert.False(t, found, "a unit with no path is of no kind")
+}
+
