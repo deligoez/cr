@@ -46,6 +46,7 @@ func envFixture(
 	require.NoError(t, os.WriteFile(filepath.Join(info, "exclude"),
 		[]byte(strings.Join(ignored, "\n")+"\n"), 0o600))
 	for _, name := range ignored {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(fixture, name)), 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(fixture, name), []byte("SECRET=never-read\n"), 0o600))
 	}
 
