@@ -161,9 +161,9 @@ func TestAParsedProfileNamesTheReleaseThatShippedItsBytes(t *testing.T) {
 	previous, err := shipped.ReadFile("builtin/shipped/v0.2.1/laravel-pest.json")
 	require.NoError(t, err)
 	// The newest release whose bytes differ from this build's, so the
-	// sentence names one changed field rather than three: `tests.paths_arg`,
-	// which v0.14.0 added.
-	latest, err := shipped.ReadFile("builtin/shipped/v0.13.0/laravel-pest.json")
+	// sentence names one changed field rather than four: `units`, which
+	// v0.16.0 added.
+	latest, err := shipped.ReadFile("builtin/shipped/v0.15.0/laravel-pest.json")
 	require.NoError(t, err)
 	edited := bytes.Replace(previous, []byte(`"lang": "php"`), []byte(`"lang": "hack"`), 1)
 	const file = "/home/dev/.cr/profiles/laravel-pest.json"
@@ -173,10 +173,10 @@ func TestAParsedProfileNamesTheReleaseThatShippedItsBytes(t *testing.T) {
 		want    []string
 	}{
 		"v0.2.1's bytes": {previous, []string{file + " is the laravel-pest profile cr v0.2.1 shipped, unedited, " +
-			"and the shipped profile has since changed rules, sandbox.copy, tests.paths_arg; cr init updates the " +
-			"file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"}},
-		"v0.13.0's bytes": {latest, []string{file + " is the laravel-pest profile cr v0.13.0 shipped, unedited, " +
-			"and the shipped profile has since changed tests.paths_arg; cr init updates the file to it"}},
+			"and the shipped profile has since changed rules, sandbox.copy, tests.paths_arg, units; cr init updates " +
+			"the file to it, and the next cr test or cr probe run then recreates a sandbox lacking a file it copies"}},
+		"v0.15.0's bytes": {latest, []string{file + " is the laravel-pest profile cr v0.15.0 shipped, unedited, " +
+			"and the shipped profile has since changed units; cr init updates the file to it"}},
 		"the current bytes": {[]byte(laravelPest), []string{}},
 		"an edited file":    {edited, []string{}},
 	}
