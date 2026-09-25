@@ -29,3 +29,7 @@ func TestTheHeaderShowsObservationsAndNoTextCanEscapeIt(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(rendered, "<!-- cr:record "), "no block marker but f1's own")
 }
 
+// A round with no observation says nothing about them in the header.
+func TestAHeaderWithoutObservationsNamesNone(t *testing.T) {
+	assert.NotContains(t, headerOfFile(t, fileOf(t, headerFacts, aRecord("f1"))), "observations:")
+}
