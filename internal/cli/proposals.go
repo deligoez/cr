@@ -170,6 +170,13 @@ func markUnrunnable(l state.Layout, profileID string, proposals []*proposal.Prop
 			ask.State, ask.Reason = proposal.StateUnrunnable, fmt.Sprintf(
 				"the resolved profile %s declares no tests.probe_path_template, so §5.4.2 has "+
 					"nowhere in the sandbox to place a gap probe's test file", namedProfileID(profileID))
+		// Measured on tarfin-labs/backend#6328 with cr 0.13.0: a proposal
+		// naming paths under laravel-pest, which then set no paths_arg, was
+		// stored open, and `cr probe run --proposal` exited 3 on it.
+		case len(ask.Paths) > 0 && len(p.Tests.PathsArg) == 0:
+			ask.State, ask.Reason = proposal.StateUnrunnable, fmt.Sprintf(
+				"the proposal names paths and the resolved profile %s declares no tests.paths_arg, so §5.2.1 "+
+					"has no way to pass them to the runner", namedProfileID(profileID))
 		}
 	}
 	return nil
