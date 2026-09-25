@@ -174,6 +174,23 @@ func TestTheProbeHeaderNamesTheUncopiedFileAndTheImplicitBaseline(t *testing.T) 
 	assert.Equal(t, []any{uncopied}, honestyList(t, stdout), "`cr test`'s document carries it as well")
 }
 
+// §5.1.2 through `cr sandbox create`: a gitignored file matching
+// `storage/*.key` the sandbox lacks is reported as an `.env` file is, and one
+// deeper under storage/ is not. Measured on tarfin-labs/backend#6328 with cr
+// 0.13.0: Laravel Passport's storage/oauth-private.key and oauth-public.key
+// were not copied and nothing said so, and 19 baseline tests failed `Invalid
+// key supplied`.
+func TestTheSandboxCreationDisclosesAnUncopiedStorageKey(t *testing.T) {
+	root, _, _, profileFile := envFixture(t, []string{".env"},
+		".env", "storage/oauth-private.key", "storage/app/deep.key")
+	stdout, _ := streams(t, "sandbox", "create", fixturePR, "--repo", fixtureSlug)
+	var created map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &created))
+	assert.Equal(t, []any{"storage/oauth-private.key is gitignored at the clone root " + root +
+		" and absent from the sandbox, so the suite runs without it; add it to sandbox.copy in " +
+		profileFile + " to copy it in"}, created["honesty"])
+}
+
 // `cr sandbox create` reports the same uncopied file under honesty, and an
 // empty list when every gitignored env file was copied.
 func TestTheSandboxCreationDisclosesUncopiedEnvFiles(t *testing.T) {
