@@ -16,6 +16,7 @@ import (
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/proposal"
+	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
 	"github.com/deligoez/cr/internal/state"
 )
@@ -198,6 +199,20 @@ func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([
 	return recordsSteps(l, owner, repo, pr, meta.Round, steps)
 }
 
+// rewriteBodies is the draft step's clause for the bodies' language. §6.1.1
+// stores a record in English and §8.1.2 renders its first body verbatim, so a
+// draft whose `render.lang` is anything else holds English bodies under labels
+// in that language until the agent rewrites them. Measured on the first real
+// round, tarfin-labs/backend#6292: every body reached the draft in English for
+// a team that writes Turkish, and the step that would have rewritten them was
+// the skill's, which a hand-run round never read.
+func rewriteBodies(lang render.Lang) string {
+	if lang == render.LangEN {
+		return ""
+	}
+	return "have the agent rewrite each block's English body in render.lang `" + lang.String() + "`, "
+}
+
 // reviewStep is §10.4.6, naming every missing cell. When an intent-coverage
 // cell is among them, the intent pass's own emission comes first, as §4.6.5
 // runs it before the other axes: a unit the mapping left unmapped is owed that
@@ -259,10 +274,15 @@ func recordsSteps(l state.Layout, owner, repo string, pr, round int, steps []nex
 		}
 	}
 	if len(unsent) > 0 {
+		settings, err := resolveDraftSettings(l, owner, repo)
+		if err != nil {
+			return nil, err
+		}
 		steps = append(steps, nextStep{
 			Step: "draft", Actor: actorHuman,
-			Why: "these records are in draft or queued: render the draft, read and edit every block, then " +
-				"validate the payload; sending it is the human's `--confirm`, which this report never gives",
+			Why: "these records are in draft or queued: render the draft, " + rewriteBodies(settings.lang) +
+				"read and edit every block, then validate the payload; sending it is the human's `--confirm`, " +
+				"which this report never gives",
 			Commands: []string{"cr draft " + target, "cr post " + target},
 			Items:    unsent,
 		})
