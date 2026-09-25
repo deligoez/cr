@@ -121,3 +121,19 @@ func TestReplaceOverwritesTheStoredRule(t *testing.T) {
 	assert.Equal(t, second, string(body))
 }
 
+// §2.6.3.9: a rule carrying `source` in the finding register is refused with
+// exit code 1, and nothing is written.
+func TestASourcedRuleInTheFindingRegisterIsRefused(t *testing.T) {
+	layout := state.New(crHome(t))
+	sourced := `{"id":"` + houseRuleID + `","title":"t","rationale":"r","class":"test-name",` +
+		`"kind":"finding","source":["https://github.com/acme/api/pull/7#discussion_r1"]}`
+
+	_, err := added(t, handedRule(t, houseRuleID, sourced))
+
+	var refused *SourcedFindingError
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.Contains(t, hintFor(err), "question")
+	assert.NoFileExists(t, layout.RepoRule(harvestOwner, harvestRepo, houseRuleID))
+}
+
