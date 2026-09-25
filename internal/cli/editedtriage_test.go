@@ -53,6 +53,40 @@ func TestAConfirmedPostMarksWhetherEachKeptBodyWasEdited(t *testing.T) {
 	assert.Equal(t, map[string]string{"f1:kept": "true", "f2:kept": "false"}, editedMarks(t, layout))
 }
 
+// §7.3.2 as the flow runs it: the agent rewrites the bodies in render.lang and
+// runs `cr draft`, which preserves them; the human then posts. A rewrite that
+// draft preserved is not an edit, and only a change made after it is.
+func TestAnEditIsMeasuredAgainstTheBodyTheLastDraftWrote(t *testing.T) {
+	first, second := aCitedRecord("f1"), aCitedRecord("f2")
+	layout := draftedHome(t, first, second)
+	redraft(t)
+	rewrite := func(record *finding.Finding, text string) {
+		t.Helper()
+		body := readDraft(t, layout)
+		rewritten := strings.Replace(body, record.Summary+"\n\n"+record.Evidence, text, 1)
+		require.NotEqual(t, body, rewritten, "the rewrite reached %s's body", record.ID)
+		require.NoError(t, os.WriteFile(
+			layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FileDraft),
+			[]byte(rewritten), 0o600))
+	}
+	rewrite(first, "Ajanın render.lang yeniden yazımı: Decode hatası bu satırda düşürülüyor.")
+	rewrite(second, "Ajanın render.lang yeniden yazımı: bu satır da hatayı düşürüyor.")
+	redraft(t)
+	body := readDraft(t, layout)
+	edited := strings.Replace(body, "bu satır da hatayı düşürüyor.", "bu satır da hatayı sessizce düşürüyor.", 1)
+	require.NotEqual(t, body, edited)
+	require.NoError(t, os.WriteFile(
+		layout.RoundFile(draftOwner, draftRepo, draftPRNum, draftRound, state.FileDraft),
+		[]byte(edited), 0o600))
+	ghShimming(t, builtPayload(t))
+
+	_, err := runPost(t, draftPR, "--repo", draftSlug, "--confirm")
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"f1:kept": "false", "f2:kept": "true"}, editedMarks(t, layout),
+		"the agent's rewrite the last cr draft preserved is not an edit; the change after it is")
+}
+
 // §7.3.2 through `cr stats`: per class and per rule, how many of the kept and
 // softened were posted unedited. An event carrying no mark, written before cr
 // recorded one, is counted apart and never as unedited.
