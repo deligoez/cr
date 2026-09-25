@@ -30,3 +30,8 @@ func TestCodeSpansAreTheInlineSpansOutsideFences(t *testing.T) {
 	assert.Equal(t, []string{"Rule::enum", "value"}, CodeSpans(body))
 }
 
+// A month with one comment has that comment's length as its median.
+func TestAMonthOfOneCommentHasItsLengthAsTheMedian(t *testing.T) {
+	assert.Equal(t, []MonthMedian{{Month: "2025-01", Comments: 1, MedianBodyChars: 7}},
+		MonthMedians([]HistoryComment{{CreatedAt: "2025-01-09T00:00:00Z", BodyChars: 7}}))
+}
