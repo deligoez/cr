@@ -173,3 +173,30 @@ func TestALimitThatCutsTheWindowIsReported(t *testing.T) {
 	assert.False(t, whole.Window.LimitCut)
 }
 
+// §2.6.3.6: a bot, a reply and the pull request's own author are each left out
+// and counted under their reason, and the author is read once per pull request.
+func TestEachExclusionIsCountedByReason(t *testing.T) {
+	historyHome(t)
+	calls := historyGH(t, map[int]string{7: "author", 8: "other"}, []aHistoryComment{
+		{id: 6, pr: 8, login: "ayse", created: "2025-02-06T00:00:00Z", body: "kept on 8"},
+		{id: 5, pr: 7, login: "ayse", created: "2025-02-05T00:00:00Z", body: "kept on 7"},
+		{id: 4, pr: 7, login: "Author", created: "2025-02-04T00:00:00Z", body: "the author's own"},
+		{id: 3, pr: 7, login: "ayse", created: "2025-02-03T00:00:00Z", body: "a reply", replyTo: 1},
+		{id: 2, pr: 7, login: "Copilot", kind: "Bot", created: "2025-02-02T00:00:00Z", body: "a bot"},
+		{id: 1, pr: 7, login: "ayse", created: "2025-02-01T00:00:00Z", body: "kept, answered"},
+	})
+
+	report := fromHistory(t)
+
+	assert.Equal(t, historyExcluded{Bot: 1, Reply: 1, PRAuthor: 1}, report.Excluded)
+	assert.Equal(t, 6, report.Read)
+	assert.Equal(t, 3, report.Included)
+	reads := 0
+	for _, call := range *calls {
+		if strings.HasPrefix(call, "api repos/"+harvestSlug+"/pulls/7") {
+			reads++
+		}
+	}
+	assert.Equal(t, 1, reads, "§2.6.3.6's author read is one per pull request")
+}
+
