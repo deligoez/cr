@@ -38,9 +38,80 @@ const MaxProbeInputSetting = "post.max_probe_input_bytes"
 // expression that no coverage block reaches.
 const gapLimit = "limit: a failed gap probe means either the behaviour is wrong or the supplied test is wrong, and cr cannot distinguish the two"
 
+// evidenceFields are the evidence region's field names in one language.
+//
+// Each is §5.5's or §6.1's field, and a Turkish name is that field's rather
+// than a phrase cr composed, so the author still checks the region against the
+// state cr wrote. The values beneath them — a probe's kind, its `result`, a
+// path — are cr's vocabulary and are written as the record holds them.
+type evidenceFields struct {
+	// lang is the language the row is written in.
+	lang Lang
+	// kind, target, filter, paths and result name §5.5's fields.
+	kind, target, filter, paths, result string
+	// input names §5.5's `input`, and truncated is the row standing in its
+	// place when the input was cut: a format over the bytes shown, the
+	// bytes held, and the setting that cut it, in that order.
+	input, truncated string
+	// outputTail names §5.5's `output_tail`, and counted the row standing in
+	// its place when §8.1.7 shows the lines tests.count_pattern matches.
+	outputTail, counted string
+	// citation names one stored citation of §6.1.
+	citation string
+	// rerun names a probe whose `rerun_of` names the record's probe.
+	rerun string
+}
+
+// evidenceFieldNames is §8.1.7's field names for every language §8.1.1
+// admits, built in and not configurable, as §8.1.4's labels are.
+//
+// Measured with cr 0.15.0 on a real pull request on a private Laravel
+// repository: under render.lang `tr` the region still read `kind:`,
+// `target:`, `paths:`, `result:` and `input:` in an otherwise Turkish comment.
+var evidenceFieldNames = []evidenceFields{
+	{
+		lang: LangEN,
+		kind: "kind", target: "target", filter: "filter", paths: "paths", result: "result",
+		input:      "input",
+		truncated:  "input (truncated to %[1]d of %[2]d bytes by %[3]s)",
+		outputTail: "output_tail",
+		counted:    "output_tail, the lines tests.count_pattern matches",
+		citation:   "citation",
+		rerun:      "rerun",
+	},
+	{
+		lang: LangTR,
+		kind: "tür", target: "hedef", filter: "filtre", paths: "yollar", result: "sonuç",
+		input:      "girdi",
+		truncated:  "girdi (%[3]s gereği %[2]d bayttan %[1]d bayta kısaltıldı)",
+		outputTail: "test çıktısı",
+		counted:    "test çıktısı (özet)",
+		citation:   "kaynak",
+		rerun:      "yeniden koşu",
+	},
+}
+
+// fieldsIn is the evidence region's field names in lang, and English's for a
+// language the table holds no row for or when BodyComment, the body the region
+// is part of, is not one Setting's language governs: English is the language
+// §8.1.2 stores a record in, so a region in it still names the fields the
+// state holds.
+func fieldsIn(lang Lang) evidenceFields {
+	if !BodyComment.AuthorFacing() {
+		return evidenceFieldNames[0]
+	}
+	for _, row := range evidenceFieldNames {
+		if row.lang == lang {
+			return row
+		}
+	}
+	return evidenceFieldNames[0]
+}
+
 // CitedEvidence renders §8.1.7's evidence region for a record graded `cited`:
 // each stored citation as `path:line`, in the order the record holds them,
-// then the re-runs of the probe the record names, and nothing else.
+// then the re-runs of the probe the record names, and nothing else. Its field
+// names are lang's, per evidenceFieldNames.
 //
 // It is template substitution, as ProbeEvidence is. The author opens each
 // location and judges whether it supports the body, which is all §6.2.4 lets a
@@ -51,15 +122,16 @@ const gapLimit = "limit: a failed gap probe means either the behaviour is wrong 
 // region's whole content is those rows. §6.2 grades no record `cited` without
 // a citation, so this is a record cr did not grade rather than an assertion
 // stripped of its support.
-func CitedEvidence(record string, citations []finding.Citation, reruns []*probe.Record) (string, error) {
+func CitedEvidence(lang Lang, record string, citations []finding.Citation, reruns []*probe.Record) (string, error) {
 	if len(citations) == 0 {
-		return RerunEvidence(record, reruns)
+		return RerunEvidence(lang, record, reruns)
 	}
+	fields := fieldsIn(lang)
 	var out strings.Builder
 	for _, cited := range citations {
-		fmt.Fprintf(&out, "citation: %s:%d\n", cited.Path, cited.Line)
+		fmt.Fprintf(&out, "%s: %s:%d\n", fields.citation, cited.Path, cited.Line)
 	}
-	rerunRows(&out, reruns)
+	rerunRows(&out, fields, reruns)
 	return evidenceRegion.checked(record, strings.TrimSuffix(out.String(), "\n"))
 }
 
@@ -70,20 +142,20 @@ func CitedEvidence(record string, citations []finding.Citation, reruns []*probe.
 // §8.1.7 carries the re-runs whatever the grade. Measured on
 // tarfin-labs/backend#6328 with cr 0.13.0: a question whose probe a `--rerun`
 // had since refuted by experiment reached the draft with nothing saying so.
-func RerunEvidence(record string, reruns []*probe.Record) (string, error) {
+func RerunEvidence(lang Lang, record string, reruns []*probe.Record) (string, error) {
 	if len(reruns) == 0 {
 		return "", nil
 	}
 	var out strings.Builder
-	rerunRows(&out, reruns)
+	rerunRows(&out, fieldsIn(lang), reruns)
 	return evidenceRegion.checked(record, strings.TrimSuffix(out.String(), "\n"))
 }
 
 // rerunRows writes one row per re-run: its id and its `result`, under §5.5's
-// field names, in the order given.
-func rerunRows(out *strings.Builder, reruns []*probe.Record) {
+// field names in fields' language, in the order given.
+func rerunRows(out *strings.Builder, fields evidenceFields, reruns []*probe.Record) {
 	for _, rerun := range reruns {
-		fmt.Fprintf(out, "rerun: %s, result: %s\n", rerun.ID, rerun.Result)
+		fmt.Fprintf(out, "%s: %s, %s: %s\n", fields.rerun, rerun.ID, fields.result, rerun.Result)
 	}
 }
 
@@ -136,37 +208,37 @@ func rerunRows(out *strings.Builder, reruns []*probe.Record) {
 // carry Reserved is refused naming the record, under §8.1.3's rejection of a
 // body holding it, rather than written into a draft that reads back wrong.
 func ProbeEvidence(
-	record string, p *probe.Record, maxInput int, countPattern string, reruns []*probe.Record,
+	lang Lang, record string, p *probe.Record, maxInput int, countPattern string, reruns []*probe.Record,
 ) (string, error) {
+	fields := fieldsIn(lang)
 	var out strings.Builder
-	fmt.Fprintf(&out, "kind: %s\n", p.Kind)
-	fmt.Fprintf(&out, "target: %s\n", p.Target)
+	fmt.Fprintf(&out, "%s: %s\n", fields.kind, p.Kind)
+	fmt.Fprintf(&out, "%s: %s\n", fields.target, p.Target)
 	if p.Filter != "" {
-		fmt.Fprintf(&out, "filter: %s\n", p.Filter)
+		fmt.Fprintf(&out, "%s: %s\n", fields.filter, p.Filter)
 	}
 	for _, path := range p.Paths {
-		fmt.Fprintf(&out, "paths: %s\n", path)
+		fmt.Fprintf(&out, "%s: %s\n", fields.paths, path)
 	}
-	fmt.Fprintf(&out, "result: %s\n", p.Result)
+	fmt.Fprintf(&out, "%s: %s\n", fields.result, p.Result)
 	if p.Kind == probe.Gap {
 		out.WriteString(gapLimit + "\n")
 	}
 	input, truncated := capped(p.Input, maxInput)
 	if truncated {
-		fmt.Fprintf(&out, "input (truncated to %d of %d bytes by %s):\n",
-			len(input), len(p.Input), MaxProbeInputSetting)
+		fmt.Fprintf(&out, fields.truncated+":\n", len(input), len(p.Input), MaxProbeInputSetting)
 	} else {
-		out.WriteString("input:\n")
+		out.WriteString(fields.input + ":\n")
 	}
 	out.WriteString(fenced(input))
 	if counted, ok := countedLines(p, countPattern); ok {
-		out.WriteString("output_tail, the lines tests.count_pattern matches:\n")
+		out.WriteString(fields.counted + ":\n")
 		out.WriteString(fenced(counted))
 	} else {
-		out.WriteString("output_tail:\n")
+		out.WriteString(fields.outputTail + ":\n")
 		out.WriteString(fenced(p.OutputTail))
 	}
-	rerunRows(&out, reruns)
+	rerunRows(&out, fields, reruns)
 	return evidenceRegion.checked(record, out.String())
 }
 

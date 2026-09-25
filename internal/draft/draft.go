@@ -118,7 +118,7 @@ func commentOf(
 		return render.Comment{}, err
 	}
 	comment.Provenance = provenance
-	evidence, err := sources.evidence(record)
+	evidence, err := sources.evidence(record, lang)
 	if err != nil {
 		return render.Comment{}, err
 	}

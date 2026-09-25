@@ -17,12 +17,14 @@ import (
 // below recognises it without a dictionary.
 const turkishLetters = "çğıİöşüÇĞÖŞÜ"
 
-// builtInTables are the two tables whose Turkish rows §8.1.4 and §8.4.3 build
-// in per render.lang: the question labels and the review body's framing.
-var builtInTables = []string{"questionLabels", "reviewFramings"}
+// builtInTables are the three tables whose Turkish rows §8.1.4, §8.4.3 and
+// §8.1.7 build in per render.lang: the question labels, the review body's
+// framing, and the evidence region's field names.
+var builtInTables = []string{"questionLabels", "reviewFramings", "evidenceFieldNames"}
 
-// The only Turkish text in the tree is §8.1.4's question labels and §8.4.3's
-// review body framing, per CLAUDE.md's English rule. So no string literal of
+// The only Turkish text in the tree is §8.1.4's question labels, §8.4.3's
+// review body framing and §8.1.7's evidence field names, per CLAUDE.md's
+// English rule. So no string literal of
 // this package's production code carries a Turkish letter unless it sits
 // inside one of builtInTables.
 //
@@ -67,5 +69,5 @@ func TestNoTurkishTextOutsideTheBuiltInTables(t *testing.T) {
 	for _, name := range builtInTables {
 		require.Positive(t, inTables[name], "the scan recognises %s's Turkish rows, so a clean result means something", name)
 	}
-	assert.Empty(t, outside, "Turkish text in internal/render outside §8.1.4's and §8.4.3's built-in tables")
+	assert.Empty(t, outside, "Turkish text in internal/render outside §8.1.4's, §8.4.3's and §8.1.7's built-in tables")
 }

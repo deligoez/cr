@@ -36,11 +36,11 @@ func (e *MissingProbeError) Error() string {
 // record lists its citations, a `probed` one carries its probe, and an
 // `argued` one — which asserts nothing, since §6.3 makes it a question —
 // carries only the re-runs of the probe it names, when there are any.
-func (p *Provenances) evidence(record *finding.Finding) (string, error) {
+func (p *Provenances) evidence(record *finding.Finding, lang render.Lang) (string, error) {
 	reruns := p.reruns(record.Probe)
 	switch record.Grade {
 	case finding.GradeCited:
-		return render.CitedEvidence(record.ID, record.Citations, reruns)
+		return render.CitedEvidence(lang, record.ID, record.Citations, reruns)
 	case finding.GradeProbed:
 		var held *probe.Record
 		if p != nil {
@@ -49,9 +49,9 @@ func (p *Provenances) evidence(record *finding.Finding) (string, error) {
 		if held == nil {
 			return "", &MissingProbeError{Record: record.ID, Probe: record.Probe}
 		}
-		return render.ProbeEvidence(record.ID, held, p.MaxProbeInput, p.CountPattern, reruns)
+		return render.ProbeEvidence(lang, record.ID, held, p.MaxProbeInput, p.CountPattern, reruns)
 	}
-	return render.RerunEvidence(record.ID, reruns)
+	return render.RerunEvidence(lang, record.ID, reruns)
 }
 
 // reruns are the probes at the round's head whose `rerun_of` names the probe
