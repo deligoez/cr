@@ -33,6 +33,12 @@
   "symbols": {
     "lang": "php"
   },
+  "units": {
+    "kinds": [
+      {"kind": "changelog", "globs": ["changelogs/**"], "roles": ["intent-coverage"]},
+      {"kind": "translation", "globs": ["resources/lang/**", "lang/**"], "roles": ["intent-coverage"]}
+    ]
+  },
   "rules": [
     {
       "id": "negative-test-name",
