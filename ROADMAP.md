@@ -475,8 +475,9 @@ M1 and M3 answered two of this item's three slices. What is left has no data at 
   against the code before the draft reached the reviewer and held: a car-sales retailer is never
   *created* as `CAR_SALES` anywhere in the application, so the PR's `creating()` default may never
   fire outside tests; and the guard's wiring into the machine is exercised on its passing side only.
-  **The triage is not in yet** — the reviewer has not read the draft — so kept / softened / deleted
-  counts are owed here when they are. What the round measured about cr itself:
+  **Closed 2026-09-25 without posting, at the reviewer's word, and it carries no triage counts**: the
+  reviewer never read the draft, and the agent-made triage events were removed from the ledger so
+  `cr stats` does not read them as a human's. What the round measured about cr itself:
   - **Speed was the blocker, and is fixed in v0.7.1.** `cr status` took 57–82 s and `cr record` over
     five minutes, because §4.3.1's symbol index started one `git cat-file blob` per source file of the
     head: 8,895 of `cr status`'s 8,913 git processes. One `cat-file --batch` brings `cr status` to
