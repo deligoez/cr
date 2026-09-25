@@ -55,6 +55,12 @@ type Meta struct {
 	// refusal that names `cr claims record` names the flag with it, since
 	// that command reads the issue again and runs the tracker without it.
 	IntentFile string `json:"intent_file,omitempty"`
+	// PRState and PRStateAt are the pull request's state when the last
+	// `cr brief` found it not open — `merged` or `closed` — and the time
+	// GitHub reports for it (§3.7.1). Both are absent while it is open,
+	// and §10.4.10 reads them to name the sandbox a closed one leaves.
+	PRState   string `json:"pr_state,omitempty"`
+	PRStateAt string `json:"pr_state_at,omitempty"`
 }
 
 // ClaimsRecorded reports whether meta.json's claims stamp names the round and
