@@ -1,8 +1,9 @@
 // Package render holds the language every author-facing body is written in.
 //
-// spec/0.1.0.md §8.1.1 configures that language as `render.lang`, defaulting to
-// `tr`. §8.1.4 then requires the question label — the one line §6.3's forcing
-// reaches the reader through — to be built in per `render.lang` and to be
+// §8.1.1 configures that language as `render.lang`, defaulting to `en` since
+// v0.14.0 and to `tr` before it. §8.1.4 then requires the question label — the
+// one line §6.3's forcing reaches the reader through — to be built in per
+// `render.lang` and to be
 // unconfigurable. That cannot hold over a free-form string: an unknown language
 // has no built-in label, and the forcing would reach the author through nothing
 // at all. So v0.1 enumerates exactly two languages, a value outside them aborts
@@ -12,7 +13,7 @@
 // The package holds the domain, the built-in label table, the set of bodies the
 // language governs, and the cr-owned regions rendered from them: the question
 // label, the §8.1.6 provenance region and the §8.1.7 evidence region. It also
-// holds the §8.4.3 review body, which is English whatever the language is.
+// holds the §8.4.3 review body, whose framing is built in per language too.
 package render
 
 import (
@@ -49,15 +50,16 @@ type Lang struct{ code string }
 
 // The two languages v0.1 renders.
 var (
-	// LangTR is Turkish, the default §8.1.1 gives Setting.
+	// LangTR is Turkish.
 	LangTR = Lang{"tr"}
-	// LangEN is English, which is also the language a record is stored in
-	// per §8.1.2 — a body nobody rewrites is already in it.
+	// LangEN is English, the default §8.1.1 gives Setting, which is also
+	// the language a record is stored in per §8.1.2 — a body nobody
+	// rewrites is already in it.
 	LangEN = Lang{"en"}
 )
 
 // langs is the closed set, the default first.
-var langs = []Lang{LangTR, LangEN}
+var langs = []Lang{LangEN, LangTR}
 
 // String returns the language's code, which is what it goes by in Setting.
 func (l Lang) String() string {

@@ -94,7 +94,7 @@ var settings = []setting{
 	// §8.1.1's language. Its key and its default both come from the domain
 	// that owns them, so this table cannot drift from the enumeration the
 	// value is checked against in Resolve.
-	{render.Setting, render.LangTR.String()},
+	{render.Setting, render.LangEN.String()},
 	{"rules.dead_after", 20},
 	{"rules.harvest_min", 3},
 	// §7.3.4's two knobs on the demotion rate, which §7.3.6 reuses for
