@@ -218,7 +218,7 @@ func RunExit(
 ) (Exit, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
-	cmd.Env = os.Environ()
+	cmd.Env = withoutAgent(os.Environ())
 	cmd.Stdout = log
 	cmd.Stderr = log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
