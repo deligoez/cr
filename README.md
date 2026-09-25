@@ -96,8 +96,8 @@ problems it is built to solve.
   unchanged. Nothing
   reaches GitHub without `cr post --confirm`, all comments go in one review
   pinned to the round's head (`commit_id`), and a round posts at most one. A
-  closed or merged pull request is disclosed before you confirm, never refused. Comment bodies follow `render.lang` (default `tr`); the
-  review body is always English.
+  closed or merged pull request is disclosed before you confirm, never refused. Comment bodies and
+  the review body's framing follow `render.lang` (default `en`, set per repository).
 - **Conventions are data.** Project rules live in a versioned corpus, carry their
   rationale, and can ship their own fix as a ready suggestion. A comment body
   posted three times (`rules.harvest_min`) is reported as a candidate rule.
