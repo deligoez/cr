@@ -868,18 +868,14 @@ func exitCodeFor(err error) int {
 
 // hintFor is §12.4's next actionable step for one error.
 //
-// The row that decides the code decides the hint, with five exceptions: when
-// that row is the file-failure floor, the *state.FileError answers for itself,
-// which is what lets it name the command that writes the particular file that
-// was missing rather than one sentence for every file; when that row claims
-// a *config.LayerError, the error names the file or variable, the layer and the
-// key to correct, which one sentence for every layer could not; when that row
-// claims a *profile.UnavailableError, the error names the profile file that
-// has to declare the field, by its path; when that row claims a
-// *git.MalformedPatchError, a refused rename, copy or mode header or stray line
-// names its own removal rather than the shape of a unified diff; and when that
-// row claims a *RemoteMismatchError, the error names the repository `--repo`
-// names and the ones the remotes point at. A row above the
+// The row that decides the code decides the hint, unless the error that row
+// claims carries a hint of its own: a *config.LayerError names the file or
+// variable, the layer and the key to correct, a *profile.UnavailableError the
+// profile file that has to declare the field, a *git.MalformedPatchError the
+// header or line to remove, and a *RemoteMismatchError the repositories on
+// both sides. When the row is the file-failure floor, the *state.FileError
+// answers for itself, which is what lets it name the command that writes the
+// particular file that was missing. A row above the
 // floor keeps its own even when the error it claims carries a file failure
 // inside — *state.NotBriefedError's `cr brief <pr>` is the step, not the bare
 // read that found no meta.json. An error no row claims takes the usage hint,
@@ -889,35 +885,20 @@ func hintFor(err error) string {
 	if row == nil {
 		return usageHint
 	}
-	var layer *config.LayerError
-	if errors.As(err, &layer) && row.claims(layer) {
-		return layer.Hint()
+	// An error that carries its own hint is read for it, by the method rather
+	// than by name. Naming each type was a list a new one had to join, and two
+	// never did: AmbiguousIssueError's candidates (measured 2026-09-22) and
+	// unknownRecordError's listing (2026-09-25), each written, tested at its
+	// own package, and never printed. A *state.FileError is the exception
+	// below, which answers only at the floor so a row above it keeps its step.
+	var hinted interface {
+		error
+		Hint() string
 	}
-	var unavailable *profile.UnavailableError
-	if errors.As(err, &unavailable) && row.claims(unavailable) {
-		return unavailable.Hint()
-	}
-	var patch *git.MalformedPatchError
-	if errors.As(err, &patch) && row.claims(patch) {
-		return patch.Hint()
-	}
-	var mismatch *RemoteMismatchError
-	if errors.As(err, &mismatch) && row.claims(mismatch) {
-		return mismatch.Hint()
-	}
-	// The candidates are in the error's own hint, ready to copy. Measured
-	// 2026-09-22 against deligoez/cr-qa: v0.6.0 wrote that hint and never
-	// read it, so the row's generic step reached the operator instead.
-	var ambiguous *intent.AmbiguousIssueError
-	if errors.As(err, &ambiguous) && row.claims(ambiguous) {
-		return ambiguous.Hint()
-	}
-	// The lookup spans every round, so the row's "`cr brief` opens the round
-	// a newer head belongs to" sends the reader nowhere; the error's own
-	// hint names the listing that holds the posted ids.
-	var unknown *unknownRecordError
-	if errors.As(err, &unknown) && row.claims(unknown) {
-		return unknown.Hint()
+	if errors.As(err, &hinted) && row.claims(hinted) {
+		if _, isFile := hinted.(*state.FileError); !isFile && hinted.Hint() != "" {
+			return hinted.Hint()
+		}
 	}
 	// A zero *state.FileError built outside FileFailure carries no step of
 	// its own, and takes the floor's rather than an empty one.
