@@ -169,6 +169,9 @@ type Settlement struct {
 	Grade    finding.Grade    `json:"grade"`
 	Severity finding.Severity `json:"severity"`
 	Anchor   finding.Anchor   `json:"anchor"`
+	// Edited is §7.3.2's mark as the send read it, absent from a posted.json
+	// written before cr recorded it.
+	Edited *bool `json:"edited,omitempty"`
 }
 
 // Discard is one record the draft discarded, as posted.json names it.

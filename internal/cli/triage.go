@@ -18,10 +18,15 @@ import (
 // triage could disagree about a single record — which is exactly the
 // contradiction round 8's triage-event-key-permits-contradiction closes at the
 // key. Closing it there and reopening it here would be no closure at all.
+//
+// Each carries §7.3.2's edited mark: whether the body the draft holds differs
+// from the record's rendered.json entry, which is exactly what Preserved
+// holds, since draft.Ingest compares the two byte for byte.
 func (t *triaged) settled() []finding.Settled {
 	out := make([]finding.Settled, 0, len(t.read))
 	for _, record := range t.read {
-		out = append(out, finding.Settled{Record: record, Outcome: t.Outcome(record)})
+		_, edited := t.Preserved[record.ID]
+		out = append(out, finding.Settled{Record: record, Outcome: t.Outcome(record), Edited: &edited})
 	}
 	return out
 }

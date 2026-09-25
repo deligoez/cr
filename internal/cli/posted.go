@@ -121,6 +121,7 @@ func recordSentOutcomes(l state.Layout, round *state.Meta, settled []finding.Set
 			Record: one.Record.ID, Outcome: one.Outcome,
 			Kind: one.Record.Kind, Grade: one.Record.Grade,
 			Severity: one.Record.Severity, Anchor: one.Record.Anchor,
+			Edited: one.Edited,
 		})
 	}
 	held, err := l.LockPR(round.Owner, round.Repo, round.PR)

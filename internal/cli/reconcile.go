@@ -413,7 +413,9 @@ func sentSettlements(records []*finding.Finding, sent *post.Sent) []finding.Sett
 	for i := range sent.Outcomes {
 		outcome := &sent.Outcomes[i]
 		if record := recordOf(records, outcome.Record); record != nil {
-			settled = append(settled, finding.Settled{Record: record, Outcome: outcome.Outcome})
+			settled = append(settled, finding.Settled{
+				Record: record, Outcome: outcome.Outcome, Edited: outcome.Edited,
+			})
 		}
 	}
 	return settled
