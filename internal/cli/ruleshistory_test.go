@@ -341,3 +341,23 @@ func treeOf(t *testing.T, root string) []string {
 	return entries
 }
 
+// §2.6.3.5's flags belong to `--from-history`, and a date is YYYY-MM-DD: each
+// misuse is a malformed invocation, and nothing is read.
+func TestAMalformedHistoryInvocationIsUsage(t *testing.T) {
+	historyHome(t)
+	calls := historyGH(t, nil)
+	for name, args := range map[string][]string{
+		"since without the mode": {"rules", "suggest", "--repo", harvestSlug, "--since", "2025-01-01"},
+		"a date of another form": {"rules", "suggest", "--repo", harvestSlug, "--from-history", "--until", "01.03.2025"},
+		"an empty window": {"rules", "suggest", "--repo", harvestSlug, "--from-history",
+			"--since", "2025-03-01", "--until", "2025-03-01"},
+		"a limit of zero": {"rules", "suggest", "--repo", harvestSlug, "--from-history", "--limit", "0"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := runCLI(t, args...)
+			require.Error(t, err)
+			assert.Equal(t, ExitUsage, exitCodeFor(err))
+		})
+	}
+	assert.Empty(t, *calls)
+}
