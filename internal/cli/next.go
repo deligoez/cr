@@ -15,6 +15,7 @@ import (
 
 	"github.com/deligoez/cr/internal/axis"
 	"github.com/deligoez/cr/internal/finding"
+	"github.com/deligoez/cr/internal/observation"
 	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
@@ -206,8 +207,8 @@ func roundSteps(l state.Layout, owner, repo string, pr int, meta *state.Meta) ([
 	if err != nil {
 		return nil, err
 	}
-	if len(pending.reviews)+len(pending.proposals) > 0 {
-		steps = append(steps, recordStep(l, owner, repo, pr, meta.Round, pending))
+	if len(pending.reviews)+len(pending.proposals)+len(pending.observations) > 0 {
+		steps = append(steps, recordStep(l, owner, repo, pr, meta.Round, &pending))
 	}
 	_, missing, err := statusCoverage(l, owner, repo, pr, meta)
 	if err != nil {
@@ -404,13 +405,13 @@ func prTarget(owner, repo string, pr int) string {
 // pendingFiles are the fan-out files §10.4.5 names, by kind, and those of them
 // that also hold ids the round already holds.
 type pendingFiles struct {
-	reviews, proposals, mixed []string
+	reviews, proposals, observations, mixed []string
 }
 
 // recordStep is §10.4.5: merging and recording what the roles wrote. The merged
 // file goes beside the round's fan-out, which holds the agent's files rather
 // than cr's, so the command writes nowhere §2.3 fences.
-func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendingFiles) nextStep {
+func recordStep(l state.Layout, owner, repo string, pr, round int, pending *pendingFiles) nextStep {
 	target := prTarget(owner, repo, pr)
 	commands := make([]string, 0, 2+len(pending.proposals))
 	if len(pending.reviews) > 0 {
@@ -426,7 +427,10 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 	for _, file := range pending.proposals {
 		commands = append(commands, "cr proposals record "+target+" "+shellWord(file))
 	}
-	why := "the roles wrote records or proposals this round does not hold yet"
+	for _, file := range pending.observations {
+		commands = append(commands, "cr observations record "+target+" "+shellWord(file))
+	}
+	why := "the roles wrote records, proposals or observations this round does not hold yet"
 	if len(pending.mixed) > 0 {
 		// A role that appended to a file already recorded leaves one
 		// the commands refuse as a whole, naming an id already held.
@@ -437,7 +441,7 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 		Step: "record", Actor: actorCr,
 		Why:      why,
 		Commands: commands,
-		Items:    append(slices.Clone(pending.reviews), pending.proposals...),
+		Items:    append(append(slices.Clone(pending.reviews), pending.proposals...), pending.observations...),
 	}
 }
 
@@ -445,9 +449,14 @@ func recordStep(l state.Layout, owner, repo string, pr, round int, pending pendi
 // holding a record id the round does not hold, unless the round's last merge
 // or record ran after the file was last written — a record either dropped as
 // waived or already posted, which the round holds no line for — and a
-// proposals file holding a proposal id the round does not hold.
+// proposals file holding a proposal id the round does not hold, and an
+// observations file holding a line and written after the last
+// `cr observations record`, which is the last write of observations.ndjson.
 func unrecordedFiles(l state.Layout, owner, repo string, pr, round int) (pendingFiles, error) {
-	pending := pendingFiles{reviews: make([]string, 0), proposals: make([]string, 0), mixed: make([]string, 0)}
+	pending := pendingFiles{
+		reviews: make([]string, 0), proposals: make([]string, 0),
+		observations: make([]string, 0), mixed: make([]string, 0),
+	}
 	dir := filepath.Join(l.PRDir(owner, repo, pr), state.DirFanOut, strconv.Itoa(round))
 	units, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -461,11 +470,12 @@ func unrecordedFiles(l state.Layout, owner, repo string, pr, round int) (pending
 		return pending, err
 	}
 	intake := lastIntake(l.RoundFile(owner, repo, pr, round, state.FileIntake))
+	observed := lastIntake(l.PRFile(owner, repo, pr, state.FileObservations))
 	for _, entry := range units {
 		if !entry.IsDir() {
 			continue
 		}
-		if err := pending.scanUnit(filepath.Join(dir, entry.Name()), held, intake); err != nil {
+		if err := pending.scanUnit(filepath.Join(dir, entry.Name()), held, intake, observed); err != nil {
 			return pending, err
 		}
 	}
@@ -474,7 +484,7 @@ func unrecordedFiles(l state.Layout, owner, repo string, pr, round int) (pending
 
 // scanUnit adds one unit directory's unrecorded files. Every file is looked at:
 // one with nothing owed says nothing about the file beside it.
-func (p *pendingFiles) scanUnit(dir string, held map[string]bool, intake time.Time) error {
+func (p *pendingFiles) scanUnit(dir string, held map[string]bool, intake, observed time.Time) error {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		return state.FileFailure("read", dir, fanOutReadHint, err)
@@ -486,6 +496,16 @@ func (p *pendingFiles) scanUnit(dir string, held map[string]bool, intake time.Ti
 			continue
 		}
 		path := filepath.Join(dir, file.Name())
+		if observation.IsFanOutFile(file.Name()) {
+			owed, err := observationsOwed(path, observed)
+			if err != nil {
+				return state.FileFailure("read", path, fanOutReadHint, err)
+			}
+			if owed {
+				p.observations = append(p.observations, path)
+			}
+			continue
+		}
 		_, review := finding.RoleForFile(path)
 		isProposals := proposalsFile(file.Name())
 		if !review && !isProposals {
@@ -563,8 +583,23 @@ func holdsUnheld(path string, held map[string]bool) (unheld, mixed bool, err err
 	return unheld, unheld && heldAny, nil
 }
 
-// lastIntake is when the round's last `cr merge` or `cr record` wrote
-// intake.json, and the zero time when neither has run.
+// observationsOwed reports whether an observations file §10.4.5 names is owed
+// a recording: it holds a line, and was last written after since. A file a
+// role left empty observes nothing, and recording it would store nothing.
+func observationsOwed(path string, since time.Time) (bool, error) {
+	if !writtenAfter(path, since) {
+		return false, nil
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	return len(state.RecordLines(body)) > 0, nil
+}
+
+// lastIntake is when the file at path was last written, and the zero time when
+// it is not there: intake.json, written by the round's last `cr merge` or
+// `cr record`, and observations.ndjson, by the last `cr observations record`.
 func lastIntake(path string) time.Time {
 	info, err := os.Stat(path)
 	if err != nil {
