@@ -67,6 +67,11 @@ type Baseline struct {
 	// with an earlier generation measured a sandbox that no longer exists,
 	// and §5.2.6 does not resolve it as a baseline.
 	Generation string `json:"generation,omitempty"`
+	// Profile is the id of the profile the sandbox was built under, and
+	// points at the empty string when §2.4.4 matched none. It is nil in a
+	// baseline an earlier cr recorded, which names no profile at all, so
+	// the absence of a record stays apart from the record of no profile.
+	Profile *string `json:"profile,omitempty"`
 }
 
 // SnapshotBaseline reads the tracked-file state of the sandbox at path and
@@ -118,6 +123,8 @@ func (src *Sources) recordBaseline(path string, entries []string) (string, error
 		return "", err
 	}
 	recorded.Generation = time.Now().UTC().Format(time.RFC3339Nano)
+	profile := src.Profile
+	recorded.Profile = &profile
 	body, err := encodeBaseline(recorded)
 	if err != nil {
 		return "", err

@@ -75,6 +75,10 @@ type Sources struct {
 	// Require is the resolved profile's `sandbox.require` (§2.4, §5.1.8):
 	// the paths a test or probe run refuses to start without.
 	Require []string
+	// Profile is the id of the profile the round resolved, and empty for
+	// §2.4.4's outcome, where none matched. §5.1.6 records it in the
+	// post-setup baseline and rebuilds a sandbox built under another.
+	Profile string
 	// ProfileFile is the file those two came out of. It carries no
 	// behaviour and exists so a refusal can name the file the user has to
 	// open, which is what §2.5 item 3 requires of the abort.
