@@ -122,6 +122,33 @@ func TestTheDraftStepNeverCarriesTheConfirmation(t *testing.T) {
 	}
 }
 
+// The draft step asks for the English bodies to be rewritten in render.lang
+// before the human reads them, and asks nothing when that language is English.
+func TestTheDraftStepAsksForTheBodiesInTheRenderLanguage(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	held, err := layout.LockPR(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	require.NoError(t, held.Write(state.FileFindings, []byte(
+		`{"id":"f1","state":"queued","head":"`+meta.Head+`","round":1}`+"\n")))
+	require.NoError(t, held.Unlock())
+
+	report := nextOfFixture(t)
+
+	assert.Contains(t, stepNamed(t, &report, "draft").Why, "rewrite each block's English body in render.lang `tr`")
+
+	config := layout.RepoConfig(fixtureOwner, fixtureProject)
+	require.NoError(t, os.MkdirAll(filepath.Dir(config), 0o700))
+	require.NoError(t, os.WriteFile(config, []byte(`{"render": {"lang": "en"}}`), 0o600))
+
+	report = nextOfFixture(t)
+
+	assert.NotContains(t, stepNamed(t, &report, "draft").Why, "rewrite")
+}
+
 // §10.4.2: a pull request no brief has opened owes the brief, and nothing else
 // can be read about it.
 func TestAnUnbriefedPullRequestOwesTheBrief(t *testing.T) {
