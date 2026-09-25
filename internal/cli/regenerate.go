@@ -97,7 +97,12 @@ func ingestDraft(
 		}
 	}
 	applyRetriage(triage.Retriaged)
-	return triaged{Triage: triage, read: rendered}, nil
+	written, _, err := state.ReadRoundSection[map[string]string](
+		l, owner, repo, pr, round.Round, state.FileSummary, summaryDraftedBodies)
+	if err != nil {
+		return triaged{}, err
+	}
+	return triaged{Triage: triage, read: rendered, written: written}, nil
 }
 
 // anchorTrees are §6.1.2's two revisions for this round, each opened only when
@@ -180,6 +185,9 @@ func applyRetriage(edits []draft.Retriage) {
 type triaged struct {
 	draft.Triage
 	read []*finding.Finding
+	// written is summaryDraftedBodies as the round's last `cr draft` left
+	// it, and nil when no draft of this version wrote one.
+	written map[string]string
 }
 
 // discarded are the records this run's triage discards, whatever the verb.

@@ -91,10 +91,10 @@ type TriageEvent struct {
 	Rule string `json:"rule,omitempty"`
 	// Edited is §7.3.2's mark on a `kept` or `softened` event: true when
 	// the body posted differs from the body the round's last `cr draft`
-	// rendered for the record, its rendered.json entry, and false when it
-	// does not. It is absent on every other action, and on an event written
-	// before cr recorded it, which is why it is a pointer: an absent mark is
-	// not the same answer as an unedited body.
+	// wrote into draft.md for the record, an agent's rewrite it preserved
+	// included, and false when it does not. It is absent on every other
+	// action, and on an event nothing measured it for, which is why it is a
+	// pointer: an absent mark is not the same answer as an unedited body.
 	Edited *bool `json:"edited,omitempty"`
 	// PR, Round and Head are the occasion the event was written for.
 	PR    int    `json:"pr"`
@@ -155,8 +155,8 @@ type Settled struct {
 	Record *Finding
 	// Outcome is one of §7.3.1's six outcome actions.
 	Outcome Outcome
-	// Edited is whether the body posted differs from the record's
-	// rendered.json entry, per §7.3.2, and nil when it is not known. It is
+	// Edited is whether the body posted differs from the one the round's
+	// last `cr draft` wrote, per §7.3.2, and nil when it is not known. It is
 	// carried onto a `kept` or `softened` event and onto no other.
 	Edited *bool
 }

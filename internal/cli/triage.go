@@ -20,13 +20,20 @@ import (
 // key. Closing it there and reopening it here would be no closure at all.
 //
 // Each carries §7.3.2's edited mark: whether the body the draft holds differs
-// from the record's rendered.json entry, which is exactly what Preserved
-// holds, since draft.Ingest compares the two byte for byte.
+// from the one the round's last `cr draft` wrote into it, an agent's rewrite
+// that draft preserved included. So only a change made after that draft counts,
+// which is the human's. The mark is nil for a record that draft wrote no body
+// for, and for a round drafted before cr kept the bodies: nothing then says
+// what was written.
 func (t *triaged) settled() []finding.Settled {
 	out := make([]finding.Settled, 0, len(t.read))
 	for _, record := range t.read {
-		_, edited := t.Preserved[record.ID]
-		out = append(out, finding.Settled{Record: record, Outcome: t.Outcome(record), Edited: &edited})
+		one := finding.Settled{Record: record, Outcome: t.Outcome(record)}
+		if written, found := t.written[record.ID]; found {
+			edited := t.Regions[record.ID] != written
+			one.Edited = &edited
+		}
+		out = append(out, one)
 	}
 	return out
 }
