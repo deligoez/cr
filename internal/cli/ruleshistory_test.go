@@ -152,3 +152,24 @@ func TestTheWindowIsReadByCreationTime(t *testing.T) {
 	assert.Equal(t, 2, report.Read)
 }
 
+// §2.6.3.5: the read stops at `--limit` opening comments and reports that the
+// limit cut it; a window that ends exactly at the limit was not cut.
+func TestALimitThatCutsTheWindowIsReported(t *testing.T) {
+	historyHome(t)
+	listing := []aHistoryComment{
+		{id: 3, pr: 7, login: "ayse", created: "2025-02-03T00:00:00Z", body: "three"},
+		{id: 2, pr: 7, login: "ayse", created: "2025-02-02T00:00:00Z", body: "two"},
+		{id: 1, pr: 7, login: "ayse", created: "2025-02-01T00:00:00Z", body: "one"},
+	}
+	historyGH(t, map[int]string{7: "author"}, listing)
+
+	cut := fromHistory(t, "--limit", "2")
+	whole := fromHistory(t, "--limit", "3")
+
+	assert.Len(t, cut.Comments, 2)
+	assert.True(t, cut.Window.LimitCut)
+	assert.Equal(t, "2025-02-02T00:00:00Z", cut.Window.Oldest)
+	assert.Len(t, whole.Comments, 3)
+	assert.False(t, whole.Window.LimitCut)
+}
+
