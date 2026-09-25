@@ -18,14 +18,14 @@ import (
 // coding-agent detectors read, so a runner that prints differently under an
 // agent prints the recap tests.count_pattern reads.
 //
-// Measured on tarfin-labs/backend#6328 with cr 0.13.0: under Claude Code
-// (AI_AGENT=claude-code_…) Pest 4 printed one JSON line in place of its recap,
+// Measured on tarfin-labs/backend#6328 with cr 0.13.0: under Claude Code,
+// which sets AI_AGENT, Pest 4 printed one JSON line in place of its recap,
 // so rounds 1 and 2 read tests_run null and passed false over an exit of 0,
 // and round 3, with AI_AGENT unset, read 21 run, 0 failed, and passed. The
 // runner here behaves the same way for every variable on the list.
 func TestTheRunnerDoesNotSeeACodingAgent(t *testing.T) {
 	for _, name := range sandbox.AgentVariables {
-		t.Setenv(name, "claude-code_test")
+		t.Setenv(name, "an-agent")
 	}
 	countedTestHome(t, "#!/bin/sh\n"+
 		"if env | grep -q -E '^("+strings.Join(sandbox.AgentVariables, "|")+")='; then\n"+

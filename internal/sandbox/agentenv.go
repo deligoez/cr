@@ -11,7 +11,7 @@ import (
 // The list is the union of what vendor/laravel/agent-detector and
 // vendor/ergebnis/agent-detector read, as found in tarfin-labs/backend's
 // vendor directory. Measured on tarfin-labs/backend#6328 with cr 0.13.0: run
-// under Claude Code (AI_AGENT=claude-code_…), Pest 4 printed
+// under Claude Code, which sets AI_AGENT, Pest 4 printed
 // `{"tool":"pest","result":"passed","tests":21,"passed":21,"assertions":154,"duration_ms":1571}`
 // in place of its recap, so rounds 1 and 2 read tests_run null and passed
 // false over an exit of 0, and round 3, with AI_AGENT unset, read 21 run, 0
