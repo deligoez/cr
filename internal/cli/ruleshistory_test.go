@@ -1,0 +1,154 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/deligoez/cr/internal/gh"
+	"github.com/deligoez/cr/internal/rule"
+	"github.com/deligoez/cr/internal/state"
+)
+
+// aHistoryComment is one comment of the REST listing, in GitHub's own field
+// names as measured on tarfin-labs/backend.
+type aHistoryComment struct {
+	id      int64
+	pr      int
+	login   string
+	kind    string
+	created string
+	body    string
+	path    string
+	replyTo int64
+}
+
+// rest renders the comment the way `repos/<o>/<r>/pulls/comments` answers it.
+func (c *aHistoryComment) rest() map[string]any {
+	kind := c.kind
+	if kind == "" {
+		kind = "User"
+	}
+	path := c.path
+	if path == "" {
+		path = "app/Models/User.php"
+	}
+	node := map[string]any{
+		"id": c.id, "html_url": fmt.Sprintf("https://github.com/%s/pull/%d#discussion_r%d", harvestSlug, c.pr, c.id),
+		"pull_request_url": fmt.Sprintf("https://api.github.com/repos/%s/pulls/%d", harvestSlug, c.pr),
+		"user":             map[string]any{"login": c.login, "type": kind},
+		"body":             c.body, "path": path, "line": 12, "side": "RIGHT",
+		"created_at": c.created, "updated_at": "2026-09-25T00:00:00Z",
+	}
+	if c.replyTo != 0 {
+		node["in_reply_to_id"] = c.replyTo
+	}
+	return node
+}
+
+// historyGH installs a gh that answers the two reads §2.6.3.5 and §2.6.3.6
+// make, in the argv the real gh accepts, and refuses every other invocation.
+// pages are the listing's pages newest first; authors are the pull requests'
+// openers. It returns the invocations it was given.
+func historyGH(t *testing.T, authors map[int]string, pages ...[]aHistoryComment) *[]string {
+	t.Helper()
+	calls := &[]string{}
+	listing := "repos/" + harvestSlug + "/pulls/comments?sort=created&direction=desc&per_page=100&page="
+	restore := ghClient
+	ghClient = func() gh.Client {
+		return gh.WithRunner(func(args ...string) (string, error) {
+			*calls = append(*calls, strings.Join(args, " "))
+			if len(args) != 2 || args[0] != "api" {
+				return "", fmt.Errorf("no answer for %q", args)
+			}
+			if number, ok := strings.CutPrefix(args[1], listing); ok {
+				page, err := strconv.Atoi(number)
+				if err != nil || page < 1 {
+					return "", fmt.Errorf("no page %q", number)
+				}
+				nodes := make([]map[string]any, 0)
+				if page <= len(pages) {
+					for i := range pages[page-1] {
+						nodes = append(nodes, pages[page-1][i].rest())
+					}
+				}
+				body, err := json.Marshal(nodes)
+				return string(body), err
+			}
+			if number, ok := strings.CutPrefix(args[1], "repos/"+harvestSlug+"/pulls/"); ok {
+				pr, err := strconv.Atoi(number)
+				if login, known := authors[pr]; err == nil && known {
+					return fmt.Sprintf(`{"number":%d,"user":{"login":%q}}`, pr, login), nil
+				}
+			}
+			return "", fmt.Errorf("no answer for %q", args)
+		})
+	}
+	t.Cleanup(func() { ghClient = restore })
+	return calls
+}
+
+// historyHome is a state root and a checkout with nothing in either.
+func historyHome(t *testing.T) state.Layout {
+	t.Helper()
+	layout := state.New(crHome(t))
+	require.NoError(t, layout.Init())
+	checkout := t.TempDir()
+	restore := repoDir
+	repoDir = func() (string, error) { return checkout, nil }
+	t.Cleanup(func() { repoDir = restore })
+	return layout
+}
+
+// fromHistory runs `cr rules suggest --from-history` and returns its report.
+func fromHistory(t *testing.T, args ...string) rulesHistoryResult {
+	t.Helper()
+	printed, err := runCLIPrinting(t, append([]string{"rules", "suggest", "--repo", harvestSlug, "--from-history"},
+		args...)...)
+	require.NoError(t, err)
+	var report rulesHistoryResult
+	require.NoError(t, json.Unmarshal([]byte(printed), &report))
+	return report
+}
+
+// urlsOf is the included comments by URL.
+func urlsOf(report *rulesHistoryResult) []string {
+	urls := make([]string, 0, len(report.Comments))
+	for i := range report.Comments {
+		urls = append(urls, report.Comments[i].URL)
+	}
+	return urls
+}
+
+// §2.6.3.5: the window is read by `created_at`, `since` inclusive and `until`
+// exclusive, and the read stops at the first comment older than the window. A
+// comment updated inside the window and created after it is not in it.
+func TestTheWindowIsReadByCreationTime(t *testing.T) {
+	historyHome(t)
+	historyGH(t, map[int]string{7: "author"}, []aHistoryComment{
+		{id: 5, pr: 7, login: "ayse", created: "2025-03-01T00:00:00Z", body: "after"},
+		{id: 4, pr: 7, login: "ayse", created: "2025-02-10T09:00:00Z", body: "inside"},
+		{id: 3, pr: 7, login: "ayse", created: "2025-01-01T00:00:00Z", body: "first day"},
+		{id: 2, pr: 7, login: "ayse", created: "2024-12-31T23:59:59Z", body: "before"},
+	})
+
+	report := fromHistory(t, "--since", "2025-01-01", "--until", "2025-03-01")
+
+	assert.Equal(t, []string{
+		"https://github.com/acme/api/pull/7#discussion_r4", "https://github.com/acme/api/pull/7#discussion_r3",
+	}, urlsOf(&report))
+	assert.Equal(t, historyWindow{
+		Since: "2025-01-01", Until: "2025-03-01", Limit: defaultHistoryLimit,
+		Newest: "2025-02-10T09:00:00Z", Oldest: "2025-01-01T00:00:00Z",
+	}, report.Window)
+	assert.Equal(t, 2, report.Read)
+}
+
