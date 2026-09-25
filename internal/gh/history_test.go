@@ -61,3 +61,16 @@ func TestAReviewCommentNamingNoPullRequestIsRefused(t *testing.T) {
 	assert.Contains(t, err.Error(), "names no pull request")
 }
 
+// §2.6.3.6 reads a pull request's opener through the REST read, a GET.
+func TestAPullRequestsAuthorIsReadThroughTheRESTEndpoint(t *testing.T) {
+	var called []string
+	author, err := WithRunner(answering(`{"number":7,"user":{"login":"alice"}}`, &called)).
+		PullAuthor("acme", "shop", 7)
+
+	require.NoError(t, err)
+	assert.Equal(t, "alice", author)
+	assert.Equal(t, []string{"api", "repos/acme/shop/pulls/7"}, called)
+	read, why := readOnly(called)
+	assert.True(t, read, why)
+}
+
