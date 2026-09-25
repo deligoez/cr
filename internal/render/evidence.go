@@ -96,16 +96,16 @@ var evidenceFieldNames = []evidenceFields{
 // is part of, is not one Setting's language governs: English is the language
 // §8.1.2 stores a record in, so a region in it still names the fields the
 // state holds.
-func fieldsIn(lang Lang) evidenceFields {
+func fieldsIn(lang Lang) *evidenceFields {
 	if !BodyComment.AuthorFacing() {
-		return evidenceFieldNames[0]
+		return &evidenceFieldNames[0]
 	}
-	for _, row := range evidenceFieldNames {
-		if row.lang == lang {
-			return row
+	for i := range evidenceFieldNames {
+		if evidenceFieldNames[i].lang == lang {
+			return &evidenceFieldNames[i]
 		}
 	}
-	return evidenceFieldNames[0]
+	return &evidenceFieldNames[0]
 }
 
 // CitedEvidence renders §8.1.7's evidence region for a record graded `cited`:
@@ -153,7 +153,7 @@ func RerunEvidence(lang Lang, record string, reruns []*probe.Record) (string, er
 
 // rerunRows writes one row per re-run: its id and its `result`, under §5.5's
 // field names in fields' language, in the order given.
-func rerunRows(out *strings.Builder, fields evidenceFields, reruns []*probe.Record) {
+func rerunRows(out *strings.Builder, fields *evidenceFields, reruns []*probe.Record) {
 	for _, rerun := range reruns {
 		fmt.Fprintf(out, "%s: %s, %s: %s\n", fields.rerun, rerun.ID, fields.result, rerun.Result)
 	}
