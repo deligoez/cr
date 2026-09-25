@@ -68,3 +68,21 @@ func TestAValidRuleIsStoredInThePerRepositoryLayer(t *testing.T) {
 	assert.Equal(t, []string{"https://github.com/acme/api/pull/7#discussion_r1"}, corpus[0].Rule.Source)
 }
 
+// §2.6.3.9: a malformed rule is refused with exit code 1 naming the field, and
+// nothing is written. The same file found in the corpus would be §2.6 item 5's
+// code 3; handed to the command it is input data.
+func TestAMalformedRuleIsRefusedNamingTheField(t *testing.T) {
+	layout := state.New(crHome(t))
+	handed := handedRule(t, houseRuleID, `{"id":"`+houseRuleID+`","title":"t","class":"test-name"}`)
+
+	_, err := added(t, handed)
+
+	require.Error(t, err)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	var malformed *rule.MalformedError
+	require.ErrorAs(t, err, &malformed)
+	assert.Equal(t, "rationale", malformed.Field)
+	assert.Contains(t, hintFor(err), "rules add")
+	assert.NoFileExists(t, layout.RepoRule(harvestOwner, harvestRepo, houseRuleID))
+}
+
