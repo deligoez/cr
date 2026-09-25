@@ -23,6 +23,7 @@ paragraphs of this file used to carry is the Shipped table below.
 | v0.3.0 | The contract caught up with the trial: a probe baseline scoped to its own filter and paths, `sandbox.require`, `--intent-extra` issue files, a `cr review` that emits only what the round still owes (`--units`, `--shard`, `--all`) over one per-round contract file, role class vocabularies, `cr triage`, §2.3's state-file fence, and `cr init` refreshing ejected roles |
 | v0.3.1 | The six defects cr found reviewing its own v0.1.0 packages (`spec/measurements/2026-09-18-m1-…`): the reserved marker sequence refused where a record enters, a rewrite refusal offering only the remedy that works, a corrupt `rendered.json` exiting 3, a sandbox directory that is not a readable worktree rebuilt, a copy that no longer writes through a symbolic link the head checked out, a bounded wait after the timeout kill |
 | v0.4.0 | §5.7, proposed experiments: a role that holds a suspicion it cannot establish writes it as a proposal, `cr proposals record` stores it, and `cr probe run --proposal` executes it and re-grades the record it names. The evidence was M3's grade distribution, 0 probed of 51 records |
+| v0.14.0 | What the first live tester found on `tarfin-labs/backend#6328`: a cell citing a note is not made stale by it (§4.6.1); the issue's own link is not listed as unread (§3.1.7); the test runner is started without coding-agent variables, and a clean exit with no count is disclosed (§5.2.1); every prompt names its cell path and `contract.md` carries the cell schema (§4.6.2); `laravel-pest` passes `--path` (§2.4.5); a pathed proposal the profile cannot run is stored `unrunnable` and one whose probe settled nothing runs again (§5.7.3, §5.7.5); a gitignored `storage/*.key` is reported (§5.1.2); the evidence region trims a passing tail and carries a probe's re-runs whatever the grade (§8.1.7); `render.lang` defaults to `en` and frames the review body (§8.1.1, §8.4.3); `cr test` prints `output_tail` |
 | v0.13.0 | House style from the team's own reviews (§2.6.3.5–§2.6.3.9): `cr rules suggest --from-history` reports a repository's human review comments over a `created_at` window, with bots, replies and the pull request's own author excluded and counted, each month's median comment length, and groups by path shape, code span and body held to distinct pull requests; `cr rules add` validates a rule the agent wrote and stores it in the per-repository layer, and refuses a rule carrying `source` in the finding register |
 | v0.12.0 | §9.5.4, implemented where it can be run on purpose: `cr probe run <pr> --rerun <probe-id>` repeats a stored probe's kind, input, filter, paths and target at the current round's head and records the new probe's `rerun_of`, and `cr recheck` reports each posted record's latest re-run and its result, or the command that performs one — and never runs a test itself, because a suite run on a real repository can reach a local database |
 | v0.11.2 | Three small things the first real rounds and the QA pass left: a repository slug is folded to lower case and loses a `.git` suffix, so `--repo` reaches the same state in every spelling on every filesystem; `cr next` sends a missing intent-coverage cell through the intent pass; and its draft step asks for the English bodies to be rewritten in `render.lang` before the human reads them, the step round 1 skipped by hand |
@@ -75,6 +76,14 @@ paragraphs of this file used to carry is the Shipped table below.
 - ~~`cr next` does not point back to `cr review --axis intent` when the mapping left a unit unmapped.~~
   *Shipped in v0.11.2: a missing intent-coverage cell opens the review step with the intent pass's
   own emission.*
+
+*Left from the first live tester's report on `tarfin-labs/backend#6328`, 2026-09-25, not yet fixed:*
+- jira-cli's decoration is counted among the issue's uncovered paragraphs: 5 of the 8 `cr brief`
+  reported.
+- The `.env.e2e` notice has no way to be silenced but `sandbox.copy`.
+- The `laravel-pest` name sits on a suite of PHPUnit-class tests.
+- Identical sibling units are not flagged as duplicates.
+- The rules-without-detector sections do not say which rule reaches which role.
 
 - ~~**§9.4 migrates exactly the records §9.3.4 stales. Two readings; the user decides.**~~ *Shipped in
   v0.7.0 as reading (i), `spec/0.7.0.md` §9.3.4 and §9.4.5–§9.4.8, and measured on `deligoez/cr-qa#23`:
