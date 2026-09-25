@@ -474,3 +474,24 @@ func TestAnUnclaimedRoundOwesTheClaimsAndThenTheIntentPass(t *testing.T) {
 	require.NotEmpty(t, report.Steps)
 	assert.Equal(t, "intent", report.Steps[0].Step)
 }
+
+// §10.4.9: a posted record still awaiting a verdict is the agent's recheck,
+// naming the record, and is not the human's draft.
+func TestAPostedRecordOwesTheRecheck(t *testing.T) {
+	statusHome(t)
+	layout, err := state.Default()
+	require.NoError(t, err)
+	meta, err := layout.ReadMeta(fixtureOwner, fixtureProject, fixturePRNumber)
+	require.NoError(t, err)
+	holdRecords(t, layout, fixtureOwner, fixtureProject, fixturePRNumber,
+		`{"id":"f3","kind":"question","summary":"why is the retry unbounded?","state":"posted",`+
+			`"thread_id":"PRRT_q","head":"`+meta.Head+`","round":1}`)
+
+	report := nextOfFixture(t)
+
+	recheck := stepNamed(t, &report, "recheck")
+	assert.Equal(t, actorAgent, recheck.Actor)
+	assert.Equal(t, []string{"f3"}, recheck.Items)
+	assert.Equal(t, []string{"cr recheck " + fixturePR + " --repo " + fixtureSlug}, recheck.Commands)
+	assert.NotContains(t, stepNames(&report), "draft", "a posted record is not unsent")
+}
