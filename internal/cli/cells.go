@@ -17,13 +17,6 @@ import (
 	"github.com/deligoez/cr/internal/state"
 )
 
-// cellKeyFields is §4.5.6's key, by the JSON names coverage.ndjson holds them
-// under: a cell sits at one `(unit, role)`, and that pair is what a recording
-// replaces. It is declared here, beside the command §4.5.6 gives the rule to,
-// rather than inside internal/state, which is generic over all nine files of
-// §2.3.3 and knows nothing about what makes a cell a cell.
-var cellKeyFields = []string{"unit", "role"}
-
 // cellsRecordResult is what `cr cells record` has to report: the cells it
 // stored, whole, and the round they were filled in.
 //
@@ -35,6 +28,11 @@ var cellKeyFields = []string{"unit", "role"}
 type cellsRecordResult struct {
 	// Recorded are the cells as they were written, in file order.
 	Recorded []*coverage.Cell `json:"recorded"`
+	// Twinned are the cells §4.6.8 had cr record beside them, at the
+	// twins of the units Recorded names, each with a reason naming the
+	// earlier unit. They are reported apart because no line of the
+	// caller's file holds them.
+	Twinned []*coverage.Cell `json:"twinned"`
 	// Round is the round whose cells were replaced. §4.5.6 replaces only
 	// the named `(unit, role)` pairs and §9.3.5 scopes that to the round,
 	// so it is reported: it is the difference between a run that replaced
@@ -55,8 +53,12 @@ type cellsRecordResult struct {
 // themselves came from the caller's own file, so printing them into a terminal
 // would repeat what the caller has.
 func (r *cellsRecordResult) Text(w *writer) string {
+	twinned := ""
+	if len(r.Twinned) > 0 {
+		twinned = ", and " + strconv.Itoa(len(r.Twinned)) + " at their units' twins per §4.6.8"
+	}
 	return "recorded " + w.accent(strconv.Itoa(len(r.Recorded))) +
-		" cell(s) in round " + strconv.Itoa(r.Round) +
+		" cell(s) in round " + strconv.Itoa(r.Round) + twinned +
 		w.disclose("\n", "", r.Honesty...)
 }
 
@@ -140,13 +142,18 @@ func newCellsRecordCmd(out *writer) *cobra.Command {
 			// once. The unit is known to be one of the round's:
 			// coverage.Decode refused the file otherwise.
 			stampUnitHashes(cells, formed)
+			// §4.6.8: a cell recorded at a unit some twin repeats is
+			// recorded at the twin too, in the same write, so the two
+			// seats never say different things. A twin seat the file
+			// names itself keeps the cell the file gives it.
+			twinned := coverage.TwinCells(cells, twinsOf(formed))
 			held, err := layout.LockPR(owner, repo, pr)
 			if err != nil {
 				return err
 			}
 			stamp := state.Stamp{Head: round.Head, Round: round.Round}
 			if err := state.ReplaceStampedKeys(
-				held, state.FileCoverage, stamp, cells, cellKeyFields,
+				held, state.FileCoverage, stamp, append(slices.Clone(cells), twinned...), coverage.KeyFields(),
 			); err != nil {
 				// The lock is released on the way out of every
 				// branch, and the write's own failure is what
@@ -159,7 +166,7 @@ func newCellsRecordCmd(out *writer) *cobra.Command {
 			}
 			honesty := append(make([]string, 0, 2), staleProfile(layout.Profile(round.ProfileID))...)
 			return out.emit(&cellsRecordResult{
-				Recorded: cells, Round: round.Round,
+				Recorded: cells, Twinned: twinned, Round: round.Round,
 				Honesty: append(honesty, staleRoles(layout, owner, repo)...),
 			})
 		},
@@ -287,6 +294,17 @@ func raisedSeats(records []*finding.Finding) coverage.Raised {
 		raised[seat] = append(raised[seat], record.ID)
 	}
 	return raised
+}
+
+// twinsOf is §4.6.8's pairs as `cr brief` recorded them in units.ndjson.
+func twinsOf(formed []roundUnit) []coverage.Twin {
+	twins := make([]coverage.Twin, 0)
+	for i := range formed {
+		if formed[i].TwinOf != "" {
+			twins = append(twins, coverage.Twin{Unit: formed[i].ID, Hash: formed[i].Hash, Of: formed[i].TwinOf})
+		}
+	}
+	return twins
 }
 
 // stampUnitHashes writes §4.5.5's `unit_hash` onto every cell from the unit it
