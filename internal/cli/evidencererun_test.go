@@ -80,3 +80,22 @@ func TestAProbedRecordShowsItsCountedLinesAndItsReruns(t *testing.T) {
 		"<!-- cr:/evidence -->")
 	assert.False(t, strings.Contains(block, "PASS  Retry"), "the passing tests' own lines are not shown")
 }
+
+// §8.1.7 through `cr draft`: a record that asserts nothing still carries, in
+// an evidence region of its own beneath its body, each re-run at the round's
+// head of the probe it names, with the re-run's result. Measured on
+// tarfin-labs/backend#6328 with cr 0.13.0: a question a re-run had refuted by
+// experiment reached the draft with nothing saying so. A record naming no
+// probe, the control, carries no region.
+func TestAnArguedRecordCarriesItsProbesReruns(t *testing.T) {
+	layout := rerunHome(t)
+	argued := aGradedRecord("f3")
+	argued["probe"] = "p3"
+	plain := aGradedRecord("f4")
+	drafted := draftOf(t, layout, argued, plain)
+	require.Equal(t, finding.GradeArgued, gradesOf(t, layout)["f3"])
+
+	assert.Contains(t, blockOf(t, drafted, "f3"),
+		"<!-- cr:evidence -->\nrerun: p4, result: no-test-failed\n<!-- cr:/evidence -->")
+	assert.NotContains(t, blockOf(t, drafted, "f4"), "<!-- cr:evidence -->")
+}
