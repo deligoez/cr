@@ -73,7 +73,7 @@ func TestTheTestCommandNamesAProfileAnEarlierReleaseShipped(t *testing.T) {
 	t.Run("a byte-equal v0.2.1 file", func(t *testing.T) {
 		honesty, file := staleTestRun(t, previous)
 
-		require.Len(t, honesty, 2, "§5.1.6's recreation notice, then the profile's")
+		require.Len(t, honesty, 3, "§5.1.6's recreation notice, the profile's, then §5.2.1's uncounted run")
 		assert.Equal(t, file+" is the laravel-pest profile cr v0.2.1 shipped, unedited, "+
 			"and the shipped profile has since changed rules, sandbox.copy; cr init updates the file to it, "+
 			"and the next cr test or cr probe run then recreates a sandbox lacking a file it copies", honesty[1])
@@ -84,7 +84,8 @@ func TestTheTestCommandNamesAProfileAnEarlierReleaseShipped(t *testing.T) {
 		require.NotEqual(t, previous, edited)
 		honesty, _ := staleTestRun(t, edited)
 
-		require.Len(t, honesty, 1, "§5.1.6's recreation notice alone")
-		assert.Contains(t, honesty[0], "§5.1.6", "and that one line is the recreation notice")
+		require.Len(t, honesty, 2, "§5.1.6's recreation notice and §5.2.1's uncounted run, no profile line")
+		assert.Contains(t, honesty[0], "§5.1.6", "the first line is the recreation notice")
+		assert.Equal(t, uncountedSentence, honesty[1], "the runner printed nothing and exited 0")
 	})
 }

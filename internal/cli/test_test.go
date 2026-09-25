@@ -69,9 +69,12 @@ func TestTheTestCommandRunsTheProfileRunnerInTheSandbox(t *testing.T) {
 
 	honesty, ok := printed["honesty"].([]any)
 	require.True(t, ok, "§11.1's disclosures are a field on the payload")
-	require.Len(t, honesty, 1, "§5.1.6: the sandbox was absent, so it was recreated and said so")
+	require.Len(t, honesty, 2, "§5.1.6: the sandbox was absent, so it was recreated and said so")
 	assert.Contains(t, honesty[0], "§5.1.6")
 	assert.Contains(t, honesty[0], sandboxPath)
+	assert.Equal(t, "the runner exited 0, but the profile sets no tests.count_pattern, so the executed count "+
+		"is undetermined and the run cannot pass or serve as a baseline (§5.2.1, §5.2.5)", honesty[1],
+		"§5.2.1: the run exited 0 and no count could be read")
 
 	observed, err := os.ReadFile(log)
 	require.NoError(t, err, "the profile's test command never ran")
