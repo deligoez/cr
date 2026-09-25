@@ -77,6 +77,10 @@ type testRunResult struct {
 	TestsRun    *int `json:"tests_run,omitempty"`
 	TestsFailed *int `json:"tests_failed,omitempty"`
 	Passed      bool `json:"passed"`
+	// OutputTail is the `output_tail` §5.2.4 stored for the run, so the
+	// output the counts were read from is in the command's own document
+	// and not only in runs.ndjson; `--compact` omits it (§12.5).
+	OutputTail string `json:"output_tail"`
 	// Contaminated is why §5.1.6's check failed after the run, and empty
 	// when it passed. A run it names measured a sandbox that had drifted
 	// from the head under it, so §5.2.5's verdict on it is `false`
@@ -364,6 +368,7 @@ func newTestCmd(out *writer) *cobra.Command {
 				TestsRun:     stored.TestsRun,
 				TestsFailed:  stored.TestsFailed,
 				Passed:       stored.Passed,
+				OutputTail:   stored.OutputTail,
 				Contaminated: contaminated,
 				Warnings:     []string{probe.CollisionWarning()},
 				Honesty: append(append(append(append(recreationNotice(ready), survivorNotice(lingering)...),
