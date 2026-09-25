@@ -9,6 +9,7 @@ import (
 	"github.com/deligoez/cr/internal/coverage"
 	"github.com/deligoez/cr/internal/finding"
 	"github.com/deligoez/cr/internal/intent"
+	"github.com/deligoez/cr/internal/observation"
 	"github.com/deligoez/cr/internal/proposal"
 	"github.com/deligoez/cr/internal/render"
 	"github.com/deligoez/cr/internal/role"
@@ -95,6 +96,34 @@ func cellSchema(p *page) {
 		"on every other cell; an object carrying classification, %s, and test_paths, the test files the "+
 		"classification rests on (§4.4.1)", axis.Test, coverage.ResultNA, oneOf(testadequacy.Classifications()))
 	p.line("- note_id: optional; the note that explains an unmapped unit (§4.1.5)")
+}
+
+// observationContract writes §4.6.9's path: where the role writes what it saw
+// outside the unit, which `cr observations record` stores.
+func observationContract(p *page, seen string) {
+	p.section("Observations outside this unit (§4.6.9)")
+	p.line("When this unit's change bears on code the unit does not contain — the same defect in a sibling " +
+		"file, a caller the change breaks — write what you saw, one JSON object per line, to:")
+	p.line("")
+	p.line("    %s", seen)
+	p.line("")
+	p.line("%s An observation is not a record: it is never graded, posted or counted, and cr shows it to "+
+		"the human in the draft's header and in `cr status`. A defect inside this unit is a record, not an "+
+		"observation. With nothing to observe, write nothing.", observationFields())
+}
+
+// observationFields states §4.6.9's schema, once for the prompt and once for
+// the contract file.
+func observationFields() string {
+	return "An observation carries " + strings.Join(observation.Fields(), ", ") + ": path is " +
+		"repository-relative and must name a file the round's head holds, line is optional and must be " +
+		"a line that file has, and text is English (§6.1.1); cr writes head and round itself."
+}
+
+// observationSchema writes §4.6.9's schema into the round's contract file.
+func observationSchema(p *page) {
+	p.section("Observation schema (§4.6.9)")
+	p.line("%s", observationFields())
 }
 
 // proposalSchema writes §5.7's table into the round's contract file, beside
@@ -255,6 +284,7 @@ func Contract(round int) string {
 	forbiddenLine(&p)
 	cellSchema(&p)
 	proposalSchema(&p)
+	observationSchema(&p)
 	return p.String()
 }
 
