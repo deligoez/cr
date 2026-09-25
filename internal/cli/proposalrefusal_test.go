@@ -68,3 +68,26 @@ func TestAProposalOfAnotherRoundOrHeadIsRefused(t *testing.T) {
 		})
 	}
 }
+
+// §5.7.5 stores a proposal cr cannot execute `unrunnable` with its reason, and
+// running one is refused naming that reason, with the state code: the command
+// line is right, and what refuses is where the proposal stands. Nothing runs.
+func TestAnUnrunnableProposalIsRefusedWithItsReason(t *testing.T) {
+	prepared, _, _, _ := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	at := briefedForProposals(t, prepared)
+	_, err := runCLIPrinting(t, "proposals", "record", fixturePR, proposalFile(t, at, ""), "--repo", fixtureSlug)
+	require.NoError(t, err)
+	const reason = "the target app.go:3 no longer resolves at the current head"
+	rewriteStoredProposals(t, prepared, func(line map[string]any) {
+		line["state"], line["reason"] = "unrunnable", reason
+	})
+
+	err = runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--proposal", at.FirstP)
+
+	require.Error(t, err)
+	assert.Equal(t, "proposal "+at.FirstP+" is unrunnable: "+reason, err.Error())
+	assert.Equal(t, ExitState, exitCodeFor(err))
+	assert.Equal(t, "supply what the reason names missing, then have the role propose the experiment again; "+
+		"`cr status` lists the round's unrunnable proposals with their reasons", hintFor(err))
+	assert.Empty(t, storedRecords(t, prepared, state.FileProbes), "a refused proposal writes no probe")
+}
