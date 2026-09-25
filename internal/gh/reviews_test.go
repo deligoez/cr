@@ -32,7 +32,8 @@ func reviewNode(id, body string) string {
 // reviews query: every variable a separate -f or -F field beside `query`, the
 // page size GitHub's maximum, and the cursor given as its own field. Any other
 // argv fails the test, so a request the real service would refuse cannot pass
-// here. pages maps a cursor, empty for the first page, to its answer.
+// here. pages maps a cursor, empty for the first page, to its answer, and
+// each is answered once.
 func reviewsServer(t *testing.T, pages map[string]string) (func(...string) (string, error), *[][]string) {
 	t.Helper()
 	calls := make([][]string, 0)
@@ -60,6 +61,8 @@ func reviewsServer(t *testing.T, pages map[string]string) (func(...string) (stri
 		}
 		page, known := pages[cursor]
 		require.Truef(t, known, "no page for cursor %q", cursor)
+		// A page asked for twice is a walk that would never end.
+		delete(pages, cursor)
 		return page, nil
 	}, &calls
 }
@@ -82,4 +85,20 @@ func TestReviewsReadsEveryPage(t *testing.T) {
 	assert.Equal(t, "0a1b2c3", reviews[0].Commit.OID)
 	assert.Equal(t, "PRR_2", reviews[1].ID)
 	assert.Len(t, *calls, 2, "one request per page, and none past the last")
+}
+
+// A page that claims a successor and names no cursor would be asked for again
+// under no cursor for as long as the process lives, so the walk stops and says
+// which pull request's reviews it was reading, returning no partial list.
+func TestReviewsRefusesAPageThatNamesNoCursor(t *testing.T) {
+	run, calls := reviewsServer(t, map[string]string{
+		"": reviewsPage(true, "", reviewNode("PRR_1", "first")),
+	})
+
+	reviews, err := WithRunner(run).Reviews("acme", "web", 42)
+
+	require.Error(t, err)
+	assert.Equal(t, "acme/web#42: a page of reviews claims a next page and names no cursor", err.Error())
+	assert.Nil(t, reviews)
+	assert.Len(t, *calls, 1, "the page is not asked for again")
 }
