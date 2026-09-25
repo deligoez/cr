@@ -43,6 +43,33 @@ func TestTheReviewBodyCarriesTheDisclosureAboveTheHash(t *testing.T) {
 	}, "\n")+regionSeparator+PayloadHashComment("420012ebffc2b992"), body)
 }
 
+// §8.4.3 under render.lang `tr`: the framing lines and the axis names are the
+// built-in Turkish ones, and each lens's reason keeps the wording the lens gave
+// it. The body is asserted whole, both with lists and with neither.
+func TestTheTurkishReviewBodyIsBuiltIn(t *testing.T) {
+	body := ReviewBody(LangTR,
+		[]string{"intent", "correctness", "convention", "test"},
+		[]finding.HonestyDisclosure{lens("role security skipped, per §4.6.4: its axis did not run")},
+		"420012ebffc2b992")
+	assert.Equal(t, strings.Join([]string{
+		"**cr — inceleme kapsamı**",
+		"",
+		"İncelenen eksenler: niyet, doğruluk, kod kuralları, test",
+		"",
+		"Çalışmayan incelemeler ve nedenleri:",
+		"- role security skipped, per §4.6.4: its axis did not run",
+	}, "\n")+regionSeparator+PayloadHashComment("420012ebffc2b992"), body)
+
+	assert.Equal(t, strings.Join([]string{
+		"**cr — inceleme kapsamı**",
+		"",
+		"Bu turda hiçbir eksen çalışmadı.",
+		"",
+		"Hiçbir inceleme atlanmadı.",
+	}, "\n")+regionSeparator+PayloadHashComment("420012ebffc2b992"),
+		ReviewBody(LangTR, nil, nil, "420012ebffc2b992"))
+}
+
 // The hash written and the hash read back are one value, which is what §8.4.4
 // rests on: it matches the embedded hash to decide between adopting a posted
 // review and posting a second one, and a disagreement between the two spellings
