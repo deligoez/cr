@@ -372,6 +372,16 @@ func TestTheTestCommandPrintsTheCountsItStored(t *testing.T) {
 	assert.Equal(t, false, printed["passed"], "§5.2.5's verdict on a run that failed one test")
 }
 
+// §5.2.4's output_tail reaches the command's own document, and `--compact`
+// takes it out (§12.5). Measured on tarfin-labs/backend#6328 with cr 0.13.0:
+// runs.ndjson held the tail and `cr test`'s JSON carried none, so the output
+// the counts were read from could not be seen from the command that ran it.
+func TestTheTestCommandPrintsTheOutputTail(t *testing.T) {
+	countedTestHome(t, "#!/bin/sh\necho 'line one'\necho 'Tests:  2 passed'\n")
+	assert.Equal(t, "line one\nTests:  2 passed\n", printedTestRun(t)["output_tail"])
+	assert.NotContains(t, printedTestRun(t, "--compact"), "output_tail")
+}
+
 // A count the patterns could not derive is left out of the output and said in
 // words in the rendering, never printed as a zero nothing measured.
 func TestTheTestRenderingSaysWhenTheCountsWereNotDerived(t *testing.T) {
