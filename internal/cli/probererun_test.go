@@ -145,3 +145,20 @@ func TestEveryInputFlagBesideAReRunIsRefused(t *testing.T) {
 	}
 }
 
+// §5.5.4: an id naming no probe of the pull request is refused with exit code
+// 1, and nothing runs.
+func TestAReRunOfAProbeThePullRequestDoesNotHoldIsRefused(t *testing.T) {
+	prepared, _, _, log := probeFixture(t, "echo 'Tests:  4 passed'\n")
+	seedProbes(t, prepared.PRFile(fixtureOwner, fixtureProject, fixturePRNumber, state.FileProbes),
+		seededMutation())
+
+	err := runCLI(t, "probe", "run", fixturePR, "--repo", fixtureSlug, "--rerun", "p9")
+
+	require.Error(t, err)
+	var unknown *UnknownProbeError
+	require.ErrorAs(t, err, &unknown)
+	assert.Equal(t, "p9", unknown.ID)
+	assert.Equal(t, ExitValidation, exitCodeFor(err))
+	assert.NoFileExists(t, log, "the refusal comes before any suite is run")
+}
+
