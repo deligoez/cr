@@ -20,6 +20,7 @@ import (
 	"github.com/deligoez/cr/internal/intent"
 	"github.com/deligoez/cr/internal/mapping"
 	"github.com/deligoez/cr/internal/note"
+	"github.com/deligoez/cr/internal/observation"
 	"github.com/deligoez/cr/internal/probe"
 	"github.com/deligoez/cr/internal/profile"
 	"github.com/deligoez/cr/internal/reinvention"
@@ -122,6 +123,9 @@ type statusResult struct {
 	Probes probeReport `json:"probes"`
 	// Proposals is §10.1.8: §5.7's proposals of this round by state.
 	Proposals proposalReport `json:"proposals"`
+	// Observations are every observation of this round (§4.6.9): what the
+	// roles saw outside their units, which nothing grades, posts or counts.
+	Observations []observation.Observation `json:"observations"`
 	// Unstanding is §3.6.6's report: the notes this round's cells and
 	// records rest on that no longer stand, and what rests on each.
 	//
@@ -207,6 +211,7 @@ func (r *statusResult) Text(w *writer) string {
 	out.WriteString("axes active: " + axisList(r.Axes.Active) + "\n")
 	out.WriteString(r.recordLines())
 	out.WriteString(r.concernLines())
+	out.WriteString(r.observationLines())
 	out.WriteString(r.noteLines())
 	out.WriteString(notesAfterLines("", "\n", r.NotesAfterPrompts))
 	if r.Sandbox != nil {
@@ -268,6 +273,17 @@ func (r *statusResult) concernLines() string {
 	for _, concern := range r.Concerns {
 		out.WriteString("  " + concern.ID + " (" + concern.Kind + ", posted in round " +
 			strconv.Itoa(concern.Round) + ")\n")
+	}
+	return out.String()
+}
+
+// observationLines is §4.6.9 for the terminal: the count always, so a round
+// with none says so, and each observation's location and text.
+func (r *statusResult) observationLines() string {
+	var out strings.Builder
+	out.WriteString("observations outside the units, never posted: " + strconv.Itoa(len(r.Observations)) + "\n")
+	for i := range r.Observations {
+		out.WriteString("  " + r.Observations[i].Location() + ": " + r.Observations[i].Text + "\n")
 	}
 	return out.String()
 }
@@ -360,6 +376,9 @@ func newStatusCmd(out *writer) *cobra.Command {
 				return err
 			}
 			if report.Concerns, err = postedConcernsOf(layout, owner, repo, pr); err != nil {
+				return err
+			}
+			if report.Observations, err = roundObservationsOf(layout, owner, repo, pr, round.Round); err != nil {
 				return err
 			}
 			if report.Sandbox, err = sandbox.FootprintOf(layout, owner, repo, pr, time.Now()); err != nil {
@@ -462,6 +481,7 @@ func assembleStatus(
 		Skipped:      parts.lenses.Roles,
 		Records:      recordTalliesOf(parts.records),
 		Concerns:     make([]postedConcern, 0),
+		Observations: make([]observation.Observation, 0),
 		Probes:       probesOf(parts.probes, parts.records),
 		Proposals:    proposed,
 		Unstanding:   parts.unstanding,
