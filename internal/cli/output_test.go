@@ -503,7 +503,7 @@ var outputStructs = []result{
 	&rulesCheckResult{}, &rulesListResult{}, &rulesDeadResult{},
 	&mapRecordResult{}, &sandboxCreateResult{}, &sandboxDestroyResult{}, &testRunResult{},
 	&probeRunResult{}, &draftResult{}, &triageResult{}, &reviewResult{}, &postResult{}, &mergeResult{},
-	&rulesSuggestResult{}, &statusResult{}, &nextResult{}, &claimsSetAsideResult{}, &reconcileResult{},
+	&rulesSuggestResult{}, &rulesHistoryResult{}, &rulesAddResult{}, &statusResult{}, &nextResult{}, &claimsSetAsideResult{}, &reconcileResult{},
 	&statsResult{}, &waiversListResult{}, &waiversRemoveResult{},
 	&recheckResult{}, &verifyResult{}, &settleResult{},
 }

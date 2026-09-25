@@ -905,7 +905,7 @@ func ghShim(t *testing.T, dir, head, base string) string {
 // `cr claims record` is given `--intent-file` for a second reason. Without it
 // §3.1's default `intent.cmd` would start `jira`, and this guard would then be
 // measuring whether a tracker CLI nobody installed writes into the repository.
-func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole, mergeOut string) map[string][]string {
+func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole, mergeOut, houseRule string) map[string][]string {
 	return map[string][]string{
 		"init":    {"init"},
 		"config":  {"config", "--repo", fixtureSlug},
@@ -952,6 +952,10 @@ func repoRuns(merged, claims, issue, cells, proposals, pairs, mutation, perRole,
 		// a rule file — so it should reach the repository neither to
 		// read nor to write, and this is where that is checked.
 		"rules suggest": {"rules", "suggest", "--repo", fixtureSlug},
+		// `cr rules add` reads the rule file it is handed, outside the
+		// repository under review, and writes it to the per-repository
+		// layer under the state root (§2.6.3.9) and nowhere else.
+		"rules add": {"rules", "add", houseRule, "--repo", fixtureSlug},
 		// `cr rules list --dead` reads the corpus and the rule ledger under
 		// the state root and stats §2.4.1's marker files in the checkout to
 		// select the profile, as `cr brief` does; it writes nothing at all.
@@ -1323,8 +1327,11 @@ func TestNoCommandTouchesTheRepositoryUnderReview(t *testing.T) {
 			strings.Join(args, " "), strings.TrimSpace(stderr.String()))
 	}
 
+	houseRule := filepath.Join(home, houseRuleID+".json")
+	require.NoError(t, os.WriteFile(houseRule, []byte(houseRuleJSON), 0o600))
+
 	runs := repoRuns(merged, claims, issue, cells, proposals, pairs, mutation,
-		perRole, filepath.Join(home, "merge-out.ndjson"))
+		perRole, filepath.Join(home, "merge-out.ndjson"), houseRule)
 	commands := leafCommands(t)
 	require.ElementsMatch(t, commands, slices.Collect(maps.Keys(runs)),
 		"every command in the tree is run against the fixture, so a new one needs an invocation here")

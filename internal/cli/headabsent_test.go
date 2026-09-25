@@ -298,6 +298,8 @@ func headRuns(t *testing.T) map[string]headRun {
 		"rules list": exempt("reads the rule corpus and ledger, and stats marker files in the checkout rather than a revision",
 			"rules", "list", "--dead", "--repo", fixtureSlug),
 		"rules suggest": exempt("scans posted comments under the state root", "rules", "suggest", "--repo", fixtureSlug),
+		"rules add": exempt("validates the rule file it is handed and writes it under the state root",
+			"rules", "add", file(houseRuleID+".json", houseRuleJSON), "--repo", fixtureSlug),
 		"waivers list": exempt("reads the waiver files under the state root",
 			"waivers", "list", "--repo", fixtureSlug, "--pr", fixturePR),
 		"waivers remove": exempt("rewrites a waiver file under the state root",

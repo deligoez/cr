@@ -123,7 +123,16 @@ var specSurface = []surfaceRow{
 	{path: []string{"stats"}, use: "stats", spec: []string{"repo"}},
 	{path: []string{"rules", "list"}, use: "list", spec: []string{"dead", "repo"}},
 	{path: []string{"rules", "check"}, use: "check <pr>"},
-	{path: []string{"rules", "suggest"}, use: "suggest", spec: []string{"repo"}},
+	{path: []string{"rules", "suggest"}, use: "suggest", spec: []string{"repo", "from-history"},
+		added: map[string]string{
+			// §11's row ends at `--from-history`, and §2.6.3.5 gives the
+			// mode its window and its limit.
+			"since": "§2.6.3.5",
+			"until": "§2.6.3.5",
+			"limit": "§2.6.3.5",
+		}},
+	{path: []string{"rules", "add"}, use: "add <file>", spec: []string{"repo"},
+		added: map[string]string{"replace": "§2.6.3.9"}},
 	{path: []string{"status"}, use: "status <pr>"},
 	{path: []string{"next"}, use: "next <pr>"},
 }

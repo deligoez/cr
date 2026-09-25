@@ -276,6 +276,9 @@ func movedHeadRuns(dir string) map[string]section93 {
 		// suggest` is: §2.6.3.4's window spans every pull request's
 		// rounds in the rule ledger, and the command writes nothing.
 		"rules list": readsNoRound("rules", "list", "--dead"),
+		// `cr rules add` writes the per-repository layer of §2.2, which is
+		// not per-PR state, and reads no round.
+		"rules add": readsNoRound("rules", "add", file(houseRuleID+".json")),
 		// `cr stats` is repository-scoped for the same reason: §7.3.2
 		// counts and §7.3.4's rate are computed over the repository's
 		// whole triage.ndjson across its pull requests, so there is no
@@ -347,6 +350,8 @@ func TestAMovedHeadRefusesEveryWriterAndIsDisclosedToEveryReader(t *testing.T) {
 	// would never reach the refusal this guard is about.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mutation.patch"), []byte(
 		"--- a/lib.go\n+++ b/lib.go\n@@ -4 +4 @@\n-\tpanic(\"one\")\n+\tpanic(\"two\")\n"), 0o600))
+	// `cr rules add` reads no round, so it runs to the file it is handed.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, houseRuleID+".json"), []byte(houseRuleJSON), 0o600))
 
 	runs := movedHeadRuns(dir)
 	require.ElementsMatch(t, leafCommands(t), slices.Collect(maps.Keys(runs)),
