@@ -26,18 +26,17 @@ func namesOf(set []Body) []string {
 }
 
 // Round 12's finding unspecified-render-language asked which language §8.4.3's
-// review body is written in. The user's 2026-09-13 decision answers it: English,
-// whatever render.lang says. So the set of bodies Setting's language governs is
-// the comment body of §8.1.1 alone, and the review body is not in it.
-func TestOnlyTheCommentBodyIsWrittenInTheConfiguredLanguage(t *testing.T) {
-	assert.Equal(t, []string{"comment"}, namesOf(bodies),
-		"the comment body of §8.1.1 is the one body render.lang governs; §8.4.3's review body is English")
+// review body is written in. The user's 2026-09-13 decision answered English,
+// and v0.14.0's §8.4.3 reverses it: the framing and the axis names are built in
+// per render.lang. So the set of bodies Setting's language governs is the
+// comment body of §8.1.1 and the review body of §8.4.3.
+func TestTheCommentAndReviewBodiesAreWrittenInTheConfiguredLanguage(t *testing.T) {
+	assert.Equal(t, []string{"comment", "review"}, namesOf(bodies),
+		"§8.1.1's comment body and §8.4.3's review body are the bodies render.lang governs")
 
 	for _, body := range bodies {
 		assert.Truef(t, body.AuthorFacing(), "%s is written in the configured language", body.name)
 	}
-	assert.False(t, Body{"review"}.AuthorFacing(),
-		"§8.4.3's review body is not governed by render.lang")
 	assert.False(t, Body{}.AuthorFacing(), "a body nothing named is no body")
 }
 
@@ -61,8 +60,9 @@ func withoutBody(body Body, within func()) {
 //
 // The comment body is driven through §8.1.4's label region, which
 // internal/draft places in every question's comment, and the refusal is the one
-// it already gives for a language it has no built-in text for. §8.4.3's review
-// body reads no language, so emptying the set leaves it byte for byte as it was.
+// it already gives for a language it has no built-in text for. The review body
+// taken out keeps its entries and the payload hash and loses every framing
+// line; each body taken out leaves the other as it was.
 func TestABodyOutsideTheSetIsRenderedInNoLanguage(t *testing.T) {
 	const hash = "420012ebffc2b992"
 	before := ReviewBody(LangEN, nil, nil, hash)

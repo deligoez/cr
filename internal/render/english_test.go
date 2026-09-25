@@ -3,6 +3,7 @@ package render
 import (
 	"go/ast"
 	"go/token"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,25 +17,30 @@ import (
 // below recognises it without a dictionary.
 const turkishLetters = "çğıİöşüÇĞÖŞÜ"
 
-// The only Turkish text in the tree is §8.1.4's question labels, per CLAUDE.md's
-// English rule and the user's 2026-09-13 decision that §8.4.3's review body is
-// English. So no string literal of this package's production code carries a
-// Turkish letter unless it sits inside questionLabels.
+// builtInTables are the two tables whose Turkish rows §8.1.4 and §8.4.3 build
+// in per render.lang: the question labels and the review body's framing.
+var builtInTables = []string{"questionLabels", "reviewFramings"}
+
+// The only Turkish text in the tree is §8.1.4's question labels and §8.4.3's
+// review body framing, per CLAUDE.md's English rule. So no string literal of
+// this package's production code carries a Turkish letter unless it sits
+// inside one of builtInTables.
 //
-// The scan checks its own instrument: it must find Turkish literals inside the
-// label table, or a scan that recognises nothing would pass for a clean tree.
-func TestNoTurkishTextOutsideTheQuestionLabels(t *testing.T) {
-	inLabels, outside := 0, make([]string, 0)
+// The scan checks its own instrument: it must find Turkish literals inside
+// each table, or a scan that recognises nothing would pass for a clean tree.
+func TestNoTurkishTextOutsideTheBuiltInTables(t *testing.T) {
+	inTables, outside := make(map[string]int), make([]string, 0)
 	for _, file := range productionFiles(t) {
-		var labels ast.Node
+		tables := make(map[string]ast.Node)
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.VAR {
 				continue
 			}
 			for _, spec := range gen.Specs {
-				if vs, ok := spec.(*ast.ValueSpec); ok && len(vs.Names) == 1 && vs.Names[0].Name == "questionLabels" {
-					labels = vs
+				if vs, ok := spec.(*ast.ValueSpec); ok && len(vs.Names) == 1 &&
+					slices.Contains(builtInTables, vs.Names[0].Name) {
+					tables[vs.Names[0].Name] = vs
 				}
 			}
 		}
@@ -48,14 +54,18 @@ func TestNoTurkishTextOutsideTheQuestionLabels(t *testing.T) {
 			if !strings.ContainsAny(value, turkishLetters) {
 				return true
 			}
-			if labels != nil && lit.Pos() >= labels.Pos() && lit.End() <= labels.End() {
-				inLabels++
-				return true
+			for name, table := range tables {
+				if lit.Pos() >= table.Pos() && lit.End() <= table.End() {
+					inTables[name]++
+					return true
+				}
 			}
 			outside = append(outside, value)
 			return true
 		})
 	}
-	require.Positive(t, inLabels, "the scan recognises the Turkish question labels, so a clean result means something")
-	assert.Empty(t, outside, "Turkish text in internal/render outside §8.1.4's question label table")
+	for _, name := range builtInTables {
+		require.Positive(t, inTables[name], "the scan recognises %s's Turkish rows, so a clean result means something", name)
+	}
+	assert.Empty(t, outside, "Turkish text in internal/render outside §8.1.4's and §8.4.3's built-in tables")
 }
