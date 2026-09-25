@@ -481,6 +481,8 @@ source of truth; this table is a map, not a promise.
 | `cr note <ISSUE-KEY> <text> --pr <n>` / `--remove <id>` | Store or retract an out-of-band fact |
 | `cr context <ISSUE-KEY>` | Print accumulated context with provenance |
 | `cr rules list\|check\|suggest` | Inspect, run, and harvest project rules |
+| `cr rules suggest --from-history [--since <d>] [--until <d>] [--limit <n>]` | Report the repository's human review comments, excluded and grouped, for the agent to draw rules from (§2.6.3.5); writes nothing |
+| `cr rules add <file> [--replace]` | Validate one rule the agent wrote and store it in the per-repository layer (§2.6.3.9) |
 | `cr waivers list\|remove [--repo <r>] [--pr <n>]` | Inspect and edit waivers in either scope |
 | `cr stats [--repo <r>]` | Triage statistics, demotion and volume candidates |
 | `cr status <pr>` | Coverage, states, and completeness |
